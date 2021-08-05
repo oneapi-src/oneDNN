@@ -251,6 +251,22 @@ dim_t adjust_m_block_lstm(dim_t nthr, dim_t M, dim_t N_blocks, bool is_int8_amx,
 
     return m_block;
 }
+
+x64::cpu_isa_t adjust_isa_by_m_block(
+        x64::cpu_isa_t current_isa, dim_t m_block, bool is_int8_amx) {
+    /*
+     * If we have m<4 TMUL and AVX512 vnni calculate the same number of
+     * operation per instruction but TMUL is 2x slower for int8 in terms of
+     * throughput.
+     */
+    if (is_int8_amx && m_block < 4) {
+        if (x64::mayiuse(x64::avx512_core_bf16_amx_int8))
+            return x64::avx512_core_bf16_amx_int8;
+    }
+
+    return current_isa;
+}
+
 } // namespace
 
 void rnn_brgemm_base_t::init_scratchpad(const cpu::rnn_utils::rnn_conf_t &rnn,
@@ -318,6 +334,9 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
             rnn.is_bf16_amx(), work_by_N, As, Bs, Cs, l2_cache_size);
 
     rnn.M_blocks = rnn.M / rnn.m_block;
+
+    rnn.brgemm_isa = adjust_isa_by_m_block(
+            rnn.brgemm_isa, rnn.m_block, rnn.is_int8_amx());
     rnn.unfused_post_gemm
             = cell_kind == alg_kind::vanilla_lstm ? (rnn.M_blocks == 1) : false;
 
