@@ -44,12 +44,12 @@ struct jit_uni_lstm_cell_projection_postgemm_fwd : public jit_uni_rnn_postgemm {
 protected:
     // register size in bytes
     using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
-    size_t vlen = cpu_isa_traits<isa>::vlen;
-    size_t vlen_dst
+    static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
+    static constexpr size_t qscale_dt_size = sizeof(float);
+    const size_t vlen_dst
             = vlen / (sizeof(float) / types::data_type_size(src_data_t));
-    size_t hstate_dt_size = types::data_type_size(src_data_t);
-    size_t scratch_dt_size = types::data_type_size(scratch_data_t);
-    size_t qscale_dt_size = sizeof(float);
+    const size_t hstate_dt_size = types::data_type_size(src_data_t);
+    const size_t scratch_dt_size = types::data_type_size(scratch_data_t);
 
     void generate() {
         using namespace Xbyak;
@@ -60,11 +60,11 @@ protected:
         Label rem_loop_start_label, rem_loop_inc_regs, rem_loop_end_label;
 
         // Register map
-        Reg64 loop_cnt(rbx); // loop counter
+        const Reg64 loop_cnt(rbx); // loop counter
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        Vmm in(1), tmp1_vmm(5), tmp2_vmm(6);
+        const Vmm in(1), tmp1_vmm(5), tmp2_vmm(6);
 
-        int mask = pd_->attr()->rnn_weights_projection_qparams_.mask_;
+        const int mask = pd_->attr()->rnn_weights_projection_qparams_.mask_;
         float *weights_scales
                 = pd_->attr()->rnn_weights_projection_qparams_.scales_;
 
@@ -72,20 +72,20 @@ protected:
         preamble();
 
         // extract addresses passed as parameter
-        auto addr_scratch_reg = abi_param2;
-        auto addr_states_t_l_reg = abi_param4;
+        const auto addr_scratch_reg = abi_param2;
+        const auto addr_states_t_l_reg = abi_param4;
 #ifdef _WIN32
-        auto addr_states_t_l_copy_reg = r10;
-        auto addr_wcomp_reg = rdi;
+        const auto addr_states_t_l_copy_reg = r10;
+        const auto addr_wcomp_reg = rdi;
         // Here we cannot use rbp to have initial stack pointer so we
         // use rsp and offset it with the size of pushed registers in
         // preamble
-        auto base_args = get_stack_params_address();
+        const auto base_args = get_stack_params_address();
         mov(addr_states_t_l_copy_reg, ptr[base_args]);
         mov(addr_wcomp_reg, ptr[base_args + 8]);
 #else
-        auto addr_states_t_l_copy_reg = abi_param5;
-        auto addr_wcomp_reg = abi_param6;
+        const auto addr_states_t_l_copy_reg = abi_param5;
+        const auto addr_wcomp_reg = abi_param6;
 #endif
 
         // initialize registers with addresses and constants

@@ -43,12 +43,12 @@ struct jit_uni_gru_lbr_cell_postgemm_bwd : public jit_uni_rnn_postgemm {
 protected:
     // register size in bytes
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    size_t vlen = cpu_isa_traits<isa>::vlen;
-    size_t vlen_scratch
+    static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
+    static constexpr size_t hstate_dt_size = sizeof(float);
+    const size_t vlen_scratch
             = vlen / (sizeof(float) / types::data_type_size(scratch_data_t));
-    size_t hstate_dt_size = sizeof(float);
-    size_t gate_dt_size = types::data_type_size(scratch_data_t);
-    size_t scratch_dt_size = types::data_type_size(scratch_data_t);
+    const size_t gate_dt_size = types::data_type_size(scratch_data_t);
+    const size_t scratch_dt_size = types::data_type_size(scratch_data_t);
 
     void generate() override {
         using namespace Xbyak;
@@ -60,55 +60,56 @@ protected:
         Label table_label;
 
         // Register map
-        Reg64 table_reg(rbx); // used to load ones before the loop
-        Reg64 loop_cnt(rbx); // loop counter, can be aliased with table_reg
+        const Reg64 table_reg(rbx); // used to load ones before the loop
+        const Reg64 loop_cnt(
+                rbx); // loop counter, can be aliased with table_reg
 
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        int dG0_idx = 1, dG1_idx = 2, dG2_idx = 3, G0_idx = 4, G1_idx = 5,
-            G2_idx = 6, h_idx = 7, dHt_idx = 8, one_idx = 9, tmp1_idx = 10,
-            tmp2_idx = 11;
-        Vmm one_vmm(one_idx);
-        Xmm one_xmm(one_idx);
+        const int dG0_idx = 1, dG1_idx = 2, dG2_idx = 3, G0_idx = 4, G1_idx = 5,
+                  G2_idx = 6, h_idx = 7, dHt_idx = 8, one_idx = 9,
+                  tmp1_idx = 10, tmp2_idx = 11;
+        const Vmm one_vmm(one_idx);
+        const Xmm one_xmm(one_idx);
 
         // constant table map
-        Address one_addr = ptr[table_reg];
+        const Address one_addr = ptr[table_reg];
 
         // We start code generations here
         preamble();
 
         // extract addresses passed as parameter
-        auto addr_ws_gates_reg = abi_param1;
-        auto addr_scratch_gates_reg = abi_param2;
-        auto addr_diff_states_t_lp1_reg = abi_param3;
-        auto addr_diff_states_tp1_l_reg = abi_param4;
+        const auto addr_ws_gates_reg = abi_param1;
+        const auto addr_scratch_gates_reg = abi_param2;
+        const auto addr_diff_states_t_lp1_reg = abi_param3;
+        const auto addr_diff_states_tp1_l_reg = abi_param4;
 #ifdef _WIN32
-        auto addr_diff_states_t_l_reg = r10;
-        auto addr_states_tm1_l_reg = r11;
-        auto addr_scratch_cell_reg = r12;
-        auto addr_ws_grid_reg = rsi;
-        auto base_args = get_stack_params_address();
+        const auto addr_diff_states_t_l_reg = r10;
+        const auto addr_states_tm1_l_reg = r11;
+        const auto addr_scratch_cell_reg = r12;
+        const auto addr_ws_grid_reg = rsi;
+        const auto base_args = get_stack_params_address();
         mov(addr_diff_states_t_l_reg, ptr[base_args]);
         mov(addr_states_tm1_l_reg, ptr[base_args + 8]);
         mov(addr_scratch_cell_reg, ptr[base_args + 16]);
         mov(addr_ws_grid_reg, ptr[base_args + 24]);
 #else
-        auto addr_diff_states_t_l_reg = abi_param5;
-        auto addr_states_tm1_l_reg = abi_param6;
-        auto addr_scratch_cell_reg = r10;
-        auto addr_ws_grid_reg = r11;
-        auto base_args = get_stack_params_address();
+        const auto addr_diff_states_t_l_reg = abi_param5;
+        const auto addr_states_tm1_l_reg = abi_param6;
+        const auto addr_scratch_cell_reg = r10;
+        const auto addr_ws_grid_reg = r11;
+        const auto base_args = get_stack_params_address();
         mov(addr_scratch_cell_reg, ptr[base_args]);
         mov(addr_ws_grid_reg, ptr[base_args + 8]);
 #endif
 
         // helper lambda to address the gates and biases
-        auto sg_addr = [&](int i) {
+        const auto sg_addr = [&](int i) {
             return ptr[addr_scratch_gates_reg + i * rnn_.dhc * scratch_dt_size];
         };
-        auto wg_addr = [&](int i) {
+        const auto wg_addr = [&](int i) {
             return ptr[addr_ws_gates_reg + i * rnn_.dhc * gate_dt_size];
         };
-        auto sc_addr = [&](int i) {
+        const auto sc_addr = [&](int i) {
             return ptr[addr_scratch_cell_reg + i * rnn_.dhc * scratch_dt_size];
         };
 
@@ -123,7 +124,7 @@ protected:
 
         L(vector_loop_start_label);
         {
-            Vmm dG0(dG0_idx), dG1(dG1_idx), dG2(dG2_idx), G0(G0_idx),
+            const Vmm dG0(dG0_idx), dG1(dG1_idx), dG2(dG2_idx), G0(G0_idx),
                     G1(G1_idx), G2(G2_idx), dHt(dHt_idx), tmp1(tmp1_idx),
                     tmp2(tmp2_idx), h(h_idx);
 
@@ -205,7 +206,7 @@ protected:
         // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
         L(rem_loop_start_label);
         {
-            Xmm dG0(dG0_idx), dG1(dG1_idx), dG2(dG2_idx), G0(G0_idx),
+            const Xmm dG0(dG0_idx), dG1(dG1_idx), dG2(dG2_idx), G0(G0_idx),
                     G1(G1_idx), G2(G2_idx), dHt(dHt_idx), tmp1(tmp1_idx),
                     tmp2(tmp2_idx), h(h_idx);
 

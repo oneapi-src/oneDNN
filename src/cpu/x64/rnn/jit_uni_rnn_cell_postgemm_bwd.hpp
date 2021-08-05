@@ -43,12 +43,12 @@ struct jit_uni_rnn_cell_postgemm_bwd : public jit_uni_rnn_postgemm {
 protected:
     // register size in bytes
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    size_t vlen = cpu_isa_traits<isa>::vlen;
-    size_t vlen_scratch
+    static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
+    static constexpr size_t hstate_dt_size = sizeof(float);
+    const size_t vlen_scratch
             = vlen / (sizeof(float) / types::data_type_size(scratch_data_t));
-    size_t hstate_dt_size = sizeof(float);
-    size_t gate_dt_size = types::data_type_size(scratch_data_t);
-    size_t scratch_dt_size = types::data_type_size(scratch_data_t);
+    const size_t gate_dt_size = types::data_type_size(scratch_data_t);
+    const size_t scratch_dt_size = types::data_type_size(scratch_data_t);
 
     void generate() override {
         using namespace Xbyak;
@@ -61,8 +61,8 @@ protected:
 
         // Register map
         // aliasing with table_reg and loop_cnt since they are not used at the same time
-        Reg64 table_reg(r11);
-        Reg64 loop_cnt(r11);
+        const Reg64 table_reg(r11);
+        const Reg64 loop_cnt(r11);
 
         // Here we do no unrolling, loop overhead should not be that dramatic
         // Note: G has to be indexed at 0 as it is used as a mask in blend for bwd relu
@@ -75,22 +75,22 @@ protected:
             zero_idx,
             alpha_idx
         };
-        Xbyak::Opmask kmask(1);
+        const Xbyak::Opmask kmask(1);
 
         // We start code generations here
         preamble();
 
         // extract addresses passed as parameter
-        auto addr_ws_gates_reg = abi_param1;
-        auto addr_scratch_gates_reg = abi_param2;
-        auto addr_diff_states_t_lp1_reg = abi_param3;
-        auto addr_diff_states_tp1_l_reg = abi_param4;
+        const auto addr_ws_gates_reg = abi_param1;
+        const auto addr_scratch_gates_reg = abi_param2;
+        const auto addr_diff_states_t_lp1_reg = abi_param3;
+        const auto addr_diff_states_tp1_l_reg = abi_param4;
 
         // helper lambda to address the gates and biases
-        auto sg_addr = [&](int i) {
+        const auto sg_addr = [&](int i) {
             return ptr[addr_scratch_gates_reg + i * rnn_.dhc * scratch_dt_size];
         };
-        auto wg_addr = [&](int i) {
+        const auto wg_addr = [&](int i) {
             return ptr[addr_ws_gates_reg + i * rnn_.dhc * gate_dt_size];
         };
         // auto sc_addr = [&](int i) {
@@ -116,7 +116,7 @@ protected:
 
         L(vector_loop_start_label);
         {
-            Vmm G(G_idx), dG(dG_idx), dHt(dHt_idx), tmp1(tmp1_idx),
+            const Vmm G(G_idx), dG(dG_idx), dHt(dHt_idx), tmp1(tmp1_idx),
                     one(one_idx), zero(zero_idx), alpha(alpha_idx);
 
             to_float(G, wg_addr(0), src_data_t, vlen);
@@ -178,7 +178,7 @@ protected:
         // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
         L(rem_loop_start_label);
         {
-            Xmm G(G_idx), dG(dG_idx), dHt(dHt_idx), tmp1(tmp1_idx),
+            const Xmm G(G_idx), dG(dG_idx), dHt(dHt_idx), tmp1(tmp1_idx),
                     one(one_idx), zero(zero_idx), alpha(alpha_idx);
 
             to_float(G, wg_addr(0), src_data_t, hstate_dt_size);

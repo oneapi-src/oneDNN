@@ -30,9 +30,9 @@ template <cpu_isa_t isa, impl::data_type_t src_data_t,
 struct jit_uni_gru_cell_postgemm_part1_fwd : public jit_uni_rnn_postgemm {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_gru_cell_postgemm_part1_fwd)
 
-    typedef typename utils::conditional<isa == avx512_core,
+    using injector_t = typename utils::conditional<isa == avx512_core,
             jit_uni_eltwise_injector_f32<avx512_common>,
-            jit_uni_eltwise_injector_f32<isa>>::type injector_t;
+            jit_uni_eltwise_injector_f32<isa>>::type;
 
     jit_uni_gru_cell_postgemm_part1_fwd(
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
@@ -56,14 +56,14 @@ protected:
 
     // register size in bytes
     using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
-    const size_t vlen = cpu_isa_traits<isa>::vlen;
+    static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
+    static constexpr size_t qscale_dt_size = sizeof(float);
     const size_t vlen_dst
             = vlen / (sizeof(float) / types::data_type_size(src_data_t));
     const size_t vlen_bias_ = vlen / (sizeof(float) / bias_dt_size_);
     const size_t hstate_dt_size = types::data_type_size(src_data_t);
     const size_t gate_dt_size = types::data_type_size(src_data_t);
     const size_t scratch_dt_size = types::data_type_size(scratch_data_t);
-    const size_t qscale_dt_size = sizeof(float);
     const size_t vlen_qscale = vlen / qscale_dt_size;
 
     const int loop_ur_max = 4;
@@ -83,10 +83,10 @@ protected:
 
     void generate() override {
         using namespace Xbyak;
-        auto is_training
+        const auto is_training
                 = pd_->desc()->prop_kind == prop_kind::forward_training;
 
-        int mask = pd_->attr()->rnn_weights_qparams_.mask_;
+        const int mask = pd_->attr()->rnn_weights_qparams_.mask_;
         float *weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
 
         // Labels declaration
@@ -94,39 +94,39 @@ protected:
         Label rem_loop_start_label, rem_loop_inc_regs;
 
         // Register map
-        Reg64 loop_cnt(rbx); // loop counter
+        const Reg64 loop_cnt(rbx); // loop counter
 
         // We start code generations here
         preamble();
 
         // extract addresses passed as parameter
-        auto addr_ws_gates_reg = abi_param1;
-        auto addr_scratch_gates_reg = abi_param2;
-        auto addr_bias_reg = abi_param3;
-        auto addr_states_t_l_reg = abi_param4;
+        const auto addr_ws_gates_reg = abi_param1;
+        const auto addr_scratch_gates_reg = abi_param2;
+        const auto addr_bias_reg = abi_param3;
+        const auto addr_states_t_l_reg = abi_param4;
 #ifdef _WIN32
-        auto addr_states_t_l_copy_reg = r10;
-        auto addr_states_tm1_l_reg = r11;
+        const auto addr_states_t_l_copy_reg = r10;
+        const auto addr_states_tm1_l_reg = r11;
         // Here we cannot use rbp to have initial stack pointer so we
         // use rsp and offset it with the size of pushed registers in
         // preamble
-        auto base_args = get_stack_params_address();
+        const auto base_args = get_stack_params_address();
         mov(addr_states_t_l_copy_reg, ptr[base_args]);
         mov(addr_states_tm1_l_reg, ptr[base_args + 8]);
 #else
-        auto addr_states_t_l_copy_reg = abi_param5;
-        auto addr_states_tm1_l_reg = abi_param6;
+        const auto addr_states_t_l_copy_reg = abi_param5;
+        const auto addr_states_tm1_l_reg = abi_param6;
 #endif
         // helper lambda to address the gates and biases
-        auto sg_addr = [&](int i, int j) {
+        const auto sg_addr = [&](int i, int j) {
             return ptr[addr_scratch_gates_reg + i * rnn_.dhc * scratch_dt_size
                     + j * vlen];
         };
-        auto wg_addr = [&](int i, int j) {
+        const auto wg_addr = [&](int i, int j) {
             return ptr[addr_ws_gates_reg + i * rnn_.dhc * gate_dt_size
                     + j * vlen_dst];
         };
-        auto B_addr = [&](int i, int j) {
+        const auto B_addr = [&](int i, int j) {
             return ptr[addr_bias_reg + i * rnn_.dhc * bias_dt_size_ + j * vlen];
         };
 
@@ -240,7 +240,7 @@ protected:
             L(rem_loop_start_label);
             {
                 // remaping registers to Xmms
-                Xmm G0s(G0_idx(0)), G1s(G1_idx(0)),
+                const Xmm G0s(G0_idx(0)), G1s(G1_idx(0)),
                         tmp1s_vmm(tmp1_vmm.getIdx()),
                         tmp2s_vmm(tmp2_vmm.getIdx());
 
