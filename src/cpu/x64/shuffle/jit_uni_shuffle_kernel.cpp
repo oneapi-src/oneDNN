@@ -19,7 +19,6 @@
 #include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
 
-#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/shuffle/jit_uni_shuffle_kernel.hpp"
 
@@ -42,15 +41,7 @@ jit_uni_shuffle_kernel_t<isa>::jit_uni_shuffle_kernel_t(
         const jit_shuffle_conf_t conf)
     : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
     , conf_(conf)
-    , padding_size_(get_padding_size(conf)) {
-    const bool use_bf16_emulation = conf_.data_type == data_type::bf16
-            && conf_.isa != avx512_core_bf16;
-    bf16_emulation_ = use_bf16_emulation
-            ? utils::make_unique<bf16_emulation_t>(this, bf16_emu_reserv_1,
-                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
-                    bf16_emu_reserv_4)
-            : nullptr;
-}
+    , padding_size_(get_padding_size(conf)) {}
 
 template <cpu_isa_t isa>
 void jit_uni_shuffle_kernel_t<isa>::prepare_mask() {}
@@ -84,29 +75,38 @@ void jit_uni_shuffle_kernel_t<avx512_common>::emu_gather_data(
     xor_(reg_tmp_, reg_tmp_);
     mov(reg_tmp1_, reg_src_addr);
 
-    constexpr unsigned xmm_size_elem = 4;
+    constexpr unsigned xmm_size_elem = 8; //bf16
+    constexpr unsigned xmm_size_elem_half = xmm_size_elem / 2;
 
     const unsigned number_of_xmms = is_tail
             ? utils::div_up(conf_.simd_tail, xmm_size_elem)
             : utils::div_up(conf_.simd_w, xmm_size_elem);
+
     for (unsigned i = 0; i < number_of_xmms; i++) {
-        vextractf32x4(xmm_tmp, Zmm(indices_idx), i);
+        const unsigned number_of_xmm_halfs = is_tail && i == number_of_xmms - 1
+                ? utils::div_up(
+                        conf_.simd_tail, xmm_size_elem_half + i * xmm_size_elem)
+                : 2;
 
-        const unsigned number_of_values_to_load = i == number_of_xmms - 1
-                        && is_tail && conf_.simd_tail % xmm_size_elem != 0
-                ? conf_.simd_tail % xmm_size_elem
-                : xmm_size_elem;
-        for (unsigned j = 0; j < number_of_values_to_load; j++) {
-            vpextrd(reg_tmp_.cvt32(), xmm_tmp, j);
-            add(reg_src_addr, reg_tmp_);
-            vpinsrw(xmm_dst, xmm_dst, ptr[reg_src_addr], j * 2);
-            mov(reg_src_addr, reg_tmp1_);
+        for (unsigned j = 0; j < number_of_xmm_halfs; j++) {
+            const unsigned rem = conf_.simd_tail % xmm_size_elem_half;
+            const unsigned number_of_values_to_load = is_tail
+                            && i == number_of_xmms - 1
+                            && j == number_of_xmm_halfs - 1 && rem
+                    ? rem
+                    : xmm_size_elem_half;
+
+            vextractf32x4(xmm_tmp, Zmm(indices_idx), j + i * 2);
+            for (unsigned k = 0; k < number_of_values_to_load; k++) {
+                vpextrd(reg_tmp_.cvt32(), xmm_tmp, k + j * xmm_size_elem_half);
+                add(reg_src_addr, reg_tmp_);
+                vpinsrw(xmm_dst, xmm_dst, ptr[reg_src_addr],
+                        k + j * xmm_size_elem_half);
+                mov(reg_src_addr, reg_tmp1_);
+            }
         }
-
-        vinsertf32x4(Zmm(data_idx), Zmm(data_idx), xmm_dst, i);
+        vinsertf128(Ymm(data_idx), Ymm(data_idx), xmm_dst, i);
     }
-
-    uni_vpslld(Zmm(data_idx), Zmm(data_idx), 16);
 }
 
 template <>
@@ -224,11 +224,6 @@ void jit_uni_shuffle_kernel_t<avx512_common>::store_data(const int data_idx,
     if (conf_.data_type == data_type::bf16) {
         const Ymm to_store_data = Ymm(data_idx);
         const Ymm ymm_tmp = Ymm(vmm_tmp_.getIdx());
-
-        if (bf16_emulation_)
-            bf16_emulation_->vcvtneps2bf16(to_store_data, Zmm(data_idx));
-        else
-            vcvtneps2bf16(to_store_data, Zmm(data_idx));
 
         if (extend_for_padding) {
             vmovdqu16(ymm_tmp | k_tail_mask_ | T_z, to_store_data);
@@ -459,8 +454,6 @@ void jit_uni_shuffle_kernel_t<isa>::generate() {
     xor_(rcx, rdi);
     xor_(rdi, rcx);
 #endif
-
-    if (bf16_emulation_) bf16_emulation_->init_vcvtneps2bf16();
 
     if (conf_.isa == avx2) {
         // Sometimes the values in the register can be nan at the

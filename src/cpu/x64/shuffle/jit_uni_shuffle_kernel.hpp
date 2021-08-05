@@ -24,7 +24,6 @@
 #include "cpu/cpu_shuffle_pd.hpp"
 
 #include "cpu/x64/cpu_isa_traits.hpp"
-#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/shuffle/jit_uni_shuffle.hpp"
@@ -104,14 +103,7 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
     const Reg64 &reg_tmp6_ = r13;
     const Reg8 &reg_padded_block = r14b;
 
-    const Zmm bf16_emu_reserv_1 = Zmm(7);
-    const Zmm bf16_emu_reserv_2 = Zmm(8);
-    const Zmm bf16_emu_reserv_3 = Zmm(9);
-    const Reg64 &bf16_emu_scratch = r15;
-    const Zmm bf16_emu_reserv_4 = Zmm(10);
-
     const jit_shuffle_conf_t conf_;
-    std::unique_ptr<bf16_emulation_t> bf16_emulation_;
     const size_t padding_size_;
 };
 
