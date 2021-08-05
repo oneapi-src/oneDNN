@@ -22,7 +22,9 @@
 #include <utility>
 #include <vector>
 
+#include "utils/pm/nested_matcher.hpp"
 #include "utils/pm/pass_base.hpp"
+#include "utils/pm/pbuilder.hpp"
 
 #include "pattern_utils.hpp"
 
@@ -51,10 +53,17 @@ public:
 
     // the criteria of pass execution
     void run(impl::graph_t &agraph) override {
-        std::vector<op_t *> fusion_ops;
+        impl::pass::FCreateV2Pattern pfunc
+                = get_attr<impl::pass::FCreateV2Pattern>("FCreateV2Pattern")[0];
         pattern_utils pu;
-        pu.match(agraph, fusion_ops);
-        if (!fusion_ops.empty()) {
+        std::shared_ptr<utils::pm::pb_graph> pgraph
+                = make_shared<utils::pm::pb_graph>("pgraph");
+        pfunc(pgraph);
+
+        // for each pattern. match it
+        std::vector<op_t *> matched_op_list;
+        pu.match(agraph, pgraph, matched_op_list);
+        if (!matched_op_list.empty()) {
             // temporary solution here for showing which pattern matched
             if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
                 std::cout << "hit pass " << get_pass_name() << "\n";
@@ -62,7 +71,7 @@ public:
 
             // Only fuse not rewrite. Will remove the fuse once dnnl
             // backend support subgraph mode
-            pu.fuse(agraph, fusion_ops);
+            pu.fuse(agraph, matched_op_list);
         }
     }
 };

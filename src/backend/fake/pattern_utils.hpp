@@ -31,36 +31,20 @@
 #include "backend/fake/fake_backend.hpp"
 #include "backend/fake/fake_partition_impl.hpp"
 
+#include "utils/pm/nested_matcher.hpp"
+#include "utils/pm/pbuilder.hpp"
+
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace fake_impl {
-
-/*!
-* \brief Function to do comparison between a graph
-         and a pattern. It will search from a graph op,
-         and compare its inputs / outputs with the ops in
-         the pattern, until all the ops in the pattern are
-         exhausted.
-* \param graph_op the op in the graph to compare from
-* \param selected the set stores the ops have been selected
-* \tparam the matched op
-*/
-inline op_t *per_op_comp(op_t *graph_op, std::unordered_set<op_t *> &selected) {
-    // check if it's have already selected and if it's assigned to a partition
-    if (selected.count(graph_op) != 0 || graph_op->is_assigned_to_partition()) {
-        return nullptr;
-    }
-
-    return graph_op;
-}
-
 class pattern_utils {
 public:
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
-            std::vector<op_t *> &fusion_ops);
+            shared_ptr<utils::pm::pb_graph> pgraph,
+            std::vector<op_t *> &matched_op_list);
     inline void fuse(dnnl::graph::impl::graph_t &backend_graph,
-            std::vector<op_t *> &fusion_ops);
+            std::vector<op_t *> &matched_op_list);
     pattern_utils() = default;
     pattern_utils(const pattern_utils &) = delete;
     pattern_utils(pattern_utils &&) = delete;
@@ -69,33 +53,31 @@ public:
 
 // function to do pattern matching
 inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
-        std::vector<op_t *> &fusion_ops) {
+        std::shared_ptr<utils::pm::pb_graph> pgraph,
+        std::vector<op_t *> &matched_op_list) {
     std::unordered_set<op_t *> selected;
     // dfs_visit graph, do pattern matching
     topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
-        op_t *candidate_op = per_op_comp(cur_op, selected);
-        if (!candidate_op) { return impl::status::success; }
-        fusion_ops.emplace_back(candidate_op);
-        selected.insert(candidate_op);
-        return impl::status::success;
+        utils::pm::match matcher;
+        if (!utils::pm::match_pattern(cur_op, pgraph, matcher)) {
+            return status::success;
+        }
+
+        op_t *matched_op = matcher.op_pb_op_pairs[0].first;
+        matched_op_list.emplace_back(matched_op);
+        matched_op->set_attr<bool>("matched_pattern", true);
+        return status::success;
     });
 }
 
 // function to do fusion but not rewrite the graph
 inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
-        std::vector<op_t *> &fusion_ops) {
-    std::unordered_set<op_t *> fusion_ops_set;
-    for (auto &cur_op : fusion_ops) {
-        fusion_ops_set.clear();
-
-        std::shared_ptr<op_t> fused_op(new op_t(cur_op->get_kind()));
-        fused_op->merge_attributes(cur_op->get_attributes());
-
-        fusion_ops_set.insert(cur_op);
-
-        // merge the attrs and op ids
-        fused_op->merge_attributes(cur_op->get_attributes());
-        fused_op->add_op_ids(cur_op->get_op_ids());
+        std::vector<op_t *> &matched_op_list) {
+    for (auto &matched_op : matched_op_list) {
+        std::shared_ptr<op_t> partition_fused_op(
+                new op_t(matched_op->get_kind()));
+        // merge the op ids
+        partition_fused_op->add_op_ids(matched_op->get_op_ids());
 
         // merge the input tensor
         // FIXME(qun) Here is a potential bug: We assume that the input
@@ -105,38 +87,40 @@ inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
         // by pattern matcher now, because of another bug in our current
         // pattern matcher. We will fix all these bugs in new pattern
         // matcher
-        for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
-            auto in_value = cur_op->get_input_value(j);
+
+        for (size_t j = 0; j < matched_op->num_inputs(); ++j) {
+            std::shared_ptr<value_t> in_value = matched_op->get_input_value(j);
             // if in_value has no producer or its producer isn't in pattern,
             // add this input value to fused op
-            if (!in_value->has_producer()
-                    || !fusion_ops_set.count(&in_value->get_producer())) {
-                auto copied_in_value = std::make_shared<value_t>(
-                        in_value->get_logical_tensor(), /*internal*/ true);
-                fused_op->add_input(copied_in_value);
-            }
+            std::shared_ptr<value_t> copied_in_value
+                    = std::make_shared<value_t>(in_value->get_logical_tensor(),
+                            /*internal*/ true);
+            partition_fused_op->add_input(copied_in_value);
         }
 
         // merge the output tensor
-        for (size_t k = 0; k < cur_op->num_outputs(); ++k) {
-            auto out_value = cur_op->get_output_value(k);
-            auto copied_out_value = std::make_shared<value_t>(
-                    out_value->get_logical_tensor(), /*internal*/ true);
-            fused_op->add_output(copied_out_value);
+        for (size_t k = 0; k < matched_op->num_outputs(); ++k) {
+            std::shared_ptr<value_t> out_value
+                    = matched_op->get_output_value(k);
+            std::shared_ptr<value_t> copied_out_value
+                    = std::make_shared<value_t>(out_value->get_logical_tensor(),
+                            /*internal*/ true);
+            partition_fused_op->add_output(copied_out_value);
         }
 
-        auto pimpl = std::make_shared<fake_partition_impl_t>(
-                backend_graph.get_engine_kind());
+        std::shared_ptr<fake_partition_impl_t> pimpl
+                = std::make_shared<fake_partition_impl_t>(
+                        backend_graph.get_engine_kind());
 
         // use the fused op to initialize the partition_impl, and merge the
         // informations to it.
-        pimpl->init(fused_op.get());
+        pimpl->init(partition_fused_op.get());
 
         // transfer the ownership of fusion op from graph to partition
         // note: the fusion op will not be removed from the graph
-        pimpl->add_op(cur_op->shared_from_this());
+        pimpl->add_op(matched_op->shared_from_this());
         // claim the op belong to the partition
-        cur_op->set_partition(pimpl.get());
+        matched_op->set_partition(pimpl.get());
 
         backend_graph.add_partition(pimpl);
     }

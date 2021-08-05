@@ -16,6 +16,7 @@
 #ifndef BACKEND_FAKE_SINGLE_OP_PASS_HPP
 #define BACKEND_FAKE_SINGLE_OP_PASS_HPP
 
+#include <memory>
 #include <string>
 
 #include "backend/fake/transformation_pass.hpp"
@@ -26,14 +27,19 @@ namespace impl {
 namespace fake_impl {
 namespace pass {
 
-using pattern = impl::pass::pattern;
-using FCreatePattern = impl::pass::FCreatePattern;
-using FCreateOptPattern = impl::pass::FCreateOptPattern;
+using pb_graph = utils::pm::pb_graph;
+using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
+using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 FAKE_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
 
 #define FAKE_BACKEND_SINGLE_OP_TRANSFORM(name, backend, p) \
-    FAKE_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name).set_priority(p);
+    FAKE_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name) \
+            .set_priority(p) \
+            .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
+                    [](std::shared_ptr<pb_graph> pgraph) -> void { \
+                        pgraph->append_op(op_kind::any); \
+                    });
 
 // register a wildward matched pass
 FAKE_BACKEND_SINGLE_OP_TRANSFORM(wildcard_match_pass, fake, 1.f)
