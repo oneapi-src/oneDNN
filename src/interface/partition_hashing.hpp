@@ -23,10 +23,12 @@
 #include <typeindex>
 #include <vector>
 #include <type_traits>
+#include <unordered_set>
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
 #include "interface/c_types_map.hpp"
+#include "interface/logical_tensor.hpp"
 #include "interface/op.hpp"
 #include "utils/id.hpp"
 #include "utils/utils.hpp"
@@ -60,8 +62,8 @@ struct key_t {
 
     mutable size_t partition_id_;
     mutable std::vector<op_t *> ops_;
-    mutable std::vector<logical_tensor_t> ins_;
-    mutable std::vector<logical_tensor_t> outs_;
+    mutable std::unordered_set<logical_tensor_t> ins_;
+    mutable std::unordered_set<logical_tensor_t> outs_;
     engine_kind_t engine_kind_;
 
 private:
@@ -71,7 +73,6 @@ private:
     std::thread::id thread_id_;
 };
 
-size_t get_logical_tensor_hash(const logical_tensor_t &lt);
 size_t get_op_hash(const op_t &op);
 
 template <typename T>
@@ -82,11 +83,20 @@ size_t get_array_hash(size_t seed, const T *v, size_t size) {
     return seed;
 }
 
+template <typename Array>
+size_t get_unordered_array_hash(size_t seed, const Array &array) {
+    for (auto &&e : array) {
+        seed = utils::hash_combine(
+                seed, std::hash<typename Array::value_type> {}(e));
+    }
+    return seed;
+}
+
 template <>
 inline size_t get_array_hash<logical_tensor_t>(
         size_t seed, const logical_tensor_t *v, size_t size) {
     for (size_t i = 0; i < size; i++) {
-        seed = utils::hash_combine(seed, get_logical_tensor_hash(v[i]));
+        seed = utils::hash_combine(seed, logical_tensor_wrapper(v[i]).hash());
     }
     return seed;
 }
@@ -103,6 +113,15 @@ template <>
 inline size_t get_array_hash<float>(size_t seed, const float *v, size_t size) {
     for (size_t i = 0; i < size; i++) {
         seed = utils::hash_combine(seed, utils::float2int(v[i]));
+    }
+    return seed;
+}
+
+template <>
+inline size_t get_unordered_array_hash<std::unordered_set<logical_tensor_t>>(
+        size_t seed, const std::unordered_set<logical_tensor_t> &array) {
+    for (auto &&e : array) {
+        seed = utils::hash_combine(seed, logical_tensor_wrapper(e).hash());
     }
     return seed;
 }
@@ -131,8 +150,8 @@ struct hash<dnnl::graph::impl::partition_hashing::key_t> {
         seed = get_array_hash(seed, key.ops_.data(), key.ops_.size());
 
         // Combine hash for input and output ports with the computed hash
-        seed = get_array_hash(seed, key.ins_.data(), key.ins_.size());
-        seed = get_array_hash(seed, key.outs_.data(), key.outs_.size());
+        seed = get_unordered_array_hash(seed, key.ins_);
+        seed = get_unordered_array_hash(seed, key.outs_);
 
         return seed;
     }

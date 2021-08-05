@@ -18,6 +18,7 @@
 
 #include "interface/backend.hpp"
 #include "interface/logical_tensor.hpp"
+#include "interface/partition_hashing.hpp"
 
 using namespace dnnl::graph::impl;
 
@@ -139,6 +140,28 @@ bool logical_tensor_wrapper::is_similar(const logical_tensor_t &lhs,
     }
 
     return false;
+}
+
+size_t logical_tensor_wrapper::hash() const noexcept {
+    size_t seed = 0;
+    seed = utils::hash_combine(seed, this->id());
+    seed = partition_hashing::get_array_hash(seed, this->dims(), this->ndims());
+    seed = utils::hash_combine(seed, static_cast<size_t>(this->data_type()));
+    // layout type
+    switch (this->layout_type()) {
+        case layout_type::undef:
+        case layout_type::any: break;
+        case layout_type::strided:
+            seed = partition_hashing::get_array_hash(
+                    seed, this->strides(), this->ndims());
+            break;
+        case layout_type::opaque:
+            seed = utils::hash_combine(
+                    seed, static_cast<size_t>(this->layout_id()));
+            break;
+        default: assertm(false, "unknown layout_type");
+    }
+    return seed;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(

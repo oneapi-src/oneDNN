@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <assert.h>
+#include <functional>
 #include <limits>
 #include <string>
 #include <utility>
@@ -263,6 +264,8 @@ struct logical_tensor_wrapper {
                 /* check_dtype = */ false);
     }
 
+    size_t hash() const noexcept;
+
 private:
     bool is_identical(
             const logical_tensor_t &lhs, const logical_tensor_t &rhs) const;
@@ -274,5 +277,31 @@ private:
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
+
+namespace std {
+template <>
+struct hash<dnnl::graph::impl::logical_tensor_t> {
+    using argument_type = dnnl::graph::impl::logical_tensor_t;
+    using result_type = std::size_t;
+    result_type operator()(const argument_type &lt) const {
+        using namespace dnnl::graph::impl;
+        return logical_tensor_wrapper(lt).hash();
+    }
+};
+
+template <>
+struct equal_to<dnnl::graph::impl::logical_tensor_t> {
+    using result_type = bool;
+    using first_argument_type = dnnl::graph::impl::logical_tensor_t;
+    using second_argument_type = dnnl::graph::impl::logical_tensor_t;
+    result_type operator()(const first_argument_type &lhs,
+            const second_argument_type &rhs) const {
+        using namespace dnnl::graph::impl;
+        const logical_tensor_wrapper lhs_wrapper {lhs};
+        const logical_tensor_wrapper rhs_wrapper {rhs};
+        return lhs_wrapper == rhs_wrapper;
+    }
+};
+} // namespace std
 
 #endif

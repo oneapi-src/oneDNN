@@ -35,10 +35,10 @@ key_t::key_t(size_t partition_id, engine_kind_t engine_kind,
     ins_.reserve(ins.size());
     outs_.reserve(outs.size());
     for (auto &in : ins) {
-        ins_.emplace_back(*in);
+        ins_.emplace(*in);
     }
     for (auto &out : outs) {
-        outs_.emplace_back(*out);
+        outs_.emplace(*out);
     }
 }
 
@@ -72,49 +72,15 @@ bool key_t::operator==(const key_t &rhs) const {
             return false;
     }
 
-    for (size_t i = 0; i < lhs_num_ins; ++i) {
-        const logical_tensor_wrapper lhs_lt {ins_[i]};
-        if (std::find_if(rhs.ins_.begin(), rhs.ins_.end(),
-                    [&lhs_lt](const logical_tensor_t &rhs_lt) {
-                        return logical_tensor_wrapper(rhs_lt) == lhs_lt;
-                    })
-                == rhs.ins_.end())
-            return false;
+    for (auto &&e : ins_) {
+        if (rhs.ins_.count(e) == 0) return false;
     }
 
-    for (size_t i = 0; i < lhs_num_outs; ++i) {
-        const logical_tensor_wrapper lhs_lt {outs_[i]};
-        if (std::find_if(rhs.outs_.begin(), rhs.outs_.end(),
-                    [&lhs_lt](const logical_tensor_t &rhs_lt) {
-                        return logical_tensor_wrapper(rhs_lt) == lhs_lt;
-                    })
-                == rhs.outs_.end())
-            return false;
+    for (auto &&e : outs_) {
+        if (rhs.outs_.count(e) == 0) return false;
     }
 
     return true;
-}
-
-// Combine hash of each logical_tensor_t data member
-size_t get_logical_tensor_hash(const logical_tensor_t &lt) {
-    size_t seed = 0;
-    seed = utils::hash_combine(seed, lt.id);
-    seed = get_array_hash(seed, lt.dims, lt.ndims);
-    seed = utils::hash_combine(seed, static_cast<size_t>(lt.data_type));
-    // layout type
-    switch (lt.layout_type) {
-        case layout_type::undef:
-        case layout_type::any: break;
-        case layout_type::strided:
-            seed = get_array_hash(seed, lt.layout.strides, lt.ndims);
-            break;
-        case layout_type::opaque:
-            seed = utils::hash_combine(
-                    seed, static_cast<size_t>(lt.layout.layout_id));
-            break;
-        default: assertm(false, "unknown layout_type");
-    }
-    return seed;
 }
 
 size_t get_op_hash(const op_t &op) {
