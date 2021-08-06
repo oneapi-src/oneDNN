@@ -150,7 +150,10 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
     register_space(scratch_ht);
     register_space(scratch_diff_ht);
     register_space(scratch_cell);
-    if (rnn.copy_bias) register_space(ws_bias);
+    if (rnn.copy_bias)
+        register_space(ws_bias);
+    else
+        ws_bias_offset = 0;
 
     scratchpad_size = current_offset;
 #undef register_space

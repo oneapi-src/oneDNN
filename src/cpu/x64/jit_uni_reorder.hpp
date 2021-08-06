@@ -34,11 +34,11 @@ namespace tr {
 constexpr int max_ndims = DNNL_MAX_NDIMS;
 
 struct node_t {
-    size_t n;
-    ptrdiff_t is; // input stride
-    ptrdiff_t os; // output stride
-    ptrdiff_t ss; // scale stride
-    ptrdiff_t cs; // compensation stride
+    size_t n = 0;
+    ptrdiff_t is = 0; // input stride
+    ptrdiff_t os = 0; // output stride
+    ptrdiff_t ss = 0; // scale stride
+    ptrdiff_t cs = 0; // compensation stride
 };
 
 enum class scale_type_t { NONE, COMMON, MANY };
