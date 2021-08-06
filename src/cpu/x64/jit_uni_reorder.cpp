@@ -2129,9 +2129,7 @@ void jit_uni_reorder_t::reduce_compensation(char *out,
     const auto N = id.dims()[pd()->with_groups_ ? 1 : 0];
 
     const memory_desc_wrapper od(pd()->dst_md());
-    size_t offset = od.data_type_size();
-    for (int dim = 0; dim < od.ndims(); dim++)
-        offset *= od.padded_dims()[dim];
+    const size_t offset = od.size() - od.additional_buffer_size();
 
     static constexpr auto comp_dt_size = sizeof(int32_t);
     const size_t zp_offset

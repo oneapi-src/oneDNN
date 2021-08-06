@@ -174,7 +174,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 = utils::one_of(tag_o, format_tag::dhwio, format_tag::dhwigo);
 
         const auto &dims = input_d.dims();
-        const auto &pdims = output_d.padded_dims();
 
         const dim_t G = w_groups ? dims[0] : 1;
         const dim_t OC = dims[w_groups + 0];
@@ -198,8 +197,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 ? output_d.extra().scale_adjust
                 : 1.f;
 
-        size_t offset
-                = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
+        size_t offset = output_d.size() - output_d.additional_buffer_size();
         size_t zp_offset = offset
                 + (req_comp ? G * dims[w_groups + 0] * sizeof(int32_t) : 0);
         int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
