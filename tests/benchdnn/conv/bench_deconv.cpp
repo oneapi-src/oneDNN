@@ -25,6 +25,7 @@
 #include "parser.hpp"
 
 #include "conv/deconv.hpp"
+#include "conv/graph_deconv.hpp"
 
 using namespace conv;
 
@@ -61,7 +62,14 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        const int status = deconv::doit(&prb, &res);
+        const int status = [&prb, &res](api_mode_t mode) {
+            if (mode == PRIMITIVE)
+                return deconv::doit(&prb, &res);
+            else if (mode == GRAPH)
+                return benchdnnext::deconv::doit(&prb, &res);
+            else
+                return FAIL;
+        }(api_mode);
 
         bool want_perf_report = false;
         parse_result(res, want_perf_report, status, pstr);

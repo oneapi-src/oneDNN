@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,9 @@
 #include "dnnl_memory.hpp"
 
 namespace deconv {
+int transpose_data_wei(
+        const conv::prb_t *prb, dnn_mem_t &wei, dnn_mem_t &wei_tr);
+void check_known_skipped_case(const conv::prb_t *prb, res_t *res);
 int doit(const conv::prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 } // namespace deconv

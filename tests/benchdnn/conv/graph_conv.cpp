@@ -22,93 +22,13 @@
 #include "binary/binary.hpp"
 #include "conv/graph_conv.hpp"
 
-#include <algorithm>
 #include <string>
 #include <vector>
-
-#define CONV_3D_NDIMS 5
-#define CONV_2D_NDIMS 4
-#define CONV_1D_NDIMS 3
-#define CONV_MAX_NDIMS CONV_3D_NDIMS
 
 namespace benchdnnext {
 namespace conv {
 
 namespace graph = dnnl::graph;
-
-conv_graph_prb_t::spec_t::spec_t(const ::conv::prb_t *prb) noexcept {
-    groups = prb->has_groups ? (int64_t)prb->g : 1;
-    has_groups = prb->has_groups;
-
-    const dim_t src_1d_dims[] = {prb->mb, prb->ic, prb->iw};
-    const dim_t src_2d_dims[] = {prb->mb, prb->ic, prb->ih, prb->iw};
-    const dim_t src_3d_dims[] = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
-
-    const dim_t wei_1d_dims[]
-            = {prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kw};
-    const dim_t wei_2d_dims[]
-            = {prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kh, prb->kw};
-    const dim_t wei_3d_dims[] = {prb->g, prb->oc / prb->g, prb->ic / prb->g,
-            prb->kd, prb->kh, prb->kw};
-
-    bia_dims.assign({prb->oc});
-
-    const dim_t dst_1d_dims[] = {prb->mb, prb->oc, prb->ow};
-    const dim_t dst_2d_dims[] = {prb->mb, prb->oc, prb->oh, prb->ow};
-    const dim_t dst_3d_dims[] = {prb->mb, prb->oc, prb->od, prb->oh, prb->ow};
-
-    switch (prb->ndims) {
-        case CONV_3D_NDIMS: {
-            src_dims.assign(src_3d_dims, end(src_3d_dims));
-            dst_dims.assign(dst_3d_dims, end(dst_3d_dims));
-
-            wei_dims.assign(
-                    wei_3d_dims + (prb->has_groups ? 0 : 1), end(wei_3d_dims));
-        } break;
-
-        case CONV_2D_NDIMS: {
-            src_dims.assign(src_2d_dims, end(src_2d_dims));
-            dst_dims.assign(dst_2d_dims, end(dst_2d_dims));
-
-            wei_dims.assign(
-                    wei_2d_dims + (prb->has_groups ? 0 : 1), end(wei_2d_dims));
-        } break;
-
-        case CONV_1D_NDIMS: {
-            src_dims.assign(src_1d_dims, end(src_1d_dims));
-            dst_dims.assign(dst_1d_dims, end(dst_1d_dims));
-
-            wei_dims.assign(
-                    wei_1d_dims + (prb->has_groups ? 0 : 1), end(wei_1d_dims));
-        } break;
-
-        default: break;
-    }
-
-    const dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
-    const dim_t dilates_nd[] = {prb->dd, prb->dh, prb->dw};
-    const dim_t padding_nd[] = {prb->pd, prb->ph, prb->pw};
-    const dim_t padding_r_nd[] = {prb->pd_r, prb->ph_r, prb->pw_r};
-
-    const size_t spatial_offset = CONV_MAX_NDIMS - prb->ndims;
-    strides.assign(strides_nd + spatial_offset, end(strides_nd));
-    pads_begin.assign(padding_nd + spatial_offset, end(padding_nd));
-    pads_end.assign(padding_r_nd + spatial_offset, end(padding_r_nd));
-    dilations.assign(dilates_nd + spatial_offset, end(dilates_nd));
-    std::transform(dilations.begin(), dilations.end(), dilations.begin(),
-            [](const dim_t d) { return d + 1; });
-
-    src_dt = convert_dt(prb->cfg[SRC].dt);
-    wei_dt = convert_dt(prb->cfg[WEI].dt);
-    bia_dt = convert_dt(prb->cfg[BIA].dt);
-    dst_dt = convert_dt(prb->cfg[DST].dt);
-
-    data_format = tag2data_format(prb->stag);
-    filter_format = tag2filter_format(prb->wtag);
-    raw_src_tag = prb->stag;
-    raw_wei_tag = prb->wtag;
-    raw_dst_tag = prb->dtag;
-}
 
 fill_status_t conv_graph_prb_t::handle_main_op_() {
     using kind = graph::op::kind;

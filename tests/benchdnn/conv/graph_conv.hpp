@@ -20,9 +20,13 @@
 #include <vector>
 
 #include "conv/conv.hpp"
+#include "conv/graph_conv_common.hpp"
 #include "dnnl_graph_common.hpp"
 
 namespace benchdnnext {
+
+using namespace conv_common;
+
 namespace conv {
 
 struct conv_graph_prb_t : public graph_prb_t {
@@ -70,35 +74,6 @@ struct conv_graph_prb_t : public graph_prb_t {
 
 private:
     std::vector<float> oscales;
-    struct spec_t {
-        spec_t(const ::conv::prb_t *prb) noexcept;
-
-        dims_t src_dims;
-        dims_t wei_dims;
-        dims_t bia_dims;
-        dims_t dst_dims;
-
-        dims_t strides;
-        dims_t pads_begin;
-        dims_t pads_end;
-        dims_t dilations;
-
-        std::string auto_pad {"None"};
-
-        bool has_groups;
-        int64_t groups;
-
-        std::string data_format {"NCX"};
-        std::string filter_format {"OIX"};
-        std::string raw_src_tag;
-        std::string raw_wei_tag;
-        std::string raw_dst_tag;
-
-        dt src_dt;
-        dt wei_dt;
-        dt bia_dt;
-        dt dst_dt;
-    };
 
     spec_t spec_;
     po_handlers_t po_handler;
