@@ -1152,8 +1152,9 @@ void brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::ker_vpad(
                             = wei_base_kd + kh * wei_kw_sz;
                     for (int kw = 0; kw < KW; kw++) {
                         const auto iw = iiw_b + kw * DW;
-                        const auto ptr_A
-                                = src_base_kh + iw * jcp.ic_without_padding;
+                        const auto ptr_A = src_base_kh
+                                + static_cast<ptrdiff_t>(iw)
+                                        * jcp.ic_without_padding;
                         if (jcp.max_vpad) {
                             icb_batch[k].vvpad.top = kw_top_vpads[kw];
                             icb_batch[k].vvpad.bottom = kw_bottom_vpads[kw];
