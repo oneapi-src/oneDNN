@@ -375,22 +375,20 @@ void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
                 for (int64_t j = 0; j < sp.out_dim; j++) {
                     int64_t ydim = hfm * sp.out_dim + j;
-                    if (ydim < prb->oh) {
-                        for (int64_t k = 0; k < sp.out_dim; k++) {
-                            float conv_res = O[j][k];
-                            int64_t xdim = wfm * sp.out_dim + k;
-                            if (xdim < prb->ow) {
-                                const size_t dst_off = dst_off_f(
-                                        prb, img, 0, oc, 0, ydim, xdim);
-                                float &dst = ((float *)dst_m)[dst_off];
-                                const size_t bia_off = bia_off_f(prb, 0, oc);
-                                conv_res += with_bias
-                                        ? ((float *)bia_m)[bia_off]
-                                        : 0.f;
-                                maybe_post_ops(prb->attr, conv_res, dst);
-                                dst = conv_res;
-                            }
-                        }
+                    if (ydim >= prb->oh) continue;
+
+                    for (int64_t k = 0; k < sp.out_dim; k++) {
+                        float conv_res = O[j][k];
+                        int64_t xdim = wfm * sp.out_dim + k;
+                        if (xdim >= prb->ow) continue;
+
+                        const size_t dst_off
+                                = dst_off_f(prb, img, 0, oc, 0, ydim, xdim);
+                        float &dst = ((float *)dst_m)[dst_off];
+                        const size_t bia_off = bia_off_f(prb, 0, oc);
+                        conv_res += with_bias ? ((float *)bia_m)[bia_off] : 0.f;
+                        maybe_post_ops(prb->attr, conv_res, dst);
+                        dst = conv_res;
                     }
                 }
             });
