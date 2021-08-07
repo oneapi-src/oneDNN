@@ -305,6 +305,50 @@ int get_max_rows(int palette) {
     }
 }
 
+namespace {
+#ifdef __linux__
+#include <sys/syscall.h>
+
+#define XFEATURE_XTILECFG 17
+#define XFEATURE_XTILEDATA 18
+#define XFEATURE_MASK_XTILECFG (1 << XFEATURE_XTILECFG)
+#define XFEATURE_MASK_XTILEDATA (1 << XFEATURE_XTILEDATA)
+#define XFEATURE_MASK_XTILE (XFEATURE_MASK_XTILECFG | XFEATURE_MASK_XTILEDATA)
+#define ARCH_GET_XCOMP_PERM 0x1022
+#define ARCH_REQ_XCOMP_PERM 0x1023
+
+bool init() {
+    unsigned long bitmask = 0;
+    long status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);
+    if (0 != status) return false;
+    if (bitmask & XFEATURE_MASK_XTILEDATA) return true;
+
+    status = syscall(SYS_arch_prctl, ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA);
+    if (0 != status)
+        return false; // XFEATURE_XTILEDATA setup is failed, TMUL usage is not allowed
+    status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);
+
+    // XFEATURE_XTILEDATA setup is failed, can't use TMUL
+    if (0 != status || !(bitmask & XFEATURE_MASK_XTILEDATA)) return false;
+
+    // XFEATURE_XTILEDATA set successfully, TMUL usage is allowed
+    return true;
+}
+#else
+bool init() {
+    return true;
+}
+#endif
+
+set_once_before_first_get_setting_t<bool> &amx_setting() {
+    static set_once_before_first_get_setting_t<bool> setting(init());
+    return setting;
+}
+} // namespace
+
+bool is_available() {
+    return amx_setting().get();
+}
 } // namespace amx
 
 } // namespace x64
