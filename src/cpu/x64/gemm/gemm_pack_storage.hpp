@@ -350,9 +350,9 @@ protected:
         set(data);
 
         matrix_header = reinterpret_cast<matrix_header_t *>(
-                base + header->off_matrix);
-        sums_header
-                = reinterpret_cast<matrix_header_t *>(base + header->off_sums);
+                base + static_cast<ptrdiff_t>(header->off_matrix));
+        sums_header = reinterpret_cast<matrix_header_t *>(
+                base + static_cast<ptrdiff_t>(header->off_sums));
     }
 };
 
