@@ -280,6 +280,16 @@ inline const Xbyak::util::Cpu &cpu() {
     return cpu_;
 }
 
+namespace amx {
+
+int get_max_palette();
+int get_max_tiles(int palette);
+int get_max_column_bytes(int palette);
+int get_max_rows(int palette);
+bool DNNL_API is_available();
+
+} // namespace amx
+
 namespace {
 
 static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
@@ -317,7 +327,8 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
             return mayiuse(avx512_core_bf16)
                     && cpu_isa_hints_utils::is_hints_bit_set(
                             prefer_ymm_bit, soft);
-        case amx_tile: return cpu().has(Cpu::tAMX_TILE);
+        case amx_tile:
+            return cpu().has(Cpu::tAMX_TILE) && x64::amx::is_available();
         case amx_int8:
             return mayiuse(amx_tile, soft) && cpu().has(Cpu::tAMX_INT8);
         case amx_bf16:
@@ -360,15 +371,6 @@ static inline bool isa_has_bf16(cpu_isa_t isa) {
     ((isa) == avx512_core_bf16_amx_bf16 ? prefix STRINGIFY(avx512_core_amx_bf16) : \
     prefix suffix_if_any)))))))))))))
 /* clang-format on */
-
-namespace amx {
-
-int get_max_palette();
-int get_max_tiles(int palette);
-int get_max_column_bytes(int palette);
-int get_max_rows(int palette);
-
-} // namespace amx
 
 inline size_t data_type_vnni_granularity(data_type_t data_type) {
     using namespace data_type;
