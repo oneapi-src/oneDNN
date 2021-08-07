@@ -90,7 +90,7 @@ void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t prim_ref,
         return;
     }
     if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
-        compute_wino_ref_fwd(prb, src_m, wei_m, bia_m, dst_m);
+        compute_wino_ref_fwd(prb, src_m, wei_m, bia_m, binary_po, dst_m);
     } else {
         compute_ref_direct_fwd(prb, src_m, wei_m, bia_m, binary_po, dst_m);
     }

@@ -367,7 +367,8 @@ void compute_ref_direct_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
         dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
 
 void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &bia_m, dnn_mem_t &dst_m);
+        dnn_mem_t &bia_m, const std::vector<dnn_mem_t> &binary_po,
+        dnn_mem_t &dst_m);
 void compute_wino_ref_bwd_d(const prb_t *prb, dnn_mem_t &idiff_src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m);
 void compute_wino_ref_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
