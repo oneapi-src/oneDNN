@@ -77,7 +77,9 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
             const auto curr_ws_gates_
                     = ws_gates_ + (m * rnn.ws_gates_ld) + nb_i * rnn.n_block;
-            const float *weights_peephole_n = weights_peephole_ + n;
+            const float *weights_peephole_n = weights_peephole_
+                    ? weights_peephole_ + n
+                    : weights_peephole_;
             auto weights_scales_n = weights_scales + (mask ? n : 0);
             const auto Aic_n = src_iter_c_ + m * LDAic + n;
             const auto bias_n = bias_[0] + n;
