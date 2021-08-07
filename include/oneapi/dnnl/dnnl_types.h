@@ -3046,7 +3046,6 @@ typedef enum {
 
     /// Intel AVX-512, Intel DL Boost and bfloat16 support and
     /// Intel AMX with 8-bit integer and bfloat16 support
-    /// (initial support)
     dnnl_cpu_isa_avx512_core_amx = 0x3e7,
 
     /// Intel AVX2 and Intel Deep Learning Boost (Intel DL Boost) support
