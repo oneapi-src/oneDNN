@@ -504,12 +504,12 @@ void jit_brgemm_amx_uker_base_t::apply_alpha_beta_to_vector(
     const bool use_vadd_for_beta = brg.beta == 1.f && !dq2ps_required;
 
     if (apply_beta && !use_vadd_for_beta) {
-        mov(reg_tmp_gpr, float2int((float)brg.beta));
+        mov(reg_tmp_gpr, float2int(static_cast<float>(brg.beta)));
         movq(Xmm(zmm_beta.getIdx()), reg_tmp_gpr);
         vbroadcastss(zmm_beta, Xmm(zmm_beta.getIdx()));
     }
     if (apply_alpha) {
-        mov(reg_tmp_gpr, float2int((float)brg.alpha));
+        mov(reg_tmp_gpr, float2int(static_cast<float>(brg.alpha)));
         movq(Xmm(zmm_alpha.getIdx()), reg_tmp_gpr);
         vbroadcastss(zmm_alpha, Xmm(zmm_alpha.getIdx()));
     }
@@ -983,8 +983,8 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(int bd_block2,
             bd_ind_bdb = skipped_bd_mask(bd_ind_bdb);
 
             maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb)), reg_A,
-                    (size_t)rdb * rdb_A_offset() + A_offset(bd_ind_bdb)
-                            + a_offset,
+                    static_cast<size_t>(rdb) * rdb_A_offset()
+                            + A_offset(bd_ind_bdb) + a_offset,
                     reg_stride_lda,
                     brg.brgattr.hint_innermost_loop
                             == brgemm_bd_loop_innermost);
@@ -993,8 +993,8 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(int bd_block2,
         for (int ldb = 0; ldb < ld_block2; ldb++) {
             const int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
             maybe_tileloadd_nt(Tmm(brg.get_B_tensor(idx)), reg_B,
-                    (size_t)rdb * rdb_B_offset() + B_offset(ldb) + reg_b_offset_
-                            + b_offset,
+                    static_cast<size_t>(rdb) * rdb_B_offset() + B_offset(ldb)
+                            + reg_b_offset_ + b_offset,
                     reg_stride_ldb,
                     brg.brgattr.hint_innermost_loop
                             == brgemm_ld_loop_innermost);

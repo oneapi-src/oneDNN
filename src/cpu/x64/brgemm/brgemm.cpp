@@ -164,15 +164,17 @@ status_t brgemm_blocking(brgemm_t *brg) {
         float best_bd_block_eff = 0.f;
         brg->bd_block = 1;
         for (int bd_block = max_block; bd_block >= min_block; bd_block--) {
-            const auto bd_block_disb
-                    = (float)brg->bcast_dim / rnd_up(brg->bcast_dim, bd_block);
-            const auto brgemm_microkernel_eff = ((float)(adj_ld_block)*bd_block)
+            const auto bd_block_disb = static_cast<float>(brg->bcast_dim)
+                    / rnd_up(brg->bcast_dim, bd_block);
+            const auto brgemm_microkernel_eff
+                    = (static_cast<float>(adj_ld_block) * bd_block)
                     / (((adj_ld_block) + bd_block) * max_block);
             const auto bd_block_eff = bd_block_disb * brgemm_microkernel_eff;
 
-            float block_foot_print
-                    = (float)brg->typesize_A * (bd_block * brg->reduce_dim);
-            if (block_foot_print <= (float)platform::get_per_core_cache_size(1)
+            float block_foot_print = static_cast<float>(brg->typesize_A)
+                    * (bd_block * brg->reduce_dim);
+            if (block_foot_print <= static_cast<float>(
+                        platform::get_per_core_cache_size(1))
                     && (bd_block_eff > best_bd_block_eff)) {
                 brg->bd_block = bd_block;
                 best_bd_block_eff = bd_block_eff;
@@ -418,15 +420,17 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     brg->is_amx = (brg->is_int8_amx || brg->is_bf16_amx);
     brg->req_s8s8_compensation
             = brg->is_int8 && !brg->is_int8_amx && brg->dt_a == data_type::s8;
-    brg->LDA = (is_row_major()) ? (int)LDA : (int)LDB;
-    brg->LDB = (is_row_major()) ? (int)LDB : (int)LDA;
+    brg->LDA = (is_row_major()) ? static_cast<int>(LDA) : static_cast<int>(LDB);
+    brg->LDB = (is_row_major()) ? static_cast<int>(LDB) : static_cast<int>(LDA);
 
-    brg->LDC = (int)LDC;
-    brg->LDD = (int)LDC;
+    brg->LDC = static_cast<int>(LDC);
+    brg->LDD = static_cast<int>(LDC);
 
-    brg->bcast_dim = (is_row_major()) ? (int)M : (int)N;
-    brg->load_dim = (is_row_major()) ? (int)N : (int)M;
-    brg->reduce_dim = (int)K;
+    brg->bcast_dim
+            = (is_row_major()) ? static_cast<int>(M) : static_cast<int>(N);
+    brg->load_dim
+            = (is_row_major()) ? static_cast<int>(N) : static_cast<int>(M);
+    brg->reduce_dim = static_cast<int>(K);
 
     brg->with_bias = false;
     brg->with_eltwise = false;
@@ -633,7 +637,7 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
 
     palette_config_t *buff = (palette_config_t *)(palette);
 
-    char *_tc = (char *)buff;
+    char *_tc = (char *)(buff);
     for (int i = 0; i < max_palette_size_in_bytes; i++)
         _tc[i] = 0;
 

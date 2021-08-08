@@ -57,8 +57,8 @@ bool check_weight_layout(const jit_brgemm_conv_conf_t &jcp) {
             OwI16i32o2i, gOhwi32o, Ohwi32o, gOhwI16i32o4i, OhwI16i32o4i,
             gOhwI16i32o2i, OhwI16i32o2i, gOdhwi16o, Odhwi16o, gOdhwI16i16o4i,
             OdhwI16i16o4i, gOdhwI16i16o2i, OdhwI16i16o2i, gOwi16o, Owi16o,
-            gOwI16i16o4i, OwI16i16o4i, gOwI16i16o2i, OwI16i16o2i, gOhwi16o,
-            Ohwi16o, gOhwI16i16o4i, OhwI16i16o4i, gOhwI16i16o2i, OhwI16i16o2i);
+            OwI16i16o4i, OwI16i16o2i, gOhwi16o, Ohwi16o, gOhwI16i16o4i,
+            OhwI16i16o4i, gOhwI16i16o2i, OhwI16i16o2i);
 }
 
 } // namespace
@@ -424,16 +424,16 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
     ic_chunks = div_up(jcp.nb_ic, jcp.nb_ic_blocking);
 
     // const variables used for address calculations
-    src_w_sz = (dim_t)IW * jcp.ic_without_padding;
+    src_w_sz = static_cast<dim_t>(IW) * jcp.ic_without_padding;
     src_h_sz = IH * src_w_sz;
     src_d_sz = ID * src_h_sz;
-    dst_w_sz = (dim_t)OW * jcp.oc_without_padding;
+    dst_w_sz = static_cast<dim_t>(OW) * jcp.oc_without_padding;
     dst_h_sz = OH * dst_w_sz;
     dst_d_sz = OD * dst_h_sz;
 
     const auto src_type = pd()->src_md(0)->data_type;
     const auto wei_type = pd()->weights_md(0)->data_type;
-    wei_ic_sz = (dim_t)jcp.icp * jcp.oc_block;
+    wei_ic_sz = static_cast<dim_t>(jcp.icp) * jcp.oc_block;
     wei_kw_sz = KW * wei_ic_sz;
     wei_kh_sz = KH * wei_kw_sz;
     wei_kd_sz = KD * wei_kh_sz;
@@ -647,8 +647,8 @@ status_t brgemm_convolution_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         if (ithr >= work_amount) return;
 
-        brgemm_batch_element_t *const __restrict brg_batch
-                = brg_batch_global + (size_t)ithr * jcp.adjusted_batch_size;
+        brgemm_batch_element_t *const __restrict brg_batch = brg_batch_global
+                + static_cast<size_t>(ithr) * jcp.adjusted_batch_size;
         char *const __restrict c_buffer = (jcp.use_buffer)
                 ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M
                 : nullptr;
@@ -770,8 +770,8 @@ void brgemm_convolution_fwd_t<isa>::perform_outwork(char *dst_base,
 
     brgemm_kernel_post_ops_t p;
     if (do_postwork) {
-        p.ptr_bias = (void *)bias_w;
-        p.ptr_scales = (void *)&oscales[jcp.is_oc_scale * g_oc];
+        p.ptr_bias = (void *)(bias_w);
+        p.ptr_scales = (void *)(&oscales[jcp.is_oc_scale * g_oc]);
         p.ptr_binary_post_ops_rhs = post_ops_binary_rhs_arg_vec;
         p.oc_l_offset = g_oc;
     }
@@ -786,7 +786,7 @@ void brgemm_convolution_fwd_t<isa>::perform_outwork(char *dst_base,
                     + dst_dsz
                             * (od * dst_h_sz + oh * dst_w_sz
                                     + ow_pw_s * jcp.oc_without_padding);
-            p.ptr_in = (void *)(jcp.use_buffer
+            p.ptr_in = static_cast<void *>(jcp.use_buffer
                             ? (c_buffer + acc_dsz * (ow_pw_s - ow) * jcp.LDC)
                             : p.ptr_out);
         } else {
@@ -796,7 +796,7 @@ void brgemm_convolution_fwd_t<isa>::perform_outwork(char *dst_base,
                             + dst_dsz
                                     * (od * dst_h_sz + oh * dst_w_sz
                                             + ow_pw_s * jcp.oc_without_padding);
-            p.ptr_out = (void *)ptr_Cz;
+            p.ptr_out = static_cast<void *>(ptr_Cz);
         }
         (*outwork_ker)(&p);
     };
@@ -844,10 +844,10 @@ void brgemm_convolution_fwd_t<isa>::call_brgemm_kernel(brgemm_thread_ctx_t &btc,
                 static_cast<size_t>(g_oc)};
 
         brgemm_kernel_execute_postops(brg_ker, batch_size, btc.brg_batch, ptr_C,
-                ptr_D, post_ops_data, (void *)btc.wsp_tile);
+                ptr_D, post_ops_data, static_cast<void *>(btc.wsp_tile));
     } else
         brgemm_kernel_execute(brg_ker, batch_size, btc.brg_batch, ptr_C,
-                (void *)btc.wsp_tile);
+                static_cast<void *>(btc.wsp_tile));
 }
 
 template <cpu_isa_t isa>
@@ -945,13 +945,14 @@ void brgemm_convolution_fwd_t<isa>::maybe_conv_inp(int ithr,
             cp.h_count = max(0, jcp.oh_block);
             const auto ih_buf = (jcp.copy_block_only ? 0 : ih_start) + TP;
 
-            inp_offset_start = (dim_t)n * src_d_sz
+            inp_offset_start = static_cast<dim_t>(n) * src_d_sz
                     + max(ih_s, ih_start) * src_w_sz
                     + iw * jcp.ic_without_padding + g_ic;
 
             // inp_buffer has physical padding
-            out_offset_start
-                    = (jcp.copy_block_only ? 0 : (dim_t)icb * pbuf_d_sz)
+            out_offset_start = (jcp.copy_block_only ? 0
+                                                    : static_cast<dim_t>(icb)
+                                                       * pbuf_d_sz)
                     + ih_buf * pbuf_w_sz
                     + (iw_buf * jcp.kh_sets + kh) * jcp.kw_sets * jcp.ic_block;
         } else {
@@ -967,12 +968,13 @@ void brgemm_convolution_fwd_t<isa>::maybe_conv_inp(int ithr,
             const auto ih_buf
                     = (jcp.copy_block_only ? 0 : ih_start) + TP - cp.t_pad;
 
-            inp_offset_start = (dim_t)n * src_d_sz + ih_start * src_w_sz
-                    + iw * jcp.ic_without_padding + g_ic;
+            inp_offset_start = static_cast<dim_t>(n) * src_d_sz
+                    + ih_start * src_w_sz + iw * jcp.ic_without_padding + g_ic;
 
             // inp_buffer has physical padding
-            out_offset_start
-                    = (jcp.copy_block_only ? 0 : (dim_t)icb * pbuf_d_sz)
+            out_offset_start = (jcp.copy_block_only ? 0
+                                                    : static_cast<dim_t>(icb)
+                                                       * pbuf_d_sz)
                     + ih_buf * pbuf_w_sz
                     + iw_buf * jcp.ic_block * jcp.kh_sets * jcp.kw_sets;
         }
@@ -1111,7 +1113,7 @@ void brgemm_convolution_fwd_t<isa>::ker_base(brgemm_thread_ctx_t &btc) const {
                                 + ow_b * jcp.oc_without_padding);
         ptr_C = (jcp.use_buffer)
                 ? btc.c_buffer + acc_dsz * (ow_b - ow) * jcp.LDC
-                : (char *)ptr_D;
+                : static_cast<char *>(ptr_D);
 
         const auto ow_l = ow_e - ow_b;
         assert(0 <= ow_l && ow_l <= jcp.ow_block);
@@ -1221,7 +1223,7 @@ void brgemm_convolution_fwd_t<isa>::ker_trans(
                     * (btc.od * dst_h_sz + btc.oh * dst_w_sz
                             + ow_b * jcp.oc_without_padding);
     ptr_C = (jcp.use_buffer) ? btc.c_buffer + acc_dsz * (ow_b - ow) * jcp.LDC
-                             : (char *)ptr_D;
+                             : static_cast<char *>(ptr_D);
 
     const auto ow_l = ow_e - ow_b;
     const auto oh_l = oh_e - oh_b;
@@ -1366,7 +1368,7 @@ void brgemm_convolution_fwd_t<isa>::ker_vpad(brgemm_thread_ctx_t &btc) const {
                     * (btc.od * dst_h_sz + btc.oh * dst_w_sz
                             + ow_b * jcp.oc_without_padding);
     ptr_C = (jcp.use_buffer) ? btc.c_buffer + acc_dsz * (ow_b - ow) * jcp.LDC
-                             : (char *)ptr_D;
+                             : static_cast<char *>(ptr_D);
 
     const auto ow_l = ow_e - ow_b;
     assert(0 <= ow_l && ow_l <= jcp.ow_block);

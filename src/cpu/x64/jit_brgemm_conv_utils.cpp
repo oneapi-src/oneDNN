@@ -523,27 +523,27 @@ void brg_blocking_t::select_ic_block() {
 
         if (kw_block > 1) {
             // try to fit src into L1
-            const auto inp_per_ic = (unsigned int)inp_ur * src_dsz;
-            max_simd_blocks = saturate(
-                    1, max_simd_blocks, (int)(L1 / (inp_per_ic * simd_w)));
-        }
-        {
-            // try to fit all batch for ur into L2
-            const auto wei_per_ic = (unsigned int)kd_block * kh_block * kw_block
-                    * oc_block * wei_dsz;
-            const auto inp_per_ic
-                    = (unsigned int)kd_block * kh_block * inp_ur * src_dsz;
-            const auto out_size = (unsigned int)ur * oc_block * dst_dsz;
-
+            const auto inp_per_ic = static_cast<unsigned int>(inp_ur) * src_dsz;
             max_simd_blocks = saturate(1, max_simd_blocks,
-                    (int)((L2 - out_size)
-                            / ((wei_per_ic + inp_per_ic) * simd_w)));
+                    static_cast<int>(L1 / (inp_per_ic * simd_w)));
         }
+        // try to fit all batch for ur into L2
+        const auto wei_per_ic = static_cast<unsigned int>(kd_block) * kh_block
+                * kw_block * oc_block * wei_dsz;
+        const auto inp_per_ic = static_cast<unsigned int>(kd_block) * kh_block
+                * inp_ur * src_dsz;
+        const auto out_size
+                = static_cast<unsigned int>(ur) * oc_block * dst_dsz;
+
+        max_simd_blocks = saturate(1, max_simd_blocks,
+                static_cast<int>((L2 - out_size)
+                        / ((wei_per_ic + inp_per_ic) * simd_w)));
 
         auto simd_blocks = 1;
         for (int nb_icb = nstl::min(max_simd_blocks, nb_simd); nb_icb >= 1;
                 nb_icb--) {
-            auto nb_icb_eff = (float)nb_simd / rnd_up(nb_simd, nb_icb);
+            auto nb_icb_eff
+                    = static_cast<float>(nb_simd) / rnd_up(nb_simd, nb_icb);
             if (nb_icb_eff >= nb_icb_eff_threshold) {
                 simd_blocks = nb_icb;
                 break;
@@ -734,19 +734,22 @@ float brg_blocking_t::est_eff() {
     const auto ocblock = oc_block / 16;
 
     const auto brgemm_microkernel_eff
-            = ((float)ocblock * ur) / ((ur + ocblock) * max_regs);
+            = (static_cast<float>(ocblock) * ur) / ((ur + ocblock) * max_regs);
 
-    const auto ur_eff = (float)sp_block / rnd_up(sp_block, ur);
-    const auto brgemm_eff = squeeze_val(
-            ur * (2.f - nstl::min(1.9f, (float)ur / sp_block)) / 64, 0.5f);
+    const auto ur_eff = static_cast<float>(sp_block) / rnd_up(sp_block, ur);
+    const auto brgemm_eff = squeeze_val(ur
+                    * (2.f - nstl::min(1.9f, static_cast<float>(ur) / sp_block))
+                    / 64,
+            0.5f);
 
     const auto sp_amount = nb_od * nb_oh * nb_sp;
     const auto work_amount = mb * ngroups * nb_oc * sp_amount;
-    const auto sp_eff = ((float)sp / rnd_up(sp, sp_block));
+    const auto sp_eff = (static_cast<float>(sp) / rnd_up(sp, sp_block));
 
-    const auto thr_eff = (float)work_amount / utils::rnd_up(work_amount, nthr);
+    const auto thr_eff = static_cast<float>(work_amount)
+            / utils::rnd_up(work_amount, nthr);
 
-    const auto oc_block_eff = (float)oc / rnd_up(oc, oc_block);
+    const auto oc_block_eff = static_cast<float>(oc) / rnd_up(oc, oc_block);
 
     const auto job = div_up(work_amount, nthr);
 
@@ -792,7 +795,8 @@ float brg_blocking_t::est_eff() {
             if (thr_jobs[ithr] > max_job) max_job = thr_jobs[ithr];
             sum_job += thr_jobs[ithr];
         }
-        job_eff = max_job == 0 ? 1 : (float)sum_job / (max_job * nthr);
+        job_eff = max_job == 0 ? 1
+                               : static_cast<float>(sum_job) / (max_job * nthr);
 
     } else {
         job_eff = thr_eff;
@@ -913,10 +917,10 @@ float brg_blocking_t::est_eff() {
     loop[l].dst.set(od_thr * oh_thr * sp_thr * nsimd_oc_thr * simd_w, 1);
     loop[l].wei.set(kd * kh * kw * nsimd_oc_thr * simd_w * ic, mb_thr);
 
-    const auto src_op = (dim_t)mb_thr * od_thr * (is_os_blocking ? 1 : oh_thr)
-            * sp_thr * kd * kh * kw * ic;
-    const auto dst_op = (dim_t)mb_thr * od_thr * (is_os_blocking ? 1 : oh_thr)
-            * sp_thr * nsimd_oc_thr;
+    const auto src_op = static_cast<dim_t>(mb_thr) * od_thr
+            * (is_os_blocking ? 1 : oh_thr) * sp_thr * kd * kh * kw * ic;
+    const auto dst_op = static_cast<dim_t>(mb_thr) * od_thr
+            * (is_os_blocking ? 1 : oh_thr) * sp_thr * nsimd_oc_thr;
     wei_op = kd * kh * kw * nsimd_oc_thr * ic;
 
     // for "real" application set bench_iterations to 1
@@ -953,7 +957,7 @@ float brg_blocking_t::est_eff() {
     const auto call_kernel_cost
             = 1000.f * job * ic_chunks * nb_kd * nb_kh * nb_kw;
 
-    const auto cache_eff = ((dim_t)mb * od * oh * sp * ic * oc)
+    const auto cache_eff = (static_cast<dim_t>(mb) * od * oh * sp * ic * oc)
             / (nthr * (src_cost + dst_cost + wei_cost + call_kernel_cost));
     const auto res_eff = oc_block_eff * brgemm_microkernel_eff * sp_eff
             * job_eff * ur_eff * cache_eff * brgemm_eff;
@@ -987,8 +991,8 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
                 = 2 * src_dsz * ic * iwp + dst_dsz * ow * oc_block;
         const auto other_size = wei_dsz * kd * kh * kw * ic * oc_block
                 + acc_dsz * 2 * amx_h * oc_block;
-        const auto L2_available = nstl::min(
-                (size_t)div_up(L2, 2), other_size > L2 ? 0 : L2 - other_size);
+        const auto L2_available = nstl::min(static_cast<size_t>(div_up(L2, 2)),
+                other_size > L2 ? 0 : L2 - other_size);
         if (idp * ihp * w_block_size > L2_available) {
             od_block = utils::saturate(
                     1, od, int(L2_available / (ihp * w_block_size)));
@@ -1017,8 +1021,9 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
             }
             for (; cur_od_block > 1; cur_od_block--) {
                 const auto sp_size = cur_od_block * cur_oh_block * iwp;
-                if (((float)od / rnd_up(od, cur_od_block)) > 0.9f
-                        && (float)sp_size / rnd_up(sp, amx_h) > 0.8f) {
+                if ((static_cast<float>(od) / rnd_up(od, cur_od_block)) > 0.9f
+                        && static_cast<float>(sp_size) / rnd_up(sp, amx_h)
+                                > 0.8f) {
                     L1_fit_res = true;
                     break;
                 }
@@ -1026,7 +1031,8 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
             if (cur_od_block == 1) {
                 for (; cur_oh_block > 1; cur_oh_block--) {
                     const auto sp_size = cur_oh_block * iwp;
-                    if (((float)oh / rnd_up(oh, cur_oh_block)) > 0.9f
+                    if ((static_cast<float>(oh) / rnd_up(oh, cur_oh_block))
+                                    > 0.9f
                             && sp_size > 128) {
                         L1_fit_res = true;
                         break;
@@ -1111,7 +1117,8 @@ void brg_blocking_t::calc_blocks() {
 
     const auto thr_eff_threshold = 0.9f;
     const auto max_ow_block_thr = utils::saturate(1, ow,
-            (int)div_up(mb * ngroups * nb_oc * os, thr_eff_threshold * nthr));
+            static_cast<int>(div_up(
+                    mb * ngroups * nb_oc * os, thr_eff_threshold * nthr)));
 
     ow_block = os_block = sp_block = -1;
     brg_blocking_t best_brgb = *this;
@@ -1144,7 +1151,7 @@ bool brg_blocking_t::fast_check_oc_block_1x1() const {
                 = od * oh * ow >= 64 * stride_d * stride_h * stride_w;
         res = (rnd_oc % oc_block == 0 && big_spatial);
     } else if (oc_block == 48) {
-        const auto oc_block_eff = (float)oc / rnd_up(oc, oc_block);
+        const auto oc_block_eff = static_cast<float>(oc) / rnd_up(oc, oc_block);
         res = (oc_block_eff >= 0.95);
     } else
         res = true;
@@ -1156,18 +1163,21 @@ float brg_blocking_t::est_eff_1x1() {
     const auto ocblock = oc_block / 16;
 
     const auto brgemm_microkernel_eff
-            = ((float)ocblock * ur) / ((ur + ocblock) * max_regs);
-    const auto ur_eff = (float)sp_block / rnd_up(sp_block, ur);
-    const auto brgemm_eff = squeeze_val(
-            ur * (2.f - nstl::min(1.9f, (float)ur / sp_block)) / 64, 0.5f);
+            = (static_cast<float>(ocblock) * ur) / ((ur + ocblock) * max_regs);
+    const auto ur_eff = static_cast<float>(sp_block) / rnd_up(sp_block, ur);
+    const auto brgemm_eff = squeeze_val(ur
+                    * (2.f - nstl::min(1.9f, static_cast<float>(ur) / sp_block))
+                    / 64,
+            0.5f);
 
     const auto sp_amount = is_os_blocking ? div_up(nb_os, nb_os_blocking)
                                           : nb_od * nb_oh * nb_sp;
     const auto work_amount = mb * ngroups * nb_oc * sp_amount;
 
-    const auto sp_eff = (float)sp / rnd_up(sp, sp_block);
-    const auto thr_eff = (float)work_amount / utils::rnd_up(work_amount, nthr);
-    const auto oc_block_eff = (float)oc / rnd_up(oc, oc_block);
+    const auto sp_eff = static_cast<float>(sp) / rnd_up(sp, sp_block);
+    const auto thr_eff = static_cast<float>(work_amount)
+            / utils::rnd_up(work_amount, nthr);
+    const auto oc_block_eff = static_cast<float>(oc) / rnd_up(oc, oc_block);
 
     const auto job = div_up(work_amount, nthr);
 
@@ -1260,7 +1270,8 @@ float brg_blocking_t::est_eff_1x1() {
             sum_job += thr_jobs[ithr];
         }
 
-        job_eff = max_job == 0 ? 1 : (float)sum_job / (max_job * nthr);
+        job_eff = max_job == 0 ? 1
+                               : static_cast<float>(sum_job) / (max_job * nthr);
     } else {
         job_eff = thr_eff;
     }
@@ -1343,9 +1354,9 @@ float brg_blocking_t::est_eff_1x1() {
     loop[l].dst.set(nsimd_oc_thr * simd_w * od_thr * oh_thr * sp_thr, 1);
     loop[l].wei.set(nsimd_oc_thr * ic * simd_w, mb_thr);
 
-    const auto src_op = (dim_t)mb_thr * od_thr * (is_os_blocking ? 1 : oh_thr)
-            * sp_thr * ic_blocking_size;
-    const auto dst_op = (dim_t)mb_thr * nsimd_oc_thr * od_thr
+    const auto src_op = static_cast<dim_t>(mb_thr) * od_thr
+            * (is_os_blocking ? 1 : oh_thr) * sp_thr * ic_blocking_size;
+    const auto dst_op = static_cast<dim_t>(mb_thr) * nsimd_oc_thr * od_thr
             * (is_os_blocking ? 1 : oh_thr) * sp_thr;
     wei_op = nsimd_oc_thr * ic;
 
@@ -1382,7 +1393,7 @@ float brg_blocking_t::est_eff_1x1() {
 
     const auto up_sp_size = is_os_blocking ? 1 : od * oh;
 
-    const auto cache_eff = ((dim_t)mb * up_sp_size * sp * ic * oc)
+    const auto cache_eff = (static_cast<dim_t>(mb) * up_sp_size * sp * ic * oc)
             / (nthr * (src_cost + dst_cost + wei_cost + call_kernel_cost));
 
     const auto res_eff = oc_block_eff * brgemm_microkernel_eff * sp_eff
@@ -1417,8 +1428,8 @@ void brg_blocking_t::calc_blocks_1x1() {
     if (stride_d == 1 && stride_h == 1) {
         ow_block = 0;
 
-        const auto max_os_block_thr = nstl::max(
-                div_up(2048, oc_block), (int)div_up(mb * ngroups * os, nthr));
+        const auto max_os_block_thr = nstl::max(div_up(2048, oc_block),
+                static_cast<int>(div_up(mb * ngroups * os, nthr)));
         const auto max_os_block_L2 = max_sp_block_L2;
 
         auto max_os_block_aliasing = 1000000 / nthr;
@@ -1443,8 +1454,8 @@ void brg_blocking_t::calc_blocks_1x1() {
         os_block = 0;
 
         const auto max_ow_block_thr = utils::saturate(1, ow,
-                (int)div_up(
-                        mb * ngroups * nb_oc * os, thr_eff_threshold * nthr));
+                static_cast<int>(div_up(
+                        mb * ngroups * nb_oc * os, thr_eff_threshold * nthr)));
         const auto max_ow_block_L2 = max_sp_block_L2;
 
         start_sp_block = utils::saturate(
@@ -1660,8 +1671,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     using namespace data_type;
     // ======================= blocking =================================
 
-    auto bcast_amount = (size_t)jcp.id * jcp.ih * jcp.iw * jcp.src_dsz;
-    auto wei_amount = (size_t)jcp.oc * jcp.kd * jcp.kh * jcp.kw * jcp.wei_dsz;
+    auto bcast_amount
+            = static_cast<size_t>(jcp.id) * jcp.ih * jcp.iw * jcp.src_dsz;
+    auto wei_amount = static_cast<size_t>(jcp.oc) * jcp.kd * jcp.kh * jcp.kw
+            * jcp.wei_dsz;
 
     jcp.loop_order = (bcast_amount < wei_amount) ? loop_ngcdhw : loop_ndhwgc;
 
@@ -1823,14 +1836,14 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (jcp.exec_type == exec_trans) {
         // TODO: this is rough estimation of buffer for transpose input
-        jcp.inp_buffer_size = rnd_up((dim_t)jcp.idp
+        jcp.inp_buffer_size = rnd_up(static_cast<dim_t>(jcp.idp)
                         * (jcp.is_os_blocking ? rnd_up(jcp.ihp, jcp.brgM)
                                               : jcp.ihp)
                         * jcp.iwp * jcp.ngroups * jcp.nb_ic * jcp.ic_block
                         * jcp.kh_sets * jcp.kw_sets,
                 4096);
-        jcp.inp_buffer_mask_size = rnd_up((dim_t)jcp.nb_od * jcp.nb_oh
-                        * jcp.nb_ow * jcp.ngroups * jcp.nb_ic,
+        jcp.inp_buffer_mask_size = rnd_up(static_cast<dim_t>(jcp.nb_od)
+                        * jcp.nb_oh * jcp.nb_ow * jcp.ngroups * jcp.nb_ic,
                 4096);
     }
 
@@ -1858,8 +1871,9 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     using namespace data_type;
     // ===================== blocking =================================
 
-    auto bcast_amount = (size_t)jcp.id * jcp.ih * jcp.iw * jcp.src_dsz;
-    auto wei_amount = (size_t)jcp.oc * jcp.wei_dsz;
+    auto bcast_amount
+            = static_cast<size_t>(jcp.id) * jcp.ih * jcp.iw * jcp.src_dsz;
+    auto wei_amount = static_cast<size_t>(jcp.oc) * jcp.wei_dsz;
 
     jcp.loop_order = (bcast_amount < wei_amount) ? loop_ngcdhw : loop_ndhwgc;
 
@@ -1979,14 +1993,15 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     if (jcp.brg_type == brgemm_addr || jcp.brg_type == brgemm_offs
             || (jcp.brg_type == brgemm_strd && jcp.exec_type == exec_vpad))
         scratchpad.book(key_brgemm_primitive_batch,
-                (size_t)jcp.nthr * jcp.adjusted_batch_size,
+                static_cast<size_t>(jcp.nthr) * jcp.adjusted_batch_size,
                 sizeof(brgemm_batch_element_t), 64);
     if (jcp.exec_type == exec_trans) {
-        size_t inp_buffer_size = (size_t)jcp.nthr * jcp.inp_buffer_size;
+        size_t inp_buffer_size
+                = static_cast<size_t>(jcp.nthr) * jcp.inp_buffer_size;
         scratchpad.book(
                 key_conv_brgemm_inp_buffer, inp_buffer_size, jcp.src_dsz);
         size_t inp_buffer_mask_size
-                = (size_t)jcp.nthr * jcp.inp_buffer_mask_size;
+                = static_cast<size_t>(jcp.nthr) * jcp.inp_buffer_mask_size;
         scratchpad.book(key_conv_brgemm_inp_buffer_mask, inp_buffer_mask_size,
                 sizeof(uint8_t));
     }

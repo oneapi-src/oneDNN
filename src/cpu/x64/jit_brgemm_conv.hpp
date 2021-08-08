@@ -85,10 +85,12 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         int get_brg_idx(int bs, int m, bool do_initialization, bool is_N_tail,
                 bool is_K_tail) const {
             auto adj_bs = jcp_.use_uker ? (bs / bs_s) - 1 : 0;
-            return (((m * bs_c + adj_bs) * 2 + (int)do_initialization) * 2
-                           + (int)is_N_tail)
+            return (((m * bs_c + adj_bs) * 2
+                            + static_cast<int>(do_initialization))
+                                   * 2
+                           + static_cast<int>(is_N_tail))
                     * 2
-                    + (int)is_K_tail;
+                    + static_cast<int>(is_K_tail);
         }
     };
 
@@ -144,7 +146,8 @@ private:
     };
 
     static int get_ker_po_idx(int m, bool do_postwork, bool is_N_tail) {
-        return (m * 2 + (int)do_postwork) * 2 + (int)is_N_tail;
+        return (m * 2 + static_cast<int>(do_postwork)) * 2
+                + static_cast<int>(is_N_tail);
     }
 
     static int get_inp_size(
@@ -184,7 +187,9 @@ private:
             int i_N, int init_bcast_dim, int po_bcast_dim, bool need_postwork);
     status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    const pd_t *pd() const {
+        return static_cast<const pd_t *>(primitive_t::pd().get());
+    }
 
     std::vector<std::unique_ptr<brgemm_kernel_t>> brg_kernels_;
     std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops>> kernels_po_;
