@@ -230,7 +230,7 @@ In order to simplify the support of framework imperative execution mode, oneDNN
 Graph API supports single op partition. As the name suggests, it's a partition
 which only contains one operator. There is no need to use graph for imperative
 execution mode. The demo code is like below. The full example code can be found
-at [cpu_single_op_partition_matmul.cpp](https://github.com/intel-innersource/libraries.performance.math.onednn/blob/dev-graph/examples/cpp/src/cpu_single_op_partition_matmul.cpp).
+at [cpu_single_op_partition_matmul.cpp](../examples/cpp/src/cpu_single_op_partition_matmul.cpp).
 
 ~~~cpp
 // define input and output logical tensor
@@ -274,13 +274,13 @@ improve inference performance, users may want to convert the weight from public
 layout to opaque layout and use this converted weight every iteration. This
 will significantly reduce the overhead of converting weight every iteration.
 With the combination of single operator partition and `reorder` operation, users
-are able to implement this optimization on their side. Need to mention that the
-weight's opaque layout can be only queried out from compiled partition, which
-requires the tensor shapes mush be known at the compilation time.
+are able to implement this optimization on their side. The weight's opaque
+layout can be only queried out from compiled partition, which requires the
+tensor shapes must be known at the compilation time.
 
 ## Additional Ease-of-Use Features
 
-- Users don't need set tensor's dims assuming NHWC format
+- Users are not required to set the tensors' format
 
   - oneDNN Graph API removes the format representation from logical tensor, so
     users don't need to indicate whether the tensor is NHWC tensor or NCHW
@@ -290,10 +290,10 @@ requires the tensor shapes mush be known at the compilation time.
     Convolution operator has `data_format` and `filter_format`.
 
      ~~~cpp
-     // for example, tensorflow shapes
-      dims_t ish = {1, 227, 227, 3};
-      dims_t wsh = {11, 11, 3, 96};
-      dims_t osh = {1, 55, 55, 96};
+     // for example, tensorflow shapes
+      dims_t ish = {1, 227, 227, 3};
+      dims_t wsh = {11, 11, 3, 96};
+      dims_t osh = {1, 55, 55, 96};
       // create input/output logical tensors.
       logical_tensor conv_src {0, dt::f32, ish, layout_type::strided};
       logical_tensor conv_wei {1, dt::f32, wsh, layout_type::strided};
@@ -301,13 +301,14 @@ requires the tensor shapes mush be known at the compilation time.
       // create convolution op with inputs and outputs
       op conv {0, kind::Convolution, {conv_src, conv_wei}, {conv_dst}, “conv0”};
       // set attributes to conv op
-      conv.set_attr("data_format", std::string("NXC")); // input, nhwc
-      conv.set_attr("filter_format", std::string("XIO")); // weight, hwio
+      conv.set_attr("data_format", std::string("NXC")); // input, nhwc
+      conv.set_attr("filter_format", std::string("XIO")); // weight, hwio
       // add op to graph.
       graph.add_op(conv);
      ~~~
 
-- Users don't need query and convert to the opaque layout for input tensors
+- Users are not required to "query and convert" to the opaque layout for input
+  tensors at execution time
 
   - oneDNN Graph API allows that the output tensor of one partition is
     directly passed to another partition, even though this output tensor has
