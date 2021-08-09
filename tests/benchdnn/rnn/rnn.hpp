@@ -413,12 +413,8 @@ private:
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
-    using base_perf_report_t::base_perf_report_t;
-
-    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
-        p_ = prb;
-        base_report(res, prb_str);
-    }
+    perf_report_t(const prb_t *prb, const char *perf_template)
+        : base_perf_report_t(perf_template), p_(prb) {}
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
 
@@ -447,7 +443,7 @@ struct perf_report_t : public base_perf_report_t {
     const dnnl_prop_kind_t *prop() const override { return &p_->prop; }
 
 private:
-    const prb_t *p_ = nullptr;
+    const prb_t *p_;
 };
 
 void prepare_ws_fwd(const prb_t &prb, std::vector<float> &ws_fwd_buffer,

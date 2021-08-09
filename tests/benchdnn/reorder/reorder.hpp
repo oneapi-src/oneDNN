@@ -142,16 +142,13 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 std::ostream &operator<<(std::ostream &s, const std::vector<flag_t> &oflag);
 
 struct perf_report_t : public base_perf_report_t {
-    using base_perf_report_t::base_perf_report_t;
-
-    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
-        p_ = prb;
-        sdt_ = {cfg2dt(p_->conf_in)};
-        ddt_ = cfg2dt(p_->conf_out);
-        stag_ = {normalize_tag(p_->reorder.tag_in, p_->ndims)};
-        dtag_ = normalize_tag(p_->reorder.tag_out, p_->ndims);
-        base_report(res, prb_str);
-    }
+    perf_report_t(const prb_t *prb, const char *perf_template)
+        : base_perf_report_t(perf_template)
+        , p_(prb)
+        , sdt_({cfg2dt(p_->conf_in)})
+        , ddt_(cfg2dt(p_->conf_out))
+        , stag_({normalize_tag(p_->reorder.tag_in, p_->ndims)})
+        , dtag_(normalize_tag(p_->reorder.tag_out, p_->ndims)) {}
 
     void dump_desc(std::ostream &s) const override { s << p_->reorder.dims; }
 
@@ -177,7 +174,7 @@ struct perf_report_t : public base_perf_report_t {
     const std::string *dtag() const override { return &dtag_; }
 
 private:
-    const prb_t *p_ = NULL;
+    const prb_t *p_;
     std::vector<dnnl_data_type_t> sdt_;
     dnnl_data_type_t ddt_;
     std::vector<std::string> stag_;

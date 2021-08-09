@@ -111,14 +111,11 @@ struct prb_t : public desc_t {
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
-    using base_perf_report_t::base_perf_report_t;
-
-    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
-        p_ = prb;
-        sdt_.push_back(prb->sdt);
-        tag_ = normalize_tag(p_->tag, p_->ndims);
-        base_report(res, prb_str);
-    }
+    perf_report_t(const prb_t *prb, const char *perf_template)
+        : base_perf_report_t(perf_template)
+        , p_(prb)
+        , sdt_({prb->sdt})
+        , tag_(normalize_tag(p_->tag, p_->ndims)) {}
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
 
@@ -142,7 +139,7 @@ struct perf_report_t : public base_perf_report_t {
     const std::string *tag() const override { return &tag_; }
 
 private:
-    const prb_t *p_ = NULL;
+    const prb_t *p_;
     std::vector<dnnl_data_type_t> sdt_;
     std::string tag_;
 };

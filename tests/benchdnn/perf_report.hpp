@@ -121,7 +121,7 @@ struct base_perf_report_t {
         SAFE_V(FAIL);
     }
 
-    void base_report(const res_t *res, const char *prb_str) const {
+    void report(const res_t *res, const char *prb_str) const {
         dump_perf_footer();
 
         std::stringstream ss;
