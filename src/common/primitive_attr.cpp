@@ -119,7 +119,7 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
         dnnl::impl::data_type_t dst_dt) const {
     using smask_t = skip_mask_t;
     // prepare mask for runtime-parameters check
-    smask_t defined_mask {};
+    smask_t defined_mask = smask_t::none;
     if ((mask & smask_t::oscale_runtime) == smask_t::oscale_runtime)
         defined_mask |= smask_t::oscale;
     if ((mask & smask_t::scales_runtime) == smask_t::scales_runtime)

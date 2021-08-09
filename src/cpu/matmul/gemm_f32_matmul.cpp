@@ -213,9 +213,9 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     std::atomic<status_t> st(status::success);
     // use parallel over batch when binary po with channel bcast
     // (except batch == 1)
-    bool is_binary_po_per_oc;
-    bool is_binary_po_per_oc_sp;
-    bool is_binary_po_channel_bcast;
+    bool is_binary_po_per_oc = false;
+    bool is_binary_po_per_oc_sp = false;
+    bool is_binary_po_channel_bcast = false;
     std::tie(is_binary_po_per_oc, is_binary_po_per_oc_sp,
             is_binary_po_channel_bcast)
             = bcast_strategies_present_tup(po.entry_, pd()->dst_md(),

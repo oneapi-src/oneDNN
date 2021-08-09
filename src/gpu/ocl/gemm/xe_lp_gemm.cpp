@@ -42,10 +42,10 @@ status_t xe_lp_gemm_t::launch_x8x8s32(const gemm_exec_ctx_t &ctx,
     auto &kernel = compute_x8x8s32_kernel_[aligned];
     assert(kernel);
 
-    int unroll_m, unroll_n, block_m, block_n;
+    int unroll_m = 0, unroll_n = 0;
     xe_lp_gemm_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
-    block_m = xe_lp_gemm_driver_params_t::block_m;
-    block_n = xe_lp_gemm_driver_params_t::block_n;
+    int block_m = xe_lp_gemm_driver_params_t::block_m;
+    int block_n = xe_lp_gemm_driver_params_t::block_n;
     int kk = ((k + 3) & ~3);
 
     int sizea = block_m * (kk + sizeof(int));
@@ -131,8 +131,7 @@ status_t xe_lp_gemm_t::launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
     arg_list.set(14, eltwise_beta);
     arg_list.set(15, eltwise_scale);
 
-    int unroll_m, unroll_n;
-
+    int unroll_m = 0, unroll_n = 0;
     xe_lp_gemm_scale_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
 
     size_t nthreads_x = (m + unroll_m - 1) / unroll_m;
@@ -219,14 +218,12 @@ status_t xe_lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
 
     status_t status;
 
-    int unroll_m, unroll_n;
-    int block_m, block_n, block_k;
-
+    int unroll_m = 0, unroll_n = 0;
     xe_lp_gemm_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
 
-    block_m = xe_lp_gemm_driver_params_t::block_m;
-    block_n = xe_lp_gemm_driver_params_t::block_n;
-    block_k = xe_lp_gemm_driver_params_t::block_k;
+    int block_m = xe_lp_gemm_driver_params_t::block_m;
+    int block_n = xe_lp_gemm_driver_params_t::block_n;
+    int block_k = xe_lp_gemm_driver_params_t::block_k;
 
     bool apply_co = true;
     bool aligned = false;

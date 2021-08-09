@@ -629,6 +629,7 @@ void matmul_blocking_params_t::init_zero() {
     need_buf_c_ = false;
     current_lda_ = 0;
     efficiency_score_ = 0.0f;
+    blocking_chunk_mem_size_ = 0;
 }
 
 void matmul_blocking_params_t::init_from_conf() {
@@ -647,6 +648,7 @@ void matmul_blocking_params_t::init_from_conf() {
     need_buf_c_ = use_buffer_c;
     current_lda_ = LDA;
     efficiency_score_ = 0.0f;
+    blocking_chunk_mem_size_ = 0;
 }
 
 void matmul_blocking_params_t::update_k_blocking_dependent_params() {

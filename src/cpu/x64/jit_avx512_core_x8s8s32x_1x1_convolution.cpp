@@ -177,13 +177,14 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
     memory_tracking::grantor_t dw_scratchpad(
             scratchpad, memory_tracking::names::prefix_fusion);
 
-    const size_t dw_bia_dt_size = jcp_dw && jcp_dw->with_bias
-            ? types::data_type_size(dw_pd->desc()->bias_desc.data_type)
-            : 0;
-
+    size_t dw_bia_dt_size = 0;
     float *dw_oscales {nullptr};
     int32_t *compensation_dw {nullptr};
-    if (jcp.with_dw_conv) {
+    if (jcp.with_dw_conv && jcp_dw) {
+        if (jcp_dw->with_bias)
+            dw_bia_dt_size
+                    = types::data_type_size(dw_pd->desc()->bias_desc.data_type);
+
         offset = dw_weights_d.size() - dw_weights_d.additional_buffer_size();
         w = const_cast<char *>(weights_dw);
         compensation_dw = (jcp_dw->signed_input)

@@ -100,6 +100,8 @@ private:
             param.attrs.max_bs = 1;
             param.attrs.max_top_vpad = 0;
             param.attrs.max_bottom_vpad = 0;
+            param.expect_to_fail = false;
+            param.expected_status = dnnl_success;
 
             params.emplace_back(param);
         }

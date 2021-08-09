@@ -101,7 +101,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScratchpadArg) {
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestIntOutputScales) {
     dnnl::primitive_attr attr;
 
-    int mask;
+    int mask = INT_MAX;
     std::vector<float> scales;
 
     // default scales
@@ -134,7 +134,7 @@ TEST_F(attr_test_t, TestZeroPoints) {
             = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
     const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_DST_2,
             DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
-    int zero_points_mask;
+    int zero_points_mask = INT_MAX;
     std::vector<int> zero_points;
 
     // default zero points
@@ -189,7 +189,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {
     const std::vector<int> supported_args = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
     const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_DST_2,
             DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
-    int scales_mask;
+    int scales_mask = INT_MAX;
     std::vector<float> scales;
 
     // default scales
@@ -220,7 +220,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNDataQuantization) {
     dnnl::primitive_attr attr;
 
-    float scale, shift;
+    float scale = NAN, shift = NAN;
 
     // default scale and shift
     attr.get_rnn_data_qparams(scale, shift);
@@ -237,7 +237,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNDataQuantization) {
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNWeightsQuantization) {
     dnnl::primitive_attr attr;
 
-    int scales_mask;
+    int scales_mask = INT_MAX;
     std::vector<float> scales;
 
     // default scale and shift
@@ -266,7 +266,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNWeightsQuantization) {
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNProjWeightsQuantization) {
     dnnl::primitive_attr attr;
 
-    int scales_mask;
+    int scales_mask = INT_MAX;
     std::vector<float> scales;
 
     // default scale and shift
@@ -305,10 +305,10 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestPostOps) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
-    algorithm alg;
-    float scale, alpha, beta;
-    int32_t sum_zp;
-    data_type dt;
+    algorithm alg = algorithm::undef;
+    float scale = NAN, alpha = NAN, beta = NAN;
+    int32_t sum_zp = INT_MAX;
+    data_type dt = data_type::undef;
 
     ASSERT_EQ(ops.len(), 0);
     ASSERT_EQ(attr.get_post_ops().len(), 0);
@@ -370,9 +370,11 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
-    int scales_mask;
+    int scales_mask = INT_MAX;
     std::vector<float> scales_in, scales_out;
-    memory::data_type wei_dt, bias_dt, dst_dt;
+    data_type wei_dt = data_type::undef;
+    data_type bias_dt = data_type::undef;
+    data_type dst_dt = data_type::undef;
 
     ASSERT_EQ(ops.len(), 0);
     ASSERT_EQ(attr.get_post_ops().len(), 0);
