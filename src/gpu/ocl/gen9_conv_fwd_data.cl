@@ -241,6 +241,7 @@ int dst_idx(int mb_block, int oc_outer, int ow_block) {
             _BLOCK_WRITE((ptr) + ((n) & ~1) * 16, *((block) + ((n) & ~1))); \
     } while (0)
 #endif
+
 // Supports C vectorization only.
 #define multiply_row(C, A, B, mb_block, oc_outer, ic_outer, ow_outer) \
     do { \
@@ -717,8 +718,12 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
             for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) {
                 const int bg_off = g * OC;
                 const int bc_off = oc + oc_outer * 16 + local_id;
-#if DT_F16
+#if (DST_DT_U8 || DST_DT_S8)
+#if OC_WO_PADDING == SUB_GROUP_SIZE && (DST_DT_U8 || DST_DT_S8)
+                if (OC_WO_PADDING % OC_BLOCK == 0 && bc_off < OC_WO_PADDING) {
+#else
                 if (OC_WO_PADDING % OC_BLOCK == 0 || bc_off < OC_WO_PADDING) {
+#endif
                     for (int ow_block = 0; ow_block < OW_BLOCK; ow_block++) {
                         const int c_off = dst_idx(mb_block, oc_outer, ow_block);
                         C[c_off] = bia[bg_off + bc_off];
@@ -738,9 +743,16 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         } // mb_block
     } // if-bias
 
-    if (OW_BLOCK == 1) {
+// skip multiplication within zero pad
+#if OC_WO_PADDING == SUB_GROUP_SIZE && (DST_DT_U8 || DST_DT_S8)
+    const bool DO_MUL = ((OC_BLOCK * g_ocb) < OC_WO_PADDING);
+#else
+    const bool DO_MUL = true;
+#endif
+
+    if (OW_BLOCK == 1 && DO_MUL) {
         loop_kdhw_outermost(src, wei, C, id, ih, iw);
-    } else {
+    } else if (DO_MUL) {
         loop_ic_outermost(src, wei, C, id, ih, iw);
     }
 
