@@ -138,7 +138,8 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
                     && conf_.bcast_type == bcast_t::per_w)
             || conf_.bcast_type == bcast_t::scalar;
     conf_.use_stride_src1 = !conf_.broadcast_src1_value
-            && (conf_.bcast_type == bcast_t::none
+            && (utils::one_of(
+                        conf_.bcast_type, bcast_t::none, bcast_t::per_batch)
                     || (conf_.op_type == op_t::n_spatial_c
                             && conf_.bcast_type == bcast_t::per_c)
                     || (conf_.op_type == op_t::n_c_spatial
@@ -177,12 +178,22 @@ op_t jit_uni_binary_t::pd_t::get_op_type(const memory_desc_wrapper &src0_d) {
     return op_t::none;
 }
 
+bool jit_uni_binary_t::pd_t::is_only_dim0_bcasted(
+        const dims_t &bcast_dims, const int ndims) {
+    bool only_dim0_bcasted = true;
+    for (int d = 1; d < ndims; d++)
+        only_dim0_bcasted = only_dim0_bcasted && bcast_dims[d] == 0;
+    return only_dim0_bcasted;
+}
+
 bcast_t jit_uni_binary_t::pd_t::get_bcast_type(
         const memory_desc_wrapper &src1_d, const dims_t &bcast_dims) {
     if (src1_d.nelems() == 1)
         return bcast_t::scalar;
     else if (bcast_dims[1] == 1)
         return bcast_t::per_w;
+    else if (is_only_dim0_bcasted(bcast_dims, src1_d.ndims()))
+        return bcast_t::per_batch;
     else
         return bcast_t::per_c;
 }
@@ -211,26 +222,32 @@ bool jit_uni_binary_t::pd_t::is_bcast_pattern(const dims_t &bcast_dims,
 
 bool jit_uni_binary_t::pd_t::is_bcast_allowed(const int ndims) const {
     // supported cases: NxCxDxHxW:{NxCx1x1x1,1xCx1x1x1,Nx1xDxHxW,Nx1x1xHxW,
-    //                            Nx1x1x1xW,1x1xDxHxW,1x1x1xHxW,1x1x1x1xW,
-    //                            1x1x1x1x1}
+    //                            Nx1x1x1xW,1xCxDxHxW,1x1xDxHxW,1x1x1xHxW,
+    //                            1x1x1x1xW,1x1x1x1x1}
     const auto &bcast_dims = broadcast_dims();
     // check if there is continuous broadcast between non-broadcast dims
+    // if next_bcast_expected == 1, not broadcast dim not met
     int next_bcast_expected = 1;
+    bool sp_not_bcasted = true;
     bool ok = true;
     for (int d = 2; d < ndims; ++d) {
-        if (bcast_dims[d] == 0) next_bcast_expected = 0;
+        if (bcast_dims[d] == 0)
+            next_bcast_expected = 0;
+        else
+            sp_not_bcasted = false;
         ok = ok && bcast_dims[d] == next_bcast_expected;
     }
+
+#define BCAST_PATTERN(N, C, W, condition) \
+    (is_bcast_pattern(bcast_dims, ndims, N, C, W) && (condition))
     if (ndims > 2)
         ok = ok
-                && (is_bcast_pattern(bcast_dims, ndims, 0, 1, 0)
-                        || is_bcast_pattern(bcast_dims, ndims, 1, 1, 0)
-                        || (!!next_bcast_expected // not broadcast dim not met
-                                && (is_bcast_pattern(bcast_dims, ndims, 0, 0, 1)
-                                        || is_bcast_pattern(
-                                                bcast_dims, ndims, 1, 0, 1)
-                                        || is_bcast_pattern(
-                                                bcast_dims, ndims, 1, 1, 1))));
+                && (BCAST_PATTERN(0, 1, 0, true) || BCAST_PATTERN(1, 1, 0, true)
+                        || BCAST_PATTERN(1, 0, 0, sp_not_bcasted)
+                        || BCAST_PATTERN(0, 0, 1, !!next_bcast_expected)
+                        || BCAST_PATTERN(1, 0, 1, !!next_bcast_expected)
+                        || BCAST_PATTERN(1, 1, 1, !!next_bcast_expected));
+#undef BCAST_PATTERN
     return ok;
 }
 
@@ -617,6 +634,54 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
     }
 }
 
+void jit_uni_binary_t::execute_bcast_per_batch_strategy(const data_t *src0,
+        const data_t *src1, data_t *dst, const float *scale0,
+        const float *scale1,
+        const std::vector<const void *> &post_ops_binary_rhs_arg_vec) const {
+
+    const auto kernel = kernel_.get();
+    const auto &simd_w = kernel_->simd_w();
+
+    const memory_desc_wrapper src0_d(pd()->src_md(0));
+    const memory_desc_wrapper src1_d(pd()->src_md(1));
+    const memory_desc_wrapper dst_d(pd()->dst_md(0));
+    const int src0_type_size = types::data_type_size(src0_d.data_type());
+    const int src1_type_size = types::data_type_size(src1_d.data_type());
+    const int dst_type_size = types::data_type_size(dst_d.data_type());
+
+    const dim_t MB = src0_d.dims()[0];
+    const dim_t nelems0_per_b = src0_d.nelems(true) / MB;
+    const dim_t nelems0_simd = nelems0_per_b / simd_w;
+    const dim_t nelems0_tail = nelems0_per_b % simd_w;
+    const bool has_tail = nelems0_tail > 0;
+
+    // Compute strategy:
+    // Compute number of vectors per batch, divide it equally between all
+    // threads. Last one will also handle a tail if present.
+    const dim_t nthr = nstl::min(
+            nelems0_simd + has_tail, (dim_t)dnnl_get_current_num_threads());
+    parallel_nd(MB, nthr, [&](dim_t b, dim_t ithr) {
+        dim_t start = 0, end = 0;
+        balance211(nelems0_simd + has_tail, nthr, ithr, start, end);
+        if (start >= end) return;
+
+        const bool ithr_does_tail = has_tail && end == nelems0_simd + has_tail;
+        const dim_t n_simd_to_do = (end - start - ithr_does_tail) * simd_w;
+        const dim_t tail_to_do = ithr_does_tail * nelems0_tail;
+
+        jit_binary_call_s p;
+        p.spat_offt_count = (n_simd_to_do + tail_to_do) * dst_type_size;
+        const dim_t off = start * simd_w;
+        p.src0 = src0 + (off + b * nelems0_per_b) * src0_type_size;
+        p.src1 = src1 + off * src1_type_size;
+        p.dst = dst + (off + b * nelems0_per_b) * dst_type_size;
+        p.scales_src0 = scale0;
+        p.scales_src1 = scale1;
+        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+        (*kernel)(&p);
+    });
+}
+
 void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
         const data_t *src1, data_t *dst, const float *scale0,
         const float *scale1,
@@ -640,12 +705,10 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
     const dim_t SP = ndims >= 3 ? utils::array_product(dims + 2, ndims - 2) : 1;
 
     const auto &bcast_dims = pd()->broadcast_dims();
-    const bool no_broadcast = bcast_type == bcast_t::none;
-    const bool point_broadcast = bcast_type == bcast_t::scalar;
 
     const dim_t nelems_slice_src0
             = utils::array_product(src0_d.padded_dims() + 1, ndims - 1);
-    const dim_t nelems_slice_src1 = no_broadcast
+    const dim_t nelems_slice_src1 = bcast_type == bcast_t::none
             ? nelems_slice_src0
             : ((bcast_dims[0] == 0) ? utils::array_product(
                        src1_d.padded_dims() + 1, ndims - 1)
@@ -669,6 +732,14 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
                 };
         const auto &kernel_blocked = blocked_oc_tail ? kernel_blocked_tail
                                                      : kernel_blocked_no_tail;
+        const auto src1_off = [&](dim_t mb, dim_t C_blk, dim_t off) -> dim_t {
+            switch (bcast_type) {
+                case bcast_t::scalar: return mb * nelems_slice_src1;
+                case bcast_t::per_batch: return C_blk * SP * simd_w;
+                case bcast_t::none: return off;
+                default: return mb * nelems_slice_src1 + C_blk * simd_w;
+            }
+        };
 
         parallel_nd(MB, C_blocks, [&](dim_t mb, dim_t C_blk) {
             jit_binary_call_s p;
@@ -676,11 +747,7 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             const dim_t off = mb * nelems_slice_src0 + C_blk * SP * simd_w;
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
-            const dim_t src1_off = point_broadcast
-                    ? mb * nelems_slice_src1
-                    : (no_broadcast ? off
-                                    : mb * nelems_slice_src1 + C_blk * simd_w);
-            p.src1 = src1 + src1_off * src1_type_size;
+            p.src1 = src1 + src1_off(mb, C_blk, off) * src1_type_size;
             p.oc_l_off = C_blk * simd_w;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
@@ -689,17 +756,23 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             kernel_blocked(&p, C_blk);
         });
     } else if (op_type == op_t::n_spatial_c) {
+        const auto src1_off = [&](dim_t mb, dim_t sp, dim_t off) -> dim_t {
+            switch (bcast_type) {
+                case bcast_t::per_batch: return sp * C;
+                case bcast_t::none: return off;
+                default: return mb * nelems_slice_src1;
+            }
+        };
+
         // Compute strategy:
         // Each line of channels is individual, parallel over MB and spatial.
-
         parallel_nd(MB, SP, [&](dim_t mb, dim_t sp) {
             jit_binary_call_s p;
             p.spat_offt_count = C * dst_type_size;
             const auto off = mb * nelems_slice_src0 + sp * C;
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
-            const auto src1_off = no_broadcast ? off : mb * nelems_slice_src1;
-            p.src1 = src1 + src1_off * src1_type_size;
+            p.src1 = src1 + src1_off(mb, sp, off) * src1_type_size;
             p.oc_l_off = 0;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
@@ -708,19 +781,24 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             (*kernel)(&p);
         });
     } else if (op_type == op_t::n_c_spatial) {
+        const auto src1_off = [&](dim_t mb, dim_t c, dim_t off) -> dim_t {
+            switch (bcast_type) {
+                case bcast_t::scalar: return mb * nelems_slice_src1;
+                case bcast_t::per_batch: return c * SP;
+                case bcast_t::none: return off;
+                default: return mb * nelems_slice_src1 + c;
+            }
+        };
+
         // Compute strategy:
         // Each line of spatial is individual, parallel over MB and C.
-
         parallel_nd(MB, C, [&](dim_t mb, dim_t c) {
             jit_binary_call_s p;
             p.spat_offt_count = SP * dst_type_size;
             const auto off = mb * nelems_slice_src0 + c * SP;
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
-            const dim_t src1_off = point_broadcast
-                    ? mb * nelems_slice_src1
-                    : (no_broadcast ? off : mb * nelems_slice_src1 + c);
-            p.src1 = src1 + src1_off * src1_type_size;
+            p.src1 = src1 + src1_off(mb, c, off) * src1_type_size;
             p.oc_l_off = c;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
@@ -894,6 +972,10 @@ status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
             && !postops_per_oc_broadcast_exists && !blocked_oc_tail)
         execute_no_bcast_strategy(src0, src1, dst, scales[0], scales[1],
                 post_ops_binary_rhs_arg_vec, bcast_type);
+    else if (bcast_type == bcast_t::per_batch
+            && !postops_per_oc_broadcast_exists && !blocked_oc_tail)
+        execute_bcast_per_batch_strategy(src0, src1, dst, scales[0], scales[1],
+                post_ops_binary_rhs_arg_vec);
     else if (bcast_type == bcast_t::per_w)
         execute_bcast_per_w_strategy(src0, src1, dst, scales[0], scales[1],
                 post_ops_binary_rhs_arg_vec, op_type, blocked_oc_tail);

@@ -44,6 +44,7 @@ struct jit_uni_binary_t : public primitive_t {
 
     private:
         op_t get_op_type(const memory_desc_wrapper &src0_d);
+        bool is_only_dim0_bcasted(const dims_t &bcast_dims, const int ndims);
         bcast_t get_bcast_type(
                 const memory_desc_wrapper &src1_d, const dims_t &bcast_dims);
 
@@ -75,6 +76,10 @@ struct jit_uni_binary_t : public primitive_t {
             data_t *dst, const float *scale0, const float *scale1,
             const std::vector<const void *> &post_ops_binary_rhs_arg_vec,
             const bcast_t bcast_type) const;
+    void execute_bcast_per_batch_strategy(const data_t *src0,
+            const data_t *src1, data_t *dst, const float *scale0,
+            const float *scale1,
+            const std::vector<const void *> &post_ops_binary_rhs_arg_vec) const;
     void execute_bcast_per_c_strategy(const data_t *src0, const data_t *src1,
             data_t *dst, const float *scale0, const float *scale1,
             const std::vector<const void *> &post_ops_binary_rhs_arg_vec,

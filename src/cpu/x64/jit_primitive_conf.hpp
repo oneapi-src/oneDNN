@@ -945,6 +945,7 @@ enum class binary_op_t : unsigned { none, c_blocked, n_spatial_c, n_c_spatial };
 enum class binary_bcast_t : unsigned {
     none, // tensor operation
     scalar,
+    per_batch,
     per_c,
     per_w
 };
