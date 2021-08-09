@@ -1493,30 +1493,41 @@ public:
      */
     template <typename Vmm>
     void init_saturate_f32(Vmm vmm_lbound, Vmm vmm_ubound, Xbyak::Reg64 reg_tmp,
-            data_type_t idt, data_type_t odt) {
+            data_type_t idt, data_type_t odt, bool force_lbound = false) {
         using namespace data_type;
         if (!((idt == f32) && utils::one_of(odt, u8, s8, s32))) return;
 
-        assert(IMPLICATION(
-                idt == u8, vmm_lbound.getIdx() != vmm_ubound.getIdx()));
+        assert(IMPLICATION(idt == u8 || force_lbound,
+                vmm_lbound.getIdx() != vmm_ubound.getIdx()));
+
+        auto init_vmm = [&](Vmm vmm, float value) {
+            Xbyak::Xmm xmm_tmp(vmm.getIdx());
+            mov(reg_tmp, float2int(value));
+            uni_vmovq(xmm_tmp, reg_tmp);
+            if (vmm.isYMM() || vmm.isZMM())
+                uni_vbroadcastss(vmm, xmm_tmp);
+            else
+                uni_vshufps(vmm, xmm_tmp, xmm_tmp, 0);
+        };
+
         // No need to saturate on lower bound for signed integer types, as
         // the conversion to int would return INT_MIN, and then proper
-        // saturation will happen in store_data
-        if (odt == u8) uni_vpxor(vmm_lbound, vmm_lbound, vmm_lbound);
+        // saturation will happen in store_data. The param force_lbound, will
+        // force saturate values unconditionally to lbound.
+        if (odt == u8)
+            uni_vpxor(vmm_lbound, vmm_lbound, vmm_lbound);
+        else if (force_lbound) {
+            const float saturation_lbound = odt == s8 ? INT8_MIN : INT32_MIN;
+            init_vmm(vmm_lbound, saturation_lbound);
+        }
 
-        Xbyak::Xmm tmp(vmm_ubound.getIdx());
-        float saturation_ubound = types::max_value<float>(odt);
-        mov(reg_tmp, float2int(saturation_ubound));
-        uni_vmovq(tmp, reg_tmp);
-        if (vmm_ubound.isYMM() || vmm_ubound.isZMM())
-            uni_vbroadcastss(vmm_ubound, tmp);
-        else
-            uni_vshufps(vmm_ubound, tmp, tmp, 0);
+        const float saturation_ubound = types::max_value<float>(odt);
+        init_vmm(vmm_ubound, saturation_ubound);
     }
 
     template <typename Vmm>
     void saturate_f32(const Vmm &vmm, const Vmm &vmm_lbound,
-            const Vmm &vmm_ubound, data_type_t odt) {
+            const Vmm &vmm_ubound, data_type_t odt, bool force_lbound = false) {
         // This function is used to saturate to odt in f32 before converting
         // to s32 in order to avoid bad saturation due to cvtps2dq
         // behavior (it returns INT_MIN if the f32 is out of the
@@ -1526,8 +1537,9 @@ public:
 
         // no need to apply lower saturation bound when odt is
         // signed, as cvtps2dq will return MIN_INT if the value
-        // does not fit
-        if (odt == u8) {
+        // does not fit. The param force_lbound, will force saturate values
+        // unconditionally to lbound.
+        if (odt == u8 || force_lbound) {
             if (is_valid_isa(avx))
                 vmaxps(vmm, vmm, vmm_lbound);
             else

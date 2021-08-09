@@ -906,11 +906,15 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         if (need_saturation) {
             init_saturate_f32(xmm_zero_, xmm_saturation_ubound_, reg_tmp_, f32,
-                    prb_.otype);
+                    prb_.otype, compensation_needed_);
             for (int ur = 0; ur < reg_unroll; ur += ur_step) {
-                saturate_f32(
-                        Xmm(ur), xmm_zero_, xmm_saturation_ubound_, prb_.otype);
+                saturate_f32(Xmm(ur), xmm_zero_, xmm_saturation_ubound_,
+                        prb_.otype, compensation_needed_);
             }
+
+            // reset back xmm_zero_ if needed.
+            if (compensation_needed_ && (prb_.req_src_zp || prb_.req_dst_zp))
+                uni_vxorps(xmm_zero_, xmm_zero_, xmm_zero_);
         }
 
         if (compensation_needed_) {
