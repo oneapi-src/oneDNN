@@ -260,7 +260,8 @@ __kernel void gen9_final_reduce(__global float *src, __global DST_DATA_T *dst) {
         for (int c = c_start; c < c_end; c++) {
             for (int hwd = hwd_start; hwd < hwd_end; hwd++) {
                 // zero pad dst memory
-                if (n >= DST_N || c >= DST_C) {
+                if ((n >= DST_N && n < DST_N_PADDED)
+                        || (c >= DST_C && c < DST_C_PADDED)) {
                     const int dst_off = FINAL_DST_OFFSET(n, c, hwd);
                     dst[dst_off] = TO_DST(0.0f);
                 }
