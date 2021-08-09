@@ -324,74 +324,12 @@ public:
                     data.dims, data.dims + data.ndims, that.data.dims);
         }
 
-        // to be replaced with memory_desc_permute_axes in DNNL v1.3
-        desc permute(const std::vector<int> &permute_axes = {}) const {
-            if (data.ndims <= 1) { return clone(); }
-
-            auto perms = permute_axes;
-            if (perms.empty()) {
-                perms.resize(static_cast<std::size_t>(data.ndims));
-                std::iota(perms.rbegin(), perms.rend(), 0);
-            } else {
-                BACKEND_DNNL_ENFORCE(perms.size() == data.ndims,
-                        "Axes should be size like source tensor.");
-                auto perms_sorted = perms;
-                std::sort(perms_sorted.begin(), perms_sorted.end());
-                for (auto i = 0; i < perms_sorted.size(); ++i) {
-                    BACKEND_DNNL_ENFORCE(perms_sorted[i] == i,
-                            "Axes should be a permutation of 0 to ndim.");
-                }
-                if (perms_sorted == perms) { return clone(); }
-            }
-
-            desc new_desc {};
-            auto ndims = data.ndims;
-            new_desc.data.ndims = data.ndims;
-            new_desc.data.data_type = data.data_type;
-            new_desc.data.format_kind = data.format_kind;
-            new_desc.data.offset0 = data.offset0;
-            new_desc.set_g(g());
-
-            // permute dims, padded_dims, padded_offsets, strides
-            auto &new_dims = new_desc.data.dims;
-            auto &old_dims = data.dims;
-            auto &new_stride = new_desc.data.format_desc.blocking.strides;
-            auto &old_stride = data.format_desc.blocking.strides;
-            auto &new_paddim = new_desc.data.padded_dims;
-            auto &old_paddim = data.padded_dims;
-            auto &new_padoff = new_desc.data.padded_offsets;
-            auto &old_padoff = data.padded_offsets;
-            for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
-                new_dims[i] = old_dims[perms[i]];
-                new_stride[i] = old_stride[perms[i]];
-                new_paddim[i] = old_paddim[perms[i]];
-                new_padoff[i] = old_padoff[perms[i]];
-            }
-
-            // permute blocking
-            auto inner_nblks = data.format_desc.blocking.inner_nblks;
-            new_desc.data.format_desc.blocking.inner_nblks = inner_nblks;
-            auto &old_inner_idxs = data.format_desc.blocking.inner_idxs;
-            auto &new_inner_idxs
-                    = new_desc.data.format_desc.blocking.inner_idxs;
-            auto &old_inner_blks = data.format_desc.blocking.inner_blks;
-            auto &new_inner_blks
-                    = new_desc.data.format_desc.blocking.inner_blks;
-            for (size_t i = 0; i < static_cast<size_t>(inner_nblks); i++) {
-                new_inner_idxs[i]
-                        = perms[static_cast<std::size_t>(old_inner_idxs[i])];
-                new_inner_blks[i] = old_inner_blks[i];
-            }
-
-            return new_desc;
-        }
-
         desc transpose(dim dim0, dim dim1) const {
             std::vector<int> axes(static_cast<std::size_t>(data.ndims));
             std::iota(axes.begin(), axes.end(), 0);
             std::swap(axes[static_cast<std::size_t>(dim0)],
                     axes[static_cast<std::size_t>(dim1)]);
-            return permute(axes);
+            return permute_axes(axes);
         }
 
         /** inits descriptor with logical dimensions adims and keep the current
@@ -766,7 +704,7 @@ public:
     bool has_workspace() const { return workspace_ != nullptr; }
 
     tensor &permute_(const std::vector<int> &permute_axes = {}) {
-        return set_desc(get_desc().permute(permute_axes));
+        return set_desc(get_desc().permute_axes(permute_axes));
     }
 
     tensor permute(const dnnl::stream &p_stream,
