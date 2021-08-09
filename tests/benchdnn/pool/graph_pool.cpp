@@ -139,7 +139,7 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
 fill_status_t pool_graph_prb_t::handle_low_precision_() {
     using op = dnnl::graph::op;
 
-    const std::string SRC = curr_out_map_ids_.back() + "_SRC";
+    const std::string SRC = tensor_id["main"].back() + "_SRC";
     const std::string DST = curr_out_map_ids_.back() + "_DST";
 
     const size_t new_op_id = ops_.size();

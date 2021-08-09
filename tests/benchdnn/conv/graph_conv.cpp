@@ -169,8 +169,8 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
         const ::conv::prb_t *prb) {
     if (spec_.src_dt != dt::f32 || spec_.wei_dt != dt::f32
             || spec_.dst_dt != dt::f32) {
-        const std::string SRC = curr_out_map_ids_.back() + "_SRC";
-        const std::string WEI = curr_out_map_ids_.back() + "_WEI";
+        const std::string SRC = tensor_id["main"].back() + "_SRC";
+        const std::string WEI = tensor_id["main"].back() + "_WEI";
         const std::string DST = curr_out_map_ids_.back() + "_DST";
 
         const size_t new_op_id = ops_.size();

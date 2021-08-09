@@ -101,8 +101,8 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
         const ::matmul::prb_t *prb_) {
     using op = dnnl::graph::op;
 
-    const std::string SRC = curr_out_map_ids_.back() + "_SRC";
-    const std::string WEI = curr_out_map_ids_.back() + "_WEI";
+    const std::string SRC = tensor_id["main"].back() + "_SRC";
+    const std::string WEI = tensor_id["main"].back() + "_WEI";
     const std::string DST = curr_out_map_ids_.back() + "_DST";
 
     const size_t new_op_id = ops_.size();
