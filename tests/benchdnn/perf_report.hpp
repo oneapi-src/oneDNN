@@ -30,9 +30,9 @@ struct base_perf_report_t {
     base_perf_report_t(const char *perf_template) : pt_(perf_template) {}
     virtual ~base_perf_report_t() {}
 
-    void handle_option(std::ostream &s, const char *&option, const res_t *r,
+    void handle_option(std::ostream &s, const char *&option, const res_t *res,
             const char *prb_str) const {
-        const auto &t = r->timer;
+        const auto &t = res->timer;
         benchdnn_timer_t::mode_t mode = benchdnn_timer_t::min;
         (void)mode;
         double unit = 1e0;
@@ -62,7 +62,7 @@ struct base_perf_report_t {
 
         auto get_bw = [&]() -> double {
             if (!t.sec(mode)) return 0;
-            return (r->ibytes + r->obytes) / t.sec(mode) / unit;
+            return (res->ibytes + res->obytes) / t.sec(mode) / unit;
         };
 
         auto get_freq = [&]() -> double {
@@ -106,10 +106,10 @@ struct base_perf_report_t {
         HANDLE("freq", s << get_freq());
         HANDLE("ops", s << ops() / unit);
         HANDLE("time", s << t.ms(mode) / unit);
-        HANDLE("impl", s << r->impl_name);
-        HANDLE("ibytes", s << r->ibytes / unit);
-        HANDLE("obytes", s << r->obytes / unit);
-        HANDLE("iobytes", s << (r->ibytes + r->obytes) / unit);
+        HANDLE("impl", s << res->impl_name);
+        HANDLE("ibytes", s << res->ibytes / unit);
+        HANDLE("obytes", s << res->obytes / unit);
+        HANDLE("iobytes", s << (res->ibytes + res->obytes) / unit);
         HANDLE("idx", s << benchdnn_stat.tests);
 
 #undef HANDLE
@@ -121,7 +121,7 @@ struct base_perf_report_t {
         SAFE_V(FAIL);
     }
 
-    void base_report(const res_t *r, const char *prb_str) const {
+    void base_report(const res_t *res, const char *prb_str) const {
         dump_perf_footer();
 
         std::stringstream ss;
@@ -133,7 +133,7 @@ struct base_perf_report_t {
                 ss << c;
                 continue;
             }
-            handle_option(ss, pt, r, prb_str);
+            handle_option(ss, pt, res, prb_str);
         }
 
         std::string str = ss.str();
