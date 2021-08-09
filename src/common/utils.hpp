@@ -573,8 +573,8 @@ inline void msan_unpoison(void *ptr, size_t size) {
 template <typename T>
 struct setting_t {
 private:
-    T value_;
-    bool initialized_;
+    T value_; // *not* thread safe
+    std::atomic<bool> initialized_;
 
 public:
     setting_t() : initialized_ {false} {}
