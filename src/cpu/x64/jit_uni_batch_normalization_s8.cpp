@@ -32,8 +32,6 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-namespace {
-
 using namespace Xbyak;
 
 using data_t = int8_t;
@@ -568,8 +566,6 @@ struct jit_bnorm_t<sse41> : public jit_bnorm_base_t<sse41> {
     jit_bnorm_t(const batch_normalization_pd_t *pd)
         : jit_bnorm_base_t<sse41>(pd) {}
 };
-
-} // namespace
 
 namespace bnorm_s8_impl {
 

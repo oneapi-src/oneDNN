@@ -37,8 +37,6 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-namespace {
-
 using namespace memory_tracking::names;
 
 using namespace Xbyak;
@@ -1773,7 +1771,6 @@ struct jit_bnorm_t : public jit_generator {
 
     ~jit_bnorm_t() override { delete bf16_emu_; }
 };
-} // namespace
 
 namespace bnorm_impl {
 

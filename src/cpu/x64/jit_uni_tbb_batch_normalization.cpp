@@ -38,8 +38,6 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-namespace {
-
 using namespace memory_tracking::names;
 using namespace Xbyak;
 using acc_data_t = float;
@@ -1667,7 +1665,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         postamble();
     }
 };
-} // namespace
+
 namespace bnorm_tbb_impl {
 
 template <cpu_isa_t isa>

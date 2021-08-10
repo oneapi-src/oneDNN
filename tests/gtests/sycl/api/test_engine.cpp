@@ -26,10 +26,11 @@
 using namespace cl::sycl;
 
 namespace dnnl {
-namespace {
 
 enum class dev_kind { cpu, cpu_only, gpu, gpu_only, host };
 enum class ctx_kind { cpu, cpu_only, gpu, gpu_only, host };
+
+namespace {
 
 std::string to_string(dev_kind kind) {
     static const char *strs[] = {"CPU", "CPU-only", "GPU", "GPU-only", "Host"};

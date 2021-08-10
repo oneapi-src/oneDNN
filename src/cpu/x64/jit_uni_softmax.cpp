@@ -41,8 +41,6 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-namespace {
-
 using namespace Xbyak;
 
 template <cpu_isa_t isa>
@@ -704,8 +702,6 @@ struct jit_softmax_t<sse41> : public jit_softmax_base_t<sse41> {
 
     jit_softmax_t(const softmax_pd_t *pd) : jit_softmax_base_t(pd) {}
 };
-
-} // namespace
 
 template <cpu_isa_t isa>
 jit_uni_softmax_fwd_t<isa>::jit_uni_softmax_fwd_t(const pd_t *apd)
