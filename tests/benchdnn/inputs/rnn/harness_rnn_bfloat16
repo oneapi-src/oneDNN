@@ -3,7 +3,7 @@
 
 --trivial-strides=true,false
 --alg=VANILLA_RNN
---cfg=bf16
+--cfg=bf16f32bf16bf16bf16f32,bf16
 --prop=FWD_I,BWD_DW
 
 # small test case to check GEMM and non-GEMM ops accuracy

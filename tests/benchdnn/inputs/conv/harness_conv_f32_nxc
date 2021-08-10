@@ -1,6 +1,6 @@
 # f32
 --reset --cfg=f32
---skip-impl="ref"
+--skip-impl=ref
 --stag=axb --dtag=axb
 --mb=2                      # for fwd and bwd_d reduce mb
 

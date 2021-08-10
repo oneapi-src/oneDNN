@@ -2,7 +2,7 @@
 --reset
 --mb=2
 --stag=axb --dtag=axb
---skip-impl="ref"
+--skip-impl=ref
 --dir=FWD_B
 --cfg=bf16bf16f32  --batch=shapes_resnet_50
 --cfg=bf16bf16bf16 --batch=set_conv_all
@@ -21,7 +21,7 @@
 --reset
 --mb=2
 --stag=axb --dtag=axb
---skip-impl="ref:gemm"
+--skip-impl=ref,x64:gemm
 
 --dir=FWD_D
 --cfg=bf16bf16bf16
@@ -39,7 +39,7 @@
 --reset
 --mb=2
 --stag=axb --dtag=axb
---skip-impl="ref:gemm"
+--skip-impl=ref,x64:gemm
 --dir=FWD_B
 --cfg=bf16bf16bf16
 ## PostOps
@@ -51,13 +51,9 @@
 
 --batch=harness_conv_dw_bfloat16_nxc
 
-## Per tensor post-op
---skip-impl=  # TODO ! test everything until jit injector is available
---attr-post-ops=add:bf16:per_tensor --batch=shapes_tails
-
 # Test src-transpose padding handling in bf16 bwd-w convolution
 --reset --mb=2
 --stag=axb --dtag=axb
---skip-impl="ref:gemm"
+--skip-impl=ref,x64:gemm
 --cfg=bf16bf16bf16 --dir=BWD_W
 --batch=shapes_src-transpose_padding

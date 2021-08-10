@@ -377,7 +377,16 @@ static bool parse_skip_impl(
         const char *str, const std::string &option_name = "skip-impl") {
     const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) == eol) return false;
+
     skip_impl = std::string(str + pattern.size());
+    // Remove all quotes from input string since they affect the search.
+    for (auto c : {'"', '\''}) {
+        size_t start_pos = 0;
+        while (start_pos != std::string::npos) {
+            start_pos = skip_impl.find_first_of(c, start_pos);
+            if (start_pos != std::string::npos) skip_impl.erase(start_pos, 1);
+        }
+    }
     return true;
 }
 
@@ -399,12 +408,11 @@ static bool parse_cpu_isa_hints(
 static bool parse_memory_kind(
         const char *str, const std::string &option_name = "memory-kind") {
     const bool parsed = parse_single_value_option(memory_kind,
-            memory_kind_ext_t::usm, str2memory_kind, str, option_name);
+            default_memory_kind, str2memory_kind, str, option_name);
 
     if (!parsed) {
-        const bool parsed_old_style
-                = parse_single_value_option(memory_kind, memory_kind_ext_t::usm,
-                        str2memory_kind, str, "sycl-memory-kind");
+        const bool parsed_old_style = parse_single_value_option(memory_kind,
+                default_memory_kind, str2memory_kind, str, "sycl-memory-kind");
         if (!parsed_old_style) return false;
     }
 
@@ -463,4 +471,12 @@ int parse_last_argument() {
                 driver_name);
     return OK;
 }
+
+std::string get_substr(const std::string &s, size_t &start_pos, char delim) {
+    auto end_pos = s.find_first_of(delim, start_pos);
+    auto sub = s.substr(start_pos, end_pos - start_pos);
+    start_pos = end_pos + (end_pos != std::string::npos);
+    return sub;
+}
+
 } // namespace parser

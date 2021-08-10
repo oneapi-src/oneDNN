@@ -8,7 +8,7 @@
 
 --trivial-strides=true,false
 --prop=FWD_I,BWD_DW
---cfg=f32,bf16,f16
+--cfg=f32,bf16f32bf16bf16bf16f32,bf16,f16
 
 # Run all activations with left2right...
 --activation=RELU,TANH,LOGISTIC

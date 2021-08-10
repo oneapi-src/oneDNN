@@ -47,7 +47,7 @@ where *matmul-knobs* are:
             Refer to [data types](knobs_dt.md) for details.
  - `--bia_mask=INT` -- a bit-mask that indicates which bias dimensions are
             broadcasted. 0-bit means broadcast, 1-bit means full dimension.
-- `--runtime_dims_masks=[INT][:INT]` -- a bit-mask with values for `src` and
+ - `--runtime_dims_masks=[INT][:INT]` -- a bit-mask with values for `src` and
             `weights` that indicates whether a dimension is
             `DNNL_RUNTIME_DIM_VAL` (indicated as 1-bit in the corresponding
             dimension position). The default is `0` for all dimensions, meaning

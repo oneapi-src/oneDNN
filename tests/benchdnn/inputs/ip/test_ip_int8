@@ -20,3 +20,16 @@
 
 # Test saturation
 --batch=harness_ip_saturation
+
+# Tests for external blocked weights layout. This targets BRGEMM impl.
+# TODO: extend support with nD cases in the future.
+--reset
+--dir=FWD_B,FWD_D
+--skip-impl=ref
+--cfg=u8s8s32
+--wtag=AB16b64a4b,AB16b32a4b,AB16b16a4b
+mb2ic368oc623
+mb2ic1462oc412
+--wtag=AB4b64a4b,AB4b32a4b,AB4b16a4b
+mb2ic368oc623
+mb2ic1462oc412

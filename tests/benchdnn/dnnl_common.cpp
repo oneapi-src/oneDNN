@@ -93,7 +93,7 @@ size_t engine_index = 0;
 // CPU ISA specific hints : none by default
 isa_hints_t hints {isa_hints_t::none};
 
-memory_kind_ext_t memory_kind {memory_kind_ext_t::usm};
+memory_kind_ext_t memory_kind {default_memory_kind};
 
 void init_isa_settings() {
     if (hints.get() == isa_hints_t::no_hints)

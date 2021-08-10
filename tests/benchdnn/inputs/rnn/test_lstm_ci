@@ -12,7 +12,7 @@
 --prop=FWD_I,BWD_DW
 --with-peephole=false,true
 --with-projection=false,true
---cfg=f32,bf16,f16
+--cfg=f32,bf16f32bf16bf16bf16f32,bf16,f16
 --batch=shapes_small
 --batch=shapes_lstmp_small
 

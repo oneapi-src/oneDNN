@@ -138,7 +138,7 @@ Run a set of u8s8u8 backward convolutions wrt data but skip all
 the convolutions that will use reference or gemm-based implementation:
 ``` sh
     ./benchdnn --conv --cfg=u8s8u8 --dir=BWD_B \
-               --skip-impl='ref:gemm' --batch=inputs/conv/conv_all
+               --skip-impl=ref,x64:gemm --batch=inputs/conv/conv_all
 ```
 
 Run explicitly specified first forward convolution (including bias) from Alexnet
@@ -160,7 +160,7 @@ Winograd:
 Run a set of u8s8u8 forward convolutions without bias, skipping
 reference implementations with one common output scale set to 0.5:
 ``` sh
-    ./benchdnn --conv --cfg=u8s8u8 --dir=FWD_D --skip-impl="ref" \
+    ./benchdnn --conv --cfg=u8s8u8 --dir=FWD_D --skip-impl=ref \
                --attr-oscale=common:0.5 --batch=inputs/conv/conv_all
 ```
 

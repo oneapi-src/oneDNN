@@ -20,10 +20,13 @@
 #include "common.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "parser.hpp"
 
 #include "self/self.hpp"
 
 namespace self {
+
+using pk_t = attr_t::post_ops_t::kind_t;
 
 static int check_simple_enums() {
     /* attr::post_ops::kind */
@@ -91,12 +94,17 @@ static int check_attr2str() {
 static int check_str2attr() {
     attr_t attr;
 
+#define CHECK_OSCALE(os, os_policy, os_scale, os_runtime) \
+    do { \
+        CHECK_EQ((os).policy, policy_t::os_policy); \
+        CHECK_EQ((os).scale, os_scale); \
+        CHECK_EQ((os).runtime, os_runtime); \
+    } while (0)
+
 #define CHECK_ATTR(str, os_policy, os_scale, os_runtime) \
     do { \
         CHECK_EQ(str2attr(&attr, str), OK); \
-        CHECK_EQ(attr.oscale.policy, policy_t::os_policy); \
-        CHECK_EQ(attr.oscale.scale, os_scale); \
-        CHECK_EQ(attr.oscale.runtime, os_runtime); \
+        CHECK_OSCALE(attr.oscale, os_policy, os_scale, os_runtime); \
     } while (0)
 #define CHECK_ATTR_ZP(arg, zero_points_value, zero_points_runtime) \
     do { \
@@ -137,13 +145,57 @@ static int check_str2attr() {
     CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_1).policy, policy_t::COMMON);
     CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_1).scale, 1.5);
 
+    // depthwise conv section
+    {
+        std::vector<attr_t::post_ops_t> po;
+        auto st = parser::parse_attr_post_ops(po, "--attr-post-ops=dw_k3s1p1");
+        CHECK_EQ(st, true);
+        CHECK_EQ(po[0].len(), 1);
+        const auto &e = po[0].entry[0];
+        CHECK_EQ(e.kind, pk_t::DW_K3S1P1);
+        const auto &ce = e.convolution;
+        CHECK_EQ(ce.stride, 1);
+        CHECK_EQ(ce.dst_dt, dnnl_f32);
+        CHECK_OSCALE(ce.oscale, COMMON, 1.f, false);
+    }
+
+    {
+        std::vector<attr_t::post_ops_t> po;
+        auto st = parser::parse_attr_post_ops(po,
+                "--attr-post-ops=relu:0.5+dw_k3s2p1:s8:per_oc:2.5+linear:2:1:0."
+                "5");
+        CHECK_EQ(st, true);
+        CHECK_EQ(po[0].len(), 3);
+        auto &e = po[0].entry[0];
+        CHECK_EQ(e.kind, pk_t::RELU);
+        auto &ee = e.eltwise;
+        CHECK_EQ(ee.alg, dnnl_eltwise_relu);
+        CHECK_EQ(ee.alpha, 0.5f);
+        CHECK_EQ(ee.beta, 0.f);
+        CHECK_EQ(ee.scale, 1.f);
+
+        e = po[0].entry[1];
+        CHECK_EQ(e.kind, pk_t::DW_K3S2P1);
+        const auto &ce = e.convolution;
+        CHECK_EQ(ce.stride, 2);
+        CHECK_EQ(ce.dst_dt, dnnl_s8);
+        CHECK_OSCALE(ce.oscale, PER_OC, 2.5f, false);
+
+        e = po[0].entry[2];
+        CHECK_EQ(e.kind, pk_t::LINEAR);
+        ee = e.eltwise;
+        CHECK_EQ(ee.alg, dnnl_eltwise_linear);
+        CHECK_EQ(ee.alpha, 2.f);
+        CHECK_EQ(ee.beta, 1.f);
+        CHECK_EQ(ee.scale, 0.5f);
+    }
+
+#undef CHECK_OSCALE
 #undef CHECK_ATTR
 #undef CHECK_ATTR_ZP
 
     return OK;
 }
-
-using pk_t = attr_t::post_ops_t::kind_t;
 
 void append_sum(attr_t::post_ops_t &po, float ascale = 1.f,
         int32_t zero_point = 0, dnnl_data_type_t adt = dnnl_data_type_undef) {
@@ -273,6 +325,19 @@ static int check_tags() {
     return OK;
 }
 
+static int check_skip_impl() {
+    skip_impl = "gemm";
+    CHECK_EQ(true, maybe_skip("x64:gemm:jit"));
+
+    skip_impl = "ref,x64:gemm";
+    CHECK_EQ(true, maybe_skip("x64:gemm:jit"));
+
+    skip_impl = "this,finds,nothing";
+    CHECK_EQ(false, maybe_skip("x64:gemm:jit"));
+
+    return OK;
+}
+
 void common() {
     RUN(check_simple_enums());
     RUN(check_attr2str());
@@ -280,6 +345,7 @@ void common() {
     RUN(check_post_ops2str());
     RUN(check_str2post_ops());
     RUN(check_tags());
+    RUN(check_skip_impl());
 }
 
 } // namespace self
