@@ -63,7 +63,12 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
                             utils::one_of(
                                     weights_md(1)->data_type, f32, s32, s8, u8))
                     && attr()->has_default_values(smask_t::oscale
-                            | smask_t::post_ops | smask_t::zero_points_runtime);
+                                    | smask_t::post_ops
+                                    | smask_t::zero_points_runtime
+                                    | smask_t::sum_dt,
+                            dst_md(0)->data_type)
+                    && attr()->post_ops_.check_sum_consistent_dt(
+                            dst_md(0)->data_type);
 
             bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)

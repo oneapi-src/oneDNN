@@ -61,7 +61,9 @@ struct ref_convolution_fwd_t : public primitive_t {
                                     && IMPLICATION(
                                             src_type == f32, bia_type == f32))
                     && set_default_formats()
-                    && attr()->has_default_values(smask_t::post_ops)
+                    && attr()->has_default_values(
+                            smask_t::post_ops | smask_t::sum_dt, dst_type)
+                    && attr()->post_ops_.check_sum_consistent_dt(dst_type)
                     && post_ops_ok()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;

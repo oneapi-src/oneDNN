@@ -71,7 +71,6 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
     if (end <= start) return;
 
     assert(data_traits<dst_data_t>::data_type == jcp_.dst_data_type);
-    dst_data_t *dst = (dst_data_t *)void_dst;
 
     const lldiv_t dv_start = std::div((long long)start, (long long)jcp_.oc);
     const lldiv_t dv_end = std::div((long long)(end - 1), (long long)jcp_.oc);
@@ -110,7 +109,10 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
             }
 
             data *= scales[(g * jcp_.oc + oc) * jcp_.scale_idx_mult];
-            if (jcp_.with_sum) data += sum_scale * dst[dst_off];
+            if (jcp_.with_sum)
+                data += sum_scale
+                        * io::load_float_value(
+                                jcp_.sum_data_type, void_dst, dst_off);
             if (jcp_.with_eltwise || jcp_.with_binary) {
                 args.l_offset = (g * jcp_.oc + oc) * jcp_.os;
                 ref_post_ops_->execute(data, args);
@@ -118,7 +120,7 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
 
             if (jcp_.zp.dst_exists) data += zp_dst_val;
 
-            dst[dst_off] = qz_a1b0<float, dst_data_t>()(data);
+            io::store_float_value(jcp_.dst_data_type, data, void_dst, dst_off);
         }
     }
 }

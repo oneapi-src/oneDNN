@@ -64,7 +64,7 @@
 --stag=any
 --dtag=any
 --attr-post-ops=, \
-                sum:0.5, \
+                sum:0.5:0:u8, \
                 linear:2:1, \
                 add:f32, \
                 sum:0.5:2+add:f32:per_oc+add:f32:per_tensor

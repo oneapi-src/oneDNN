@@ -2107,6 +2107,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
 
     jcp.bias_data_type = cd.bias_desc.data_type;
     jcp.dst_data_type = dst_md.data_type;
+    jcp.sum_data_type = jcp.post_ops.get_sum_dt(jcp.dst_data_type);
     jcp.dst_os_stride = dst_d.is_blocking_desc()
             ? dst_d.blocking_desc().strides[ndims - 1]
             : 0;

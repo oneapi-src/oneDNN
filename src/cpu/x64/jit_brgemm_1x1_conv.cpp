@@ -47,7 +47,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     const auto dst_type = dst_md(0)->data_type;
 
     using skip_mask_t = primitive_attr_t::skip_mask_t;
-    auto skip_mask = skip_mask_t::post_ops;
+    auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt;
     if (one_of(src_type, u8, s8)) skip_mask |= skip_mask_t::oscale;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
@@ -60,7 +60,9 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                                     && one_of(bias_md_.data_type, f32, bf16))
                             || (one_of(src_type, f32)
                                     && one_of(bias_md_.data_type, f32))))
-            && attr()->has_default_values(skip_mask) && !has_zero_dim_memory();
+            && attr()->has_default_values(skip_mask, dst_type)
+            && attr()->post_ops_.check_sum_consistent_dt(dst_type)
+            && !has_zero_dim_memory();
     if (!ok) return status::unimplemented;
 
     CHECK(brgemm_convolution_utils::init_1x1_conf(jcp_, isa, *desc(), src_md_,

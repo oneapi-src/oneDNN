@@ -525,10 +525,15 @@ int fill_dst(
                                   : dnnl_data_type_undef;
     bool diff_sum_dst_types
             = sum_dt != dnnl_data_type_undef && sum_dt != dst_dt;
+    bool sum_dt_is_int8 = sum_dt == dnnl_s8 || sum_dt == dnnl_u8;
 
     const auto &c = prb->cfg[DST];
-    float f_min = (diff_sum_dst_types) ? lowest_dt(sum_dt) : c.f_min;
-    float f_max = (diff_sum_dst_types) ? max_dt(sum_dt) : c.f_max;
+    float f_min = c.f_min;
+    float f_max = c.f_max;
+    if (diff_sum_dst_types && sum_dt_is_int8) {
+        f_min = lowest_dt(sum_dt);
+        f_max = max_dt(sum_dt);
+    }
 
     // Change mem dt to sum dt, so we can save sum data properly.
     if (diff_sum_dst_types) { mem_dt.set_dt(sum_dt); }

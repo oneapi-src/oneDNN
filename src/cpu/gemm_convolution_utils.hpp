@@ -65,6 +65,7 @@ struct conv_gemm_conf_t {
 
     data_type_t bias_data_type;
     data_type_t dst_data_type;
+    data_type_t sum_data_type;
     size_t dst_os_stride;
     size_t scale_idx_mult;
 };

@@ -403,6 +403,8 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
             vmulps(vreg_bias, vreg_bias, zmm_bias_alpha); // *alpha
         }
 
+        auto sum_dt = p.get_sum_dt(jcp.dst_dt);
+
         init_saturate_f32(vreg_zero, vreg_saturation_ubound,
                 reg_ptr_saturation_ubound, f32, jcp.dst_dt);
         for (int y = 0; y < jcp.m; y++) {
@@ -423,7 +425,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
                 if (maybe_relu(0)) vmaxps(zmm, vreg_zero, zmm);
                 if (p_sum_scale) { // post_op: sum
                     vpxord(vreg_prev_dst, vreg_prev_dst, vreg_prev_dst);
-                    switch (jcp.dst_dt) {
+                    switch (sum_dt) {
                         case data_type::f32:
                         case data_type::s32:
                             vmovups(vreg_prev_dst | r_mask, addr);
@@ -434,9 +436,9 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
                         case data_type::u8:
                             vpmovzxbd(vreg_prev_dst | r_mask, addr);
                             break;
-                        default: assert(!"unknown dst_dt");
+                        default: assert(!"unknown sum_dt");
                     }
-                    if (jcp.dst_dt != data_type::f32)
+                    if (sum_dt != data_type::f32)
                         vcvtdq2ps(vreg_prev_dst, vreg_prev_dst);
                     if (*p_sum_zp != 0) vsubps(vreg_prev_dst, vreg_sum_zp);
                     if (*p_sum_scale == 1.f)

@@ -207,7 +207,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_sum(const Zmm &zmm_out,
         const auto p_sum_zp_val = *p_sum_zp;
         const auto sum_injector = [&, p_sum_scale_val, p_sum_zp_val,
                                           mask_flag]() {
-            cvt2ps(jcp.dst_dt, zmm_prev_dst, addr, mask_flag);
+            cvt2ps(jcp.sum_dt, zmm_prev_dst, addr, mask_flag);
             if (p_sum_zp_val != 0) {
                 vcvtdq2ps(zmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
                 vsubps(zmm_prev_dst, zmm_sum_zp);
@@ -343,7 +343,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors_int8(
             const auto addr = EVEX_compress_addr(out_ptr, off);
 
             const Zmm zmm_r = zmm_out(j);
-            cvt2ps(jcp.dst_dt, zmm_prev_dst, addr, mask_flag);
+            cvt2ps(jcp.sum_dt, zmm_prev_dst, addr, mask_flag);
             if (p_sum_zp_val != 0) vsubps(zmm_prev_dst, zmm_sum_zp);
             if (p_sum_scale_val == 1.f)
                 vaddps(zmm_r, zmm_prev_dst);
@@ -1111,6 +1111,7 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.with_eltwise = eltwise_ind != -1;
     const int binary_ind = p.find(primitive_kind::binary);
     jcp.with_binary = binary_ind != -1;
+    jcp.sum_dt = p.get_sum_dt(jcp.dst_dt);
 
     jcp.post_ops = p;
     jcp.is_fast_postops = is_fast_postops(jcp);

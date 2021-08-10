@@ -193,7 +193,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::apply_sum(
                 = [this, sum_scale, sum_zp, load_loop_blk](const bool mask_flag,
                           const int i_load, const int i_ur) {
                       const auto r = vreg_accum(load_loop_blk, i_load, i_ur);
-                      cvt2ps(jcp.dst_dt, vmm_prev_dst, output_ptr(i_load, i_ur),
+                      cvt2ps(jcp.sum_dt, vmm_prev_dst, output_ptr(i_load, i_ur),
                               mask_flag);
                       if (sum_zp != 0) vsubps(vmm_prev_dst, vmm_tmp);
                       if (sum_scale == 1.f)
@@ -942,6 +942,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
+    jcp.sum_dt = post_ops.get_sum_dt(jcp.dst_dt);
 
     jcp.ic_block = jcp.oc_block = simd_w;
 

@@ -54,8 +54,9 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
                     && set_default_formats()
                     && attr()->has_default_values(smask_t::oscale
                                     | smask_t::zero_points_runtime
-                                    | smask_t::post_ops,
+                                    | smask_t::post_ops | smask_t::sum_dt,
                             dst_type)
+                    && attr()->post_ops_.check_sum_consistent_dt(dst_type)
                     && output_scales_mask_ok() && zero_points_ok()
                     && post_ops_ok()
                     && attr_.set_default_formats(dst_md(0)) == status::success;

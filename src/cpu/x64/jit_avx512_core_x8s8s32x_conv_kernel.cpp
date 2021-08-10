@@ -162,7 +162,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::apply_sum(int ur_w,
                     * (k * oc_block + j * jcp.oc_without_padding * jcp.ngroups);
             auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
             Vmm vmm = vmm_out(j, k);
-            cvt2ps(jcp.dst_dt, vmm_prev_dst, addr, mask_flag);
+            cvt2ps(jcp.sum_dt, vmm_prev_dst, addr, mask_flag);
             if (sum_zp != 0) vsubps(vmm_prev_dst, vmm_sum_zp);
             if (sum_scale == 1.f)
                 vaddps(vmm, vmm_prev_dst);
@@ -1494,6 +1494,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     const int sum_ind = post_ops.find(primitive_kind::sum);
     jcp.with_sum = sum_ind != -1;
+    jcp.sum_dt = post_ops.get_sum_dt(jcp.dst_dt);
 
     jcp.post_ops = post_ops;
 

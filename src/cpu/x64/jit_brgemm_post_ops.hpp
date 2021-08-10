@@ -407,6 +407,7 @@ private:
         const auto &p = attr.post_ops_;
         const int sum_idx = p.find(primitive_kind::sum);
         const auto k_mask = tail == 0 ? k_full_mask : k_tail_mask;
+        const auto sum_dt = p.get_sum_dt(out_dt_);
 
         const auto sum_injector = [&] {
             const float *p_sum_scale = &p.entry_[sum_idx].sum.scale;
@@ -426,7 +427,7 @@ private:
                         + out_typesize_ * (m * LDD_ + n * brg.ld_block)];
 
                 const auto zmm_prev_dst = Xbyak::Zmm(31);
-                cvt2ps(out_dt_, zmm_prev_dst, addr, true, false, k_mask);
+                cvt2ps(sum_dt, zmm_prev_dst, addr, true, false, k_mask);
                 if (*p_sum_zp != 0) vsubps(zmm_prev_dst, zmm_sum_zp);
                 if (*p_sum_scale == 1.f)
                     vaddps(zmm, zmm_prev_dst);

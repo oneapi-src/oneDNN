@@ -156,7 +156,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_sum(const int ur,
             const auto ymm_prev_dst = vmm_zero;
 
             const auto r = vreg_accum(load_loop_blk, i_load, i_ur);
-            cvt2ps(jcp.dst_dt, ymm_prev_dst, aux_reg_output_data,
+            cvt2ps(jcp.sum_dt, ymm_prev_dst, aux_reg_output_data,
                     output_ptr(i_load, i_ur),
                     mask_flag ? get_tail_size() : simd_w);
 
@@ -748,6 +748,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
+    jcp.sum_dt = post_ops.get_sum_dt(jcp.dst_dt);
 
     jcp.ic_block = jcp.oc_block = simd_w;
 

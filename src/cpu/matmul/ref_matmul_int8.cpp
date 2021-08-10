@@ -115,8 +115,7 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     // output scale section
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
 
-    auto sum_dt = pd()->attr()->post_ops_.get_sum_dt();
-    if (sum_dt == data_type::undef) sum_dt = dst_d.data_type();
+    auto sum_dt = pd()->attr()->post_ops_.get_sum_dt(dst_d.data_type());
 
     // computations
     parallel_nd(batch, M, N, [&](dim_t mb, dim_t m, dim_t n) {

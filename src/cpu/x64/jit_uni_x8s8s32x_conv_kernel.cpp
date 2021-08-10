@@ -142,7 +142,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_sum(const int nb_oc_block,
                                               const int j) {
             const int aux_output_offset = jcp.typesize_out
                     * (k * oc_block + j * jcp.oc_without_padding * jcp.ngroups);
-            cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
+            cvt2ps(jcp.sum_dt, vmm_prev_dst, reg_out, aux_output_offset,
                     mask_flag ? get_tail_size() : get_blocking_size());
             const Vmm vmm = vmm_out(j, k);
             if (sum_zp != 0) {
@@ -1449,6 +1449,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     jcp.with_binary = binary_ind != -1;
     const int sum_ind = post_ops.find(primitive_kind::sum);
     jcp.with_sum = sum_ind != -1;
+    jcp.sum_dt = post_ops.get_sum_dt(jcp.dst_dt);
 
     jcp.post_ops = post_ops;
 

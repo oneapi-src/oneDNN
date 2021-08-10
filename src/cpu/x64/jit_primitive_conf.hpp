@@ -110,6 +110,8 @@ struct jit_conv_conf_t {
     bool with_eltwise;
     bool with_binary;
 
+    data_type_t sum_dt;
+
     bool with_binary_per_oc_bcast;
     bool with_binary_no_bcast;
 
@@ -602,6 +604,7 @@ struct jit_1x1_conv_conf_t {
     int is_oc_scale;
     data_type_t bia_dt;
     data_type_t dst_dt;
+    data_type_t sum_dt;
     bool signed_input;
     float wei_adj_scale;
     // zero-point compensation

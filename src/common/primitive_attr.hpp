@@ -520,10 +520,13 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         return -1;
     }
 
-    dnnl::impl::data_type_t get_sum_dt() const {
+    dnnl::impl::data_type_t get_sum_dt(
+            const dnnl::impl::data_type_t dst_dt) const {
         const int sum_ind = find(dnnl::impl::primitive_kind::sum);
-        if (sum_ind == -1) return dnnl::impl::data_type::undef;
-        return entry_[sum_ind].sum.dt;
+        if (sum_ind == -1) return dst_dt;
+        const auto sum_dt = entry_[sum_ind].sum.dt;
+        if (sum_dt != dnnl::impl::data_type::undef) return sum_dt;
+        return dst_dt;
     }
 
     bool defined() const;

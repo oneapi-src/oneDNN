@@ -480,7 +480,7 @@ void jit_pp_ker_t::generate() {
 
         if (jcp_.with_sum) {
             const auto vreg_prev_dst = get_vreg_prev_dst(idx);
-            load_as_f32(vreg_prev_dst, mask_reg, dst_addr, jcp_.dst_data_type);
+            load_as_f32(vreg_prev_dst, mask_reg, dst_addr, jcp_.sum_data_type);
             vfmadd231ps(vreg_dst_masked, vreg_prev_dst, vreg_sum_scale_);
         }
 

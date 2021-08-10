@@ -181,6 +181,8 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         return d;
     };
 
+    auto sum_dt = pd()->attr()->post_ops_.get_sum_dt(dst_d.data_type());
+
     parallel_nd(G, MB, OC, OD, OH, OW,
             [&](dim_t g, dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
                 float acc = 0;
@@ -205,8 +207,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                         + od * OH * OW + oh * OW + ow;
 
                 ref_post_ops_t::args_t args;
-                args.dst_val
-                        = io::load_float_value(dst_d.data_type(), dst, dst_off);
+                args.dst_val = io::load_float_value(sum_dt, dst, dst_off);
                 args.ctx = &ctx;
                 args.l_offset = dst_l_off;
                 args.dst_md = pd()->dst_md();

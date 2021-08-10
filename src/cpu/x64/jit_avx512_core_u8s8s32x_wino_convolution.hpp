@@ -66,7 +66,10 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
                     && desc()->accum_data_type == s32
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
-                                    | primitive_attr_t::skip_mask_t::post_ops,
+                                    | primitive_attr_t::skip_mask_t::post_ops
+                                    | primitive_attr_t::skip_mask_t::sum_dt,
+                            dst_md(0)->data_type)
+                    && attr()->post_ops_.check_sum_consistent_dt(
                             dst_md(0)->data_type)
                     && !has_zero_dim_memory() && set_default_formats()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
