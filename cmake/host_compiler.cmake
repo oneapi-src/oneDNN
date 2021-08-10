@@ -46,6 +46,12 @@ if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
     sdl_gnu_src_ccxx_flags(DPCPP_SRC_CXX_FLAGS)
     sdl_gnu_example_ccxx_flags(DPCPP_EXAMPLE_CXX_FLAGS)
 
+    # SYCL uses C++17 features in headers hence C++17 support should be enabled
+    # for host compiler.
+    # The main compiler driver doesn't automatically specify C++ standard for
+    # custom host compilers.
+    append(DPCPP_HOST_COMPILER_OPTS "-std=c++17")
+
     # Unconditionally enable OpenMP during compilation to use `#pragma omp simd`
     append(DPCPP_HOST_COMPILER_OPTS "-fopenmp")
 
