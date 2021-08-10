@@ -250,20 +250,17 @@ foreach(driver ${all_graph_drivers})
             inputs_graph/${driver}/test_*_gpu)
     file(GLOB test_files_ci RELATIVE ${driver_dir}
             inputs_graph/${driver}/test_*_ci)
-    # test_files_cpu contains all the test files
-    file(GLOB test_files_cpu RELATIVE ${driver_dir}
-            inputs_graph/${driver}/test_*)
 
     # Register ci input files for ci only
     if(DNNL_GRAPH_TEST_SET EQUAL DNNL_GRAPH_TEST_SET_CI)
-        # `test_files_cpu` contains all the ci test cases for graph at present.
+        # `test_files_ci` contains all the ci test cases for graph at present.
         # The status may be changed in future as the test cases are added.
-        register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_cpu}")
+        register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_ci}")
     endif()
 
     if(DNNL_GRAPH_TEST_SET GREATER DNNL_GRAPH_TEST_SET_CI)
-        register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_cpu}")
-        register_all_graph_tests(cpu "P" "P" "${driver}" "${test_files_cpu}")
-        register_all_graph_tests(cpu "P" "G" "${driver}" "${test_files_cpu}")
+        register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_ci}")
+        register_all_graph_tests(cpu "P" "P" "${driver}" "${test_files_ci}")
+        register_all_graph_tests(cpu "P" "G" "${driver}" "${test_files_ci}")
     endif()
 endforeach()
