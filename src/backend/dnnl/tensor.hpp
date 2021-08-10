@@ -327,8 +327,9 @@ public:
         desc transpose(dim dim0, dim dim1) const {
             std::vector<int> axes(static_cast<std::size_t>(data.ndims));
             std::iota(axes.begin(), axes.end(), 0);
-            std::swap(axes[static_cast<std::size_t>(dim0)],
-                    axes[static_cast<std::size_t>(dim1)]);
+            axes[static_cast<std::size_t>(dim0)] = dim1;
+            axes[static_cast<std::size_t>(dim1)] = dim0;
+
             return permute_axes(axes);
         }
 

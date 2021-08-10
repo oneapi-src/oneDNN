@@ -198,6 +198,28 @@ TEST(dnnl_tensor_desc, to_grouped) {
     ASSERT_EQ(grouped_td.data.format_desc.blocking.strides[4], 512);
 }
 
+TEST(dnnl_tensor_desc, transpose) {
+    tensor::desc td {{64, 3, 7, 7}, data_type::f32, format_tag::abcd};
+    tensor::desc new_desc = td.transpose(0, 1);
+
+    tensor::desc truth {{3, 64, 7, 7}, data_type::f32, format_tag::bacd};
+
+    ASSERT_EQ(new_desc.data.ndims, 4);
+    ASSERT_EQ(new_desc.data.dims[0], truth.data.dims[0]);
+    ASSERT_EQ(new_desc.data.dims[1], truth.data.dims[1]);
+    ASSERT_EQ(new_desc.data.dims[2], truth.data.dims[2]);
+    ASSERT_EQ(new_desc.data.dims[3], truth.data.dims[3]);
+
+    ASSERT_EQ(new_desc.data.format_desc.blocking.strides[0],
+            truth.data.format_desc.blocking.strides[0]);
+    ASSERT_EQ(new_desc.data.format_desc.blocking.strides[1],
+            truth.data.format_desc.blocking.strides[1]);
+    ASSERT_EQ(new_desc.data.format_desc.blocking.strides[2],
+            truth.data.format_desc.blocking.strides[2]);
+    ASSERT_EQ(new_desc.data.format_desc.blocking.strides[3],
+            truth.data.format_desc.blocking.strides[3]);
+}
+
 // TODO(qun) seldom used methods (such as methods about
 // quantization and submemory) are not tested now. they
 // should be added if used later.
