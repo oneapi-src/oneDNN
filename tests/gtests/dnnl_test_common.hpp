@@ -645,7 +645,7 @@ inline dnnl::memory make_memory(
         const dnnl::memory::desc &md, const dnnl::engine &eng, void *handle) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
     if (eng.get_kind() == dnnl::engine::kind::cpu) {
-        return dnnl::memory(md, eng);
+        return dnnl::memory(md, eng, handle);
     }
 #endif
 
