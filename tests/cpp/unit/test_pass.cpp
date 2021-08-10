@@ -2360,23 +2360,48 @@ TEST(pass_test, gelu_erf_based_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *op1 = agraph.create_op(Wildcard);
-    op_t *op2 = agraph.create_op(Divide);
-    op_t *op3 = agraph.create_op(Erf);
-    op_t *op4 = agraph.create_op(Wildcard);
-    op_t *op5 = agraph.create_op(Add);
-    op_t *op6 = agraph.create_op(Wildcard);
-    op_t *op7 = agraph.create_op(Multiply);
-    op_t *op8 = agraph.create_op(Wildcard);
-    op_t *op9 = agraph.create_op(Multiply);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op3->fill_and_connect_input(0, *op2, 0);
-    op5->fill_and_connect_input(0, *op3, 0);
-    op5->fill_and_connect_input(1, *op4, 0);
-    op7->fill_and_connect_input(0, *op5, 0);
-    op7->fill_and_connect_input(1, *op6, 0);
-    op9->fill_and_connect_input(0, *op7, 0);
-    op9->fill_and_connect_input(1, *op8, 0);
+    op_t op0 {0, Wildcard, "op0"};
+    op_t op1 {1, Divide, "op1"};
+    op_t op2 {2, Erf, "op2"};
+    op_t op3 {3, Wildcard, "op3"};
+    op_t op4 {4, Add, "op4"};
+    op_t op5 {5, Wildcard, "op5"};
+    op_t op6 {6, Multiply, "op6"};
+    op_t op7 {7, Wildcard, "op7"};
+    op_t op8 {8, Multiply, "op8"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(10);
+    op0.add_output(lt_vec[0]);
+    op1.add_input(lt_vec[0]);
+    op1.add_input(lt_vec[1]);
+    op1.add_output(lt_vec[2]);
+    op2.add_input(lt_vec[2]);
+    op2.add_output(lt_vec[3]);
+    op3.add_output(lt_vec[4]);
+    op4.add_input(lt_vec[3]);
+    op4.add_input(lt_vec[4]);
+    op4.add_output(lt_vec[5]);
+    op5.add_output(lt_vec[6]);
+    op6.add_input(lt_vec[5]);
+    op6.add_input(lt_vec[6]);
+    op6.add_output(lt_vec[7]);
+    op7.add_output(lt_vec[8]);
+    op8.add_input(lt_vec[7]);
+    op8.add_input(lt_vec[8]);
+    op8.add_output(lt_vec[9]);
+
+    ASSERT_EQ(agraph.add_op(&op0), status::success);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
+    ASSERT_EQ(agraph.add_op(&op2), status::success);
+    ASSERT_EQ(agraph.add_op(&op3), status::success);
+    ASSERT_EQ(agraph.add_op(&op4), status::success);
+    ASSERT_EQ(agraph.add_op(&op5), status::success);
+    ASSERT_EQ(agraph.add_op(&op6), status::success);
+    ASSERT_EQ(agraph.add_op(&op7), status::success);
+    ASSERT_EQ(agraph.add_op(&op8), status::success);
+
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 9);
 
     pass::pass_base_ptr apass = get_pass("gelu_fusion");
     apass->run(agraph);
@@ -2443,10 +2468,10 @@ TEST(pass_test, gelu_erf_based_tensor_input_fusion) {
 }
 
 struct ut_gelu_params {
+    size_t op3_idx;
     size_t op4_idx;
-    size_t op5_idx;
+    size_t op8_idx;
     size_t op9_idx;
-    size_t op10_idx;
 };
 
 class gelu_test : public ::testing::TestWithParam<ut_gelu_params> {};
@@ -2458,35 +2483,71 @@ TEST_P(gelu_test, gelu_tanh_based_fusion) {
     const ut_gelu_params &params = GetParam();
 
     graph_t agraph;
-    op_t *op1 = agraph.create_op(Wildcard);
-    op_t *op2 = agraph.create_op(Pow);
-    op_t *op3 = agraph.create_op(Wildcard);
-    op_t *op4 = agraph.create_op(Multiply);
-    op_t *op5 = agraph.create_op(Wildcard);
-    op_t *op6 = agraph.create_op(Add);
-    op_t *op7 = agraph.create_op(Wildcard);
-    op_t *op8 = agraph.create_op(Multiply);
-    op_t *op9 = agraph.create_op(Tanh);
-    op_t *op10 = agraph.create_op(Wildcard);
-    op_t *op11 = agraph.create_op(Add);
-    op_t *op12 = agraph.create_op(Wildcard);
-    op_t *op13 = agraph.create_op(Multiply);
-    op_t *op14 = agraph.create_op(Wildcard);
-    op_t *op15 = agraph.create_op(Multiply);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op4->fill_and_connect_input(0, *op2, 0);
-    op4->fill_and_connect_input(1, *op3, 0);
-    op6->fill_and_connect_input(params.op4_idx, *op4, 0);
-    op6->fill_and_connect_input(params.op5_idx, *op5, 0);
-    op8->fill_and_connect_input(0, *op6, 0);
-    op8->fill_and_connect_input(1, *op7, 0);
-    op9->fill_and_connect_input(0, *op8, 0);
-    op11->fill_and_connect_input(params.op9_idx, *op9, 0);
-    op11->fill_and_connect_input(params.op10_idx, *op10, 0);
-    op13->fill_and_connect_input(0, *op11, 0);
-    op13->fill_and_connect_input(1, *op12, 0);
-    op15->fill_and_connect_input(0, *op13, 0);
-    op15->fill_and_connect_input(1, *op14, 0);
+    op_t op0 {0, Wildcard, "op0"};
+    op_t op1 {1, Pow, "op1"};
+    op_t op2 {2, Wildcard, "op2"};
+    op_t op3 {3, Multiply, "op3"};
+    op_t op4 {4, Wildcard, "op4"};
+    op_t op5 {5, Add, "op5"};
+    op_t op6 {6, Wildcard, "op6"};
+    op_t op7 {7, Multiply, "op7"};
+    op_t op8 {8, Tanh, "op8"};
+    op_t op9 {9, Wildcard, "op9"};
+    op_t op10 {10, Add, "op10"};
+    op_t op11 {11, Wildcard, "op11"};
+    op_t op12 {12, Multiply, "op12"};
+    op_t op13 {13, Wildcard, "op13"};
+    op_t op14 {14, Multiply, "op14"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(17);
+    op0.add_output(lt_vec[0]);
+    op1.add_input(lt_vec[0]);
+    op1.add_input(lt_vec[1]);
+    op1.add_output(lt_vec[2]);
+    op2.add_output(lt_vec[3]);
+    op3.add_input(lt_vec[2]);
+    op3.add_input(lt_vec[3]);
+    op3.add_output(lt_vec[4]);
+    op4.add_output(lt_vec[5]);
+    op5.add_input(lt_vec[4 + params.op3_idx]);
+    op5.add_input(lt_vec[4 + params.op4_idx]);
+    op5.add_output(lt_vec[6]);
+    op6.add_output(lt_vec[7]);
+    op7.add_input(lt_vec[6]);
+    op7.add_input(lt_vec[7]);
+    op7.add_output(lt_vec[8]);
+    op8.add_input(lt_vec[8]);
+    op8.add_output(lt_vec[9]);
+    op9.add_output(lt_vec[10]);
+    op10.add_input(lt_vec[9 + params.op8_idx]);
+    op10.add_input(lt_vec[9 + params.op9_idx]);
+    op10.add_output(lt_vec[11]);
+    op11.add_output(lt_vec[12]);
+    op12.add_input(lt_vec[11]);
+    op12.add_input(lt_vec[13]);
+    op12.add_output(lt_vec[14]);
+    op13.add_output(lt_vec[15]);
+    op14.add_input(lt_vec[14]);
+    op14.add_input(lt_vec[15]);
+    op14.add_output(lt_vec[16]);
+
+    ASSERT_EQ(agraph.add_op(&op0), status::success);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
+    ASSERT_EQ(agraph.add_op(&op2), status::success);
+    ASSERT_EQ(agraph.add_op(&op3), status::success);
+    ASSERT_EQ(agraph.add_op(&op4), status::success);
+    ASSERT_EQ(agraph.add_op(&op5), status::success);
+    ASSERT_EQ(agraph.add_op(&op6), status::success);
+    ASSERT_EQ(agraph.add_op(&op7), status::success);
+    ASSERT_EQ(agraph.add_op(&op8), status::success);
+    ASSERT_EQ(agraph.add_op(&op9), status::success);
+    ASSERT_EQ(agraph.add_op(&op10), status::success);
+    ASSERT_EQ(agraph.add_op(&op11), status::success);
+    ASSERT_EQ(agraph.add_op(&op12), status::success);
+    ASSERT_EQ(agraph.add_op(&op13), status::success);
+    ASSERT_EQ(agraph.add_op(&op14), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 15);
 
     pass::pass_base_ptr gelu_pass = get_pass("gelu_fusion");
     gelu_pass->run(agraph);
@@ -2727,17 +2788,15 @@ TEST(pass_test, multi_values_between_two_ops) {
 
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 2);
-    pass::pass_base_ptr apass = get_pass("conv_pass");
-    apass->run(agraph);
-    apass = get_pass("sum_pass");
+    pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.get_num_partitions(), 2);
-    ASSERT_EQ(
-            get_fused_op(agraph.get_partitions()[0])->get_kind(), Convolution);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
-    ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(), Add);
-    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
+
+    apass = get_pass("conv_sum_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
 TEST(pass_test, int8_conv_fusion) {

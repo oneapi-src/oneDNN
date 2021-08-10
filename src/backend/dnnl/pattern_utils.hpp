@@ -114,6 +114,40 @@ void special_case_handle(op_t *graph_op, op_t *pattern_op, indegree in_degree,
     }
 }
 
+// alias inputs are not supported currently
+// check candidate_fusion's inputs, to see if there are alias
+inline bool check_inputs_alias(std::vector<op_t *> &candidate_fusion) {
+    std::unordered_set<size_t> in_lt_ids;
+    for (const auto &aop : candidate_fusion) {
+        for (const auto &in_val : aop->get_input_values()) {
+            if (!in_val->has_producer()) {
+                logical_tensor_t in_lt = in_val->get_logical_tensor();
+                size_t in_lt_id = in_lt.id;
+                if (in_lt_ids.count(in_lt_id) == 0) {
+                    in_lt_ids.insert(in_lt_id);
+                } else
+                    return true;
+            } else {
+                op_t &producer = in_val->get_producer();
+                if (std::none_of(candidate_fusion.begin(),
+                            candidate_fusion.end(),
+                            [&producer](const op_t *cop) {
+                                return cop == &producer;
+                            })) {
+                    logical_tensor_t in_lt = in_val->get_logical_tensor();
+                    size_t in_lt_id = in_lt.id;
+                    if (in_lt_ids.count(in_lt_id) == 0) {
+                        in_lt_ids.insert(in_lt_id);
+                    } else
+                        return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 /*!
 * \brief Function to do comparison between a graph
          and a pattern. It will search from a graph op,
@@ -311,7 +345,8 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
             }
         }
     }
-    return true;
+
+    return !check_inputs_alias(candidate_fusion);
 }
 
 // function to do per op comparison
