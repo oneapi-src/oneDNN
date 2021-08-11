@@ -59,7 +59,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
             "Binary impl_info_str should be same only on x64 CPU");
     engine e {engine_kind, 0};
 
-    const auto src1_bcast_dims = std::get<1>(GetParam());
+    const auto &src1_bcast_dims = std::get<1>(GetParam());
     const size_t ndims = src1_bcast_dims.size();
 
     constexpr auto defualt_dt = memory::data_type::f32;
