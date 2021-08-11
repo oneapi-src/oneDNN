@@ -1040,11 +1040,8 @@ status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::init(
 }
 
 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::
-        ~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t() {
-    delete kernel_;
-    delete src_trans_;
-    delete dst_trans_;
-}
+        ~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t()
+        = default;
 
 const float *jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::adjust_oscales(
         const memory_tracking::grantor_t &scratchpad) const {
