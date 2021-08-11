@@ -51,7 +51,7 @@ endfunction()
 #   arg4 -- (optional) list of extra library dependencies
 function(register_exe name srcs test)
     add_executable(${name} ${srcs})
-    target_link_libraries(${name} ${LIB_NAME} ${EXTRA_SHARED_LIBS} ${ARGV3})
+    target_link_libraries(${name} ${DNNL_LIBRARY_NAME} ${EXTRA_SHARED_LIBS} ${ARGV3})
     if("x${test}" STREQUAL "xtest")
         add_dnnl_test(${name} ${name})
         maybe_configure_windows_test(${name} TEST)

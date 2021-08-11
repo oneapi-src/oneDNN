@@ -34,7 +34,7 @@ if(NOT DNNL_AARCH64_USE_ACL)
     list(REMOVE_ITEM SOURCES ${ACL_FILES})
 endif()
 
-set(OBJ_LIB ${LIB_NAME}_cpu_aarch64)
+set(OBJ_LIB ${DNNL_LIBRARY_NAME}_cpu_aarch64)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)

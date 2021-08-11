@@ -25,7 +25,7 @@ add_definitions_with_host_compiler(-DNGEN_NEO_INTERFACE)
 add_definitions_with_host_compiler(-DNGEN_NO_OP_NAMES)
 add_definitions_with_host_compiler(-DNGEN_WINDOWS_COMPAT)
 
-set(OBJ_LIB ${LIB_NAME}_gpu)
+set(OBJ_LIB ${DNNL_LIBRARY_NAME}_gpu)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
@@ -35,6 +35,6 @@ add_subdirectory(jit)
 add_subdirectory(ocl)
 if(DNNL_SYCL_CUDA)
     add_subdirectory(nvidia)
-    # Pass ${LIB_NAME}_INTERFACE to upper level for proper linking
-    set(${LIB_NAME}_INTERFACE "${${LIB_NAME}_INTERFACE}" PARENT_SCOPE)
+    # Pass ${DNNL_LIBRARY_NAME}_INTERFACE to upper level for proper linking
+    set(${DNNL_LIBRARY_NAME}_INTERFACE "${${DNNL_LIBRARY_NAME}_INTERFACE}" PARENT_SCOPE)
 endif()

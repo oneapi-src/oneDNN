@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-set(TARGET_NAME ${LIB_NAME}_sycl)
+set(TARGET_NAME ${DNNL_LIBRARY_NAME}_sycl)
 
 file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.h
@@ -30,7 +30,7 @@ if(DNNL_CPU_RUNTIME STREQUAL "NONE")
             )
 endif()
 
-set(OBJ_LIB ${LIB_NAME}_sycl)
+set(OBJ_LIB ${DNNL_LIBRARY_NAME}_sycl)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS

@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2021 Intel Corporation
 # Copyright 2020 Codeplay Software Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-set(OBJ_LIB ${LIB_NAME}_sycl_nvidia)
+set(OBJ_LIB ${DNNL_LIBRARY_NAME}_sycl_nvidia)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 
 find_package(OpenCL REQUIRED)
@@ -46,6 +46,6 @@ target_link_libraries(${OBJ_LIB}_interface INTERFACE cuBLAS::cuBLAS
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
 
-set(${LIB_NAME}_INTERFACE
-    ${${LIB_NAME}_INTERFACE} ${OBJ_LIB}_interface
+set(${DNNL_LIBRARY_NAME}_INTERFACE
+    ${${DNNL_LIBRARY_NAME}_INTERFACE} ${OBJ_LIB}_interface
     PARENT_SCOPE)

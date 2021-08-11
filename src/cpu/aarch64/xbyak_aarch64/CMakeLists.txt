@@ -18,7 +18,7 @@ file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/xbyak_aarch64_impl.cpp
     )
 
-set(OBJ_LIB ${LIB_NAME}_cpu_aarch64_xbyak_aarch64)
+set(OBJ_LIB ${DNNL_LIBRARY_NAME}_cpu_aarch64_xbyak_aarch64)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 
 target_include_directories(

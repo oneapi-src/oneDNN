@@ -110,30 +110,30 @@ if(DNNL_WITH_SYCL)
 endif()
 
 get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)
-add_library(${LIB_NAME} ${DNNL_LIBRARY_TYPE}
+add_library(${DNNL_LIBRARY_NAME} ${DNNL_LIBRARY_TYPE}
     ${VERSION_RESOURCE_FILE} ${HEADERS_ROOT} ${HEADERS_SUBDIR} ${LIB_DEPS})
 # LINK_PRIVATE for cmake 2.8.11 compatibility
-target_link_libraries(${LIB_NAME} LINK_PRIVATE ${${LIB_NAME}_INTERFACE})
+target_link_libraries(${DNNL_LIBRARY_NAME} LINK_PRIVATE ${${DNNL_LIBRARY_NAME}_INTERFACE})
 
-set_property(TARGET ${LIB_NAME} PROPERTY VERSION "${DNNL_VERSION_MAJOR}.${DNNL_VERSION_MINOR}")
-set_property(TARGET ${LIB_NAME} PROPERTY SOVERSION "${DNNL_VERSION_MAJOR}")
+set_property(TARGET ${DNNL_LIBRARY_NAME} PROPERTY VERSION "${DNNL_VERSION_MAJOR}.${DNNL_VERSION_MINOR}")
+set_property(TARGET ${DNNL_LIBRARY_NAME} PROPERTY SOVERSION "${DNNL_VERSION_MAJOR}")
 
-target_include_directories(${LIB_NAME} PUBLIC
+target_include_directories(${DNNL_LIBRARY_NAME} PUBLIC
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>
     # $<INSTALL_PREFIX> is required for compatibility with cmake 2.8
     $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>
     )
 
-target_link_libraries_build(${LIB_NAME}
+target_link_libraries_build(${DNNL_LIBRARY_NAME}
     "${EXTRA_SHARED_LIBS};${EXTRA_STATIC_LIBS}")
-target_link_libraries_install(${LIB_NAME} "${EXTRA_SHARED_LIBS}")
+target_link_libraries_install(${DNNL_LIBRARY_NAME} "${EXTRA_SHARED_LIBS}")
 if(DNNL_LIBRARY_TYPE STREQUAL "STATIC")
-    target_link_libraries_install(${LIB_NAME} "${EXTRA_STATIC_LIBS}")
+    target_link_libraries_install(${DNNL_LIBRARY_NAME} "${EXTRA_STATIC_LIBS}")
 endif()
 
-set(LIB_EXPORT_NAME "${LIB_NAME}-targets")
-install(TARGETS ${LIB_NAME}
+set(LIB_EXPORT_NAME "${DNNL_LIBRARY_NAME}-targets")
+install(TARGETS ${DNNL_LIBRARY_NAME}
     EXPORT "${LIB_EXPORT_NAME}"
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -149,11 +149,11 @@ endforeach()
 
 # Write version and package config files
 set(LIB_CONFIG_GENERATE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
-set(LIB_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_NAME}")
+set(LIB_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${DNNL_LIBRARY_NAME}")
 set(LIB_VERSION_FILE
-    "${LIB_CONFIG_GENERATE_DIR}/${LIB_NAME}-config-version.cmake")
+    "${LIB_CONFIG_GENERATE_DIR}/${DNNL_LIBRARY_NAME}-config-version.cmake")
 set(LIB_CONFIG_FILE
-    "${LIB_CONFIG_GENERATE_DIR}/${LIB_NAME}-config.cmake")
+    "${LIB_CONFIG_GENERATE_DIR}/${DNNL_LIBRARY_NAME}-config.cmake")
 write_basic_package_version_file(
     "${LIB_VERSION_FILE}"
     VERSION ${PROJECT_VERSION}
@@ -164,7 +164,7 @@ configure_package_config_file(
     INSTALL_DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 install(FILES ${LIB_CONFIG_FILE} ${LIB_VERSION_FILE}
     DESTINATION ${LIB_CONFIG_INSTALL_DIR})
-string(TOUPPER "${LIB_NAME}::" LIB_NAMESPACE)
+string(TOUPPER "${DNNL_LIBRARY_NAME}::" LIB_NAMESPACE)
 install(EXPORT ${LIB_EXPORT_NAME}
     NAMESPACE ${LIB_NAMESPACE}
     DESTINATION ${LIB_CONFIG_INSTALL_DIR})
@@ -189,12 +189,12 @@ if (WIN32)
     endif()
     add_custom_target(compat_libs ALL
         ${CMAKE_COMMAND} -E copy
-        $<TARGET_LINKER_FILE_DIR:${LIB_NAME}>/$<TARGET_LINKER_FILE_NAME:${LIB_NAME}>
-        $<TARGET_LINKER_FILE_DIR:${LIB_NAME}>/${prefix}mkldnn${ext}
+        $<TARGET_LINKER_FILE_DIR:${DNNL_LIBRARY_NAME}>/$<TARGET_LINKER_FILE_NAME:${DNNL_LIBRARY_NAME}>
+        $<TARGET_LINKER_FILE_DIR:${DNNL_LIBRARY_NAME}>/${prefix}mkldnn${ext}
         # Workaround for MSB8065 warning.
         COMMAND ${CMAKE_COMMAND} -E touch "CMakeFiles/compat_libs"
-        DEPENDS ${LIB_NAME})
-    install(FILES $<TARGET_LINKER_FILE_DIR:${LIB_NAME}>/${prefix}mkldnn${ext}
+        DEPENDS ${DNNL_LIBRARY_NAME})
+    install(FILES $<TARGET_LINKER_FILE_DIR:${DNNL_LIBRARY_NAME}>/${prefix}mkldnn${ext}
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
 else()
     if(DNNL_LIBRARY_TYPE STREQUAL "SHARED")
@@ -206,7 +206,7 @@ else()
     endif()
     foreach(ver "" ${vers})
         set_ternary(ext_and_ver APPLE "${ver}${ext}" "${ext}${ver}")
-        get_property(lib_location TARGET ${LIB_NAME} PROPERTY LIBRARY_OUTPUT_DIRECTORY)
+        get_property(lib_location TARGET ${DNNL_LIBRARY_NAME} PROPERTY LIBRARY_OUTPUT_DIRECTORY)
         if(lib_location)
             set(compat_link "${lib_location}/libmkldnn${ext_and_ver}")
         else()
@@ -215,13 +215,13 @@ else()
         if(CMAKE_HOST_SYSTEM_NAME STREQUAL Windows)               
             add_custom_command(OUTPUT ${compat_link}
                 COMMAND ${CMAKE_COMMAND} -E copy libdnnl${ext_and_ver} ${compat_link}
-                DEPENDS ${LIB_NAME})
+                DEPENDS ${DNNL_LIBRARY_NAME})
         else()
             add_custom_command(OUTPUT ${compat_link}
                 # to make the next command work fine
                 COMMAND ${CMAKE_COMMAND} -E remove -f ${compat_link}
                 COMMAND ${CMAKE_COMMAND} -E create_symlink libdnnl${ext_and_ver} ${compat_link}
-                DEPENDS ${LIB_NAME})
+                DEPENDS ${DNNL_LIBRARY_NAME})
         endif()
         add_custom_target(compat_libs${ver} ALL DEPENDS ${compat_link})
         install(FILES ${compat_link} DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})

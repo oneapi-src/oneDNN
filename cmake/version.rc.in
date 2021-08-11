@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ BEGIN
             VALUE "InternalName", "@PROJECT_NAME@"
             VALUE "LegalCopyright", "Copyright @DNNL_VERSION_YEAR@ Intel Corporation.\0"
             VALUE "LegalTrademarks", "\0"
-            VALUE "OriginalFilename", "@LIB_NAME@.dll\0"
+            VALUE "OriginalFilename", "@DNNL_LIBRARY_NAME@.dll\0"
             VALUE "PrivateBuild", "\0"
             VALUE "ProductName", "@PROJECT_FULL_NAME@\0"
             VALUE "ProductVersion", "@PROJECT_VERSION@ (@DNNL_VERSION_HASH@)\0"
