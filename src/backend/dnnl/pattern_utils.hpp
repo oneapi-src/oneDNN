@@ -38,11 +38,6 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-// FRequirement: A function to check if graph op can meet
-// the requirement of pattern op
-// Should be defined when register passes
-using FRequirement = impl::pass::FRequirement;
-
 /**
  * Operators set for checking number of op inputs
  */
@@ -54,8 +49,9 @@ struct op_set {
      * @return whether the operator inputs are commutative
      */
     static bool check_inputs_commutativity(op_kind_t op_kind) {
-        static const std::set<op_kind_t> supported_ops {op_kind::Add,
-                op_kind::Multiply, op_kind::Maximum, op_kind::Minimum};
+        static const std::set<op_kind_t> supported_ops {impl::op_kind::Add,
+                impl::op_kind::Multiply, impl::op_kind::Maximum,
+                impl::op_kind::Minimum};
         return supported_ops.count(op_kind);
     }
 };
@@ -68,7 +64,7 @@ bool should_swap_inputs(op_t *graph_op, op_t *pattern_op, getinput get_input) {
         if (invalue->has_producer()) {
             return invalue->get_producer().get_kind();
         } else {
-            return op_kind::any;
+            return impl::op_kind::any;
         }
     };
     const auto pin_0 = get_op_kind_(pattern_op, 0);
@@ -76,7 +72,7 @@ bool should_swap_inputs(op_t *graph_op, op_t *pattern_op, getinput get_input) {
     const auto gin_0 = get_op_kind_(graph_op, 0);
     const auto gin_1 = get_op_kind_(graph_op, 1);
 
-    if (pin_0 == op_kind::any) { // if pin_0 accepts any
+    if (pin_0 == impl::op_kind::any) { // if pin_0 accepts any
         // check if the corresponding inputs of pattern and graph match,
         // if they do, no swap. If they don't, then check if the opposite
         // inputs match or not
@@ -84,7 +80,7 @@ bool should_swap_inputs(op_t *graph_op, op_t *pattern_op, getinput get_input) {
             return true;
         else
             return false;
-    } else if (pin_1 == op_kind::any) { // if pin_1 accepts any
+    } else if (pin_1 == impl::op_kind::any) { // if pin_1 accepts any
         if (pin_0 != gin_0 && pin_0 == gin_1)
             return true;
         else
@@ -194,7 +190,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
 
         // check if graph op is an unvisited op and can meet the
         // requirement of pattern op
-        if (pfront.first->get_kind() != op_kind::any
+        if (pfront.first->get_kind() != impl::op_kind::any
                 && (selected.count(nfront) != 0
                         || nfront->get_partition() != nullptr
                         || nfront->get_kind() != pfront.first->get_kind()
@@ -224,7 +220,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
 
         if (!pattern_is_graph && pfront.first->has_attr("broadcast_check")
                 && pfront.first->get_attr<bool>("broadcast_check") == true) {
-            if (pfront.first->get_kind() == op_kind::Add) {
+            if (pfront.first->get_kind() == impl::op_kind::Add) {
                 // find the input that will NOT be mapped to post-ops's src1
                 op_t &pin0_producer
                         = pfront.first->get_input_value(0)->get_producer();
@@ -232,7 +228,8 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
                         = pfront.first->get_input_value(1)->get_producer();
 
                 size_t no_post_src_index
-                        = pin0_producer.get_kind() == op_kind::any ? 1 : 0;
+                        = pin0_producer.get_kind() == impl::op_kind::any ? 1
+                                                                         : 0;
 
                 logical_tensor_t no_post_src
                         = nfront->get_input_value(no_post_src_index)
@@ -267,7 +264,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
             }
         }
 
-        if (pfront.first->get_kind() == op_kind::any) {
+        if (pfront.first->get_kind() == impl::op_kind::any) {
             op_queue.pop_front();
             pattern_queue.pop_front();
         } else if (pfront.second.first == out_degree(pfront.first)
@@ -334,7 +331,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
                     op_queue.push_front(ninput);
                     visited.insert(pinput_hash);
                 }
-            } else if (pinput->get_kind() == op_kind::any) {
+            } else if (pinput->get_kind() == impl::op_kind::any) {
                 // case #1
                 hashtype pinput_hash = hash_func(pinput);
                 if (visited.count(pinput_hash) == 0) {

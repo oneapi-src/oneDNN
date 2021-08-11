@@ -51,8 +51,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_add_relu_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     relu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -66,8 +66,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_add_sigmoid_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
                     sigmoid->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -81,8 +81,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_add_multiply_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *mul = apattern->create_op(op_kind::Multiply);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
                     mul->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -96,9 +96,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_multiply_add_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *mul = apattern->create_op(op_kind::Multiply);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
                     // pattern will not matched if the add operation need
                     // broadcast
                     add->set_attr<bool>("broadcast_check", true);
@@ -116,8 +116,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_multiply_relu_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *mul = apattern->create_op(op_kind::Multiply);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     relu->fill_and_connect_input(0, *mul, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -131,8 +131,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_mul_sigmoid_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *mul = apattern->create_op(op_kind::Multiply);
-                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
+                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
                     sigmoid->fill_and_connect_input(0, *mul, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -146,9 +146,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_maximum_add_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *max = apattern->create_op(op_kind::Maximum);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *max = apattern->create_op(impl::op_kind::Maximum);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
                     // pattern will not matched if the add operation need
                     // broadcast
                     add->set_attr<bool>("broadcast_check", true);
@@ -166,8 +166,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_maximum_relu_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *max = apattern->create_op(op_kind::Maximum);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *max = apattern->create_op(impl::op_kind::Maximum);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     relu->fill_and_connect_input(0, *max, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -181,8 +181,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_max_sigmoid_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *max = apattern->create_op(op_kind::Maximum);
-                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    op_t *max = apattern->create_op(impl::op_kind::Maximum);
+                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
                     sigmoid->fill_and_connect_input(0, *max, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -196,9 +196,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_minimum_add_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *min = apattern->create_op(op_kind::Minimum);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *min = apattern->create_op(impl::op_kind::Minimum);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
                     // pattern will not matched if the add operation need
                     // broadcast
                     add->set_attr<bool>("broadcast_check", true);
@@ -216,8 +216,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_minimum_relu_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *min = apattern->create_op(op_kind::Minimum);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *min = apattern->create_op(impl::op_kind::Minimum);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     relu->fill_and_connect_input(0, *min, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -231,8 +231,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_min_sigmoid_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *min = apattern->create_op(op_kind::Minimum);
-                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    op_t *min = apattern->create_op(impl::op_kind::Minimum);
+                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
                     sigmoid->fill_and_connect_input(0, *min, 0);
                 })
         .set_attr<FCreateOptPattern>(

@@ -52,11 +52,11 @@ using scale_t = std::vector<float>;
 using exec_args = std::unordered_map<int, memory>;
 
 struct allocator {
-    static void *malloc(
-            size_t size, const engine &p_engine, const impl::allocator_t *alc);
+    static void *malloc(size_t size, const dnnl::engine &p_engine,
+            const impl::allocator_t *alc);
 
-    static void free(
-            void *p, const engine &p_engine, const impl::allocator_t *alc);
+    static void free(void *p, const dnnl::engine &p_engine,
+            const impl::allocator_t *alc);
 };
 
 format_tag get_default_format(size_t ndim);

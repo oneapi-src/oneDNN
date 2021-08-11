@@ -24,6 +24,7 @@
 #include <vector>
 #include <unordered_set>
 
+#include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/transformation_pass.hpp"
 
 namespace dnnl {
@@ -31,10 +32,6 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 namespace pass {
-
-using pattern = impl::pass::pattern;
-using FCreatePattern = impl::pass::FCreatePattern;
-using FCreateOptPattern = impl::pass::FCreateOptPattern;
 
 /*!
  * \brief This provides pool fusion.
@@ -50,9 +47,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_maxpool_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *pool = apattern->create_op(op_kind::MaxPool);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *pool = apattern->create_op(impl::op_kind::MaxPool);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     pool->fill_and_connect_input(0, *dequant_data, 0);
                     quant->fill_and_connect_input(0, *pool, 0);
                 })
@@ -68,9 +65,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_avgpool_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *pool = apattern->create_op(op_kind::AvgPool);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *pool = apattern->create_op(impl::op_kind::AvgPool);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     pool->fill_and_connect_input(0, *dequant_data, 0);
                     quant->fill_and_connect_input(0, *pool, 0);
                 })

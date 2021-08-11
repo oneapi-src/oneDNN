@@ -140,11 +140,11 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
         dst = permute_NXC2NCX(dst);
     }
     algorithm algo = algorithm::undef;
-    if (op->get_kind() == op_kind::MaxPool
+    if (op->get_kind() == impl::op_kind::MaxPool
             || (op->get_kind() == op_kind::dnnl_pool
                     && op->get_attr<std::string>("kind") == "maxpool"))
         algo = algorithm::pooling_max;
-    else if (op->get_kind() == op_kind::AvgPool
+    else if (op->get_kind() == impl::op_kind::AvgPool
             || (op->get_kind() == op_kind::dnnl_pool
                     && op->get_attr<std::string>("kind") == "avgpool")) {
         const bool exclude_pad = op->get_attr<bool>("exclude_pad");

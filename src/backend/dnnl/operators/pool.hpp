@@ -108,13 +108,13 @@ public:
 
         op_kind_t kind = op->get_kind();
         dims dilations;
-        if (kind == op_kind::MaxPool) {
+        if (kind == impl::op_kind::MaxPool) {
             algo_ = algorithm::pooling_max;
             dilations = op->get_attr<dims>("dilations");
             // default dilations are all 1s but in primitive, they're 0s.
             std::for_each(dilations.begin(), dilations.end(),
                     [](dim_t &v) { v -= 1; });
-        } else if (kind == op_kind::AvgPool) {
+        } else if (kind == impl::op_kind::AvgPool) {
             dilations = dims(strides.size(), 0);
             bool exclude_pad = op->get_attr<bool>("exclude_pad");
             algo_ = exclude_pad ? algorithm::pooling_avg_exclude_padding
@@ -250,7 +250,7 @@ public:
             const dnnl::stream &p_stream, tensor indices = tensor {}) {
         // generate indices tensor from src when it's needed
         // but can't get from function parameters
-        if (kind_ == op_kind::MaxPoolBackprop && indices.is_empty()) {
+        if (kind_ == impl::op_kind::MaxPoolBackprop && indices.is_empty()) {
             auto expected_src = src.reorder_if_differ_in(
                     p_stream, forward_hints_.src_desc());
             auto expected_dst
@@ -304,12 +304,12 @@ public:
         kind_ = op->get_kind();
         algorithm algo = algorithm::undef;
         dims dilations {};
-        if (kind_ == op_kind::AvgPoolBackprop) {
+        if (kind_ == impl::op_kind::AvgPoolBackprop) {
             bool exclude_pad = op->get_attr<bool>("exclude_pad");
             algo = exclude_pad ? algorithm::pooling_avg_exclude_padding
                                : algorithm::pooling_avg_include_padding;
             dilations = dims(strides.size(), 0);
-        } else if (kind_ == op_kind::MaxPoolBackprop) {
+        } else if (kind_ == impl::op_kind::MaxPoolBackprop) {
             algo = algorithm::pooling_max;
             dilations = op->get_attr<dims>("dilations");
             // default dilations are all 1s but in primitive, they're 0s.
@@ -344,7 +344,7 @@ public:
         tensor src {inputs.at(pool_bwd::kSrc), p_engine_, alc};
         tensor diff_dst {};
         tensor indices {};
-        if (op->get_kind() == op_kind::MaxPoolBackprop
+        if (op->get_kind() == impl::op_kind::MaxPoolBackprop
                 && inputs.size() > pool_bwd_with_indices::kDiff_dst) {
             diff_dst = tensor {inputs.at(pool_bwd_with_indices::kDiff_dst),
                     p_engine_, alc};

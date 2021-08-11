@@ -101,7 +101,8 @@ static void get_expected_input_layout(
         std::shared_ptr<impl::value_t> &input_value) {
     if (!ltw(input_value->get_logical_tensor()).is_constant()
             && input_value->has_producer()
-            && input_value->get_producer().get_kind() == op_kind::Reorder) {
+            && input_value->get_producer().get_kind()
+                    == impl::op_kind::Reorder) {
         op_t &producer = input_value->get_producer();
         std::shared_ptr<value_t> producer_input_value
                 = producer.get_input_value(0);
@@ -325,7 +326,7 @@ static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
     std::vector<op_t *> fuse_to_precursor;
     std::vector<op_t *> fuse_to_successor;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::Reorder) continue;
+        if (cur_op->get_kind() != impl::op_kind::Reorder) continue;
 
         auto in_lt = cur_op->get_input_value(0)->get_logical_tensor();
         auto out_lt = cur_op->get_output_value(0)->get_logical_tensor();
@@ -379,18 +380,18 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
     auto layout_propagation_func = [&](std::vector<op_ptr> &subgraph) -> bool {
         bool changed = false;
         for (auto &cur_op : subgraph) {
-            if (cur_op->get_kind() == op_kind::Convolution
+            if (cur_op->get_kind() == impl::op_kind::Convolution
                     || cur_op->get_kind() == op_kind::dnnl_convolution
-                    || cur_op->get_kind() == op_kind::MatMul)
+                    || cur_op->get_kind() == impl::op_kind::MatMul)
                 continue;
 
-            if (cur_op->get_kind() == op_kind::Reorder
+            if (cur_op->get_kind() == impl::op_kind::Reorder
                     && cur_op->has_attr("change_layout")
                     && cur_op->get_attr<bool>("change_layout"))
                 continue;
 
-            if (cur_op->get_kind() == op_kind::MaxPool
-                    || cur_op->get_kind() == op_kind::AvgPool
+            if (cur_op->get_kind() == impl::op_kind::MaxPool
+                    || cur_op->get_kind() == impl::op_kind::AvgPool
                     || cur_op->get_kind() == op_kind::dnnl_pool) {
                 changed = layout_propagation_for_pool(
                                   cur_op, p_engine, prm_attr_mgr)
@@ -403,7 +404,7 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
                 changed = layout_propagation_for_to_group(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::expand) {
                 changed = layout_propagation_for_expand(cur_op) || changed;
-            } else if (cur_op->get_kind() == op_kind::Reorder) {
+            } else if (cur_op->get_kind() == impl::op_kind::Reorder) {
                 changed = layout_propagation_for_reorder(cur_op) || changed;
             } else {
                 assertm(false,
@@ -415,7 +416,7 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
 
     // we need to choose optimal layout for computation-intensive ops first
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() == op_kind::Convolution
+        if (cur_op->get_kind() == impl::op_kind::Convolution
                 || cur_op->get_kind() == op_kind::dnnl_convolution) {
             layout_propagation_for_conv(cur_op, p_engine, prm_attr_mgr);
         }
@@ -432,14 +433,14 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
 
         // layout propagation for matmul
         for (auto &cur_op : subgraph) {
-            if (cur_op->get_kind() != op_kind::MatMul) continue;
+            if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
             changed = layout_propagation_for_matmul(
                               cur_op, p_engine, prm_attr_mgr)
                     || changed;
         }
         // layout propagation for layout reorder op
         for (auto &cur_op : subgraph) {
-            if (cur_op->get_kind() != op_kind::Reorder
+            if (cur_op->get_kind() != impl::op_kind::Reorder
                     || (cur_op->has_attr("change_layout")
                             && !cur_op->get_attr<bool>("change_layout")))
                 continue;

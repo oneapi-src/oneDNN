@@ -56,11 +56,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu_fusion)
         .set_priority(10.1f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     add->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(1, *any, 0);
                     relu->fill_and_connect_input(0, *add, 0);
@@ -76,11 +77,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu6_fusion)
         .set_priority(10.1f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu6 = apattern->create_op(op_kind::HardTanh);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu6 = apattern->create_op(impl::op_kind::HardTanh);
                     relu6->set_attr<float>("min", 0);
                     relu6->set_attr<float>("max", 6);
                     add->fill_and_connect_input(0, *conv, 0);
@@ -98,11 +100,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_elu_fusion)
         .set_priority(10.1f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *elu = apattern->create_op(op_kind::Elu);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *elu = apattern->create_op(impl::op_kind::Elu);
                     add->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(1, *any, 0);
                     elu->fill_and_connect_input(0, *add, 0);
@@ -118,10 +121,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_fusion)
         .set_priority(10.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
                     add->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(1, *any, 0);
                 })
@@ -136,12 +140,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_relu_fusion)
         .set_priority(10.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bn->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bn, 0);
                     add->fill_and_connect_input(1, *any, 0);
@@ -158,12 +164,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
         .set_priority(10.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu6 = apattern->create_op(op_kind::HardTanh);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu6 = apattern->create_op(impl::op_kind::HardTanh);
                     relu6->set_attr<float>("min", 0);
                     relu6->set_attr<float>("max", 6);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -173,11 +180,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu6 = apattern->create_op(op_kind::HardTanh);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu6 = apattern->create_op(impl::op_kind::HardTanh);
                     relu6->set_attr<float>("min", 0);
                     relu6->set_attr<float>("max", 6);
                     add->fill_and_connect_input(0, *conv, 0);
@@ -195,13 +203,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
         .set_priority(10.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bias->fill_and_connect_input(0, *conv, 0);
                     bn->fill_and_connect_input(0, *bias, 0);
                     add->fill_and_connect_input(0, *bn, 0);
@@ -210,12 +220,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bn->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bn, 0);
                     add->fill_and_connect_input(1, *any, 0);
@@ -232,11 +244,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
                     bn->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bn, 0);
                     add->fill_and_connect_input(1, *any, 0);
@@ -252,12 +266,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
                     bias->fill_and_connect_input(0, *conv, 0);
                     bn->fill_and_connect_input(0, *bias, 0);
                     add->fill_and_connect_input(0, *bn, 0);
@@ -265,11 +281,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
                     bn->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bn, 0);
                     add->fill_and_connect_input(1, *any, 0);
@@ -285,10 +303,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_relu_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bn->fill_and_connect_input(0, *conv, 0);
                     relu->fill_and_connect_input(0, *bn, 0);
                 })
@@ -303,21 +323,25 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_relu_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bias->fill_and_connect_input(0, *conv, 0);
                     bn->fill_and_connect_input(0, *bias, 0);
                     relu->fill_and_connect_input(0, *bn, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bn->fill_and_connect_input(0, *conv, 0);
                     relu->fill_and_connect_input(0, *bn, 0);
                 })
@@ -332,12 +356,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *elu = apattern->create_op(op_kind::Elu);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *elu = apattern->create_op(impl::op_kind::Elu);
                     bias->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bias, 0);
                     add->fill_and_connect_input(1, *any, 0);
@@ -345,11 +370,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *elu = apattern->create_op(op_kind::Elu);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *elu = apattern->create_op(impl::op_kind::Elu);
                     add->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(1, *any, 0);
                     elu->fill_and_connect_input(0, *add, 0);
@@ -365,12 +391,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bias->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bias, 0);
                     add->fill_and_connect_input(1, *any, 0);
@@ -378,11 +405,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     add->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(1, *any, 0);
                     relu->fill_and_connect_input(0, *add, 0);
@@ -398,10 +426,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu6_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *hardtanh = apattern->create_op(op_kind::HardTanh);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *hardtanh
+                            = apattern->create_op(impl::op_kind::HardTanh);
                     hardtanh->set_attr<float>("min", 0);
                     hardtanh->set_attr<float>("max", 6);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -409,9 +439,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu6_fusion)
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *hardtanh = apattern->create_op(op_kind::HardTanh);
+                    op_t *hardtanh
+                            = apattern->create_op(impl::op_kind::HardTanh);
                     hardtanh->set_attr<float>("min", 0);
                     hardtanh->set_attr<float>("max", 6);
                     hardtanh->fill_and_connect_input(0, *conv, 0);
@@ -428,12 +460,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     quant->fill_and_connect_input(0, *conv, 0);
@@ -450,14 +483,16 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     quant->fill_and_connect_input(0, *conv, 0);
@@ -474,12 +509,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     quant->fill_and_connect_input(0, *conv, 0);
@@ -487,13 +523,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -511,13 +548,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     relu->fill_and_connect_input(0, *conv, 0);
@@ -535,15 +573,17 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     relu->fill_and_connect_input(0, *conv, 0);
@@ -561,14 +601,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
 
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     relu->fill_and_connect_input(0, *conv, 0);
@@ -577,14 +618,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -603,17 +645,18 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     add->fill_and_connect_input(0, *conv, 0);
@@ -624,18 +667,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -657,18 +701,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
@@ -680,19 +726,21 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
@@ -715,16 +763,18 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
 
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     relu->fill_and_connect_input(0, *conv, 0);
@@ -733,15 +783,17 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
@@ -761,15 +813,17 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_bias_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
 
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     quant->fill_and_connect_input(0, *conv, 0);
@@ -777,14 +831,16 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_bias_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
@@ -803,17 +859,18 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_add_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     add->fill_and_connect_input(0, *conv, 0);
@@ -834,19 +891,21 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     add->fill_and_connect_input(0, *conv, 0);
@@ -866,14 +925,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
@@ -890,14 +950,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
@@ -905,16 +966,17 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -931,16 +993,17 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     relu->fill_and_connect_input(0, *conv, 0);
@@ -957,17 +1020,18 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
 
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     relu->fill_and_connect_input(0, *conv, 0);
@@ -975,17 +1039,18 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -1004,19 +1069,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     add->fill_and_connect_input(0, *conv, 0);
@@ -1026,20 +1092,21 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -1059,19 +1126,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_add_relu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     add->fill_and_connect_input(0, *conv, 0);
@@ -1090,16 +1158,18 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_quant_wei_conv_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
@@ -1117,16 +1187,18 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
@@ -1134,18 +1206,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -1163,18 +1237,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     relu->fill_and_connect_input(0, *conv, 0);
@@ -1192,19 +1268,21 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
 
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     relu->fill_and_connect_input(0, *conv, 0);
@@ -1212,19 +1290,21 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -1243,21 +1323,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     add->fill_and_connect_input(0, *conv, 0);
@@ -1267,22 +1349,24 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     bias->fill_and_connect_input(0, *conv, 0);
@@ -1303,21 +1387,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
-                            = apattern->create_op(op_kind::Dequantize);
-                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *quant_weight
+                            = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
-                            = apattern->create_op(op_kind::Dequantize);
+                            = apattern->create_op(impl::op_kind::Dequantize);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
 
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     conv->fill_and_connect_input(0, *dequant_data, 0);
                     conv->fill_and_connect_input(1, *dequant_weight, 0);
                     add->fill_and_connect_input(0, *conv, 0);
@@ -1335,21 +1421,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
                     bias->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bias, 0);
                     add->fill_and_connect_input(1, *any, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *any = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
                     add->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(1, *any, 0);
                 })
@@ -1364,18 +1452,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_elu_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *elu = apattern->create_op(op_kind::Elu);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *elu = apattern->create_op(impl::op_kind::Elu);
                     bias->fill_and_connect_input(0, *conv, 0);
                     elu->fill_and_connect_input(0, *bias, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *elu = apattern->create_op(op_kind::Elu);
+                    op_t *elu = apattern->create_op(impl::op_kind::Elu);
                     elu->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1389,18 +1479,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sigmoid_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
                     bias->fill_and_connect_input(0, *conv, 0);
                     sigmoid->fill_and_connect_input(0, *bias, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
                     sigmoid->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1414,11 +1506,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
-                    op_t *mul = apattern->create_op(op_kind::Multiply);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
+                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
                     bias->fill_and_connect_input(0, *conv, 0);
                     sigmoid->fill_and_connect_input(0, *bias, 0);
                     mul->fill_and_connect_input(0, *bias, 0);
@@ -1426,10 +1519,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
-                    op_t *mul = apattern->create_op(op_kind::Multiply);
+                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
+                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
                     sigmoid->fill_and_connect_input(0, *conv, 0);
                     mul->fill_and_connect_input(0, *conv, 0);
                     mul->fill_and_connect_input(1, *sigmoid, 0);
@@ -1445,9 +1539,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
                     bn->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1461,18 +1557,22 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
                     bias->fill_and_connect_input(0, *conv, 0);
                     bn->fill_and_connect_input(0, *bias, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
                     bn->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1486,9 +1586,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_relu_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     relu->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1502,18 +1603,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bias->fill_and_connect_input(0, *conv, 0);
                     relu->fill_and_connect_input(0, *bias, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     relu->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1527,18 +1630,22 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_hardtanh_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *hardtanh = apattern->create_op(op_kind::HardTanh);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *hardtanh
+                            = apattern->create_op(impl::op_kind::HardTanh);
                     bias->fill_and_connect_input(0, *conv, 0);
                     hardtanh->fill_and_connect_input(0, *bias, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *hardtanh = apattern->create_op(op_kind::HardTanh);
+                    op_t *hardtanh
+                            = apattern->create_op(impl::op_kind::HardTanh);
                     hardtanh->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1552,18 +1659,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_square_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *square = apattern->create_op(op_kind::Square);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *square = apattern->create_op(impl::op_kind::Square);
                     bias->fill_and_connect_input(0, *conv, 0);
                     square->fill_and_connect_input(0, *bias, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *square = apattern->create_op(op_kind::Square);
+                    op_t *square = apattern->create_op(impl::op_kind::Square);
                     square->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1577,18 +1686,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_tanh_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *tanh = apattern->create_op(op_kind::Tanh);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *tanh = apattern->create_op(impl::op_kind::Tanh);
                     bias->fill_and_connect_input(0, *conv, 0);
                     tanh->fill_and_connect_input(0, *bias, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *tanh = apattern->create_op(op_kind::Tanh);
+                    op_t *tanh = apattern->create_op(impl::op_kind::Tanh);
                     tanh->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1602,18 +1713,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_abs_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *abs = apattern->create_op(op_kind::Abs);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *abs = apattern->create_op(impl::op_kind::Abs);
                     bias->fill_and_connect_input(0, *conv, 0);
                     abs->fill_and_connect_input(0, *bias, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *abs = apattern->create_op(op_kind::Abs);
+                    op_t *abs = apattern->create_op(impl::op_kind::Abs);
                     abs->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1627,18 +1740,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sqrt_fusion)
         .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *sqrt = apattern->create_op(op_kind::Sqrt);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *sqrt = apattern->create_op(impl::op_kind::Sqrt);
                     bias->fill_and_connect_input(0, *conv, 0);
                     sqrt->fill_and_connect_input(0, *bias, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *sqrt = apattern->create_op(op_kind::Sqrt);
+                    op_t *sqrt = apattern->create_op(impl::op_kind::Sqrt);
                     sqrt->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1652,14 +1767,16 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_fusion)
         .set_priority(9.7f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
                     bias->fill_and_connect_input(0, *conv, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     UNUSED(conv);
                     conv->set_attr<int64_t>("num_inputs", 3);
                 })
@@ -1674,14 +1791,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_pass)
         .set_priority(9.7f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *conv = apattern->create_op(op_kind::Convolution);
+                    op_t *conv
+                            = apattern->create_op(impl::op_kind::Convolution);
                     UNUSED(conv);
                     conv->set_attr<int64_t>("num_inputs", 2);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *replace_op = optimized_pattern->create_op(
-                            op_kind::Convolution);
+                            impl::op_kind::Convolution);
                     replace_op->set_attr<std::string>("backend", "dnnl");
                 });
 
@@ -1690,9 +1808,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bwd_f_biasadd_bwd_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *convbpf = apattern->create_op(
-                            op_kind::ConvolutionBackpropFilters);
-                    op_t *biasbp
-                            = apattern->create_op(op_kind::BiasAddBackprop);
+                            impl::op_kind::ConvolutionBackpropFilters);
+                    op_t *biasbp = apattern->create_op(
+                            impl::op_kind::BiasAddBackprop);
                     biasbp->fill_and_connect_input(0, *convbpf, 0);
                 })
         .set_attr<FCreateOptPattern>(

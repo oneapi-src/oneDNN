@@ -48,20 +48,20 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
         cur_op->set_attr<int64_t>("executable_key", key);
         std::shared_ptr<op_executable> &prm = exec_mgr.get_executable(key);
 
-        if (cur_op->get_kind() == op_kind::Convolution
+        if (cur_op->get_kind() == impl::op_kind::Convolution
                 || cur_op->get_kind() == op_kind::dnnl_convolution) {
             prm = std::make_shared<conv_fwd_executable>(
                     cur_op, p_engine, prm_attr_mgr);
-        } else if (cur_op->get_kind() == op_kind::MatMul) {
+        } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
             prm = std::make_shared<matmul_executable>(
                     cur_op, p_engine, prm_attr_mgr);
-        } else if (cur_op->get_kind() == op_kind::MaxPool
-                || cur_op->get_kind() == op_kind::AvgPool
+        } else if (cur_op->get_kind() == impl::op_kind::MaxPool
+                || cur_op->get_kind() == impl::op_kind::AvgPool
                 || cur_op->get_kind() == op_kind::dnnl_pool) {
             prm = std::make_shared<pool_executable>(
                     cur_op, p_engine, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::mul_scales
-                || cur_op->get_kind() == op_kind::Reorder) {
+                || cur_op->get_kind() == impl::op_kind::Reorder) {
             prm = std::make_shared<reorder_executable>(
                     cur_op, p_engine, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::permute

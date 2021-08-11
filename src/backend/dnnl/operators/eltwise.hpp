@@ -21,6 +21,7 @@
 #include <vector>
 #include <unordered_set>
 
+#include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/tensor.hpp"
 
 namespace dnnl {
@@ -121,18 +122,24 @@ public:
 
         kind_ = op->get_kind();
         switch (kind_) {
-            case op_kind::Abs: algo_ = algorithm::eltwise_abs; break;
-            case op_kind::Elu: algo_ = algorithm::eltwise_elu; break;
-            case op_kind::Exp: algo_ = algorithm::eltwise_exp; break;
-            case op_kind::GELU: algo_ = algorithm::eltwise_gelu_erf; break;
-            case op_kind::HardTanh: algo_ = algorithm::eltwise_clip; break;
-            case op_kind::Log: algo_ = algorithm::eltwise_log; break;
-            case op_kind::Pow: algo_ = algorithm::eltwise_pow; break;
-            case op_kind::ReLU:
+            case impl::op_kind::Abs: algo_ = algorithm::eltwise_abs; break;
+            case impl::op_kind::Elu: algo_ = algorithm::eltwise_elu; break;
+            case impl::op_kind::Exp: algo_ = algorithm::eltwise_exp; break;
+            case impl::op_kind::GELU:
+                algo_ = algorithm::eltwise_gelu_erf;
+                break;
+            case impl::op_kind::HardTanh:
+                algo_ = algorithm::eltwise_clip;
+                break;
+            case impl::op_kind::Log: algo_ = algorithm::eltwise_log; break;
+            case impl::op_kind::Pow: algo_ = algorithm::eltwise_pow; break;
+            case impl::op_kind::ReLU:
             case op_kind::relu_add: algo_ = algorithm::eltwise_relu; break;
-            case op_kind::Sqrt: algo_ = algorithm::eltwise_sqrt; break;
-            case op_kind::Square: algo_ = algorithm::eltwise_square; break;
-            case op_kind::Tanh: algo_ = algorithm::eltwise_tanh; break;
+            case impl::op_kind::Sqrt: algo_ = algorithm::eltwise_sqrt; break;
+            case impl::op_kind::Square:
+                algo_ = algorithm::eltwise_square;
+                break;
+            case impl::op_kind::Tanh: algo_ = algorithm::eltwise_tanh; break;
 
             default: BACKEND_DNNL_ENFORCE(0, "Unsupported eltwise op.");
         }
@@ -265,8 +272,10 @@ private:
     primitive_desc get_config(const tensor::desc &src, op_kind_t kind,
             const dnnl::engine &p_engine, float alpha = 0.0, float beta = 0.0) {
         switch (kind) {
-            case op_kind::ReLUBackprop: algo_ = algorithm::eltwise_relu; break;
-            case op_kind::GELUBackprop:
+            case impl::op_kind::ReLUBackprop:
+                algo_ = algorithm::eltwise_relu;
+                break;
+            case impl::op_kind::GELUBackprop:
                 algo_ = algorithm::eltwise_gelu_erf;
                 break;
             default: BACKEND_DNNL_ENFORCE(0, "Unsupported eltwise backward op");

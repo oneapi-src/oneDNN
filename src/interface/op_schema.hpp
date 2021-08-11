@@ -43,7 +43,7 @@ using shape_infer_fn = std::function<status_t(op_t *,
 class op_schema {
 public:
     op_schema();
-    op_schema(std::string op_name, opset_version version);
+    op_schema(op_kind_t op_name, opset_version version);
 
     /*! @brief op parameter representation, including input/output name,
      *  and description.
@@ -131,11 +131,11 @@ public:
     };
 
     enum class param_num_option { fixed, optional, variadic };
-    /*! @brief Returns the name of this op schema. */
-    const std::string &get_name() const;
+    /*! @brief Returns the op_kind of this op schema. */
+    op_kind_t get_op_kind() const;
 
-    /*! @brief Set the name of this op schema. */
-    op_schema &set_name(std::string &&name);
+    /*! @brief Set the op_kind of this op schema. */
+    op_schema &set_op_kind(op_kind_t kind);
 
     /*! @brief Returns the docstring of this op schema. */
     const std::string &get_doc() const;
@@ -260,7 +260,7 @@ private:
             const std::set<size_t> &param_num, param_num_option option) const;
 
     std::string doc_;
-    std::string name_;
+    op_kind_t op_kind_;
     opset_version version_;
     std::set<size_t> num_inputs_;
     std::set<size_t> num_outputs_;
@@ -274,8 +274,8 @@ private:
     shape_infer_fn tensor_inference_function_;
 };
 
-using op_name_version_schema_map
-        = std::unordered_map<std::string, std::map<opset_version, op_schema>>;
+using op_kind_version_schema_map
+        = std::unordered_map<op_kind_t, std::map<opset_version, op_schema>>;
 
 class op_schema_registry {
 public:
@@ -288,9 +288,9 @@ public:
     static const op_schema *get_op_schema(op_kind_t a_op_kind);
 
 private:
-    /* !@brief Returns the static op_name_version_schema_map.*/
-    static op_name_version_schema_map &get_map_without_ensuring_registration();
-    static op_name_version_schema_map &get_map();
+    /* !@brief Returns the static op_kind_version_schema_map.*/
+    static op_kind_version_schema_map &get_map_without_ensuring_registration();
+    static op_kind_version_schema_map &get_map();
 };
 
 #ifdef GNUC
@@ -309,15 +309,15 @@ void register_opset_schema() {
 template <typename T>
 op_schema get_op_schema();
 
-#define DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opname, version) \
-    _dnnl_graph_op_schema_##opname##_##verion##_
+#define DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opkind, version) \
+    _dnnl_graph_op_schema_##opkind##_##version##_
 
-#define DNNL_GRAPH_OP_SCHEMA(opname, version, impl) \
-    class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opname, version); \
+#define DNNL_GRAPH_OP_SCHEMA(opkind, version, impl) \
+    class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opkind, version); \
     template <> \
     op_schema \
-    get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opname, version)>() { \
-        return impl.set_name(#opname).since_version(version); \
+    get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opkind, version)>() { \
+        return impl.set_op_kind(op_kind::opkind).since_version(version); \
     }
 
 #define SET_MATMUL_COMMON_ATTRS \

@@ -25,19 +25,19 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 
-op_schema::op_schema() : name_("unknown"), version_(0) {}
-op_schema::op_schema(std::string op_name, opset_version version)
-    : name_(std::move(op_name)), version_(version) {}
+op_schema::op_schema() : version_(0) {}
+op_schema::op_schema(op_kind_t kind, opset_version version)
+    : op_kind_(kind), version_(version) {}
 
 // the rvalue reference design is based on the fact that these
 // functions are only called internally with rvalue intputs.
-op_schema &op_schema::set_name(std::string &&name) {
-    name_ = std::move(name);
+op_schema &op_schema::set_op_kind(op_kind_t kind) {
+    op_kind_ = kind;
     return *this;
 }
 
-const std::string &op_schema::get_name() const {
-    return name_;
+op_kind_t op_schema::get_op_kind() const {
+    return op_kind_;
 }
 
 op_schema &op_schema::set_doc(std::string &&doc) {
@@ -337,24 +337,24 @@ op_schema::param_num_option op_schema::get_outputs_option() const {
 
 op_schema_registry::op_schema_registry_once::op_schema_registry_once(
         op_schema &&schema) {
-    op_name_version_schema_map &op_map
+    op_kind_version_schema_map &op_map
             = get_map_without_ensuring_registration();
 
-    const std::string &op_name = schema.get_name();
+    const op_kind_t kind = schema.get_op_kind();
     opset_version op_version = schema.get_since_version();
 
-    op_map[op_name].insert(std::pair<opset_version, op_schema &&>(
+    op_map[kind].insert(std::pair<opset_version, op_schema &&>(
             op_version, std::move(schema)));
 }
 
-op_name_version_schema_map &
+op_kind_version_schema_map &
 op_schema_registry::get_map_without_ensuring_registration() {
-    static op_name_version_schema_map op_map;
+    static op_kind_version_schema_map op_map;
     return op_map;
 }
 
-op_name_version_schema_map &op_schema_registry::get_map() {
-    op_name_version_schema_map &op_map
+op_kind_version_schema_map &op_schema_registry::get_map() {
+    op_kind_version_schema_map &op_map
             = get_map_without_ensuring_registration();
     class register_opset_t {
     public:
@@ -366,10 +366,9 @@ op_name_version_schema_map &op_schema_registry::get_map() {
 }
 
 const op_schema *op_schema_registry::get_op_schema(op_kind_t kind) {
-    const std::string opname = op_t::kind2str(kind);
     auto &op_map = get_map();
-    if (op_map.count(opname)) {
-        return &op_map[opname].rbegin()->second;
+    if (op_map.count(kind)) {
+        return &op_map[kind].rbegin()->second;
     } else {
         return nullptr;
     }

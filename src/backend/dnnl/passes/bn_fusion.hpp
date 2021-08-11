@@ -24,6 +24,7 @@
 #include <vector>
 #include <unordered_set>
 
+#include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/transformation_pass.hpp"
 
 namespace dnnl {
@@ -31,10 +32,6 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 namespace pass {
-
-using pattern = impl::pass::pattern;
-using FCreatePattern = impl::pass::FCreatePattern;
-using FCreateOptPattern = impl::pass::FCreateOptPattern;
 
 /*!
  * \brief This provides batchnorm-related fusion, i.e.
@@ -51,8 +48,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, bn_relu_fusion)
         .set_priority(8.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *bn = apattern->create_op(
+                            impl::op_kind::BatchNormInference);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     relu->fill_and_connect_input(0, *bn, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -66,9 +64,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, bn_bwd_relu_bwd_fusion)
         .set_priority(8.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *relu_bwd = apattern->create_op(op_kind::ReLUBackprop);
+                    op_t *relu_bwd
+                            = apattern->create_op(impl::op_kind::ReLUBackprop);
                     op_t *bn_bwd = apattern->create_op(
-                            op_kind::BatchNormTrainingBackprop);
+                            impl::op_kind::BatchNormTrainingBackprop);
                     bn_bwd->fill_and_connect_input(0, *relu_bwd, 0);
                 })
         .set_attr<FCreateOptPattern>(

@@ -51,9 +51,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, relu_add_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *relu = apattern->create_op(op_kind::ReLU);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *any = apattern->create_op(op_kind::any);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *any = apattern->create_op(impl::op_kind::any);
                     add->fill_and_connect_input(0, *relu, 0);
                     add->fill_and_connect_input(1, *any, 0);
                 })

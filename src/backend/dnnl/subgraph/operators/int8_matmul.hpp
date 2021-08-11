@@ -300,7 +300,7 @@ public:
 
         op_t *matmul_op = nullptr;
         for (auto &op : opt_subgraph_) {
-            if (op->get_kind() == op_kind::MatMul) {
+            if (op->get_kind() == impl::op_kind::MatMul) {
                 matmul_op = op.get();
                 break;
             }

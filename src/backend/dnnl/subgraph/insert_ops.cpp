@@ -33,17 +33,18 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 
 // TODO(xxx): extend to support other ops
 static bool need_insert_reorder(op_kind_t kind) {
-    std::set<op_kind_t> ops {op_kind::dnnl_convolution, op_kind::Convolution,
-            op_kind::MatMul, op_kind::MaxPool, op_kind::AvgPool,
-            op_kind::dnnl_pool};
+    std::set<op_kind_t> ops {op_kind::dnnl_convolution,
+            impl::op_kind::Convolution, impl::op_kind::MatMul,
+            impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool};
     return ops.count(kind) != 0;
 }
 
 // TODO(xxx): extend to support other ops
 // for those ops with data_format/filter_format attributes
 static bool need_insert_permute(op_kind_t kind) {
-    std::set<op_kind_t> ops {op_kind::dnnl_convolution, op_kind::Convolution,
-            op_kind::MaxPool, op_kind::AvgPool, op_kind::dnnl_pool};
+    std::set<op_kind_t> ops {op_kind::dnnl_convolution,
+            impl::op_kind::Convolution, impl::op_kind::MaxPool,
+            impl::op_kind::AvgPool, op_kind::dnnl_pool};
     return ops.count(kind) != 0;
 }
 
@@ -51,7 +52,7 @@ static bool need_insert_permute(op_kind_t kind) {
 // for those ops whose input's format must be defined, such as pool, eltwise,...
 static bool require_input_format(op_kind_t kind) {
     std::set<op_kind_t> ops {
-            op_kind::MaxPool, op_kind::AvgPool, op_kind::dnnl_pool};
+            impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool};
     return ops.count(kind) != 0;
 }
 
@@ -66,7 +67,8 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
         size_t in_bound = with_bias ? 3 : 2;
 
         for (size_t i = 0; i < cur_op->num_outputs(); i++) {
-            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::Reorder);
+            op_ptr reorder_op
+                    = std::make_shared<impl::op_t>(impl::op_kind::Reorder);
             insert_op_after(reorder_op, cur_op, i);
             to_be_inserted_ops.emplace_back(reorder_op);
         }
@@ -78,7 +80,8 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
         for (size_t i = 0; i < cur_op->num_inputs(); i++) {
             if (i >= in_bound) break;
 
-            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::Reorder);
+            op_ptr reorder_op
+                    = std::make_shared<impl::op_t>(impl::op_kind::Reorder);
             reorder_op->set_attr<bool>("change_layout", true);
             insert_op_before(reorder_op, cur_op, i);
             to_be_inserted_ops.emplace_back(reorder_op);
@@ -158,7 +161,7 @@ void insert_to_group_for_conv(std::vector<op_ptr> &subgraph) {
 void insert_transpose_for_matmul(std::vector<op_ptr> &subgraph) {
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::MatMul) continue;
+        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
 
         std::vector<bool> trans_flag(2);
         if (cur_op->has_attr("transpose_a"))
@@ -190,7 +193,7 @@ void insert_transpose_for_matmul(std::vector<op_ptr> &subgraph) {
 void insert_expand_for_matmul(std::vector<op_ptr> &subgraph) {
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::MatMul) continue;
+        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
 
         std::vector<op_ptr> expand_ops;
         expand_ops.reserve(cur_op->num_inputs());

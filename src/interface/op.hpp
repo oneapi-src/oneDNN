@@ -28,7 +28,6 @@
 #include <unordered_set>
 
 #include "interface/c_types_map.hpp"
-#include "interface/internal_ops.hpp"
 #include "interface/logical_tensor.hpp"
 #include "interface/value.hpp"
 
@@ -317,11 +316,11 @@ public:
         const size_t k = static_cast<size_t>(kind);
         const size_t l
                 = static_cast<size_t>(dnnl::graph::impl::op_kind::LastSymbol);
-        const size_t a = static_cast<size_t>(dnnl::graph::impl::op_kind::any);
         if (k <= l) {
             return dnnl::graph::impl::op_kind::op_kind_strings.at(k);
         } else {
-            return dnnl::graph::impl::op_kind::internal_op_strings.at(k - a);
+            static const std::string internal_str = "internal_op";
+            return internal_str;
         }
     }
 

@@ -30,6 +30,7 @@
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/f32_kernel_resource.hpp"
+#include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/legacy.hpp"
 #include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
@@ -133,19 +134,19 @@ private:
 
     static algorithm get_base_algo(op_kind_t kind) {
         switch (static_cast<int>(kind)) {
-            case op_kind::Add:
+            case impl::op_kind::Add:
             case op_kind::add_relu:
             case op_kind::add_sigmoid:
             case op_kind::add_multiply: return (algorithm::binary_add);
-            case op_kind::Multiply:
+            case impl::op_kind::Multiply:
             case op_kind::multiply_relu:
             case op_kind::multiply_sigmoid:
             case op_kind::multiply_add: return (algorithm::binary_mul);
-            case op_kind::Maximum:
+            case impl::op_kind::Maximum:
             case op_kind::maximum_relu:
             case op_kind::maximum_sigmoid:
             case op_kind::maximum_add: return (algorithm::binary_max);
-            case op_kind::Minimum:
+            case impl::op_kind::Minimum:
             case op_kind::minimum_relu:
             case op_kind::minimum_sigmoid:
             case op_kind::minimum_add: return (algorithm::binary_min);

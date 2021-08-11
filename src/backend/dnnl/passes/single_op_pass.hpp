@@ -18,6 +18,7 @@
 
 #include <string>
 
+#include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/transformation_pass.hpp"
 
 namespace dnnl {
@@ -26,10 +27,6 @@ namespace impl {
 namespace dnnl_impl {
 namespace pass {
 
-using pattern = impl::pass::pattern;
-using FCreatePattern = impl::pass::FCreatePattern;
-using FCreateOptPattern = impl::pass::FCreateOptPattern;
-
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
 
 #define DNNL_BACKEND_SINGLE_OP_TRANSFORM(name, backend, op, p) \
@@ -37,11 +34,12 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
             .set_priority(p) \
             .set_attr<FCreatePattern>("FCreatePattern", \
                     [](pattern *apattern) -> void { \
-                        apattern->create_op(op_kind::op); \
+                        apattern->create_op(impl::op_kind::op); \
                     }) \
             .set_attr<FCreateOptPattern>("FCreateOptPattern", \
                     [](pattern *optimized_pattern) -> void { \
-                        op_t *aop = optimized_pattern->create_op(op_kind::op); \
+                        op_t *aop = optimized_pattern->create_op( \
+                                impl::op_kind::op); \
                         aop->set_attr<std::string>("backend", #backend); \
                     });
 

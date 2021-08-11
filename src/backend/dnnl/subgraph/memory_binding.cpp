@@ -204,20 +204,20 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
     }
 
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() == op_kind::Convolution
+        if (cur_op->get_kind() == impl::op_kind::Convolution
                 || cur_op->get_kind() == op_kind::dnnl_convolution
-                || cur_op->get_kind() == op_kind::MatMul) {
+                || cur_op->get_kind() == impl::op_kind::MatMul) {
             bind_memory_for_conv_and_matmul(
                     cur_op, p_engine, exec_arg_mgr, prm_attr_mgr);
-        } else if (cur_op->get_kind() == op_kind::MaxPool
-                || cur_op->get_kind() == op_kind::AvgPool
+        } else if (cur_op->get_kind() == impl::op_kind::MaxPool
+                || cur_op->get_kind() == impl::op_kind::AvgPool
                 || cur_op->get_kind() == op_kind::dnnl_pool) {
             const bool is_training = cur_op->has_attr("is_training")
                     ? cur_op->get_attr<bool>("is_training")
                     : false;
             bind_memory_for_siso_op(
                     cur_op, p_engine, exec_arg_mgr, true, is_training);
-        } else if (cur_op->get_kind() == op_kind::Reorder
+        } else if (cur_op->get_kind() == impl::op_kind::Reorder
                 || cur_op->get_kind() == op_kind::mul_scales
                 || cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group

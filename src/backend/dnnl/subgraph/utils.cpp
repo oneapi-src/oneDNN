@@ -185,8 +185,8 @@ void set_all_layout_to_any(std::vector<op_ptr> &subgraph) {
 // just a workaround at this moment.
 void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
     for (auto &op : subgraph) {
-        if (!(op->get_kind() == op_kind::MatMul
-                    || op->get_kind() == op_kind::Convolution
+        if (!(op->get_kind() == impl::op_kind::MatMul
+                    || op->get_kind() == impl::op_kind::Convolution
                     || op->get_kind() == op_kind::dnnl_convolution))
             continue;
 

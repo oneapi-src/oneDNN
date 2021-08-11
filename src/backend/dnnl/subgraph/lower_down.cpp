@@ -41,19 +41,19 @@ using ltw = impl::logical_tensor_wrapper;
 const float scale_eps = 1e-9f;
 
 static bool has_optional_bias(op_kind_t kind) {
-    std::set<op_kind_t> ops {op_kind::Convolution, op_kind::MatMul};
+    std::set<op_kind_t> ops {impl::op_kind::Convolution, impl::op_kind::MatMul};
     return ops.count(kind) != 0;
 }
 
 // TODO(xxx): extend to support other ops
 static bool has_int8_support(op_kind_t kind) {
-    std::set<op_kind_t> ops {op_kind::dnnl_convolution, op_kind::MatMul};
+    std::set<op_kind_t> ops {op_kind::dnnl_convolution, impl::op_kind::MatMul};
     return ops.count(kind) != 0;
 }
 
 // TODO(xxx): extend to support other ops
 static bool has_post_ops(op_kind_t kind) {
-    std::set<op_kind_t> ops {op_kind::dnnl_convolution, op_kind::MatMul};
+    std::set<op_kind_t> ops {op_kind::dnnl_convolution, impl::op_kind::MatMul};
     return ops.count(kind) != 0;
 }
 
@@ -73,7 +73,7 @@ void fuse_bias_add(std::vector<op_ptr> &subgraph) {
 
     std::set<op_t *> visited;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::BiasAdd
+        if (cur_op->get_kind() != impl::op_kind::BiasAdd
                 || visited.count(cur_op.get()) != 0)
             continue;
 
@@ -93,8 +93,8 @@ void fuse_bias_add(std::vector<op_ptr> &subgraph) {
 void split_quant_dequant(std::vector<op_ptr> &subgraph) {
     std::vector<op_ptr> q_dq_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() == op_kind::Quantize
-                || cur_op->get_kind() == op_kind::Dequantize) {
+        if (cur_op->get_kind() == impl::op_kind::Quantize
+                || cur_op->get_kind() == impl::op_kind::Dequantize) {
             q_dq_ops.emplace_back(cur_op);
         }
     }
@@ -112,7 +112,7 @@ void split_quant_dequant(std::vector<op_ptr> &subgraph) {
                 "output");
 
         op_ptr op1, op2;
-        if (cur_op->get_kind() == op_kind::Dequantize) {
+        if (cur_op->get_kind() == impl::op_kind::Dequantize) {
             // f32 = scales * (int8 - zps)
             op1 = std::make_shared<op_t>(op_kind::add_zps);
             op2 = std::make_shared<op_t>(op_kind::mul_scales);
@@ -278,7 +278,7 @@ void folding_mul_scales(std::vector<op_ptr> &subgraph) {
 void fuse_to_int8_conv(std::vector<op_ptr> &subgraph) {
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &op : subgraph) {
-        if (op->get_kind() == op_kind::Convolution) {
+        if (op->get_kind() == impl::op_kind::Convolution) {
             auto &in0 = op->get_input_value(0)->get_producer();
             auto &in1 = op->get_input_value(1)->get_producer();
             if (in0.get_kind() != op_kind::mul_scales
@@ -379,7 +379,7 @@ void fuse_to_int8_conv(std::vector<op_ptr> &subgraph) {
 void fuse_to_int8_matmul(std::vector<op_ptr> &subgraph) {
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::MatMul) continue;
+        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
         auto &in0 = cur_op->get_input_value(0)->get_producer();
         auto &in1 = cur_op->get_input_value(1)->get_producer();
         if (in0.get_kind() == op_kind::mul_scales
@@ -393,7 +393,7 @@ void fuse_to_int8_matmul(std::vector<op_ptr> &subgraph) {
         op_t *in0 = fusion_group[1];
         op_t *in1 = fusion_group[2];
 
-        op_ptr q_matmul_op = std::make_shared<op_t>(op_kind::MatMul);
+        op_ptr q_matmul_op = std::make_shared<op_t>(impl::op_kind::MatMul);
         q_matmul_op->merge_attributes(matmul_op->get_attributes());
 
         op_ptr mul_scales_op = std::make_shared<op_t>(op_kind::mul_scales);
@@ -485,8 +485,8 @@ void fuse_to_int8_matmul(std::vector<op_ptr> &subgraph) {
 void fuse_to_int8_pool(std::vector<op_ptr> &subgraph) {
     std::vector<op_t *> fusion_ops;
     for (const auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::MaxPool
-                && cur_op->get_kind() != op_kind::AvgPool)
+        if (cur_op->get_kind() != impl::op_kind::MaxPool
+                && cur_op->get_kind() != impl::op_kind::AvgPool)
             continue;
         fusion_ops.emplace_back(cur_op.get());
     }
@@ -495,7 +495,7 @@ void fuse_to_int8_pool(std::vector<op_ptr> &subgraph) {
     for (auto &pool_op : fusion_ops) {
         op_ptr q_pool_op = std::make_shared<op_t>(op_kind::dnnl_pool);
         q_pool_op->merge_attributes(pool_op->get_attributes());
-        if (pool_op->get_kind() == op_kind::MaxPool) {
+        if (pool_op->get_kind() == impl::op_kind::MaxPool) {
             q_pool_op->set_attr<std::string>("kind", "maxpool");
         } else {
             q_pool_op->set_attr<std::string>("kind", "avgpool");
@@ -505,7 +505,7 @@ void fuse_to_int8_pool(std::vector<op_ptr> &subgraph) {
         // just fuse the Quantize and Dequantize op into this newly created pool
         // op
         op_t &dequant_op = pool_op->get_input_value(0)->get_producer();
-        assertm(dequant_op.get_kind() == op_kind::Dequantize,
+        assertm(dequant_op.get_kind() == impl::op_kind::Dequantize,
                 "the predecessor op of pool should be a Dequant op.");
         value_ptr in_value = dequant_op.get_input_value(0);
         q_pool_op->connect_input(0, in_value);
@@ -515,7 +515,7 @@ void fuse_to_int8_pool(std::vector<op_ptr> &subgraph) {
                 "pooling's successor Quant op should only have one consumer.");
         const op_t &quant_op
                 = pool_op->get_output_value(0)->get_consumers()[0].get_op();
-        assertm(quant_op.get_kind() == op_kind::Quantize,
+        assertm(quant_op.get_kind() == impl::op_kind::Quantize,
                 "the successor op of pool should be a Quantize op.");
         value_ptr out_value = quant_op.get_output_value(0);
         q_pool_op->add_output(out_value);
@@ -537,24 +537,26 @@ void fuse_to_int8_pool(std::vector<op_ptr> &subgraph) {
 
 status_t fuse_post_ops(
         std::vector<op_ptr> &subgraph, primitive_attr_mgr &prm_attr_mgr) {
-    const std::set<op_kind_t> post_ops_kinds {op_kind::ReLU, op_kind::GELU,
-            op_kind::Sigmoid, op_kind::Elu, op_kind::HardTanh, op_kind::Abs,
-            op_kind::Sqrt, op_kind::Square, op_kind::Tanh, op_kind::Add};
+    const std::set<op_kind_t> post_ops_kinds {impl::op_kind::ReLU,
+            impl::op_kind::GELU, impl::op_kind::Sigmoid, impl::op_kind::Elu,
+            impl::op_kind::HardTanh, impl::op_kind::Abs, impl::op_kind::Sqrt,
+            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Add};
 
-    const std::set<op_kind_t> eltwise_kinds {op_kind::ReLU, op_kind::GELU,
-            op_kind::Sigmoid, op_kind::Elu, op_kind::HardTanh, op_kind::Abs,
-            op_kind::Sqrt, op_kind::Square, op_kind::Tanh};
+    const std::set<op_kind_t> eltwise_kinds {impl::op_kind::ReLU,
+            impl::op_kind::GELU, impl::op_kind::Sigmoid, impl::op_kind::Elu,
+            impl::op_kind::HardTanh, impl::op_kind::Abs, impl::op_kind::Sqrt,
+            impl::op_kind::Square, impl::op_kind::Tanh};
 
     const std::map<op_kind_t, dnnl::algorithm> eltwise_alg_map {
-            {op_kind::ReLU, dnnl::algorithm::eltwise_relu},
-            {op_kind::GELU, dnnl::algorithm::eltwise_gelu_erf},
-            {op_kind::Sigmoid, dnnl::algorithm::eltwise_logistic},
-            {op_kind::Elu, dnnl::algorithm::eltwise_elu},
-            {op_kind::HardTanh, dnnl::algorithm::eltwise_clip},
-            {op_kind::Abs, dnnl::algorithm::eltwise_abs},
-            {op_kind::Sqrt, dnnl::algorithm::eltwise_sqrt},
-            {op_kind::Square, dnnl::algorithm::eltwise_square},
-            {op_kind::Tanh, dnnl::algorithm::eltwise_tanh}};
+            {impl::op_kind::ReLU, dnnl::algorithm::eltwise_relu},
+            {impl::op_kind::GELU, dnnl::algorithm::eltwise_gelu_erf},
+            {impl::op_kind::Sigmoid, dnnl::algorithm::eltwise_logistic},
+            {impl::op_kind::Elu, dnnl::algorithm::eltwise_elu},
+            {impl::op_kind::HardTanh, dnnl::algorithm::eltwise_clip},
+            {impl::op_kind::Abs, dnnl::algorithm::eltwise_abs},
+            {impl::op_kind::Sqrt, dnnl::algorithm::eltwise_sqrt},
+            {impl::op_kind::Square, dnnl::algorithm::eltwise_square},
+            {impl::op_kind::Tanh, dnnl::algorithm::eltwise_tanh}};
 
     // lambda function to fuse one post op into base primitive
     auto fuse_post_ops_func = [&](std::vector<op_ptr> &subgraph,
@@ -632,7 +634,7 @@ status_t fuse_post_ops(
                     }
                 }
                 pops.append_eltwise(scale, alg, alpha, beta);
-            } else if (post_op->get_kind() == op_kind::Add) {
+            } else if (post_op->get_kind() == impl::op_kind::Add) {
                 // get mul_scale op from Add's input
                 // as Add is commutative, mul_scale op can be
                 // 0 / 1 input of Add
@@ -841,7 +843,7 @@ void fuse_mul_scales_add_zps(std::vector<op_ptr> &subgraph) {
                 ? op1->get_attr<std::vector<int64_t>>("zps")
                 : op2->get_attr<std::vector<int64_t>>("zps");
 
-        op_ptr fused_op = std::make_shared<op_t>(op_kind::Reorder);
+        op_ptr fused_op = std::make_shared<op_t>(impl::op_kind::Reorder);
         fused_op->set_attr<bool>("change_layout", false);
         fused_op->set_attr<int64_t>("axis", axis);
         fused_op->set_attr<std::string>("qtype", qtype);

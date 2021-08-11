@@ -163,7 +163,7 @@ TEST(pass_test, int8_conv_lower_down_pass) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            int8_conv_bias_add_relu);
+            dnnl_impl::op_kind::int8_conv_bias_add_relu);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
 
@@ -178,10 +178,10 @@ TEST(pass_test, int8_conv_lower_down_pass) {
                 return op->get_kind() == op_kind::Convolution;
             });
     auto &producer0 = (*conv_op)->get_input_value(0)->get_producer();
-    ASSERT_EQ(producer0.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(producer0.get_kind(), dnnl_impl::op_kind::mul_scales);
     ASSERT_EQ(producer0.get_attr<std::vector<float>>("scales")[0], scales[0]);
     auto &producer1 = (*conv_op)->get_input_value(1)->get_producer();
-    ASSERT_EQ(producer1.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(producer1.get_kind(), dnnl_impl::op_kind::mul_scales);
     ASSERT_EQ(producer1.get_attr<std::vector<float>>("scales")[0], scales[0]);
 
     // 2. merge into int8 conv, change the input's scales to output scale
@@ -189,11 +189,11 @@ TEST(pass_test, int8_conv_lower_down_pass) {
     dnnl_impl::folding_mul_scales(subgraph);
     auto qconv_op = std::find_if(subgraph.begin(), subgraph.end(),
             [](const std::shared_ptr<op_t> op) {
-                return op->get_kind() == op_kind::dnnl_convolution;
+                return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
     auto &consumer
             = (*qconv_op)->get_output_value(0)->get_consumers()[0].get_op();
-    ASSERT_EQ(consumer.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(consumer.get_kind(), dnnl_impl::op_kind::mul_scales);
     ASSERT_EQ(consumer.get_attr<std::vector<float>>("scales")[0],
             scales[0] * scales[0]);
 
@@ -207,7 +207,7 @@ TEST(pass_test, int8_conv_lower_down_pass) {
 
     qconv_op = std::find_if(subgraph.begin(), subgraph.end(),
             [](const std::shared_ptr<op_t> op) {
-                return op->get_kind() == op_kind::dnnl_convolution;
+                return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
     ASSERT_TRUE((*qconv_op)->has_attr("primitive_attr_key"));
     int64_t key = (*qconv_op)->get_attr<int64_t>("primitive_attr_key");
@@ -281,7 +281,7 @@ TEST(pass_test, int8_matmul_lower_down_pass) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            int8_matmul_bias_relu);
+            dnnl_impl::op_kind::int8_matmul_bias_relu);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
 
@@ -296,10 +296,10 @@ TEST(pass_test, int8_matmul_lower_down_pass) {
                 return op->get_kind() == op_kind::MatMul;
             });
     auto &producer0 = (*matmul_op)->get_input_value(0)->get_producer();
-    ASSERT_EQ(producer0.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(producer0.get_kind(), dnnl_impl::op_kind::mul_scales);
     ASSERT_EQ(producer0.get_attr<std::vector<float>>("scales")[0], scales[0]);
     auto &producer1 = (*matmul_op)->get_input_value(1)->get_producer();
-    ASSERT_EQ(producer1.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(producer1.get_kind(), dnnl_impl::op_kind::mul_scales);
     ASSERT_EQ(producer1.get_attr<std::vector<float>>("scales")[0], scales[0]);
 
     // 2. merge into int8 matmul, change the input's scales to output scale
@@ -311,7 +311,7 @@ TEST(pass_test, int8_matmul_lower_down_pass) {
             });
     auto &consumer
             = (*qmatmul_op)->get_output_value(0)->get_consumers()[0].get_op();
-    ASSERT_EQ(consumer.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(consumer.get_kind(), dnnl_impl::op_kind::mul_scales);
     ASSERT_EQ(consumer.get_attr<std::vector<float>>("scales")[0],
             scales[0] * scales[0]);
 
@@ -488,11 +488,12 @@ TEST(pass_test, subgraph_passes) {
     dnnl_impl::fuse_post_ops(subgraph, prm_attr_mgr);
     dnnl_impl::fuse_zero_points(subgraph, prm_attr_mgr);
     ASSERT_EQ(subgraph.size(), 2);
-    if (subgraph[0]->get_kind() == op_kind::dnnl_convolution) {
-        ASSERT_EQ(subgraph[1]->get_kind(), op_kind::mul_scales);
+    if (subgraph[0]->get_kind() == dnnl_impl::op_kind::dnnl_convolution) {
+        ASSERT_EQ(subgraph[1]->get_kind(), dnnl_impl::op_kind::mul_scales);
     } else {
-        ASSERT_EQ(subgraph[0]->get_kind(), op_kind::mul_scales);
-        ASSERT_EQ(subgraph[1]->get_kind(), op_kind::dnnl_convolution);
+        ASSERT_EQ(subgraph[0]->get_kind(), dnnl_impl::op_kind::mul_scales);
+        ASSERT_EQ(
+                subgraph[1]->get_kind(), dnnl_impl::op_kind::dnnl_convolution);
     }
 
     // insert preprocess and reorder ops
@@ -543,7 +544,7 @@ TEST(pass_test, subgraph_passes) {
             impl::logical_tensor_wrapper ltw(lt);
 
             // skip shape and dtype check for conv's scratchpad output
-            if (!(cur_op->get_kind() == op_kind::dnnl_convolution
+            if (!(cur_op->get_kind() == dnnl_impl::op_kind::dnnl_convolution
                         && idx == cur_op->num_outputs() - 1)) {
                 ASSERT_FALSE(ltw.is_shape_unknown());
                 ASSERT_NE(ltw.data_type(), data_type::undef);
@@ -567,7 +568,7 @@ TEST(pass_test, subgraph_passes) {
                 = exec_arg_mgr.get_args(key);
         ASSERT_FALSE(exec_arg.empty());
 
-        if (cur_op->get_kind() == op_kind::dnnl_convolution) {
+        if (cur_op->get_kind() == dnnl_impl::op_kind::dnnl_convolution) {
             ASSERT_NE(exec_arg.find(DNNL_ARG_SRC), exec_arg.end());
             ASSERT_NE(exec_arg.find(DNNL_ARG_WEIGHTS), exec_arg.end());
             ASSERT_NE(exec_arg.find(DNNL_ARG_BIAS), exec_arg.end());
@@ -663,7 +664,7 @@ TEST_P(int8_matmul_pass_test, int8_matmul_layout_propagation) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            int8_matmul_bias_relu);
+            dnnl_impl::op_kind::int8_matmul_bias_relu);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
 

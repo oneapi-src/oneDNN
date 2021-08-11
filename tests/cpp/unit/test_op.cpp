@@ -22,12 +22,15 @@
 #include "gtest/gtest.h"
 
 #include "interface/c_types_map.hpp"
-#include "interface/internal_ops.hpp"
 #include "interface/logical_tensor.hpp"
 #include "interface/op.hpp"
 #include "interface/op_schema.hpp"
 #include "interface/partition.hpp"
 #include "interface/partition_impl.hpp"
+
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/internal_ops.hpp"
+
 #include "utils.hpp"
 
 /**
@@ -171,7 +174,7 @@ TEST(op_test, create) {
     ASSERT_EQ(matmul.get_name(), std::string("matmul"));
     ASSERT_FALSE(matmul.is_internal());
     ASSERT_NE(matmul.get_schema(), nullptr);
-    ASSERT_EQ(matmul.get_schema()->get_name(), std::string("MatMul"));
+    ASSERT_EQ(matmul.get_schema()->get_op_kind(), op_kind::MatMul);
 }
 
 TEST(op_test, create_internal) {
@@ -411,7 +414,8 @@ TEST(op_test, fused_op) {
     ASSERT_FALSE(conv.is_fused());
     ASSERT_FALSE(relu.is_fused());
 
-    op_t conv_relu {2, op_kind::conv_relu, std::string("conv_relu"), true};
+    op_t conv_relu {2, impl::dnnl_impl::op_kind::conv_relu,
+            std::string("conv_relu"), true};
     conv_relu.add_op_ids({0, 1});
     ASSERT_TRUE(conv_relu.is_fused());
 

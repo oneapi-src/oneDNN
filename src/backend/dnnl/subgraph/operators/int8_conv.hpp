@@ -293,7 +293,7 @@ public:
 
         op_t *conv_op = nullptr;
         for (auto &op : opt_subgraph_) {
-            if (op->get_kind() == op_kind::Convolution
+            if (op->get_kind() == impl::op_kind::Convolution
                     || op->get_kind() == op_kind::dnnl_convolution) {
                 conv_op = op.get();
                 break;

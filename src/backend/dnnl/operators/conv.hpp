@@ -30,6 +30,7 @@
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/constant_cache.hpp"
 #include "backend/dnnl/f32_kernel_resource.hpp"
+#include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/legacy.hpp"
 #include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"

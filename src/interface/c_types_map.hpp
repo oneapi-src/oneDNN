@@ -201,4 +201,17 @@ using tensor_t = dnnl_graph_tensor;
 } // namespace graph
 } // namespace dnnl
 
+namespace std {
+template <>
+struct hash<dnnl::graph::impl::op_kind_t> {
+    typedef dnnl::graph::impl::op_kind_t argument_type;
+    typedef size_t result_type;
+
+    result_type operator()(const argument_type &x) const {
+        using type = typename std::underlying_type<argument_type>::type;
+        return std::hash<type>()(static_cast<type>(x));
+    }
+};
+} // namespace std
+
 #endif

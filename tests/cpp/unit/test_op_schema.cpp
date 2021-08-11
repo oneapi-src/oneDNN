@@ -18,6 +18,10 @@
 
 #include "interface/graph.hpp"
 #include "interface/op_schema.hpp"
+
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/internal_ops.hpp"
+
 #include "utils.hpp"
 
 using namespace dnnl::graph::impl;
@@ -451,10 +455,13 @@ TEST(op_schema_test, Convolution) {
 }
 
 TEST(op_schema_test, Conv_bias) {
-    std::set<op_kind_t> conv_kinds = {op_kind::conv_bias,
-            op_kind::conv_bias_abs, op_kind::conv_bias_relu,
-            op_kind::conv_bias_sigmoid, op_kind::conv_bias_sqrt,
-            op_kind::conv_bias_square, op_kind::conv_bias_tanh};
+    std::set<op_kind_t> conv_kinds = {impl::dnnl_impl::op_kind::conv_bias,
+            impl::dnnl_impl::op_kind::conv_bias_abs,
+            impl::dnnl_impl::op_kind::conv_bias_relu,
+            impl::dnnl_impl::op_kind::conv_bias_sigmoid,
+            impl::dnnl_impl::op_kind::conv_bias_sqrt,
+            impl::dnnl_impl::op_kind::conv_bias_square,
+            impl::dnnl_impl::op_kind::conv_bias_tanh};
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 8;
@@ -470,8 +477,8 @@ TEST(op_schema_test, Conv_bias) {
 }
 
 TEST(op_schema_test, int8_conv) {
-    std::set<op_kind_t> conv_kinds
-            = {op_kind::int8_conv, op_kind::int8_conv_relu};
+    std::set<op_kind_t> conv_kinds = {impl::dnnl_impl::op_kind::int8_conv,
+            impl::dnnl_impl::op_kind::int8_conv_relu};
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 12;
@@ -487,7 +494,8 @@ TEST(op_schema_test, int8_conv) {
     }
 
     std::set<op_kind_t> conv_bias_kinds
-            = {op_kind::int8_conv_bias, op_kind::int8_conv_bias_relu};
+            = {impl::dnnl_impl::op_kind::int8_conv_bias,
+                    impl::dnnl_impl::op_kind::int8_conv_bias_relu};
     const size_t expected_in_size2 = 3;
     for (auto k : conv_bias_kinds) {
         verify_op_schema(k, expected_in_size2, expected_out_size,
@@ -496,9 +504,10 @@ TEST(op_schema_test, int8_conv) {
 }
 
 TEST(op_schema_test, int8_matmul) {
-    std::set<op_kind_t> matmul_kinds
-            = {op_kind::int8_matmul, op_kind::int8_matmul_relu,
-                    op_kind::int8_matmul_sigmoid, op_kind::int8_matmul_gelu};
+    std::set<op_kind_t> matmul_kinds = {impl::dnnl_impl::op_kind::int8_matmul,
+            impl::dnnl_impl::op_kind::int8_matmul_relu,
+            impl::dnnl_impl::op_kind::int8_matmul_sigmoid,
+            impl::dnnl_impl::op_kind::int8_matmul_gelu};
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 6;
@@ -511,9 +520,11 @@ TEST(op_schema_test, int8_matmul) {
                 expected_attr_size, attrs_data);
     }
 
-    std::set<op_kind_t> matmul_bias_kinds = {op_kind::int8_matmul_bias,
-            op_kind::int8_matmul_bias_relu, op_kind::int8_matmul_bias_sigmoid,
-            op_kind::int8_matmul_bias_gelu};
+    std::set<op_kind_t> matmul_bias_kinds
+            = {impl::dnnl_impl::op_kind::int8_matmul_bias,
+                    impl::dnnl_impl::op_kind::int8_matmul_bias_relu,
+                    impl::dnnl_impl::op_kind::int8_matmul_bias_sigmoid,
+                    impl::dnnl_impl::op_kind::int8_matmul_bias_gelu};
     const size_t expected_in_size2 = 3;
     for (auto k : matmul_bias_kinds) {
         verify_op_schema(k, expected_in_size2, expected_out_size,
@@ -522,10 +533,11 @@ TEST(op_schema_test, int8_matmul) {
 }
 
 TEST(op_schema_test, conv_bias_infer_shape) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::conv_bias);
+    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {op_kind::conv_bias, op_t::kind2str(op_kind::conv_bias)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias,
+            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias)};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -565,10 +577,11 @@ TEST(op_schema_test, conv_bias_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bias_infer_shape_auto_pad) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::conv_bias);
+    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {op_kind::conv_bias, op_t::kind2str(op_kind::conv_bias)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias,
+            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias)};
     std::vector<int64_t> strides = {1, 1};
     std::vector<int64_t> pads_begin = {}; // empty pads_begin
     std::vector<int64_t> pads_end = {}; // empty pads_end
@@ -594,10 +607,11 @@ TEST(op_schema_test, conv_bias_infer_shape_auto_pad) {
 }
 
 TEST(op_schema_test, conv_auto_pad_with_non_default_strides) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::conv_bias);
+    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {op_kind::conv_bias, op_t::kind2str(op_kind::conv_bias)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias,
+            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias)};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {};
     std::vector<int64_t> pads_end = {};
@@ -623,10 +637,11 @@ TEST(op_schema_test, conv_auto_pad_with_non_default_strides) {
 }
 
 TEST(op_schema_test, conv3d_bias_infer_shape) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::conv_bias);
+    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_node {op_kind::conv_bias, op_t::kind2str(op_kind::conv_bias)};
+    op_t a_node {impl::dnnl_impl::op_kind::conv_bias,
+            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias)};
     std::vector<int64_t> strides = {2, 2, 2};
     std::vector<int64_t> pads_begin = {1, 1, 1};
     std::vector<int64_t> pads_end = {2, 2, 2};
@@ -666,7 +681,7 @@ TEST(op_schema_test, conv3d_bias_infer_shape) {
 }
 
 TEST(op_schema_test, Conv_bias_add_elu) {
-    const op_kind_t conv_kind = op_kind::conv_bias_add_elu;
+    const op_kind_t conv_kind = impl::dnnl_impl::op_kind::conv_bias_add_elu;
     const size_t expected_in_size = 4;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 9;
@@ -680,7 +695,7 @@ TEST(op_schema_test, Conv_bias_add_elu) {
 }
 
 TEST(op_schema_test, Conv_bias_add_relu6) {
-    const op_kind_t conv_kind = op_kind::conv_bias_add_relu6;
+    const op_kind_t conv_kind = impl::dnnl_impl::op_kind::conv_bias_add_relu6;
     const size_t expected_in_size = 4;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 10;
@@ -694,11 +709,11 @@ TEST(op_schema_test, Conv_bias_add_relu6) {
 }
 
 TEST(op_schema_test, conv_bias_add_infer_shape) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::conv_bias_add_elu);
+    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::conv_bias_add_elu);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {op_kind::conv_bias_add_elu,
-            op_t::kind2str(op_kind::conv_bias_add_elu)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_add_elu,
+            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias_add_elu)};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -743,7 +758,7 @@ TEST(op_schema_test, conv_bias_add_infer_shape) {
 }
 
 TEST(op_schema_test, Conv_bias_elu) {
-    const op_kind_t conv_kind = op_kind::conv_bias_elu;
+    const op_kind_t conv_kind = impl::dnnl_impl::op_kind::conv_bias_elu;
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 9;
@@ -758,7 +773,8 @@ TEST(op_schema_test, Conv_bias_elu) {
 
 TEST(op_schema_test, Conv_bias_hardtanh) {
     std::set<op_kind_t> conv_kinds
-            = {op_kind::conv_bias_hardtanh, op_kind::conv_bias_relu6};
+            = {impl::dnnl_impl::op_kind::conv_bias_hardtanh,
+                    impl::dnnl_impl::op_kind::conv_bias_relu6};
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 10;
@@ -969,9 +985,9 @@ void infer_conv_shape(op_kind_t kind) {
 }
 
 TEST(op_schema_test, conv_bias_add_relu_nxc_oix_infer_shape) {
-    infer_conv_shape(op_kind::conv_bias);
-    infer_conv_shape(op_kind::conv_bias_add);
-    infer_conv_shape(op_kind::conv_bias_add_relu);
+    infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias);
+    infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_add);
+    infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_add_relu);
 }
 
 TEST(op_schema_test, conv_nxc_oix_infer_shape) {
@@ -1304,9 +1320,11 @@ TEST(op_schema_test, maxpool_ceil_mode) {
 }
 
 TEST(op_schema_test, MatMul) {
-    std::set<op_kind_t> matmul_kinds = {op_kind::matmul_relu,
-            op_kind::matmul_elu, op_kind::matmul_sigmoid,
-            op_kind::matmul_hardtanh, op_kind::matmul_gelu};
+    std::set<op_kind_t> matmul_kinds = {impl::dnnl_impl::op_kind::matmul_relu,
+            impl::dnnl_impl::op_kind::matmul_elu,
+            impl::dnnl_impl::op_kind::matmul_sigmoid,
+            impl::dnnl_impl::op_kind::matmul_hardtanh,
+            impl::dnnl_impl::op_kind::matmul_gelu};
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;
@@ -1326,9 +1344,10 @@ TEST(op_schema_test, MatMul) {
 }
 
 TEST(op_schema_test, MatMul_bias) {
-    std::set<op_kind_t> matmul_kinds
-            = {op_kind::matmul_bias, op_kind::matmul_bias_relu,
-                    op_kind::matmul_bias_sigmoid, op_kind::matmul_bias_gelu};
+    std::set<op_kind_t> matmul_kinds = {impl::dnnl_impl::op_kind::matmul_bias,
+            impl::dnnl_impl::op_kind::matmul_bias_relu,
+            impl::dnnl_impl::op_kind::matmul_bias_sigmoid,
+            impl::dnnl_impl::op_kind::matmul_bias_gelu};
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;
@@ -1343,7 +1362,8 @@ TEST(op_schema_test, MatMul_bias) {
 
 TEST(op_schema_test, MatMul_bias_add) {
     std::set<op_kind_t> matmul_kinds
-            = {op_kind::matmul_bias_add, op_kind::matmul_bias_add_relu};
+            = {impl::dnnl_impl::op_kind::matmul_bias_add,
+                    impl::dnnl_impl::op_kind::matmul_bias_add_relu};
     const size_t expected_in_size = 4;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;
@@ -1356,7 +1376,7 @@ TEST(op_schema_test, MatMul_bias_add) {
 }
 
 TEST(op_schema_test, MatMul_bias_bn) {
-    op_kind_t matmul_kinds = op_kind::matmul_bias_bn;
+    op_kind_t matmul_kinds = impl::dnnl_impl::op_kind::matmul_bias_bn;
     const size_t expected_in_size = 7;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 3;
@@ -1367,7 +1387,7 @@ TEST(op_schema_test, MatMul_bias_bn) {
 }
 
 TEST(op_schema_test, MatMul_bias_elu) {
-    op_kind_t matmul_kinds = op_kind::matmul_bias_elu;
+    op_kind_t matmul_kinds = impl::dnnl_impl::op_kind::matmul_bias_elu;
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 3;
@@ -1379,7 +1399,8 @@ TEST(op_schema_test, MatMul_bias_elu) {
 
 TEST(op_schema_test, MatMul_bias_hardtanh) {
     std::set<op_kind_t> matmul_kinds
-            = {op_kind::matmul_bias_hardtanh, op_kind::matmul_bias_relu6};
+            = {impl::dnnl_impl::op_kind::matmul_bias_hardtanh,
+                    impl::dnnl_impl::op_kind::matmul_bias_relu6};
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 4;
@@ -1457,10 +1478,11 @@ TEST(op_schema_test, matmul_infer_shape) {
 }
 
 TEST(op_schema_test, matmul_bias_infer_shape) {
-    const op_schema *matmul_op_schema
-            = op_schema_registry::get_op_schema(op_kind::matmul_bias);
+    const op_schema *matmul_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::matmul_bias);
 
-    op_t matmul_op {op_kind::matmul_bias, op_t::kind2str(op_kind::matmul_bias)};
+    op_t matmul_op {impl::dnnl_impl::op_kind::matmul_bias,
+            op_t::kind2str(impl::dnnl_impl::op_kind::matmul_bias)};
     bool transpose_a = true;
     matmul_op.set_attr("transpose_a", transpose_a);
 
@@ -1508,11 +1530,11 @@ TEST(op_schema_test, matmul_bias_infer_shape) {
 }
 
 TEST(op_schema_test, matmul_bias_add_infer_shape) {
-    const op_schema *matmul_op_schema
-            = op_schema_registry::get_op_schema(op_kind::matmul_bias_add);
+    const op_schema *matmul_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::matmul_bias_add);
 
-    op_t matmul_op {
-            op_kind::matmul_bias_add, op_t::kind2str(op_kind::matmul_bias_add)};
+    op_t matmul_op {impl::dnnl_impl::op_kind::matmul_bias_add,
+            op_t::kind2str(impl::dnnl_impl::op_kind::matmul_bias_add)};
     bool transpose_a = true;
     matmul_op.set_attr("transpose_a", transpose_a);
 
@@ -1565,7 +1587,7 @@ TEST(op_schema_test, matmul_bias_add_infer_shape) {
 
 TEST(op_schema_test, BatchNormInference_infer_shape) {
     std::set<op_kind_t> bn_kinds
-            = {op_kind::BatchNormInference, op_kind::bn_relu};
+            = {op_kind::BatchNormInference, impl::dnnl_impl::op_kind::bn_relu};
     for (auto cur_kind : bn_kinds) {
         const op_schema *bn_op_schema
                 = op_schema_registry::get_op_schema(cur_kind);
@@ -1604,10 +1626,11 @@ TEST(op_schema_test, BatchNormInference_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bn_infer_shape) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::conv_bn);
+    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::conv_bn);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {op_kind::conv_bn, op_t::kind2str(op_kind::conv_bn)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bn,
+            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bn)};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -1657,10 +1680,11 @@ TEST(op_schema_test, conv_bn_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bn_add_infer_shape) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::conv_bn_add);
+    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::conv_bn_add);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {op_kind::conv_bn_add, op_t::kind2str(op_kind::conv_bn_add)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bn_add,
+            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bn_add)};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -1712,10 +1736,11 @@ TEST(op_schema_test, conv_bn_add_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bn_relu_infer_shape) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::conv_bn_relu);
+    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::conv_bn_relu);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {op_kind::conv_bn_relu, op_t::kind2str(op_kind::conv_bn_relu)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bn_relu,
+            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bn_relu)};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -1764,8 +1789,8 @@ TEST(op_schema_test, conv_bn_relu_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bias_bn_infer_shape) {
-    std::set<op_kind_t> op_kinds
-            = {op_kind::conv_bias_bn, op_kind::conv_bias_bn_relu};
+    std::set<op_kind_t> op_kinds = {impl::dnnl_impl::op_kind::conv_bias_bn,
+            impl::dnnl_impl::op_kind::conv_bias_bn_relu};
     for (auto a_op_kind : op_kinds) {
         const op_schema *a_op_schema
                 = op_schema_registry::get_op_schema(a_op_kind);
@@ -1825,11 +1850,11 @@ TEST(op_schema_test, conv_bias_bn_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bn_add_relu_infer_shape) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::conv_bn_add_relu);
+    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::conv_bn_add_relu);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {op_kind::conv_bn_add_relu,
-            op_t::kind2str(op_kind::conv_bn_add_relu)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bn_add_relu,
+            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bn_add_relu)};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -1881,11 +1906,11 @@ TEST(op_schema_test, conv_bn_add_relu_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bias_bn_add_relu_infer_shape) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::conv_bias_bn_add_relu);
+    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+            impl::dnnl_impl::op_kind::conv_bias_bn_add_relu);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {op_kind::conv_bias_bn_add_relu,
-            op_t::kind2str(op_kind::conv_bias_bn_add_relu)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_bn_add_relu,
+            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias_bn_add_relu)};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};

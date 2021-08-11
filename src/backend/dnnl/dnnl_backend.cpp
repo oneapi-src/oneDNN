@@ -19,6 +19,7 @@
 #include "utils/compatible.hpp"
 
 #include "dnnl_backend.hpp"
+#include "dnnl_opset.hpp"
 #include "operators.hpp"
 #include "passes.hpp"
 #include "tensor.hpp"
@@ -39,8 +40,13 @@ bool dnnl_layout_id_manager::is_mem_desc_equal(
 
 dnnl_backend::dnnl_backend(const std::string &name, float priority)
     : backend(std::move(name), priority) {
-    bool ret = register_passes() && register_kernels();
+    bool ret = register_op_schemas() && register_passes() && register_kernels();
     if (!ret) { throw std::runtime_error(name + " initialize failed"); }
+}
+
+bool dnnl_backend::register_op_schemas() {
+    register_dnnl_opset_schema();
+    return true;
 }
 
 bool dnnl_backend::register_passes() {
@@ -58,220 +64,247 @@ bool dnnl_backend::register_passes() {
 
 bool dnnl_backend::register_kernels() {
     // Register DNNL kernel
+#define DECLARE_KERNEL_EX(kernel_class_, counter) \
+    static auto _registered_dnnl_kernel_##kernel_class_##_##counter##_
+
+#define DECLARE_KERNEL(kernel_class_, counter) \
+    DECLARE_KERNEL_EX(kernel_class_, counter)
+
 #define DNNL_REGISTER_KERNEL(op_kind_, kernel_class_) \
-    static auto _flag_##op_kind_##_ \
-            = kernel_registry_.register_kernel(op_kind::op_kind_, \
-                    &kernel_registry::create_kernel<kernel_class_>); \
-    (void)_flag_##op_kind_##_;
+    DECLARE_KERNEL(kernel_class_, __COUNTER__) \
+            = kernel_registry_.register_kernel( \
+                    op_kind_, &kernel_registry::create_kernel<kernel_class_>);
 
     // concat
-    DNNL_REGISTER_KERNEL(Concat, concat);
+    DNNL_REGISTER_KERNEL(impl::op_kind::Concat, concat);
 
     // conv related operators
-    DNNL_REGISTER_KERNEL(Convolution, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_add, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_add_elu, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_add_relu, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_add_relu6, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_add, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_add_elu, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_add_relu, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_add_relu6, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_bn, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_bn_add, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_bn_add_relu, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_bn_relu, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_elu, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_relu, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_sigmoid, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_swish, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_relu6, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_hardtanh, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_square, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_tanh, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_abs, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bias_sqrt, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bn, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bn_add, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bn_add_relu, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_bn_relu, convolution_forward)
-    DNNL_REGISTER_KERNEL(conv_relu, convolution_forward)
-    DNNL_REGISTER_KERNEL(ConvolutionBackpropData, convolution_backward_data)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Convolution, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_add, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_add_elu, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_add_relu, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_add_relu6, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_add, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_add_elu, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_add_relu, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_add_relu6, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_bn, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_bn_add, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_bn_add_relu, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_bn_relu, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_elu, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_relu, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_sigmoid, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_swish, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_relu6, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_hardtanh, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_square, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_tanh, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_abs, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_sqrt, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bn, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bn_add, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bn_add_relu, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bn_relu, convolution_forward)
+    DNNL_REGISTER_KERNEL(op_kind::conv_relu, convolution_forward)
     DNNL_REGISTER_KERNEL(
-            ConvolutionBackpropFilters, convolution_backward_weights)
-    DNNL_REGISTER_KERNEL(conv_bwd_f_biasadd_bwd, convolution_backward_weights)
+            impl::op_kind::ConvolutionBackpropData, convolution_backward_data)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ConvolutionBackpropFilters,
+            convolution_backward_weights)
+    DNNL_REGISTER_KERNEL(
+            op_kind::conv_bwd_f_biasadd_bwd, convolution_backward_weights)
 
     // bn related operators
+    DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormInference,
+            batch_normalization_forward_inference)
     DNNL_REGISTER_KERNEL(
-            BatchNormInference, batch_normalization_forward_inference)
-    DNNL_REGISTER_KERNEL(bn_relu, batch_normalization_forward_inference)
-    DNNL_REGISTER_KERNEL(
-            BatchNormForwardTraining, batch_normalization_forward_training)
-    DNNL_REGISTER_KERNEL(
-            BatchNormTrainingBackprop, batch_normalization_backward)
+            op_kind::bn_relu, batch_normalization_forward_inference)
+    DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormForwardTraining,
+            batch_normalization_forward_training)
+    DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormTrainingBackprop,
+            batch_normalization_backward)
 
     // binary operators
-    DNNL_REGISTER_KERNEL(Add, binary)
-    DNNL_REGISTER_KERNEL(add_relu, binary)
-    DNNL_REGISTER_KERNEL(add_sigmoid, binary)
-    DNNL_REGISTER_KERNEL(add_multiply, binary)
-    DNNL_REGISTER_KERNEL(Multiply, binary)
-    DNNL_REGISTER_KERNEL(multiply_add, binary)
-    DNNL_REGISTER_KERNEL(multiply_relu, binary)
-    DNNL_REGISTER_KERNEL(multiply_sigmoid, binary)
-    DNNL_REGISTER_KERNEL(Maximum, binary)
-    DNNL_REGISTER_KERNEL(maximum_add, binary)
-    DNNL_REGISTER_KERNEL(maximum_relu, binary)
-    DNNL_REGISTER_KERNEL(maximum_sigmoid, binary)
-    DNNL_REGISTER_KERNEL(Minimum, binary)
-    DNNL_REGISTER_KERNEL(minimum_add, binary)
-    DNNL_REGISTER_KERNEL(minimum_relu, binary)
-    DNNL_REGISTER_KERNEL(minimum_sigmoid, binary)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Add, binary)
+    DNNL_REGISTER_KERNEL(op_kind::add_relu, binary)
+    DNNL_REGISTER_KERNEL(op_kind::add_sigmoid, binary)
+    DNNL_REGISTER_KERNEL(op_kind::add_multiply, binary)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Multiply, binary)
+    DNNL_REGISTER_KERNEL(op_kind::multiply_add, binary)
+    DNNL_REGISTER_KERNEL(op_kind::multiply_relu, binary)
+    DNNL_REGISTER_KERNEL(op_kind::multiply_sigmoid, binary)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Maximum, binary)
+    DNNL_REGISTER_KERNEL(op_kind::maximum_add, binary)
+    DNNL_REGISTER_KERNEL(op_kind::maximum_relu, binary)
+    DNNL_REGISTER_KERNEL(op_kind::maximum_sigmoid, binary)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Minimum, binary)
+    DNNL_REGISTER_KERNEL(op_kind::minimum_add, binary)
+    DNNL_REGISTER_KERNEL(op_kind::minimum_relu, binary)
+    DNNL_REGISTER_KERNEL(op_kind::minimum_sigmoid, binary)
 
     // bias_add
-    DNNL_REGISTER_KERNEL(BiasAdd, bias_add)
+    DNNL_REGISTER_KERNEL(impl::op_kind::BiasAdd, bias_add)
 
     // elementwise related operators
-    DNNL_REGISTER_KERNEL(Abs, eltwise_forward)
-    DNNL_REGISTER_KERNEL(Elu, eltwise_forward)
-    DNNL_REGISTER_KERNEL(Exp, eltwise_forward)
-    DNNL_REGISTER_KERNEL(GELU, eltwise_forward)
-    DNNL_REGISTER_KERNEL(HardTanh, eltwise_forward)
-    DNNL_REGISTER_KERNEL(ReLU, eltwise_forward)
-    DNNL_REGISTER_KERNEL(Sqrt, eltwise_forward)
-    DNNL_REGISTER_KERNEL(Square, eltwise_forward)
-    DNNL_REGISTER_KERNEL(Tanh, eltwise_forward)
-    DNNL_REGISTER_KERNEL(Pow, eltwise_forward)
-    DNNL_REGISTER_KERNEL(Log, eltwise_forward)
-    DNNL_REGISTER_KERNEL(ReLUBackprop, eltwise_backward)
-    DNNL_REGISTER_KERNEL(GELUBackprop, eltwise_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Abs, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Elu, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Exp, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::GELU, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::HardTanh, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReLU, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Sqrt, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Square, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Tanh, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Pow, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Log, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReLUBackprop, eltwise_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::GELUBackprop, eltwise_backward)
 
     // matmul related operators
-    DNNL_REGISTER_KERNEL(MatMul, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_relu, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_elu, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_sigmoid, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_hardtanh, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_gelu, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_bias, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_bias_relu, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_bias_gelu, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_bias_relu6, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_bias_elu, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_bias_sigmoid, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_bias_hardtanh, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_bias_add, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_bias_add_relu, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_bias_bn, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_add, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_add_gelu, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_add_relu, matmul_forward)
-    DNNL_REGISTER_KERNEL(matmul_add_sigmoid, matmul_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::MatMul, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_relu, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_elu, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_sigmoid, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_hardtanh, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_gelu, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_relu, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_gelu, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_relu6, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_elu, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_sigmoid, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_hardtanh, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_add, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_add_relu, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_bn, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_add, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_add_gelu, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_add_relu, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_add_sigmoid, matmul_forward)
 
     // pooling related operators
-    DNNL_REGISTER_KERNEL(MaxPool, pooling_forward)
-    DNNL_REGISTER_KERNEL(AvgPool, pooling_forward)
-    DNNL_REGISTER_KERNEL(AvgPoolBackprop, pooling_backward)
-    DNNL_REGISTER_KERNEL(MaxPoolBackprop, pooling_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::MaxPool, pooling_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::AvgPool, pooling_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::AvgPoolBackprop, pooling_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::MaxPoolBackprop, pooling_backward)
 
     // softmax operators
-    DNNL_REGISTER_KERNEL(SoftMax, softmax_forward)
-    DNNL_REGISTER_KERNEL(SoftMaxBackprop, softmax_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::SoftMax, softmax_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::SoftMaxBackprop, softmax_backward)
 
     // logsoftmax operators
-    DNNL_REGISTER_KERNEL(LogSoftmax, logsoftmax_forward)
-    DNNL_REGISTER_KERNEL(LogSoftmaxBackprop, logsoftmax_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::LogSoftmax, logsoftmax_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::LogSoftmaxBackprop, logsoftmax_backward)
 
     // layernorm kernel
-    DNNL_REGISTER_KERNEL(LayerNorm, layer_normalization_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::LayerNorm, layer_normalization_forward)
 
     //interpolate kernel
-    DNNL_REGISTER_KERNEL(Interpolate, resampling_forward)
-    DNNL_REGISTER_KERNEL(InterpolateBackprop, resampling_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Interpolate, resampling_forward)
+    DNNL_REGISTER_KERNEL(
+            impl::op_kind::InterpolateBackprop, resampling_backward)
 
     // reorder kernel
-    DNNL_REGISTER_KERNEL(Reorder, reorder)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Reorder, reorder)
 
     // quantize and dequantize kernel
-    DNNL_REGISTER_KERNEL(Quantize, quantize_dequantize)
-    DNNL_REGISTER_KERNEL(Dequantize, quantize_dequantize)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Quantize, quantize_dequantize)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Dequantize, quantize_dequantize)
 
     // quantized conv
-    DNNL_REGISTER_KERNEL(int8_conv, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_conv_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_conv_bias, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_conv_bias_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_conv_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_conv_bias_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_conv, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_conv_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_conv_bias, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_conv_bias_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_conv_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_conv_bias_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_quant_wei_conv_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_quant_wei_conv_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_quant_wei_conv, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_quant_wei_conv_bias_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_quant_wei_conv_bias_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(int8_quant_wei_conv_bias, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_conv, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_conv_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_conv_bias, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_conv_bias_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_conv_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_conv_bias_add_relu, quantized_conv)
-
-    // qunatized matmul
-    DNNL_REGISTER_KERNEL(int8_matmul, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_matmul_bias, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_matmul_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_matmul_bias_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_matmul_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_matmul_bias_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_matmul_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_matmul_bias_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_matmul_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_matmul_bias_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_matmul_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_matmul_bias_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_matmul, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_matmul_bias, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_matmul_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_matmul_bias_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_matmul_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_matmul_bias_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_matmul_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_matmul_bias_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_quant_wei_matmul, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_quant_wei_matmul_bias, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_quant_wei_matmul_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_quant_wei_matmul_bias_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_quant_wei_matmul_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_quant_wei_matmul_bias_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_quant_wei_matmul_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_quant_wei_matmul_bias_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_quant_wei_matmul_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(int8_quant_wei_matmul_bias_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_matmul_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_matmul_bias_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_matmul, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_matmul_bias, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_matmul_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_matmul_bias_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_matmul_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_conv, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_conv_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_conv_add_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias_add_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv_bias, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv_bias_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv_add_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv_bias_add_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_conv_add_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_conv_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_conv, quantized_conv)
     DNNL_REGISTER_KERNEL(
-            x8s8f32_quant_wei_matmul_bias_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_matmul_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(x8s8f32_quant_wei_matmul_bias_gelu, quantized_matmul);
+            op_kind::int8_quant_wei_conv_bias_add_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_conv_bias_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_conv_bias, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_quant_wei_conv, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_quant_wei_conv_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_quant_wei_conv_bias, quantized_conv)
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_conv_bias_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_conv_add_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_conv_bias_add_relu, quantized_conv)
+
+    // quantized matmul
+    DNNL_REGISTER_KERNEL(op_kind::int8_matmul, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_bias, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_relu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_bias_relu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_bias_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_gelu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_bias_gelu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_bias_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_bias_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_bias, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_relu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_bias_relu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_matmul_bias_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_gelu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_bias_gelu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_matmul, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_matmul_bias, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_matmul_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::int8_quant_wei_matmul_bias_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_matmul_relu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::int8_quant_wei_matmul_bias_relu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::int8_quant_wei_matmul_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::int8_quant_wei_matmul_bias_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_matmul_gelu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::int8_quant_wei_matmul_bias_gelu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_matmul_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_matmul_bias_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_quant_wei_matmul, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_matmul_bias, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_matmul_relu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_matmul_bias_relu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_matmul_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_matmul_bias_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_matmul_gelu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(
+            op_kind::x8s8f32_quant_wei_matmul_bias_gelu, quantized_matmul);
 
     //eltwise+binary ops
-    DNNL_REGISTER_KERNEL(relu_add, eltwise_forward);
+    DNNL_REGISTER_KERNEL(op_kind::relu_add, eltwise_forward);
 
     // quantized pooling
-    DNNL_REGISTER_KERNEL(int8_maxpool, quantized_pooling);
-    DNNL_REGISTER_KERNEL(int8_avgpool, quantized_pooling);
+    DNNL_REGISTER_KERNEL(op_kind::int8_maxpool, quantized_pooling);
+    DNNL_REGISTER_KERNEL(op_kind::int8_avgpool, quantized_pooling);
 
 #undef DNNL_REGISTER_KERNEL
 

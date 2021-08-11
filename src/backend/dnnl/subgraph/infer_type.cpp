@@ -67,7 +67,7 @@ impl::status_t infer_type(impl::graph_t &subgraph) {
             //This op should be fused, can't infer type for it
             return impl::status::invalid_graph;
         } else if (op->get_kind() == op_kind::permute
-                || op->get_kind() == op_kind::Reorder
+                || op->get_kind() == impl::op_kind::Reorder
                 || op->get_kind() == op_kind::to_group
                 || op->get_kind() == op_kind::expand) {
             auto in_lt = op->get_input_value(0)->get_logical_tensor();

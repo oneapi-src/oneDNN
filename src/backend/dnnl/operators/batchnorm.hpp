@@ -24,6 +24,7 @@
 #include "interface/backend.hpp"
 
 #include "backend/dnnl/common.hpp"
+#include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/legacy.hpp"
 #include "backend/dnnl/tensor.hpp"
 #include "backend/dnnl/utils.hpp"

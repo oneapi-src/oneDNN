@@ -25,7 +25,6 @@
 #include <unordered_set>
 
 #include "interface/c_types_map.hpp"
-#include "interface/opset.hpp"
 
 using std::make_shared;
 using std::pair;

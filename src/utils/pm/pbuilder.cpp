@@ -16,6 +16,7 @@
 
 #include <memory>
 
+#include "interface/internal_ops.hpp"
 #include "interface/op.hpp"
 #include "utils/pm/pbuilder.hpp"
 

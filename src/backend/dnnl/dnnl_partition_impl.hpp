@@ -28,7 +28,8 @@
 #include "interface/backend.hpp"
 #include "interface/partition.hpp"
 
-#include "dnnl_backend.hpp"
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/internal_ops.hpp"
 
 namespace dnnl {
 namespace graph {

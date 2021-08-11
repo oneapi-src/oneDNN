@@ -95,7 +95,7 @@ public:
         if (qtype == "per_channel") { mask = 1 << axis; }
 
         primitive_attr attr;
-        if (op->get_kind() == op_kind::Quantize) {
+        if (op->get_kind() == impl::op_kind::Quantize) {
             // inverse the scales, since dnnl multiply the scales to dst
             attr.set_output_scales(mask, inverse_scales(scales));
         } else {
@@ -114,7 +114,7 @@ public:
                 return status::invalid_argument;
             }
 
-            if (op->get_kind() == op_kind::Quantize) {
+            if (op->get_kind() == impl::op_kind::Quantize) {
                 attr.set_zero_points(DNNL_ARG_TO, mask, cast_zps(zps));
             } else {
                 attr.set_zero_points(DNNL_ARG_FROM, mask, cast_zps(zps));

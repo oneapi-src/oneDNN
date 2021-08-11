@@ -24,6 +24,7 @@
 #include <vector>
 #include <unordered_set>
 
+#include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/transformation_pass.hpp"
 
 namespace dnnl {
@@ -31,10 +32,6 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 namespace pass {
-
-using pattern = impl::pass::pattern;
-using FCreatePattern = impl::pass::FCreatePattern;
-using FCreateOptPattern = impl::pass::FCreateOptPattern;
 
 /*!
  * \brief This provides GELU fusion.
@@ -48,21 +45,25 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(gelu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, gelu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *any_1 = apattern->create_op(op_kind::any);
-                    op_t *pow = apattern->create_op(op_kind::Pow);
-                    op_t *any_2 = apattern->create_op(op_kind::any);
-                    op_t *multiply_1 = apattern->create_op(op_kind::Multiply);
-                    op_t *any_3 = apattern->create_op(op_kind::any);
-                    op_t *add_1 = apattern->create_op(op_kind::Add);
-                    op_t *any_4 = apattern->create_op(op_kind::any);
-                    op_t *multiply_2 = apattern->create_op(op_kind::Multiply);
-                    op_t *tanh = apattern->create_op(op_kind::Tanh);
-                    op_t *any_5 = apattern->create_op(op_kind::any);
-                    op_t *add_2 = apattern->create_op(op_kind::Add);
-                    op_t *any_6 = apattern->create_op(op_kind::any);
-                    op_t *multiply_3 = apattern->create_op(op_kind::Multiply);
-                    op_t *any_7 = apattern->create_op(op_kind::any);
-                    op_t *multiply_4 = apattern->create_op(op_kind::Multiply);
+                    op_t *any_1 = apattern->create_op(impl::op_kind::any);
+                    op_t *pow = apattern->create_op(impl::op_kind::Pow);
+                    op_t *any_2 = apattern->create_op(impl::op_kind::any);
+                    op_t *multiply_1
+                            = apattern->create_op(impl::op_kind::Multiply);
+                    op_t *any_3 = apattern->create_op(impl::op_kind::any);
+                    op_t *add_1 = apattern->create_op(impl::op_kind::Add);
+                    op_t *any_4 = apattern->create_op(impl::op_kind::any);
+                    op_t *multiply_2
+                            = apattern->create_op(impl::op_kind::Multiply);
+                    op_t *tanh = apattern->create_op(impl::op_kind::Tanh);
+                    op_t *any_5 = apattern->create_op(impl::op_kind::any);
+                    op_t *add_2 = apattern->create_op(impl::op_kind::Add);
+                    op_t *any_6 = apattern->create_op(impl::op_kind::any);
+                    op_t *multiply_3
+                            = apattern->create_op(impl::op_kind::Multiply);
+                    op_t *any_7 = apattern->create_op(impl::op_kind::any);
+                    op_t *multiply_4
+                            = apattern->create_op(impl::op_kind::Multiply);
                     pow->fill_and_connect_input(0, *any_1, 0);
                     multiply_1->fill_and_connect_input(0, *pow, 0);
                     multiply_1->fill_and_connect_input(1, *any_2, 0);
@@ -80,15 +81,17 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, gelu_fusion)
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    op_t *any_1 = apattern->create_op(op_kind::any);
-                    op_t *div = apattern->create_op(op_kind::Divide);
-                    op_t *erf = apattern->create_op(op_kind::Erf);
-                    op_t *any_2 = apattern->create_op(op_kind::any);
-                    op_t *add = apattern->create_op(op_kind::Add);
-                    op_t *any_3 = apattern->create_op(op_kind::any);
-                    op_t *multiply_1 = apattern->create_op(op_kind::Multiply);
-                    op_t *any_4 = apattern->create_op(op_kind::any);
-                    op_t *multiply_2 = apattern->create_op(op_kind::Multiply);
+                    op_t *any_1 = apattern->create_op(impl::op_kind::any);
+                    op_t *div = apattern->create_op(impl::op_kind::Divide);
+                    op_t *erf = apattern->create_op(impl::op_kind::Erf);
+                    op_t *any_2 = apattern->create_op(impl::op_kind::any);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *any_3 = apattern->create_op(impl::op_kind::any);
+                    op_t *multiply_1
+                            = apattern->create_op(impl::op_kind::Multiply);
+                    op_t *any_4 = apattern->create_op(impl::op_kind::any);
+                    op_t *multiply_2
+                            = apattern->create_op(impl::op_kind::Multiply);
                     div->fill_and_connect_input(0, *any_1, 0);
                     erf->fill_and_connect_input(0, *div, 0);
                     add->fill_and_connect_input(0, *erf, 0);
@@ -102,7 +105,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, gelu_fusion)
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op
-                            = optimized_pattern->create_op(op_kind::GELU);
+                            = optimized_pattern->create_op(impl::op_kind::GELU);
                     fused_op->set_attr("backend", std::string("dnnl"));
                 });
 

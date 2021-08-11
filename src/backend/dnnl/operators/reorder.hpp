@@ -56,7 +56,7 @@ public:
         // check data types between input and output
         // TODO(wuxun): in the future there will be fused with TypeCast op,
         // then we can make this check more general
-        if (op->get_kind() == op_kind::Reorder
+        if (op->get_kind() == impl::op_kind::Reorder
                 && ltw(inputs[reorder_input::kSrc]).data_type()
                         != ltw(outputs[reorder_output::kDst]).data_type())
             return status::compile_fail;

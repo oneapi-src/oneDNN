@@ -24,6 +24,7 @@
 
 #include "utils/pm/pass_base.hpp"
 
+#include "internal_ops.hpp"
 #include "pattern_utils.hpp"
 
 namespace dnnl {
@@ -31,6 +32,10 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 namespace pass {
+
+using pattern = impl::pass::pattern;
+using FCreatePattern = impl::pass::FCreatePattern;
+using FCreateOptPattern = impl::pass::FCreateOptPattern;
 
 /*!
  * \brief transformation_pass generates an optimized graph

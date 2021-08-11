@@ -126,7 +126,7 @@ TEST(operator_compile, convolution_backward_weights_compile_fp32) {
 
     impl::engine_t &eng = get_engine();
 
-    impl::op_t conv_op(impl::op_kind::conv_bwd_f_biasadd_bwd);
+    impl::op_t conv_op(impl::dnnl_impl::op_kind::conv_bwd_f_biasadd_bwd);
     conv_op.set_attr<dims>("strides", dims {1, 1});
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
@@ -357,7 +357,7 @@ public:
             strm.wait();
 
             std::function<float(const float)> activation = nullptr;
-            if (params.op_kind == impl::op_kind::bn_relu) {
+            if (params.op_kind == impl::dnnl_impl::op_kind::bn_relu) {
                 activation = [](const float v) { return v < 0.f ? 0.f : v; };
             }
             ref_batchnorm_fwd(N, IC, IH, IW, &src_ts, &ref_dst_ts, &scale_ts,
@@ -393,10 +393,12 @@ INSTANTIATE_TEST_SUITE_P(TestBatchnormCompile, test_batchnorm_compile,
                 dnnl_graph_test_batchnorm_params {
                         impl::op_kind::BatchNormInference, 3, 3, 2, 2, 0.001f,
                         "NXC", "dnnl", impl::data_type::f32},
-                dnnl_graph_test_batchnorm_params {impl::op_kind::bn_relu, 3, 3,
-                        2, 2, 0.001f, "NCX", "dnnl", impl::data_type::f32},
-                dnnl_graph_test_batchnorm_params {impl::op_kind::bn_relu, 3, 3,
-                        2, 2, 0.001f, "NXC", "dnnl", impl::data_type::f32}));
+                dnnl_graph_test_batchnorm_params {
+                        impl::dnnl_impl::op_kind::bn_relu, 3, 3, 2, 2, 0.001f,
+                        "NCX", "dnnl", impl::data_type::f32},
+                dnnl_graph_test_batchnorm_params {
+                        impl::dnnl_impl::op_kind::bn_relu, 3, 3, 2, 2, 0.001f,
+                        "NXC", "dnnl", impl::data_type::f32}));
 
 TEST(operator_compile, bn_compile_bwd_fp32) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
@@ -1276,7 +1278,7 @@ TEST(operator_kernel, add_mul) {
     test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t add_op(impl::op_kind::add_multiply);
+    impl::op_t add_op(impl::dnnl_impl::op_kind::add_multiply);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto add_kernel = op_factory.create_kernel(add_op);
@@ -1320,7 +1322,7 @@ TEST(operator_kernel, add_mul_post_src_as_nxc) {
             3.0, 12.0, 21.0, 6.0, 15.0, 24.0, 9.0, 18.0, 27.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t add_op(impl::op_kind::add_multiply);
+    impl::op_t add_op(impl::dnnl_impl::op_kind::add_multiply);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto add_kernel = op_factory.create_kernel(add_op);
@@ -1362,7 +1364,7 @@ TEST(operator_kernel, add_relu) {
     test::vector<float> ref_dst {0.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t add_op(impl::op_kind::add_relu);
+    impl::op_t add_op(impl::dnnl_impl::op_kind::add_relu);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto add_kernel = op_factory.create_kernel(add_op);
@@ -1404,7 +1406,7 @@ TEST(operator_kernel, add_sigmoid) {
     test::vector<float> ref_dst {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t add_op(impl::op_kind::add_sigmoid);
+    impl::op_t add_op(impl::dnnl_impl::op_kind::add_sigmoid);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto add_kernel = op_factory.create_kernel(add_op);
@@ -1482,7 +1484,7 @@ TEST(operator_kernel, mul_relu) {
     test::vector<float> ref_dst {0.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t mul_op(impl::op_kind::multiply_relu);
+    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_relu);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto mul_kernel = op_factory.create_kernel(mul_op);
@@ -1519,7 +1521,7 @@ TEST(operator_kernel, mul_sigmoid) {
     test::vector<float> ref_dst {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t mul_op(impl::op_kind::multiply_sigmoid);
+    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_sigmoid);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto mul_kernel = op_factory.create_kernel(mul_op);
@@ -1557,7 +1559,7 @@ TEST(operator_kernel, mul_add) {
     test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t mul_op(impl::op_kind::multiply_add);
+    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_add);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto mul_kernel = op_factory.create_kernel(mul_op);
@@ -1644,7 +1646,7 @@ TEST(operator_kernel, min_relu) {
     test::vector<float> ref_dst {0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t max_op(impl::op_kind::minimum_relu);
+    impl::op_t max_op(impl::dnnl_impl::op_kind::minimum_relu);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto max_kernel = op_factory.create_kernel(max_op);
@@ -1681,7 +1683,7 @@ TEST(operator_kernel, min_sigmoid) {
     test::vector<float> ref_dst {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t max_op(impl::op_kind::minimum_sigmoid);
+    impl::op_t max_op(impl::dnnl_impl::op_kind::minimum_sigmoid);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto max_kernel = op_factory.create_kernel(max_op);
@@ -1719,7 +1721,7 @@ TEST(operator_kernel, min_add) {
     test::vector<float> ref_dst {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t min_op(impl::op_kind::minimum_add);
+    impl::op_t min_op(impl::dnnl_impl::op_kind::minimum_add);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto min_kernel = op_factory.create_kernel(min_op);
@@ -1806,7 +1808,7 @@ TEST(operator_kernel, max_relu) {
     test::vector<float> ref_dst {0.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t min_op(impl::op_kind::maximum_relu);
+    impl::op_t min_op(impl::dnnl_impl::op_kind::maximum_relu);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto min_kernel = op_factory.create_kernel(min_op);
@@ -1844,7 +1846,7 @@ TEST(operator_kernel, max_sigmoid) {
     test::vector<float> ref_dst {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t min_op(impl::op_kind::maximum_sigmoid);
+    impl::op_t min_op(impl::dnnl_impl::op_kind::maximum_sigmoid);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto min_kernel = op_factory.create_kernel(min_op);
@@ -1882,7 +1884,7 @@ TEST(operator_kernel, max_add) {
     test::vector<float> ref_dst {4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t max_op(impl::op_kind::maximum_add);
+    impl::op_t max_op(impl::dnnl_impl::op_kind::maximum_add);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto max_kernel = op_factory.create_kernel(max_op);
@@ -2188,7 +2190,7 @@ TEST(operator_kernel, matmul_3dx3d) {
 }
 
 TEST(operator_kernel, matmul_relu_fusion) {
-    impl::op_t matmul_relu_op(impl::op_kind::matmul_relu);
+    impl::op_t matmul_relu_op(impl::dnnl_impl::op_kind::matmul_relu);
 
     impl::engine_t &engine = get_engine();
 
@@ -2228,7 +2230,7 @@ TEST(operator_kernel, matmul_relu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias);
 
     impl::engine_t &engine = get_engine();
 
@@ -2272,7 +2274,7 @@ TEST(operator_kernel, matmul_bias_fusion) {
 }
 
 TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
-    impl::op_t matmul_op(impl::op_kind::matmul_add);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_add);
 
     test::vector<float> src_data {-2.0, -1.5, 3.0, 0.5};
     test::vector<float> weight_data {-2.0, -1.5, 1.0, 1.0};
@@ -2315,7 +2317,7 @@ TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
 }
 
 TEST(operator_kernel, matmul_sum_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_add);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_add);
 
     test::vector<float> src_data {-2.0, -1.5, 3.0, 0.5};
     test::vector<float> weight_data {-2.0, -1.5, 1.0, 1.0};
@@ -2358,7 +2360,7 @@ TEST(operator_kernel, matmul_sum_fusion) {
 }
 
 TEST(operator_kernel, matmul_sum_gelu_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_add_gelu);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_add_gelu);
 
     impl::engine_t &engine = get_engine();
 
@@ -2402,7 +2404,7 @@ TEST(operator_kernel, matmul_sum_gelu_fusion) {
 }
 
 TEST(operator_kernel, matmul_sum_relu_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_add_relu);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_add_relu);
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {1.0, 2.0, 3.0, 4.0};
@@ -2445,7 +2447,7 @@ TEST(operator_kernel, matmul_sum_relu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_relu_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_relu);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_relu);
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -2487,7 +2489,7 @@ TEST(operator_kernel, matmul_bias_relu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_gelu_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_gelu);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_gelu);
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {1.0, 1.0, 1.0, 1.0};
@@ -2529,7 +2531,7 @@ TEST(operator_kernel, matmul_bias_gelu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_relu6_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_relu6);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_relu6);
     matmul_op.set_attr<float>("min", 0.0);
     matmul_op.set_attr<float>("max", 6.0);
 
@@ -2574,7 +2576,7 @@ TEST(operator_kernel, matmul_bias_relu6_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_hardtanh);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_hardtanh);
     matmul_op.set_attr<float>("min", -3.0);
     matmul_op.set_attr<float>("max", 3.0);
 
@@ -2619,7 +2621,7 @@ TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_elu_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_elu);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_elu);
     matmul_op.set_attr<float>("alpha", 1.f);
 
     impl::engine_t &engine = get_engine();
@@ -2663,7 +2665,7 @@ TEST(operator_kernel, matmul_bias_elu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_sigmoid);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_sigmoid);
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -2705,7 +2707,7 @@ TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_add_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_add);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_add);
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -2751,7 +2753,7 @@ TEST(operator_kernel, matmul_bias_add_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_add);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_add);
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -2801,7 +2803,7 @@ TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_add);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_add);
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -2852,7 +2854,7 @@ TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_unsupported_broadcast_add_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_add);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_add);
     impl::engine_t &engine = get_engine();
 
     std::vector<impl::dims> post_src_shapes = {{3}, {1, 3}, {2, 1}};
@@ -2882,7 +2884,7 @@ TEST(operator_kernel, matmul_bias_unsupported_broadcast_add_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_add_relu_fusion) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_add_relu);
+    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_add_relu);
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -3751,7 +3753,7 @@ TEST(operator_kernel, conv_bwd_weight_bias) {
     test::vector<float> diff_weights(ref_diff_weights.size(), 0.0);
     test::vector<float> diff_bias(ref_diff_bias.size(), 0.0);
 
-    impl::op_t conv_op(impl::op_kind::conv_bwd_f_biasadd_bwd);
+    impl::op_t conv_op(impl::dnnl_impl::op_kind::conv_bwd_f_biasadd_bwd);
     conv_op.set_attr<dims>("strides", dims {1, 1});
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
@@ -3968,7 +3970,7 @@ TEST(operator_compile, convolution_bn_fp32) {
             {bn_src_ts, bn_gamma_ts, bn_beta_ts, bn_scale_ts, bn_shift_ts},
             {bn_dst_ts});
 
-    impl::op_t convbn_op(impl::op_kind::conv_bn);
+    impl::op_t convbn_op(impl::dnnl_impl::op_kind::conv_bn);
     convbn_op.set_attr<dims>("strides", dims {1, 1});
     convbn_op.set_attr<dims>("dilations", dims {1, 1});
     convbn_op.set_attr<dims>("pads_begin", dims {0, 0});
@@ -4013,7 +4015,7 @@ TEST(operator_kernel, conv_add) {
     test::vector<float> post_src {1.0, 2.0, 3.0, 4.0};
     test::vector<float> ref_dst {0.0, 4.5, 8.0, 5.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_op(impl::op_kind::conv_add);
+    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
     conv_add_op.set_attr<dims>("strides", dims {1, 1});
     conv_add_op.set_attr<dims>("dilations", dims {1, 1});
     conv_add_op.set_attr<dims>("pads_begin", dims {0, 0});
@@ -4066,7 +4068,7 @@ TEST(operator_kernel, conv_per_tensor_broadcast_add) {
     test::vector<float> post_src {3.0};
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_op(impl::op_kind::conv_add);
+    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
     conv_add_op.set_attr<dims>("strides", {1, 1});
     conv_add_op.set_attr<dims>("dilations", {1, 1});
     conv_add_op.set_attr<dims>("pads_begin", {0, 0});
@@ -4121,7 +4123,7 @@ TEST(operator_kernel, conv_expanded_per_tensor_broadcast_add) {
     test::vector<float> post_src {3.0};
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_op(impl::op_kind::conv_add);
+    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
     conv_add_op.set_attr<dims>("strides", {1, 1});
     conv_add_op.set_attr<dims>("dilations", {1, 1});
     conv_add_op.set_attr<dims>("pads_begin", {0, 0});
@@ -4175,7 +4177,7 @@ TEST(operator_kernel, conv_per_channel_broadcast_add) {
     test::vector<float> post_src {3.0, 3.0};
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5, 2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_op(impl::op_kind::conv_add);
+    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
     conv_add_op.set_attr<dims>("strides", {1, 1});
     conv_add_op.set_attr<dims>("dilations", {1, 1});
     conv_add_op.set_attr<dims>("pads_begin", {0, 0});
@@ -4229,7 +4231,7 @@ TEST(operator_kernel, conv_nxc_per_channel_broadcast_add) {
     test::vector<float> post_src {3.0, 3.0};
     test::vector<float> ref_dst {2.0, 2.0, 5.5, 5.5, 8.0, 8.0, 4.5, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_op(impl::op_kind::conv_add);
+    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
     conv_add_op.set_attr<dims>("strides", {1, 1});
     conv_add_op.set_attr<dims>("dilations", {1, 1});
     conv_add_op.set_attr<dims>("pads_begin", {0, 0});
@@ -4280,7 +4282,7 @@ TEST(operator_kernel, conv_unsupported_broadcast_add) {
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> post_src {3.0, 3.0};
-    impl::op_t conv_add_op(impl::op_kind::conv_add);
+    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
     conv_add_op.set_attr<dims>("strides", {1, 1});
     conv_add_op.set_attr<dims>("dilations", {1, 1});
     conv_add_op.set_attr<dims>("pads_begin", {0, 0});
@@ -4320,7 +4322,7 @@ TEST(operator_kernel, conv_add_relu) {
     test::vector<float> post_src {-1.0, -2.0, -3.0, -4.0};
     test::vector<float> ref_dst {0.0, 0.5, 2.0, 0.0};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_relu_op(impl::op_kind::conv_add_relu);
+    impl::op_t conv_add_relu_op(impl::dnnl_impl::op_kind::conv_add_relu);
     conv_add_relu_op.set_attr<dims>("strides", dims {1, 1});
     conv_add_relu_op.set_attr<dims>("dilations", dims {1, 1});
     conv_add_relu_op.set_attr<dims>("pads_begin", dims {0, 0});
@@ -4750,7 +4752,7 @@ TEST(operator_compile, conv_bias_abs) {
     test::vector<float> ref_dst {2.0, 1.5, 4.0, 0.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::op_t op(impl::op_kind::conv_bias_abs);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_abs);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -4801,7 +4803,7 @@ TEST(operator_compile, conv_bias_elu) {
     test::vector<float> ref_dst {-2.0, 1.5, 4.0, 0.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     ref_dst[0] = static_cast<float>(exp(-2) - 1);
-    impl::op_t op(impl::op_kind::conv_bias_elu);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_elu);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -4852,7 +4854,7 @@ TEST(operator_compile, conv_bias_hardtanh) {
     test::vector<float> bias {-1.0};
     test::vector<float> ref_dst {0.0, 1.5, 3.0, 0.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t op(impl::op_kind::conv_bias_hardtanh);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_hardtanh);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -4904,7 +4906,7 @@ TEST(operator_compile, conv_bias_relu6) {
     test::vector<float> bias {2.0};
     test::vector<float> ref_dst {1.0, 4.5, 6.0, 3.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t op(impl::op_kind::conv_bias_relu6);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_relu6);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -4959,7 +4961,7 @@ TEST(operator_compile, conv_bias_sigmoid) {
     for (auto &rdst : ref_dst) {
         rdst = static_cast<float>(1 / (exp(-rdst) + 1));
     }
-    impl::op_t op(impl::op_kind::conv_bias_sigmoid);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_sigmoid);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -5012,7 +5014,7 @@ TEST(operator_compile, conv_bias_swish) {
     for (auto &rdst : ref_dst) {
         rdst = static_cast<float>(rdst / (exp(-rdst) + 1));
     }
-    impl::op_t op(impl::op_kind::conv_bias_swish);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_swish);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -5066,7 +5068,7 @@ TEST(operator_compile, conv_bias_sqrt) {
     for (auto &rdst : ref_dst) {
         rdst = static_cast<float>(sqrt(rdst));
     }
-    impl::op_t op(impl::op_kind::conv_bias_sqrt);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_sqrt);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -5119,7 +5121,7 @@ TEST(operator_compile, conv_bias_square) {
     test::vector<float> ref_dst {4.0, 2.25, 16.0, 0.25};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::op_t op(impl::op_kind::conv_bias_square);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_square);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -5175,7 +5177,7 @@ TEST(operator_compile, conv_bias_tanh) {
         rdst = static_cast<float>(
                 (exp(rdst) - exp(-rdst)) / (exp(rdst) + exp(-rdst)));
     }
-    impl::op_t op(impl::op_kind::conv_bias_tanh);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_tanh);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -5229,7 +5231,7 @@ TEST(operator_compile, conv_bias_add_elu) {
     test::vector<float> ref_dst {-4.0, 2.5, 3.0, 0.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     ref_dst[0] = static_cast<float>(exp(-4) - 1);
-    impl::op_t op(impl::op_kind::conv_bias_add_elu);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_add_elu);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -5289,7 +5291,7 @@ TEST(operator_compile, conv_bias_add_relu6) {
     test::vector<float> ref_dst {0.0, 6.f, 6.f, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::op_t op(impl::op_kind::conv_bias_add_relu6);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_add_relu6);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -5352,7 +5354,7 @@ TEST(operator_compile, conv_add_elu) {
         rdst = rdst > 0 ? rdst : static_cast<float>((exp(rdst) - 1));
     }
 
-    impl::op_t op(impl::op_kind::conv_add_elu);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_add_elu);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -5406,7 +5408,7 @@ TEST(operator_compile, conv_add_relu6) {
     test::vector<float> ref_dst {0.0, 3.5, 4.f, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::op_t op(impl::op_kind::conv_add_relu6);
+    impl::op_t op(impl::dnnl_impl::op_kind::conv_add_relu6);
 
     op.set_attr<dims>("strides", {1, 1});
     op.set_attr<dims>("dilations", {1, 1});
@@ -11013,7 +11015,7 @@ TEST(operator_kernel, relu_add_fusion) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     test::vector<float> ref_dst {2.0, 2.0, 3.0, 2.5};
 
-    impl::op_t op(impl::op_kind::relu_add);
+    impl::op_t op(impl::dnnl_impl::op_kind::relu_add);
     auto &op_factory = get_dnnl_kernel_registry();
     auto kernel = op_factory.create_kernel(op);
     ASSERT_TRUE(kernel);
@@ -13029,7 +13031,7 @@ TEST(operator_kernel, mul_add_per_tensor_broadcast) {
     test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t mul_op(impl::op_kind::multiply_add);
+    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_add);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto mul_kernel = op_factory.create_kernel(mul_op);
@@ -13072,7 +13074,7 @@ TEST(operator_kernel, mul_add_per_hw_broadcast) {
     test::vector<float> ref_dst(18, 6.0);
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t mul_op(impl::op_kind::multiply_add);
+    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_add);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto mul_kernel = op_factory.create_kernel(mul_op);
@@ -13115,7 +13117,7 @@ TEST(operator_kernel, mul_add_per_channel_broadcast) {
     test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t mul_op(impl::op_kind::multiply_add);
+    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_add);
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto mul_kernel = op_factory.create_kernel(mul_op);
