@@ -646,37 +646,42 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
                             + guard_space]);
         }
 
-        const injector_utils::conditional_register_preserve_guard_t
-                register_guard_sum_scale(
-                        (handle_binary_po_offset_) && p_sum_scale_reg_set, this,
-                        {reg_ptr_sum_scale});
-        const injector_utils::conditional_register_preserve_guard_t
-                register_guard_sum_zp(p_sum_zp_reg_set, this, {reg_ptr_sum_zp});
+        {
+            const injector_utils::conditional_register_preserve_guard_t
+                    register_guard_sum_scale(
+                            (handle_binary_po_offset_) && p_sum_scale_reg_set,
+                            this, {reg_ptr_sum_scale});
+            const injector_utils::conditional_register_preserve_guard_t
+                    register_guard_sum_zp(
+                            p_sum_zp_reg_set, this, {reg_ptr_sum_zp});
 
-        if (p_sum_scale_reg_set)
-            mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
+            if (p_sum_scale_reg_set)
+                mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
 
-        const auto &zmm_sum_zp = zmm_tmp_2();
-        if (p_sum_zp_reg_set) {
-            mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
-            vcvtdq2ps(zmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
-        }
+            const auto &zmm_sum_zp = zmm_tmp_2();
+            if (p_sum_zp_reg_set) {
+                mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
+                vcvtdq2ps(zmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+            }
 
-        const auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
+            const auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
 
-        for (int bd = 0; bd < bd_block; bd++) {
-            for (int ld = 0; ld < ld_block2; ld++) {
-                const auto zmm = accm(ld_block2, bd, ld);
-                const auto addr = ptr[reg_aux_D + D_offset(bd, ld)];
-                const auto zmm_prev_dst = Xbyak::Zmm(0);
-                cvt2ps(brg.sum_dt, zmm_prev_dst, addr, true, false, k_mask);
-                if (p_sum_zp_reg_set) vsubps(zmm_prev_dst, zmm_sum_zp);
-                if (!p_sum_scale_reg_set)
-                    vaddps(zmm, zmm_prev_dst);
-                else
-                    vfmadd231ps(zmm, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+            for (int bd = 0; bd < bd_block; bd++) {
+                for (int ld = 0; ld < ld_block2; ld++) {
+                    const auto zmm = accm(ld_block2, bd, ld);
+                    const auto addr = ptr[reg_aux_D + D_offset(bd, ld)];
+                    const auto zmm_prev_dst = Xbyak::Zmm(0);
+                    cvt2ps(brg.sum_dt, zmm_prev_dst, addr, true, false, k_mask);
+                    if (p_sum_zp_reg_set) vsubps(zmm_prev_dst, zmm_sum_zp);
+                    if (!p_sum_scale_reg_set)
+                        vaddps(zmm, zmm_prev_dst);
+                    else
+                        vfmadd231ps(
+                                zmm, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+                }
             }
         }
+
         if (with_binary_no_bcast_) {
             sub(reg_aux_D,
                     ptr[reg_binary_po_stack_frame + reg_data_C_ptr_
