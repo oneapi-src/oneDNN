@@ -139,8 +139,8 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     static const engine_t cpu_engine(dnnl_cpu);
 
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
-    auto scale_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
-    auto shift_fp = make_dnn_mem(ins[2], dt::f32, tag::abx);
+    auto shift_fp
+            = make_dnn_mem(ins[2], dt::f32, prb->use_sh() ? tag::x : tag::axb);
     auto mean_fp = make_dnn_mem(ins[3], dt::f32, tag::abx);
     auto var_fp = make_dnn_mem(ins[4], dt::f32, tag::abx);
     dnn_mem_t &dst_fp = src_fp; // in-place reference
@@ -149,15 +149,34 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
 
     const auto placeholder_dst_dt = make_dnn_mem(outs[0], tag::abx);
     auto src_dt = make_dnn_mem(ins[0], tag::abx);
-    auto scale_dt = make_dnn_mem(ins[1], tag::abx);
-    auto shift_dt = make_dnn_mem(ins[2], tag::abx);
+    auto shift_dt = make_dnn_mem(ins[2], prb->use_sh() ? tag::x : tag::axb);
     auto mean_dt = make_dnn_mem(ins[3], tag::abx);
     auto var_dt = make_dnn_mem(ins[4], tag::abx);
     const dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
+    dnn_mem_t scale_fp, scale_dt;
+    if (prb->use_sc() || prb->use_sh()) {
+        scale_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
+        scale_dt = make_dnn_mem(ins[1], dt::f32, tag::abx);
+    } else {
+        dnnl_dim_t dims_ss[2];
+        dims_ss[0] = prb->ic;
+        dims_ss[1] = prb->ic;
+        scale_fp = dnn_mem_t(2, dims_ss, dnnl_f32, tag::abx, cpu_engine);
+        scale_dt = dnn_mem_t(2, dims_ss, dnnl_f32, tag::abx, cpu_engine);
+    }
+
     if (::bnorm::prepare_fwd(prb, src_fp, mean_fp, var_fp, scale_fp, shift_fp)
             != OK) {
         return res->state = MISTRUSTED, OK;
+    }
+    /*  When dnnl_use_scaleshift is used, benchdnn populates data
+        to the same memory for scale and shift and dnnlgraph expects
+        the data in scale and shift. Hence this explicit copy. */
+    if (!(prb->use_sc() || prb->use_sh())) {
+        for (int64_t i = 0; i < prb->ic; i++) {
+            ((float *)shift_fp)[i] = ((float *)scale_fp)[prb->ic + i];
+        }
     }
     SAFE(src_dt.reorder(src_fp), WARN);
     SAFE(scale_dt.reorder(scale_fp), WARN);
