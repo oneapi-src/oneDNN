@@ -190,13 +190,13 @@ void compute_ref_direct_fwd(const prb_t *prb, dnn_mem_t &src_m,
 
                 maybe_oscale(prb->attr, conv_res, prb->scales, g * OCG + oc);
 
-                std::vector<float> v_binary_vals;
-                v_binary_vals.reserve(v_bin_po_mask.size());
+                std::vector<float> v_binary_vals(v_bin_po_mask.size());
                 for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-                    auto bin_po_offset
+                    const auto bin_po_offset
                             = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
-                    float binary_val = binary_po[d].get_elem(bin_po_offset);
-                    v_binary_vals.push_back(binary_val);
+                    const float binary_val
+                            = binary_po[d].get_elem(bin_po_offset);
+                    v_binary_vals[d] = binary_val;
                 }
                 maybe_post_ops(prb->attr, conv_res, dst, v_binary_vals);
 
@@ -339,13 +339,13 @@ void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
                 }
                 maybe_oscale(prb->attr, conv_res, prb->scales, g * ICG + ic);
 
-                std::vector<float> v_binary_vals;
-                v_binary_vals.reserve(v_bin_po_mask.size());
+                std::vector<float> v_binary_vals(v_bin_po_mask.size());
                 for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-                    auto bin_po_offset = diff_src_m.get_scale_idx(
+                    const auto bin_po_offset = diff_src_m.get_scale_idx(
                             src_off, v_bin_po_mask[d]);
-                    float binary_val = binary_po[d].get_elem(bin_po_offset);
-                    v_binary_vals.push_back(binary_val);
+                    const float binary_val
+                            = binary_po[d].get_elem(bin_po_offset);
+                    v_binary_vals[d] = binary_val;
                 }
                 maybe_post_ops(prb->attr, conv_res, ds, v_binary_vals);
                 maybe_zero_point(prb->attr, conv_res, prb->dst_zp, g * ICG + ic,

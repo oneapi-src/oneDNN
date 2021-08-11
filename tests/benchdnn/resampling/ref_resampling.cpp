@@ -92,14 +92,13 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
                     ker_linear(result, mb, ic, od, oh, ow);
                 }
                 const auto dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
-                std::vector<float> v_binary_vals;
-                v_binary_vals.reserve(v_bin_po_mask.size());
+                std::vector<float> v_binary_vals(v_bin_po_mask.size());
                 for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
                     const auto bin_po_offset
                             = dst.get_scale_idx(dst_off, v_bin_po_mask[d]);
                     const float binary_val
                             = binary_po[d].get_elem(bin_po_offset);
-                    v_binary_vals.push_back(binary_val);
+                    v_binary_vals[d] = binary_val;
                 }
                 maybe_post_ops(prb->attr, result, dst.get_elem(dst_off),
                         v_binary_vals);
