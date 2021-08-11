@@ -89,6 +89,13 @@ endif()
 set(DNNL_DPCPP_HOST_COMPILER "DEFAULT" CACHE STRING
     "specifies host compiler for Intel oneAPI DPC++ Compiler")
 
+set(DNNL_LIBRARY_NAME "dnnl" CACHE STRING
+    "specifies name of the library. For example, user can use this variable to
+     specify a custom library names for CPU and GPU configurations to safely
+     include them into their CMake project via add_subdirectory")
+
+message(STATUS "DNNL_LIBRARY_NAME: ${DNNL_LIBRARY_NAME}")
+
 # =============
 # Optimizations
 # =============
