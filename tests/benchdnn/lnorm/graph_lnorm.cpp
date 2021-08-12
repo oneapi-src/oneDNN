@@ -52,6 +52,10 @@ void check_known_skipped_case_graph(
     if (prb->flags & ::lnorm::GLOB_STATS) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
     }
+    /* STAT_TAG=tag::undef not supported */
+    if (prb->stat_tag == tag::undef) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+    }
     /* dnnl_use_scale and dnnl_use_shift are new features yet to be added */
     if (prb->use_sc() || prb->use_sh()) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;

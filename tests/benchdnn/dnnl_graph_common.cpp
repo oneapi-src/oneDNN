@@ -39,6 +39,13 @@ void check_known_skipped_case_graph_common(
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
+
+    // tag::undef not supported for now
+    if (tag == tag::undef) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     // bf16 not supported for now
     for (const auto &i_dt : v_dt) {
         if (i_dt == dnnl_bf16 || i_dt == dnnl_f16) {
