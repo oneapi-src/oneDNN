@@ -14,8 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "oneapi/dnnl/dnnl.h"
+
 #include "c_types_map.hpp"
-#include "dnnl.hpp"
 #include "utils.hpp"
 
 namespace dnnl {
@@ -40,11 +41,21 @@ void init_fpmath_mode() {
 }
 
 status_t check_fpmath_mode(fpmath_mode_t mode) {
-    if (utils::one_of(mode, fpmath_mode::strict,
-                fpmath_mode::bf16, fpmath_mode::f16, fpmath_mode::any))
+    if (utils::one_of(mode, fpmath_mode::strict, fpmath_mode::bf16,
+                fpmath_mode::f16, fpmath_mode::any))
         return status::success;
-    else
-        return status::invalid_arguments;
+    return status::invalid_arguments;
+}
+
+bool is_fpsubtype(data_type_t sub_dt, data_type_t dt) {
+    using namespace dnnl::impl::utils;
+    using namespace dnnl::impl::data_type;
+    switch (dt) {
+        case f32: return one_of(sub_dt, f32, bf16, f16);
+        case bf16: return one_of(sub_dt, bf16);
+        case f16: return one_of(sub_dt, f16);
+        default: return false;
+    }
 }
 
 fpmath_mode_t get_fpmath_mode() {

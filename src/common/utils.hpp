@@ -567,6 +567,9 @@ int getpagesize();
 fpmath_mode_t get_fpmath_mode();
 // checks if an fpmath_mode is valid
 status_t check_fpmath_mode(fpmath_mode_t mode);
+// Returns true if values reprensented by type sub_dt can all be
+// represented in dt. return false eotherwise
+bool is_fpsubtype(data_type_t sub_dt, data_type_t dt);
 
 constexpr int msan_enabled = MSAN_ENABLED;
 inline void msan_unpoison(void *ptr, size_t size) {

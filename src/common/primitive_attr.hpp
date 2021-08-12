@@ -652,13 +652,32 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         return ret;
     }
 
-    dnnl::impl::status_t set_fpmath_mode(
-            dnnl::impl::fpmath_mode_t fpmath_mode);
+    dnnl::impl::status_t set_fpmath_mode(dnnl::impl::fpmath_mode_t fpmath_mode);
     dnnl::impl::status_t set_scratchpad_mode(
             dnnl::impl::scratchpad_mode_t scratchpad_mode);
     dnnl::impl::status_t set_post_ops(const dnnl::impl::post_ops_t &post_ops);
     dnnl::impl::status_t set_default_formats(
             const dnnl::impl::memory_desc_t *dst_md);
+
+    /* Auxiliary functions */
+    bool mayidownconvert(dnnl::impl::data_type_t dt_from,
+            dnnl::impl::data_type_t dt_to) const {
+        using namespace dnnl::impl;
+
+        bool is_compat = is_fpsubtype(dt_to, dt_from);
+        auto can_downconvert = [&]() {
+            switch (fpmath_mode_) {
+                case fpmath_mode::strict: return dt_from == dt_to;
+                case fpmath_mode::any: return true;
+                case fpmath_mode::bf16:
+                    return is_fpsubtype(data_type::bf16, dt_to);
+                case fpmath_mode::f16:
+                    return is_fpsubtype(data_type::f16, dt_to);
+                default: return false;
+            }
+        };
+        return is_compat && can_downconvert();
+    }
 
     // NOTE: make sure that the types below have overloaded comparison operator
     dnnl::impl::scales_t output_scales_;
