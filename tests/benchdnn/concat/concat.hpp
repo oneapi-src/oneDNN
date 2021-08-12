@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -132,6 +132,9 @@ private:
 
 void compute_ref(
         const prb_t *prb, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst);
+void check_known_skipped_case(const prb_t *prb, res_t *res);
+int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
