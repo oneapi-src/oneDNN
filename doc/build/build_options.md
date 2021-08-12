@@ -21,6 +21,7 @@ oneDNN supports the following build-time options.
 | DNNL_BLAS_VENDOR            | **NONE**, ARMPL                            | Defines an external BLAS library to link to for GEMM-like operations
 | DNNL_GPU_VENDOR             | **INTEL**, NVIDIA                          | Defines GPU vendor for GPU engines
 | DNNL_DPCPP_HOST_COMPILER    | **DEFAULT**, *GNU C++ compiler executable* | Specifies host compiler executable for DPCPP runtimes
+| DNNL_LIBRARY_NAME           | **dnnl**, *library name*                   | Specifies name of the library
 
 All other building options or values that can be found in CMake files are intended for
 development/debug purposes and are subject to change without notice.
