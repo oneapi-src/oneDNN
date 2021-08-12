@@ -43,69 +43,14 @@ struct layout_desc_t {
     int ndims;
     dims_t id;
     dims_t dims;
+    dims_t tails;
+    bool is_blk[DNNL_MAX_NDIMS];
     strides_t strides;
 };
 
-static status_t compute_blk_and_tail(
-        const memory_desc_t &md_, const int idx, int &blk, int &tail) {
-    const auto md = memory_desc_wrapper(md_);
-    const auto &bd = md.blocking_desc();
-    if (tail == 0) return status::success;
-
-    // find dims that have multiple inner blocks
-    const std::set<dim_t> unique_inner_idxs(
-            bd.inner_idxs, bd.inner_idxs + bd.inner_nblks);
-    std::set<dim_t> dims_with_multiple_blks;
-    for (dim_t dim : unique_inner_idxs) {
-        if (std::count(bd.inner_idxs, bd.inner_idxs + bd.inner_nblks, dim) > 1)
-            dims_with_multiple_blks.insert(dim);
-    }
-
-    // Dims that have a tail and have multiple blocks are not supported by the jit kernel yet.
-    // For example:
-    // src_tag = abcd
-    // dst_tag = ABcd16b16a4b
-    // 16x15x3x3
-    // In this case, 'b' dim has two blocks and has a tail. It is not a supported case.
-    if (dims_with_multiple_blks.find(idx) != dims_with_multiple_blks.end())
-        return status::unimplemented;
-
-    // Only supports inconsistent padding in single and double blocks
-    // and the total block size <= 256
-    for (int iblk = bd.inner_nblks - 1; iblk > 0; --iblk) {
-        if (bd.inner_idxs[iblk] == idx) break;
-        blk *= bd.inner_blks[iblk];
-        tail *= bd.inner_blks[iblk];
-    }
-    if (unique_inner_idxs.size() > 2 || blk > 256) return status::unimplemented;
-
-    return status::success;
-}
-
-static status_t compute_chunk_idx(const prb_t &p, const memory_desc_t &imd_,
-        const memory_desc_t &omd_, const int blk_idx, int &chunk_idx) {
-    const auto imd = memory_desc_wrapper(imd_);
-    const auto omd = memory_desc_wrapper(omd_);
-    const auto &ibd = imd.blocking_desc();
-    const auto &obd = omd.blocking_desc();
-    if (p.ip_tail == 0 && p.op_tail == 0) return status::success;
-
-    const ptrdiff_t is
-            = ibd.strides[blk_idx] * obd.inner_blks[obd.inner_idxs[blk_idx]];
-    const ptrdiff_t os = obd.strides[blk_idx];
-
-    for (int i = blk_idx; i < omd.ndims(); ++i) {
-        if (p.nodes[i].os == os && p.nodes[i].is == is) {
-            chunk_idx = i;
-            return status::success;
-        }
-    }
-
-    return status::invalid_arguments;
-}
-
 status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
-        layout_desc_t &ld, const dims_t &blocks, const dims_t &ext_padding) {
+        layout_desc_t &ld, const dims_t &blocks, const dims_t &ext_padding,
+        const dims_t &tails) {
     const auto md = memory_desc_wrapper(md_);
 
     if (!md.is_blocking_desc()) return invalid_arguments;
@@ -115,11 +60,14 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
     ld.ndims = 0;
     ld.dt = md.data_type();
 
-    auto P = [&ld](int id, int dim, ptrdiff_t stride) {
+    auto add_dim = [&ld](int id, int dim, int tail, bool is_blk,
+                           ptrdiff_t stride) {
         assert((size_t)ld.ndims < sizeof(ld.dims) / sizeof(ld.dims[0]));
         ld.id[ld.ndims] = id;
         ld.dims[ld.ndims] = dim;
         ld.strides[ld.ndims] = stride;
+        ld.tails[ld.ndims] = tail;
+        ld.is_blk[ld.ndims] = is_blk;
         ++ld.ndims;
     };
 
@@ -127,12 +75,18 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
         const int ld_ndims_start = ld.ndims;
         if (blocks[d] != 1) {
             stride_t stride = 1;
+            int tail = tails[d];
             for (int iblk = bd.inner_nblks - 1; iblk >= 0; --iblk) {
-                if (bd.inner_idxs[iblk] == d) P(d, bd.inner_blks[iblk], stride);
+                if (bd.inner_idxs[iblk] == d) {
+                    const int inner_tail = tail % bd.inner_blks[iblk];
+                    add_dim(d, bd.inner_blks[iblk], inner_tail, true, stride);
+                    tail = utils::div_up(tail, bd.inner_blks[iblk]);
+                }
                 stride *= bd.inner_blks[iblk];
             }
         }
-        P(d, (md.padded_dims()[d] + ext_padding[d]) / blocks[d], bd.strides[d]);
+        add_dim(d, (md.padded_dims()[d] + ext_padding[d]) / blocks[d], 0, false,
+                bd.strides[d]);
 
         // TODO: NOW: revisit, do we need a reverse?
         // TODO: NOW: consider using strides instead of block sizes in md
@@ -142,6 +96,8 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
             const int idx1 = ld.ndims - 1 - ld_d;
             nstl::swap(ld.dims[idx0], ld.dims[idx1]);
             nstl::swap(ld.strides[idx0], ld.strides[idx1]);
+            nstl::swap(ld.tails[idx0], ld.tails[idx1]);
+            nstl::swap(ld.is_blk[idx0], ld.is_blk[idx1]);
         }
     }
 
@@ -168,58 +124,44 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             && check_post_ops(attr);
     if (!ok) return unimplemented;
 
-    dims_t iblocks, oblocks, ip_padding, op_padding;
+    /* padding_dim consistency check
+     * only supports inconsitent padding for dst
+     * TODO: Add inconsistent padding support for src */
+    bool is_tail_present = false;
+    dims_t iblocks, oblocks, i_tails, o_tails, i_paddings, o_paddings;
     im_d.compute_blocks(iblocks);
     om_d.compute_blocks(oblocks);
-    utils::array_set(ip_padding, 0, im_d.ndims());
-    utils::array_set(op_padding, 0, om_d.ndims());
-
-    /* padding_dim consistency check
-     * only supports inconsitent padding for src
-     * TODO: Add inconsistent padding support for dst */
-    int ip_tail = 0;
-    int op_tail = 0;
-    int iblk_w_tail = 1;
-    int oblk_w_tail = 1;
-    int blk_idx = 0;
+    utils::array_set(i_tails, 0, im_d.ndims());
+    utils::array_set(o_tails, 0, om_d.ndims());
+    utils::array_set(i_paddings, 0, im_d.ndims());
+    utils::array_set(o_paddings, 0, om_d.ndims());
 
     for (int d = 0; d < im_d.ndims(); ++d) {
-        const int ip_tmp_dim = im_d.padded_dims()[d];
-        const int op_tmp_dim = om_d.padded_dims()[d];
-        const int ip_tmp_tail = ip_tmp_dim % oblocks[d];
-        const int op_tmp_tail = op_tmp_dim % iblocks[d];
+        const int i_dim = im_d.dims()[d];
+        const int o_dim = om_d.dims()[d];
+        const int i_tail = i_dim % iblocks[d];
+        const int o_tail = o_dim % oblocks[d];
 
-        const bool pdim_consistent = ip_tmp_dim == op_tmp_dim
-                && ip_tmp_tail == 0 && op_tmp_tail == 0;
-        const bool pdim_tail = ip_tmp_tail > 0
-                && (ip_tmp_dim + oblocks[d] - ip_tmp_tail) == op_tmp_dim
-                && op_tmp_tail == 0 && ip_tail == 0;
-        if (!pdim_consistent && !pdim_tail) return status::unimplemented;
-        if (pdim_tail) {
-            blk_idx = d;
-            ip_tail = ip_tmp_tail;
-            op_tail = op_tmp_tail;
-            iblk_w_tail = iblocks[d];
-            oblk_w_tail = oblocks[d];
-            ip_padding[d] = oblocks[d] - ip_tmp_tail;
-            op_padding[d] = iblocks[d] - op_tmp_tail;
+        const bool are_input_and_output_dim_consistent
+                = i_dim == o_dim && i_tail == 0 && o_tail == 0;
+        const bool is_tail_acceptable = i_tail == 0;
+        if (!are_input_and_output_dim_consistent && !is_tail_acceptable)
+            return status::unimplemented;
+
+        if (o_tail > 0) {
+            is_tail_present = true;
+            o_tails[d] = o_tail;
+            o_paddings[d] = oblocks[d] - o_tail;
         }
     }
-    CHECK(compute_blk_and_tail(omd, blk_idx, oblk_w_tail, ip_tail));
 
     layout_desc_t ild, old;
-    status_t status
-            = cvt_mem_desc_to_layout_desc(imd, ild, iblocks, ip_padding);
-    if (status != success) return status;
-    status = cvt_mem_desc_to_layout_desc(omd, old, oblocks, op_padding);
-    if (status != success) return status;
+    CHECK(cvt_mem_desc_to_layout_desc(imd, ild, iblocks, o_paddings, i_tails));
+    CHECK(cvt_mem_desc_to_layout_desc(omd, old, oblocks, i_paddings, o_tails));
 
     p.itype = ild.dt;
     p.otype = old.dt;
-    p.ip_tail = ip_tail;
-    p.op_tail = op_tail;
-    p.iblock = iblk_w_tail;
-    p.oblock = oblk_w_tail;
+    p.is_tail_present = is_tail_present;
     p.req_src_zp = *attr->zero_points_.get(DNNL_ARG_SRC);
     p.req_dst_zp = *attr->zero_points_.get(DNNL_ARG_DST);
     p.scale_type = attr->output_scales_.has_default_values()
@@ -287,6 +229,9 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
         if (ild.dims[i_pos] == old.dims[o_pos]) {
             p.nodes[ndims].n = ild.dims[i_pos];
+            p.nodes[ndims].dim_id = old.id[o_pos];
+            p.nodes[ndims].is_blk = old.is_blk[o_pos];
+            p.nodes[ndims].tail_size = old.tails[o_pos];
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos];
             p.nodes[ndims].ss = ss[o_pos];
@@ -297,7 +242,17 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
         } else if (ild.dims[i_pos] < old.dims[o_pos]) {
             assert(old.dims[o_pos] % ild.dims[i_pos] == 0);
             int factor = old.dims[o_pos] / ild.dims[i_pos];
+
+            const size_t tail_of_upper_dim
+                    = utils::div_up(old.tails[o_pos], factor) == ild.dims[i_pos]
+                    ? 0
+                    : utils::div_up(old.tails[o_pos], factor);
+            const size_t tail_of_lower_dim = old.tails[o_pos] % factor;
+
             p.nodes[ndims].n = ild.dims[i_pos];
+            p.nodes[ndims].dim_id = old.id[o_pos];
+            p.nodes[ndims].is_blk = old.is_blk[o_pos];
+            p.nodes[ndims].tail_size = tail_of_upper_dim;
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos] * factor;
             p.nodes[ndims].ss = ss[o_pos] * factor;
@@ -305,10 +260,15 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             ++ndims;
             ++i_pos;
             old.dims[o_pos] = factor;
+            old.tails[o_pos] = tail_of_lower_dim;
+            old.is_blk[o_pos] = true;
         } else if (ild.dims[i_pos] > old.dims[o_pos]) {
             assert(ild.dims[i_pos] % old.dims[o_pos] == 0);
             int factor = ild.dims[i_pos] / old.dims[o_pos];
             p.nodes[ndims].n = old.dims[o_pos];
+            p.nodes[ndims].dim_id = old.id[o_pos];
+            p.nodes[ndims].is_blk = old.is_blk[o_pos];
+            p.nodes[ndims].tail_size = old.tails[o_pos];
             p.nodes[ndims].is = ild.strides[i_pos] * factor;
             p.nodes[ndims].os = old.strides[o_pos];
             p.nodes[ndims].ss = ss[o_pos];
@@ -328,46 +288,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     const int sum_idx = attr->post_ops_.find(primitive_kind::sum);
     p.beta = sum_idx == -1 ? 0.f : attr->post_ops_.entry_[sum_idx].sum.scale;
 
-    if (!attr->zero_points_.has_default_values()) {
-        int new_ip_tail = 0;
-        int d = 0;
-        for (; d < im_d.ndims(); ++d) {
-            const auto curr_ip_tail = im_d.dims()[d] % oblocks[d];
-            if (curr_ip_tail > 0) {
-                new_ip_tail = curr_ip_tail;
-                break;
-            }
-        }
-
-        if (new_ip_tail > 0) {
-            p.ip_tail = new_ip_tail;
-            p.iblock = iblocks[d];
-            p.oblock = oblocks[d];
-            blk_idx = d;
-        }
-    }
-
-    int blk_chunk_idx = ndims - 1;
-    CHECK(compute_chunk_idx(p, imd, omd, blk_idx, blk_chunk_idx));
-    p.blk_chunk_idx = blk_chunk_idx;
-
     return success;
-}
-
-status_t prb_check_blk(prb_t &p, const memory_desc_t &md_) {
-    const auto md = memory_desc_wrapper(md_);
-    const auto &bd = md.blocking_desc();
-    if (p.ip_tail == 0) return status::success;
-
-    // Check if the inner blocks and p.nodes[blk].n in the firsti nblks
-    // is equivalent in reverse order when has tail in block layout.
-    const int nblk = bd.inner_nblks;
-    for (int iblk = 0; iblk < nblk; ++iblk) {
-        if (bd.inner_blks[nblk - iblk - 1]
-                != static_cast<ptrdiff_t>(p.nodes[iblk].n))
-            return status::unimplemented;
-    }
-    return status::success;
 }
 
 void prb_normalize(prb_t &p) {
@@ -379,10 +300,23 @@ void prb_normalize(prb_t &p) {
                             && p.nodes[j].n < p.nodes[min_pos].n);
             if (new_min) min_pos = j;
         }
-        if (min_pos != d) {
-            nstl::swap(p.nodes[d], p.nodes[min_pos]);
-            if (p.blk_chunk_idx == min_pos || p.blk_chunk_idx == d)
-                p.blk_chunk_idx = p.blk_chunk_idx == min_pos ? d : min_pos;
+        if (min_pos != d) { nstl::swap(p.nodes[d], p.nodes[min_pos]); }
+    }
+}
+
+void prb_node_dependency(prb_t &prb) {
+    for (int i = 0; i < prb.ndims; i++) {
+        tr::node_t &node = prb.nodes[i];
+        node.parent_node_id = -1;
+        if (node.is_blk) {
+            for (int j = i + 1; j < prb.ndims; j++) {
+                tr::node_t &potential_parent_node = prb.nodes[j];
+                if (potential_parent_node.dim_id != -1
+                        && potential_parent_node.dim_id == node.dim_id) {
+                    node.parent_node_id = j;
+                    break;
+                }
+            }
         }
     }
 }
@@ -394,16 +328,25 @@ void prb_simplify(prb_t &p) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
+
+    const auto skip_dim_combining = [&p](const int node_id) -> bool {
+        return (p.is_tail_in_one_of_child_nodes(node_id)
+                       && p.nodes[node_id].n > 1)
+                || (p.nodes[node_id].is_blk && p.nodes[node_id].tail_size > 0);
+    };
+
+    if (p.is_tail_present) prb_node_dependency(p);
+
     for (int d = 0; d < p.ndims - 1; ++d) {
         auto &this_node = p.nodes[d + 0];
         auto &next_node = p.nodes[d + 1];
-        const bool skip_blk_idx = (p.ip_tail > 0 || p.op_tail > 0)
-                && (p.blk_chunk_idx == d || p.blk_chunk_idx == d + 1);
+        const bool skip_dims_combining
+                = skip_dim_combining(d) || skip_dim_combining(d + 1);
         const bool fold = false
                 || (next_node.n == static_cast<size_t>(1)
-                        && !skip_blk_idx) // trivial case, just drop next node
+                        && !skip_dims_combining) // trivial case, just drop next node
                 || (true // or real folding if possible
-                        && !skip_blk_idx
+                        && !skip_dims_combining
                         && next_node.is
                                 == static_cast<ptrdiff_t>(
                                         this_node.n * this_node.is)
@@ -418,12 +361,14 @@ void prb_simplify(prb_t &p) {
                                         this_node.n * this_node.cs));
         if (fold) {
             this_node.n *= next_node.n;
+            this_node.dim_id = -1;
+            this_node.is_blk = false;
             for (int j = d + 2; j < p.ndims; ++j)
                 p.nodes[j - 1] = p.nodes[j];
-            if (d < p.blk_chunk_idx) --p.blk_chunk_idx;
             --p.ndims;
             --p.full_ndims;
             --d; // make another try
+            if (p.is_tail_present) prb_node_dependency(p);
         }
     }
 #if defined(__GNUC__) && __GNUC__ >= 4
@@ -435,14 +380,28 @@ void prb_node_split(prb_t &p, int dim, size_t n1) {
     assert(dim < p.ndims);
     assert(p.ndims < max_ndims);
     assert(p.nodes[dim].n % n1 == 0);
+    assert(IMPLICATION(p.nodes[dim].tail_size > 0,
+            p.nodes[dim].tail_size > p.nodes[dim].n - n1));
 
     p.ndims += 1;
     p.full_ndims += 1;
-    if (dim < p.blk_chunk_idx) p.blk_chunk_idx += 1;
 
     for (int d = p.ndims; d > dim + 1; --d)
         p.nodes[d] = p.nodes[d - 1];
 
+    const bool is_tail = p.nodes[dim].tail_size > 0;
+    const size_t tail_of_upper_dim
+            = utils::div_up(p.nodes[dim].tail_size, n1) == n1
+            ? 0
+            : utils::div_up(p.nodes[dim].tail_size, n1);
+    const size_t tail_of_lower_dim = p.nodes[dim].tail_size % n1;
+    p.nodes[dim].tail_size = is_tail ? tail_of_lower_dim : 0;
+    p.nodes[dim + 1].tail_size = is_tail ? tail_of_upper_dim : 0;
+
+    p.nodes[dim + 1].is_blk = p.nodes[dim].is_blk;
+    p.nodes[dim].is_blk = true;
+
+    p.nodes[dim + 1].dim_id = p.nodes[dim].dim_id;
     p.nodes[dim + 1].n = p.nodes[dim].n / n1;
     p.nodes[dim + 1].is = p.nodes[dim].is * n1;
     p.nodes[dim + 1].os = p.nodes[dim].os * n1;
@@ -485,8 +444,10 @@ void prb_dump(const prb_t &p) {
     printf("@@@ type:%s:%s ndims:%d ", dnnl_dt2str(p.itype),
             dnnl_dt2str(p.otype), p.ndims);
     for (int d = 0; d < p.ndims; ++d)
-        printf("[%zu:%td:%td:%td:%td]", p.nodes[d].n, p.nodes[d].is,
-                p.nodes[d].os, p.nodes[d].ss, p.nodes[d].cs);
+        printf("[%zu:%zu:%d:%d:%s:%td:%td:%td:%td]", p.nodes[d].n,
+                p.nodes[d].tail_size, p.nodes[d].dim_id,
+                p.nodes[d].parent_node_id, p.nodes[d].is_blk ? "true" : "false",
+                p.nodes[d].is, p.nodes[d].os, p.nodes[d].ss, p.nodes[d].cs);
     printf(" off:%zu:%zu\n", p.ioff, p.ooff);
 }
 

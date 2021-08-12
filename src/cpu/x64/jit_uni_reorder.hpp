@@ -35,6 +35,10 @@ constexpr int max_ndims = DNNL_MAX_NDIMS;
 
 struct node_t {
     size_t n = 0;
+    size_t tail_size = 0;
+    int dim_id = -1;
+    int parent_node_id = -1;
+    bool is_blk = false;
     ptrdiff_t is = 0; // input stride
     ptrdiff_t os = 0; // output stride
     ptrdiff_t ss = 0; // scale stride
@@ -44,6 +48,46 @@ struct node_t {
 enum class scale_type_t { NONE, COMMON, MANY };
 
 struct prb_t {
+    bool is_tail_in_one_of_child_nodes(int parent_node_id) const {
+        for (int i = parent_node_id; i >= 0; i--) {
+            if (nodes[i].parent_node_id == parent_node_id) {
+                if (nodes[i].tail_size != 0)
+                    return true;
+                else
+                    parent_node_id = i;
+            }
+        }
+
+        return false;
+    }
+
+    int tail(int d) const {
+        assert(d < ndims);
+        return static_cast<int>(nodes[d].tail_size);
+    }
+
+    int n(int d) const {
+        assert(d < ndims);
+        return static_cast<int>(nodes[d].n);
+    }
+    int is(int d) const {
+        assert(d < ndims);
+        return static_cast<int>(nodes[d].is);
+    }
+    int os(int d) const {
+        assert(d < ndims);
+        return static_cast<int>(nodes[d].os);
+    }
+    int ss(int d) const {
+        assert(d < ndims);
+        return static_cast<int>(nodes[d].ss);
+    }
+
+    int cs(int d) const {
+        assert(d < ndims);
+        return static_cast<int>(nodes[d].cs);
+    }
+
     data_type_t itype;
     data_type_t otype;
     int ndims;
@@ -53,11 +97,7 @@ struct prb_t {
     scale_type_t scale_type;
     float beta;
     int full_ndims;
-    int ip_tail;
-    int op_tail;
-    int iblock;
-    int oblock;
-    int blk_chunk_idx;
+    bool is_tail_present = false;
     float scale_adjust = 1.f;
     bool req_s8s8_comp = false;
     bool req_asymmetric_comp = false;
@@ -69,10 +109,11 @@ status_t prb_init(prb_t &prb, const memory_desc_t &imd,
         const memory_desc_t &omd, const primitive_attr_t *attr,
         bool with_groups = false);
 
-status_t prb_check_blk(prb_t &prb, const memory_desc_t &imd);
-
 /** sorts the problem nodes so that output strides come in ascending order */
 void prb_normalize(prb_t &p);
+
+/** fill parent node info for blocked nodes */
+void prb_node_dependency(prb_t &p);
 
 /** folds nodes together if possible */
 void prb_simplify(prb_t &p);
@@ -98,7 +139,8 @@ struct call_param_t {
     const float *scale = nullptr;
     int src_zp = 0;
     int dst_zp = 0;
-    size_t blk_chunks = 0;
+    int64_t curr_data_chunks[DNNL_MAX_NDIMS] = {-1};
+    int64_t zeroing_data = static_cast<int64_t>(false);
     int32_t *compensation_scratch = nullptr;
 };
 
@@ -188,6 +230,10 @@ private:
     void omp_driver(const char *in, char *out, const float *scale, int src_zp,
             int dst_zp, const memory_tracking::grantor_t &scratchpad) const;
 
+    void fill_curr_data_chunks(const tr::prb_t &prb, const int off,
+            const ptrdiff_t *omp_data_chunks, const int omp_ndims,
+            tr::call_param_t &c) const;
+
     void reduce_compensation(char *out,
             const int32_t *compensation_reduce_scratch, const int nthr,
             const dim_t wspace_per_thr_size) const;
@@ -222,10 +268,6 @@ struct jit_blk_reorder_t : public primitive_t {
     ~jit_blk_reorder_t();
 
 private:
-    size_t n(int d) const;
-    ptrdiff_t is(int d) const;
-    ptrdiff_t os(int d) const;
-
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<tr::jit_single_blk_kernel_t> kernel_;
 };
