@@ -47,7 +47,7 @@ struct call_params_t {
 template <cpu_isa_t isa>
 struct jit_bnorm_base_t : public jit_generator {
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_t)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_s8_t)
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
     const AddressFrame &vmmword
@@ -201,10 +201,10 @@ struct jit_bnorm_base_t : public jit_generator {
 };
 
 template <cpu_isa_t isa>
-struct jit_bnorm_t;
+struct jit_bnorm_s8_t;
 
 template <>
-struct jit_bnorm_t<avx512_core> : public jit_bnorm_base_t<avx512_core> {
+struct jit_bnorm_s8_t<avx512_core> : public jit_bnorm_base_t<avx512_core> {
     Opmask tail_opmask = Opmask(1); // f32 mask for channel math
 
     void prepare_tail_mask() override {
@@ -298,12 +298,12 @@ struct jit_bnorm_t<avx512_core> : public jit_bnorm_base_t<avx512_core> {
         }
     }
 
-    jit_bnorm_t(const batch_normalization_pd_t *pd)
+    jit_bnorm_s8_t(const batch_normalization_pd_t *pd)
         : jit_bnorm_base_t<avx512_core>(pd) {}
 };
 
 template <>
-struct jit_bnorm_t<avx2> : public jit_bnorm_base_t<avx2> {
+struct jit_bnorm_s8_t<avx2> : public jit_bnorm_base_t<avx2> {
     Vmm tail_vmask = Vmm(11);
     Vmm body_vmask = Vmm(12);
 
@@ -441,12 +441,12 @@ struct jit_bnorm_t<avx2> : public jit_bnorm_base_t<avx2> {
         }
     }
 
-    jit_bnorm_t(const batch_normalization_pd_t *pd)
+    jit_bnorm_s8_t(const batch_normalization_pd_t *pd)
         : jit_bnorm_base_t<avx2>(pd) {}
 };
 
 template <>
-struct jit_bnorm_t<sse41> : public jit_bnorm_base_t<sse41> {
+struct jit_bnorm_s8_t<sse41> : public jit_bnorm_base_t<sse41> {
     void load_mean_and_var(const Vmm &vmean, const Vmm &vsqrtvar, size_t offt,
             bool need_tail) override {
         if (need_tail) {
@@ -563,7 +563,7 @@ struct jit_bnorm_t<sse41> : public jit_bnorm_base_t<sse41> {
         }
     }
 
-    jit_bnorm_t(const batch_normalization_pd_t *pd)
+    jit_bnorm_s8_t(const batch_normalization_pd_t *pd)
         : jit_bnorm_base_t<sse41>(pd) {}
 };
 
@@ -611,7 +611,7 @@ struct driver_t : public c_compatible {
 private:
     const batch_normalization_pd_t *pd_;
 
-    jit_bnorm_t<isa> ker_;
+    jit_bnorm_s8_t<isa> ker_;
 };
 
 } // namespace bnorm_s8_impl
