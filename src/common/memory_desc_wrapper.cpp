@@ -572,6 +572,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(AcdeB16b48a4b, {0, 2, 3, 4, 1}, {16, 48, 4}, {1, 0, 1});
         C(AcdeB16b64a2b, {0, 2, 3, 4, 1}, {16, 64, 2}, {1, 0, 1});
         C(AcdeB16b64a4b, {0, 2, 3, 4, 1}, {16, 64, 4}, {1, 0, 1});
+        C(decbA16a, {3, 4, 2, 1, 0}, {16}, {0});
 
         default: break;
     }

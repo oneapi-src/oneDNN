@@ -620,6 +620,7 @@ const format_tag_t aBdefC16c48b2c = dnnl_aBdefC16c48b2c;
 const format_tag_t aBdefC16c48b4c = dnnl_aBdefC16c48b4c;
 const format_tag_t aBdefC16c64b2c = dnnl_aBdefC16c64b2c;
 const format_tag_t aBdefC16c64b4c = dnnl_aBdefC16c64b4c;
+const format_tag_t decbA16a = dnnl_decbA16a;
 
 const format_tag_t last = dnnl_format_tag_last;
 
@@ -1048,6 +1049,7 @@ const format_tag_t gOdhwI16i48o2i = dnnl_gOdhwI16i48o2i;
 const format_tag_t gOdhwI16i48o4i = dnnl_gOdhwI16i48o4i;
 const format_tag_t gOdhwI16i64o2i = dnnl_gOdhwI16i64o2i;
 const format_tag_t gOdhwI16i64o4i = dnnl_gOdhwI16i64o4i;
+const format_tag_t hwioG16g = dnnl_hwioG16g;
 } // namespace format_tag
 
 using memory_extra_flags_t = dnnl_memory_extra_flags_t;

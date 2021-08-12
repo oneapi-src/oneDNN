@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -266,6 +266,8 @@ CPU_INSTANTIATE_TEST_SUITE_P(Weights_1, reorder_simple_test_f32_f32,
         ::testing::Values(
                 cfg_f32 {fmt::goihw, fmt::Goihw16g, {32, 32, 32, 3, 3}},
                 cfg_f32 {fmt::Goihw16g, fmt::goihw, {32, 32, 32, 3, 3}},
+                cfg_f32 {fmt::goihw, fmt::hwioG16g, {32, 32, 32, 3, 3}},
+                cfg_f32 {fmt::hwioG16g, fmt::goihw, {32, 32, 32, 3, 3}},
                 cfg_f32 {fmt::oihw, fmt::iohw, {32, 32, 3, 3}},
                 cfg_f32 {fmt::iohw, fmt::oihw, {32, 32, 3, 3}},
                 cfg_f32 {fmt::goihw, fmt::giohw, {2, 32, 32, 3, 3}},

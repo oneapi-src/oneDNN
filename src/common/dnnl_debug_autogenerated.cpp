@@ -492,6 +492,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_aBdefC16c48b4c) return "aBdefC16c48b4c";
     if (v == dnnl_aBdefC16c64b2c) return "aBdefC16c64b2c";
     if (v == dnnl_aBdefC16c64b4c) return "aBdefC16c64b4c";
+    if (v == dnnl_decbA16a) return "decbA16a";
     if (v == dnnl_format_tag_last) return "format_tag_last";
     if (v == dnnl_x) return "x";
     if (v == dnnl_nc) return "nc";
@@ -921,6 +922,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_gOdhwI16i48o4i) return "gOdhwI16i48o4i";
     if (v == dnnl_gOdhwI16i64o2i) return "gOdhwI16i64o2i";
     if (v == dnnl_gOdhwI16i64o4i) return "gOdhwI16i64o4i";
+    if (v == dnnl_hwioG16g) return "hwioG16g";
     assert(!"unknown fmt_tag");
     return "unknown fmt_tag";
 }
