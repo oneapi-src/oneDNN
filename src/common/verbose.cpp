@@ -344,10 +344,15 @@ std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
 }
 
 std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
-    // scratchpad mode is not a part of has_default_values(). Check it first.
+    // scratchpad and fpmath mode are not a part of
+    // has_default_values(). Check them first.
     const scratchpad_mode_t &spm = attr->scratchpad_mode_;
     if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
         ss << "attr-scratchpad:" << dnnl_scratchpad_mode2str(spm) << " ";
+    }
+    const fpmath_mode_t &fpm = attr->fpmath_mode_;
+    if (fpm != fpmath_mode_t::dnnl_fpmath_mode_strict) {
+        ss << "attr-fpmath_mode:" << dnnl_fpmath_mode2str(fpm) << " ";
     }
 
     if (attr->has_default_values()) return ss;
