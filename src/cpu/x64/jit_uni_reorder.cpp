@@ -2145,11 +2145,16 @@ void jit_uni_reorder_t::reduce_compensation(char *out,
     const auto N_padded = id.padded_dims()[pd()->with_groups_ ? 1 : 0];
     const auto GN_padded_elems = G_padded * N_padded;
     const auto GN = G * N;
-    if (GN_padded_elems != GN)
-        std::memset(out + offset, 0, GN_padded_elems * comp_dt_size);
-
     const bool req_s8s8_comp = pd()->prb_.req_s8s8_comp;
     const bool req_asymmetric_comp = pd()->prb_.req_asymmetric_comp;
+
+    if (GN_padded_elems != GN) {
+        if (req_s8s8_comp)
+            std::memset(out + offset, 0, GN_padded_elems * comp_dt_size);
+        if (req_asymmetric_comp)
+            std::memset(out + zp_offset, 0, GN_padded_elems * comp_dt_size);
+    }
+
     parallel_nd(G, N, [&](int g, int n) {
         int32_t acc = 0;
         const auto g_n_off = g * N + n;
