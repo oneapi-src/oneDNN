@@ -26,10 +26,9 @@ namespace gpu {
 namespace jit {
 
 layout_t::layout_t(const type_t &type, const expr_t &offset,
-        const std::string &format, const std::vector<dim_t> &dims,
-        bool do_normalize)
+        const std::vector<std::pair<int, dim_t>> &parts,
+        const std::vector<dim_t> &dims, bool do_normalize)
     : type_(type), offset_(offset) {
-    auto parts = parse_format(format, int(dims.size()));
     ndims_ = 0;
     for (auto &p : parts) {
         int dim_idx = p.first;
