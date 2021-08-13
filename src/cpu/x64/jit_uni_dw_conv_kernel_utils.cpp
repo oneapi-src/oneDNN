@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "cpu/cpu_convolution_pd.hpp"
+
 #include "cpu/x64/jit_uni_dw_conv_kernel_utils.hpp"
 
 namespace dnnl {
@@ -746,20 +748,24 @@ void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::partition_nthr_nxc(
     }
 }
 
-template struct jit_uni_dw_conv_fwd_kernel<avx512_core, bf16>;
-template struct jit_uni_dw_conv_fwd_kernel<avx512_common, f32>;
-template struct jit_uni_dw_conv_fwd_kernel<avx2, f32>;
-template struct jit_uni_dw_conv_fwd_kernel<sse41, f32>;
+REG_AVX512_ISA(template struct jit_uni_dw_conv_fwd_kernel<avx512_core, bf16>);
+REG_AVX512_ISA(template struct jit_uni_dw_conv_fwd_kernel<avx512_common, f32>);
+REG_AVX2_ISA(template struct jit_uni_dw_conv_fwd_kernel<avx2, f32>);
+REG_SSE41_ISA(template struct jit_uni_dw_conv_fwd_kernel<sse41, f32>);
 
-template struct jit_uni_dw_conv_bwd_data_kernel<avx512_core, bf16>;
-template struct jit_uni_dw_conv_bwd_data_kernel<avx512_common, f32>;
-template struct jit_uni_dw_conv_bwd_data_kernel<avx2, f32>;
-template struct jit_uni_dw_conv_bwd_data_kernel<sse41, f32>;
+REG_AVX512_ISA(
+        template struct jit_uni_dw_conv_bwd_data_kernel<avx512_core, bf16>);
+REG_AVX512_ISA(
+        template struct jit_uni_dw_conv_bwd_data_kernel<avx512_common, f32>);
+REG_AVX2_ISA(template struct jit_uni_dw_conv_bwd_data_kernel<avx2, f32>);
+REG_SSE41_ISA(template struct jit_uni_dw_conv_bwd_data_kernel<sse41, f32>);
 
-template struct jit_uni_dw_conv_bwd_weights_kernel<avx512_core, bf16>;
-template struct jit_uni_dw_conv_bwd_weights_kernel<avx512_common, f32>;
-template struct jit_uni_dw_conv_bwd_weights_kernel<avx2, f32>;
-template struct jit_uni_dw_conv_bwd_weights_kernel<sse41, f32>;
+REG_AVX512_ISA(
+        template struct jit_uni_dw_conv_bwd_weights_kernel<avx512_core, bf16>);
+REG_AVX512_ISA(
+        template struct jit_uni_dw_conv_bwd_weights_kernel<avx512_common, f32>);
+REG_AVX2_ISA(template struct jit_uni_dw_conv_bwd_weights_kernel<avx2, f32>);
+REG_SSE41_ISA(template struct jit_uni_dw_conv_bwd_weights_kernel<sse41, f32>);
 } // namespace x64
 } // namespace cpu
 } // namespace impl

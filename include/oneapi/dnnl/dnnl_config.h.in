@@ -134,4 +134,10 @@
 #cmakedefine01 BUILD_SHUFFLE
 #cmakedefine01 BUILD_SOFTMAX
 #cmakedefine01 BUILD_SUM
+// Primitives CPU ISA controls
+#cmakedefine01 BUILD_PRIMITIVE_CPU_ISA_ALL
+#cmakedefine01 BUILD_SSE41
+#cmakedefine01 BUILD_AVX2
+#cmakedefine01 BUILD_AVX512
+#cmakedefine01 BUILD_AMX
 #endif

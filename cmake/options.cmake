@@ -104,7 +104,7 @@ set(DNNL_ENABLE_WORKLOAD "TRAINING" CACHE STRING
     - INFERENCE. Includes only forward propagation kind functionality and their
       dependencies.")
 if(NOT "${DNNL_ENABLE_WORKLOAD}" MATCHES "^(TRAINING|INFERENCE)$")
-    message(FATAL_ERROR "Unsupported propagation kind: ${DNNL_ENABLE_WORKLOAD}")
+    message(FATAL_ERROR "Unsupported workload type: ${DNNL_ENABLE_WORKLOAD}")
 endif()
 
 set(DNNL_ENABLE_PRIMITIVE "ALL" CACHE STRING
@@ -119,6 +119,16 @@ set(DNNL_ENABLE_PRIMITIVE "ALL" CACHE STRING
       be enabled at build time. This is treated as CMake string, thus, semicolon
       is a mandatory delimiter between names. This is the way to specify several
       primitives to be available in the final binary.")
+
+set(DNNL_ENABLE_PRIMITIVE_CPU_ISA "ALL" CACHE STRING
+    "Specifies a set of implementations using specific ISA to be available at
+    build time. Regardless of value chosen, compiler-based optimized
+    implementations will always be available. Valid values:
+    - ALL (the default). Includes all ISA to be enabled.
+    - <ISA_NAME>. Includes selected and all \"less\" ISA to be enabled.
+      Possible values are: SSE41, AVX2, AVX512, AMX. The linear order is
+      SSE41 < AVX2 < AVX512 < AMX. It means that if user selects, e.g. AVX2 ISA,
+      SSE41 implementations will also be available at build time.")
 
 # =============
 # Optimizations

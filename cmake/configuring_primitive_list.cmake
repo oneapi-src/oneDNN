@@ -40,9 +40,23 @@ else()
 endif()
 message(STATUS "Enabled primitives: ${DNNL_ENABLE_PRIMITIVE}")
 
+if (DNNL_ENABLE_PRIMITIVE_CPU_ISA STREQUAL "ALL")
+    set(BUILD_PRIMITIVE_CPU_ISA_ALL TRUE)
+else()
+    foreach(isa ${DNNL_ENABLE_PRIMITIVE_CPU_ISA})
+        string(TOUPPER ${isa} uisa)
+        if(NOT "${uisa}" MATCHES "^(SSE41|AVX2|AVX512|AMX)$")
+            message(FATAL_ERROR "Unsupported primitive CPU ISA: ${uisa}")
+        endif()
+        set(BUILD_${uisa} TRUE)
+    endforeach()
+endif()
+message(STATUS "Enabled primitive CPU ISA: ${DNNL_ENABLE_PRIMITIVE_CPU_ISA}")
+
 # When certain primitives or primitive ISA are switched off, some functions may
 # become unused which is expected. Switch off warning for unused functions in
 # such cases.
-if (NOT DNNL_ENABLE_PRIMITIVE STREQUAL "ALL")
+if (NOT DNNL_ENABLE_PRIMITIVE STREQUAL "ALL" OR
+        NOT DNNL_ENABLE_PRIMITIVE_CPU_ISA STREQUAL "ALL")
     append(CMAKE_CCXX_FLAGS "-Wno-error=unused-function -Wno-unused-function")
 endif()

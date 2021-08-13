@@ -160,11 +160,13 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
     if (pd()->wants_zero_pad_dst()) ctx.zero_pad_output(DNNL_ARG_DST);
 }
 
-template struct jit_uni_dw_convolution_fwd_t<avx512_core, bf16, f32>;
-template struct jit_uni_dw_convolution_fwd_t<avx512_core, bf16>;
-template struct jit_uni_dw_convolution_fwd_t<avx512_common, f32>;
-template struct jit_uni_dw_convolution_fwd_t<avx2, f32>;
-template struct jit_uni_dw_convolution_fwd_t<sse41, f32>;
+REG_AVX512_ISA(
+        template struct jit_uni_dw_convolution_fwd_t<avx512_core, bf16, f32>);
+REG_AVX512_ISA(template struct jit_uni_dw_convolution_fwd_t<avx512_core, bf16>);
+REG_AVX512_ISA(
+        template struct jit_uni_dw_convolution_fwd_t<avx512_common, f32>);
+REG_AVX2_ISA(template struct jit_uni_dw_convolution_fwd_t<avx2, f32>);
+REG_SSE41_ISA(template struct jit_uni_dw_convolution_fwd_t<sse41, f32>);
 
 template <cpu_isa_t isa, data_type_t diff_dst_type, data_type_t diff_src_type>
 void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
@@ -302,11 +304,14 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
     });
 }
 
-template struct jit_uni_dw_convolution_bwd_data_t<avx512_core, bf16, f32>;
-template struct jit_uni_dw_convolution_bwd_data_t<avx512_core, bf16>;
-template struct jit_uni_dw_convolution_bwd_data_t<avx512_common, f32>;
-template struct jit_uni_dw_convolution_bwd_data_t<avx2, f32>;
-template struct jit_uni_dw_convolution_bwd_data_t<sse41, f32>;
+REG_AVX512_ISA(template struct jit_uni_dw_convolution_bwd_data_t<avx512_core,
+        bf16, f32>);
+REG_AVX512_ISA(
+        template struct jit_uni_dw_convolution_bwd_data_t<avx512_core, bf16>);
+REG_AVX512_ISA(
+        template struct jit_uni_dw_convolution_bwd_data_t<avx512_common, f32>);
+REG_AVX2_ISA(template struct jit_uni_dw_convolution_bwd_data_t<avx2, f32>);
+REG_SSE41_ISA(template struct jit_uni_dw_convolution_bwd_data_t<sse41, f32>);
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
 jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>::
@@ -953,11 +958,15 @@ void jit_uni_dw_convolution_bwd_weights_t<sse41, f32>::execute_reduction_nxc(
     }
 }
 
-template struct jit_uni_dw_convolution_bwd_weights_t<avx512_core, bf16>;
-template struct jit_uni_dw_convolution_bwd_weights_t<avx512_core, bf16, f32>;
-template struct jit_uni_dw_convolution_bwd_weights_t<avx512_common, f32>;
-template struct jit_uni_dw_convolution_bwd_weights_t<avx2, f32>;
-template struct jit_uni_dw_convolution_bwd_weights_t<sse41, f32>;
+REG_AVX512_ISA(template struct jit_uni_dw_convolution_bwd_weights_t<avx512_core,
+        bf16>);
+REG_AVX512_ISA(template struct jit_uni_dw_convolution_bwd_weights_t<avx512_core,
+        bf16, f32>);
+REG_AVX512_ISA(
+        template struct jit_uni_dw_convolution_bwd_weights_t<avx512_common,
+                f32>);
+REG_AVX2_ISA(template struct jit_uni_dw_convolution_bwd_weights_t<avx2, f32>);
+REG_SSE41_ISA(template struct jit_uni_dw_convolution_bwd_weights_t<sse41, f32>);
 } // namespace x64
 } // namespace cpu
 } // namespace impl
