@@ -36,16 +36,16 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 const impl_list_item_t impl_list[] = {
-        CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<avx512_common>)
-        CPU_INSTANCE_X64(jit_uni_softmax_bwd_t<avx512_common>)
-        CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<avx2>)
-        CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<sse41>)
+        REG_SOFTMAX_P_FWD(CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<avx512_common>))
+        REG_SOFTMAX_P_BWD(CPU_INSTANCE_X64(jit_uni_softmax_bwd_t<avx512_common>))
+        REG_SOFTMAX_P_FWD(CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<avx2>))
+        REG_SOFTMAX_P_FWD(CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<sse41>))
         CPU_INSTANCE_AARCH64(jit_uni_softmax_fwd_t<sve_512>)
         CPU_INSTANCE_AARCH64(jit_uni_softmax_bwd_t<sve_512>)
-        CPU_INSTANCE(ref_softmax_fwd_t<f32>)
-        CPU_INSTANCE(ref_softmax_bwd_t<f32>)
-        CPU_INSTANCE(ref_softmax_fwd_t<bf16>)
-        CPU_INSTANCE(ref_softmax_bwd_t<bf16>)
+        REG_SOFTMAX_P_FWD(CPU_INSTANCE(ref_softmax_fwd_t<f32>))
+        REG_SOFTMAX_P_BWD(CPU_INSTANCE(ref_softmax_bwd_t<f32>))
+        REG_SOFTMAX_P_FWD(CPU_INSTANCE(ref_softmax_fwd_t<bf16>))
+        REG_SOFTMAX_P_BWD(CPU_INSTANCE(ref_softmax_bwd_t<bf16>))
         /* eol */
         nullptr,
 };

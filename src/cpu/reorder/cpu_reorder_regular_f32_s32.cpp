@@ -25,16 +25,16 @@ namespace cpu {
 const impl_list_map_t regular_f32_s32_impl_list_map {
     // f32 -> s32
     {{f32, s32, 0}, {
-        REG_FAST_DIRECT_COPY(f32, s32)
+        REG_REORDER_P(REG_FAST_DIRECT_COPY(f32, s32))
 
-        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
-        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
+        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t)))
+        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t)))
 
         DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
 
-        REG_SR_BIDIR(f32, any, s32, nChw16c)
+        REG_REORDER_P(REG_SR_BIDIR(f32, any, s32, nChw16c))
 
-        REG_SR(f32, any, s32, any, fmt_order::any, spec::reference)
+        REG_REORDER_P(REG_SR(f32, any, s32, any, fmt_order::any, spec::reference))
 
         nullptr,
     }},

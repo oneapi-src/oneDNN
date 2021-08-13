@@ -16,6 +16,8 @@ oneDNN supports the following build-time options.
 | DNNL_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                                | Enables [primitive cache](@ref dev_guide_primitive_cache)
 | DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                                | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
 | DNNL_ENABLE_CPU_ISA_HINTS   | **ON**, OFF                                | Enables [CPU ISA hints](@ref dev_guide_cpu_isa_hints)
+| DNNL_ENABLE_WORKLOAD        | **TRAINING**, INFERENCE                    | Specifies a set of functionality to be available based on workload
+| DNNL_ENABLE_PRIMITIVE       | **ALL**, PRIMITIVE_NAME                    | Specifies a set of functionality to be available based on primitives
 | DNNL_VERBOSE                | **ON**, OFF                                | Enables [verbose mode](@ref dev_guide_verbose)
 | DNNL_AARCH64_USE_ACL        | ON, **OFF**                                | Enables integration with Arm Compute Library for AArch64 builds
 | DNNL_BLAS_VENDOR            | **NONE**, ARMPL                            | Defines an external BLAS library to link to for GEMM-like operations
@@ -29,8 +31,7 @@ Please avoid using them.
 
 ## Common options
 
-## Host compiler
-
+### Host compiler
 When building oneDNN with oneAPI DPC++/C++ Compiler user can specify a custom
 host compiler. The host compiler is a compiler that will be used by the main
 compiler driver to perform host compilation step.
@@ -50,6 +51,32 @@ On Linux, user can specify a GNU C++ compiler as the host compiler.
 oneAPI DPC++/C++ Compiler requires host compiler to be compatible. The minimum
 allowed GNU C++ compiler version is 7.4.0. See [GCC* Compatibility and Interoperability](https://software.intel.com/content/www/us/en/develop/documentation/oneapi-dpcpp-cpp-compiler-dev-guide-and-reference/top/compatibility-and-portability/gcc-compatibility-and-interoperability.html)
 section in oneAPI DPC++/C++ Compiler Developer Guide.
+
+### Configuring functionality
+Using `DNNL_ENABLE_WORKLOAD` and `DNNL_ENABLE_PRIMITIVE` it is possible to limit
+functionality available in the final shared object or statically linked
+application. This helps to reduce the amount of disk space occupied by an app.
+
+#### DNNL_ENABLE_WORKLOAD
+This option supports only two values: `TRAINING` (the default) and `INFERENCE`.
+`INFERENCE` enables only forward propagation kind part of functionality,
+removing all backward-related functionality, except those which are
+dependencies for forward propagation kind part.
+
+#### DNNL_ENABLE_PRIMITIVE
+This option supports several values: `ALL` (the default) which enables all
+primitives implementations or a set of `BATCH_NORMALIZATION`, `BINARY`,
+`CONCAT`, `CONVOLUTION`, `DECONVOLUTION`, `ELTWISE`, `INNER_PRODUCT`,
+`LAYER_NORMALIZATION`, `LRN`, `MATMUL`, `POOLING`, `PRELU`, `REDUCTION`,
+`REORDER`, `RESAMPLING`, `RNN`, `SHUFFLE`, `SOFTMAX`, `SUM`. When a set is used,
+only those selected primitives implementations will be available. Attempting to
+use other primitive implementations will end up returning an unimplemented
+status when creating primitive descriptor. In order to specify a set, a
+CMake-style string should be used, with semicolon delimiters, as in this
+example:
+```
+-DDNNL_ENABLE_PRIMITIVE=CONVOLUTION;MATMUL;REORDER
+```
 
 ## CPU Options
 Intel Architecture Processors and compatible devices are supported by

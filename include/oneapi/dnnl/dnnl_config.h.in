@@ -106,4 +106,29 @@
 // When defined, SYCL CUDA backend is used.
 #cmakedefine DNNL_SYCL_CUDA
 
+// List of configurating build controls
+// Workload controls
+#cmakedefine01 BUILD_TRAINING
+#cmakedefine01 BUILD_INFERENCE
+// Primitive controls
+#cmakedefine01 BUILD_PRIMITIVE_ALL
+#cmakedefine01 BUILD_BATCH_NORMALIZATION
+#cmakedefine01 BUILD_BINARY
+#cmakedefine01 BUILD_CONCAT
+#cmakedefine01 BUILD_CONVOLUTION
+#cmakedefine01 BUILD_DECONVOLUTION
+#cmakedefine01 BUILD_ELTWISE
+#cmakedefine01 BUILD_INNER_PRODUCT
+#cmakedefine01 BUILD_LAYER_NORMALIZATION
+#cmakedefine01 BUILD_LRN
+#cmakedefine01 BUILD_MATMUL
+#cmakedefine01 BUILD_POOLING
+#cmakedefine01 BUILD_PRELU
+#cmakedefine01 BUILD_REDUCTION
+#cmakedefine01 BUILD_REORDER
+#cmakedefine01 BUILD_RESAMPLING
+#cmakedefine01 BUILD_RNN
+#cmakedefine01 BUILD_SHUFFLE
+#cmakedefine01 BUILD_SOFTMAX
+#cmakedefine01 BUILD_SUM
 #endif

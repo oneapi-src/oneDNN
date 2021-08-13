@@ -33,21 +33,21 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 const impl_list_item_t impl_list[] = {
-        CPU_INSTANCE_X64(jit_avx512_common_lrn_fwd_t<f32>)
-        CPU_INSTANCE_X64(jit_avx512_common_lrn_bwd_t<f32>)
-        CPU_INSTANCE_X64(jit_avx512_common_lrn_fwd_t<bf16>)
-        CPU_INSTANCE_X64(jit_avx512_common_lrn_bwd_t<bf16>)
-        CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<avx512_common, f32>)
-        CPU_INSTANCE_X64(jit_uni_lrn_bwd_t<avx512_common, f32>)
-        CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<avx512_common, bf16>)
-        CPU_INSTANCE_X64(jit_uni_lrn_bwd_t<avx512_common, bf16>)
-        CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<avx2, f32>)
-        CPU_INSTANCE_X64(jit_uni_lrn_bwd_t<avx2, f32>)
-        CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<sse41, f32>)
-        CPU_INSTANCE(ref_lrn_fwd_t<f32>)
-        CPU_INSTANCE(ref_lrn_bwd_t<f32>)
-        CPU_INSTANCE(ref_lrn_fwd_t<bf16>)
-        CPU_INSTANCE(ref_lrn_bwd_t<bf16>)
+        REG_LRN_P_FWD(CPU_INSTANCE_X64(jit_avx512_common_lrn_fwd_t<f32>))
+        REG_LRN_P_BWD(CPU_INSTANCE_X64(jit_avx512_common_lrn_bwd_t<f32>))
+        REG_LRN_P_FWD(CPU_INSTANCE_X64(jit_avx512_common_lrn_fwd_t<bf16>))
+        REG_LRN_P_BWD(CPU_INSTANCE_X64(jit_avx512_common_lrn_bwd_t<bf16>))
+        REG_LRN_P_FWD(CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<avx512_common, f32>))
+        REG_LRN_P_BWD(CPU_INSTANCE_X64(jit_uni_lrn_bwd_t<avx512_common, f32>))
+        REG_LRN_P_FWD(CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<avx512_common, bf16>))
+        REG_LRN_P_BWD(CPU_INSTANCE_X64(jit_uni_lrn_bwd_t<avx512_common, bf16>))
+        REG_LRN_P_FWD(CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<avx2, f32>))
+        REG_LRN_P_BWD(CPU_INSTANCE_X64(jit_uni_lrn_bwd_t<avx2, f32>))
+        REG_LRN_P_FWD(CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<sse41, f32>))
+        REG_LRN_P_FWD(CPU_INSTANCE(ref_lrn_fwd_t<f32>))
+        REG_LRN_P_BWD(CPU_INSTANCE(ref_lrn_bwd_t<f32>))
+        REG_LRN_P_FWD(CPU_INSTANCE(ref_lrn_fwd_t<bf16>))
+        REG_LRN_P_BWD(CPU_INSTANCE(ref_lrn_bwd_t<bf16>))
         /* eol */
         nullptr,
 };

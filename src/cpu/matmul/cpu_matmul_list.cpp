@@ -38,22 +38,21 @@ using namespace dnnl::impl::cpu::matmul;
 
 // clang-format off
 const impl_list_item_t impl_list[] = {
-        CPU_INSTANCE(gemm_f32_matmul_t)
-        CPU_INSTANCE_X64(brgemm_matmul_t<avx512_core_bf16_amx_bf16>)
-        CPU_INSTANCE(gemm_bf16_matmul_t<f32>)
-        CPU_INSTANCE(gemm_bf16_matmul_t<bf16>)
-        CPU_INSTANCE_X64(brgemm_matmul_t<avx512_core_bf16_amx_int8>)
-        CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, f32>)
-        CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s32>)
-        CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s8>)
-        CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, u8>)
-        CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, f32>)
-        CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s32>)
-        CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s8>)
-        CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, u8>)
-        CPU_INSTANCE(ref_matmul_t)
-        CPU_INSTANCE(ref_matmul_int8_t)
-
+        REG_MATMUL_P(CPU_INSTANCE(gemm_f32_matmul_t))
+        REG_MATMUL_P(CPU_INSTANCE_X64(brgemm_matmul_t<avx512_core_bf16_amx_bf16>))
+        REG_MATMUL_P(CPU_INSTANCE(gemm_bf16_matmul_t<f32>))
+        REG_MATMUL_P(CPU_INSTANCE(gemm_bf16_matmul_t<bf16>))
+        REG_MATMUL_P(CPU_INSTANCE_X64(brgemm_matmul_t<avx512_core_bf16_amx_int8>))
+        REG_MATMUL_P(CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, f32>))
+        REG_MATMUL_P(CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s32>))
+        REG_MATMUL_P(CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s8>))
+        REG_MATMUL_P(CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, u8>))
+        REG_MATMUL_P(CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, f32>))
+        REG_MATMUL_P(CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s32>))
+        REG_MATMUL_P(CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s8>))
+        REG_MATMUL_P(CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, u8>))
+        REG_MATMUL_P(CPU_INSTANCE(ref_matmul_t))
+        REG_MATMUL_P(CPU_INSTANCE(ref_matmul_int8_t))
         /* eol */
         nullptr,
 };

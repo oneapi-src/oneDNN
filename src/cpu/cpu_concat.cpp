@@ -25,17 +25,18 @@ namespace impl {
 namespace cpu {
 
 namespace {
+using namespace dnnl::impl::data_type;
 #define INSTANCE(...) \
     impl_list_item_t(impl_list_item_t::concat_type_deduction_helper_t< \
             __VA_ARGS__::pd_t>()),
 // clang-format off
 const impl_list_item_t cpu_concat_impl_list[] = {
-        INSTANCE(simple_concat_t<data_type::f32>)
-        INSTANCE(simple_concat_t<data_type::u8>)
-        INSTANCE(simple_concat_t<data_type::s8>)
-        INSTANCE(simple_concat_t<data_type::s32>)
-        INSTANCE(simple_concat_t<data_type::bf16>)
-        INSTANCE(ref_concat_t)
+        REG_CONCAT_P(INSTANCE(simple_concat_t<f32>))
+        REG_CONCAT_P(INSTANCE(simple_concat_t<u8>))
+        REG_CONCAT_P(INSTANCE(simple_concat_t<s8>))
+        REG_CONCAT_P(INSTANCE(simple_concat_t<s32>))
+        REG_CONCAT_P(INSTANCE(simple_concat_t<bf16>))
+        REG_CONCAT_P(INSTANCE(ref_concat_t))
         nullptr,
 };
 // clang-format on

@@ -31,18 +31,19 @@ namespace impl {
 namespace cpu {
 
 namespace {
+using namespace dnnl::impl::data_type;
 #define INSTANCE(...) \
     impl_list_item_t(impl_list_item_t::sum_type_deduction_helper_t< \
             __VA_ARGS__::pd_t>()),
 #define INSTANCE_X64(...) DNNL_X64_ONLY(INSTANCE(__VA_ARGS__))
 // clang-format off
 const impl_list_item_t cpu_sum_impl_list[] = {
-        INSTANCE_X64(jit_bf16_sum_t<data_type::bf16, data_type::bf16>)
-        INSTANCE_X64(jit_bf16_sum_t<data_type::bf16, data_type::f32>)
-        INSTANCE(simple_sum_t<data_type::bf16>)
-        INSTANCE(simple_sum_t<data_type::bf16, data_type::f32>)
-        INSTANCE(simple_sum_t<data_type::f32>)
-        INSTANCE(ref_sum_t)
+        REG_SUM_P(INSTANCE_X64(jit_bf16_sum_t<bf16, bf16>))
+        REG_SUM_P(INSTANCE_X64(jit_bf16_sum_t<bf16, f32>))
+        REG_SUM_P(INSTANCE(simple_sum_t<bf16>))
+        REG_SUM_P(INSTANCE(simple_sum_t<bf16, f32>))
+        REG_SUM_P(INSTANCE(simple_sum_t<f32>))
+        REG_SUM_P(INSTANCE(ref_sum_t))
         nullptr,
 };
 // clang-format on

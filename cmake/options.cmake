@@ -96,6 +96,30 @@ set(DNNL_LIBRARY_NAME "dnnl" CACHE STRING
 
 message(STATUS "DNNL_LIBRARY_NAME: ${DNNL_LIBRARY_NAME}")
 
+set(DNNL_ENABLE_WORKLOAD "TRAINING" CACHE STRING
+    "Specifies a set of functionality to be available at build time. Designed to
+    decrease the final memory disk footprint of the shared object or application
+    statically linked against the library. Valid values:
+    - TRAINING (the default). Includes all functionality to be enabled.
+    - INFERENCE. Includes only forward propagation kind functionality and their
+      dependencies.")
+if(NOT "${DNNL_ENABLE_WORKLOAD}" MATCHES "^(TRAINING|INFERENCE)$")
+    message(FATAL_ERROR "Unsupported propagation kind: ${DNNL_ENABLE_WORKLOAD}")
+endif()
+
+set(DNNL_ENABLE_PRIMITIVE "ALL" CACHE STRING
+    "Specifies a set of primitives to be available at build time. Valid values:
+    - ALL (the default). Includes all primitives to be enabled.
+    - <PRIMITIVE_NAME>. Includes only the selected primitive to be enabled.
+      Possible values are: BATCH_NORMALIZATION, BINARY, CONCAT, CONVOLUTION,
+      DECONVOLUTION, ELTWISE, INNER_PRODUCT, LAYER_NORMALIZATION, LRN, MATMUL,
+      POOLING, PRELU, REDUCTION, REORDER, RESAMPLING, RNN, SHUFFLE, SOFTMAX,
+      SUM.
+    - <PRIMITIVE_NAME>;<PRIMITIVE_NAME>;... Includes only selected primitives to
+      be enabled at build time. This is treated as CMake string, thus, semicolon
+      is a mandatory delimiter between names. This is the way to specify several
+      primitives to be available in the final binary.")
+
 # =============
 # Optimizations
 # =============

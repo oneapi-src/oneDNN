@@ -26,6 +26,7 @@
 #include "common/engine.hpp"
 #include "common/engine_id.hpp"
 #include "common/impl_list_item.hpp"
+#include "common/impl_registration.hpp"
 
 #include "cpu/platform.hpp"
 
