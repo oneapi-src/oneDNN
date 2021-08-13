@@ -377,6 +377,11 @@ int check_pd_w_and_wo_attr(
     return OK;
 }
 
+bool should_stop(const benchdnn_timer_t &t);
+
+int measure_prim_create(benchdnn_timer_t &t, dnnl_primitive_t &prim_,
+        dnnl_primitive_desc_t &pd);
+
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, prb_t *prb, res_t *res,
@@ -426,8 +431,15 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     // Collect memory footprint for a given primitive descriptor.
     SAFE(get_memory_footprint(pd, res), WARN);
 
-    // This primitive is expected to come from the cache.
-    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
+    if (api_mode == GRAPH && is_bench_mode(PERF)) {
+        // For graph api mode we call init_prim function to measure
+        // primitive creation time.
+        SAFE(measure_prim_create(res->prim_create_timer, prim_, pd), WARN);
+    } else {
+        // This primitive is expected to come from the cache.
+        DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
+    }
+
     int check_primitive_cache_status = check_primitive_cache(prim_);
 
     SAFE(check_pd_cache_status | check_primitive_cache_status, WARN);

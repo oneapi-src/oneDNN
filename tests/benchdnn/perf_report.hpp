@@ -33,6 +33,9 @@ struct base_perf_report_t {
     void handle_option(std::ostream &s, const char *&option, const res_t *r,
             const char *prb_str) const {
         const auto &t = r->timer;
+        const auto &par_compl_timer = r->par_compl_timer;
+        const auto &prim_create_timer = r->prim_create_timer;
+
         benchdnn_timer_t::mode_t mode = benchdnn_timer_t::min;
         (void)mode;
         double unit = 1e0;
@@ -70,6 +73,8 @@ struct base_perf_report_t {
             return t.ticks(mode) / t.sec(mode) / unit;
         };
 
+        auto ctime_ratio
+                = prim_create_timer.ms(mode) / par_compl_timer.ms(mode);
         // Please update doc/knobs_perf_report.md in case of any new options!
 
         // Options operating on driver specific types, e.g. alg_t.
@@ -106,6 +111,9 @@ struct base_perf_report_t {
         HANDLE("freq", s << get_freq());
         HANDLE("ops", s << ops() / unit);
         HANDLE("time", s << t.ms(mode) / unit);
+        HANDLE("ctime_ratio", s << ctime_ratio / unit);
+        HANDLE("prim_ctime", s << prim_create_timer.ms(mode) / unit);
+        HANDLE("par_ctime", s << par_compl_timer.ms(mode) / unit);
         HANDLE("impl", s << r->impl_name);
         HANDLE("ibytes", s << r->ibytes / unit);
         HANDLE("obytes", s << r->obytes / unit);
@@ -135,7 +143,6 @@ struct base_perf_report_t {
             }
             handle_option(ss, pt, r, prb_str);
         }
-
         std::string str = ss.str();
         BENCHDNN_PRINT(0, "%s\n", str.c_str());
     };

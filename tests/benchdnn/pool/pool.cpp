@@ -86,9 +86,8 @@ int fill_ws(
     return OK;
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &ppd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &ppd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_memory_desc_t src_d, dst_d;
 
     dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};

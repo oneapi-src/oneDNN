@@ -49,9 +49,8 @@ dims_t get_runtime_dims(const dims_t &dims, const dims_mask_t &mask) {
     return runtime_dims;
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &mpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
 
     dnnl_memory_desc_t src_d, wei_d, dst_d, bia_d {};
     const auto &src_rt_dims

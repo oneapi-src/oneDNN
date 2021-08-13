@@ -67,7 +67,7 @@ struct settings_t {
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%stat_tag%,%flags%,%DESC%,"
-              "%-time%,%0time%,";
+              "%-time%,%0time%";
     const char *perf_template_def
             = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
@@ -155,6 +155,8 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
         const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss,
         dnn_mem_t &d_sh);
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &lpd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

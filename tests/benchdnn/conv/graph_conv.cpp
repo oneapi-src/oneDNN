@@ -283,11 +283,18 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    const auto &e = benchdnnext::get_test_engine();
-    auto cp = par.compile(ins, outs, e);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    auto init_pd = [&](dnnl_engine_t engine, const ::conv::prb_t *prb,
+                           dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
+                           const_dnnl_primitive_desc_t hint) {
+        SAFE(::conv::init_pd_custom(engine, prb, cpd, res), WARN);
+        return OK;
+    };
+    auto cp = compile_partition(init_pd, prb, res, par, ins, outs);
 
     auto src_fp = make_dnn_mem(ins[0], spec.src_dims, dt::f32, tag::abx);
     auto wei_fp = make_dnn_mem(ins[1], spec.wei_dims, dt::f32, tag::abx);
+
     dnn_mem_t bia_fp;
     if (prb->dir == FWD_B) bia_fp = make_dnn_mem(ins[2], dt::f32, tag::x);
     auto dst_fp = make_dnn_mem(outs[0], spec.dst_dims, dt::f32, tag::abx);
@@ -355,8 +362,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         dnn_mem_t dst(dst_dt, fp, src_tag, dnnl_test_engine);
         SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
     }
-
-    measure_perf(res->timer, cp, tensors_in, tensors_out);
+    SAFE(measure_perf(res->timer, cp, tensors_in, tensors_out), WARN);
 
     return OK;
 }

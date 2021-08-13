@@ -178,9 +178,8 @@ int compare_bootstrap(dnn_mem_t &mem_ref, dnn_mem_t &mem_got, res_t *res) {
     return res->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     const auto &rc = prb->reorder;
     auto dims = rc.dims;
     for (int d = 0; d < prb->ndims; ++d)

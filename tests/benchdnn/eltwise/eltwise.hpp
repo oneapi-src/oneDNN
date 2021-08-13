@@ -136,6 +136,8 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst);
 void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &diff_dst, dnn_mem_t &diff_src);
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &epd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

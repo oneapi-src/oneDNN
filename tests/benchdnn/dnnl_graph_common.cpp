@@ -23,14 +23,6 @@
 
 namespace benchdnnext {
 
-inline bool should_stop(const benchdnn_timer_t &t) noexcept {
-    const bool stop = false
-            || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-            || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
-                    && t.times() >= min_times_per_prb);
-    return stop;
-}
-
 void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res) {
@@ -361,6 +353,18 @@ int measure_perf(benchdnn_timer_t &t, dnnl::graph::compiled_partition &cp,
                     std::placeholders::_2, std::placeholders::_3);
 
     return measure_perf(t, perf_func, inputs, outputs);
+}
+
+int measure_partition_compl(benchdnn_timer_t &t,
+        const dnnl::graph::partition &par,
+        const std::vector<dnnl::graph::logical_tensor> &inputs,
+        const std::vector<dnnl::graph::logical_tensor> &outputs,
+        dnnl::graph::engine &engine) {
+    t.reset();
+    t.start();
+    par.compile(inputs, outputs, engine);
+    t.stamp();
+    return OK;
 }
 
 #define BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC( \

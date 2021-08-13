@@ -541,7 +541,7 @@ int fill_dst(
     return OK;
 }
 
-inline int init_pd_custom(dnnl_engine_t engine, const prb_t *prb,
+int init_pd_custom(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &cpd, res_t *res,
         dnnl_data_type_t src_dt = dnnl_data_type_undef,
         dnnl_data_type_t wei_dt = dnnl_data_type_undef,

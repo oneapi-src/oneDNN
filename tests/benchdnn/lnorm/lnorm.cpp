@@ -283,9 +283,8 @@ int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
     return OK;
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &lpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &lpd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_layer_normalization_desc_t ld;
     dnnl_memory_desc_t data_d, stat_d;
 

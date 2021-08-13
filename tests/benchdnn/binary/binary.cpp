@@ -92,9 +92,8 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
     return OK;
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &bpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_binary_desc_t bd;
     std::vector<dnnl_memory_desc_t> src_d;
     src_d.resize(prb->n_inputs());

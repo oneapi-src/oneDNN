@@ -291,6 +291,11 @@ constexpr T *end(T (&arr)[N]) noexcept {
     return arr + N;
 }
 
+typedef std::function<void(const dnnl::graph::engine &,
+        const std::vector<dnnl::graph::logical_tensor> &,
+        const std::vector<dnnl::graph::logical_tensor> &)>
+        cmpl_function_t;
+
 typedef std::function<void(dnnl::graph::stream &,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs)>
@@ -305,6 +310,11 @@ inline dnnl::graph::engine &get_test_engine() {
             graph_engine_kind, static_cast<int>(engine_index));
     return instance;
 }
+
+int measure_cmpl(benchdnn_timer_t &t, const dnnl::graph::engine &engine,
+        const dnnl::graph::partition &par,
+        const std::vector<dnnl::graph::logical_tensor> &inputs,
+        const std::vector<dnnl::graph::logical_tensor> &outputs);
 
 int execute_and_wait(perf_function_t &exec_func,
         const dnnl::graph::engine &engine,
@@ -323,6 +333,33 @@ int measure_perf(benchdnn_timer_t &t, dnnl::graph::compiled_partition &cp,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs);
 
+int measure_partition_compl(benchdnn_timer_t &t,
+        const dnnl::graph::partition &par,
+        const std::vector<dnnl::graph::logical_tensor> &inputs,
+        const std::vector<dnnl::graph::logical_tensor> &outputs,
+        dnnl::graph::engine &engine);
+
+template <typename func_t, typename prb_t>
+dnnl::graph::compiled_partition compile_partition(const func_t &init_pd_func,
+        prb_t *prb, res_t *res, const dnnl::graph::partition &par,
+        const std::vector<dnnl::graph::logical_tensor> &inputs,
+        const std::vector<dnnl::graph::logical_tensor> &outputs) {
+    dnnl::graph::engine &engine = get_test_engine();
+    auto cp = par.compile(inputs, outputs, engine);
+
+    if (is_bench_mode(PERF)) {
+        // Measure parititon compilation perf.
+        measure_partition_compl(
+                res->par_compl_timer, par, inputs, outputs, engine);
+
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+        // This function call here is needed
+        // to measure primitive creation time.
+        init_prim(prim, init_pd_func, prb, res);
+    }
+
+    return cp;
+}
 struct graph_prb_t {
     using dt = dnnl::graph::logical_tensor::data_type;
     using lt = dnnl::graph::logical_tensor::layout_type;

@@ -197,6 +197,8 @@ int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
 int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *res, const dnn_mem_t *ss = nullptr,
         const dnn_mem_t *sh = nullptr);
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

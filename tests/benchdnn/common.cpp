@@ -258,8 +258,12 @@ void parse_result(
 
     if (is_bench_mode(PERF)) {
         using bt = benchdnn_timer_t;
-        for (int mode = 0; mode < (int)bt::n_modes; ++mode)
+        for (int mode = 0; mode < (int)bt::n_modes; ++mode) {
             bs.ms[mode] += res.timer.ms((bt::mode_t)mode);
+            bs.par_compl_ms[mode] += res.par_compl_timer.ms((bt::mode_t)mode);
+            bs.prim_create_ms[mode]
+                    += res.prim_create_timer.ms((bt::mode_t)mode);
+        }
     }
 }
 
@@ -340,7 +344,7 @@ void *zmalloc(size_t size, size_t align) {
 
     // TODO. Heuristics: Increasing the size to alignment increases
     // the stability of performance results.
-    if ((is_bench_mode(PERF)) && (size < align)) size = align;
+    if (is_bench_mode(PERF) && (size < align)) size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
     return rc == 0 ? ptr : nullptr;

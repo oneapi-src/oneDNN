@@ -156,8 +156,7 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    const auto &e = benchdnnext::get_test_engine();
-    auto cp = par.compile(ins, outs, e);
+    auto cp = compile_partition(::binary::init_pd, prb, res, par, ins, outs);
 
     auto src0_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     auto src1_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
@@ -219,7 +218,7 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    measure_perf(res->timer, cp, tensors_in, tensors_out);
+    SAFE(measure_perf(res->timer, cp, tensors_in, tensors_out), WARN);
 
     return OK;
 }
