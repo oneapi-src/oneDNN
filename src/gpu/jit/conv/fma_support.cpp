@@ -93,28 +93,29 @@ type_t multiply_desc_t::get_c_type(
 }
 
 layout_t dpas_t::a_layout() const {
-    if (simd_size == 8) {
-        if (src1_type.size() == 1) return layout_t(src1_type, 0, "8b8a4b");
-        if (src1_type.size() == 2) return layout_t(src1_type, 0, "8b8a2b");
-    }
-    if (simd_size == 16) {
-        if (src1_type.size() == 1) return layout_t(src1_type, 0, "8b16a4b");
-        if (src1_type.size() == 2) return layout_t(src1_type, 0, "8b16a2b");
-    }
-    ir_error_not_expected();
-    return layout_t();
+    if (src1_type.size() != 1 && src1_type.size() != 2) ir_error_not_expected();
+
+    int m_blk = simd_size;
+    int inner_blk = 4 / src1_type.size();
+    int outer_blk = sdepth;
+    std::vector<std::pair<int, dim_t>> blocks
+            = {{1, outer_blk}, {0, m_blk}, {1, inner_blk}};
+    return layout_t(src1_type, 0, blocks);
 }
 
 layout_t dpas_t::b_layout() const {
     if (src2_type.size() != 1 && src2_type.size() != 2) ir_error_not_expected();
 
-    dim_t blk = src2_type.size() == 1 ? 32 : 16;
-    std::vector<dim_t> dims = {rcount, blk};
-    return layout_t(src2_type, 0, dims).transpose();
+    int n_blk = rcount;
+    int k_blk = sdepth * 4 / src2_type.size();
+    std::vector<dim_t> blocks = {n_blk, k_blk};
+    return layout_t(src2_type, 0, blocks).transpose();
 }
 
 layout_t dpas_t::c_layout() const {
-    std::vector<dim_t> dims = {rcount, simd_size};
+    int m_blk = simd_size;
+    int n_blk = rcount;
+    std::vector<dim_t> dims = {n_blk, m_blk};
     return layout_t(dst_type, 0, dims).transpose();
 }
 
