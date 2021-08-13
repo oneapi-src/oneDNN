@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -319,7 +319,7 @@ dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
             *K, *alpha, src, ld, dst);
     return dnnl_success;
 #else
-    gemm_pack_storage_t pack_dst {dst};
+    gemm_pack_storage_t pack_dst(dst, false);
 
     return gemm_pack_driver<float, float, float>(identifier, transa, transb, M,
             N, K, alpha, lda, ldb, src, &pack_dst, false);
@@ -338,7 +338,7 @@ dnnl_status_t gemm_bf16bf16f32_pack(const char *identifier, const char *transa,
             identifier, transa, transb, M, N, K, alpha, lda, ldb, src, dst);
     if (result != dnnl_success) return result;
 
-    gemm_pack_storage_t pack_dst {dst};
+    gemm_pack_storage_t pack_dst(dst, false);
 
     return gemm_pack_driver<bfloat16_t, bfloat16_t, float>(identifier, transa,
             transb, M, N, K, alpha, lda, ldb, src, &pack_dst, false);
@@ -368,7 +368,7 @@ dnnl_status_t gemm_x8x8s32_pack(const char *identifier, const char *transa,
         return dnnl_success;
     }
 #endif
-    gemm_pack_storage_t pack_dst {dst};
+    gemm_pack_storage_t pack_dst(dst, false);
 
     if (!use_reference_igemm<a_dt, b_dt>()) {
         return gemm_pack_driver<a_dt, b_dt, int32_t>(identifier, transa, transb,
