@@ -376,6 +376,7 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
 
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
+    assert(check_weight_layout(jcp));
 
     oscales = _pd->attr()->output_scales_.scales_;
     bia_dsz = jcp.bia_dsz;
