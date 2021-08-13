@@ -62,7 +62,8 @@ struct gemm_pack_storage_t {
     }
 
     template <typename data_type>
-    gemm_pack_storage_t(data_type *data_) : base(nullptr) {
+    gemm_pack_storage_t(data_type *data_, bool header_set_ = true)
+        : base(nullptr), header_set(header_set_) {
         reset((void *)data_);
     }
 
@@ -70,7 +71,8 @@ struct gemm_pack_storage_t {
         : base(nullptr)
         , header(nullptr)
         , matrix_header(nullptr)
-        , sums_header(nullptr) {}
+        , sums_header(nullptr)
+        , header_set(true) {}
 
     std::tuple<int, int> thread_slice_info(int ithr) const {
         assert(ithr < nthr());
@@ -182,6 +184,8 @@ struct gemm_pack_storage_t {
         total_header_size = sz_h + sz_mh * 2;
 
         header->size = 0;
+
+        header_set = true;
 
         reset(get());
 
@@ -349,11 +353,15 @@ protected:
     void reset(void *data) {
         set(data);
 
+        if (!header_set) return;
+
         matrix_header = reinterpret_cast<matrix_header_t *>(
-                base + static_cast<ptrdiff_t>(header->off_matrix));
-        sums_header = reinterpret_cast<matrix_header_t *>(
-                base + static_cast<ptrdiff_t>(header->off_sums));
+                base + header->off_matrix);
+        sums_header
+                = reinterpret_cast<matrix_header_t *>(base + header->off_sums);
     }
+
+    bool header_set = true;
 };
 
 struct gemm_pack_storage_shell_t : public gemm_pack_storage_t {
