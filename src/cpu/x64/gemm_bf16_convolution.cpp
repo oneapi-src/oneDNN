@@ -98,7 +98,7 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
                 memory_desc_wrapper(pd->dst_md()), tail_size, kreg_rem_mask,
                 use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t binary_static_params {
-                this->param1, rhs_arg_static_params};
+                this->reg_param, rhs_arg_static_params};
         static constexpr bool save_state = true;
         const eltwise_injector::static_params_t eltwise_static_params {
                 save_state, reserved_eltwise_gpr, reserved_eltwise_maskr};
@@ -141,7 +141,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::apply_postops(
         if (jcp_.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
             rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                    vmm_idx, ptr[abi_param1 + PARAM_OFF(g_oc_offset)]);
+                    vmm_idx, ptr[reg_param + PARAM_OFF(g_oc_offset)]);
             rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(vmm_idx, offset);
             rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
                     vmm_idx, oc_off_oprnd);
@@ -157,7 +157,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::apply_postops(
                     ptr[rsp + reg_binary_post_op_acc_off
                             + register_guard.stack_space_occupied()]);
             mov(out_off_oprnd, reg_dst);
-            sub(out_off_oprnd, ptr[param1 + PARAM_OFF(dst_orig)]);
+            sub(out_off_oprnd, ptr[reg_param + PARAM_OFF(dst_orig)]);
             shr(out_off_oprnd, std::log2(sizeof(dst_data_t)));
 
             postops_injector_->compute_vector(vmm_idx, rhs_arg_params);
@@ -173,6 +173,10 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
     using namespace utils;
 
     preamble();
+
+#ifdef _WIN32
+    mov(reg_param, rcx);
+#endif
 
 #define PARAM_OFF(x) offsetof(ker_args, x)
     mov(reg_dst_base, ptr[reg_param + PARAM_OFF(dst)]);

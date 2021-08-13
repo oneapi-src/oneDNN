@@ -161,7 +161,7 @@ private:
 
         enum { default_unroll_2_pow_ = 2 };
 
-        Xbyak::Reg64 reg_param = abi_param1;
+        Xbyak::Reg64 reg_param = rdi;
         Xbyak::Reg64 reg_dst_base = rdx;
         Xbyak::Reg64 reg_acc_base = rax;
         Xbyak::Reg64 reg_dst = rsi;
