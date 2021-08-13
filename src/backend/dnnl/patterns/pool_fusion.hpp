@@ -47,14 +47,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, avgpool_add_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *pool = apattern->create_op(impl::op_kind::AvgPool);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
 
                     // pattern will not be matched if the add operation need
                     // broadcast
                     add->set_attr<bool>("broadcast_check", true);
                     add->fill_and_connect_input(0, *pool, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
@@ -68,14 +69,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, maxpool_add_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *pool = apattern->create_op(impl::op_kind::MaxPool);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
 
                     // pattern will not be matched if the add operation need
                     // broadcast
                     add->set_attr<bool>("broadcast_check", true);
                     add->fill_and_connect_input(0, *pool, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {

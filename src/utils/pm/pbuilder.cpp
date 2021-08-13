@@ -16,7 +16,6 @@
 
 #include <memory>
 
-#include "interface/internal_ops.hpp"
 #include "interface/op.hpp"
 #include "utils/pm/pbuilder.hpp"
 
@@ -119,7 +118,7 @@ shared_ptr<in_edge_t> dnnl::graph::impl::utils::pm::in_edge(
 decision_function dnnl::graph::impl::utils::pm::kind(
         dnnl::graph::impl::op_kind_t okind) {
     return [okind](op_t *p_op) -> bool {
-        return okind == p_op->get_kind() || okind == op_kind::any;
+        return okind == p_op->get_kind() || okind == op_kind::Wildcard;
     };
 }
 

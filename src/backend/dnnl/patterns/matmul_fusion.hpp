@@ -1780,23 +1780,25 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_relu_fusion)
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bias->fill_and_connect_input(0, *matmul, 0);
                     add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 3);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     add->fill_and_connect_input(0, *matmul, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1813,20 +1815,22 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_fusion)
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     bias->fill_and_connect_input(0, *matmul, 0);
                     add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 3);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     add->fill_and_connect_input(0, *matmul, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
@@ -1842,9 +1846,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_fusion)
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     add->fill_and_connect_input(0, *matmul, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
@@ -1859,11 +1864,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_gelu_fusion)
                 [](pattern *apattern) -> void {
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *gelu = apattern->create_op(impl::op_kind::GELU);
                     add->fill_and_connect_input(0, *matmul, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     gelu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1879,11 +1885,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_relu_fusion)
                 [](pattern *apattern) -> void {
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     add->fill_and_connect_input(0, *matmul, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1899,11 +1906,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_sigmoid_fusion)
                 [](pattern *apattern) -> void {
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
                     add->fill_and_connect_input(0, *matmul, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     sigmoid->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(

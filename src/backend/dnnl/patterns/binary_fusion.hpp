@@ -82,14 +82,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_add_multiply_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *mul = apattern->create_op(impl::op_kind::Multiply);
 
                     // pattern will not be matched if the add operation need
                     // broadcast
                     mul->set_attr<bool>("broadcast_check", true);
                     mul->fill_and_connect_input(0, *add, 0);
-                    mul->fill_and_connect_input(1, *any, 0);
+                    mul->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
@@ -103,13 +104,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_multiply_add_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *mul = apattern->create_op(impl::op_kind::Multiply);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     // pattern will not be matched if the add operation need
                     // broadcast
                     add->set_attr<bool>("broadcast_check", true);
                     add->fill_and_connect_input(0, *mul, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
@@ -153,13 +155,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_maximum_add_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *max = apattern->create_op(impl::op_kind::Maximum);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     // pattern will not be matched if the add operation need
                     // broadcast
                     add->set_attr<bool>("broadcast_check", true);
                     add->fill_and_connect_input(0, *max, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
@@ -203,13 +206,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_minimum_add_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *min = apattern->create_op(impl::op_kind::Minimum);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     // pattern will not be matched if the add operation need
                     // broadcast
                     add->set_attr<bool>("broadcast_check", true);
                     add->fill_and_connect_input(0, *min, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {

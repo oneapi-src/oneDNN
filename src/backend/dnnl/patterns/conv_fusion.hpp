@@ -59,11 +59,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu_fusion)
                     op_t *conv
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -80,13 +81,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu6_fusion)
                     op_t *conv
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu6 = apattern->create_op(impl::op_kind::HardTanh);
                     relu6->set_attr<float>("min", 0);
                     relu6->set_attr<float>("max", 6);
                     add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu6->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -103,11 +105,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_elu_fusion)
                     op_t *conv
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *elu = apattern->create_op(impl::op_kind::Elu);
                     add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     elu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -124,10 +127,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_fusion)
                     op_t *conv
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
@@ -145,12 +149,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_relu_fusion)
                     conv->set_attr<int64_t>("num_inputs", 2);
                     op_t *bn = apattern->create_op(
                             impl::op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bn->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -168,14 +173,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu6 = apattern->create_op(impl::op_kind::HardTanh);
                     relu6->set_attr<float>("min", 0);
                     relu6->set_attr<float>("max", 6);
                     bias->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu6->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -183,13 +189,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
                     op_t *conv
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu6 = apattern->create_op(impl::op_kind::HardTanh);
                     relu6->set_attr<float>("min", 0);
                     relu6->set_attr<float>("max", 6);
                     add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu6->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -209,13 +216,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
                     op_t *bn = apattern->create_op(
                             impl::op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bias->fill_and_connect_input(0, *conv, 0);
                     bn->fill_and_connect_input(0, *bias, 0);
                     add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -225,12 +233,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
                     conv->set_attr<int64_t>("num_inputs", 3);
                     op_t *bn = apattern->create_op(
                             impl::op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bn->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -249,11 +258,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_fusion)
                     conv->set_attr<int64_t>("num_inputs", 2);
                     op_t *bn = apattern->create_op(
                             impl::op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     bn->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
@@ -272,12 +282,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
                     op_t *bn = apattern->create_op(
                             impl::op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     bias->fill_and_connect_input(0, *conv, 0);
                     bn->fill_and_connect_input(0, *bias, 0);
                     add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -286,11 +297,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
                     conv->set_attr<int64_t>("num_inputs", 3);
                     op_t *bn = apattern->create_op(
                             impl::op_kind::BatchNormInference);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     bn->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
@@ -360,12 +372,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *elu = apattern->create_op(impl::op_kind::Elu);
                     bias->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     elu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -373,11 +386,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
                     op_t *conv
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *elu = apattern->create_op(impl::op_kind::Elu);
                     add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     elu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -395,12 +409,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     bias->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -408,11 +423,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
                     op_t *conv
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
                     add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                     relu->fill_and_connect_input(0, *add, 0);
                 })
         .set_attr<FCreateOptPattern>(
@@ -1425,21 +1441,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     bias->fill_and_connect_input(0, *conv, 0);
                     add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *conv
                             = apattern->create_op(impl::op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *any = apattern->create_op(impl::op_kind::any);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
                     op_t *add = apattern->create_op(impl::op_kind::Add);
                     add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *any, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
                 })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {

@@ -28,7 +28,6 @@
 #include <unordered_set>
 
 #include "interface/graph.hpp"
-#include "interface/internal_ops.hpp"
 #include "utils/json.hpp"
 #include "utils/pm/pbuilder.hpp"
 
@@ -100,7 +99,7 @@ public:
         auto it = std::find_if(ops_.begin(), ops_.end(),
                 [&](std::vector<std::shared_ptr<op_t>>::value_type &op)
                         -> bool {
-                    return op->get_kind() != impl::op_kind::any;
+                    return op->get_kind() != impl::op_kind::Wildcard;
                 });
         return it->get();
     }

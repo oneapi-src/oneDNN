@@ -64,7 +64,7 @@ bool should_swap_inputs(op_t *graph_op, op_t *pattern_op, getinput get_input) {
         if (invalue->has_producer()) {
             return invalue->get_producer().get_kind();
         } else {
-            return impl::op_kind::any;
+            return impl::op_kind::Wildcard;
         }
     };
     const auto pin_0 = get_op_kind_(pattern_op, 0);
@@ -72,7 +72,7 @@ bool should_swap_inputs(op_t *graph_op, op_t *pattern_op, getinput get_input) {
     const auto gin_0 = get_op_kind_(graph_op, 0);
     const auto gin_1 = get_op_kind_(graph_op, 1);
 
-    if (pin_0 == impl::op_kind::any) { // if pin_0 accepts any
+    if (pin_0 == impl::op_kind::Wildcard) { // if pin_0 accepts Wildcard
         // check if the corresponding inputs of pattern and graph match,
         // if they do, no swap. If they don't, then check if the opposite
         // inputs match or not
@@ -80,12 +80,12 @@ bool should_swap_inputs(op_t *graph_op, op_t *pattern_op, getinput get_input) {
             return true;
         else
             return false;
-    } else if (pin_1 == impl::op_kind::any) { // if pin_1 accepts any
+    } else if (pin_1 == impl::op_kind::Wildcard) { // if pin_1 accepts Wildcard
         if (pin_0 != gin_0 && pin_0 == gin_1)
             return true;
         else
             return false;
-    } else { // if no any inputs in pattern
+    } else { // if no Wildcard inputs in pattern
         if ((pin_0 != gin_0 || pin_1 != gin_1)
                 && (pin_0 == gin_1 && pin_1 == gin_0))
             return true;
@@ -190,7 +190,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
 
         // check if graph op is an unvisited op and can meet the
         // requirement of pattern op
-        if (pfront.first->get_kind() != impl::op_kind::any
+        if (pfront.first->get_kind() != impl::op_kind::Wildcard
                 && (selected.count(nfront) != 0
                         || nfront->get_partition() != nullptr
                         || nfront->get_kind() != pfront.first->get_kind()
@@ -228,8 +228,9 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
                         = pfront.first->get_input_value(1)->get_producer();
 
                 size_t no_post_src_index
-                        = pin0_producer.get_kind() == impl::op_kind::any ? 1
-                                                                         : 0;
+                        = pin0_producer.get_kind() == impl::op_kind::Wildcard
+                        ? 1
+                        : 0;
 
                 logical_tensor_t no_post_src
                         = nfront->get_input_value(no_post_src_index)
@@ -264,7 +265,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
             }
         }
 
-        if (pfront.first->get_kind() == impl::op_kind::any) {
+        if (pfront.first->get_kind() == impl::op_kind::Wildcard) {
             op_queue.pop_front();
             pattern_queue.pop_front();
         } else if (pfront.second.first == out_degree(pfront.first)
@@ -308,13 +309,13 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
             }
         } else { // pfront.second.second != in_degree(pfront.first)
             if (in_degree(nfront) < in_degree(pfront.first)) { return false; }
-            // two cases for any as input:
-            // 1. any matches to a tensor
+            // two cases for Wildcard as input:
+            // 1. Wildcard matches to a tensor
             //    e.g. conv   tensor
             //            \   /
             //             add
-            // 2. any matches to an arbitrary op
-            //    e.g. conv   any_op
+            // 2. Wildcard matches to an arbitrary op
+            //    e.g. conv   Wildcard
             //             \  /
             //              add
             //
@@ -331,7 +332,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
                     op_queue.push_front(ninput);
                     visited.insert(pinput_hash);
                 }
-            } else if (pinput->get_kind() == impl::op_kind::any) {
+            } else if (pinput->get_kind() == impl::op_kind::Wildcard) {
                 // case #1
                 hashtype pinput_hash = hash_func(pinput);
                 if (visited.count(pinput_hash) == 0) {
