@@ -80,6 +80,8 @@ The detailed explanation is provided in the corresponding sections.
 
 - [Scratchpad](@ref dev_guide_attributes_scratchpad) behavior: handling the
   intermediate temporary memory by the library or a user;
+- [Floating-point math mode](@ref dev_guide_attributes_fpmath_mode) to
+  allow implicit down-conversions of f32 values during computation;
 - [Quantization](@ref dev_guide_attributes_quantization) settings used in INT8
   inference;
 - [Post-ops](@ref dev_guide_attributes_post_ops) to fuse a primitive with

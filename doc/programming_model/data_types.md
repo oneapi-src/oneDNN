@@ -2,7 +2,7 @@ Data Types {#dev_guide_data_types}
 ==================================
 
 oneDNN functionality supports a number of numerical
-data types. IEEE single precision floating point (fp32) is considered
+data types. IEEE single precision floating-point (fp32) is considered
 to be the golden standard in deep learning applications and is supported
 in all the library functions. The purpose of low precision data types
 support is to improve performance of compute intensive operations, such as
@@ -11,9 +11,9 @@ in comparison to fp32.
 
 | Data type | Description
 | :---      | :---
-| f32       | [IEEE single precision floating point](https://en.wikipedia.org/wiki/Single-precision_floating-point_format#IEEE_754_single-precision_binary_floating-point_format:_binary32)
-| bf16      | [non-IEEE 16-bit floating point](https://software.intel.com/content/www/us/en/develop/download/bfloat16-hardware-numerics-definition.html)
-| f16       | [IEEE half precision floating point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)
+| f32       | [IEEE single precision floating-point](https://en.wikipedia.org/wiki/Single-precision_floating-point_format#IEEE_754_single-precision_binary_floating-point_format:_binary32)
+| bf16      | [non-IEEE 16-bit floating-point](https://software.intel.com/content/www/us/en/develop/download/bfloat16-hardware-numerics-definition.html)
+| f16       | [IEEE half precision floating-point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)
 | s8/u8     | signed/unsigned 8-bit integer
 
 ## Inference and Training
@@ -39,14 +39,60 @@ support based on the precision requirements. The list of data types supported
 by each primitive is included in the corresponding sections of the developer
 guide.
 
+## General numerical behavior of the oneDNN library
+
+During a primitive computation, oneDNN can use different datatypes
+than those of the inputs/outputs. In particular, oneDNN uses wider
+accumulator datatypes (s32 for integral computations, and f32 for
+floating-point computations), and converts intermediate results to f32
+before applying post-ops. The following formula governs the datatypes
+dynamic during a primitive computation:
+
+\f[
+\operatorname{convert_{dst\_dt}} ( \operatorname{dst\_zero\_point_{f32}} + \operatorname{postops_{f32}} (\operatorname{oscale_{f32}} * \operatorname{convert_{f32}} (\operatorname{Op}(\operatorname{src_{src\_dt}}), \operatorname{weights_{wei\_dt}}, ...)))
+\f]
+
+The `Op` output datatype depends on the datatype of its inputs:
+- if `src`, `weights`, ... are floating-point datatype (f32, f16,
+  bf16), then the `Op` outputs f32 elements.
+- if `src`, `weights`, ... are integral datatypes (s8, u8, s32), then
+  the `Op` outputs s32 elements.
+- if the primitive allows to mix input datatypes, the `Op` outputs
+  datatype will be s32 if its weights are an integral datatype, or f32
+  otherwise.
+
+No downconversions are allowed by default, but can be enabled using
+the floating-point math controls described in @ref
+dev_guide_attributes_fpmath_mode.
+
+### floating-point environment
+oneDNN floating-point computation behavior is controlled by the
+floating-point environment as defined by the C and C++ standards, in
+the fenv.h header. In particular, the floating-point environment can control:
+- the rounding mode. It is set to round-to-nearest tie-even by default
+  on x64 systems and can be changed using the fesetround() C function.
+- the handling of denormal values. Computation on denormals can
+  negatively impact performance on x64 systems and are not flushed to
+  zero by default.
+
+@note
+  Most DNN applications do not require precise computations with denormal
+  numbers and flushing these denormals to zero can improve performance.
+  On x64 systems, the floating-point environment can be updated to allow
+  flushing denormals to zero as follow:
+~~~cpp
+#include <xmmintrin.h>
+_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+~~~
+
 ## Hardware Limitations
 
 While all the platforms oneDNN supports have hardware acceleration for
-fp32 arithmetics, that is not the case for other data types. Support for low
-precision data types may not be available for older platforms. The next sections
-explain limitations that exist for low precision data types for
-Intel(R) Architecture processors, Intel Processor Graphics and
-Xe architecture-based Graphics.
+fp32 arithmetics, that is not the case for other data types. Support
+for low precision data types may not be available for older
+platforms. The next sections explain limitations that exist for low
+precision data types for Intel(R) Architecture processors, Intel
+Processor Graphics and Xe architecture-based Graphics.
 
 ### Intel(R) Architecture Processors
 
@@ -58,6 +104,7 @@ The following ISA have specialized optimizations in the library:
 * Intel Advanced Vector Extensions 2 (Intel AVX2)
 * Intel Advanced Vector Extensions 512 (Intel AVX-512)
 * Intel Deep Learning Boost (Intel DL Boost)
+* Intel Advanced Matrix Extensions (Intel AMX)
 
 The following table indicates the minimal supported ISA for each of the data
 types that oneDNN recognizes.
@@ -78,6 +125,11 @@ types that oneDNN recognizes.
   purposes. The performance of bfloat16 primitives on platforms without
   hardware acceleration for bfloat16 is 3-4x lower in comparison to
   the same operations on the fp32 data type.
+
+@note 
+  The Intel AMX instructions ignore the floating-point environment
+  flag and always round to nearest tie-even and flush denormals to
+  zero.
 
 ### Intel(R) Processor Graphics and Xe architecture-based Graphics
 
