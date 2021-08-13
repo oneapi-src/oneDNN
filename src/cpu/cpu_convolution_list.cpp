@@ -47,6 +47,7 @@
 #include "cpu/x64/jit_avx512_core_u8s8s32x_wino_convolution.hpp"
 #include "cpu/x64/jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 #include "cpu/x64/jit_avx512_core_x8s8s32x_convolution.hpp"
+#include "cpu/x64/jit_brdgmm_dw_conv.hpp"
 #include "cpu/x64/jit_brgemm_1x1_conv.hpp"
 #include "cpu/x64/jit_brgemm_conv.hpp"
 #include "cpu/x64/jit_sse41_1x1_convolution.hpp"
@@ -98,6 +99,7 @@ private:
 const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     // FWD fp
     {{forward, f32, f32, f32}, {
+        CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t)
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core>)
         CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core>)
@@ -125,6 +127,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
         nullptr,
     }},
     {{forward, bf16, bf16, f32}, {
+        CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t)
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_bf16>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t)
@@ -139,6 +142,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
         nullptr,
     }},
     {{forward, bf16, bf16, bf16}, {
+        CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t)
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_bf16>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t)
@@ -299,6 +303,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     }},
     // FWD int8 (src:u8)
     {{forward, u8, s8, f32}, {
+        CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t)
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t)
@@ -318,6 +323,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
         nullptr,
     }},
     {{forward, u8, s8, s32}, {
+        CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t)
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t)
@@ -337,6 +343,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
         nullptr,
     }},
     {{forward, u8, s8, s8}, {
+        CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t)
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t)
@@ -357,6 +364,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
         nullptr,
     }},
     {{forward, u8, s8, u8}, {
+        CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t)
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t)

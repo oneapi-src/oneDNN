@@ -22,8 +22,10 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/x64/brgemm/jit_brdgmm_kernel.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -466,6 +468,105 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     return status::success;
 }
 
+status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
+        brgemm_batch_kind_t type, impl::data_type_t dt_a,
+        impl::data_type_t dt_b, bool transA, brgemm_layout_t layout,
+        float alpha, float beta, dim_t LDA, dim_t LDC, dim_t M, dim_t N,
+        const brgemm_strides_t *strides) {
+
+    if (brg == nullptr) return status::invalid_arguments;
+    if (transA || layout != brgemm_row_major || alpha != 1.0f || beta != 0.f)
+        return status::unimplemented;
+
+    const bool ldx_check = (LDA < N || LDC < N);
+    if (ldx_check) return status::invalid_arguments;
+
+    brg->dt_a = dt_a;
+    brg->dt_b = dt_b;
+
+    brg->is_int8 = one_of(brg->dt_a, data_type::u8, data_type::s8)
+            && (brg->dt_b == data_type::s8);
+    brg->is_bf16
+            = (brg->dt_a == data_type::bf16) && (brg->dt_b == data_type::bf16);
+    brg->is_f32
+            = (brg->dt_a == data_type::f32) && (brg->dt_b == data_type::f32);
+    if (!brg->is_int8 && !brg->is_bf16 && !brg->is_f32)
+        return status::unimplemented;
+    brg->dt_c = (brg->is_int8) ? data_type::s32 : data_type::f32;
+    brg->dt_d = brg->dt_c;
+    brg->dt_bias = brg->dt_c;
+
+    const cpu_isa_t req_isa = brg->is_f32
+            ? avx512_core
+            : (brg->is_int8 ? avx512_core_vnni : avx512_core_bf16);
+    if (!(is_superset(isa, req_isa) && mayiuse(req_isa)))
+        return status::unimplemented;
+
+    brg->is_dgmm = true;
+    brg->type = type;
+    brg->layout = layout;
+    brg->alpha = alpha;
+    brg->beta = beta;
+
+    brg->LDA = static_cast<int>(LDA);
+    brg->LDC = static_cast<int>(LDC);
+    brg->LDD = static_cast<int>(LDC);
+
+    brg->typesize_A = types::data_type_size(brg->dt_a);
+    brg->typesize_B = types::data_type_size(brg->dt_b);
+    brg->typesize_C = types::data_type_size(brg->dt_c);
+    brg->typesize_D = types::data_type_size(brg->dt_d);
+
+    // In current implementation of dgmm, there is no reduce dim.
+    // Also, bcast and load dimensions refer to M and N.
+
+    // auto &M = brg->bcast_dim;
+    // auto &N = brg->load_dim;
+    auto &m_vlen_blk = brg->bd_block;
+    auto &nb_m_vlen_blk = brg->bdb;
+    auto &m_vlen_tail = brg->bdb_tail;
+    auto &m_blocking = brg->bd_block2;
+    auto &nb_m_blocking = brg->bdb2;
+    auto &m_blocking_tail = brg->bdb2_tail;
+
+    auto &n_vlen_blk = brg->ld_block;
+    auto &nb_n_vlen_blk = brg->ldb;
+    auto &n_vlen_tail = brg->ldb_tail;
+    auto &n_blocking = brg->ld_block2;
+    auto &nb_n_blocking = brg->ldb2;
+    auto &n_blocking_tail = brg->ldb2_tail;
+
+    brg->bcast_dim = M;
+    brg->load_dim = N;
+    const int simd_w = 16;
+
+    // begin blocking
+    n_vlen_blk = simd_w;
+    nb_n_vlen_blk = div_up(N, n_vlen_blk);
+    n_vlen_tail = N % n_vlen_blk;
+    n_blocking = nstl::min(4, nb_n_vlen_blk);
+    nb_n_blocking = div_up(nb_n_vlen_blk, n_blocking);
+    n_blocking_tail = nb_n_vlen_blk % n_blocking;
+
+    const int max_acc_zmms = 32 - 2 /*zmma, zmmb, post-ops, saturation*/
+            - jit_brdgmm_kernel_base_t::is_fast_vnni_int8(*brg) /*perm dst*/;
+    m_vlen_blk = 1;
+    nb_m_vlen_blk = M / m_vlen_blk;
+    m_vlen_tail = M % m_vlen_blk;
+    m_blocking = nstl::min(nb_m_vlen_blk, max_acc_zmms / n_blocking);
+    nb_m_blocking = div_up(nb_m_vlen_blk, m_blocking);
+    m_blocking_tail = nb_m_vlen_blk % m_blocking;
+
+    if (strides != nullptr) {
+        brg->stride_a = strides->stride_a;
+        brg->stride_b = strides->stride_b;
+    } else {
+        brg->stride_a = brg->stride_b = 0;
+    }
+
+    return status::success;
+}
+
 status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         const memory_desc_t *dst_md, int LDD, impl::data_type_t dt_bias) {
     if (!brg || !dst_md) return status::invalid_arguments;
@@ -585,16 +686,18 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
             && (brg->is_amx))
         return status::unimplemented;
 
-    // virtual padding size is restricted by MAX_VPAD value
-    if (brgattr.max_top_vpad > brgemm_t::MAX_VPAD
-            || brgattr.max_bottom_vpad > brgemm_t::MAX_VPAD)
-        return status::unimplemented;
+    if (!brg->is_dgmm) {
+        // virtual padding size is restricted by MAX_VPAD value
+        if (brgattr.max_top_vpad > brgemm_t::MAX_VPAD
+                || brgattr.max_bottom_vpad > brgemm_t::MAX_VPAD)
+            return status::unimplemented;
 
-    // virtual padding is restricted by bd_block size due to
-    // brgemm_kernel implementation. TODO: remove this restriction
-    if (brgattr.max_top_vpad > brg->bd_block
-            || brgattr.max_bottom_vpad > brg->bd_block)
-        return status::unimplemented;
+        // virtual padding is restricted by bd_block size due to
+        // brgemm_kernel implementation. TODO: remove this restriction
+        if (brgattr.max_top_vpad > brg->bd_block
+                || brgattr.max_bottom_vpad > brg->bd_block)
+            return status::unimplemented;
+    }
 
     // virtual padding is supported for "brgemm_row_major" layout
     // TODO: remove this restriction
@@ -611,7 +714,11 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
 
 status_t brgemm_kernel_create(
         brgemm_kernel_t **brg_kernel, const brgemm_t &brg) {
-    if (brg.is_amx && brg.type == brgemm_addr && brg.brgattr.max_bs >= 1
+    if (brg.is_dgmm) {
+        CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                *brg_kernel, new brdgmm_kernel_t(brg)));
+        return (*brg_kernel)->create_kernel();
+    } else if (brg.is_amx && brg.type == brgemm_addr && brg.brgattr.max_bs >= 1
             && brg.brgattr.use_uker) {
         CHECK(safe_ptr_assign<brgemm_kernel_t>(
                 *brg_kernel, new brgemm_amx_uker_t(brg)));

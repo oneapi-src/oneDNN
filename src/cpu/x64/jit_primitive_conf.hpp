@@ -777,6 +777,40 @@ struct jit_resampling_call_s {
     float weight_back = 0.0f;
 };
 
+struct jit_brdgmm_conv_conf_t {
+
+    int nthr;
+    int mb, ngroups, ic, oc;
+    int ih, iw, oh, ow;
+    int l_pad, r_pad, t_pad, b_pad;
+    int kh, kw;
+    int stride_h, stride_w;
+    int nb_ch, ch_block, chb_tail;
+    int nb_ch_blocking;
+    int ow_block, ow_tail, nb_ow;
+    // idx of jit kernel when mutiple jit kernels are used in a primitive.
+    int chb_tail_idx, ow_tail_idx, nb_ch_blocking_idx;
+    int adjusted_batch_size;
+
+    bool with_bias;
+    bool with_post_ops;
+    bool is_oc_scale;
+
+    data_type_t src_dt;
+    data_type_t wei_dt;
+    data_type_t bia_dt;
+    data_type_t dst_dt;
+
+    brgemm_batch_kind_t batch_kind;
+
+    size_t src_dsz;
+    size_t wei_dsz;
+    size_t bia_dsz;
+    size_t dst_dsz;
+
+    cpu_isa_t isa;
+};
+
 enum conv_brgemm_loop_order_t {
     loop_ndhwgc,
     loop_ngcdhw,

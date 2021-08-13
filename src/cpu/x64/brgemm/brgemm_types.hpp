@@ -170,7 +170,7 @@ struct brgemm_t {
     brgemm_batch_kind_t type;
 
     bool embd_bcst = false;
-
+    bool is_dgmm = false; // set to true in brdgmm_desc_init
     bool with_bias = false;
     bool with_sum = false;
     float sum_scale = 0.0f;
@@ -244,6 +244,7 @@ struct brgemm_kernel_params_t {
 
 struct jit_brgemm_kernel_t;
 struct jit_brgemm_amx_uker_base_t;
+struct jit_brdgmm_kernel_base_t;
 
 struct brgemm_kernel_t {
     brgemm_kernel_t(const brgemm_t abrd) {};
@@ -276,6 +277,19 @@ private:
     jit_brgemm_amx_uker_base_t *brgemm_kernel_ = nullptr;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(brgemm_amx_uker_t);
+};
+
+struct brdgmm_kernel_t : public brgemm_kernel_t {
+    brdgmm_kernel_t(const brgemm_t abrd);
+    ~brdgmm_kernel_t();
+
+    status_t create_kernel();
+    void operator()(brgemm_kernel_params_t *) const;
+
+private:
+    jit_brdgmm_kernel_base_t *brgemm_kernel_ = nullptr;
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(brdgmm_kernel_t);
 };
 
 /// @param bias Vector of bias (vector length is N)

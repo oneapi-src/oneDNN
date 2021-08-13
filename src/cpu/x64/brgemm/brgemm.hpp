@@ -69,6 +69,39 @@ status_t DNNL_API brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         dim_t LDC, dim_t M, dim_t N, dim_t K,
         const brgemm_strides_t *strides = nullptr);
 
+/// Initializes a BRGEMM descriptor with B matrix as a diagonal matrix
+/// represented in packed vector format.
+///
+/// @param brg Output BRGEMM descriptor
+/// @param isa Target ISA of BRGEMM kernel
+///     If isa is equal to 'isa_any' maximum supported ISA on current
+///     hardware will be used for BRGEMM kernel generation
+/// @param type Type of batch
+/// @param dt_a Data type of A matrix can be: f32, u8, bf16
+/// @param dt_b Data type of B vector can be: f32, s8, bf16
+/// @note
+///     Data type of matrix C depends on data types of matrices A and vector B
+///     If A and B have integer u8/s8 data type, C has int32 data type
+///     If A and B have bfloat16 or f32 data type, C has f32 data type
+/// @param transA Specifies the form of A used in the matrix multiplication
+///        'false' - A is not transposed, 'true' - A is transposed
+/// @param layout Specifies whether two-dimensional array storage is row-major
+///        (brgemm_row_major) or column-major (brgemm_col_major).
+/// @param alpha Specifies the scalar alpha
+/// @param beta Specifies the scalar beta
+/// @param LDA Specifies the leading dimension of matrix A.
+///        LDA must be at least max(1, N)
+/// @param LDC Specifies the leading dimension of matrix C.
+///       LDC must be at least max(1, N)
+/// @param M Specifies the number of rows of the matrix A and C.
+/// @param N Specifies the number of columns of the matrix A and C.
+///
+status_t DNNL_API brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
+        brgemm_batch_kind_t type, impl::data_type_t dt_a,
+        impl::data_type_t dt_b, bool transA, brgemm_layout_t layout,
+        float alpha, float beta, dim_t LDA, dim_t LDC, dim_t M, dim_t N,
+        const brgemm_strides_t *strides = nullptr);
+
 /// Adds post-operations to BRGEMM descriptor
 ///
 /// @param brg Output BRGEMM descriptor
