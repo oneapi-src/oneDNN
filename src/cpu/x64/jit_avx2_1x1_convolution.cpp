@@ -752,7 +752,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                 img += 1;
             }
 
-            if (bcast_i + 1 >= bcast_work)
+            if (rw->balancer().nthr_per_group_ == 1
+                    && bcast_i + 1 >= bcast_work)
                 maybe_zero_icpad(g, g + 1, oc_b,
                         nstl::min(nb_oc, oc_b + nb_oc_blocking));
 
