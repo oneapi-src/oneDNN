@@ -24,9 +24,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <string>
-
 #include <memory>
+#include <mutex>
 #include <string>
 #include <tuple>
 
@@ -570,18 +569,31 @@ inline void msan_unpoison(void *ptr, size_t size) {
 }
 
 // std::optional? std::maybe? std::whatever
+
+// Since std::string is not TriviallyCopyable, value_ cannot be declared as
+// std::atomic. So, guard accesses to both value_ and initialized_ using the
+// same mutex. Note that initialized_ is not declared as std::atomic because
+// its value is "set" only when set() is called.
 template <typename T>
 struct setting_t {
 private:
-    T value_; // *not* thread safe
-    std::atomic<bool> initialized_;
+    T value_;
+    bool initialized_;
+    std::mutex m_;
 
 public:
     setting_t() : initialized_ {false} {}
     setting_t(const T init) : value_ {init}, initialized_ {false} {}
-    bool initialized() { return initialized_; }
-    T get() { return value_; }
+    bool initialized() {
+        std::lock_guard<std::mutex> g(m_);
+        return initialized_;
+    }
+    T get() {
+        std::lock_guard<std::mutex> g(m_);
+        return value_;
+    }
     void set(T new_value) {
+        std::lock_guard<std::mutex> g(m_);
         value_ = new_value;
         initialized_ = true;
     }
