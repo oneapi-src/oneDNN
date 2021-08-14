@@ -420,7 +420,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         int32_t *zp = has_asymmetric_comp
                 ? reinterpret_cast<int32_t *>(output + zp_offset)
                 : nullptr;
-        parallel_nd(G * NB_OC * ocblksize, [&](dim_t i) {
+
+        parallel_nd(G * OC, [&](dim_t i) {
             if (req_comp) cp[i] = 0;
             if (has_asymmetric_comp) zp[i] = 0;
         });
