@@ -40,30 +40,6 @@ using namespace jit_avx512_core_brgemm_conv_trans_kernel;
 #define ndims_pick(v5, v4, v3) \
     ((ndims == 5) ? (v5) : (ndims == 4) ? (v4) : (ndims == 3) ? (v3) : 0)
 
-#ifndef NDEBUG
-namespace {
-bool check_weight_layout(const jit_brgemm_conv_conf_t &jcp) {
-    using namespace dnnl::impl::format_tag;
-    return one_of(jcp.wei_tag, gOdhwi64o, Odhwi64o, gOdhwI16i64o4i,
-            OdhwI16i64o4i, gOdhwI16i64o2i, OdhwI16i64o2i, gOwi64o, Owi64o,
-            gOwI16i64o4i, OwI16i64o4i, gOwI16i64o2i, OwI16i64o2i, gOhwi64o,
-            Ohwi64o, gOhwI16i64o4i, OhwI16i64o4i, gOhwI16i64o2i, OhwI16i64o2i,
-            gOdhwi48o, Odhwi48o, gOdhwI16i48o4i, OdhwI16i48o4i, gOdhwI16i48o2i,
-            OdhwI16i48o2i, gOwi48o, Owi48o, gOwI16i48o4i, OwI16i48o4i,
-            gOwI16i48o2i, OwI16i48o2i, gOhwi48o, Ohwi48o, gOhwI16i48o4i,
-            OhwI16i48o4i, gOhwI16i48o2i, OhwI16i48o2i, gOdhwi32o, Odhwi32o,
-            gOdhwI16i32o4i, OdhwI16i32o4i, gOdhwI16i32o2i, OdhwI16i32o2i,
-            gOwi32o, Owi32o, gOwI16i32o4i, OwI16i32o4i, gOwI16i32o2i,
-            OwI16i32o2i, gOhwi32o, Ohwi32o, gOhwI16i32o4i, OhwI16i32o4i,
-            gOhwI16i32o2i, OhwI16i32o2i, gOdhwi16o, Odhwi16o, gOdhwI16i16o4i,
-            OdhwI16i16o4i, gOdhwI16i16o2i, OdhwI16i16o2i, gOwi16o, Owi16o,
-            OwI16i16o4i, OwI16i16o2i, gOhwi16o, Ohwi16o, gOhwI16i16o4i,
-            OhwI16i16o4i, gOhwI16i16o2i, OhwI16i16o2i);
-}
-
-} // namespace
-#endif
-
 template <cpu_isa_t isa>
 status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     using namespace data_type;
@@ -376,7 +352,6 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
 
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
-    assert(check_weight_layout(jcp));
 
     oscales = _pd->attr()->output_scales_.scales_;
     bia_dsz = jcp.bia_dsz;
