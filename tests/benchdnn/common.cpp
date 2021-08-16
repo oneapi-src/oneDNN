@@ -459,8 +459,10 @@ std::string locate_batch_file(const std::string &fname) {
         ifs.open(fullname);
         if (ifs.is_open()) {
             BENCHDNN_PRINT(50, "batch file used: %s\n", fullname.c_str());
+            ifs.close();
             return fullname;
         }
+        ifs.close();
     }
 
     // Search in default inputs directory
@@ -482,8 +484,10 @@ std::string locate_batch_file(const std::string &fname) {
             if (ifs.is_open()) {
                 search_paths[n_paths++] = std::move(fdir);
                 BENCHDNN_PRINT(50, "batch file used: %s\n", fullname.c_str());
+                ifs.close();
                 return fullname;
             }
+            ifs.close();
         }
     }
 
