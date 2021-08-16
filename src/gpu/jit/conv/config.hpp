@@ -395,6 +395,11 @@ public:
             do_loop_unroll = false;
         }
 
+#ifdef GEN_CONV_DEBUG
+        do_loop_unroll = getenv_bool("do_loop_unroll", do_loop_unroll);
+        reuse_headers = getenv_bool("reuse_headers", reuse_headers);
+        use_preload = getenv_bool("use_preload", use_preload);
+#endif
         // XXX: in case of nhwc or small mb allow reorders on XeHPC
         // since A/B tile loads may be strided
         if (hw >= ngen::HW::XeHPC
