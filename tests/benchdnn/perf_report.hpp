@@ -73,8 +73,10 @@ struct base_perf_report_t {
             return t.ticks(mode) / t.sec(mode) / unit;
         };
 
-        auto ctime_ratio
-                = prim_create_timer.ms(mode) / par_compl_timer.ms(mode);
+        auto ctime_ratio = par_compl_timer.ms(mode) != 0.0
+                ? prim_create_timer.ms(mode) / par_compl_timer.ms(mode)
+                : 0.0;
+
         // Please update doc/knobs_perf_report.md in case of any new options!
 
         // Options operating on driver specific types, e.g. alg_t.
