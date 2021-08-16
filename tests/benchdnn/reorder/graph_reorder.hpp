@@ -50,14 +50,15 @@ private:
 
     spec_t spec_;
 
-    fill_status_t handle_main_op_(std::string tag_in, std::string tag_out);
+    fill_status_t handle_main_op_(
+            const std::string &tag_in, const std::string &tag_out);
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::Reorder;
     }
 
 public:
-    const struct spec_t spec() const noexcept { return spec_; }
+    const spec_t &spec() const noexcept { return spec_; }
 };
 
 int doit(const ::reorder::prb_t *prb, res_t *res);

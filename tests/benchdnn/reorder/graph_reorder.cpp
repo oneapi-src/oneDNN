@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <utility>
 #include "compare.hpp"
 
 #include "reorder/graph_reorder.hpp"
@@ -32,11 +33,10 @@ reorder_graph_prb_t::spec_t::spec_t(const ::reorder::prb_t *prb) noexcept {
 void check_known_skipped_case_graph(
         const ::reorder::prb_t *prb, res_t *res) noexcept {
     if (prb->conf_in->dt != prb->conf_out->dt) { res->state = SKIPPED; }
-    return;
 }
 
 fill_status_t reorder_graph_prb_t::handle_main_op_(
-        std::string tag_in, std::string tag_out) {
+        const std::string &tag_in, const std::string &tag_out) {
     using op = dnnl::graph::op;
 
     const size_t new_op_id = ops_.size();

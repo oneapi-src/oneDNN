@@ -43,7 +43,7 @@ struct conv_graph_prb_t : public graph_prb_t {
         const std::vector<attr_t::post_ops_t::entry_t> &po_entry
                 = prb->attr.post_ops.entry;
 
-        for (attr_t::post_ops_t::entry_t po : po_entry) {
+        for (const attr_t::post_ops_t::entry_t &po : po_entry) {
             if (po.is_eltwise_kind()) {
                 ctor_status = handle_elt_(po);
                 if (stop_work(ctor_status)) return;
@@ -112,7 +112,7 @@ private:
     }
 
 public:
-    const struct spec_t spec() const noexcept { return spec_; }
+    const spec_t &spec() const noexcept { return spec_; }
 
     std::vector<float> get_oscales() noexcept { return oscales; }
 };

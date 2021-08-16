@@ -191,7 +191,8 @@ bool should_handle_swish(graph_prb_t &p, const dnnl_alg_kind_t kind) noexcept {
     return valid_base_op && is_bias && is_swish;
 }
 
-int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> scales) {
+int scale_bia(
+        dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales) {
     if (scales.empty()) {
         dst = std::move(src);
         return OK;
@@ -225,7 +226,7 @@ dnnl_format_tag_t dnnl_fmt_str2tag(const std::string &fmt_str) {
     return tag;
 };
 
-dims_t calculate_strides(dims_t dims, dt dtype, std::string tag) {
+dims_t calculate_strides(dims_t dims, dt dtype, const std::string &tag) {
     dims_t strides(dims.size(), 0);
     dnnl_memory_desc_t md;
     dnnl_dims_t dnnl_dims = {0};

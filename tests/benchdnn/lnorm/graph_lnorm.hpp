@@ -60,7 +60,7 @@ private:
     }
 
 public:
-    const struct spec_t spec() const noexcept { return spec_; }
+    const spec_t &spec() const noexcept { return spec_; }
 };
 
 int doit(const ::lnorm::prb_t *prb, res_t *res);

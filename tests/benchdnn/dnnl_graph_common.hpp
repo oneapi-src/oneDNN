@@ -62,7 +62,7 @@ std::map<std::string, float> convert_eltw_entry(
 bool should_handle_swish(
         struct graph_prb_t &p, const dnnl_alg_kind_t kind) noexcept;
 
-int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> scales);
+int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales);
 
 dnnl_format_tag_t dnnl_fmt_str2tag(const std::string &fmt_str);
 
@@ -284,7 +284,7 @@ dnn_mem_t make_dnn_mem(
 dnn_mem_t make_dnn_mem(
         const dnnl::graph::logical_tensor &lt, const std::string &tag);
 
-dims_t calculate_strides(dims_t dims, dt dtype, std::string tag);
+dims_t calculate_strides(dims_t dims, dt dtype, const std::string &tag);
 
 template <typename T, std::size_t N>
 constexpr T *end(T (&arr)[N]) noexcept {

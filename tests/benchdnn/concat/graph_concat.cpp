@@ -84,7 +84,7 @@ void check_ranks_and_shapes(const ::concat::prb_t *prb, res_t *res) {
 
     const auto dst_axis_dim = prb->ddims[axis];
     const auto src_axis_dim_sum = std::accumulate(prb->sdims.cbegin(),
-            prb->sdims.cend(), 0L, [axis](int64_t acc, const dims_t sdim) {
+            prb->sdims.cend(), 0L, [axis](int64_t acc, const dims_t &sdim) {
                 return acc + sdim[axis];
             });
     if (dst_axis_dim != src_axis_dim_sum) {
