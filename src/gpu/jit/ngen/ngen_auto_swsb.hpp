@@ -27,6 +27,7 @@
 #endif
 
 #include <list>
+#include <limits>
 #include <map>
 
 namespace ngen {
