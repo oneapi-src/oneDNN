@@ -72,12 +72,12 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
             res = avg_value / get_num_summands(prb, od, oh, ow);
         }
 
-        std::vector<float> v_binary_vals;
-        v_binary_vals.reserve(v_bin_po_mask.size());
+        std::vector<float> v_binary_vals(v_bin_po_mask.size());
         for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-            auto bin_po_offset = dst.get_scale_idx(dst_off, v_bin_po_mask[d]);
-            float binary_val = binary_po[d].get_elem(bin_po_offset);
-            v_binary_vals.push_back(binary_val);
+            const auto bin_po_offset
+                    = dst.get_scale_idx(dst_off, v_bin_po_mask[d]);
+            const float binary_val = binary_po[d].get_elem(bin_po_offset);
+            v_binary_vals[d] = binary_val;
         }
         maybe_post_ops(prb->attr, res, 0.f, v_binary_vals);
         dst.set_elem(dst_off, res);

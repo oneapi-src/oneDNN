@@ -99,3 +99,7 @@
 1x16x16x16:1x16x16x1
 1x16x16x16:1x16x1x16
 1x16x16x16:1x1x16x16
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu

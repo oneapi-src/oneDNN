@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,12 +42,12 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src0, const dnn_mem_t &src1,
         float res = compute_binary(
                 prb->alg, scales[0] * A[idx_A], scales[1] * B[idx_B]);
         float &dst_fp = dst_ptr[i];
-        std::vector<float> v_binary_vals;
-        v_binary_vals.reserve(v_bin_po_mask.size());
+
+        std::vector<float> v_binary_vals(v_bin_po_mask.size());
         for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
             const auto bin_po_offset = dst.get_scale_idx(i, v_bin_po_mask[d]);
-            float binary_val = binary_po[d].get_elem(bin_po_offset);
-            v_binary_vals.push_back(binary_val);
+            const float binary_val = binary_po[d].get_elem(bin_po_offset);
+            v_binary_vals[d] = binary_val;
         }
         maybe_post_ops(prb->attr, res, maybe_saturate(prb->ddt, dst_fp),
                 v_binary_vals);

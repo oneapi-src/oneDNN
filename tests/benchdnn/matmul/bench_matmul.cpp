@@ -114,8 +114,8 @@ void check_correctness(const settings_t &s, const settings_t &def) {
         parse_result(res, want_perf_report, status, pstr);
 
         if (want_perf_report && is_bench_mode(PERF)) {
-            perf_report_t pr(s.perf_template);
-            pr.report(&prb, &res, pstr);
+            perf_report_t pr(&prb, s.perf_template);
+            pr.report(&res, pstr);
         }
 
         benchdnn_stat.tests++;

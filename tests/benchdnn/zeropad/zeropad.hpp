@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,13 +65,10 @@ struct prb_t {
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t : public base_perf_report_t {
-    using base_perf_report_t::base_perf_report_t;
-
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
-        tag_ = normalize_tag(p_->tag, p_->ndims);
-        base_report(r, prb_str);
-    }
+    perf_report_t(const prb_t *prb, const char *perf_template)
+        : base_perf_report_t(perf_template)
+        , p_(prb)
+        , tag_(normalize_tag(p_->tag, p_->ndims)) {}
 
     void dump_desc(std::ostream &s) const override { s << p_->dims; }
 
@@ -81,7 +78,7 @@ struct perf_report_t : public base_perf_report_t {
     const std::string *tag() const override { return &tag_; }
 
 private:
-    const prb_t *p_ = NULL;
+    const prb_t *p_;
     std::string tag_;
 };
 

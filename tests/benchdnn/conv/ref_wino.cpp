@@ -287,7 +287,8 @@ void free_scratchpad(scratchpad_t *sp) {
 }
 
 void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
+        dnn_mem_t &bia_m, const std::vector<dnn_mem_t> &binary_po,
+        dnn_mem_t &dst_m) {
     scratchpad_t sp {};
     SAFE_V(init_scratchpad(prb, sp));
 
@@ -362,6 +363,7 @@ void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                 (float *)&(M(j, k, 0, 0, 0, 0)), p_dim);
     });
 
+    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
     dnnl::impl::parallel_nd(prb->oc, prb->mb, sp.h_tiles, sp.w_tiles,
             [&](int64_t oc, int64_t img, int64_t hfm, int64_t wfm) {
                 float O[4][4] = {};
@@ -375,22 +377,31 @@ void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
                 for (int64_t j = 0; j < sp.out_dim; j++) {
                     int64_t ydim = hfm * sp.out_dim + j;
-                    if (ydim < prb->oh) {
-                        for (int64_t k = 0; k < sp.out_dim; k++) {
-                            float conv_res = O[j][k];
-                            int64_t xdim = wfm * sp.out_dim + k;
-                            if (xdim < prb->ow) {
-                                const size_t dst_off = dst_off_f(
-                                        prb, img, 0, oc, 0, ydim, xdim);
-                                float &dst = ((float *)dst_m)[dst_off];
-                                const size_t bia_off = bia_off_f(prb, 0, oc);
-                                conv_res += with_bias
-                                        ? ((float *)bia_m)[bia_off]
-                                        : 0.f;
-                                maybe_post_ops(prb->attr, conv_res, dst);
-                                dst = conv_res;
-                            }
+                    if (ydim >= prb->oh) continue;
+
+                    for (int64_t k = 0; k < sp.out_dim; k++) {
+                        float conv_res = O[j][k];
+                        int64_t xdim = wfm * sp.out_dim + k;
+                        if (xdim >= prb->ow) continue;
+
+                        const size_t dst_off
+                                = dst_off_f(prb, img, 0, oc, 0, ydim, xdim);
+                        float &dst = ((float *)dst_m)[dst_off];
+
+                        const size_t bia_off = bia_off_f(prb, 0, oc);
+                        conv_res += with_bias ? ((float *)bia_m)[bia_off] : 0.f;
+
+                        std::vector<float> v_binary_vals(v_bin_po_mask.size());
+                        for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
+                            const auto bin_po_offset = dst_m.get_scale_idx(
+                                    dst_off, v_bin_po_mask[d]);
+                            const float binary_val
+                                    = binary_po[d].get_elem(bin_po_offset);
+                            v_binary_vals[d] = binary_val;
                         }
+                        maybe_post_ops(prb->attr, conv_res, dst, v_binary_vals);
+
+                        dst = conv_res;
                     }
                 }
             });

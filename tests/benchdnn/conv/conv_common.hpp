@@ -205,15 +205,12 @@ struct prb_t : public desc_t {
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
-    using base_perf_report_t::base_perf_report_t;
-
-    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
-        p_ = prb;
-        stag_ = {normalize_tag(p_->stag, p_->ndims)};
-        wtag_ = normalize_tag(p_->wtag, p_->ndims);
-        dtag_ = normalize_tag(p_->dtag, p_->ndims);
-        base_report(res, prb_str);
-    }
+    perf_report_t(const prb_t *prb, const char *perf_template)
+        : base_perf_report_t(perf_template)
+        , p_(prb)
+        , stag_({normalize_tag(p_->stag, p_->ndims)})
+        , wtag_(normalize_tag(p_->wtag, p_->ndims))
+        , dtag_(normalize_tag(p_->dtag, p_->ndims)) {}
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
 
@@ -249,7 +246,7 @@ struct perf_report_t : public base_perf_report_t {
     const std::string *dtag() const override { return &dtag_; }
 
 private:
-    const prb_t *p_ = NULL;
+    const prb_t *p_;
     std::vector<std::string> stag_;
     std::string wtag_, dtag_;
 };
@@ -367,7 +364,8 @@ void compute_ref_direct_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
         dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
 
 void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &bia_m, dnn_mem_t &dst_m);
+        dnn_mem_t &bia_m, const std::vector<dnn_mem_t> &binary_po,
+        dnn_mem_t &dst_m);
 void compute_wino_ref_bwd_d(const prb_t *prb, dnn_mem_t &idiff_src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m);
 void compute_wino_ref_bwd_w(const prb_t *prb, dnn_mem_t &src_m,

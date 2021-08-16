@@ -115,13 +115,12 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src,
             accumulate(acc, src_ptr[src_off], alg, p, eps);
         }
         finalize(acc, alg, p, eps, reduce_size);
-        std::vector<float> v_binary_vals;
-        v_binary_vals.reserve(v_bin_po_mask.size());
+        std::vector<float> v_binary_vals(v_bin_po_mask.size());
         for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
             const auto bin_po_offset
                     = dst.get_scale_idx(dst_off, v_bin_po_mask[d]);
             const float binary_val = binary_po[d].get_elem(bin_po_offset);
-            v_binary_vals.push_back(binary_val);
+            v_binary_vals[d] = binary_val;
         }
         maybe_post_ops(prb->attr, acc, dst_ptr[dst_off], v_binary_vals);
         dst_ptr[dst_off] = acc;

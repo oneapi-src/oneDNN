@@ -79,3 +79,7 @@
 --flags=GR,GSR
 --attr-post-ops=
 --batch=shapes_topologies_small
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu

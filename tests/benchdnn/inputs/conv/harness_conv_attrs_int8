@@ -50,7 +50,7 @@
 --batch=shapes_tails
 
 --cfg=u8s8s8
---attr-post-ops=add:s8:per_oc+add:s32+add:u8:per_oc+max:f32:per_oc
+--attr-post-ops=add:s8:per_oc+add:s32+add:u8:per_oc+max:f32:per_oc,sum:1:0:u8
 --batch=shapes_resnet_50
 
 --skip-impl=ref,x64:gemm      # ! test jit version only

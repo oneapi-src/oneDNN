@@ -260,15 +260,12 @@ const dt_conf_t *str2cfg(const char *str);
 std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
 
 struct perf_report_t : public base_perf_report_t {
-    using base_perf_report_t::base_perf_report_t;
-
-    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
-        p_ = prb;
-        stag_ = {normalize_tag(p_->stag, p_->ndims)};
-        wtag_ = normalize_tag(p_->wtag, p_->ndims);
-        dtag_ = normalize_tag(p_->dtag, p_->ndims);
-        base_report(res, prb_str);
-    }
+    perf_report_t(const prb_t *prb, const char *perf_template)
+        : base_perf_report_t(perf_template)
+        , p_(prb)
+        , stag_({normalize_tag(p_->stag, p_->ndims)})
+        , wtag_(normalize_tag(p_->wtag, p_->ndims))
+        , dtag_(normalize_tag(p_->dtag, p_->ndims)) {}
 
     void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
 
@@ -288,7 +285,7 @@ struct perf_report_t : public base_perf_report_t {
     const std::string *dtag() const override { return &dtag_; }
 
 private:
-    const prb_t *p_ = NULL;
+    const prb_t *p_;
     std::vector<std::string> stag_;
     std::string wtag_, dtag_;
 };
@@ -314,7 +311,8 @@ int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res);
+        dnn_mem_t &mem_fp, res_t *res,
+        dnnl_data_type_t sum_dt = dnnl_data_type_undef);
 
 void check_known_skipped_case(const prb_t *prb, res_t *res);
 

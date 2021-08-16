@@ -472,7 +472,8 @@ bool check_md_consistency_with_tag(
 void check_known_skipped_case_common(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res);
 void check_binary_post_ops(const attr_t &attr, res_t *res);
-void check_sum_post_ops(const attr_t &attr, res_t *res);
+void check_sum_post_ops(const attr_t &attr, res_t *res,
+        dnnl_data_type_t dst_dt = dnnl_data_type_undef);
 
 bool is_cpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_gpu(const dnnl_engine_t &engine = get_test_engine());

@@ -67,12 +67,12 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
         }
         maybe_oscale(prb->attr, tmp, prb->scales, n);
 
-        std::vector<float> v_binary_vals;
-        v_binary_vals.reserve(v_bin_po_mask.size());
+        std::vector<float> v_binary_vals(v_bin_po_mask.size());
         for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-            auto bin_po_offset = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
-            float binary_val = binary_po[d].get_elem(bin_po_offset);
-            v_binary_vals.push_back(binary_val);
+            const auto bin_po_offset
+                    = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
+            const float binary_val = binary_po[d].get_elem(bin_po_offset);
+            v_binary_vals[d] = binary_val;
         }
         maybe_post_ops(prb->attr, tmp, dst, v_binary_vals);
 

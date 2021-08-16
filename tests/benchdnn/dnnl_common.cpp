@@ -378,17 +378,34 @@ void check_binary_post_ops(const attr_t &attr, res_t *res) {
     }
 }
 
-// Sum with zero-point is not supported on GPU
-void check_sum_post_ops(const attr_t &attr, res_t *res) {
-    if (!is_gpu()) return;
-
+void check_sum_post_ops(
+        const attr_t &attr, res_t *res, dnnl_data_type_t dst_dt) {
     const auto &po = attr.post_ops;
     if (!po.is_def()) {
+        const int first_sum_idx = po.find(attr_t::post_ops_t::SUM);
+        if (first_sum_idx == -1) return;
+        const auto sum_dt = po.entry[first_sum_idx].sum.dt;
+
         for (int idx = 0; idx < po.len(); ++idx) {
             const auto &e = po.entry[idx];
-            if (e.is_sum_kind() && e.sum.zero_point != 0) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                break;
+            if (e.is_sum_kind()) {
+                // Sum with zero-point is not supported on GPU
+                if (is_gpu() && e.sum.zero_point != 0) {
+                    res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                    break;
+                }
+                // Each sum must have same data on CPU
+                if (is_cpu() && e.sum.dt != sum_dt) {
+                    res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                    break;
+                }
+                // Sum must have data type with the same size like dst on both
+                if (dst_dt != dnnl_data_type_undef
+                        && sum_dt != dnnl_data_type_undef
+                        && sizeof_dt(dst_dt) != sizeof_dt(e.sum.dt)) {
+                    res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                    return;
+                }
             }
         }
     }

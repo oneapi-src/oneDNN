@@ -25,3 +25,7 @@
 --axis=0,1     --batch=shapes_0d
 --axis=0,1,2,3 --batch=shapes_2d
 
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,12 +45,12 @@ void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *prb,
         }
         maybe_oscale(prb->attr, d, prb->scales, oc);
 
-        std::vector<float> v_binary_vals;
-        v_binary_vals.reserve(v_bin_po_mask.size());
+        std::vector<float> v_binary_vals(v_bin_po_mask.size());
         for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-            auto bin_po_offset = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
-            float binary_val = binary_po[d].get_elem(bin_po_offset);
-            v_binary_vals.push_back(binary_val);
+            const auto bin_po_offset
+                    = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
+            const float binary_val = binary_po[d].get_elem(bin_po_offset);
+            v_binary_vals[d] = binary_val;
         }
         maybe_post_ops(prb->attr, d, dst, v_binary_vals);
 
