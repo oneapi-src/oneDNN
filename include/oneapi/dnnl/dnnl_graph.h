@@ -152,29 +152,18 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_has_same_layout(
 /// @addtogroup dnnl_graph_api_tensor
 /// @{
 
-/// Initializes a tensor with ndims, dims, data type and data handle.
+/// Initializes a tensor with logical tensor, engine, and data handle.
 ///
-/// @param created_tensor Output tensor.
-/// @param ndims Number of dimensions, -1 means unknown.
-/// @param dims Array of dimensions.
-/// @param type Data type of tensor.
-/// @param data_handle Pointer to the data for this tensor.
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_create(
-        dnnl_graph_tensor_t **created_tensor, int64_t ndims,
-        const int64_t *dims, dnnl_graph_data_type_t type, void *data_handle);
-
-/// Initializes a tensor with logical tensor and data handle.
-///
-/// @param created_tensor Output tensor.
+/// @param tensor Output tensor.
 /// @param logical_tensor Description for this tensor.
-/// @param data_handle Pointer to the data for this tensor.
+/// @param engine Engine to use.
+/// @param handle Handle of the memory buffer to use as an underlying storage.
 /// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_create_with_logical_tensor(
-        dnnl_graph_tensor_t **created_tensor,
-        const dnnl_graph_logical_tensor_t *logical_tensor, void *data_handle);
+/// error otherwise.
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_create(
+        dnnl_graph_tensor_t **tensor,
+        const dnnl_graph_logical_tensor_t *logical_tensor,
+        const dnnl_graph_engine_t *engine, void *handle);
 
 /// Destroys the created tensor.
 ///
@@ -222,6 +211,15 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_element_num(
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_id(
         const dnnl_graph_tensor_t *tensor, size_t *id);
+
+/// Returns the engine of a tensor object.
+///
+/// @param tensor Tensor object.
+/// @param engine Output engine on which the tensor is located.
+/// @returns #dnnl_graph_result_success on success and a status describing the
+///     error otherwise.
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_memory_get_engine(
+        const dnnl_graph_tensor_t *tensor, dnnl_graph_engine_t **engine);
 
 /// @} dnnl_graph_api_tensor
 

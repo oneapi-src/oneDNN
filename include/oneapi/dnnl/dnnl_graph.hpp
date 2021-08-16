@@ -585,16 +585,18 @@ public:
     /// Default constructor. Constructs an empty object.
     tensor() = default;
 
-    /// Constructs a tensor object according to the given logical tensor
+    /// Constructs a tensor object according to the given logical tensor.
     ///
     /// @param lt The given logical tensor
+    /// @param aengine Engine to store the data on.
     /// @param handle Handle of memory buffer to use as an underlying storage,
     ///     if the ndims in the logical tensor is 0, data handle holds a scalar
-    tensor(const logical_tensor &lt, void *handle) {
-        dnnl_graph_tensor_t *t {};
-        error::check_succeed(dnnl_graph_tensor_create_with_logical_tensor(
-                                     &t, &(lt.data), handle),
-                "could not create tensor with the logical_tensor");
+    tensor(const logical_tensor &lt, const engine &aengine, void *handle) {
+        dnnl_graph_tensor_t *t = nullptr;
+        error::check_succeed(
+                dnnl_graph_tensor_create(&t, &(lt.data), aengine.get(), handle),
+                "could not create tensor object with the logical_tensor, "
+                "engine, and handle");
         reset(t);
     }
 
@@ -629,6 +631,16 @@ public:
         error::check_succeed(dnnl_graph_tensor_get_element_num(get(), &num),
                 "could not get number of elements in the tensor");
         return num;
+    }
+
+    /// Returns the associated engine.
+    ///
+    /// @returns An engine object
+    engine get_engine() const {
+        dnnl_graph_engine_t *c_engine;
+        error::check_succeed(dnnl_graph_memory_get_engine(get(), &c_engine),
+                "could not get an engine from a tensor object");
+        return engine(c_engine, true);
     }
 };
 
