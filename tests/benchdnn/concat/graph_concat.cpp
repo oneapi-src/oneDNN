@@ -174,7 +174,9 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
     src_fp.reserve(prb->n_inputs());
     src_dt.reserve(prb->n_inputs());
 
-    std::vector<dnnl::graph::tensor> src_tensors;
+    std::vector<dnnl::graph::tensor> src_tensors {};
+    src_tensors.reserve(prb->n_inputs());
+
     for (auto i = 0; i < prb->n_inputs(); ++i) {
         src_fp.emplace_back(
                 make_dnn_mem(ins[i], spec.src_dims[i], dt::f32, tag::abx));
