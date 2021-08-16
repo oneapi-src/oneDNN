@@ -273,18 +273,26 @@ lru_primitive_cache_t::~lru_primitive_cache_t() {
     // The ntdll.dll library is located in system32 therefore setting additional
     // environment is not required.
     HMODULE handle = LoadLibraryA("ntdll.dll");
-    assert(handle);
+    if (!handle) {
+        cache_mapper_.release();
+        return;
+    }
 
     // RtlDllShutdownInProgress returns TRUE if the whole process terminates and
     // FALSE if DLL is being unloaded dynamically or if it’s called from an
     // executable.
     auto f = reinterpret_cast<BOOLEAN (*)(void)>(
             GetProcAddress(handle, "RtlDllShutdownInProgress"));
-    assert(f);
+    if (!f) {
+        cache_mapper_.release();
+        return;
+    }
+
     bool is_process_termination_in_progress = f();
 
     auto ret = FreeLibrary(handle);
     assert(ret);
+    MAYBE_UNUSED(ret);
 
     if (is_process_termination_in_progress) {
         // The whole process is being terminated hence destroying content of
