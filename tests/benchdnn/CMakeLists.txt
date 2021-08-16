@@ -18,12 +18,17 @@ file(GLOB_RECURSE HEADERS
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include/*.h
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include/*.hpp
     )
+
 file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
+
 list(APPEND SOURCES ${TEST_THREAD})
 include_directories_with_host_compiler(
-    ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/third_party/oneDNN ${PROJECT_SOURCE_DIR}/third_party/oneDNN/src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/third_party/oneDNN
+    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/src
+    ${PROJECT_SOURCE_DIR}/include
     )
 
 if(BENCHDNN_USE_RDPMC)
