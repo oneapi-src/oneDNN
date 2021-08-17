@@ -315,6 +315,27 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackpropFilters, 1,
                         infer_conv_bprop_filters_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(ConvTranspose, 1,
+        op_schema()
+                .set_inputs_option(op_schema::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "weight", "weight tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(2, "bias", "bias tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_attr("output_padding",
+                        "additional amount of paddings to be added to each "
+                        "spatial axis in the output tensor",
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
+                .set_shape_inference_function(infer_convtranspose_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
 DNNL_GRAPH_OP_SCHEMA(Divide, 1,
         op_schema()
                 .set_num_inputs(2)

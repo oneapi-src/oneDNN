@@ -87,6 +87,7 @@ const op_kind_t Concat = kConcat;
 const op_kind_t Convolution = kConvolution;
 const op_kind_t ConvolutionBackpropData = kConvolutionBackpropData;
 const op_kind_t ConvolutionBackpropFilters = kConvolutionBackpropFilters;
+const op_kind_t ConvTranspose = kConvTranspose;
 const op_kind_t Divide = kDivide;
 const op_kind_t Elu = kElu;
 const op_kind_t EluBackprop = kEluBackprop;

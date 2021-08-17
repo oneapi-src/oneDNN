@@ -733,6 +733,7 @@ public:
         Convolution = kConvolution,
         ConvolutionBackpropData = kConvolutionBackpropData,
         ConvolutionBackpropFilters = kConvolutionBackpropFilters,
+        ConvTranspose = kConvTranspose,
         Divide = kDivide,
         Elu = kElu,
         EluBackprop = kEluBackprop,

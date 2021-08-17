@@ -68,7 +68,7 @@ static inline void set_shapes_in_range(
 /// infer the padding sizes according auto_pad type
 static status_t infer_auto_pad(const dim_t in_dim, const dim_t stride,
         const dim_t kernel, const dim_t dilation, const std::string &auto_pad,
-        dim_t &pad_begin, dim_t &pad_end);
+        dim_t &pad_begin, dim_t &pad_end, bool is_deconv = false);
 
 /// numpy broadcasting
 /// TODO(xxx): 0-D broadcasting?
@@ -93,6 +93,10 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs);
 
 status_t infer_conv_bprop_filters_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs);
+
+status_t infer_convtranspose_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 

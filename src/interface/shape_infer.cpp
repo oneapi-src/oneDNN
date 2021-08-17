@@ -170,7 +170,7 @@ inline void set_shapes_in_range(const std::vector<logical_tensor_t *> &lts,
 /// infer the padding sizes according auto_pad type
 status_t infer_auto_pad(const dim_t in_dim, const dim_t stride,
         const dim_t kernel, const dim_t dilation, const std::string &auto_pad,
-        dim_t &pad_begin, dim_t &pad_end) {
+        dim_t &pad_begin, dim_t &pad_end, bool is_deconv) {
     if (auto_pad == "VALID") {
         pad_begin = 0;
         pad_end = 0;
@@ -179,7 +179,8 @@ status_t infer_auto_pad(const dim_t in_dim, const dim_t stride,
         if (1 != dilation) return status::unsupported;
 
         dim_t legacy = (in_dim + stride - 1) / stride;
-        dim_t pad_needed = (legacy - 1) * stride + kernel - in_dim;
+        dim_t pad_needed = is_deconv ? kernel - stride
+                                     : (legacy - 1) * stride + kernel - in_dim;
         pad_begin = auto_pad == "SAME_LOWER" ? ((pad_needed + 1) / 2)
                                              : (pad_needed / 2);
         pad_end = pad_needed - pad_begin;
@@ -460,6 +461,89 @@ status_t infer_conv_bprop_filters_output_shape(op_t *n,
 
     const dims out0_shape = make_filter_dims(
             fil_fmt, in0.get_src_c(src_fmt), in2.get_src_c(src_fmt), fil_sp);
+
+    if (out0.ndims() != -1) {
+        if (!validate(out0_shape, out0.vdims())) {
+            return status::invalid_shape;
+        }
+    }
+
+    set_shape_and_strides(*outputs[0], out0_shape);
+
+    return status::success;
+}
+
+status_t infer_convtranspose_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto in0 = logical_tensor_wrapper(inputs[0]);
+    auto in1 = logical_tensor_wrapper(inputs[1]);
+    auto out0 = logical_tensor_wrapper(outputs[0]);
+
+    // get attr value
+    const dim_t g = n->get_attr<dim_t>("groups");
+    const auto &strides = n->get_attr<dims>("strides");
+    const auto &dilations = n->get_attr<dims>("dilations");
+    const auto &pads_begin = n->get_attr<dims>("pads_begin");
+    const auto &pads_end = n->get_attr<dims>("pads_end");
+    std::string fil_fmt = n->get_attr<std::string>("filter_format");
+    std::string src_fmt = n->get_attr<std::string>("data_format");
+
+    if (!out0.is_shape_unknown()) {
+        // check if dst channel / groups == weight output channel
+        if (out0.get_src_c(src_fmt) / g != in1.get_weight_o(fil_fmt)) {
+            return status::invalid_shape;
+        }
+    }
+
+    dims src_sp = in0.get_src_spatial_dims(src_fmt);
+    dims fil_sp = in1.get_weight_spatial_dims(fil_fmt);
+
+    // if paddings are empty vectors?
+    dims new_pads_begin(pads_begin);
+    if (new_pads_begin.empty()) { new_pads_begin.assign(src_sp.size(), 0); }
+    dims new_pads_end(pads_end);
+    if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
+
+    // strides and dilations are required and should be correctly provided.
+    if (strides.size() != src_sp.size() || dilations.size() != fil_sp.size()
+            || new_pads_begin.size() != src_sp.size()
+            || new_pads_end.size() != src_sp.size()) {
+        return status::invalid_shape;
+    }
+
+    dims output_padding(src_sp.size(), 0);
+    if (n->has_attr("output_padding")) {
+        output_padding = n->get_attr<dims>("output_padding");
+    }
+
+    if (n->has_attr("auto_pad")
+            && n->get_attr<std::string>("auto_pad") != "None") {
+        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+
+        // infer auto_pad
+        for (size_t i = 0; i < src_sp.size(); ++i) {
+            infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
+                    auto_pad, new_pads_begin[i], new_pads_end[i], true);
+        }
+
+        if (!out0.is_shape_unknown()) {
+            // if shape is known, infer pad (change op attrs)
+            n->set_attr("pads_begin", new_pads_begin);
+            n->set_attr("pads_end", new_pads_end);
+            return status::success;
+        }
+    }
+
+    dims output_sp;
+    for (size_t i = 0; i < src_sp.size(); ++i) {
+        dim_t padded = output_padding[i] - new_pads_begin[i] - new_pads_end[i];
+        dim_t dilated = dilations[i] * (fil_sp[i] - 1) + 1;
+        output_sp.push_back(strides[i] * (src_sp[i] - 1) + dilated + padded);
+    }
+
+    const dims out0_shape = make_data_dims(
+            src_fmt, in0.get_src_n(), in1.get_weight_o(fil_fmt) * g, output_sp);
 
     if (out0.ndims() != -1) {
         if (!validate(out0_shape, out0.vdims())) {

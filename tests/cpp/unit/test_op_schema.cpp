@@ -176,6 +176,22 @@ void set_conv_common_attr(op_t &op_, std::vector<int64_t> &strides,
     op_.set_attr("groups", groups);
 }
 
+void set_convtranspose_common_attr(op_t &op_, std::vector<int64_t> &strides,
+        std::vector<int64_t> &pads_begin, std::vector<int64_t> &pads_end,
+        std::vector<int64_t> &dilations, std::string auto_pad,
+        std::string data_format, std::string filter_format, int64_t groups,
+        std::vector<int64_t> &output_padding) {
+    op_.set_attr("strides", strides);
+    op_.set_attr("pads_begin", pads_begin);
+    op_.set_attr("pads_end", pads_end);
+    op_.set_attr("dilations", dilations);
+    op_.set_attr("auto_pad", auto_pad);
+    op_.set_attr("data_format", data_format);
+    op_.set_attr("filter_format", filter_format);
+    op_.set_attr("groups", groups);
+    op_.set_attr("output_padding", output_padding);
+}
+
 void verify_shape_infer_for_conv(const op_kind_t op_kind_,
         std::string data_format, std::string filter_format, int64_t groups,
         const std::vector<int64_t> &in_data,
@@ -206,6 +222,57 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
 
     // shape inference without explicitly setting auto_broadcast
     // should be enabled by default
+    op_schema_->shape_infer(&op_, in, out);
+    const std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper(lt_out).vdims();
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    auto unchanged_pads_begin
+            = op_.get_attr<std::vector<int64_t>>("pads_begin");
+    auto unchanged_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
+    EXPECT_EQ(unchanged_pads_begin, pads_begin);
+    EXPECT_EQ(unchanged_pads_end, pads_end);
+
+    // if output shape is known, infer auto pad
+    op_schema_->shape_infer(&op_, in, out);
+    auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
+    auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
+    std::vector<int64_t> expected_pads;
+    expected_pads.assign(in_data.size() - 2, 0);
+    EXPECT_EQ(infered_pads_begin, expected_pads);
+    EXPECT_EQ(infered_pads_end, expected_pads);
+}
+
+void verify_shape_infer_for_convtranspose(const op_kind_t op_kind_,
+        std::string data_format, std::string filter_format, int64_t groups,
+        const std::vector<int64_t> &in_data,
+        const std::vector<int64_t> &in_weight,
+        const std::vector<int64_t> &expected_out_shape) {
+    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
+
+    std::vector<int64_t> strides;
+    std::vector<int64_t> pads_begin;
+    std::vector<int64_t> pads_end;
+    std::vector<int64_t> dilations;
+    std::vector<int64_t> output_padding;
+    strides.assign(in_data.size() - 2, 2);
+    pads_begin.assign(in_data.size() - 2, 1);
+    pads_end.assign(in_data.size() - 2, 2);
+    dilations.assign(in_data.size() - 2, 1);
+    output_padding.assign(in_data.size() - 2, 1);
+    std::string auto_pad = "VALID";
+
+    set_convtranspose_common_attr(op_, strides, pads_begin, pads_end, dilations,
+            auto_pad, data_format, filter_format, groups, output_padding);
+
+    logical_tensor_t lt_data = logical_tensor_init(0, in_data, data_type::f32);
+    logical_tensor_t lt_weight
+            = logical_tensor_init(1, in_weight, data_type::f32);
+    std::vector<logical_tensor_t *> in {&lt_data, &lt_weight};
+    logical_tensor_t lt_out = logical_tensor_init(2, data_type::f32);
+    std::vector<logical_tensor_t *> out {&lt_out};
+
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
             = logical_tensor_wrapper(lt_out).vdims();
@@ -474,6 +541,87 @@ TEST(op_schema_test, Conv_bias) {
         verify_op_schema(k, expected_in_size, expected_out_size,
                 expected_attr_size, attrs_data);
     }
+}
+
+TEST(op_schema_test, ConvTranspose) {
+    const op_kind_t op_kind_ = op_kind::ConvTranspose;
+    const std::set<size_t> expected_in_sizes = {2, 3};
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 9;
+    const std::map<std::string, bool> attrs_data = {{"strides", true},
+            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
+            {"auto_pad", false}, {"groups", false}, {"data_format", false},
+            {"filter_format", false}, {"output_padding", false}};
+    for (auto expected_in_size : expected_in_sizes) {
+        verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
+}
+
+TEST(op_schema_test, convtranspose_bias_infer_shape_auto_pad) {
+    const op_schema *a_op_schema
+            = op_schema_registry::get_op_schema(op_kind::ConvTranspose);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    op_t a_op {op_kind::ConvTranspose, op_t::kind2str(op_kind::ConvTranspose)};
+    std::vector<int64_t> strides = {1, 1};
+    std::vector<int64_t> pads_begin = {}; // empty pads_begin
+    std::vector<int64_t> pads_end = {}; // empty pads_end
+    std::vector<int64_t> dilations = {1, 1};
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    int64_t groups = 1;
+    // according to the convtranspose semantic, output_padding is bigger
+    // than 0 only if stride is greater than 1.
+    std::vector<int64_t> output_padding = {0, 0};
+
+    set_convtranspose_common_attr(a_op, strides, pads_begin, pads_end,
+            dilations, "SAME_UPPER", data_format, filter_format, groups,
+            output_padding);
+
+    auto lt_data = logical_tensor_init(0, {1, 1, 5, 5}, data_type::f32);
+    auto lt_weight = logical_tensor_init(1, {1, 1, 3, 3}, data_type::f32);
+    auto lt_o = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight};
+    std::vector<logical_tensor_t *> lt_out {&lt_o};
+    a_op_schema->shape_infer(&a_op, lt_in, lt_out);
+
+    const auto infered_out_shape = logical_tensor_wrapper(lt_o).vdims();
+    const std::vector<int64_t> expected_out_shape {1, 1, 5, 5};
+    ASSERT_EQ(infered_out_shape, expected_out_shape);
+}
+
+TEST(op_schema_test, convtranspose_bias_infer_shape_with_output_shape) {
+    const op_schema *a_op_schema
+            = op_schema_registry::get_op_schema(op_kind::ConvTranspose);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    op_t a_op {op_kind::ConvTranspose, op_t::kind2str(op_kind::ConvTranspose)};
+    std::vector<int64_t> strides = {1, 1};
+    std::vector<int64_t> pads_begin = {}; // empty pads_begin
+    std::vector<int64_t> pads_end = {}; // empty pads_end
+    std::vector<int64_t> dilations = {1, 1};
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    int64_t groups = 1;
+    std::vector<int64_t> output_padding = {0, 0};
+
+    set_convtranspose_common_attr(a_op, strides, pads_begin, pads_end,
+            dilations, "SAME_UPPER", data_format, filter_format, groups,
+            output_padding);
+
+    auto lt_data = logical_tensor_init(0, {1, 1, 5, 5}, data_type::f32);
+    auto lt_weight = logical_tensor_init(1, {1, 1, 3, 3}, data_type::f32);
+    auto lt_o = logical_tensor_init(
+            2, {1, 1, 5, 5}, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight};
+    std::vector<logical_tensor_t *> lt_out {&lt_o};
+    a_op_schema->shape_infer(&a_op, lt_in, lt_out);
+
+    pads_begin = a_op.get_attr<std::vector<int64_t>>("pads_begin");
+    pads_end = a_op.get_attr<std::vector<int64_t>>("pads_end");
+    std::vector<int64_t> expected_pads_begin = {1, 1};
+    std::vector<int64_t> expected_pads_end = {1, 1};
+    EXPECT_EQ(pads_begin, expected_pads_begin);
+    EXPECT_EQ(pads_end, expected_pads_end);
 }
 
 TEST(op_schema_test, int8_conv) {
@@ -894,6 +1042,25 @@ TEST(op_schema_test, conv_ncx_oix_infer_shape) {
     }
 }
 
+TEST(op_schema_test, convtranspose_ncx_oix_infer_shape) {
+    const op_kind_t op_kind_ = op_kind::ConvTranspose;
+
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    std::vector<int64_t> groups_vec {1, 2, 4};
+
+    // data shape {N, IC, H, W}
+    const std::vector<int64_t> &in_data = {1, 16, 111, 111};
+    const std::vector<int64_t> &expected_out_shape = {1, 32, 224, 224};
+    for (auto groups : groups_vec) {
+        // weight shape {OC, IC, KH, KW}
+        const std::vector<int64_t> &in_weight = {32 / groups, 16, 3, 3};
+
+        verify_shape_infer_for_convtranspose(op_kind_, data_format,
+                filter_format, groups, in_data, in_weight, expected_out_shape);
+    }
+}
+
 TEST(op_schema_test, conv3d_ncx_oix_infer_shape) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
@@ -984,6 +1151,25 @@ void infer_conv_shape(op_kind_t kind) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
+TEST(op_schema_test, convtranspose_nxc_oix_infer_shape) {
+    const op_kind_t op_kind_ = op_kind::ConvTranspose;
+
+    std::string data_format = "NXC";
+    std::string filter_format = "OIX";
+    std::vector<int64_t> groups_vec {1, 2, 4};
+
+    // data shape {N, H, W, IC}
+    const std::vector<int64_t> &in_data = {1, 111, 111, 16};
+    const std::vector<int64_t> &expected_out_shape = {1, 224, 224, 32};
+    for (auto groups : groups_vec) {
+        // weight shape {OC, IC, KH, KW}
+        const std::vector<int64_t> &in_weight = {32 / groups, 16, 3, 3};
+
+        verify_shape_infer_for_convtranspose(op_kind_, data_format,
+                filter_format, groups, in_data, in_weight, expected_out_shape);
+    }
+}
+
 TEST(op_schema_test, conv_bias_add_relu_nxc_oix_infer_shape) {
     infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias);
     infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_add);
@@ -1062,6 +1248,25 @@ TEST(op_schema_test, conv_nxc_xio_infer_shape) {
     }
 }
 
+TEST(op_schema_test, convtranspose_nxc_xio_infer_shape) {
+    const op_kind_t op_kind_ = op_kind::ConvTranspose;
+
+    std::string data_format = "NXC";
+    std::string filter_format = "XIO";
+    std::vector<int64_t> groups_vec {1, 2, 4};
+
+    // data shape {N, H, W, IC}
+    const std::vector<int64_t> &in_data = {1, 111, 111, 16};
+    const std::vector<int64_t> &expected_out_shape = {1, 224, 224, 32};
+    for (auto groups : groups_vec) {
+        // weight shape {KH, KW, IC, OC}
+        const std::vector<int64_t> &in_weight = {3, 3, 16, 32 / groups};
+
+        verify_shape_infer_for_convtranspose(op_kind_, data_format,
+                filter_format, groups, in_data, in_weight, expected_out_shape);
+    }
+}
+
 TEST(op_schema_test, conv3d_nxc_xio_infer_shape) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
@@ -1107,6 +1312,25 @@ TEST(op_schema_test, conv_ncx_xio_infer_shape) {
         const std::vector<int64_t> &in_bias = {16};
         verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
                 groups, in_data, in_weight, in_bias, expected_out_shape);
+    }
+}
+
+TEST(op_schema_test, convtranspose_ncx_xio_infer_shape) {
+    const op_kind_t op_kind_ = op_kind::ConvTranspose;
+
+    std::string data_format = "NCX";
+    std::string filter_format = "XIO";
+    std::vector<int64_t> groups_vec {1, 2, 4};
+
+    // data shape {N, IC, H, W}
+    const std::vector<int64_t> &in_data = {1, 16, 111, 111};
+    const std::vector<int64_t> &expected_out_shape = {1, 32, 224, 224};
+    for (auto groups : groups_vec) {
+        // weight shape {KH, KW, IC, OC}
+        const std::vector<int64_t> &in_weight = {3, 3, 16, 32 / groups};
+
+        verify_shape_infer_for_convtranspose(op_kind_, data_format,
+                filter_format, groups, in_data, in_weight, expected_out_shape);
     }
 }
 
