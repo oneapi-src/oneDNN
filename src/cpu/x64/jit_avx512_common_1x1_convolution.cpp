@@ -954,7 +954,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
             }
         }
 
-        if (ic_b_end >= jcp.nb_bcast) {
+        if (ithr_mb == 0 && ic_b_end >= jcp.nb_bcast) {
             maybe_zero_icpad(g_start, g_end, oc_b_start, oc_b_end);
         }
 
