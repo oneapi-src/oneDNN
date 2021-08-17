@@ -1009,7 +1009,7 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
                 float *bias_ptr = wants_padded_bias
                                 && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
                         ? last_slice_bias
-                        : &bias(M_blk, 0);
+                        : (jcp.with_bias ? &bias(M_blk, 0) : nullptr);
 
                 output_transform(img, jcp,
                         &(M(0, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
