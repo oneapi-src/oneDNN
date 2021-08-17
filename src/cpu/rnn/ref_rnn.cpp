@@ -150,7 +150,10 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     const AOC<src_iter_t, 4> ws_states_iter(ws_states_iter_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_iter + 1,
             rnn.ws_states_iter_nld * rnn.ws_states_iter_ld);
-    const ws_iter_c_linear_exec_aoc_t ws_states_iter_c(rnn, ws_states_iter_c_);
+    const auto ws_states_iter_c = rnn_utils::make_raw_aoc(ws_states_iter_c_,
+            types::data_type_size(rnn.src_iter_c_dt), rnn.n_layer + 1,
+            rnn.n_dir, rnn.n_iter + 1,
+            rnn.ws_diff_states_iter_c_nld * rnn.ws_diff_states_iter_c_ld);
     const AOC<gemm_acc_t, 4> ws_diff_states_layer(ws_diff_states_layer_,
             rnn.n_layer + 1, rnn.n_dir, rnn.n_iter + 1,
             rnn.ws_diff_states_layer_nld * rnn.ws_diff_states_layer_ld);
@@ -251,10 +254,10 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 const src_iter_t *cell_src_iter
                         = &(ws_states_iter(lay + 1, dir, iter, 0));
 
-                void *cell_dst_iter_c
-                        = ws_states_iter_c(lay + 1, dir, iter + 1);
+                void *cell_dst_iter_c = const_cast<void *>(
+                        ws_states_iter_c(lay + 1, dir, iter + 1, 0));
                 const void *cell_src_iter_c
-                        = ws_states_iter_c(lay + 1, dir, iter);
+                        = ws_states_iter_c(lay + 1, dir, iter, 0);
 
                 // the cell_position is used only when skip_data_copy is
                 // supported currently supported only for forward
@@ -590,8 +593,10 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
         const memory_desc_wrapper &src_iter_c_d) {
     const AOC<src_data_t, 5> ws_states_iter(ws_states_iter_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_iter + 1, rnn.mb, rnn.ws_states_iter_ld);
-    const rnn_utils::ws_iter_c_init_aoc_t ws_states_iter_c_aoc(
-            rnn, ws_states_iter_c_);
+    const auto ws_states_iter_c_aoc = rnn_utils::make_raw_aoc(ws_states_iter_c_,
+            types::data_type_size(rnn.src_iter_c_dt), rnn.n_layer + 1,
+            rnn.n_dir, rnn.n_iter + 1, rnn.mb, rnn.ws_states_iter_c_ld);
+
     const float data_shift = pd->attr()->rnn_data_qparams_.shift_;
     const float data_scale = pd->attr()->rnn_data_qparams_.scale_;
 
@@ -607,7 +612,8 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     };
     const src_data_t zero = maybe_q(0.f);
     const auto zero_ws_iter_c = [&](int lay, int dir, int mb_id, int sic_id) {
-        void *ws_states_iter_c = ws_states_iter_c_aoc(lay, dir, mb_id, sic_id);
+        void *ws_states_iter_c = const_cast<void *>(
+                ws_states_iter_c_aoc(lay, dir, 0, mb_id, sic_id));
         if (rnn.src_iter_c_dt == data_type::f32)
             *(static_cast<float *>(ws_states_iter_c)) = 0.0f;
         else if (rnn.src_iter_c_dt == data_type::bf16)

@@ -38,7 +38,6 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::cell_execution_gru)) {
     const ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_t> scratch_gates(rnn, scratch_gates_);
-    const bias_aoc_t bias(rnn, bias_[0]);
 
     const auto src_layer_ld = rnn.src_layer_ld(cell_position);
     const auto src_iter_ld = rnn.src_iter_ld(cell_position);

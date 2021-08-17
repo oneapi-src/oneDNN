@@ -47,7 +47,8 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
     const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     const weights_peephole_aoc_t<const float> weights_peephole(
             rnn, weights_peephole_);
-    const bias_aoc_t bias_aoc(rnn, bias_);
+    const auto bias_aoc = rnn_utils::make_raw_aoc(
+            bias_, types::data_type_size(rnn.bias_dt), rnn.n_bias, rnn.dhc);
     const auto bias = [&](int gate_id, int dhc_id) {
         return rnn_utils::to_float(bias_aoc(gate_id, dhc_id), rnn.bias_dt);
     };
@@ -56,24 +57,28 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
             ? rnn.scratch_ht_ld
             : rnn.dst_layer_ld(cell_position);
     const auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
-    const auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
-    const auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+    const int dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+    const int src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
 
     const ws_states_layer_aoc<src_data_t> dst_layer(
             rnn, dst_layer_, dst_layer_ld);
     // TODO: we use scratch and not dst_iter for lstmp
     const ws_states_iter_aoc<src_data_t> dst_iter(rnn, dst_iter_, dst_iter_ld);
 
-    const rnn_utils::ws_states_iter_c_aoc_t dst_iter_c(rnn, rnn.dst_iter_c_dt,
-            const_cast<void *>(dst_iter_c_), dst_iter_c_ld);
-    const rnn_utils::ws_states_iter_c_aoc_t src_iter_c_aoc(rnn,
-            rnn.src_iter_c_dt, const_cast<void *>(src_iter_c_), src_iter_c_ld);
+    const auto dst_iter_c = rnn_utils::make_raw_aoc(dst_iter_c_,
+            types::data_type_size(rnn.dst_iter_c_dt), rnn.ws_states_iter_c_nld,
+            dst_iter_c_ld);
+    const auto src_iter_c_aoc = rnn_utils::make_raw_aoc(src_iter_c_,
+            types::data_type_size(rnn.src_iter_c_dt), rnn.ws_states_iter_c_nld,
+            src_iter_c_ld);
+
     const auto src_iter_c = [&](int mb_id, int dhc_id) {
         return rnn_utils::to_float(
                 src_iter_c_aoc(mb_id, dhc_id), rnn.src_iter_c_dt);
     };
     const auto dst_iter_c_assign = [&](int mb_id, int dhc_id, float c_state) {
-        const auto dst_iter_c_ptr = dst_iter_c(mb_id, dhc_id);
+        const auto dst_iter_c_ptr
+                = const_cast<void *>(dst_iter_c(mb_id, dhc_id));
 
         if (rnn.dst_iter_c_dt == data_type::f32)
             *static_cast<float *>(dst_iter_c_ptr) = c_state;
@@ -288,17 +293,18 @@ void lstm_bwd_postgemm_template(T1 func1, T2 to_src_dt, const float *cscale,
     const ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     const weights_peephole_aoc_t<const float> weights_peephole(
             rnn, weights_peephole_);
-    const bias_aoc_t bias(rnn, bias_);
-    const auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
-    const auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
-    const rnn_utils::ws_states_iter_c_aoc_t src_iter_c_aoc(rnn,
-            rnn.src_iter_c_dt, const_cast<void *>(src_iter_c_), src_iter_c_ld);
+    const int dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+    const int src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+    const auto src_iter_c_aoc = rnn_utils::make_raw_aoc(src_iter_c_,
+            types::data_type_size(rnn.src_iter_c_dt), rnn.ws_states_iter_c_nld,
+            src_iter_c_ld);
     const auto src_iter_c = [&](int mb_id, int dhc_id) {
         return rnn_utils::to_float(
                 src_iter_c_aoc(mb_id, dhc_id), rnn.src_iter_c_dt);
     };
-    const rnn_utils::ws_states_iter_c_aoc_t dst_iter_c_aoc(rnn,
-            rnn.dst_iter_c_dt, const_cast<void *>(dst_iter_c_), dst_iter_c_ld);
+    const auto dst_iter_c_aoc = rnn_utils::make_raw_aoc(dst_iter_c_,
+            types::data_type_size(rnn.dst_iter_c_dt), rnn.ws_states_iter_c_nld,
+            dst_iter_c_ld);
     const auto dst_iter_c = [&](int mb_id, int dhc_id) {
         return rnn_utils::to_float(
                 dst_iter_c_aoc(mb_id, dhc_id), rnn.dst_iter_c_dt);

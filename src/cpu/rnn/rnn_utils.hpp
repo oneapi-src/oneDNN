@@ -1000,6 +1000,54 @@ status_t set_expected_desc(rnn_conf_t &rnn, memory_desc_t &weights_md,
         weights_type_t weights_type);
 status_t set_good_strides(memory_desc_t &weights_md, format_tag_t tag);
 
+using byte = unsigned char;
+template <size_t Tdims>
+struct raw_array_offset_calculator_t {
+    template <typename... Targs>
+    raw_array_offset_calculator_t(
+            const byte *base, const dim_t dt_size, Targs... Fargs)
+        : base_ptr_(base), dt_size_(dt_size), dims_ {Fargs...} {}
+
+    template <typename... Targs>
+    raw_array_offset_calculator_t(std::nullptr_t, Targs... Fargs) = delete;
+
+    template <typename... Targs>
+    inline const void *operator()(Targs... Fargs) const {
+        assert(static_cast<bool>(base_ptr_));
+        return base_ptr_ + (offset(1, Fargs...) * dt_size_);
+    }
+
+private:
+    template <typename... Targs>
+    inline size_t offset(size_t const dimension, size_t element) const {
+        return element;
+    }
+    template <typename... Targs>
+    inline size_t offset(
+            size_t const dimension, size_t theta, size_t element) const {
+        return element + (dims_[dimension] * theta);
+    }
+
+    template <typename... Targs>
+    inline size_t offset(size_t const dimension, size_t theta, size_t element,
+            Targs... Fargs) const {
+        const size_t t_prime = element + (dims_[dimension] * theta);
+        return offset(dimension + 1, t_prime, Fargs...);
+    }
+
+    const byte *const base_ptr_;
+    const dim_t dt_size_;
+    const int dims_[Tdims];
+};
+
+template <typename... Targs>
+raw_array_offset_calculator_t<sizeof...(Targs)> make_raw_aoc(
+        const void *base, const dim_t dt_size, Targs... Fargs) {
+    return raw_array_offset_calculator_t<sizeof...(Targs)>(
+            static_cast<const byte *>(base), dt_size,
+            std::forward<Targs>(Fargs)...);
+}
+
 template <typename T>
 struct ws_gates_aoc {
     ws_gates_aoc(const rnn_conf_t &rnn, T *data)
@@ -1067,146 +1115,51 @@ float to_float(const void *data, const data_type_t dt);
 
 struct bias_linear_exec_aoc_t {
     bias_linear_exec_aoc_t(const rnn_conf_t &rnn, void **bias)
-        : bias_f32_aoc_(nullptr), bias_bf16_aoc_(nullptr) {
-        if (bias) {
-            if (rnn.bias_dt == data_type::f32)
-                bias_f32_aoc_ = utils::make_unique<
-                        utils::array_offset_calculator<float *, 3>>(
-                        reinterpret_cast<float **>(bias), rnn.n_layer,
-                        rnn.n_dir, rnn.n_parts_bias);
-            else if (rnn.bias_dt == data_type::bf16)
-                bias_bf16_aoc_ = utils::make_unique<
-                        utils::array_offset_calculator<bfloat16_t *, 3>>(
-                        reinterpret_cast<bfloat16_t **>(bias), rnn.n_layer,
-                        rnn.n_dir, rnn.n_parts_bias);
-        }
+        : bias_dt_(rnn.bias_dt), bias_present_(static_cast<bool>(bias)) {
+
+        if (bias_dt_ == data_type::f32)
+            new (std::addressof(bias_f32_aoc_))
+                    utils::array_offset_calculator<float *, 3>(
+                            reinterpret_cast<float **>(bias), rnn.n_layer,
+                            rnn.n_dir, rnn.n_parts_bias);
+        else
+            new (std::addressof(bias_bf16_aoc_))
+                    utils::array_offset_calculator<bfloat16_t *, 3>(
+                            reinterpret_cast<bfloat16_t **>(bias), rnn.n_layer,
+                            rnn.n_dir, rnn.n_parts_bias);
     }
 
     void **operator()(int layer, int dir) const {
-        if (bias_f32_aoc_) {
-            float **res = &bias_f32_aoc_->operator()(layer, dir, 0);
-            return reinterpret_cast<void **>(res);
-        } else if (bias_bf16_aoc_) {
-            bfloat16_t **res = &bias_bf16_aoc_->operator()(layer, dir, 0);
-            return reinterpret_cast<void **>(res);
-        } else
-            return nullptr;
-    }
-
-private:
-    std::unique_ptr<utils::array_offset_calculator<float *, 3>> bias_f32_aoc_;
-    std::unique_ptr<utils::array_offset_calculator<bfloat16_t *, 3>>
-            bias_bf16_aoc_;
-};
-
-struct bias_aoc_t {
-    bias_aoc_t(const rnn_conf_t &rnn, const void *data)
-        : bias_f32_aoc_(nullptr), bias_bf16_aoc_(nullptr) {
-        if (data) {
-            if (rnn.bias_dt == data_type::f32)
-                bias_f32_aoc_ = utils::make_unique<dnnl::impl::utils::
-                                array_offset_calculator<const float, 2>>(
-                        static_cast<const float *>(data), rnn.n_bias, rnn.dhc);
-            else if (rnn.bias_dt == data_type::bf16)
-                bias_bf16_aoc_ = utils::make_unique<dnnl::impl::utils::
-                                array_offset_calculator<const bfloat16_t, 2>>(
-                        static_cast<const bfloat16_t *>(data), rnn.n_bias,
-                        rnn.dhc);
+        if (bias_present_) {
+            if (bias_dt_ == data_type::f32)
+                return reinterpret_cast<void **>(
+                        &bias_f32_aoc_.operator()(layer, dir, 0));
+            else if (bias_dt_ == data_type::bf16)
+                return reinterpret_cast<void **>(
+                        &bias_bf16_aoc_.operator()(layer, dir, 0));
         }
+
+        return nullptr;
     }
 
-    const void *operator()(int bias_n, int dhc) const {
-        if (bias_f32_aoc_)
-            return static_cast<const void *>(
-                    &(bias_f32_aoc_->operator()(bias_n, dhc)));
-        else if (bias_bf16_aoc_)
-            return static_cast<const void *>(
-                    &(bias_bf16_aoc_->operator()(bias_n, dhc)));
+    ~bias_linear_exec_aoc_t() {
+        if (bias_dt_ == data_type::f32)
+            bias_f32_aoc_.~array_offset_calculator<float *, 3>();
         else
-            return nullptr;
+            bias_bf16_aoc_.~array_offset_calculator<bfloat16_t *, 3>();
     }
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(bias_linear_exec_aoc_t);
+    bias_linear_exec_aoc_t(bias_linear_exec_aoc_t &&) = delete;
+    bias_linear_exec_aoc_t &operator=(bias_linear_exec_aoc_t &&) = delete;
 
 private:
-    std::unique_ptr<dnnl::impl::utils::array_offset_calculator<const float, 2>>
-            bias_f32_aoc_;
-    std::unique_ptr<
-            dnnl::impl::utils::array_offset_calculator<const bfloat16_t, 2>>
-            bias_bf16_aoc_;
-};
-
-struct ws_iter_c_init_aoc_t {
-    ws_iter_c_init_aoc_t(const rnn_conf_t &rnn, void *data)
-        : ws_iter_c_f32_aoc_(nullptr), ws_iter_c_bf16_aoc_(nullptr) {
-        if (data) {
-            if (rnn.src_iter_c_dt == data_type::f32)
-                ws_iter_c_f32_aoc_ = utils::make_unique<
-                        dnnl::impl::utils::array_offset_calculator<float, 5>>(
-                        static_cast<float *>(data), rnn.n_layer + 1, rnn.n_dir,
-                        rnn.n_iter + 1, rnn.mb, rnn.ws_states_iter_c_ld);
-            else if (rnn.src_iter_c_dt == data_type::bf16)
-                ws_iter_c_bf16_aoc_ = utils::make_unique<dnnl::impl::utils::
-                                array_offset_calculator<bfloat16_t, 5>>(
-                        static_cast<bfloat16_t *>(data), rnn.n_layer + 1,
-                        rnn.n_dir, rnn.n_iter + 1, rnn.mb,
-                        rnn.ws_states_iter_c_ld);
-        }
-    }
-
-    void *operator()(int lay, int dir, int mb_id, int sic_id) const {
-        if (ws_iter_c_f32_aoc_)
-            return static_cast<void *>(&(ws_iter_c_f32_aoc_->operator()(
-                    lay, dir, 0, mb_id, sic_id)));
-        else if (ws_iter_c_bf16_aoc_)
-            return static_cast<void *>(&(ws_iter_c_bf16_aoc_->operator()(
-                    lay, dir, 0, mb_id, sic_id)));
-        else
-            return nullptr;
-    }
-
-private:
-    std::unique_ptr<dnnl::impl::utils::array_offset_calculator<float, 5>>
-            ws_iter_c_f32_aoc_;
-    std::unique_ptr<dnnl::impl::utils::array_offset_calculator<bfloat16_t, 5>>
-            ws_iter_c_bf16_aoc_;
-};
-
-struct ws_iter_c_linear_exec_aoc_t {
-    ws_iter_c_linear_exec_aoc_t(const rnn_conf_t &rnn, void *data)
-        : ws_iter_c_f32_aoc_(nullptr), ws_iter_c_bf16_aoc_(nullptr) {
-        if (data) {
-            if (rnn.src_iter_c_dt == data_type::f32)
-                ws_iter_c_f32_aoc_ = utils::make_unique<
-                        dnnl::impl::utils::array_offset_calculator<float, 4>>(
-                        static_cast<float *>(data), rnn.n_layer + 1, rnn.n_dir,
-                        rnn.n_iter + 1,
-                        rnn.ws_diff_states_iter_c_nld
-                                * rnn.ws_diff_states_iter_c_ld);
-            else if (rnn.src_iter_c_dt == data_type::bf16)
-                ws_iter_c_bf16_aoc_ = utils::make_unique<dnnl::impl::utils::
-                                array_offset_calculator<bfloat16_t, 4>>(
-                        static_cast<bfloat16_t *>(data), rnn.n_layer + 1,
-                        rnn.n_dir, rnn.n_iter + 1,
-                        rnn.ws_diff_states_iter_c_nld
-                                * rnn.ws_diff_states_iter_c_ld);
-        }
-    }
-
-    void *operator()(int lay, int dir, int iter) const {
-        if (ws_iter_c_f32_aoc_)
-            return static_cast<void *>(
-                    &(ws_iter_c_f32_aoc_->operator()(lay, dir, iter, 0)));
-        else if (ws_iter_c_bf16_aoc_)
-            return static_cast<void *>(
-                    &(ws_iter_c_bf16_aoc_->operator()(lay, dir, iter, 0)));
-        else
-            return nullptr;
-    }
-
-private:
-    std::unique_ptr<dnnl::impl::utils::array_offset_calculator<float, 4>>
-            ws_iter_c_f32_aoc_;
-    std::unique_ptr<dnnl::impl::utils::array_offset_calculator<bfloat16_t, 4>>
-            ws_iter_c_bf16_aoc_;
+    data_type_t bias_dt_;
+    bool bias_present_;
+    union {
+        utils::array_offset_calculator<float *, 3> bias_f32_aoc_;
+        utils::array_offset_calculator<bfloat16_t *, 3> bias_bf16_aoc_;
+    };
 };
 
 template <typename T>
@@ -1231,43 +1184,6 @@ struct ws_states_iter_aoc {
 
 private:
     const dnnl::impl::utils::array_offset_calculator<T, 2> state_;
-};
-
-struct ws_states_iter_c_aoc_t {
-    ws_states_iter_c_aoc_t(const rnn_conf_t &rnn, const data_type_t dt,
-            void *data, int leading_dim) {
-        if (data) {
-            if (dt == data_type::f32)
-                state_f32_ = utils::make_unique<
-                        dnnl::impl::utils::array_offset_calculator<float, 2>>(
-                        static_cast<float *>(data), rnn.ws_states_iter_c_nld,
-                        leading_dim);
-            else if (dt == data_type::bf16)
-                state_bf16_ = utils::make_unique<dnnl::impl::utils::
-                                array_offset_calculator<bfloat16_t, 2>>(
-                        static_cast<bfloat16_t *>(data),
-                        rnn.ws_states_iter_c_nld, leading_dim);
-        }
-    }
-
-    ws_states_iter_c_aoc_t(
-            const rnn_conf_t &rnn, const data_type_t dt, void *data)
-        : ws_states_iter_c_aoc_t(rnn, dt, data, rnn.ws_states_iter_c_ld) {}
-
-    void *operator()(int batch, int dhc) const {
-        if (state_f32_)
-            return static_cast<void *>(&(state_f32_->operator()(batch, dhc)));
-        else if (state_bf16_)
-            return static_cast<void *>(&(state_bf16_->operator()(batch, dhc)));
-
-        return nullptr;
-    }
-
-private:
-    std::unique_ptr<dnnl::impl::utils::array_offset_calculator<float, 2>>
-            state_f32_ = nullptr;
-    std::unique_ptr<dnnl::impl::utils::array_offset_calculator<bfloat16_t, 2>>
-            state_bf16_ = nullptr;
 };
 
 template <typename T>

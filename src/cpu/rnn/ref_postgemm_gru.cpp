@@ -45,7 +45,8 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
         src_data_t *dst_iter_, const src_data_t *src_iter_, const void *bias_) {
     const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
-    const bias_aoc_t bias_aoc(rnn, bias_);
+    const auto bias_aoc = rnn_utils::make_raw_aoc(
+            bias_, types::data_type_size(rnn.bias_dt), rnn.n_bias, rnn.dhc);
     const auto bias = [&](int gate_id, int dhc_id) {
         return to_float(bias_aoc(gate_id, dhc_id), rnn.bias_dt);
     };
@@ -95,7 +96,8 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
         src_data_t *dst_iter_, const src_data_t *src_iter_, const void *bias_) {
     const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
-    const bias_aoc_t bias_aoc(rnn, bias_);
+    const auto bias_aoc = rnn_utils::make_raw_aoc(
+            bias_, types::data_type_size(rnn.bias_dt), rnn.n_bias, rnn.dhc);
     const auto bias = [&](int gate_id, int dhc_id) {
         return to_float(bias_aoc(gate_id, dhc_id), rnn.bias_dt);
     };

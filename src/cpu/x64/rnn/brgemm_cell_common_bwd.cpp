@@ -809,10 +809,12 @@ void brgemm_diff_wei_peep_t<scratch_t>::kernel(
     nd_iterator_init(
             start, g, n_gates_, dhc_block_id, rnn_.dhc_blocks_peephole);
 
-    const rnn_utils::ws_states_iter_c_aoc_t dst_iter_c(rnn_, rnn_.dst_iter_c_dt,
-            const_cast<void *>(dst_iter_c_), dst_iter_c_ld_);
-    const rnn_utils::ws_states_iter_c_aoc_t src_iter_c(rnn_, rnn_.src_iter_c_dt,
-            const_cast<void *>(src_iter_c_), src_iter_c_ld_);
+    const auto dst_iter_c = rnn_utils::make_raw_aoc(dst_iter_c_,
+            types::data_type_size(rnn_.dst_iter_c_dt),
+            rnn_.ws_states_iter_c_nld, dst_iter_c_ld_);
+    const auto src_iter_c = rnn_utils::make_raw_aoc(src_iter_c_,
+            types::data_type_size(rnn_.src_iter_c_dt),
+            rnn_.ws_states_iter_c_nld, src_iter_c_ld_);
 
     const rnn_utils::ws_gates_aoc<const scratch_t> scratch_gates(
             rnn_, scratch_gates_);
