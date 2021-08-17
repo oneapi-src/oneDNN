@@ -597,7 +597,7 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_vector(const int idx,
         const auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
 
         const auto zmm_prev_dst = Xbyak::Zmm(0);
-        cvt2ps(brg.dt_d, zmm_prev_dst, addr, true, false, k_mask);
+        cvt2ps(brg.sum_dt, zmm_prev_dst, addr, true, false, k_mask);
         if (p_sum_zp_reg_set) vsubps(zmm_prev_dst, zmm_sum_zp);
         if (!p_sum_scale_reg_set)
             vaddps(zmm, zmm_prev_dst);
