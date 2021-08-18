@@ -491,13 +491,13 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::compute_loop(
         store_dst(ur_ch_blocks, ur_w, is_ch_tail);
     };
 
+    mov(aux_reg_ch_blocks, reg_ch_blocks);
     if (ch_loop) {
         Label ch_loop_label, ch_tail_label, skip_ch_tail_label;
         const int ch_block_tail = jcp.nb_ch
                 - (utils::rnd_dn(jcp.oc / jcp.ch_block, jcp.nb_ch_blocking));
         const int ch_step = jcp.nb_ch_blocking * jcp.ch_block;
 
-        mov(aux_reg_ch_blocks, reg_ch_blocks);
         push(reg_kernel);
         push(reg_input);
         push(reg_output);
