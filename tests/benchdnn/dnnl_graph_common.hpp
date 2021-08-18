@@ -43,6 +43,7 @@ enum class fill_status {
     DONE, // everything was fine
     UNHANDLED_CONFIG_OPTIONS, // conversion done, but too much options was provided
     UNSUPPORTED_OP,
+    UNSUPPORTED_CONFIG,
     UNKNOWN_ERROR
 };
 typedef fill_status fill_status_t;

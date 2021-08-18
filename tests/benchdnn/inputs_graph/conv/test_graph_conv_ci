@@ -30,3 +30,7 @@ mb50ic64ih56oc64oh56kh1ph0
 # int8
 --reset
 --cfg=u8s8u8,u8s8s8 --dir=FWD_I --attr-oscale=per_oc:2.25 mb50ic64ih56oc64oh56kh1ph0
+
+# int8, asym quant
+--reset
+--cfg=u8s8u8 --attr-oscale=per_oc:2.25 --attr-zero-points=src:common:2+dst:common:3 --stag=acdb --wtag=any  --dtag=acdb ic3ih224oc64oh112kh7sh2ph3

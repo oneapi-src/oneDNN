@@ -74,6 +74,8 @@ struct conv_graph_prb_t : public graph_prb_t {
 
 private:
     std::vector<float> oscales;
+    std::vector<int64_t> src_zero_points;
+    std::vector<int64_t> dst_zero_points;
 
     spec_t spec_;
     po_handlers_t po_handler;
