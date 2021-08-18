@@ -727,7 +727,7 @@ dnnl_status_t sgemm_smalln_tn(const dim_t m, const dim_t n, const dim_t k,
     static std::unique_ptr<xbyak_gemm_smalln_tn_t> kernels[4][3][3];
     static std::once_flag initialized;
 
-    dnnl_status_t st = dnnl_success;
+    static dnnl_status_t st = dnnl_success;
     std::call_once(initialized, [&] {
         for (dim_t N : {1, 2, 3, 4}) {
             for (float al : {0.0f, 1.0f, 2.0f}) {
