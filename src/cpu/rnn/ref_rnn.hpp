@@ -142,6 +142,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
             if (!ok) return status::unimplemented;
 
+            rnn_ = zero<decltype(rnn_)>();
             rnn_.is_brgemm = false;
             ok = init_conf<class_name>(rnn_, *this->desc(), this->src_md(0),
                     this->src_md(1), this->src_md(2), this->weights_md(0),
@@ -261,6 +262,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
             if (!ok) return status::unimplemented;
 
+            rnn_ = zero<decltype(rnn_)>();
             rnn_.is_brgemm = true;
             ok = init_conf<class_name>(rnn_, *this->desc(), this->src_md(0),
                     this->src_md(1), this->src_md(2), this->weights_md(0),
