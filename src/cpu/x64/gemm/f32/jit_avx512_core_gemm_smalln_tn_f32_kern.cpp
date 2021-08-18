@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 
 #include "common/dnnl_thread.hpp"
@@ -723,7 +724,7 @@ dnnl_status_t sgemm_smalln_tn(const dim_t m, const dim_t n, const dim_t k,
         const dim_t ldb, const float beta, float *C, const dim_t ldc) {
     using namespace avx512_core_gemm_smalln_tn_f32;
 
-    static xbyak_gemm_smalln_tn_t *kernels[4][3][3];
+    static std::unique_ptr<xbyak_gemm_smalln_tn_t> kernels[4][3][3];
     static std::once_flag initialized;
 
     dnnl_status_t st = dnnl_success;
@@ -732,7 +733,7 @@ dnnl_status_t sgemm_smalln_tn(const dim_t m, const dim_t n, const dim_t k,
             for (float al : {0.0f, 1.0f, 2.0f}) {
                 for (float be : {0.0f, 1.0f, 2.0f}) {
                     auto &kern = kernels[N - 1][(dim_t)al][(dim_t)be];
-                    kern = new xbyak_gemm_smalln_tn_t(N, be, al);
+                    kern.reset(new xbyak_gemm_smalln_tn_t(N, be, al));
                     st = kern->create_kernel();
                     if (st != dnnl_success) return;
                 }
