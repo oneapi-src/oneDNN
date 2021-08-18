@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include <functional>
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -985,51 +986,52 @@ struct jit_bnorm_t : public jit_generator {
                 vdivps(vdiv, vscale, vsqrtvar);
             }
 
-            auto compute = [=](bool stream_store_allowed) {
-                spat_loop(
-                        spat_size, unroll_blocks, unroll_regs,
-                        [](size_t base_reg) { UNUSED(base_reg); },
-                        [=](size_t base_reg, size_t i) {
-                            Vmm v = Vmm(base_reg);
-                            size_t offt = i * vlen_spat_data_;
-                            uni_vmovups_spat_data(
-                                    v, vmmword[reg_src + reg_soff + offt]);
-                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                    + t0_pf_offt]);
-                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                    + t1_pf_offt]);
-                            uni_vsubps(v, v, vmean);
-                            if (bdesc_->use_scaleshift()
-                                    || (bdesc_->use_scale()
-                                            && bdesc_->use_shift())) {
-                                // --flags=S,CH
-                                uni_vfmadd213ps(v, vgamma, vbeta);
-                            } else if (bdesc_->use_scale()) {
-                                // --flags=C
-                                uni_vmulps(v, v, vgamma);
-                            } else if (bdesc_->use_shift()) {
-                                // --flags=H
-                                uni_vfmadd213ps(v, vsqrtvar, vbeta);
-                            } else {
-                                uni_vmulps(v, v, vsqrtvar);
-                            }
-                            if (with_relu_inf_only) {
-                                uni_vmaxps(v, v, vzero);
-                            } else if (with_relu) {
-                                if (isa == avx512_common)
-                                    fwd_process_relu_avx512_common(v, offt);
-                                else
-                                    fwd_process_relu_avx2(v, offt, Vmm(3));
-                            }
-                            if (stream_store_allowed) {
-                                uni_vmovntps(
-                                        vmmword[reg_dst + reg_soff + offt], v);
-                            } else {
-                                uni_vmovups_spat_data(
-                                        vmmword[reg_dst + reg_soff + offt], v);
-                            }
-                        },
-                        [](size_t base_reg) { UNUSED(base_reg); });
+            const auto spat_loop_init_fin
+                    = [](size_t base_reg) { UNUSED(base_reg); };
+
+            const auto spat_loop_body = [=](size_t base_reg, size_t i,
+                                                bool stream_store_allowed) {
+                const Vmm v = Vmm(base_reg);
+                const size_t offt = i * vlen_spat_data_;
+                uni_vmovups_spat_data(v, vmmword[reg_src + reg_soff + offt]);
+                mic_prefetcht0(ptr[reg_src + reg_soff + offt + t0_pf_offt]);
+                mic_prefetcht1(ptr[reg_src + reg_soff + offt + t1_pf_offt]);
+                uni_vsubps(v, v, vmean);
+                if (bdesc_->use_scaleshift()
+                        || (bdesc_->use_scale() && bdesc_->use_shift())) {
+                    // --flags=S,CH
+                    uni_vfmadd213ps(v, vgamma, vbeta);
+                } else if (bdesc_->use_scale()) {
+                    // --flags=C
+                    uni_vmulps(v, v, vgamma);
+                } else if (bdesc_->use_shift()) {
+                    // --flags=H
+                    uni_vfmadd213ps(v, vsqrtvar, vbeta);
+                } else {
+                    uni_vmulps(v, v, vsqrtvar);
+                }
+                if (with_relu_inf_only) {
+                    uni_vmaxps(v, v, vzero);
+                } else if (with_relu) {
+                    if (isa == avx512_common)
+                        fwd_process_relu_avx512_common(v, offt);
+                    else
+                        fwd_process_relu_avx2(v, offt, Vmm(3));
+                }
+                if (stream_store_allowed) {
+                    uni_vmovntps(vmmword[reg_dst + reg_soff + offt], v);
+                } else {
+                    uni_vmovups_spat_data(
+                            vmmword[reg_dst + reg_soff + offt], v);
+                }
+            };
+
+            const auto compute = [=](bool stream_store_allowed) {
+                using namespace std::placeholders;
+                spat_loop(spat_size, unroll_blocks, unroll_regs,
+                        spat_loop_init_fin,
+                        std::bind(spat_loop_body, _1, _2, stream_store_allowed),
+                        spat_loop_init_fin);
             };
 
             if (stream_store_supported()) {
@@ -1339,57 +1341,56 @@ struct jit_bnorm_t : public jit_generator {
             uni_vdivps(vdiff_beta, vdiff_beta, vchan_size);
             uni_vdivps(vdiff_gamma, vdiff_gamma, vchan_size);
 
-            auto compute = [=](bool stream_store_allowed) {
-                spat_loop(
-                        spat_size, unroll_blocks, unroll_regs,
-                        [=](size_t base_reg) { UNUSED(base_reg); },
-                        [=](size_t base_reg, size_t i) {
-                            Vmm v(base_reg * 2 + 0);
-                            Vmm t(base_reg * 2 + 1);
-                            Vmm t1(base_reg * 2 + 2);
-                            size_t offt = i * vlen_spat_data_;
-                            uni_vmovups_spat_data(
-                                    v, vmmword[reg_diff_dst + reg_soff + offt]);
-                            if (with_relu) {
-                                if (isa == avx512_common)
-                                    bwd_process_relu_avx512_common(v, offt);
-                                else if (isa == avx2)
-                                    bwd_process_relu_avx2(v, offt, t);
-                                else
-                                    assert(false);
-                            }
-                            if (!bdesc_->use_global_stats()) {
-                                uni_vsubps(v, v, vdiff_beta);
-                                uni_vmovups_spat_data(
-                                        t, vmmword[reg_src + reg_soff + offt]);
-                                uni_vsubps(t, vmean, t, t1);
-                                uni_vmulps(t, t, vdiff_gamma);
-                                uni_vaddps(v, v, t);
-                            }
-                            uni_vmulps(v, v, vsqrtvar);
-                            if (bdesc_->use_scaleshift()
-                                    || bdesc_->use_scale()) {
-                                uni_vmulps(v, v, vgamma);
-                            }
-                            if (stream_store_allowed) {
-                                uni_vmovntps(
-                                        vmmword[reg_diff_src + reg_soff + offt],
-                                        v);
-                            } else {
-                                uni_vmovups_spat_data(
-                                        vmmword[reg_diff_src + reg_soff + offt],
-                                        v);
-                            }
-                            mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
-                                    + t0_pf_offt]);
-                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                    + t0_pf_offt]);
-                            mic_prefetcht1(ptr[reg_diff_dst + reg_soff + offt
-                                    + t1_pf_offt]);
-                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                    + t1_pf_offt]);
-                        },
-                        [=](size_t base_reg) { UNUSED(base_reg); });
+            const auto spat_loop_init_fin
+                    = [=](size_t base_reg) { UNUSED(base_reg); };
+            const auto spat_loop_body = [=](size_t base_reg, size_t i,
+                                                bool stream_store_allowed) {
+                const Vmm v(base_reg * 2 + 0);
+                const Vmm t(base_reg * 2 + 1);
+                const Vmm t1(base_reg * 2 + 2);
+                const size_t offt = i * vlen_spat_data_;
+                uni_vmovups_spat_data(
+                        v, vmmword[reg_diff_dst + reg_soff + offt]);
+                if (with_relu) {
+                    if (isa == avx512_common)
+                        bwd_process_relu_avx512_common(v, offt);
+                    else if (isa == avx2)
+                        bwd_process_relu_avx2(v, offt, t);
+                    else
+                        assert(false);
+                }
+                if (!bdesc_->use_global_stats()) {
+                    uni_vsubps(v, v, vdiff_beta);
+                    uni_vmovups_spat_data(
+                            t, vmmword[reg_src + reg_soff + offt]);
+                    uni_vsubps(t, vmean, t, t1);
+                    uni_vmulps(t, t, vdiff_gamma);
+                    uni_vaddps(v, v, t);
+                }
+                uni_vmulps(v, v, vsqrtvar);
+                if (bdesc_->use_scaleshift() || bdesc_->use_scale()) {
+                    uni_vmulps(v, v, vgamma);
+                }
+                if (stream_store_allowed) {
+                    uni_vmovntps(vmmword[reg_diff_src + reg_soff + offt], v);
+                } else {
+                    uni_vmovups_spat_data(
+                            vmmword[reg_diff_src + reg_soff + offt], v);
+                }
+                mic_prefetcht0(
+                        ptr[reg_diff_dst + reg_soff + offt + t0_pf_offt]);
+                mic_prefetcht0(ptr[reg_src + reg_soff + offt + t0_pf_offt]);
+                mic_prefetcht1(
+                        ptr[reg_diff_dst + reg_soff + offt + t1_pf_offt]);
+                mic_prefetcht1(ptr[reg_src + reg_soff + offt + t1_pf_offt]);
+            };
+
+            const auto compute = [=](bool stream_store_allowed) {
+                using namespace std::placeholders;
+                spat_loop(spat_size, unroll_blocks, unroll_regs,
+                        spat_loop_init_fin,
+                        std::bind(spat_loop_body, _1, _2, stream_store_allowed),
+                        spat_loop_init_fin);
             };
 
             if (stream_store_supported()) {
