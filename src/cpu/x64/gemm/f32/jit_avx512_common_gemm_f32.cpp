@@ -1743,7 +1743,7 @@ xbyak_gemm_t *get_xbyak_gemm(
     // Kernel table [isTransA][isTransB][hasBias][beta (0, 1, other)]
     static std::unique_ptr<xbyak_gemm_t> kernel_table[2][2][2][3];
     static std::once_flag initialized;
-    dnnl_status_t st = dnnl_success;
+    static dnnl_status_t st = dnnl_success;
     std::call_once(initialized, [&] {
         for (bool isTransA : {false, true})
             for (bool isTransB : {false, true})
