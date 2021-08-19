@@ -41,7 +41,7 @@ void base_perf_report_t::report(const res_t *res, const char *prb_str) const {
 void base_perf_report_t::handle_option(std::ostream &s, const char *&option,
         const res_t *res, const char *prb_str) const {
     const auto &t = res->timer;
-    benchdnn_timer_t::mode_t mode = benchdnn_timer_t::min;
+    timer::timer_t::mode_t mode = timer::timer_t::min;
     (void)mode;
     double unit = 1e0;
     char c = *option;

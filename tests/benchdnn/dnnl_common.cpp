@@ -179,7 +179,7 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args) {
     return execute_and_wait(exec_func, engine, args);
 }
 
-inline bool should_stop(const benchdnn_timer_t &t) {
+inline bool should_stop(const timer::timer_t &t) {
     const bool stop = false
             || (fix_times_per_prb && t.times() >= fix_times_per_prb)
             || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
@@ -193,7 +193,7 @@ dnnl_engine_kind_t get_engine_kind(const dnnl_engine_t &engine) {
     return engine_kind;
 }
 
-inline int measure_perf_individual(benchdnn_timer_t &t, dnnl_stream_t stream,
+inline int measure_perf_individual(timer::timer_t &t, dnnl_stream_t stream,
         perf_function_t &perf_func, std::vector<dnnl_exec_arg_t> &dnnl_args) {
     t.reset();
     while (true) {
@@ -204,7 +204,7 @@ inline int measure_perf_individual(benchdnn_timer_t &t, dnnl_stream_t stream,
     return OK;
 }
 
-inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
+inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         perf_function_t &perf_func, std::vector<dnnl_exec_arg_t> &dnnl_args) {
     const int max_batch_times = 10000;
 
@@ -230,7 +230,7 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
 
         // Adjust cur_batch_times after the first batch run
         if (is_first_loop) {
-            double ms_min = t.ms(benchdnn_timer_t::min);
+            double ms_min = t.ms(timer::timer_t::min);
             // Heuristic: try to use ~5 batch runs for the whole benchmark
             int batch_times_heuristic = (ms_min == 0.0)
                     ? INT_MAX
@@ -244,8 +244,7 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
     return OK;
 }
 
-int measure_perf(
-        benchdnn_timer_t &t, perf_function_t &perf_func, args_t &args) {
+int measure_perf(timer::timer_t &t, perf_function_t &perf_func, args_t &args) {
     int ret = OK;
     if (is_bench_mode(PERF)) {
         const auto &engine = get_test_engine();
@@ -266,7 +265,7 @@ int measure_perf(
     return ret;
 }
 
-int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args) {
+int measure_perf(timer::timer_t &t, dnnl_primitive_t prim, args_t &args) {
     perf_function_t perf_func = std::bind(&primitive_executor, prim,
             std::placeholders::_1, std::placeholders::_2);
 

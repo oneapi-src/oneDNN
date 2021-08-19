@@ -29,6 +29,7 @@
 #include "oneapi/dnnl/dnnl_types.h"
 
 #include "common.hpp"
+#include "utils/timer.hpp"
 
 struct base_perf_report_t {
     base_perf_report_t(const char *perf_template) : pt_(perf_template) {}
@@ -80,11 +81,11 @@ private:
         }
     }
 
-    static benchdnn_timer_t::mode_t modifier2mode(char c) {
-        if (c == '-') return benchdnn_timer_t::min;
-        if (c == '0') return benchdnn_timer_t::avg;
-        if (c == '+') return benchdnn_timer_t::max;
-        return benchdnn_timer_t::min;
+    static timer::timer_t::mode_t modifier2mode(char c) {
+        if (c == '-') return timer::timer_t::min;
+        if (c == '0') return timer::timer_t::avg;
+        if (c == '+') return timer::timer_t::max;
+        return timer::timer_t::min;
     }
 
     static double modifier2unit(char c) {
