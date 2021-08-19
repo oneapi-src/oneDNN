@@ -24,9 +24,9 @@
 
 #include "tests/test_thread.hpp"
 
-#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "utils/compare.hpp"
 
 #include "lrn/lrn.hpp"
 

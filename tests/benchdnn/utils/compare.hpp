@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMPARE_HPP
-#define COMPARE_HPP
+#ifndef UTILS_COMPARE_HPP
+#define UTILS_COMPARE_HPP
 
 #include <functional>
 

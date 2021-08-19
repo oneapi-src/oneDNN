@@ -22,7 +22,7 @@
 #include "tests/test_thread.hpp"
 
 #include "common.hpp"
-#include "compare.hpp"
+#include "utils/compare.hpp"
 
 #include "eltwise/eltwise.hpp"
 
