@@ -270,14 +270,6 @@ void verify_shape_infer_for_convtranspose(const op_kind_t op_kind_,
             = logical_tensor_wrapper(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
-    auto unchanged_pads_begin
-            = op_.get_attr<std::vector<int64_t>>("pads_begin");
-    auto unchanged_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
-    EXPECT_EQ(unchanged_pads_begin, pads_begin);
-    EXPECT_EQ(unchanged_pads_end, pads_end);
-
-    // if output shape is known, infer auto pad
-    op_schema_->shape_infer(&op_, in, out);
     auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
     auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
     std::vector<int64_t> expected_pads;

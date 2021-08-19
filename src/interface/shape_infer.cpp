@@ -232,9 +232,6 @@ inline void infer_conv_ncx_oix(const dims &src_dims, const dims &fil_dims,
     }
 }
 
-/// Check if output shape is already known. If the shape is unknown, infer
-/// output shape (will modify the output logical tensor), otherwise infer
-/// padding sizes (will modify the op attributes).
 status_t infer_conv_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
@@ -282,11 +279,8 @@ status_t infer_conv_output_shape(op_t *n,
                     auto_pad, new_pads_begin[i], new_pads_end[i]);
         }
 
-        if (!out0.is_shape_unknown()) {
-            n->set_attr("pads_begin", new_pads_begin);
-            n->set_attr("pads_end", new_pads_end);
-            return status::success;
-        }
+        n->set_attr("pads_begin", new_pads_begin);
+        n->set_attr("pads_end", new_pads_end);
     }
 
     // infer output shape
@@ -359,12 +353,8 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
                     auto_pad, new_pads_begin[i], new_pads_end[i]);
         }
 
-        if (!out0.is_shape_unknown()) {
-            // if shape is known, infer pad (change op attrs)
-            n->set_attr("pads_begin", new_pads_begin);
-            n->set_attr("pads_end", new_pads_end);
-            return status::success;
-        }
+        n->set_attr("pads_begin", new_pads_begin);
+        n->set_attr("pads_end", new_pads_end);
     }
 
     dims output_sp;
@@ -441,12 +431,8 @@ status_t infer_conv_bprop_filters_output_shape(op_t *n,
             return status::unsupported;
         }
 
-        if (!out0.is_shape_unknown()) {
-            // if shape is known, infer pad (change op attrs)
-            n->set_attr("pads_begin", new_pads_begin);
-            n->set_attr("pads_end", new_pads_end);
-            return status::success;
-        }
+        n->set_attr("pads_begin", new_pads_begin);
+        n->set_attr("pads_end", new_pads_end);
     }
 
     // Since we have no access to the data of the second input (weights_shape),
@@ -527,12 +513,8 @@ status_t infer_convtranspose_output_shape(op_t *n,
                     auto_pad, new_pads_begin[i], new_pads_end[i], true);
         }
 
-        if (!out0.is_shape_unknown()) {
-            // if shape is known, infer pad (change op attrs)
-            n->set_attr("pads_begin", new_pads_begin);
-            n->set_attr("pads_end", new_pads_end);
-            return status::success;
-        }
+        n->set_attr("pads_begin", new_pads_begin);
+        n->set_attr("pads_end", new_pads_end);
     }
 
     dims output_sp;
@@ -556,9 +538,6 @@ status_t infer_convtranspose_output_shape(op_t *n,
     return status::success;
 }
 
-// check if output shape is already known
-// if shape is unknown, infer output shape (change output lt)
-// otherwise infer pad (change op attrs)
 status_t infer_pool_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
@@ -618,19 +597,16 @@ status_t infer_pool_output_shape(op_t *n,
         output_sp.push_back(out_value);
     }
 
-    // if shape is known, infer pad (change op attrs)
-    if (!out0.is_shape_unknown()) {
-        if (rounding_type == "ceil") {
-            for (size_t i = 0; i < src_sp.size(); ++i) {
-                dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
-                dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
-                        - src_sp[i] - pads_begin[i];
-                new_pads_end[i] = cur_pads_end;
-            }
+    if (rounding_type == "ceil") {
+        for (size_t i = 0; i < src_sp.size(); ++i) {
+            dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
+            dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
+                    - src_sp[i] - pads_begin[i];
+            new_pads_end[i] = cur_pads_end;
         }
-        n->set_attr("pads_begin", new_pads_begin);
-        n->set_attr("pads_end", new_pads_end);
     }
+    n->set_attr("pads_begin", new_pads_begin);
+    n->set_attr("pads_end", new_pads_end);
 
     dims out_shape = make_data_dims(
             src_format, in0.get_src_n(), in0.get_src_c(src_format), output_sp);

@@ -86,12 +86,11 @@ static inline void infer_conv_ncx_oix(const dims &src_dims,
 /// The inferred output shape will be written to the logical tensor in outputs.
 /// The inferred pads_begin and pads_end will be attached to the operator
 /// directly. Hence the function will change the state of the input operator.
-static status_t infer_conv_output_shape(op_t *n,
+status_t infer_conv_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
 status_t infer_conv_bprop_data_output_shape(op_t *n,
-
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
