@@ -158,7 +158,7 @@ def convert_bias_mask(mds):
     bia_mds = [md for md in mds if md['arg'] == 'bia']
     if len(bia_mds) != 0:
         bia_md = bia_mds[0]
-        flags = bia_md['flags'].split('_')
+        flags = bia_md['flags']['value'].split('_')
         if len(flags) > 1:
             mask = flags[1][4:]
             return f"--bia_mask={mask}"
