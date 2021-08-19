@@ -107,6 +107,12 @@ struct ref_sum_t : public primitive_t {
                 dst.mem->engine(), pd()->dst_acc_md(), std::move(sum_reduce));
         memory_arg_t dst_acc = {&acc, false};
 
+        /* fix: clang MemorySanitizer: use-of-uninitialized-value */
+        if (pd()->need_output_reorder()) {
+            const memory_desc_wrapper acc_d(acc.md());
+            std::memset(acc.memory_storage()->data_handle(), 0, acc_d.size());
+        }
+
         for (int i = 0; i < n; ++i) {
             r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
             r_args[DNNL_ARG_DST] = pd()->need_output_reorder() ? dst_acc : dst;
