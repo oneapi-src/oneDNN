@@ -1,53 +1,22 @@
-/* <copyright>
+/*
+  Copyright (C) 2005-2019 Intel Corporation
 
-  Contact Information:
-  https://software.intel.com/content/www/us/en/develop/tools/vtune-profiler.html
-
-  BSD LICENSE
-
-  Copyright (c) 2005-2014 Intel Corporation. All rights reserved.
-  All rights reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions
-  are met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in
-      the documentation and/or other materials provided with the
-      distribution.
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</copyright> */
+  SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+*/
 
 #include "ittnotify_config.h"
 
 #if ITT_PLATFORM==ITT_PLATFORM_WIN
 #include <windows.h>
 #endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
-#if ITT_PLATFORM != ITT_PLATFORM_MAC && ITT_PLATFORM != ITT_PLATFORM_FREEBSD && ITT_PLATFORM != ITT_PLATFORM_OPENBSD
+#if ITT_PLATFORM != ITT_PLATFORM_MAC && ITT_PLATFORM != ITT_PLATFORM_FREEBSD
 #include <malloc.h>
 #endif
 #include <stdlib.h>
 
 #include "jitprofiling.h"
 
-static const char rcsid[] = "\n@(#) $Revision: 471937 $\n";
+static const char rcsid[] = "\n@(#) $Revision$\n";
 
 #define DLL_ENVIRONMENT_VAR             "VS_PROFILER"
 
@@ -230,7 +199,10 @@ static int loadiJIT_Funcs()
     if (dllName)
     {
         /* Try to load the dll from the PATH... */
-        m_libHandle = dlopen(dllName, RTLD_LAZY);
+        if (DL_SYMBOLS)
+        {
+            m_libHandle = dlopen(dllName, RTLD_LAZY);
+        }
     }
 #endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
 
@@ -239,7 +211,10 @@ static int loadiJIT_Funcs()
 #if ITT_PLATFORM==ITT_PLATFORM_WIN
         m_libHandle = LoadLibraryA(DEFAULT_DLLNAME);
 #else  /* ITT_PLATFORM==ITT_PLATFORM_WIN */
-        m_libHandle = dlopen(DEFAULT_DLLNAME, RTLD_LAZY);
+        if (DL_SYMBOLS)
+        {
+            m_libHandle = dlopen(DEFAULT_DLLNAME, RTLD_LAZY);
+        }
 #endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
     }
 
