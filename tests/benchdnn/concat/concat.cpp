@@ -31,9 +31,8 @@
 
 namespace concat {
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     std::vector<dnnl_memory_desc_t> src_d;
     src_d.resize(prb->n_inputs());
 

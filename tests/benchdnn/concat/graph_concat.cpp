@@ -165,8 +165,7 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    const auto &e = benchdnnext::get_test_engine();
-    auto cp = par.compile(ins, outs, e);
+    auto cp = compile_partition(::concat::init_pd, prb, res, par, ins, outs);
 
     auto dst_fp = make_dnn_mem(outs[0], spec.dst_dims, dt::f32, tag::abx);
     auto dst_dt = make_dnn_mem(outs[0], spec.dst_dims, spec.raw_dst_tag);
