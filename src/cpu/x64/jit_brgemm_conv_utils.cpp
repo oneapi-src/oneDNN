@@ -1652,6 +1652,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.is_1x1) return status::unimplemented;
     // TODO: check these restrictions
     if (is_amx(isa)) {
+        // disabled for first convolutions
+        if (jcp.ic <= 4) return status::unimplemented;
         if (jcp.dilate_d > 0 || jcp.dilate_h > 0 || jcp.dilate_w > 0)
             return status::unimplemented;
     }
