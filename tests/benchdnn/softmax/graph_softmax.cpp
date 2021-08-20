@@ -47,16 +47,6 @@ void check_known_skipped_case_graph(
     if (res->state == SKIPPED) return;
 }
 
-void add_additional_softmax_check(compare::compare_t &cmp) noexcept {
-    const auto softmax_add_check
-            = [&](const compare::compare_t::driver_check_func_args_t &args) {
-                  // SSE4.1 and OpenCL rdiff tolerance is too high for
-                  // certain scenarios.
-                  return args.diff < epsilon_dt(args.dt);
-              };
-    cmp.set_driver_check_function(softmax_add_check);
-}
-
 fill_status_t softmax_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
@@ -138,7 +128,7 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
             const int64_t axis_size = prb->dims[prb->axis];
             cmp.set_zero_trust_percent(axis_size < 10 ? 100.f : 60.f);
 
-            add_additional_softmax_check(cmp);
+            ::softmax::add_additional_softmax_check(cmp);
 
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }

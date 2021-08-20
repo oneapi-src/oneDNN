@@ -1,10 +1,10 @@
 --reset
---inplace=true,false --dir=FWD_I --dt=f32 --tag=abx --alg=SOFTMAX,LOGSOFTMAX --axis=0,1,2,3
+--inplace=true,false --dir=FWD_I --dt=f32,bf16 --tag=abx --alg=SOFTMAX,LOGSOFTMAX --axis=0,1,2,3
 64x512x7x7
 64x128x28x28
 64x64x112x112
 64x3x224x224
 8x16x384x384
 
---inplace=true,false --dir=FWD_I --dt=f32 --tag=abx --alg=SOFTMAX,LOGSOFTMAX --axis=0,1,2
+--inplace=true,false --dir=FWD_I --dt=f32,bf16 --tag=abx --alg=SOFTMAX,LOGSOFTMAX --axis=0,1,2
 8x384x1024
