@@ -434,17 +434,10 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         return reorder_kernel_t::plain_xFxE_to_abcdef;
     }
 
-    if ((src_mdw.matches_one_of_tag(abcd) || src_mdw.matches_one_of_tag(acdb))
-            && dst_mdw.matches_one_of_tag(/*ABcd4a2b,*/ ABcd4a4b)
-            && src_mdw.is_dense() && dst_mdw.is_dense(true)
-            && padded_dims[3] % 16 == 0) {
-        return reorder_kernel_t::plain_to_ABcd4axb;
-    }
-
-    if (src_mdw.matches_one_of_tag(abcd, acdb)
-            && dst_mdw.matches_one_of_tag(ABcd8a2b) && src_mdw.is_dense()
-            && dst_mdw.is_dense(true)) {
-        return reorder_kernel_t::plain_to_ABcd8a2b;
+    if ((src_mdw.matches_one_of_tag(abcd, acdb))
+            && dst_mdw.matches_one_of_tag(ABcd4a4b, ABcd8a2b, ABcd8a4b)
+            && src_mdw.is_dense() && dst_mdw.is_dense(true)) {
+        return reorder_kernel_t::plain_to_ABcd84a42b;
     }
 
     // This kernel will be used where last dimension is not reordered.
@@ -590,19 +583,13 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             vect_dim = 1;
             vect_size = 16;
             break;
-        case plain_to_ABcd4axb: {
+        case plain_to_ABcd84a42b: {
             auto &blk = dst_mdw.blocking_desc();
-            int b_block = blk.inner_blks[blk.inner_nblks - 1];
-            conf.sub_group_size = (b_block == 2 ? 8 : 16);
-            blocks[0] = 4;
-            blocks[1] = b_block;
-            vect_dim = 3;
-            vect_size = conf.sub_group_size;
-        } break;
-        case plain_to_ABcd8a2b: {
-            conf.sub_group_size = 16;
-            blocks[0] = 8;
-            blocks[1] = 2;
+            int inner_block = blk.inner_blks[blk.inner_nblks - 1];
+            int outer_block = blk.inner_blks[blk.inner_nblks - 2];
+            conf.sub_group_size = inner_block * outer_block;
+            blocks[0] = outer_block;
+            blocks[1] = inner_block;
             vect_dim = 3;
             vect_size = conf.sub_group_size;
         } break;
@@ -855,12 +842,13 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     if (conf.implementation == plain_xFxE_to_abcdef)
         kernel_ctx.define_int("PLAIN_xFxE_TO_ABCDEF", 1);
 
-    if (conf.implementation == plain_to_ABcd4axb)
-        kernel_ctx.define_int("PLAIN_TO_ABCD4AXB", 1);
-
-    if (conf.implementation == plain_to_ABcd8a2b)
-        kernel_ctx.define_int("PLAIN_TO_ABCD8A2B", 1);
-
+    if (conf.implementation == plain_to_ABcd84a42b) {
+        kernel_ctx.define_int("PLAIN_TO_ABCD84A42B", 1);
+        auto r = conf.dispatch.nd_range();
+        auto *lr = r.local_range();
+        kernel_ctx.define_int(
+                "SG_PER_WG", (lr[0] * lr[1] * lr[2]) / conf.sub_group_size);
+    }
     if (conf.implementation == xb_to_xab_xba) {
         kernel_ctx.define_int("XAB_XBA", 1);
         auto r = conf.dispatch.nd_range();

@@ -573,8 +573,9 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
         DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
     }
 
-#elif PLAIN_TO_ABCD4AXB || PLAIN_TO_ABCD8A2B
-    int sglid = get_sub_group_local_id();
+#elif PLAIN_TO_ABCD84A42B
+    const int sglid = get_sub_group_local_id();
+    const int sg = get_sub_group_id();
 
 #define SRC_D3_ALIGNED (SRC_D3 % SUB_GROUP_SIZE == 0)
 #define IS_SRC_ABCD_LAYOUT (SRC_S3_0 == 1)
@@ -589,62 +590,66 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
     const int d1_block = GWS_GET_D1_BLOCK();
     const int d01_block = d0_block * d1_block;
 
-    SRC_DATA_T tmp_buf[d01_block] = {0};
+    __local SRC_DATA_T loc_buf[SG_PER_WG][d01_block][SUB_GROUP_SIZE];
     const int d0_inner_block = min(d0_block, SRC_D0);
     const int d1_inner_block = min(d1_block, SRC_D1);
-
     for (int d0_inner = 0; d0_inner < d0_inner_block; d0_inner++) {
         for (int d1_inner = 0; d1_inner < d1_inner_block; d1_inner++) {
-            if (SRC_D0 % d0_inner_block != 0 && d0 + d0_inner >= SRC_D0)
+
+            if (SRC_D0 % d0_inner_block != 0 && d0 + d0_inner >= SRC_D0) {
+                loc_buf[sg][d0_inner * d1_block + d1_inner][sglid] = 0;
                 continue;
-            if (SRC_D1 % d1_inner_block != 0 && d1 + d1_inner >= SRC_D1)
+            }
+            if (SRC_D1 % d1_inner_block != 0 && d1 + d1_inner >= SRC_D1) {
+                loc_buf[sg][d0_inner * d1_block + d1_inner][sglid] = 0;
                 continue;
+            }
             if (IS_SRC_ABCD_LAYOUT
                     && (SRC_D3_ALIGNED || d3 + SUB_GROUP_SIZE < SRC_D3)) {
                 const int src_off
                         = SRC_OFF(d0 + d0_inner, d1 + d1_inner, d2, d3, 0, 0);
-                tmp_buf[d0_inner * d1_block + d1_inner]
-                        = SRC_BLOCK_READ(&src[src_off]);
+                loc_buf[sg][d0_inner * d1_block + d1_inner][sglid]
+                        = src[src_off + sglid];
             } else {
                 if (SRC_D3_ALIGNED || d3 + sglid < SRC_D3) {
                     const int src_off = SRC_OFF(
                             d0 + d0_inner, d1 + d1_inner, d2, d3 + sglid, 0, 0);
-                    tmp_buf[d0_inner * d1_block + d1_inner] = src[src_off];
+                    loc_buf[sg][d0_inner * d1_block + d1_inner][sglid]
+                            = src[src_off];
                 }
             }
         }
     }
-
-    SRC_DATA_T src_all[d01_block][SUB_GROUP_SIZE];
-    for (int i = 0; i < d01_block; i++)
-        for (int j = 0; j < SUB_GROUP_SIZE; j++)
-            src_all[i][j] = intel_sub_group_shuffle(tmp_buf[i], j);
-
     if (SRC_D3_ALIGNED || d3 + SUB_GROUP_SIZE < SRC_D3) {
         for (int d = 0; d < SUB_GROUP_SIZE; d += 8) {
             SRC_DATA8_T src_tmp;
-            for (int i = 0; i < 8; i++)
-                src_tmp[i] = src_all[sglid][d + i];
+            for (int i = 0; i < 8; i++) {
+                src_tmp[i] = loc_buf[sg][sglid][d + i];
+            }
             const int dst_off = DST_OFF(d0, d1, d2, d3 + d, 0, 0);
 
             DST_DATA8_T dst_tmp;
 #if WITH_SUM_AB
-            dst_tmp = DST_BLOCK_READ8(&dst[dst_off]);
+            for (int n = 0; n < 8; n++) {
+                dst_tmp[n] = dst[dst_off + sglid + n * SUB_GROUP_SIZE];
+            }
 #endif // WITH_SUM_AB
             REORDER8(dst_tmp, src_tmp, alpha, beta);
-            DST_BLOCK_WRITE8(&dst[dst_off], dst_tmp);
+            for (int n = 0; n < 8; n++) {
+                dst[dst_off + sglid + n * SUB_GROUP_SIZE] = dst_tmp[n];
+            }
         }
     } else {
         for (int d = 0; d < SUB_GROUP_SIZE; d++) {
             if (d3 + d < SRC_D3) {
-                const SRC_DATA_T src_tmp = src_all[sglid][d];
+                const SRC_DATA_T src_tmp = loc_buf[sg][sglid][d];
                 const int dst_off = DST_OFF(d0, d1, d2, d3 + d, 0, 0);
                 DST_DATA_T dst_tmp;
 #if WITH_SUM_AB
-                dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
+                dst_tmp[n] = dst[dst_off + sglid];
 #endif // WITH_SUM_AB
                 REORDER(dst_tmp, src_tmp, alpha, beta);
-                DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
+                dst[dst_off + sglid] = dst_tmp;
             }
         }
     }
