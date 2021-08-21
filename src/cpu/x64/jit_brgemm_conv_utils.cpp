@@ -334,7 +334,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
     src_tag = dst_tag;
 
     const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference
-            || jcp.wei_dt == data_type::s8);
+            || jcp.wei_dt == data_type::s8 || is_amx(jcp.isa));
     CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
     CHECK(init_tag(jcp.dst_tag, dst_md, dst_d, dst_tag, any_eligible));
     CHECK(init_tag(jcp.wei_tag, weights_md, weights_d, wei_tag, true));
@@ -1628,7 +1628,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // fast check data layout before spending time for blocking selection
     format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
     const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference
-            || jcp.wei_dt == data_type::s8);
+            || jcp.wei_dt == data_type::s8 || is_amx(jcp.isa));
     CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
 
     const auto ic_padded_block = 16 * brg_blocking_t::last_ic_block_size;
