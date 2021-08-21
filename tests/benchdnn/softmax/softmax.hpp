@@ -25,7 +25,7 @@
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "perf_report.hpp"
+#include "utils/perf_report.hpp"
 
 namespace softmax {
 
