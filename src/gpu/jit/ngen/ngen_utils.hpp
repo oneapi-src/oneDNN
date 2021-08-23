@@ -19,8 +19,6 @@
 
 #include <cstdint>
 
-#include <immintrin.h>
-
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif
