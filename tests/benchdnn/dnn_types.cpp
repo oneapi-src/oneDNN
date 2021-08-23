@@ -465,13 +465,11 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
-            std::string zero_point_str
-                    = parser::get_substr(subs, subs_pos, ':');
-            // TODO: update this check to validate whole string for digits
-            if (!std::isdigit(zero_point_str[0])) return FAIL;
-            e.sum.zero_point = std::stoi(zero_point_str);
+            auto zp_str = parser::get_substr(subs, subs_pos, ':');
+            e.sum.zero_point = std::stoi(zp_str);
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
+            if (std::to_string(e.sum.zero_point) != zp_str) return FAIL;
 
             e.sum.dt = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
             // sum dt, if specified, should be defined
