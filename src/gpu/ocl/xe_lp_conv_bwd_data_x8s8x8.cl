@@ -111,7 +111,6 @@ inline void write_local(__local uint *dst_iw_slm_copy, int oc_nchunk,
         __global DATA_T *dst_copy) {
     const int local_id = get_sub_group_local_id();
 #if OC % OC_BLOCK != 0
-#if OC % 4 != 0
     int oc_block_tail = OC % OC_BLOCK;
     int oc_bound_tail = oc_block_tail % 4;
     int max_i = (local_id * 4 < (oc_block_tail - oc_bound_tail)
@@ -125,7 +124,6 @@ inline void write_local(__local uint *dst_iw_slm_copy, int oc_nchunk,
     }
     dst_iw_slm_copy[local_id] = as_uint(tmp);
     return;
-#endif
 #endif
     block_write(dst_iw_slm_copy,
             intel_sub_group_block_read((const __global uint *)(dst_copy)));
