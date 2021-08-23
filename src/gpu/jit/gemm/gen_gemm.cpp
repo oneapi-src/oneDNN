@@ -85,7 +85,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     if (pd()->batch_dims() >= 2) {
         auto batchSize1 = uint32_t(pd()->desc()->c_desc.dims[1]);
-        uint32_t recipBatchSize1 = utils::div_up(
+        uint32_t recipBatchSize1 = (uint32_t)utils::div_up(
                 uint64_t(0x100000000) << math::ilog2q(batchSize1), batchSize1);
         arg_list.set(argn++, stride_a1);
         arg_list.set(argn++, stride_b1);
