@@ -50,6 +50,9 @@
 --batch=shapes_tails
 
 --cfg=u8s8s8
+--attr-post-ops=sum:0.5:1+add:f32:common+abs+max:u8:common
+--batch=shapes_tails
+
 --attr-post-ops=add:s8:per_oc+add:s32+add:u8:per_oc+max:f32:per_oc,sum:1:0:u8
 --batch=shapes_resnet_50
 
