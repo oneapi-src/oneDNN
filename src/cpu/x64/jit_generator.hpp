@@ -495,8 +495,18 @@ public:
     }
 
     void uni_vpbroadcastd(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
-        movss(x, op);
-        pshufd(x, x, 0x0);
+        if (is_valid_isa(avx2))
+            vpbroadcastd(x, op);
+        else if (is_valid_isa(avx)) {
+            if (op.isMEM())
+                vmovss(x, op.getAddress());
+            else
+                vmovss(x, x, op);
+            vpshufd(x, x, 0x0);
+        } else {
+            movss(x, op);
+            pshufd(x, x, 0x0);
+        }
     }
     void uni_vpbroadcastd(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
         if (is_valid_isa(avx2)) {
