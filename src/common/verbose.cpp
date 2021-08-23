@@ -408,8 +408,11 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                 case primitive_kind::sum: {
                     const auto &s = e.sum;
                     ss << delim << "sum";
-                    if (s.scale != 1.f || s.dt != data_type::undef)
+                    if (s.scale != 1.f || s.zero_point != 0
+                            || s.dt != data_type::undef)
                         ss << ":" << s.scale;
+                    if (s.zero_point != 0 || s.dt != data_type::undef)
+                        ss << ":" << s.zero_point;
                     if (s.dt != data_type::undef) ss << ":" << s.dt;
                 } break;
                 case primitive_kind::convolution: {
