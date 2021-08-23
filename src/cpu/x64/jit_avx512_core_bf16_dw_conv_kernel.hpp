@@ -117,7 +117,8 @@ private:
     inline void loop_ow(int ur_ch_blocks);
     inline void apply_filter_unrolled(int ur_ch_blocks, int ur_w, int pad_l,
             int pad_r, bool last_ch_block_flag);
-    inline void apply_postops(int ur_ch_blocks, int ur_w);
+    inline void apply_postops(
+            int ur_ch_blocks, int ur_w, bool last_ch_block_flag);
     inline void store_dst(int ur_ch_blocks, int ur_w, bool last_ch_block_flag);
 
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>

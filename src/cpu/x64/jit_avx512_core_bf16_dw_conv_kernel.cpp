@@ -201,7 +201,7 @@ static void iterate(const int ur_ch_blocks, const int ur_w, const F &f) {
 }
 
 void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
-        int ur_ch_blocks, int ur_w) {
+        int ur_ch_blocks, int ur_w, bool last_ch_block_flag) {
     if (this->jcp.with_eltwise || this->jcp.with_binary) {
 
         injector_utils::vmm_index_set_t vmm_idxs;
@@ -214,6 +214,8 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
             const auto ocb_stride
                     = dst_layout_nxc ? ch_blk : jcp.oh * jcp.ow * ch_blk;
             const auto ow_stride = dst_layout_nxc ? jcp.ngroups : ch_blk;
+            const bool mask_tail_blocked_layout
+                    = jcp.oc_without_padding % jcp.ch_block && !dst_layout_nxc;
             iterate(ur_ch_blocks, ur_w, mask_tail,
                     [&](int ch, int ow, int mask_flag) {
                         const int aux_output_l_off
@@ -243,8 +245,11 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
             sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
             shr(out_off_oprnd, std::log2(types::data_type_size(jcp.dst_dt)));
 
+            if (jcp.with_binary_per_oc_bcast && dst_layout_nxc)
+                sub(oc_off_oprnd, aux_reg_ch_blocks);
+
             Label postops_done;
-            if (mask_tail) {
+            if (mask_tail_blocked_layout) {
                 Label postops_no_tail;
                 const auto reg_tail = oc_off_oprnd;
                 mov(reg_tail, ptr[param1 + GET_OFF(load_work)]);
@@ -254,8 +259,14 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
                         vmm_idxs, rhs_arg_params_tail);
                 jmp(postops_done, T_NEAR);
                 L(postops_no_tail);
-            }
-            postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+                postops_injector_->compute_vector_range(
+                        vmm_idxs, rhs_arg_params);
+            } else if (last_ch_block_flag)
+                postops_injector_->compute_vector_range(
+                        vmm_idxs, rhs_arg_params_tail);
+            else /* if (!last_ch_block_flag) */
+                postops_injector_->compute_vector_range(
+                        vmm_idxs, rhs_arg_params);
             L(postops_done);
 
         } else {
@@ -401,12 +412,14 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
         load_src(ur_ch_blocks, ur_w, last_ch_block_flag);
         apply_filter_unrolled(
                 ur_ch_blocks, ur_w, pad_l, pad_r, last_ch_block_flag);
-        apply_postops(ur_ch_blocks, ur_w);
+        apply_postops(ur_ch_blocks, ur_w, last_ch_block_flag);
         store_dst(ur_ch_blocks, ur_w, last_ch_block_flag);
     };
 
     const bool masked_ch_block_tail = jcp.oc % jcp.ch_block != 0;
     const bool ch_loop = ur_ch_blocks > jcp.nb_ch_blocking;
+
+    mov(aux_reg_ch_blocks, reg_ch_blocks);
     if (ch_loop) {
         Label ch_loop_label, ch_tail_label, skip_ch_tail_label;
         const int nb_ch = jcp.oc / jcp.ch_block;
@@ -414,7 +427,6 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
                 = jcp.nb_ch - utils::rnd_dn(nb_ch, jcp.nb_ch_blocking);
         const int ch_step = jcp.nb_ch_blocking * jcp.ch_block;
 
-        mov(aux_reg_ch_blocks, reg_ch_blocks);
         push(reg_kernel);
         push(reg_input);
         push(reg_output);
