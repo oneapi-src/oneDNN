@@ -73,11 +73,15 @@ template <data_type_t dst_data_type>
 gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
     : jit_generator(jit_name())
     , jcp_(pd->jcp_)
+    , post_ops_(pd->attr()->post_ops_)
     , do_sum_(dst_data_type != data_type::f32 && jcp_.with_sum)
     , max_data_reg_idx_(31)
     , max_unroll_(12)
     , compute_reg_step_(1)
-    , data_reg_base_idx_(0) {
+    , data_reg_base_idx_(0)
+    , attr_(pd->attr())
+    , jit_eltwise_injectors_(0)
+{
     using namespace types;
     using namespace Xbyak;
 
@@ -85,29 +89,15 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
         // bf16 is not supported
         return;
 
-    const auto &post_ops = jcp_.post_ops;
-    if (jcp_.with_eltwise || jcp_.with_binary) {
-#define PARAM_OFF(field) offsetof(ker_args, field)
-        static constexpr bool preserve_gpr = true;
-        static constexpr bool preserve_vmm = true;
-        static constexpr size_t helper_vmm_idx = 31;
-        static constexpr size_t tail_size = 1;
-        static constexpr bool use_exact_tail_scalar_bcast = false;
-        const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
-                helper_vmm_idx, reserved_eltwise_gpr, r14, preserve_gpr,
-                preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
-                PARAM_OFF(dst_orig), memory_desc_wrapper(pd->dst_md()),
-                tail_size, kreg_rem_mask, use_exact_tail_scalar_bcast};
-        const binary_injector::static_params_t binary_static_params {
-                this->reg_param, rhs_arg_static_params};
-        static constexpr bool save_state = true;
-        const eltwise_injector::static_params_t eltwise_static_params {
-                save_state, reserved_eltwise_gpr, reserved_eltwise_maskr};
-
-        postops_injector_ = utils::make_unique<
-                injector::jit_uni_postops_injector_t<avx512_core>>(
-                this, post_ops, binary_static_params, eltwise_static_params);
-#undef PARAM_OFF
+    bool do_depthwise_ = false;
+    for (int i = 0; i < post_ops_.len(); i++) {
+        auto& post_op = post_ops_.entry_[i];
+        if (post_op.is_eltwise()) {
+            jit_eltwise_injectors_.push_back(new jit_uni_eltwise_injector_f32<avx512_core>(this,
+                                                                                           post_op.eltwise, true, reserved_eltwise_gpr, reserved_eltwise_maskr));
+        } else if (post_op.is_depthwise()) {
+            do_depthwise_ = true;
+        }
     }
 
     if (do_sum_) {
@@ -116,6 +106,9 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
     }
 
     if (jcp_.with_bias) vreg_bias = Zmm(data_reg_base_idx_++);
+
+    if (do_depthwise_)
+        vreg_dw = Zmm(data_reg_base_idx_++);
 
     vlen_ = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
 
@@ -131,25 +124,6 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
 
     max_unroll_
             = (max_data_reg_idx_ - data_reg_base_idx_ + 1) / compute_reg_step_;
-}
-
-template <data_type_t dst_data_type>
-void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::apply_postops(
-        const bool apply_mask, const size_t out_offset, const int vmm_idx) {
-#define PARAM_OFF(x) offsetof(ker_args, x)
-    if (jcp_.with_eltwise || jcp_.with_binary) {
-        if (jcp_.with_binary) {
-            binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-            rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_dst);
-            rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
-                    vmm_idx, out_offset * sizeof(dst_data_t));
-            if (apply_mask) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
-
-            postops_injector_->compute_vector(vmm_idx, rhs_arg_params);
-        } else
-            postops_injector_->compute_vector(vmm_idx);
-    }
-#undef PARAM_OFF
 }
 
 template <data_type_t dst_data_type>
@@ -171,6 +145,8 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
     mov(reg_acc_str, ptr[reg_param + PARAM_OFF(acc_stride_in_bytes)]);
     mov(reg_len, ptr[reg_param + PARAM_OFF(spatial_length)]);
     mov(reg_oc_iter, ptr[reg_param + PARAM_OFF(oc_work)]);
+
+    mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
 
     if (jcp_.with_binary) {
         // zero initialize binary post_ops offset accumulator (store on stack)
@@ -218,7 +194,38 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
             vfmadd231ps(vreg_dst(idx), vreg_prev_dst(idx), vreg_sum_scale);
         }
 
-        apply_postops(apply_mask, offset, vreg_dst_idx(idx));
+        int eltwise_inj_idx = 0;
+        const auto& p = attr_->post_ops_;
+        for (int i = 0; i < p.len(); i++) {
+            auto& post_op = p.entry_[i];
+            if (post_op.is_eltwise()) {
+                jit_eltwise_injectors_[eltwise_inj_idx]->compute_vector(vreg_dst_idx(idx));
+                eltwise_inj_idx++;
+            } else if (post_op.is_depthwise()) {
+                mov(reg_dw, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
+                lea(reg_dw, ptr[reg_dw + reg_oc_offset]);
+
+                switch (post_op.depthwise.alg) {
+                    case alg_kind::depthwise_scale_shift: {
+                        vbroadcastss(vreg_dw, ptr[reg_dw]);
+                        vmulps(vreg_dst(idx), vreg_dst(idx), vreg_dw);
+                        mov(reg_dw, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
+                        lea(reg_dw, ptr[reg_dw + reg_oc_offset]);
+                        vbroadcastss(vreg_dw, ptr[reg_dw]);
+                        vaddps(vreg_dst(idx), vreg_dst(idx), vreg_dw);
+                        break;
+                    }
+                    case alg_kind::depthwise_prelu: {
+                        vpxord(vreg_dw, vreg_dw, vreg_dw);
+                        vcmpps(kmask, vreg_dst(idx), vreg_dw, _cmp_lt_os);
+                        vbroadcastss(vreg_dw, ptr[reg_dw]);
+                        vmulps(vreg_dst(idx) | kmask, vreg_dst(idx), vreg_dw);
+                        break;
+                    }
+                    default: assert(!"unsupported depthwise algorithm");
+                }
+            }
+        }
 
         if (dst_data_type == data_type::bf16) {
             // TODO: implement store by zmm registers for bf16
@@ -294,6 +301,8 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
     if (jcp_.with_binary)
         inc(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off));
 
+    add(reg_oc_offset, sizeof(float));
+
     dec(reg_oc_iter);
     jnz(oc_loop, T_NEAR); // oc_loop end
 
@@ -303,14 +312,15 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
 
     postamble();
 
-    if (jcp_.with_eltwise) postops_injector_->prepare_table();
+    for (auto& inj : jit_eltwise_injectors_)
+        inj->prepare_table();
 }
 
 // operator () specialized for nspc format
 template <data_type_t dst_data_type>
 void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
         dst_data_t *dst, const acc_data_t *acc, const acc_data_t *bias,
-        float sum_scale, size_t oc_work,
+        float sum_scale, size_t oc_work, size_t g_offset,
         const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
         const size_t g_oc_offset) {
 
@@ -323,6 +333,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
     args.acc_stride_in_bytes = sizeof(acc_data_t);
     args.spatial_length = 1;
     args.oc_work = oc_work;
+    args.oc_offset = g_offset * sizeof(float);
 
     args.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
     args.dst_orig = dst_orig;
@@ -334,7 +345,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
 template <data_type_t dst_data_type>
 void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
         dst_data_t *dst, const acc_data_t *acc, const acc_data_t *bias,
-        float sum_scale, size_t dst_stride_in_elements,
+        size_t g_offset, size_t start_oc, float sum_scale, size_t dst_stride_in_elements,
         size_t acc_stride_in_elements, size_t sp_len, size_t oc_len,
         const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
         const size_t g_oc_offset) {
@@ -349,6 +360,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
     args.acc_stride_in_bytes = acc_stride_in_elements * sizeof(acc_data_t);
     args.spatial_length = sp_len;
     args.oc_work = oc_len;
+    args.oc_offset = (start_oc + g_offset) * sizeof(float);
 
     args.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
     args.dst_orig = dst_orig;
@@ -511,7 +523,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_thr_nspc(
 
                             (*pp_ker_)(dst_arr,
                                     acc_needed ? acc_arr : (float *)dst_arr,
-                                    bia_arr, sum_scale, jcp.oc,
+                                    bia_arr, sum_scale, jcp.oc, g * jcp.oc,
                                     post_ops_binary_rhs_arg_vec, dst_base,
                                     g * jcp.oc);
                         });
@@ -621,8 +633,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
         if (this->pd()->is_postprocess_required() && ic + ic_block >= jcp.ic) {
             size_t acc_str = LDC;
             size_t dst_str = M;
-            float *bias_ptr = bias ? bias + groups * jcp.oc + oc : nullptr;
-            (*pp_ker_)(dst_local, acc, bias_ptr, sum_scale, dst_str, acc_str, m,
+            (*pp_ker_)(dst_local, acc, bias, groups * jcp.oc, oc, sum_scale, dst_str, acc_str, m,
                     oc_block, post_ops_binary_rhs_arg_vec.data(), dst,
                     groups * jcp.oc + oc);
         }

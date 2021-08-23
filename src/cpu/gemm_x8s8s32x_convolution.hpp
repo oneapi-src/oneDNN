@@ -71,17 +71,18 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                                     | primitive_attr_t::skip_mask_t::output_compensations
                                     | primitive_attr_t::skip_mask_t::sum_dt,
                             dst_type)
-                    && attr()->post_ops_.check_sum_consistent_dt(dst_type)
-                    && output_scales_mask_ok() && zero_points_valid(attr());
+//                    && attr()->post_ops_.check_sum_consistent_dt(dst_type)
+                    && output_scales_mask_ok() && zero_points_valid(attr())
+                    && post_ops_ok();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             CHECK(jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md_, weights_md_, dst_md_, bias_md_, attr_,
                     dnnl_get_max_threads()));
-            if (!gemm_x8s8s32x_convolution_utils::post_ops_ok(
-                        attr()->post_ops_, &dst_md_))
-                return status::unimplemented;
+//            if (!gemm_x8s8s32x_convolution_utils::post_ops_ok(
+//                        attr()->post_ops_, &dst_md_))
+//                return status::unimplemented;
             return status::success;
         }
 
@@ -91,6 +92,22 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
         bool output_scales_mask_ok() const {
             const auto &mask = attr()->output_scales_.mask_;
             return mask == 0 || mask == 1 << 1;
+        }
+
+        bool post_ops_ok() const {
+            using namespace dnnl::impl::primitive_kind;
+            auto const &po = attr()->post_ops_;
+
+            auto all_post_ops_supported = [&]() {
+                bool ok = true;
+
+                for (int i = 0; i < po.len(); i++) {
+                    ok = ok && utils::one_of(po.entry_[i].kind, sum, eltwise, depthwise, quantization);
+                }
+                return ok;
+            };
+
+            return all_post_ops_supported();
         }
     };
 

@@ -152,65 +152,18 @@ status_t gemm_convolution_fwd_t::execute_forward_thr_nspc(const exec_ctx_t &ctx,
                     &LDC);
             if (st != status::success) return st;
 
-            if (jcp.with_bias || jcp.with_eltwise || jcp.with_binary) {
-                parallel(0, [&](int ithr, int nthr) {
-                    dim_t start, end;
-                    balance211(N * jcp.oc, nthr, ithr, start, end);
+            if (pp_kernel_) {
+                const size_t first_oc = g * jcp.oc;
+                const size_t last_oc = jcp.oc;
+                const size_t first_os = 0;
+                const size_t last_os = N;
 
-                    const size_t first_oc = start % jcp.oc;
-                    const size_t last_oc = (end - 1) % jcp.oc;
-                    const size_t first_os = start / jcp.oc;
-                    const size_t last_os = (end - 1) / jcp.oc;
+                const data_t* bias = bia_base ? bia_base + g * jcp.oc: nullptr;
 
-                    for (size_t os = first_os; os <= last_os; ++os) {
-                        const size_t start_oc = (os == first_os) ? first_oc : 0;
-                        const size_t end_oc
-                                = (os == last_os) ? last_oc : jcp.oc - 1;
-
-                        const data_t *__restrict bia_arr
-                                = bia_base ? bia_base + g * jcp.oc : nullptr;
-                        data_t *__restrict dst_arr = dst + os * dst_os_stride;
-
-                        if (jcp.with_bias) {
-                            PRAGMA_OMP_SIMD()
-                            for (size_t oc = start_oc; oc <= end_oc; oc++) {
-                                dst_arr[oc] += bia_arr[oc];
-                            }
-                        }
-
-                        if (jcp.with_eltwise || jcp.with_binary) {
-                            bool fast_relu_done = false;
-                            if (jcp.with_eltwise && jcp.post_ops.len() == 1) {
-                                // fast branch for ReLU case
-                                const auto &eltwise
-                                        = jcp.post_ops.entry_.back().eltwise;
-
-                                if (eltwise.alg == alg_kind::eltwise_relu) {
-                                    const auto alpha = eltwise.alpha;
-                                    const auto scale = eltwise.scale;
-                                    PRAGMA_OMP_SIMD()
-                                    for (size_t oc = start_oc; oc <= end_oc;
-                                            oc++) {
-                                        if (dst_arr[oc] < 0)
-                                            dst_arr[oc] *= alpha;
-                                        dst_arr[oc] *= scale;
-                                    }
-                                    fast_relu_done = true;
-                                }
-                            }
-                            if (!fast_relu_done) {
-                                ref_post_ops_t::args_t args;
-                                args.ctx = &ctx;
-                                args.dst_md = pd()->dst_md();
-
-                                for (size_t oc = start_oc; oc <= end_oc; oc++) {
-                                    args.l_offset = (g * jcp.oc + oc) * jcp.os;
-                                    post_ops_->execute(dst_arr[oc], args);
-                                }
-                            }
-                        }
-                    }
-                });
+                for (size_t os = first_os; os < last_os; ++os) {
+                    data_t* dst_local = dst + os * dst_os_stride;
+                    (*pp_kernel_)(dst_local, bias, 1, first_oc, last_oc, 1);
+                }
             }
         }
         nd_iterator_step(n, MB, g, jcp.ngroups, ohb, nb_oh, owb, nb_ow);
@@ -305,61 +258,8 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
                     &LDA, _weights, &LDB, &beta, _dst, &M);
             if (st != status::success) return st;
 
-            if (curr.ic == jcp.ic - step.ic) {
-                // TODO: for "outer threading" we have parallel section within
-                // outermost "parallel". It is not good. Consider to use
-                // "parallel" here with number of threads passed as parameter
-                const int oc_start = curr.g * jcp.oc + curr.oc;
-                if (jcp.with_eltwise || jcp.with_binary) {
-                    bool fast_relu_done = false;
-                    if (jcp.with_eltwise && jcp.post_ops.len() == 1) {
-                        // fast branch for ReLU case
-                        const auto &eltwise
-                                = jcp.post_ops.entry_.back().eltwise;
-                        if (eltwise.alg == alg_kind::eltwise_relu) {
-                            parallel_nd(step.oc, [&](dim_t oc) {
-                                data_t b = jcp.with_bias ? bias[oc_start + oc]
-                                                         : 0;
-                                data_t *d_ = _dst + oc * M;
-                                PRAGMA_OMP_SIMD()
-                                for (int oS = 0; oS < m; ++oS) {
-                                    d_[oS] += b;
-                                    if (d_[oS] < 0) d_[oS] *= eltwise.alpha;
-                                    d_[oS] *= eltwise.scale;
-                                }
-                            });
-                            fast_relu_done = true;
-                        }
-                    }
-                    if (!fast_relu_done) {
-                        parallel_nd(step.oc, [&](dim_t oc) {
-                            data_t b = jcp.with_bias ? bias[oc_start + oc] : 0;
-                            data_t *d_ = _dst + oc * M;
-
-                            ref_post_ops_t::args_t args;
-                            args.ctx = &ctx;
-                            args.dst_md = pd()->dst_md();
-                            args.l_offset = d_ - dst;
-
-                            PRAGMA_OMP_SIMD()
-                            for (int oS = 0; oS < m; ++oS) {
-                                d_[oS] += b;
-                                post_ops_->execute(d_[oS], args);
-                                args.l_offset++;
-                            }
-                        });
-                    }
-
-                } else if (jcp.with_bias) {
-                    parallel_nd(step.oc, [&](dim_t oc) {
-                        data_t b = bias[oc_start + oc];
-                        data_t *d_ = _dst + oc * M;
-                        PRAGMA_OMP_SIMD()
-                        for (int oS = 0; oS < m; ++oS) {
-                            d_[oS] += b;
-                        }
-                    });
-                }
+            if (pp_kernel_ && curr.ic == jcp.ic - step.ic) {
+                (*pp_kernel_)(_dst, bias, m, curr.g * jcp.oc + curr.oc, step.oc, M);
             }
 
             return status::success;

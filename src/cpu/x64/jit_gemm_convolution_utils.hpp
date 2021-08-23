@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,24 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
-#define CPU_X64_JIT_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
+#ifndef CPU_X64_JIT_GEMM_CONVOLUTION_UTILS_HPP
+#define CPU_X64_JIT_GEMM_CONVOLUTION_UTILS_HPP
 
-#include "cpu/gemm_x8s8s32x_convolution_utils.hpp"
-#include "cpu/x64/injectors/injector_utils.hpp"
+#include "cpu/gemm_convolution_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
-namespace gemm_x8s8s32x_convolution_utils {
+namespace gemm_convolution_utils {
 
-cpu::gemm_x8s8s32x_convolution_utils::pp_ker_t *jit_pp_ker_create(
+cpu::gemm_convolution_utils::pp_kernel_t *jit_pp_kernel_create(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp);
-
-bool mayiuse_jit_pp_kernel(data_type_t dst_dt) noexcept;
-
-} // namespace gemm_x8s8s32x_convolution_utils
+} // namespace gemm_convolution_utils
 } // namespace x64
 } // namespace cpu
 } // namespace impl

@@ -40,14 +40,28 @@ template <typename dst_data_t>
 struct ref_pp_ker_t : pp_ker_t {
     ref_pp_ker_t(const convolution_pd_t *pd, const conv_gemm_conf_t &jcp)
         : pp_ker_t(pd, jcp) {
-        if (jcp.with_eltwise || jcp.with_binary) {
-            ref_post_ops_.reset(new ref_post_ops_t(jcp.post_ops));
+        for (int i = 0; i < post_ops_.len(); i++) {
+            auto &post_op = post_ops_.entry_[i];
+            if (post_op.is_eltwise()) {
+                ref_eltwise_injectors_.push_back(new ref_eltwise_scalar_fwd_t(post_op.eltwise));
+            } else if (post_op.is_depthwise()) {
+                ref_depthwise_injectors_.push_back(new ref_depthwise_scalar_fwd_t(
+                        post_op.depthwise.alg));
+            }
         }
+    }
+    ~ref_pp_ker_t() {
+        for (auto impl : ref_eltwise_injectors_)
+            delete impl;
+        ref_eltwise_injectors_.clear();
+        for (auto impl : ref_depthwise_injectors_)
+            delete impl;
+        ref_depthwise_injectors_.clear();
     }
 
     using acc_data_t = pp_ker_t::acc_data_t;
 
-    void operator()(void *dst, const acc_data_t *acc, const char *bias,
+    void operator()(void *dst, acc_data_t *acc, const char *bias,
             const float *scales, float sum_scale, float signed_scale, int g,
             size_t start, size_t end, const zero_point_call_params_t &zp,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
@@ -55,12 +69,12 @@ struct ref_pp_ker_t : pp_ker_t {
             const single_gemm_conv_chunk_desc_t &chunk_desc) const override;
 
 private:
-    std::unique_ptr<ref_post_ops_t> ref_post_ops_;
+    nstl::vector<ref_eltwise_scalar_fwd_t*> ref_eltwise_injectors_;
+    nstl::vector<ref_depthwise_scalar_fwd_t*> ref_depthwise_injectors_;
 };
 
 template <typename dst_data_t>
-void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
-        const char *bias, const float *scales, float sum_scale,
+void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, acc_data_t *acc, const char *bias, const float *scales, float sum_scale,
         float signed_scale, int g, size_t start, size_t end,
         const zero_point_call_params_t &zp,
         const void * /* post_ops_binary_rhs_arg_vec */,
@@ -70,57 +84,150 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
 
     if (end <= start) return;
 
-    assert(data_traits<dst_data_t>::data_type == jcp_.dst_data_type);
+    assert(data_traits<dst_data_t>::data_type == dst_data_type_);
+    dst_data_t *dst = (dst_data_t *)void_dst;
 
-    const lldiv_t dv_start = std::div((long long)start, (long long)jcp_.oc);
-    const lldiv_t dv_end = std::div((long long)(end - 1), (long long)jcp_.oc);
-    const size_t first_oc = dv_start.rem;
-    const size_t last_oc = dv_end.rem;
-    const size_t first_os = dv_start.quot;
-    const size_t last_os = dv_end.quot;
-    const int32_t zp_dst_val = jcp_.zp.dst_exists ? *(zp.dst) : 0;
+    const size_t first_oc = start % OC_;
+    const size_t last_oc = (end - 1) % OC_;
+    const size_t first_os = start / OC_;
+    const size_t last_os = (end - 1) / OC_;
+    if (post_ops_.len() == 0) {
+        for (size_t os = first_os; os <= last_os; os++) {
+            const size_t start_oc = (os == first_os) ? first_oc : 0;
+            const size_t end_oc = (os == last_os) ? last_oc : OC_ - 1;
+            for (size_t oc = start_oc; oc <= end_oc; oc++) {
+                const size_t acc_off = os * jcp_.oc + oc;
+                const size_t dst_off = os * dst_os_stride_ + oc;
 
-    ref_post_ops_t::args_t args;
-    args.ctx = &ctx;
-    args.dst_md = &dst_md;
+                float d = (float) (acc[acc_off]);
+                if (jcp_.signed_input) d *= signed_scale;
 
-    for (size_t os = first_os; os <= last_os; os++) {
-        const size_t start_oc = (os == first_os) ? first_oc : 0;
-        const size_t end_oc = (os == last_os) ? last_oc : jcp_.oc - 1;
-        for (size_t oc = start_oc; oc <= end_oc; oc++) {
-            const size_t acc_off = os * jcp_.oc + oc;
-            const size_t dst_off = os * jcp_.dst_os_stride + oc;
+                if (do_bias_)
+                    d += math::get_bias(bias, g * jcp_.oc + oc, bias_data_type_);
 
-            int32_t data_s32 = acc[acc_off];
+                d *= scales[(g * jcp_.oc + oc) * scale_idx_mult_];
+                dst[dst_off] = qz_a1b0<float, dst_data_t>()(d);
+            }
+        }
+    } else {
+        float* acc_fp = reinterpret_cast<float*>(acc);
 
-            if (jcp_.zp.src_exists) {
-                const auto oc_offset = g * jcp_.oc + oc;
-                data_s32 += zp.src_comp[oc_offset];
+        auto load = [&](int idx, size_t oc, size_t os, size_t acc_off, size_t dst_off) {
+            float d;
+            if (idx == 0) {
+                d = (float) (acc[acc_off]);
+
+                if (jcp_.signed_input)
+                    d *= signed_scale;
+
+                if (do_bias_)
+                    d += math::get_bias(bias, g * jcp_.oc + oc,
+                                        bias_data_type_);
+
+                d *= scales[(g * jcp_.oc + oc) * scale_idx_mult_];
+            } else {
+                d = acc_fp[acc_off];
             }
 
-            float data = static_cast<float>(data_s32);
+            return d;
+        };
 
-            if (jcp_.signed_input) data *= signed_scale;
+        auto store = [&](int idx, float d, size_t acc_off, size_t dst_off) {
+            if (idx == post_ops_.len() - 1)
+                dst[dst_off] = qz_a1b0<float, dst_data_t>()(d);
+            else
+                acc_fp[acc_off] = d;
+        };
 
-            if (jcp_.with_bias) {
-                const float b = io::load_float_value(
-                        jcp_.bias_data_type, bias, g * jcp_.oc + oc);
-                data += b;
+        int eltwise_inj_idx = 0;
+        int depthwise_inj_idx = 0;
+        for (int i = 0; i < post_ops_.len(); i++) {
+            auto &post_op = post_ops_.entry_[i];
+            if (post_op.is_eltwise()) {
+                for (size_t os = first_os; os <= last_os; os++) {
+                    const size_t start_oc = (os == first_os) ? first_oc : 0;
+                    const size_t end_oc = (os == last_os) ? last_oc : OC_ - 1;
+                    for (size_t oc = start_oc; oc <= end_oc; oc++) {
+                        const size_t acc_off = os * jcp_.oc + oc;
+                        const size_t dst_off = os * this->dst_os_stride_ + oc;
+
+                        float d = load(i, oc, os, acc_off, dst_off);
+
+                        d = ref_eltwise_injectors_[eltwise_inj_idx]->compute_scalar(d);
+
+                        store(i, d, acc_off, dst_off);
+                    }
+                }
+                eltwise_inj_idx++;
+            } else if (post_op.is_depthwise()) {
+                for (size_t os = first_os; os <= last_os; os++) {
+                    const size_t start_oc = (os == first_os) ? first_oc : 0;
+                    const size_t end_oc = (os == last_os) ? last_oc : OC_ - 1;
+                    for (size_t oc = start_oc; oc <= end_oc; oc++) {
+                        const size_t acc_off = os * jcp_.oc + oc;
+                        const size_t dst_off = os * this->dst_os_stride_ + oc;
+
+                        auto depthwise_weights = post_op.depthwise.weights_data;
+                        auto depthwise_bias = post_op.depthwise.biases_data;
+
+                        float d = load(i, oc, os, acc_off, dst_off);
+
+                        d = ref_depthwise_injectors_[depthwise_inj_idx]->compute_scalar(d, depthwise_weights + g * jcp_.oc + oc,
+                                                                                        depthwise_bias + g * jcp_.oc + oc);
+
+                        store(i, d, acc_off, dst_off);
+                    }
+                }
+                depthwise_inj_idx++;
+            } else if (post_op.is_quantization()) {
+                for (size_t os = first_os; os <= last_os; os++) {
+                    const size_t start_oc = (os == first_os) ? first_oc : 0;
+                    const size_t end_oc = (os == last_os) ? last_oc : OC_ - 1;
+                    for (size_t oc = start_oc; oc <= end_oc; oc++) {
+                        const size_t acc_off = os * jcp_.oc + oc;
+                        const size_t dst_off = os * this->dst_os_stride_ + oc;
+
+                        auto quant = post_op.quantization;
+                        auto pcl = quant.crop_low_data->shifts_;
+                        auto pch = quant.crop_high_data->shifts_;
+                        auto pisc = quant.input_scale_data->scales_;
+                        auto pish = quant.input_shift_data->shifts_;
+                        auto posc = quant.output_scale_data->scales_;
+                        auto posh = quant.output_shift_data->shifts_;
+
+                        float d = load(i, oc, os, acc_off, dst_off);
+
+                        int cl_idx = quant.crop_low_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
+                        int ch_idx = quant.crop_high_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
+                        int isc_idx = quant.input_scale_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
+                        int ish_idx = quant.input_shift_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
+                        int osc_idx = quant.output_scale_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
+                        int osh_idx = quant.output_shift_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
+
+                        d = nstl::min(pch[ch_idx], nstl::max(pcl[cl_idx], d));
+                        d = d * pisc[isc_idx] + pish[ish_idx];
+                        d = roundf(d);
+                        d = d * posc[osc_idx] + posh[osh_idx];
+
+                        store(i, d, acc_off, dst_off);
+                    }
+                }
+            } else if (post_op.is_sum()) {
+                for (size_t os = first_os; os <= last_os; os++) {
+                    const size_t start_oc = (os == first_os) ? first_oc : 0;
+                    const size_t end_oc = (os == last_os) ? last_oc : OC_ - 1;
+                    for (size_t oc = start_oc; oc <= end_oc; oc++) {
+                        const size_t acc_off = os * jcp_.oc + oc;
+                        const size_t dst_off = os * this->dst_os_stride_ + oc;
+
+                        float d = load(i, oc, os, acc_off, dst_off);
+
+                        d += post_op.sum.scale * math::get_sum((char *) dst, dst_off, post_op.sum.dt);
+
+                        store(i, d, acc_off, dst_off);
+                    }
+                }
             }
-
-            data *= scales[(g * jcp_.oc + oc) * jcp_.scale_idx_mult];
-            if (jcp_.with_sum)
-                data += sum_scale
-                        * io::load_float_value(
-                                jcp_.sum_data_type, void_dst, dst_off);
-            if (jcp_.with_eltwise || jcp_.with_binary) {
-                args.l_offset = (g * jcp_.oc + oc) * jcp_.os;
-                ref_post_ops_->execute(data, args);
-            }
-
-            if (jcp_.zp.dst_exists) data += zp_dst_val;
-
-            io::store_float_value(jcp_.dst_data_type, data, void_dst, dst_off);
         }
     }
 }
@@ -128,7 +235,26 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
 // Interface section
 
 pp_ker_t::pp_ker_t(const convolution_pd_t *pd, const conv_gemm_conf_t &jcp)
-    : jcp_(jcp) {}
+    : jcp_(jcp)
+    , post_ops_(pd->attr()->post_ops_)
+    , OC_(jcp_.oc)
+{
+    const auto dst_md = memory_desc_wrapper(pd->dst_md());
+
+    dst_os_stride_ = dst_md.blocking_desc().strides[pd->ndims() - 1];
+    dst_data_type_ = dst_md.data_type();
+
+    do_scale_ = !pd->attr()->output_scales_.has_default_values();
+    if (do_scale_) {
+        scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
+    }
+
+    do_bias_ = pd->with_bias();
+    if (do_bias_) {
+        bias_data_type_ = pd->desc()->bias_desc.data_type;
+        assert(bias_data_type_ != data_type::undef);
+    }
+}
 
 pp_ker_t *pp_ker_t::create(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp) {
@@ -148,21 +274,6 @@ pp_ker_t *pp_ker_t::create(
     return nullptr;
 }
 
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
-#if DNNL_X64
-    return x64::gemm_x8s8s32x_convolution_utils::post_ops_ok(post_ops, dst_d);
-#endif
-    return std::all_of(post_ops.entry_.cbegin(), post_ops.entry_.cend(),
-            [](const dnnl_post_ops::entry_t &post_op) {
-                return post_op.is_eltwise() || post_op.is_sum()
-                        || post_op.is_binary();
-            });
-}
-
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d) {
-    const auto dst_md = memory_desc_wrapper(dst_d);
-    return post_ops_ok(post_ops, &dst_md);
-}
 
 bool mayiuse_jit_pp_kernel(data_type_t dst_dt) noexcept {
 #if DNNL_X64

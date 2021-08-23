@@ -52,7 +52,6 @@ struct gemm_convolution_fwd_t : public primitive_t {
                             primitive_attr_t::skip_mask_t::post_ops, f32)
                     && post_ops_ok();
             if (!ok) return status::unimplemented;
-
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md_, weights_md_, dst_md_, bias_md_, attr_,
@@ -63,21 +62,24 @@ struct gemm_convolution_fwd_t : public primitive_t {
 
     protected:
         bool post_ops_ok() const {
+            using namespace dnnl::impl::primitive_kind;
             auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
-            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
-            auto is_binary
-                    = [&](int idx) { return po.entry_[idx].is_binary(); };
 
-            for (int idx = 0; idx < po.len(); idx++) {
-                bool ok = utils::one_of(true, is_sum(idx), is_binary(idx),
-                                  is_eltwise(idx))
-                        && IMPLICATION(is_sum(idx), idx == 0);
-                if (!ok) return false;
-            }
+            auto all_post_ops_supported = [&]() {
+                bool ok = true;
 
-            return true;
+                for (int i = 0; i < po.len(); i++) {
+                    ok = ok && utils::one_of(po.entry_[i].kind, sum, eltwise, depthwise, quantization);
+                }
+                return ok;
+            };
+            auto contain = [&](dnnl::impl::primitive_kind_t kind) { return po.find(kind) != -1; };
+            auto position = [&](dnnl::impl::primitive_kind_t kind) { return po.find(kind); };
+            auto count = [&](dnnl::impl::primitive_kind_t kind) { return po.count(kind); };
+
+            return all_post_ops_supported() &&
+                   count(primitive_kind::sum) <= 1 &&
+                   IMPLICATION(contain(primitive_kind::sum), position(primitive_kind::sum) == 0);
         }
     };
 
@@ -85,13 +87,18 @@ struct gemm_convolution_fwd_t : public primitive_t {
         : primitive_t(apd), post_ops_(nullptr) {}
 
     status_t init(engine_t *engine) override {
+        const auto &post_ops = pd()->attr()->post_ops_;
         const data_t one = 1.0, zero = 0.0;
         const auto &jcp = pd()->jcp_;
         beta_ = jcp.with_sum ? one : zero;
 
-        if (jcp.with_eltwise || jcp.with_binary)
-            CHECK(safe_ptr_assign(post_ops_, new ref_post_ops_t(jcp.post_ops)));
-        return status::success;
+        bool has_bias = pd()->with_bias();
+        bool has_post_ops = post_ops.len() > 0;
+        bool has_scale = !pd()->attr()->output_scales_.has_default_values();
+        postops_in_ip_ = has_bias || has_post_ops || has_scale;
+
+        CHECK(safe_ptr_assign(pp_kernel_, pp_kernel_t::create(pd(), pd()->jcp_)));
+        return (pp_kernel_) ? pp_kernel_->create_kernel() : status::success;
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -110,6 +117,9 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
+    using pp_kernel_t = gemm_convolution_utils::pp_kernel_t;
+    std::unique_ptr<pp_kernel_t> pp_kernel_;
+    bool postops_in_ip_;
     data_t beta_;
 
     std::unique_ptr<ref_post_ops_t> post_ops_;
