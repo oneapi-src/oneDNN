@@ -403,7 +403,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         kernel_ctx.define_int("OC", pd()->OC() / pd()->G());
         kernel_ctx.define_int("NDIMS", pd()->desc()->src_desc.ndims);
 
-        gws[0] = pd()->OC() * pd()->G();
+        gws[0] = pd()->OC();
         gws[1] = 1;
         gws[2] = 1;
 
