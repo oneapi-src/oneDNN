@@ -34,7 +34,7 @@ struct pp_ker_t {
 
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
-    virtual void operator()(void *dst, const acc_data_t *acc, const char *bias,
+    virtual void operator()(void *dst, acc_data_t *acc, const char *bias,
             const float *scales, float dst_scale, float sum_scale,
             float signed_scale, int g, size_t start, size_t end,
             const zero_point_call_params_t &zp,
@@ -42,17 +42,26 @@ struct pp_ker_t {
             const exec_ctx_t &ctx, const memory_desc_t &dst_md,
             const single_gemm_conv_chunk_desc_t &chunk_desc) const = 0;
 
+    size_t dst_os_stride_;
+
     virtual status_t create_kernel() { return status::success; }
 
 protected:
     pp_ker_t(const convolution_pd_t *pd, const conv_gemm_conf_t &jcp);
 
     const conv_gemm_conf_t &jcp_;
-};
+    const post_ops_t &post_ops_;
+    size_t OC_;
 
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d);
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d);
-bool mayiuse_jit_pp_kernel(data_type_t dst_dt) noexcept;
+    bool mayiuse_jit_pp_kernel(data_type_t dst_dt) noexcept;
+
+    bool do_bias_ = false;
+    bool do_scale_ = false;
+    size_t scale_idx_mult_ = 0;
+
+    data_type_t bias_data_type_ = data_type::undef;
+    data_type_t dst_data_type_ = data_type::undef;
+};
 
 } // namespace gemm_x8s8s32x_convolution_utils
 } // namespace cpu
