@@ -100,7 +100,7 @@ conv_nhwc_fwd_dw_ow_block_x8s8x(const __global uchar *src,
             ushort16 AA = 0;
 
 #if OW % (SW * OW_BLOCK) + KW - 1 \
-        > SW - 1 + PW //possible out of bounds read  if below check excluded
+        >= SW - 1 + PW //possible out of bounds read  if below check excluded
             /* get main block */
             if (iw + SW * (OW_BLOCK) + KW - 1 > IW) {
                 if (iw >= 0) {
@@ -353,7 +353,7 @@ conv_nhwc_fwd_dw_ow_block_x8s8x(const __global uchar *src,
 #endif
 
 #endif
-#if OW % (SW * OW_BLOCK) + KW - 1 > SW - 1 + PW
+#if OW % (SW * OW_BLOCK) + KW - 1 >= SW - 1 + PW
             }
 #endif
 #if OW > OWX

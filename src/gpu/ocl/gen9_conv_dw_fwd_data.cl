@@ -93,6 +93,9 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 #if KH != 1 || KW != 1 || KD != 1
     for (int kd = 0; kd < KD; kd++)
         for (int kh = 0; kh < KH; kh++) {
+            if (id + kd * (1 + DD) < 0 || id + kd * (1 + DD) >= ID) continue;
+            if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH) continue;
+
             const __global DATA_T *src1 = src
                     + (kd * (1 + DD) * IH + kh * (1 + DH)) * IW * MB_BLOCK
                             * IC_BLOCK;
@@ -106,12 +109,6 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
                 }
             }
             for (int kw = 0; kw < KW; kw++) {
-
-                if (id + kd * (1 + DD) < 0 || id + kd * (1 + DD) >= ID)
-                    continue;
-                if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH)
-                    continue;
-
                 const __global DATA_T *wei1
                         = wei + (kd * KH * KW + kh * KW + kw) * OC_BLOCK;
 #else
