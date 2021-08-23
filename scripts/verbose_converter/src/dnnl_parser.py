@@ -255,7 +255,7 @@ class LogParser:
                     idx = t.index(value)
                     if idx != -1:
                         cvt = convert.get(key)
-                        if cvt == None:
+                        if cvt is None:
                             cvt = convert_pass
                         field = log_entry[idx]
                         try:
@@ -277,16 +277,16 @@ class LogParser:
             "auxiliary,problem_desc"
 
         i = len(self.__data)
-        for l in self.__input:
-            self.__raw_data.append(l.rstrip())
-            l_raw = l.split(",")
+        for line in self.__input:
+            self.__raw_data.append(line.rstrip())
+            l_raw = line.split(",")
             marker = l_raw[0]
             if marker == "dnnl_verbose":
                 event = l_raw[1]
                 if event == "info":
                     opt = l_raw[2]
                     if opt == "prim_template":
-                        verbose_template = "dnnl_verbose," + l.split(':')[1]
+                        verbose_template = "dnnl_verbose," + line.split(':')[1]
                 if event == "exec":
                     l_converted = convert_primitive(l_raw, verbose_template)
                     if l_converted:
