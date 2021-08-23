@@ -293,11 +293,15 @@ class LogParser:
                         try:
                             entry[key] = cvt(field)
                         except:
-                            self.__writer.print(f"Parser: parsing entry error: {field}: {value}", 'WARN')
+                            self.__writer.print(
+                                f"Parser: parsing entry error: {field}: {value}",
+                                'WARN')
                     else:
-                        self.__writer.print(f"Parser: Uunknown entry: {value}", 'WARN')
+                        self.__writer.print(f"Parser: Unknown entry: {value}",
+                                            'WARN')
                 except:
-                    self.__writer.print(f"Parser: skipping empty entry: {key}", 'WARN')
+                    self.__writer.print(f"Parser: skipping empty entry: {key}",
+                                        'WARN')
             return entry
 
         verbose_template = "dnnl_verbose,operation,engine,primitive," + \

@@ -94,7 +94,7 @@ def convert_alg(entry):
         if pk == 'convolution':
             str = ''
             alg = alg_remove_primitive(alg)
-            algs = {'winograd' : 'WINO', 'direct' : 'direct'}
+            algs = {'winograd': 'WINO', 'direct': 'direct'}
             alg = algs.get(alg)
             if alg != None:
                 str = f"--alg={alg}"
@@ -356,13 +356,14 @@ def convert_tags(mds, prim_kind):
         return convert(mds)
     return ''
 
+
 def convert_flags(mds, prim_kind):
     def convert_flags_reorder(mds):
         def convert_flag(prefix, md):
             flag = ''
             flag_fields = md.get('flags')
             if flag_fields != None:
-                cvt = { 's8_comp_mask' : 's8s8_comp', 'zp_comp_mask' : 'zp_comp' }
+                cvt = {'s8_comp_mask': 's8s8_comp', 'zp_comp_mask': 'zp_comp'}
                 for f in cvt.keys():
                     value = flag_fields.get(f)
                     if value != None:
