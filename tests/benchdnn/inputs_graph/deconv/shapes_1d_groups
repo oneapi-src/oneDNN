@@ -1,0 +1,5 @@
+g4oc16ic16_ow5iw5kw3pw1_n"1d_conv:grouped"
+g4oc20ic16_ow5iw5kw3pw1_n"1d_oc_tail_conv:grouped"
+g4oc16ic20_ow5iw5kw3pw1_n"1d_ic_tail_conv:grouped"
+g16oc16ic16_ow5iw5kw3pw1_n"1d_conv:depthwise"
+g17oc17ic17_ow5iw5kw3pw1_n"1d_tail_conv:depthwise"

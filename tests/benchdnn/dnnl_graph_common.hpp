@@ -96,37 +96,54 @@ inline std::string tag2data_format(const std::string &tag_) {
             ret += "X";
         }
     }
-    if (!(ret == "NCX" || ret == "NXC")) {
+    return ret;
+}
+
+inline void validate_data_format(const std::string &format_) {
+    if (!(format_ == "NCX" || format_ == "NXC")) {
         []() {
             SAFE(FAIL, CRIT);
             return 0;
         }();
     }
-    return ret;
 }
 
-inline std::string tag2filter_format(const std::string &tag_) {
+inline std::string tag2filter_format(
+        const std::string &tag_, bool with_groups = false) {
     if (tag_ == tag::any) return "OIX";
     std::string tag = normalize_tag(tag_);
     tag = get_ou_format(tag);
     std::string ret;
+
+    char out_c_repr = 'a';
+    char in_c_repr = 'b';
+    if (with_groups) {
+        // groups becomes 'a', OC and IC take next values
+        ++out_c_repr;
+        ++in_c_repr;
+    }
     for (size_t i = 0; i < tag.size(); ++i) {
-        if (tag[i] == 'a') {
+        if (tag[i] == out_c_repr) {
             ret += "O";
-        } else if (tag[i] == 'b') {
+        } else if (tag[i] == in_c_repr) {
             ret += "I";
+        } else if (with_groups && tag[i] == 'a') {
+            continue;
         } else {
             if (ret.back() == 'X') continue;
             ret += "X";
         }
     }
-    if (!(ret == "XIO" || ret == "OIX")) {
+    return ret;
+}
+
+inline void validate_filter_format(const std::string &format_) {
+    if (!(format_ == "XIO" || format_ == "OIX")) {
         []() {
             SAFE(FAIL, CRIT);
             return 0;
         }();
     }
-    return ret;
 }
 
 #define BENCHDNNEXT_SAFE(f, s) \

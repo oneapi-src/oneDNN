@@ -46,9 +46,32 @@ fill_status_t deconv_graph_prb_t::handle_main_op_() {
         wei_dims.erase(wei_dims.begin());
         wei_dims[1] *= groups;
     }
+    if (spec_.has_groups && spec_.groups > 1) {
+        // permute dims OIX => IOX
+        dims_t wei_dims_permuted = [&wei_dims]() {
+            auto d = wei_dims;
+            std::swap(d[0], d[1]);
+            return d;
+        }();
+        // calculate the original strides
+        dims_t strides(wei_dims_permuted.size());
+        strides[strides.size() - 1] = 1;
+        for (int i = strides.size() - 2; i >= 0; --i) {
+            strides[i] = wei_dims_permuted[i + 1] * strides[i + 1];
+        }
+        // permute strides IOX => OIX
+        dims_t strides_permuted = [&strides]() {
+            auto s = strides;
+            std::swap(s[0], s[1]);
+            return s;
+        }();
+
+        tensor_descs_.emplace(WEI, dt::f32, wei_dims, strides_permuted);
+    } else {
+        tensor_descs_.emplace(WEI, dt::f32, wei_dims, spec_.raw_wei_tag);
+    }
 
     tensor_descs_.emplace(SRC, dt::f32, spec_.src_dims, spec_.raw_src_tag);
-    tensor_descs_.emplace(WEI, dt::f32, wei_dims, spec_.raw_wei_tag);
     tensor_descs_.emplace(DST, dt::f32, spec_.dst_dims, spec_.raw_dst_tag);
 
     op deconv_op(new_op_id, op::kind::ConvTranspose,

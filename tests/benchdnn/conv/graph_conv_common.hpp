@@ -32,7 +32,7 @@ constexpr int CONV_1D_NDIMS = 3;
 constexpr int CONV_MAX_NDIMS = CONV_3D_NDIMS;
 
 struct spec_t {
-    spec_t(const ::conv::prb_t *prb) noexcept {
+    spec_t(const ::conv::prb_t *prb, bool is_deconv = false) noexcept {
         groups = prb->has_groups ? (int64_t)prb->g : 1;
         has_groups = prb->has_groups;
 
@@ -102,7 +102,10 @@ struct spec_t {
         dst_dt = convert_dt(prb->cfg[DST].dt);
 
         data_format = tag2data_format(prb->stag);
-        filter_format = tag2filter_format(prb->wtag);
+        validate_data_format(data_format);
+        filter_format = tag2filter_format(prb->wtag, groups > 1);
+        if (is_deconv && filter_format == "IOX") { filter_format = "OIX"; }
+        validate_filter_format(filter_format);
         raw_src_tag = prb->stag;
         raw_wei_tag = prb->wtag;
         raw_dst_tag = prb->dtag;

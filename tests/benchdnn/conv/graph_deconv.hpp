@@ -30,7 +30,7 @@ using namespace conv_common;
 namespace deconv {
 
 struct deconv_graph_prb_t : public graph_prb_t {
-    deconv_graph_prb_t(const ::conv::prb_t *prb) : spec_(prb) {
+    deconv_graph_prb_t(const ::conv::prb_t *prb) : spec_(prb, true) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
