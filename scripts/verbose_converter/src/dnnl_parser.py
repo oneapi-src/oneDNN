@@ -106,22 +106,25 @@ class LogParser:
                     end_idx = attrs.find(end_symbol, start_idx)
                     return attrs[start_idx:end_idx]
 
+                def convert_structure_to_ir_seq(ir, value):
+                    params = value.split(':')
+                    fields = list(ir.keys())
+                    ir.update(
+                        (fields[i], params[i])
+                        for i in range(0, min(len(params), len(fields))))
+                    return ir
+
                 def convert_post_ops(value):
                     def convert_binary_post_op(value):
-                        fields = value.split(':')
-                        alg = fields[0]
-                        dt = fields[1]
-                        mask = fields[2]
-                        tag = None
-                        if len(fields) > 3:
-                            tag = fields[3]
-                        return {
-                            'prim_kind': 'binary',
-                            'alg': alg,
-                            'dt': dt,
-                            'mask': mask,
-                            'tag': tag
+                        p_op = {
+                            'alg': '',
+                            'dt': 'f32',
+                            'mask': '0',
+                            'tag': None
                         }
+                        p_op = convert_structure_to_ir_seq(p_op, value)
+                        p_op['prim_kind'] = 'binary'
+                        return p_op
 
                     def convert_dw_post_op(value):
                         p_op = {
@@ -152,38 +155,15 @@ class LogParser:
                             'beta': '0.0',
                             'scale': '1.0'
                         }
-                        params = value.split(':')
-                        len_params = len(params)
-                        p_op['alg'] = params[0]
-                        if len_params > 1:
-                            p_op['alpha'] = params[1]
-                            if len_params > 2:
-                                p_op['beta'] = params[2]
-                                if len_params > 3:
-                                    p_op['scale'] = params[3]
-                        return p_op
+                        return convert_structure_to_ir_seq(p_op, value)
 
                     def convert_sum_post_op(value):
                         p_op = {'alg': '', 'scale': '1.0', 'zp': '0', 'dt': ''}
-                        params = value.split(':')
-                        len_params = len(params)
-                        p_op['alg'] = params[0]
-                        if len_params > 1:
-                            p_op['scale'] = params[1]
-                            if len_params > 2:
-                                p_op['zp'] = params[2]
-                                if len_params > 3:
-                                    p_op['dt'] = params[3]
-                        return p_op
+                        return convert_structure_to_ir_seq(p_op, value)
 
                     def convert_prelu_post_op(value):
                         p_op = {'alg': '', 'mask': '0'}
-                        params = value.split(':')
-                        len_params = len(params)
-                        p_op['alg'] = params[0]
-                        if len_params > 1:
-                            p_op['mask'] = params[1]
-                        return p_op
+                        return convert_structure_to_ir_seq(p_op, value)
 
                     convert = {
                         'binary': convert_binary_post_op,
@@ -205,38 +185,26 @@ class LogParser:
 
                 def convert_oscale(value):
                     oscale = {'mask': '0', 'value': None}
-                    params = value.split(':')
-                    len_params = len(params)
-                    oscale['mask'] = params[0]
-                    if len_params > 1:
-                        oscale['value'] = params[1]
-                    return oscale
+                    return convert_structure_to_ir_seq(oscale, value)
 
                 def convert_scales(value):
                     res = {}
                     scales = value.split('+')
                     for s in scales:
                         scale = {'mask': '0', 'value': None}
-                        params = s.split(':')
-                        len_params = len(params)
-                        arg = params[0]
-                        scale['mask'] = params[1]
-                        if len_params > 2:
-                            scale['value'] = params[2]
-                        res[arg] = scale
+                        arg = s[:s.find(':')]
+                        s_wo_arg = s[s.find(':')+1:]
+                        res[arg] = convert_structure_to_ir_seq(scale, s_wo_arg)
                     return res
 
                 def convert_zero_points(value):
                     res = {}
-                    zero_points = value.split('+')
-                    for zp in zero_points:
+                    zp_value = value.split('+')
+                    for zp in zp_value:
+                        arg = zp[:zp.find(':')]
+                        zp_value_wo_arg = zp[zp.find(':')+1:]
                         zp_dict = {'mask': '0', 'value': None}
-                        params = zp.split(':')
-                        arg = params[0]
-                        zp_dict['mask'] = params[1]
-                        if len(params) > 2:
-                            zp_dict['value'] = params[2]
-                        res[arg] = zp_dict
+                        res[arg] = convert_structure_to_ir_seq(zp_dict, zp_value_wo_arg)
                     return res
 
                 def convert_scratchpad_mode(value):
