@@ -157,30 +157,40 @@ class LogParser:
                         p_op['alg'] = params[0]
                         if len_params > 1:
                             p_op['alpha'] = params[1]
-                        if len_params > 2:
-                            p_op['beta'] = params[2]
-                        if len_params > 3:
-                            p_op['scale'] = params[3]
+                            if len_params > 2:
+                                p_op['beta'] = params[2]
+                                if len_params > 3:
+                                    p_op['scale'] = params[3]
                         return p_op
 
                     def convert_sum_post_op(value):
-                        p_op = {'alg': '', 'scale': '1.0'}
+                        p_op = {'alg': '', 'scale': '1.0', 'zp': '0', 'dt': ''}
                         params = value.split(':')
                         len_params = len(params)
                         p_op['alg'] = params[0]
                         if len_params > 1:
                             p_op['scale'] = params[1]
+                            if len_params > 2:
+                                p_op['zp'] = params[2]
+                                if len_params > 3:
+                                    p_op['dt'] = params[3]
                         return p_op
 
                     def convert_prelu_post_op(value):
-                        return {'alg': value.split(':')[0]}
+                        p_op = {'alg': '', 'mask': '0'}
+                        params = value.split(':')
+                        len_params = len(params)
+                        p_op['alg'] = params[0]
+                        if len_params > 1:
+                            p_op['mask'] = params[1]
+                        return p_op
 
                     convert = {
                         'binary': convert_binary_post_op,
                         'dw': convert_dw_post_op,
                         'eltwise': convert_eltwise_post_op,
-                        'sum': convert_sum_post_op
-                        'prelu': convert_prelu_post_op
+                        'sum': convert_sum_post_op,
+                        'prelu': convert_prelu_post_op,
                     }
 
                     entries = value.split('+')

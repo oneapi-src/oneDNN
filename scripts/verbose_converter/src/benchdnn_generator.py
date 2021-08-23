@@ -455,13 +455,27 @@ def convert_post_ops(post_ops):
         return benchdnn_p_op
 
     def convert_sum_post_op(post_op):
-        return post_op['alg'] + ':' + post_op['scale']
+        benchdnn_p_op = post_op['alg']
+        if post_op['scale'] != 1.0:
+            benchdnn_p_op += ':' + post_op['scale']
+            if post_op['zp'] != 0:
+                benchdnn_p_op += ':' + post_op['zp']
+                if post_op['dt'] != '':
+                    benchdnn_p_op += ':' + post_op['dt']
+        return benchdnn_p_op
+
+    def convert_prelu_post_op(post_op):
+        benchdnn_p_op = post_op['alg']
+        if post_op['mask'] != 0:
+            benchdnn_p_op += ':' + post_op['mask']
+        return benchdnn_p_op
 
     convert = {
         'binary': convert_binary_post_op,
         'dw': convert_dw_post_op,
         'eltwise': convert_eltwise_post_op,
-        'sum': convert_sum_post_op
+        'sum': convert_sum_post_op,
+        'prelu': convert_prelu_post_op,
     }
 
     benchdnn_postops = ''
