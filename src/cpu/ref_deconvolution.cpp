@@ -471,9 +471,6 @@ status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     auto status = conv_p_->execute(conv_ctx);
     if (status != status::success) return status;
 
-    conv_args[DNNL_ARG_DIFF_SRC]
-            = ref_bias || non_default_attr ? tmp_conv_output : dst;
-
     using namespace data_type;
 
     if (!pd()->attr()->zero_points_.has_default_values(DNNL_ARG_SRC)) {
