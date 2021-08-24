@@ -119,7 +119,7 @@ inline typename utils::enable_if<nstl::is_integral<U>::value, U>::type relu_fwd(
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline typename utils::enable_if<!nstl::is_integral<U>::value, U>::type
-relu_fwd(T s, A alpha) {
+relu_fwd(T s, A alpha) ATTR_NO_MSAN {
     return s > 0 ? s : (U)(s * alpha);
 }
 
