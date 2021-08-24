@@ -489,7 +489,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
     private:
         void clear() {
-            if (is_convolution() && depthwise_conv.scales)
+            if (is_convolution() && depthwise_conv.count
+                    && depthwise_conv.scales)
                 dnnl::impl::free(depthwise_conv.scales);
             depthwise_conv.scales = nullptr;
             return;
