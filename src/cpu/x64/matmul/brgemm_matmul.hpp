@@ -69,7 +69,7 @@ struct brgemm_matmul_t : public primitive_t {
         using ::dnnl::impl::cpu::matmul::cpu_matmul_pd_t::cpu_matmul_pd_t;
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("brg:", isa, ""), brgemm_matmul_t);
+                JIT_IMPL_NAME_HELPER("brgemm:", isa, ""), brgemm_matmul_t);
 
         status_t init(engine_t *engine);
         int get_brg_kernel_idx(bool is_bs_tail, bool do_initialization,
