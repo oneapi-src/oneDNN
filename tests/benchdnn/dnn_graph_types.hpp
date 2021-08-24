@@ -32,6 +32,10 @@ inline bool is_low_precision(const std::vector<graph_dt> &dtypes) {
     }) != dtypes.end();
 }
 
+inline graph_dt set_main_op_dtype(graph_dt dtype) {
+    return is_low_precision({dtype}) ? graph_dt::f32 : dtype;
+}
+
 } // namespace benchdnnext
 
 #endif // DNN_GRAPH_TYPES_HPP

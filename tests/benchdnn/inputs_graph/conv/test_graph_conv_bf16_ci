@@ -1,0 +1,19 @@
+# main op
+--reset
+--cfg=bf16bf16bf16,bf16bf16f32
+mb50ic64ih56oc64oh56kh1ph0
+
+# post bias
+--reset
+--cfg=bf16bf16bf16,bf16bf16f32
+--dir=FWD_B mb50ic64ih56oc64oh56kh1ph0
+
+# post relu
+--reset
+--cfg=bf16bf16bf16,bf16bf16f32
+--attr-post-ops=relu mb50ic64ih56oc64oh56kh1ph0
+
+# post bias+sum
+--reset
+--cfg=bf16bf16f32
+--dir=FWD_B --attr-post-ops=sum mb50ic64ih56oc64oh56kh1ph0

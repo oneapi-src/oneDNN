@@ -58,8 +58,11 @@ struct conv_graph_prb_t : public graph_prb_t {
             }
         }
 
-        ctor_status = handle_low_precision_(prb);
-        if (stop_work(ctor_status)) return;
+        auto dtypes = {spec_.src_dt, spec_.dst_dt};
+        if (benchdnnext::is_low_precision(dtypes)) {
+            ctor_status = handle_low_precision_(prb);
+            if (stop_work(ctor_status)) return;
+        }
 
         ctor_status = fill_status::DONE;
     };
