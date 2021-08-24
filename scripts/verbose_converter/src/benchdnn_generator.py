@@ -418,7 +418,7 @@ def extract_attr(attrs, type):
     return attrs[start_idx:end_idx]
 
 
-def convert_policy(value):
+def convert_scale_policy(value):
     # 4 is used by batched matmul
     masks = {0: 'common', 2: 'per_oc', 4: 'per_oc'}
     mask = masks.get(int(value))
@@ -428,16 +428,26 @@ def convert_policy(value):
     return 'per_tensor'
 
 
+def convert_zp_policy(value):
+    # 4 is used by batched matmul
+    masks = {0: 'common', 2: 'per_dim_1', 4: 'per_dim_2'}
+    mask = masks.get(int(value))
+    if mask:
+        return mask
+    # this is a workaround for tensors with mask more than 4
+    return 'per_tensor'
+
+
 def convert_post_ops(post_ops):
     def convert_binary_post_op(post_op):
-        policy = convert_policy(post_op['mask'])
+        policy = convert_scale_policy(post_op['mask'])
         po = post_op['alg'] + ':' + post_op['dt'] + ':' + policy
         if post_op['tag'] != None:
             po += ':' + post_op['tag']
         return po
 
     def convert_dw_post_op(post_op):
-        policy = convert_policy(post_op['scales']['mask'])
+        policy = convert_scale_policy(post_op['scales']['mask'])
         po = post_op['alg'] + ':' + post_op['dst_dt'] + ':' + policy
         if post_op['scales']['value'] != None:
             po += ':' + post_op['scales']['value']
@@ -493,7 +503,7 @@ def convert_post_ops(post_ops):
 
 
 def convert_oscale(oscale):
-    benchdnn_oscale = convert_policy(oscale['mask'])
+    benchdnn_oscale = convert_scale_policy(oscale['mask'])
     value = oscale['value']
     if value != None:
         benchdnn_oscale += ':' + value
@@ -504,7 +514,7 @@ def convert_scales(scales):
     res = []
     for arg in scales.keys():
         s = scales[arg]
-        policy = convert_policy(s['mask'])
+        policy = convert_scale_policy(s['mask'])
         benchdnn_scale = arg + ':' + policy
         value = s['value']
         # benchdnn requires user to pass a value
@@ -522,7 +532,7 @@ def convert_zero_points(zero_points):
     res = []
     for arg in zero_points.keys():
         zp = zero_points[arg]
-        policy = convert_policy(zp['mask'])
+        policy = convert_zp_policy(zp['mask'])
         benchdnn_zp = arg + ':' + policy
         value = zp['value']
         # benchdnn requires user to pass a value
