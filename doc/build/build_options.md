@@ -189,10 +189,10 @@ By default, AArch64 builds will use the reference implementations throughout.
 The following options enable the use of AArch64 optimised implementations
 for a limited number of operations, provided by AArch64 libraries.
 
-| AArch64 build configuration           | CMake Option              | Environment variables                         | Dependencies
-| :---                                  | :---                      | :---                                          | :---
-| Arm Compute Library based primitives  | DNNL_AARCH64_USE_ACL=ON   | ACL_ROOT_DIR=*Arm Compute Library location*   | [Arm Compute Library](https://github.com/ARM-software/ComputeLibrary)
-| Vendor BLAS library support           | DNNL_BLAS_VENDOR=ARMPL    | None                                          | [Arm Performance Libraries](https://developer.arm.com/tools-and-software/server-and-hpc/downloads/arm-performance-libraries)
+| AArch64 build configuration           | CMake Option              | Environment variables                    | Dependencies
+| :---                                  | :---                      | :---                                     | :---
+| Arm Compute Library based primitives  | DNNL_AARCH64_USE_ACL=ON   | ACL_ROOT_DIR=*</path/to/ComputeLibrary>* | [Arm Compute Library](https://github.com/ARM-software/ComputeLibrary)
+| Vendor BLAS library support           | DNNL_BLAS_VENDOR=ARMPL    | None                                     | [Arm Performance Libraries](https://developer.arm.com/tools-and-software/server-and-hpc/downloads/arm-performance-libraries)
 
 #### Arm Compute Library
 Arm Compute Library is an open-source library for machine learning applications.

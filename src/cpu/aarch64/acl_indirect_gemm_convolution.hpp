@@ -54,7 +54,7 @@ struct acl_indirect_gemm_resource_t : public resource_t {
                                     acp.sum_with_eltwise
                                         ? arm_compute::ActivationLayerInfo()
                                         : acp.act_info,
-                                    false,
+                                    acp.fast_math,
                                     1));
         // clang-format on
         if (acp.sum_with_eltwise) {
