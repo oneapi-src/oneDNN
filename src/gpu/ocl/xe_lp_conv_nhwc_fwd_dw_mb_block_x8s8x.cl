@@ -19,6 +19,7 @@
 #include "gpu/ocl/ocl_types.h"
 
 #define KDHW_SIZE KD *KH *KW
+#define MB_BLOCK_PER_THREAD (MB_BLOCK / 4)
 
 #if SCALES_PER_OC
 #define SCALE scales
@@ -31,33 +32,46 @@
 #define SCALE_VEC8 1
 #endif
 
-void block_read_src(uchar *s, __global uchar *src, const int g) {
+void block_read_src(
+        uchar *s, __global uchar *src, const int g, const int cur_mb_blk) {
     const int sglid = get_sub_group_local_id();
+    int mb_tail = (MB - cur_mb_blk) % MB_BLOCK_PER_THREAD;
+    int po_mb = (cur_mb_blk + mb_tail < MB) ? MB_BLOCK_PER_THREAD : mb_tail;
+    // fetching MB_BLOCK_PER_THREAD or mb_tail elements in this loop
     for (int i = 0; i < SUB_GROUP_SIZE; i++) {
         if ((i % 2) * SUB_GROUP_SIZE + sglid
-                < (g + IC_BLOCK > G ? G % IC_BLOCK : IC_BLOCK))
+                        < (g + IC_BLOCK > G ? G % IC_BLOCK : IC_BLOCK)
+                && (i / 2) < po_mb)
             s[i] = src[(i / 2) * (ID * IH * IW * G) + (i % 2) * SUB_GROUP_SIZE
                     + sglid];
         else
             s[i] = 0;
     }
 }
-void block_write_dst(
-        const DST_DATA_T *d, __global DST_DATA_T *dst, const int g) {
+
+void block_write_dst(const DST_DATA_T *d, __global DST_DATA_T *dst, const int g,
+        const int cur_mb_blk) {
     const int sglid = get_sub_group_local_id();
+    int mb_tail = (MB - cur_mb_blk) % MB_BLOCK_PER_THREAD;
+    int po_mb = (cur_mb_blk + mb_tail < MB) ? MB_BLOCK_PER_THREAD : mb_tail;
     for (int i = 0; i < SUB_GROUP_SIZE; i++) {
         if ((i % 2) * SUB_GROUP_SIZE + sglid
-                < (g + OC_BLOCK > G ? G % OC_BLOCK : OC_BLOCK))
+                        < (g + OC_BLOCK > G ? G % OC_BLOCK : OC_BLOCK)
+                && (i / 2) < po_mb)
             dst[(i / 2) * (OD * OH * OW * G) + (i % 2) * SUB_GROUP_SIZE + sglid]
                     = d[i];
     }
 }
-void block_read_dst_as_sum(
-        SUM_DATA_T *d, __global DST_DATA_T *dst, const int g) {
+
+void block_read_dst_as_sum(SUM_DATA_T *d, __global DST_DATA_T *dst, const int g,
+        const int cur_mb_blk) {
     const int sglid = get_sub_group_local_id();
+    int mb_tail = (MB - cur_mb_blk) % MB_BLOCK_PER_THREAD;
+    int po_mb = (cur_mb_blk + mb_tail < MB) ? MB_BLOCK_PER_THREAD : mb_tail;
     for (int i = 0; i < SUB_GROUP_SIZE; i++) {
         if ((i % 2) * SUB_GROUP_SIZE + sglid
-                < (g + IC_BLOCK > G ? G % IC_BLOCK : IC_BLOCK))
+                        < (g + IC_BLOCK > G ? G % IC_BLOCK : IC_BLOCK)
+                && (i / 2) < po_mb)
             d[i] = AS_SUM_DATA_T(dst[(i / 2) * (OD * OH * OW * G)
                     + (i % 2) * SUB_GROUP_SIZE + sglid]);
         else
@@ -81,21 +95,21 @@ conv_nhwc_fwd_dw_mb_block_x8s8x(const __global uchar *src,
     const int oh = ohw / OW;
     const int g = get_group_id(0) * OC_BLOCK;
 
-    const int mb = (get_global_id(2) / 4) * MB_BLOCK;
-    const int mb_half = (get_global_id(2) % 4) * MB_BLOCK / 4;
+    // cur_mb_blk is the current mb block of 8
+    // the block size per thread increments by 8 i.e. 0, 8, 16, 24
+    const int cur_mb_blk = (get_global_id(2) % 4) * MB_BLOCK_PER_THREAD;
 
     const int id = od * SD - PD;
     const int ih = oh * SH - PH;
     const int iw = ow * SW - PW;
     const int sglid = get_sub_group_local_id();
 
-    src += (mb + mb_half) * ID * IH * IW * G + (id * IH * IW + ih * IW + iw) * G
+    src += cur_mb_blk * ID * IH * IW * G + (id * IH * IW + ih * IW + iw) * G
             + g;
-    dst += (mb + mb_half) * OD * OH * OW * G + (od * OH * OW + oh * OW + ow) * G
+    dst += cur_mb_blk * OD * OH * OW * G + (od * OH * OW + oh * OW + ow) * G
             + g;
 
     wei += g * KDHW_SIZE;
-
     int8 S00 = 0;
     int8 S01 = 0;
     uchar16 A00, A10, A20, A30;
@@ -117,22 +131,22 @@ conv_nhwc_fwd_dw_mb_block_x8s8x(const __global uchar *src,
         if (index.s0) {
             A00 = 0;
         } else {
-            block_read_src((uchar *)&A00, src + src_index.s0, g);
+            block_read_src((uchar *)&A00, src + src_index.s0, g, cur_mb_blk);
         }
         if (index.s1) {
             A10 = 0;
         } else {
-            block_read_src((uchar *)&A10, src + src_index.s1, g);
+            block_read_src((uchar *)&A10, src + src_index.s1, g, cur_mb_blk);
         }
         if (index.s2) {
             A20 = 0;
         } else {
-            block_read_src((uchar *)&A20, src + src_index.s2, g);
+            block_read_src((uchar *)&A20, src + src_index.s2, g, cur_mb_blk);
         }
         if (index.s3) {
             A30 = 0;
         } else {
-            block_read_src((uchar *)&A30, src + src_index.s3, g);
+            block_read_src((uchar *)&A30, src + src_index.s3, g, cur_mb_blk);
         }
 
         char8 W = as_char8(
@@ -189,7 +203,7 @@ conv_nhwc_fwd_dw_mb_block_x8s8x(const __global uchar *src,
         if (index) {
             A00 = 0;
         } else {
-            block_read_src((uchar *)&A00, src + src_index, g);
+            block_read_src((uchar *)&A00, src + src_index, g, cur_mb_blk);
         }
 
         const char2 W = as_char2(
@@ -235,11 +249,11 @@ conv_nhwc_fwd_dw_mb_block_x8s8x(const __global uchar *src,
 
     SUM_DATA16_T D00;
 #if WITH_SUM
-    block_read_dst_as_sum(&D00, dst, g);
+    block_read_dst_as_sum(&D00, dst, g, cur_mb_blk);
 #endif
     float16 tmp_x16 = (float16)(tmp00, tmp01);
     APPLY_POST_OPS_SERIAL_BINARY_2D(
             tmp_x16, float, D00, SUM_DATA_T, 0, 1, 0, 1);
     DST_DATA16_T R0 = CONVERT_DST_DATA16_T(tmp_x16);
-    block_write_dst((DST_DATA16_T *)&R0, dst, g);
+    block_write_dst((DST_DATA16_T *)&R0, dst, g, cur_mb_blk);
 }
