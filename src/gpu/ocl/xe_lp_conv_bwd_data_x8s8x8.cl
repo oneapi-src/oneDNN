@@ -30,10 +30,8 @@
 #define A_DATA_BLOCK_T MMAD_DATA4_T
 #define WRITE_LOCAL block_write4
 #define READ_BLOCK intel_sub_group_block_read4
-
-DECLARE_MMAD(
-        mmad_tail, OC_NBLOCKS_TAIL, 4, A_DATA_BLOCK_T, int8, ACC_DATA_BLOCK)
-
+DECLARE_MMAD_EMU(mmad_tail, idot4, OC_NBLOCKS_TAIL, 4, A_DATA_BLOCK_T, int8,
+        ACC_DATA_BLOCK)
 #define MMAD_FULL mmad8x4
 #define MMAD_TAIL mmad_tail
 
@@ -44,9 +42,8 @@ DECLARE_MMAD(
 #define WRITE_LOCAL block_write8
 #define READ_BLOCK intel_sub_group_block_read8
 
-DECLARE_MMAD(
-        mmad_tail, OC_NBLOCKS_TAIL, 8, A_DATA_BLOCK_T, int8, ACC_DATA_BLOCK)
-
+DECLARE_MMAD_EMU(mmad_tail, idot4, OC_NBLOCKS_TAIL, 8, A_DATA_BLOCK_T, int8,
+        ACC_DATA_BLOCK)
 #define MMAD_FULL mmad8x8
 #define MMAD_TAIL mmad_tail
 #else

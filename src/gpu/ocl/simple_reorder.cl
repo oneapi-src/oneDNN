@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+// Temporary W/A for bf16 problems in HW and compiler
+#undef cl_future_bf16_cvt
+
 #define DT_UNDEF 1
 #include "gpu/ocl/ocl_types.h"
 
@@ -266,7 +269,6 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
     dst += DST_OFFSET0;
 
 #if REF_REORDER
-
     const int d0 = GWS_GET_D0();
     const int d1_blk_start = GWS_GET_D1();
     const int d2_blk_start = GWS_GET_D2();

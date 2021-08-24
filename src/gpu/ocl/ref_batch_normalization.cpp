@@ -105,7 +105,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
                 "STAT_IC", 1, conf.ic);
         conf.dispatch_calc_stat.define_dim_with_nesting_level(
                 "STAT_MB", 0, conf.mb, conf.mb_block);
-        conf.dispatch_calc_stat.vectorize_dim("STAT_IC", 16);
+        CHECK(conf.dispatch_calc_stat.vectorize_dim("STAT_IC", 16));
         conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
         conf.dispatch_calc_stat.generate();
 
@@ -120,7 +120,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         conf.dispatch.define_dim("ID", nstl::max(1, ndims - 3), conf.id);
         conf.dispatch.define_dim("IH", nstl::max(1, ndims - 2), conf.ih);
         conf.dispatch.define_dim("IW", nstl::max(1, ndims - 1), conf.iw);
-        conf.dispatch.vectorize_dim("IC", 16);
+        CHECK(conf.dispatch.vectorize_dim("IC", 16));
         conf.dispatch.generate();
     } else {
         // Reference
@@ -201,8 +201,8 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
             conf.skip_reduce_stat = false;
             if (conf.vectorize_calc_stats) {
-                conf.dispatch_calc_stat.vectorize_dim(
-                        reduce_dim_name, conf.sub_group_size);
+                CHECK(conf.dispatch_calc_stat.vectorize_dim(
+                        reduce_dim_name, conf.sub_group_size));
                 if (conf.stat_ic == conf.reduce_dim * calc_dims[1]) {
                     // if there are only 2 dimensions greater than 1:
                     // IC and reduce_dim, calc phase of batchnorm will do

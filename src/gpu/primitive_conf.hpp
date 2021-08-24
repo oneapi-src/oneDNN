@@ -36,8 +36,8 @@ namespace gpu {
 #define MAX_POST_OPS_SUPPORTED 32
 
 struct memory_desc_info_t {
-    // Max 2 levels of blocking
-    static const int nlevels = 2;
+    // Max levels of blocking
+    static const int max_nlevels = 3;
 
     int ndims;
     data_type_t data_type;
@@ -45,11 +45,17 @@ struct memory_desc_info_t {
     int offset0;
     int dims[MAX_NDIMS];
     int padded_dims[MAX_NDIMS];
-    int blocks[MAX_NDIMS][nlevels + 1];
-    int strides[MAX_NDIMS][nlevels + 1];
+
+    int nlevels;
+    int blocks[MAX_NDIMS][max_nlevels + 1];
+    int strides[MAX_NDIMS][max_nlevels + 1];
 
     static memory_desc_info_t create(const memory_desc_wrapper &mdw) {
+        using namespace format_tag;
+
         auto md_info = memory_desc_info_t();
+
+        md_info.nlevels = 2;
 
         md_info.ndims = mdw.ndims();
         md_info.data_type = mdw.data_type();
@@ -60,8 +66,8 @@ struct memory_desc_info_t {
                 = utils::array_product(blk.inner_blks, blk.inner_nblks);
 
         for (int d = 0; d < mdw.ndims(); ++d) {
-            utils::array_set(md_info.blocks[d], 1, nlevels + 1);
-            utils::array_set(md_info.strides[d], 0, nlevels + 1);
+            utils::array_set(md_info.blocks[d], 1, md_info.nlevels + 1);
+            utils::array_set(md_info.strides[d], 0, md_info.nlevels + 1);
         }
 
         for (int d = 0; d < mdw.ndims(); ++d) {
@@ -89,8 +95,8 @@ struct attr_info_t {
 
         attr_info_t attr_info;
 
-        int binary_idx = po.find(primitive_kind::binary);
-        attr_info.with_binary = (binary_idx != -1);
+        attr_info.binary_idx = po.find(primitive_kind::binary);
+        attr_info.with_binary = (attr_info.binary_idx != -1);
 
         // Eltwise
         attr_info.eltwise_idx = po.find(primitive_kind::eltwise);
@@ -133,8 +139,7 @@ struct attr_info_t {
         attr_info.with_per_oc_oscales
                 = attr_info.with_oscales && (scales_mask == (1 << 1));
 
-        attr_info.with_runtime_oscales = attr_info.with_per_oc_oscales
-                && !attr->output_scales_.defined();
+        attr_info.with_runtime_oscales = !attr->output_scales_.defined();
 
         const auto &src0_scales = attr->scales_.get(DNNL_ARG_SRC_0);
         attr_info.with_src0_scale = !src0_scales.has_default_values();
@@ -174,6 +179,7 @@ struct attr_info_t {
     bool with_binary;
     bool with_eltwise;
     int eltwise_idx;
+    int binary_idx;
     alg_kind_t eltwise_alg;
     float eltwise_scale;
     float eltwise_alpha;
@@ -237,13 +243,18 @@ enum conv_version_t {
     ver_unused,
     ver_1stconv,
     ver_16mb16c,
+    ver_32mb16c,
     ver_32mb32c,
     ver_32c,
     ver_8ow16c,
     ver_nhwc,
     ver_nchw,
     ver_mb_block,
-    ver_ow_block
+    ver_ow_block,
+
+    // Xe_HP-specific versions.
+    ver_v1,
+    ver_v2
 };
 
 struct conv_conf_t {
@@ -256,7 +267,7 @@ struct conv_conf_t {
     int id, ih, iw, od, oh, ow;
     int f_pad, l_pad, t_pad;
     int back_pad, r_pad, b_pad;
-    int kd, kh, kw;
+    int kd, kh, kw, kwb;
     int stride_d, stride_h, stride_w;
     int dilate_d, dilate_h, dilate_w;
 
@@ -266,21 +277,39 @@ struct conv_conf_t {
     int oc_block, ic_block, nchunk;
     int omb;
     int odb, ohb, owb;
+    size_t wei_block;
     int icb;
     int ocb;
     int osp_chunk, mb_chunk, mb_block, slm_ic;
     int iw_tail;
+    int mb_blk_wg;
+    int max_blk_wg, ic_blk_wg, oc_blk_wg;
+    int ic_blk_sg, oc_blk_sg;
+    int k_blocks, k_block_tail;
     size_t wei_slm_size, src_slm_size, dst_slm_size;
     int sub_group_size;
+    int workgroups_along_k;
+    int num_buffers;
+    int calc_block;
+    int ic_split;
+
+    int oc_group;
+    int ow_group;
+    int sp_group;
+
     size_t gws_d[3], lws_d[3];
+    // Original global work sizes, before applying rounding in case when
+    // non-uniform work-groups are not supported.
+    size_t gws_orig_d[3];
     compute::dispatch_t dispatch;
 
     bool with_bias, with_groups;
+    bool use_split_barrier;
 
     attr_info_t attr_info;
 
     bool is_depthwise;
-    bool is_nhwc;
+    bool is_nhwc, use_dpasw;
     bool reorder_wei = false;
     bool reorder_bias = false;
     int ver;
@@ -289,6 +318,7 @@ struct conv_conf_t {
     bool is_src_nchw, is_src_nhwc;
     bool is_dst_nhwc;
 
+    bool use_256grf_per_thread;
     int tile_size;
     int wino_m;
     int wino_r;
@@ -682,6 +712,7 @@ struct eltwise_conf_t {
     data_type_t data_type;
     alg_kind_t alg;
     bool is_forward;
+    int sub_group_size;
     compute::dispatch_t dispatch;
     memory_desc_info_t data_md_info;
     memory_desc_info_t data_diff_md_info;
@@ -811,6 +842,7 @@ inline void set_default_conf(conv_conf_t &conf, const convolution_desc_t &cd,
     conf.src_data_type = src_mdw.data_type();
     conf.weights_data_type = weights_mdw.data_type();
     conf.dst_data_type = dst_mdw.data_type();
+
     conf.acc_data_type = cd.accum_data_type;
     conf.bias_data_type
             = conf.with_bias ? bias_mdw.data_type() : data_type::f32;
@@ -1286,6 +1318,149 @@ inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
 inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,
         const compute::dispatch_t &dispatch) {
     dispatch.def_kernel_macros(kernel_ctx);
+}
+
+inline void maybe_fix_non_uniform_work_sizes(
+        bool has_non_uniform_wg, conv_conf_t &conf) {
+    for (int i = 0; i < 3; i++) {
+        conf.gws_orig_d[i] = conf.gws_d[i];
+        if (!has_non_uniform_wg)
+            conf.gws_d[i] = utils::rnd_up(conf.gws_d[i], conf.lws_d[i]);
+    }
+}
+
+inline void bwd_w_compute_block_sizes(conv_conf_t &conf, engine_t *engine) {
+    const bool is_1stconv = conf.ic_without_padding == 3;
+
+    if (conf.is_depthwise) {
+        conf.odb = 1;
+        conf.ohb = 1;
+        conf.owb = utils::rnd_up(conf.ow, conf.ow_block);
+        conf.ocb = 1;
+        conf.icb = 1;
+        conf.osp_chunk = utils::div_up(conf.od, conf.odb)
+                * utils::div_up(conf.oh, conf.ohb)
+                * utils::div_up(conf.ow, conf.owb);
+
+        conf.mb_chunk = utils::div_up(conf.mb, conf.mb_block);
+        conf.nchunk = conf.osp_chunk * conf.mb_chunk;
+        return;
+    }
+    auto *dev_info = utils::downcast<compute::compute_engine_t *>(engine)
+                             ->device_info();
+    int hw_threads = dev_info->hw_threads();
+    size_t llc_bytes = dev_info->llc_cache_size();
+
+    auto next_candidate = [](int size, int block) {
+        if (size == block) return block;
+        // If size is big enough, then do not care about the remainder.
+        if (block * 16 < size) return block + 1;
+        // Otherwise search for the next divisor.
+        block++;
+        while (size % block != 0)
+            block++;
+        return block;
+    };
+
+    int mb_nb = 1;
+    conf.odb = 1;
+    conf.ohb = 1;
+    conf.owb = 1;
+
+    int mb_nblk = utils::div_up(conf.mb, conf.mb_block);
+    int ic_nblk = utils::div_up(conf.ic, conf.ic_block);
+    int oc_nblk = utils::div_up(conf.oc, conf.oc_block);
+
+    int ic_nb_max = is_1stconv ? 1 : nstl::min(ic_nblk, 16);
+    int oc_nb_max = nstl::min(oc_nblk, 16);
+    int ic_nb = is_1stconv ? 1 : utils::max_div(ic_nblk, ic_nb_max);
+    int oc_nb = utils::max_div(oc_nblk, oc_nb_max);
+
+    int mb_nb_max = 1;
+    if (!is_1stconv && (conf.mb_block == 1) && (conf.ic % 1024 != 0)
+            && (conf.oc % 1024 != 0)) {
+        mb_nb_max = 4;
+    }
+
+    auto get_nthr = [&]() {
+        int nthr = utils::div_up(mb_nblk, mb_nb)
+                * utils::div_up(conf.od, conf.odb)
+                * utils::div_up(conf.oh, conf.ohb)
+                * utils::div_up(conf.ow, conf.owb) * conf.kh * conf.kw * conf.kd
+                * oc_nblk * (is_1stconv ? 1 : ic_nblk) * conf.ngroups;
+        return nthr;
+    };
+
+    auto get_src_dst_size = [&]() {
+        int iwb = conf.ndims < 3 ? 1 : conf.owb + 2 * (conf.kw - 1);
+        int ihb = conf.ndims < 4 ? 1 : conf.ohb + 2 * (conf.kh - 1);
+        int idb = conf.ndims < 5 ? 1 : conf.odb + 2 * (conf.kd - 1);
+
+        size_t ispb = iwb * ihb * idb;
+        size_t ospb = conf.owb * conf.ohb * conf.odb;
+        size_t src_size = sizeof(float) * conf.mb_block
+                * (is_1stconv ? conf.ic : ic_nb * conf.ic_block) * ispb;
+        size_t dst_size = sizeof(float) * conf.mb_block
+                * (oc_nb * conf.oc_block) * ospb;
+
+        int nthr_per_spb
+                = conf.kh * conf.kw * conf.kd * ic_nb * oc_nb * conf.ngroups;
+        size_t sz = (size_t)(src_size + dst_size);
+        if (nthr_per_spb < hw_threads) sz = sz * hw_threads / nthr_per_spb;
+        return sz;
+    };
+
+    auto try_next = [&](int &v, int next) {
+        if (next <= v) return false;
+        int v_old = v;
+        v = next;
+        // Heuristics:
+        // - src and dst size accessed in the inner loops should fit LLC
+        // - Require at least (3 * hw_threads) to spawn to have enough
+        //   parallelism
+        if (get_src_dst_size() > llc_bytes || get_nthr() < 3 * hw_threads) {
+            v = v_old;
+            return false;
+        }
+        return true;
+    };
+
+    if (utils::one_of(conf.ver, ver_nhwc, ver_8ow16c, ver_1stconv))
+        conf.owb = conf.ow_block;
+
+    // Increase spatial tile size as much as possible.
+    for (int i = 0; i < 128; i++) {
+        int owb_next;
+        if (utils::one_of(conf.ver, ver_nhwc, ver_8ow16c, ver_1stconv)) {
+            int ow_padded = utils::rnd_up(conf.ow, conf.ow_block);
+            owb_next = conf.ow_block
+                    * next_candidate(ow_padded / conf.ow_block,
+                            conf.owb / conf.ow_block);
+        } else {
+            owb_next = next_candidate(conf.ow, conf.owb);
+        }
+        try_next(conf.owb, owb_next);
+
+        int ohb_next = next_candidate(conf.oh, conf.ohb);
+        try_next(conf.ohb, ohb_next);
+
+        int odb_next = next_candidate(conf.od, conf.odb);
+        try_next(conf.odb, odb_next);
+
+        int mb_nb_next = next_candidate(mb_nb_max, mb_nb);
+        try_next(mb_nb, mb_nb_next);
+    }
+
+    conf.icb = is_1stconv ? conf.ic : ic_nb * conf.ic_block;
+    conf.ocb = oc_nb * conf.oc_block;
+
+    conf.osp_chunk = utils::div_up(conf.od, conf.odb)
+            * utils::div_up(conf.oh, conf.ohb)
+            * utils::div_up(conf.ow, conf.owb);
+
+    conf.mb_chunk = utils::div_up(mb_nblk, mb_nb);
+
+    conf.nchunk = conf.mb_chunk * conf.osp_chunk;
 }
 
 } // namespace gpu

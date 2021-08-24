@@ -46,7 +46,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         pd_t(const pd_t &rhs) = default;
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_fwd_t);
+        DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_inner_product_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -128,7 +128,7 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
         pd_t(const pd_t &rhs) = default;
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_bwd_data_t);
+        DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_inner_product_bwd_data_t);
 
         status_t init(engine_t *engine) {
             using namespace prop_kind;
@@ -207,7 +207,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T("gemm:ocl", gemm_inner_product_bwd_weights_t);
+        DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_inner_product_bwd_weights_t);
 
         status_t init(engine_t *engine) {
             using namespace prop_kind;

@@ -122,16 +122,18 @@ void dispatch_t::define_dim_with_nesting_level(
     ++ndims_;
 }
 
-void dispatch_t::vectorize_dim(const std::string &name, int vector_size) {
+status_t dispatch_t::vectorize_dim(const std::string &name, int vector_size) {
+    if (!engine_->mayiuse_sub_group(vector_size)) return status::unimplemented;
     assert(vector_size > 1);
     for (int i = 0; i < ndims_; ++i) {
         if (dims_[i].name == name) {
             assert(dims_[i].size % vector_size == 0);
             dims_[i].vector_size = vector_size;
-            return;
+            return status::success;
         }
     }
     assert(!"not found");
+    return status::invalid_arguments;
 }
 
 void dispatch_t::def_kernel_macros(kernel_ctx_t &kernel_ctx) const {

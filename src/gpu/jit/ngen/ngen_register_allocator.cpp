@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "oneapi/dnnl/dnnl_config.h"
+
 #include "ngen_register_allocator.hpp"
 #include "ngen_utils.hpp"
 #include <iomanip>
@@ -32,8 +34,11 @@ int Bundle::first_reg(HW hw) const
         return (bundle0 << 8) | bank0;
     case HW::Gen11:
         return (bundle0 << 8) | (bank0 << 1);
-    case HW::Xe_LP:
+    case HW::Gen12LP:
         return (bundle0 << 1) | bank0;
+    case HW::XeHP:
+    case HW::XeHPG:
+        return (bundle0 << 2) | (bank0 << 1);
     default:
         return 0;
     }
@@ -45,6 +50,8 @@ int Bundle::group_size(HW hw) const
         return 128;
     else switch (hw) {
     case HW::Gen11:
+    case HW::XeHP:
+    case HW::XeHPG:
         return 2;
     default:
         return 1;
@@ -61,8 +68,11 @@ int Bundle::stride(HW hw) const
         return 2;
     case HW::Gen11:
         return 4;
-    case HW::Xe_LP:
+    case HW::Gen12LP:
         return 16;
+    case HW::XeHP:
+    case HW::XeHPG:
+        return 64;
     default:
         return 128;
     }
@@ -84,10 +94,15 @@ int64_t Bundle::reg_mask(HW hw, int offset) const
         if (bundle_id != any && bundle_id != offset)    bundle_mask = 0;
         if (bank_id != any)                             bank_mask = 0x3333333333333333 << (bank_id << 1);
         return bundle_mask & bank_mask;
-    case HW::Xe_LP:
+    case HW::Gen12LP:
         if (bundle_id != any)                           base_mask  = 0x0003000300030003;
         if (bank_id != any)                             base_mask &= 0x5555555555555555;
         return base_mask << (bank0 + (bundle0 << 1));
+    case HW::XeHP:
+    case HW::XeHPG:
+        if (bundle_id != any)                           base_mask  = 0x000000000000000F;
+        if (bank_id != any)                             base_mask &= 0x3333333333333333;
+        return base_mask << ((bank0 << 1) + (bundle0 << 2));
     default:
         return -1;
     }
@@ -103,8 +118,11 @@ Bundle Bundle::locate(HW hw, RegData reg)
             return Bundle(base & 1, base >> 6);
         case HW::Gen11:
             return Bundle((base >> 1) & 1, base >> 6);
-        case HW::Xe_LP:
+        case HW::Gen12LP:
             return Bundle(base & 1, (base >> 1) & 7);
+        case HW::XeHP:
+        case HW::XeHPG:
+            return Bundle((base >> 1) & 1, (base >> 2) & 0xF);
         default:
             return Bundle();
     }
@@ -125,6 +143,8 @@ void RegisterAllocator::init()
     free_flag = (1u << FlagRegister::subcount(hw)) - 1;
     reg_count = max_regs;
 
+    if (hw < HW::XeHP)
+        setRegisterCount(128);
 }
 
 void RegisterAllocator::claim(GRF reg)
@@ -161,8 +181,25 @@ void RegisterAllocator::claim(FlagRegister flag)
     free_flag &= ~(1 << flag.index());
 }
 
+void RegisterAllocator::setRegisterCount(int rcount)
+{
+    if (rcount < reg_count) {
+        for (int r = rcount; r < max_regs; r++)
+            free_sub[r] = 0x00;
+        for (int rr = (rcount + 7) >> 3; rr < (max_regs >> 3); rr++)
+            free_whole[rr] = 0x00;
+        if ((rcount & 7) && (rcount < max_regs))
+            free_whole[rcount >> 3] &= ~((1 << (rcount & 7)) - 1);
+    } else if (rcount > reg_count) {
+        for (int r = reg_count; r < std::min(rcount, max_regs); r++)
+            release(GRF(r));
+    }
+    reg_count = rcount;
+}
+
 void RegisterAllocator::release(GRF reg)
 {
+    if (reg.isInvalid()) return;
     int r = reg.getBase();
 
     free_sub[r] = fullSubMask;
@@ -171,12 +208,14 @@ void RegisterAllocator::release(GRF reg)
 
 void RegisterAllocator::release(GRFRange range)
 {
+    if (range.isInvalid()) return;
     for (int i = 0; i < range.getLen(); i++)
         release(range[i]);
 }
 
 void RegisterAllocator::release(Subregister subreg)
 {
+    if (subreg.isInvalid()) return;
     int r = subreg.getBase();
     int dw = subreg.getDwords();
     int o = (subreg.getByteOffset()) >> 2;
@@ -188,6 +227,7 @@ void RegisterAllocator::release(Subregister subreg)
 
 void RegisterAllocator::release(FlagRegister flag)
 {
+    if (flag.isInvalid()) return;
     free_flag |= (1 << flag.index());
 }
 
@@ -246,7 +286,7 @@ GRFRange RegisterAllocator::try_alloc_range(int nregs, Bundle base_bundle, Bundl
                 uint64_t mask = ~uint64_t(0) << first_bit;
                 ok = !(mask & ~free);
                 if (ok) for (int rr = 64 - first_bit; rr < nregs; rr++) {
-                    if (free_sub[r_base + rr] != 0xFF) {
+                    if (free_sub[r_base + rr] != fullSubMask) {
                         ok = false;
                         break;
                     }

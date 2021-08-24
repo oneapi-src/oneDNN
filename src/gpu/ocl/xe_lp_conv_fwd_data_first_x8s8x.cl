@@ -13,7 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
+//temporarily disable DPAS while investigating issue with it in this kernel.
+#undef cl_intel_subgroup_matrix_multiply_accumulate
 #include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
@@ -253,6 +254,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
                                     intel_sub_group_block_read((
                                             const __global uint
                                                     *)(&src[i * IC_BLOCK])));
+
 #endif
                         }
 #elif (SW * OW_BLOCK) % 4 == 0 && NCHW == 0
@@ -288,7 +290,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
                         S_part[i + sub_local_id] = 0;
                 }
             }
-#if SLM_WORKING_GROUPS < OW_NCHUNK || OW != OWX
+#if SLM_NCHUNK < OW_NCHUNK || OW != OWX
             if (empty) {
                 for (int i = 0; i < SW * OW_BLOCK + (KW - 1) * (1 + DW);
                         i += 8) {

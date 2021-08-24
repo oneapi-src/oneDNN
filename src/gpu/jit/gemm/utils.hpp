@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,42 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-inline int largest_pow2_divisor(int x) {
+template <typename T>
+static inline constexpr bool equal(T t) {
+    return true;
+}
+template <typename T1, typename T2>
+static inline constexpr bool equal(T1 t1, T2 t2) {
+    return (t1 == t2);
+}
+template <typename T1, typename T2, typename... To>
+static inline constexpr bool equal(T1 t1, T2 t2, To... to) {
+    return (t1 == t2) && equal(t2, to...);
+}
+
+template <typename T>
+static inline constexpr T clamp(T val, T lo, T hi) {
+    return std::min<T>(hi, std::max<T>(lo, val));
+}
+
+static inline int div_up(int value, int divisor) {
+    return (value + divisor - 1) / divisor;
+}
+
+// Round value down to a multiple of factor.
+static inline int align_down(int value, int factor) {
+    return factor * (value / factor);
+}
+
+// Round value up to a multiple of factor.
+static inline int align_up(int value, int factor) {
+    return factor * div_up(value, factor);
+}
+
+using dnnl::impl::math::gcd;
+using dnnl::impl::math::lcm;
+
+static inline int largest_pow2_divisor(int x) {
     return x & ~(x - 1);
 }
 
@@ -31,4 +66,4 @@ inline int largest_pow2_divisor(int x) {
 } // namespace impl
 } // namespace dnnl
 
-#endif /* header guard */
+#endif /* GPU_JIT_GEMM_UTILS_HPP */

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,6 +49,24 @@ protected:
 
 struct gpu_convolution_bwd_data_pd_t : public convolution_bwd_data_pd_t {
     using convolution_bwd_data_pd_t::convolution_bwd_data_pd_t;
+
+protected:
+    bool post_ops_ok(const primitive_attr_t *attr) const {
+        const auto &p = attr->post_ops_;
+
+        auto is_eltwise
+                = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
+        auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
+
+        switch (p.len()) {
+            case 0: return true; // no post_ops
+            case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
+            case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
+            default: return false;
+        }
+
+        return false;
+    }
 };
 
 struct gpu_convolution_bwd_weights_pd_t : public convolution_bwd_weights_pd_t {

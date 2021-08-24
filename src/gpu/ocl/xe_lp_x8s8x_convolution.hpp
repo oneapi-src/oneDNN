@@ -77,6 +77,9 @@ struct xe_lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
 
             CHECK(init_conf());
 
+            if (!compute_engine->mayiuse_sub_group({8, conf.sub_group_size}))
+                return status::unimplemented;
+
             init_scratchpad();
 
             CHECK(init_scales_md());
@@ -86,6 +89,7 @@ struct xe_lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             CHECK(attr_.set_default_formats(dst_md(0)));
+            if (compute_engine->is_xe_hpg()) disable_dpas = true;
 
             return status::success;
         }
@@ -95,6 +99,8 @@ struct xe_lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
         void init_scratchpad();
 
         const memory_desc_t *scales_md() const { return &scales_md_; }
+
+        bool disable_dpas = false;
 
         conv_conf_t conf;
 
@@ -222,8 +228,11 @@ struct xe_lp_x8s8x_convolution_bwd_data_t : public gpu_primitive_t {
 
             if (!ok) return status::unimplemented;
 
-            status_t status = init_conf();
-            if (status != status::success) return status;
+            CHECK(init_conf());
+
+            if (!compute_engine->mayiuse_sub_group({8, conf.sub_group_size}))
+                return status::unimplemented;
+            if (compute_engine->is_xe_hpg()) disable_dpas = true;
 
             ok = set_default_formats_common(
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
@@ -234,6 +243,8 @@ struct xe_lp_x8s8x_convolution_bwd_data_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
+
+        bool disable_dpas = false;
 
         bool support_bias() const override { return true; }
     };

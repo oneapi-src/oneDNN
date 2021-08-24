@@ -523,7 +523,6 @@ conv_dw_fwd_ow_block_x8s8x(const __global uchar *src, const __global char *wei,
             S0.sc = idot4(A0.scdef, W.s0246, S0.sc);
 #endif
 #if OW_BLOCK >= 8
-
             S0.se = idot4((SRC_DATA4_T)(A0.sef, right0.s0, right0.s1), W.s0246,
                     S0.se);
 #endif
@@ -569,7 +568,6 @@ conv_dw_fwd_ow_block_x8s8x(const __global uchar *src, const __global char *wei,
             S0.sd = idot4(A1.scdef, W.s1357, S0.sd);
 #endif
 #if OW_BLOCK >= 8
-
             S0.sf = idot4((SRC_DATA4_T)(A1.sef, right1.s0, right1.s1), W.s1357,
                     S0.sf);
 #endif

@@ -159,7 +159,7 @@ int wei_idx(int oc_outer, int ic_outer) {
 // - cwn[16c] for NCdhw16n16c (16c is mapped to sub-group)
 // - ncw[16c] for nCdhw16c (16c is mapped to sub-group)
 int dst_idx(int mb_block, int oc_outer, int ow_block) {
-    if (DST_16N16C)
+    if (DST_16N16C || DST_32N16C)
         return oc_outer * OW_BLOCK * MB_BLOCK + ow_block * MB_BLOCK + mb_block;
     return mb_block * OC_OUTER * OW_BLOCK + oc_outer * OW_BLOCK + ow_block;
 }
@@ -197,8 +197,8 @@ int dst_idx(int mb_block, int oc_outer, int ow_block) {
         if ((n) == 16 && (stride) == 1) { \
             (block)[0] = _BLOCK_READ((ptr)); \
         } else { \
-            int local_id = get_local_id(0); \
-            (block)[0] = (local_id < (n)) ? (ptr)[local_id * (stride)] : 0; \
+            int sglid = get_sub_group_local_id(); \
+            (block)[0] = (sglid < (n)) ? (ptr)[sglid * (stride)] : 0; \
         } \
     } while (0)
 
@@ -352,7 +352,7 @@ int dst_idx(int mb_block, int oc_outer, int ow_block) {
 #define read_src_buf(buf, ptr, iw) \
     do { \
         for (int iw_outer = 0; iw_outer < IW_OUTER; iw_outer++) { \
-            int iw_inner = (C_VEC ? 0 : get_local_id(0)); \
+            int iw_inner = (C_VEC ? 0 : get_sub_group_local_id()); \
             int iw_block = iw_outer * IW_INNER + iw_inner; \
             if (HAS_PAD_W && ((iw) + iw_block < 0 || (iw) + iw_block >= IW)) \
                 continue; \
@@ -567,6 +567,19 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                                     &(ptr)[off]); \
                         } \
                     } \
+        } else if (DST_32N16C) { \
+            int ow_bound = (OW % OW_BLOCK == 0) ? OW_BLOCK \
+                                                : min(OW_BLOCK, OW - (ow)); \
+            for (int ow_block = 0; ow_block < ow_bound; ow_block++) \
+                for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) \
+                    for (int mb_block = 0; mb_block < MB_BLOCK; \
+                            mb_block += 32) { \
+                        int off = dst_off( \
+                                mb_block, oc_outer * 16, 0, 0, ow_block); \
+                        int idx = dst_idx(mb_block, oc_outer, ow_block); \
+                        unrolled_write(min(32, MB_BLOCK), &(block)[idx], \
+                                &(ptr)[off]); \
+                    } \
         } else if (DST_NCHW && sglid < OC_WO_PADDING - oc) { \
             for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) { \
                 int n_channels = min(min(C_SIZE, OW - ow), OW_BLOCK); \
@@ -670,9 +683,11 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         const __global DATA_T *bia, __global DST_DATA_T *dst POST_OP_ARGS) {
-    int local_id = get_local_id(0);
+
+    MAYBE_SKIP_NON_UNIFORM_WG();
+
     int sglid = get_sub_group_local_id();
-    int g_ocb = get_group_id(0);
+    int g_ocb = get_group_id(0) * (LWS_0 / SUB_GROUP_SIZE) + get_sub_group_id();
     int g = g_ocb / (OCB / OC_BLOCK);
     int ocb = g_ocb % (OCB / OC_BLOCK) * OC_BLOCK;
 
@@ -717,7 +732,7 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) {
             for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) {
                 const int bg_off = g * OC;
-                const int bc_off = oc + oc_outer * 16 + local_id;
+                const int bc_off = oc + oc_outer * 16 + sglid;
 #if (DT_F16 || DST_DT_U8 || DST_DT_S8)
 #if OC_WO_PADDING == SUB_GROUP_SIZE && (DST_DT_U8 || DST_DT_S8)
                 if (OC_WO_PADDING % OC_BLOCK == 0 && bc_off < OC_WO_PADDING) {

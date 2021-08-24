@@ -20,6 +20,7 @@
 #include <cassert>
 #include <memory>
 #include <vector>
+#include <initializer_list>
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
@@ -106,11 +107,32 @@ public:
     bool is_xe_lp() const {
         return device_info_->gpu_arch() == gpu_arch_t::xe_lp;
     }
+    bool is_xe_hp() const {
+        return device_info_->gpu_arch() == gpu_arch_t::xe_hp;
+    }
+    bool is_xe_hpg() const {
+        return device_info_->gpu_arch() == gpu_arch_t::xe_hpg;
+    }
     bool mayiuse_ngen_kernels() {
         return device_info_->mayiuse_ngen_kernels(this);
     }
     bool mayiuse_non_uniform_work_groups() const {
         return device_info_->mayiuse_non_uniform_work_groups();
+    }
+    bool mayiuse_sub_group(int size) const {
+        return device_info_->mayiuse_sub_group(size);
+    }
+    bool mayiuse_sub_group(std::initializer_list<int> sizes) const {
+        for (int size : sizes)
+            if (!mayiuse_sub_group(size)) return false;
+        return true;
+    }
+    bool mayiuse_large_grf_mode() const {
+        // XXX: XeHPG 128EU A0 causes hangs with large GRF mode.
+        if (is_xe_hpg() && device_info()->eu_count() == 128
+                && device_info()->stepping_id() == 0)
+            return false;
+        return device_info_->gpu_arch() >= compute::gpu_arch_t::xe_hp;
     }
 
     dispatch_t create_dispatch(const memory_desc_t *md = nullptr) const {

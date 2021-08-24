@@ -17,6 +17,8 @@
 #ifndef NGEN_OPENCL_HPP
 #define NGEN_OPENCL_HPP
 
+#include "ngen_config.hpp"
+
 #include <CL/cl.h>
 
 #include <sstream>
@@ -48,6 +50,7 @@ class OpenCLCodeGenerator : public ELFCodeGenerator<hw>
 public:
     inline std::vector<uint8_t> getBinary(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0");
     inline cl_kernel getKernel(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0");
+    static inline void getHWInfo(cl_context context, cl_device_id device, HW &_hw, int &steppingID);
     static inline HW detectHW(cl_context context, cl_device_id device);
 };
 
@@ -72,22 +75,28 @@ static inline std::vector<uint8_t> getOpenCLCProgramBinary(cl_context context, c
         throw opencl_error();
 
     detail::handleCL(clBuildProgram(program, 1, &device, options, nullptr, nullptr));
-    size_t nDevices = 0; 
+    size_t nDevices = 0;
     detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES, sizeof(size_t), &nDevices, nullptr));
-    std::vector<size_t> binarySize(nDevices);
-    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES, sizeof(size_t) * nDevices, binarySize.data(), nullptr));
     std::vector<cl_device_id> devices(nDevices);
     detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_DEVICES, sizeof(cl_device_id) * nDevices, devices.data(), nullptr));
     size_t deviceIdx = std::distance(devices.begin(), std::find(devices.begin(), devices.end(), device));
-    std::vector<uint8_t *> binaryPointers(nDevices); 
+
+    if (deviceIdx >= nDevices)
+        throw opencl_error();
+
+    std::vector<size_t> binarySize(nDevices);
+    std::vector<uint8_t *> binaryPointers(nDevices);
     std::vector<std::vector<uint8_t>> binaries(nDevices);
-    for(size_t i =0; i < nDevices; ++i){
+
+    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES, sizeof(size_t) * nDevices, binarySize.data(), nullptr));
+    for (size_t i = 0; i < nDevices; i++) {
         binaries[i].resize(binarySize[i]);
         binaryPointers[i] = binaries[i].data();
     }
-    
-    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_BINARIES, sizeof(uint8_t *) * nDevices , binaryPointers.data(), nullptr));
+
+    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_BINARIES, sizeof(uint8_t *) * nDevices, binaryPointers.data(), nullptr));
     detail::handleCL(clReleaseProgram(program));
+
     return binaries[deviceIdx];
 }
 
@@ -106,6 +115,9 @@ std::vector<uint8_t> OpenCLCodeGenerator<hw>::getBinary(cl_context context, cl_d
     using super = ELFCodeGenerator<hw>;
     std::ostringstream dummyCL;
     auto modOptions = options;
+
+    if ((hw >= HW::XeHP) && (super::interface_.needGRF > 128))
+        modOptions.append(" -cl-intel-256-GRF-per-thread");
 
     super::interface_.generateDummyCL(dummyCL);
     auto dummyCLString = dummyCL.str();
@@ -161,14 +173,24 @@ cl_kernel OpenCLCodeGenerator<hw>::getKernel(cl_context context, cl_device_id de
 }
 
 template <HW hw>
-HW OpenCLCodeGenerator<hw>::detectHW(cl_context context, cl_device_id device)
+void OpenCLCodeGenerator<hw>::getHWInfo(cl_context context, cl_device_id device, HW &_hw, int &steppingID)
 {
     const char *dummyCL = "kernel void _(){}";
     const char *dummyOptions = "";
 
     auto binary = detail::getOpenCLCProgramBinary(context, device, dummyCL, dummyOptions);
 
-    return ELFCodeGenerator<hw>::getBinaryArch(binary);
+    ELFCodeGenerator<hw>::getHWInfo(binary, _hw, steppingID);
+}
+
+template <HW hw>
+HW OpenCLCodeGenerator<hw>::detectHW(cl_context context, cl_device_id device)
+{
+    HW _hw;
+    int steppingID;
+    getHWInfo(context, device, _hw, steppingID);
+    (void)steppingID;
+    return _hw;
 }
 
 } /* namespace ngen */

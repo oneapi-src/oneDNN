@@ -40,7 +40,8 @@ __kernel void ref_resampling_fwd(
 
 #if RESAMPLING_ALG_NEAREST
     const uint src_index = SRC_OFF(mb, c, (uint)id, (uint)ih, (uint)iw);
-    result = CONVERT_FLOAT_T(src[src_index]);
+    // WA: Add dummy zero as a temporary workaround for a compiler bug
+    result = CONVERT_FLOAT_T(src[src_index]) + 0.0f;
 #else
     const uint id0 = max((uint)floor(id - .5f), (uint)0);
     const uint id1 = min((uint)ceil(id - .5f), (uint)ID - 1);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,9 @@ enum {
     FlagCOColumn = 4,
     FlagCORow = 8,
     FlagNonfinalKBlock = 16,
+    FlagNoninitialKBlock = 128,
+    FlagLateFusedGEMMDone = 256,
+    FlagEarlyFusedGEMMDone = 512,
 };
 
 #endif /* header guard */

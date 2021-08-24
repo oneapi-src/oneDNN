@@ -63,23 +63,16 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            gws[0] = gws[1] = gws[2] = 1;
-            lws[0] = lws[1] = lws[2] = 1;
-            block[0] = block[1] = block[2] = 1;
-
-            for (int i = 0, j = 0; i < src_md()->ndims; ++i) {
-                if (i != desc()->softmax_axis) {
-                    const auto dim = src_md()->dims[i];
-                    gws[j % 3] *= dim;
-                    if (j < 3) block[j] = dim;
-                    ++j;
-                }
-            }
-
             group_size = 16;
 
+            if (!compute_engine->mayiuse_sub_group((int)group_size))
+                return status::unimplemented;
+
             lws[0] = group_size;
-            gws[0] *= group_size;
+            lws[1] = lws[2] = 1;
+            gws[0] = utils::array_product(&src_md()->dims[0], ndims() - 1)
+                    * group_size;
+            gws[1] = gws[2] = 1;
 
             return status::success;
         }

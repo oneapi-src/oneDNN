@@ -340,7 +340,8 @@ void sqt_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, Re
 
 // Thread spawner messages.
 void threadend(const InstructionModifier &mod, const RegData &r0_info) {
-    auto sf = SharedFunction::ts;
+    auto sf = (hardware <= HW::XeHP) ? SharedFunction::ts
+                                        : SharedFunction::gtwy;
     uint32_t exdesc = 0x20 | (static_cast<int>(sf) & 0xF);
     send(8 | EOT | mod | NoMask, null, r0_info, exdesc, 0x2000010);
 }
@@ -356,14 +357,26 @@ void barriermsg(const InstructionModifier &mod, const GRF &header)
 
 void barriermsg(const GRF &header) { barriermsg(InstructionModifier(), header); }
 
+// Prepare barrier header.
+void barrierheader(const GRF &header, const GRF &r0_info = r0) {
+    if (hardware >= HW::XeHPG) {
+        mov(1 | NoMask, header.hf(4), Immediate::hf(0));
+        mov(2 | NoMask, header.ub(10)(1), r0_info.ub(11)(0));
+    } else
+        and_(8 | NoMask, header.ud(), r0_info.ud(2), uint32_t((hardware >= HW::Gen11) ? 0x7F000000 : 0x8F000000));
+}
+
 void barriersignal(const InstructionModifier &mod, const GRF &temp, const GRF &r0_info = r0)
 {
-        and_(8 | NoMask, temp.ud(), r0_info.ud(2), uint32_t((hardware >= HW::Gen11) ? 0x7F000000 : 0x8F000000));
+    barrierheader(temp, r0_info);
     barriermsg(mod, temp);
 }
 
 void barriersignal(const InstructionModifier &mod, const GRF &temp, uint32_t threadCount, const GRF &r0_info = r0)
 {
+    if (hardware >= HW::XeHPG)
+        mov(1 | NoMask, temp.ud(2), (threadCount << 24) | (threadCount << 16));
+    else
     {
         and_(8 | NoMask, temp.ud(), r0_info.ud(2), uint32_t((hardware >= HW::Gen11) ? 0x7F000000 : 0x8F000000));
         mov(1 | NoMask, temp.ub(9), 0x80 | (threadCount & 0x7F));
@@ -374,9 +387,10 @@ void barriersignal(const InstructionModifier &mod, const GRF &temp, uint32_t thr
 void barriersignal(const GRF &temp, const GRF &r0_info = r0) { barriersignal(InstructionModifier(), temp, r0_info); }
 void barriersignal(const GRF &temp, uint32_t threadCount, const GRF &r0_info = r0) { barriersignal(InstructionModifier(), temp, threadCount, r0_info); }
 
+
 void barrierwait()
 {
-    if (isXe)
+    if (isGen12)
         sync.bar(NoMask);
     else
         wait(NoMask, n0[0]);
@@ -392,8 +406,11 @@ void barrier(const Targs &...barrierArgs)
 // Global memory fence.
 void memfence(const InstructionModifier &mod, const RegData &dst, const RegData &header = GRF(0))
 {
-    const uint32_t exdesc = static_cast<int>(SharedFunction::dc0) & 0xF;
-    send(8 | mod | NoMask, dst, header, exdesc, 0x219E000);
+    if (hardware <= HW::XeHP) {
+        const uint32_t exdesc = static_cast<int>(SharedFunction::dc0) & 0xF;
+        send(8 | mod | NoMask, dst, header, exdesc, 0x219E000);
+    } else
+        send(1 | mod | NoMask, SharedFunction::ugm, dst, header, null, 0, 0x214031F);
 }
 
 void memfence(const RegData &dst, const RegData &header = GRF(0)) { memfence(InstructionModifier(), dst, header); }
@@ -401,9 +418,120 @@ void memfence(const RegData &dst, const RegData &header = GRF(0)) { memfence(Ins
 // SLM-only memory fence.
 void slmfence(const InstructionModifier &mod, const RegData &dst, const RegData &header = GRF(0))
 {
-    const uint32_t exdesc = static_cast<int>(SharedFunction::dc0) & 0xF;
-    send(8 | mod | NoMask, dst, header, exdesc, 0x219E0FE);
+    if (hardware <= HW::XeHP) {
+        const uint32_t exdesc = static_cast<int>(SharedFunction::dc0) & 0xF;
+        send(8 | mod | NoMask, dst, header, exdesc, 0x219E0FE);
+    } else
+        send(1 | mod | NoMask, SharedFunction::slm, dst, header, null, 0, 0x210011F);
 }
 
 void slmfence(const RegData &dst, const RegData &header = GRF(0)) { slmfence(InstructionModifier(), dst, header); }
 
+// XeHP+ prologues.
+void loadlid(int argGRFs, int dims = 3, int simd = 8, const GRF &temp = GRF(127), int paddedSize = 0)
+{
+    if (hardware >= HW::XeHP) {
+        const int grfSize = GRF::bytes(hardware);
+        const int grfOW = grfSize / 16;
+        int simdGRFs = (simd > 16) ? 2 : 1;
+        int insns = 0;
+
+        if (dims > 0) {
+            auto dmSave = defaultModifier;
+            defaultModifier |= NoMask | AutoSWSB;
+
+            mov<uint32_t>(8, temp, uint16_t(0));
+            and_<uint32_t>(1, temp[2], r0[0], uint32_t(~0x1F));
+            and_<uint16_t>(1, temp[0], r0[4], uint16_t(0xFF));
+            add<uint32_t>(1, temp[2], temp[2], uint16_t(argGRFs * grfSize));
+            mad<uint32_t>(1, temp[2], temp[2], temp.uw(0), uint16_t(3 * simdGRFs * grfSize));
+            load(8, r1, aligned_block_oword(simdGRFs * ((dims == 1) ? 1 : 2) * grfOW), A32NC, temp);
+            insns += 6;
+            if (dims == 3) {
+                add<uint32_t>(1, temp[2], temp[2], uint16_t(2 * simdGRFs * grfSize));
+                load(8, GRF(1 + 2 * simdGRFs), aligned_block_oword(grfOW * simdGRFs), A32NC, temp);
+                insns += 2;
+            }
+
+            defaultModifier = dmSave;
+        }
+
+        if (paddedSize > 0) {
+            int nops = (paddedSize >> 4) - insns;
+#ifdef NGEN_SAFE
+            if (paddedSize & 0xF) throw invalid_operand_exception();
+            if (nops < 0)         throw invalid_operand_exception();
+#endif
+            for (int i = 0; i < nops; i++)
+                nop();
+        }
+
+        mark(_labelLocalIDsLoaded);
+    }
+}
+
+void loadargs(const GRF &base, int argGRFs, const GRF &temp = GRF(127))
+{
+    if (hardware >= HW::XeHP) {
+        if (argGRFs > 0) {
+            auto dst = base;
+            auto dmSave = defaultModifier;
+            defaultModifier |= NoMask | AutoSWSB;
+
+            mov<uint32_t>(8, temp, uint16_t(0));
+            and_<uint32_t>(1, temp[2], r0[0], uint32_t(~0x1F));
+            while (argGRFs > 0) {
+                int nload = std::min(utils::rounddown_pow2(argGRFs), 4);
+                load(8, dst, aligned_block_oword(GRF::bytes(hardware) * nload / 16), A32NC, temp);
+                argGRFs -= nload;
+                dst += nload;
+                if (argGRFs > 0)
+                    add<uint32_t>(1, temp[2], temp[2], uint32_t(GRF::bytes(hardware) * nload));
+            }
+
+            defaultModifier = dmSave;
+        }
+
+        mark(_labelArgsLoaded);
+    }
+}
+
+void epilogue(int GRFCount, bool hasSLM, const RegData &r0_info)
+{
+    GRF tmp0(GRFCount - 3);
+    GRF tmp1(GRFCount - 2);
+    GRF lastReg(GRFCount - 1);
+
+    bool doMemFence = false;
+    bool doSLMFence = false;
+    bool setAccToZero = false;
+
+    switch (hardware) {
+        case HW::XeLP:
+        case HW::XeHP:
+        case HW::XeHPG:
+            doMemFence = true;
+            doSLMFence = true;
+            setAccToZero = true;
+            break;
+        default: break;
+    }
+
+    if (!hasSLM) doSLMFence = false;
+
+    int dwordsPerReg = GRF::bytes(hardware) / sizeof(uint32_t);
+    mov<uint32_t>(dwordsPerReg, lastReg, r0_info);
+
+    if (doMemFence) memfence(tmp0, r0_info);
+    if (doSLMFence) slmfence(tmp1, r0_info);
+
+    if (setAccToZero) {
+        mov(16, acc0.f(), 0.f);
+        if (hardware == HW::XeHP) mov(16, acc2.f(), 0.f);
+    }
+
+    if (doMemFence) wrdep(tmp0);
+    if (doSLMFence) wrdep(tmp1);
+
+    threadend(lastReg);
+}

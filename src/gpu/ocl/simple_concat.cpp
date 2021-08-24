@@ -38,7 +38,8 @@ bool is_same_axis_order(
     return true;
 }
 
-static status_t init_conf_common(concat_conf_t &conf, const concat_pd_t *pd) {
+static status_t init_conf_common(
+        engine_t *engine, concat_conf_t &conf, const concat_pd_t *pd) {
     using namespace utils;
 
     const memory_desc_wrapper dst_mdw(pd->dst_md());
@@ -140,20 +141,39 @@ static status_t init_conf_common(concat_conf_t &conf, const concat_pd_t *pd) {
         }
     }
 
-    if (conf.inner_axis % 16 || conf.inner_axis < 32)
-        return status::unimplemented;
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.data_type_size = (conf.inner_axis % 32 == 0) ? 4 : 2;
     conf.inner_axis /= conf.data_type_size;
 
     conf.dst_extern_dim_size
             = conf.dst_extern_dim_size * data_type_size / conf.data_type_size;
 
-    conf.simd = (conf.inner_axis % 16 == 0) ? 16 : 8;
-    conf.block = conf.simd * utils::max_div(conf.inner_axis / conf.simd, 8);
+    auto set_gws_d = [&conf, extern_axis, concat_dim_size]() {
+        conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
+        conf.gws_d[1] = extern_axis;
+        conf.gws_d[2] = concat_dim_size;
+    };
 
-    conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
-    conf.gws_d[1] = extern_axis;
-    conf.gws_d[2] = concat_dim_size;
+    if (conf.inner_axis % 16 || conf.inner_axis < 32) {
+        if (compute_engine->device_info()->gpu_arch()
+                        == compute::gpu_arch_t::xe_hp
+                && data_type_size > 1) {
+            conf.simd = 1;
+            conf.block = 1;
+            set_gws_d();
+            for (int i = 0; i < 3; ++i) {
+                if (conf.gws_d[i] > 1024) return status::unimplemented;
+            }
+        } else
+            return status::unimplemented;
+    } else {
+        conf.simd = (conf.inner_axis % 16 == 0) ? 16 : 8;
+        conf.block = conf.simd * utils::max_div(conf.inner_axis / conf.simd, 8);
+        if (!compute_engine->mayiuse_sub_group(conf.simd))
+            return status::unimplemented;
+        set_gws_d();
+    }
+
     compute::get_optimal_lws(conf.gws_d, conf.lws_d, 3);
     return status::success;
 }
@@ -175,8 +195,8 @@ static status_t init_kernel_ctx_common(
     return status::success;
 }
 
-status_t simple_concat_t::pd_t::init_conf() {
-    return init_conf_common(conf, this);
+status_t simple_concat_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(engine, conf, this);
 }
 
 status_t simple_concat_t::pd_t::init_kernel_ctx(

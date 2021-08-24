@@ -15,8 +15,11 @@
 *******************************************************************************/
 
 #include "gpu/gpu_impl_list.hpp"
-
+#include "gpu/jit/binary_format.hpp"
+#include "gpu/jit/conv/gen_convolution.hpp"
 #include "gpu/jit/gemm/gen_gemm.hpp"
+#include "gpu/jit/gemm/xe_hp_systolic_gemm.hpp"
+#include "gpu/jit/xe_hp_convolution.hpp"
 #include "gpu/ocl/convolution_inner_product.hpp"
 #include "gpu/ocl/gemm/gemm_with_post_ops.hpp"
 #include "gpu/ocl/gemm/gen9_gemm.hpp"
@@ -53,8 +56,13 @@
 #include "gpu/ocl/ref_zero_pad.hpp"
 #include "gpu/ocl/rnn/ref_rnn.hpp"
 #include "gpu/ocl/shuffle_by_reorder.hpp"
+#include "gpu/ocl/xe_hp_1st_bwd_convolution.hpp"
+#include "gpu/ocl/xe_hp_1x1_convolution.hpp"
+#include "gpu/ocl/xe_hp_bf16_convolution.hpp"
+#include "gpu/ocl/xe_hp_convolution.hpp"
 #include "gpu/ocl/xe_lp_x8s8x_1x1_convolution.hpp"
 #include "gpu/ocl/xe_lp_x8s8x_convolution.hpp"
+#include "oneapi/dnnl/dnnl_config.h"
 
 namespace dnnl {
 namespace impl {
@@ -79,10 +87,22 @@ const impl_list_item_t gpu_impl_list[] = {
         INSTANCE(ocl::ref_deconvolution_bwd_weights_t),
 
         // Convolution
+        INSTANCE(jit::gen_convolution_fwd_t),
+        INSTANCE(jit::gen_convolution_bwd_data_t),
+        INSTANCE(jit::gen_convolution_bwd_weights_t),
+        INSTANCE(jit::xe_hp_convolution_fwd_t),
+        INSTANCE(jit::xe_hp_convolution_bwd_data_t),
+        INSTANCE(jit::xe_hp_convolution_bwd_weights_t),
+        INSTANCE(ocl::xe_hp_1x1_convolution_fwd_t),
+        INSTANCE(ocl::xe_hp_1st_convolution_bwd_weights_t),
+        INSTANCE(ocl::xe_hp_bf16_convolution_bwd_weights_t),
+        INSTANCE(ocl::xe_hp_convolution_fwd_t),
+        INSTANCE(ocl::xe_hp_convolution_bwd_data_t),
         INSTANCE(ocl::xe_lp_x8s8x_1x1_convolution_fwd_t),
         INSTANCE(ocl::xe_lp_x8s8x_convolution_fwd_t),
         INSTANCE(ocl::xe_lp_x8s8x_convolution_bwd_data_t),
         INSTANCE(ocl::gen9_wino_convolution_fwd_t),
+        // Convolution
         INSTANCE(ocl::gen9_convolution_fwd_t),
         INSTANCE(ocl::gen9_convolution_bwd_data_t),
         INSTANCE(ocl::gen9_convolution_bwd_weights_t),
@@ -127,6 +147,7 @@ const impl_list_item_t gpu_impl_list[] = {
         INSTANCE(ocl::ref_softmax_bwd_t),
 
         // GEMM (internal)
+        INSTANCE(jit::xe_hp_systolic_gemm_t),
         INSTANCE(ocl::gemm_with_post_ops_t),
         INSTANCE(jit::gen_gemm_t),
         INSTANCE(ocl::xe_lp_gemm_t),

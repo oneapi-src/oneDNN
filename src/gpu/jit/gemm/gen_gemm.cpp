@@ -20,6 +20,7 @@
 #include "common/float16.hpp"
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/jit/gemm/gemm_walk_orders.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
 
 namespace dnnl {
@@ -32,11 +33,12 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         const memory_storage_t &b, const memory_storage_t &c,
         const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
-        int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha, float beta,
-        int16_t ao, int16_t bo, int32_t cmask, bool last_k_block) const {
+        int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0, float alpha,
+        float beta, int16_t ao, int16_t bo, int32_t cmask, bool last_k_block,
+        bool swapab, bool disable_hilbert) const {
 
-    bool with_offset = (pd()->desc()->c_type() == data_type::s32);
     uint32_t flags = 0;
+    bool k_parallel = (nocopy_info_.kParallel || nocopy_info_.kParallelLocal);
 
     auto stride_a0 = int32_t(pd()->desc()->stride_a(0));
     auto stride_b0 = int32_t(pd()->desc()->stride_b(0));
@@ -45,6 +47,11 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     auto stride_a1 = int32_t(pd()->desc()->stride_a(1));
     auto stride_b1 = int32_t(pd()->desc()->stride_b(1));
     auto stride_c1 = int32_t(pd()->desc()->stride_c(1));
+
+    if (swapab) {
+        std::swap(stride_a0, stride_b0);
+        std::swap(stride_a1, stride_b1);
+    }
 
     if (!last_k_block) flags |= FlagNonfinalKBlock;
     if (cmask & 1) flags |= FlagCOColumn;
@@ -67,15 +74,16 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     arg_list.set(argn++, k);
     arg_list.set(argn++, alpha);
     arg_list.set(argn++, beta);
-    if (with_offset) {
+    if (pd()->with_ab_zero_points()) {
         uint32_t abo = uint16_t(-ao) | (uint16_t(-bo) << 16);
         arg_list.set(argn++, abo);
     }
-    if (pd()->with_c_offset() || pd()->with_bias()) {
+    if (pd()->with_c_zero_points() || pd()->with_bias()) {
         arg_list.set(argn++, co);
         arg_list.set(argn++, offset_co);
     }
     arg_list.set(argn++, flags);
+    if (k_parallel) arg_list.set(argn++, k0);
 
     if (pd()->batch_dims() >= 1) {
         arg_list.set(argn++, stride_a0);
@@ -98,11 +106,13 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     gws[0] = utils::div_up(m, nocopy_info_.unroll[0]);
     gws[1] = utils::div_up(n, nocopy_info_.unroll[1]);
-    gws[2] = pd()->desc()->batch();
+    gws[2] = k_parallel ? nstl::max(1, utils::div_up(k, k0))
+                        : pd()->desc()->batch();
 
-    size_t lws[3] = {size_t(nocopy_info_.wg[0]), size_t(nocopy_info_.wg[1]), 1};
+    size_t lws[3] = {size_t(nocopy_info_.wg[0]), size_t(nocopy_info_.wg[1]),
+            size_t(nocopy_info_.wg[2])};
 
-    if (nocopy_info_.loopOrder[0] == LoopN) {
+    if (nocopy_info_.isNMK()) {
         std::swap(lws[0], lws[1]);
         std::swap(gws[0], gws[1]);
     }
@@ -110,11 +120,27 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     if (nocopy_info_.fusedEUs && (lws[0] > 1))
         gws[0] = utils::rnd_up(gws[0], 2);
 
-    for (int d = 0; d < 2; d++)
+    int last_non_1 = 2;
+    for (; last_non_1 >= 0 && (gws[last_non_1] == 1 || lws[last_non_1] == 1);
+            last_non_1--)
+        ;
+
+    for (int d = 0; d < 2; d++) {
         if (nocopy_info_.fixedWG || (gws[d] > lws[d]))
             gws[d] = utils::rnd_up(gws[d], lws[d]);
-        else
+        else {
+            // Workaround to avoid local ID reordering until reqd_walk_group_order implemented in UMD.
+            if (pd()->arch_ >= compute::gpu_arch_t::xe_hp && d < last_non_1)
+                gws[d] = utils::rnd_up_pow2(gws[d]);
             lws[d] = gws[d];
+        }
+    }
+
+    lws[1] *= nocopy_info_.wgExpand;
+    gws[1] *= nocopy_info_.wgExpand;
+
+    gemm_linear_order_args(arg_list, argn, lws, gws, m, n, disable_hilbert,
+            nocopy_info_, pd()->dev_info_);
 
     lws[0] *= nocopy_info_.subgroupSize;
     gws[0] *= nocopy_info_.subgroupSize;
@@ -131,22 +157,27 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto m = pd()->desc()->m();
-    auto n = pd()->desc()->n();
+    const bool swapab = pd()->swap_ab();
+
+    const auto m = swapab ? pd()->desc()->n() : pd()->desc()->m();
+    const auto n = swapab ? pd()->desc()->m() : pd()->desc()->n();
     auto k = pd()->desc()->k();
 
-    bool transa = (pd()->desc()->transa() == dnnl_trans);
-    bool transb = (pd()->desc()->transb() == dnnl_trans);
+    const bool transa = swapab ? (pd()->desc()->transb() == dnnl_notrans)
+                               : (pd()->desc()->transa() == dnnl_trans);
+    const bool transb = swapab ? false : (pd()->desc()->transb() == dnnl_trans);
 
-    auto lda = pd()->desc()->lda();
-    auto ldb = pd()->desc()->ldb();
+    const auto lda = swapab ? pd()->desc()->ldb() : pd()->desc()->lda();
+    const auto ldb = swapab ? pd()->desc()->lda() : pd()->desc()->ldb();
     auto ldc = pd()->desc()->ldc();
 
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
 
-    auto &a = GEMM_CTX_ARG_STORAGE(b);
-    auto &b = GEMM_CTX_ARG_STORAGE(a);
+    bool k_parallel = nocopy_info_.kParallel || nocopy_info_.kParallelLocal;
+
+    auto &a = swapab ? GEMM_CTX_ARG_STORAGE(a) : GEMM_CTX_ARG_STORAGE(b);
+    auto &b = swapab ? GEMM_CTX_ARG_STORAGE(b) : GEMM_CTX_ARG_STORAGE(a);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
     auto &c_zp = GEMM_CTX_ARG_STORAGE(c_zero_point);
     auto &bias = GEMM_CTX_ARG_STORAGE(bias);
@@ -164,13 +195,6 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     int cmask = 0;
 
     if (c_type == data_type::s32) {
-        const int *ao_i32 = nullptr;
-        const int *bo_i32 = nullptr;
-        pd()->attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
-        pd()->attr()->zero_points_.get(
-                DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
-        ao = *ao_i32;
-        bo = *bo_i32;
         off_co0 = co->offset() / types::data_type_size(c_type)
                 + pd()->dyn_offset_co;
     } else if (pd()->with_bias()) {
@@ -180,20 +204,51 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
         off_co0 = bias.offset() / types::data_type_size(c_type);
     }
 
-    if (pd()->with_c_offset())
+    if (pd()->with_ab_zero_points()) {
+        const int *ao_i32 = nullptr;
+        const int *bo_i32 = nullptr;
+        pd()->attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
+        pd()->attr()->zero_points_.get(
+                DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
+        ao = *ao_i32;
+        bo = *bo_i32;
+    }
+    if (pd()->with_c_zero_points())
         pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
 
     status_t status;
 
-    auto block_m
-            = utils::rnd_up(nocopy_info_.blocking[0], nocopy_info_.unroll[0]);
-    auto block_n
-            = utils::rnd_up(nocopy_info_.blocking[1], nocopy_info_.unroll[1]);
-    auto block_k
-            = utils::rnd_up(nocopy_info_.blocking[2], nocopy_info_.unroll[2]);
+    auto block_m = nocopy_info_.blocking[0];
+    auto block_n = nocopy_info_.blocking[1];
+    auto block_k = nocopy_info_.blocking[2];
+
+    bool disable_hilbert = (k <= 64) && nocopy_info_.isHilbert();
+    if (disable_hilbert) {
+        block_m = nocopy_info_.blockingAlt[0];
+        block_n = nocopy_info_.blockingAlt[1];
+    }
 
     if (!utils::one_of(pd()->desc()->c_type(), data_type::f32, data_type::f16))
         block_k = k;
+
+    block_m = utils::rnd_up(
+            block_m, nocopy_info_.wg[0] * nocopy_info_.unroll[0]);
+    block_n = utils::rnd_up(
+            block_n, nocopy_info_.wg[1] * nocopy_info_.unroll[1]);
+    block_k = utils::rnd_up(block_k, nocopy_info_.unroll[2]);
+
+    int32_t k0 = 0;
+    if (k_parallel) {
+        k0 = block_k;
+        block_k = k;
+
+        if (beta != 1.0f && (k > k0 * nocopy_info_.wg[2])) {
+            status = launch_nocopy(ctx, compute_stream, a, b, c, *co, off_a0,
+                    off_b0, off_c0, int32_t(off_co0), lda, ldb, ldc, m, n, 0, 1,
+                    1.0f, beta, 0, 0, 0, false, swapab, true);
+            beta = 1.0f;
+        }
+    }
 
     for (int64_t Bk = 0; Bk < k; Bk += block_k) {
         int64_t size_k = k - Bk;
@@ -222,8 +277,8 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
                 status = launch_nocopy(ctx, compute_stream, a, b, c, *co,
                         off_a_src, off_b_src, off_c, off_co, lda, ldb, ldc,
-                        size_m, size_n, size_k, alpha, eff_beta, ao, bo, cmask,
-                        last_k_block);
+                        size_m, size_n, size_k, k0, alpha, eff_beta, ao, bo,
+                        cmask, last_k_block, swapab, disable_hilbert);
 
                 if (status) return status;
             }

@@ -17,8 +17,12 @@
 #ifndef GPU_JIT_JIT_GENERATOR_HPP
 #define GPU_JIT_JIT_GENERATOR_HPP
 
+#include <memory>
+
 #include "common/float16.hpp"
+#include "common/nstl.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
+#include "oneapi/dnnl/dnnl_config.h"
 
 namespace ngen {
 using half = dnnl::impl::float16_t;
@@ -36,7 +40,9 @@ namespace jit {
 using gpu_gen_t = ngen::HW;
 constexpr gpu_gen_t gpu_gen9 = ngen::HW::Gen9;
 constexpr gpu_gen_t gpu_gen11 = ngen::HW::Gen11;
-constexpr gpu_gen_t gpu_xe_lp = ngen::HW::Xe_LP;
+constexpr gpu_gen_t gpu_xe_lp = ngen::HW::XeLP;
+constexpr gpu_gen_t gpu_xe_hp = ngen::HW::XeHP;
+constexpr gpu_gen_t gpu_xe_hpg = ngen::HW::XeHPG;
 
 // nGEN jit generator
 //
@@ -72,7 +78,7 @@ constexpr gpu_gen_t gpu_xe_lp = ngen::HW::Xe_LP;
 //      arg_list.set(1, dst);
 //      arg_list.set(2, dbg_mem, kernel_arg_t::kind_t::svm);
 //      ...
-//      compute_stream->parallel_for(nd_range, kernel_, arg_list);
+//      parallel_for(ctx, nd_range, kernel_, arg_list);
 //  }
 //
 //  ngen_kernel_t() : jit_generator<...>() {
@@ -133,8 +139,9 @@ public:
 #endif
 
     void emath(ngen::MathFunction fc, int simd, ngen::GRF dst, ngen::GRF src) {
-        for (; simd > 0; simd -= 8, dst++, src++)
-            this->math(nstl::min(simd, 8), fc, dst, src);
+        const int max_exec_size = ngen::GRF::bytes(hw) / sizeof(float);
+        for (; simd > 0; simd -= max_exec_size, dst++, src++)
+            this->math(nstl::min(simd, max_exec_size), fc, dst, src);
     }
     void eexp(int simd, const ngen::GRF &dst, const ngen::GRF &src) {
         emath(ngen::MathFunction::exp, simd, dst, src);

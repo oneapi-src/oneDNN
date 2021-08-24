@@ -115,7 +115,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
             }
 
             auto dim_str = utils::format("D%d", vect_dim);
-            conf.dispatch.vectorize_dim(dim_str, sub_group_size);
+            CHECK(conf.dispatch.vectorize_dim(dim_str, sub_group_size));
             conf.plain_to_ABcd4a4b = true;
         } else {
             auto format_fits = [](const memory_desc_t &md) {
@@ -138,7 +138,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
                 if (i == 1) {
                     conf.dispatch.define_dim(utils::format("D%d", i),
                             nstl::min(i, ndims - 1), dim, 1);
-                    conf.dispatch.vectorize_dim("D1", 16);
+                    CHECK(conf.dispatch.vectorize_dim("D1", 16));
                 } else if (i == ndims - 1) {
                     conf.dispatch.define_dim(utils::format("D%d", i),
                             nstl::min(i, ndims - 1), dim, conf.nvect);
@@ -165,7 +165,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
             mixed_dim *= dst_d.dims()[i];
         }
         conf.dispatch.define_dim("MIXED_DIM", 0, mixed_dim, conf.nvect);
-        conf.dispatch.vectorize_dim("MIXED_DIM", 16);
+        CHECK(conf.dispatch.vectorize_dim("MIXED_DIM", 16));
     }
 
     conf.dispatch.generate();

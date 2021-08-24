@@ -256,7 +256,7 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
             initial_c_padded, conf.initial_c_chunks);
     conf.dispatch.define_dim("INITIAL_HWD_CHUNK_ID", std::min(ndims - 1, 2),
             conf.final_hwd_dim, 1);
-    conf.dispatch.vectorize_dim("INITIAL_C", conf.sub_group_size);
+    CHECK(conf.dispatch.vectorize_dim("INITIAL_C", conf.sub_group_size));
     conf.dispatch.set_kernel_attr_suffix("INITIAL");
     conf.dispatch.generate();
 

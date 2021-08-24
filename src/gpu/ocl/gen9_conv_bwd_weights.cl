@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,7 +15,10 @@
 *******************************************************************************/
 #include "gpu/ocl/ocl_types.h"
 
-#pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
+#define DT_UNDEF
+
+#include "gpu/ocl/ocl_math_utils.h"
+#include "gpu/ocl/ocl_types.h"
 
 #if OD > 1
 #define CASE_3D 1
@@ -26,20 +29,6 @@
 #define HAS_PAD_D (PD != 0 || PD_R != 0)
 #define HAS_PAD_H (PH != 0 || PH_R != 0)
 #define HAS_PAD_W (PW != 0 || PW_R != 0)
-
-inline void atomic_add_global(
-        volatile __global atomic_float *source, float operand) {
-    float old_val = atomic_load_explicit(
-            source, memory_order_relaxed, memory_scope_device);
-    if (isnan(operand)) return;
-    bool success = false;
-    do {
-        float new_val = old_val + operand;
-        success = atomic_compare_exchange_strong_explicit(source, &old_val,
-                new_val, memory_order_acq_rel, memory_order_relaxed,
-                memory_scope_device);
-    } while (!success);
-}
 
 #if DST_DT_F32
 #define BLOCK_READ_DST(ptr) \
@@ -63,6 +52,8 @@ gen9_conv_bwd_weights(__global SRC_DATA_T *src,
         volatile __global atomic_float *diff_bias,
         __global DST_DATA_T *diff_dst) {
 
+    MAYBE_SKIP_NON_UNIFORM_WG();
+
 #if VER_16MB16C == 1
 
     const uint ksp = get_global_id(1);
@@ -75,7 +66,7 @@ gen9_conv_bwd_weights(__global SRC_DATA_T *src,
 #endif
     const uint kh = khw / KW;
     const uint kw = khw % KW;
-    const uint local_x = get_local_id(0);
+    const uint sglid = get_sub_group_local_id();
 
     const uint chunk = get_global_id(2) / ((IC / ICB) * (OC / OCB));
     const uint icb_ocb = get_global_id(2) % ((IC / ICB) * (OC / OCB));
@@ -84,7 +75,8 @@ gen9_conv_bwd_weights(__global SRC_DATA_T *src,
 
 #if IS_DW
     const uint g = 0;
-    const uint oc = get_group_id(0);
+    const uint oc
+            = get_group_id(0) * (LWS_0 / SUB_GROUP_SIZE) + get_sub_group_id();
     const uint ic = oc;
 #else
     const uint g_ic_oc = get_global_id(0);
@@ -116,7 +108,7 @@ gen9_conv_bwd_weights(__global SRC_DATA_T *src,
             + g * OC * OD * OH * OW * MB_BLOCK;
 
 #if WITH_BIAS == 1
-    diff_bias += g * OC + oc * OC_BLOCK + local_x;
+    diff_bias += g * OC + oc * OC_BLOCK + sglid;
     float bias_loc = 0.0f;
 #endif
 
@@ -263,7 +255,7 @@ gen9_conv_bwd_weights(__global SRC_DATA_T *src,
 
 #if WITH_BIAS == 1
     if (do_bias
-            && oc * OC_BLOCK + local_x < (IS_DW ? G_WO_PADDING : OC_WO_PADDING))
+            && oc * OC_BLOCK + sglid < (IS_DW ? G_WO_PADDING : OC_WO_PADDING))
         atomic_add_global(diff_bias, bias_loc);
 
 #endif
@@ -271,17 +263,17 @@ gen9_conv_bwd_weights(__global SRC_DATA_T *src,
 #if IS_DW
     diff_wei += oc * KD * KH * KW * OC_BLOCK + kd * KH * KW * OC_BLOCK
             + kh * KW * OC_BLOCK + kw * OC_BLOCK;
-    atomic_add_global(diff_wei + local_x, blockC00);
+    atomic_add_global(diff_wei + sglid, blockC00);
 #else
     diff_wei += ic * OC * KD * KH * KW * IC_BLOCK
             + oc * KD * KH * KW * IC_BLOCK * OC_BLOCK
             + kd * KH * KW * IC_BLOCK * OC_BLOCK + kh * KW * IC_BLOCK * OC_BLOCK
             + kw * IC_BLOCK * OC_BLOCK + g * OC * IC * KD * KH * KW;
     for (int i = 0; i < 8; i++)
-        atomic_add_global(diff_wei + i * OC_BLOCK + local_x, blockC00[i]);
+        atomic_add_global(diff_wei + i * OC_BLOCK + sglid, blockC00[i]);
 
     for (int i = 0; i < 8; i++)
-        atomic_add_global(diff_wei + (8 + i) * OC_BLOCK + local_x, blockC01[i]);
+        atomic_add_global(diff_wei + (8 + i) * OC_BLOCK + sglid, blockC01[i]);
 #endif
 
 #endif
@@ -312,7 +304,8 @@ gen9_conv_bwd_weights(__global SRC_DATA_T *src,
 
 #if IS_DW
     const int g = 0;
-    const int oc = get_group_id(0);
+    const int oc
+            = get_group_id(0) * (LWS_0 / SUB_GROUP_SIZE) + get_sub_group_id();
     const int ic = oc;
 #else
     const int g_ic_oc = get_global_id(0);

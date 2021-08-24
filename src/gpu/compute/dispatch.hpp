@@ -60,7 +60,7 @@ public:
 
     void define_dim_with_nesting_level(const std::string &name,
             int nesting_level, dim_t size, dim_t block = 1);
-    void vectorize_dim(const std::string &name, int vector_size);
+    status_t vectorize_dim(const std::string &name, int vector_size);
 
     void def_kernel_macros(kernel_ctx_t &kernel_ctx) const;
 

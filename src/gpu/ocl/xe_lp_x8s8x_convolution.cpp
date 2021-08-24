@@ -208,7 +208,7 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
                 * utils::div_up(conf.mb, conf.mb_block);
 
     } else {
-        if (conf.mb == 8 || conf.mb % 16 == 0) {
+        if (conf.mb % 16 == 0) {
             conf.ver = ver_mb_block;
             conf.mb_block = 32;
         } else {
@@ -455,6 +455,8 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("OWB", ow_nchunk);
     kernel_ctx.define_int("OWX", owx);
 
+    kernel_ctx.define_int("DISABLE_DPAS", disable_dpas);
+
     if (conf.is_depthwise)
         kernel_ctx.define_int("WEI_32G", 1);
     else
@@ -597,7 +599,7 @@ status_t xe_lp_x8s8x_convolution_bwd_data_t::pd_t::init_conf() {
         return status::unimplemented;
 
     if (!conf.is_nhwc) {
-        if (conf.mb == 8 || conf.mb % 16 == 0) {
+        if (conf.mb % 16 == 0) {
             conf.ver = ver_mb_block;
         } else {
             conf.ver = ver_ow_block;
@@ -742,6 +744,8 @@ status_t xe_lp_x8s8x_convolution_bwd_data_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("LWS_2", conf.lws_d[2]);
 
     kernel_ctx.define_int("IS_NHWC", conf.is_nhwc);
+
+    kernel_ctx.define_int("DISABLE_DPAS", disable_dpas);
 
     kernel_ctx.set_data_type(conf.dst_data_type);
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");

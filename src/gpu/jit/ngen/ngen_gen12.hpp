@@ -18,7 +18,7 @@
  * Do not #include this file directly; ngen uses it internally.
  */
 
-// Xe binary encoding.
+// Gen12 binary encoding.
 
 struct EncodingTag12 {};
 template <HW hw> struct EncodingTag12Dispatch { using tag = EncodingTag12; };
@@ -75,11 +75,12 @@ public:
 
     SWSBInfo decode(Opcode op) const {
         if (combined.combined) {
-            bool vl = isVariableLatency(HW::Xe_LP, op);
+            bool vl = isVariableLatency(HW::Gen12LP, op);
             auto pipe = (op == Opcode::send || op == Opcode::sendc) ? Pipe::A : Pipe::Default;
             return SWSBInfo(combined.sbid, vl, true) | SWSBInfo(pipe, combined.dist);
         } else if (isPipeline()) {
-            auto pipe = (pipeline.pipe == 1) ? Pipe::A : Pipe::Default;
+            static const Pipe pipeMap[4] = {Pipe::Default, Pipe::A, Pipe::F, Pipe::I};
+            auto pipe = (pipeline.pipe == 10) ? Pipe::L : pipeMap[pipeline.pipe & 3];
             return SWSBInfo(pipe, pipeline.dist);
         } else
             return SWSBInfo(scoreboard.sbid, scoreboard.mode != 2, scoreboard.mode != 3);
@@ -89,6 +90,7 @@ public:
     constexpr uint8_t raw() const                             { return all; }
     static constexpr14 SWSBInfo12 createFromRaw(uint8_t all_) { return SWSBInfo12(all_, false); }
 };
+
 
 // 24 bits of data common between src0 and src1 (lower 16 bits common with dst)
 union BinaryOperand12 {
@@ -202,6 +204,31 @@ struct Instruction12 {
         } ternary;
         struct {
             unsigned : 32;
+            unsigned : 32;
+            unsigned : 20;
+            unsigned bfnCtrl03 : 4;
+            unsigned : 4;
+            unsigned bfnCtrl47 : 4;
+            unsigned : 32;
+        } bfn;
+        struct {
+            unsigned : 32;
+            //
+            unsigned : 11;
+            unsigned rcount : 3;
+            unsigned : 2;
+            unsigned sdepth : 2;
+            unsigned : 14;
+            //
+            unsigned : 20;
+            unsigned src2SubBytePrecision : 2;
+            unsigned src1SubBytePrecision : 2;
+            unsigned : 8;
+            //
+            unsigned : 32;
+        } dpas;
+        struct {
+            unsigned : 32;
             //
             unsigned : 1;
             unsigned fusionCtrl : 1;
@@ -252,17 +279,19 @@ struct Instruction12 {
     constexpr Instruction12() : qword{0,0} {};
 
     // Decoding routines for auto-SWSB.
-    bool autoSWSB() const        { return (common.opcode & 0x80); }
-    SWSBInfo swsb() const        { return SWSBInfo12::createFromRaw(common.swsb).decode(opcode()); }
-    void setSWSB(SWSBInfo swsb)  { common.swsb = SWSBInfo12(swsb, opcode()).raw(); }
-    void clearAutoSWSB()         { common.opcode &= 0x7F; }
-    Opcode opcode() const        { return static_cast<Opcode>(common.opcode & 0x7F); }
-    SyncFunction syncFC() const  { return static_cast<SyncFunction>(binary.cmod); }
-    SharedFunction sfid() const  { return static_cast<SharedFunction>(send.sfid); }
-    bool eot() const             { return (opcode() == Opcode::send || opcode() == Opcode::sendc) && send.eot; }
-    bool predicated() const      { return !common.maskCtrl || (static_cast<PredCtrl>(common.predCtrl) != PredCtrl::None); }
-    bool atomic() const          { return common.atomicCtrl; }
-    unsigned dstTypecode() const { return binary.dstType; }
+    bool autoSWSB() const         { return (common.opcode & 0x80); }
+    SWSBInfo swsb() const         { return SWSBInfo12::createFromRaw(common.swsb).decode(opcode()); }
+    void setSWSB(SWSBInfo swsb)   { common.swsb = SWSBInfo12(swsb, opcode()).raw(); }
+    void clearAutoSWSB()          { common.opcode &= 0x7F; }
+    Opcode opcode() const         { return static_cast<Opcode>(common.opcode & 0x7F); }
+    SyncFunction syncFC() const   { return static_cast<SyncFunction>(binary.cmod); }
+    SharedFunction sfid() const   { return static_cast<SharedFunction>(send.sfid); }
+    bool eot() const              { return (opcode() == Opcode::send || opcode() == Opcode::sendc) && send.eot; }
+    bool predicated() const       { return !common.maskCtrl || (static_cast<PredCtrl>(common.predCtrl) != PredCtrl::None); }
+    bool atomic() const           { return common.atomicCtrl; }
+    unsigned dstTypecode() const  { return binary.dstType; }
+    unsigned src0Typecode() const { return srcTypecode(0); }
+    unsigned src1Typecode() const { return srcTypecode(1); }
     void shiftJIP(int32_t shift) { branches.jip += shift * sizeof(Instruction12); }
     void shiftUIP(int32_t shift) { branches.uip += shift * sizeof(Instruction12); }
 
@@ -277,15 +306,19 @@ struct Instruction12 {
         auto fc = static_cast<MathFunction>(binary.cmod);
         return (fc == MathFunction::invm || fc == MathFunction::rsqtm);
     }
+
+protected:
+    inline unsigned srcTypecode(int opNum) const;
 };
 
 static_assert(sizeof(Instruction12) == 16, "Internal error: Instruction12 has been padded by the compiler.");
+
 
 // Encoding routines.
 
 static inline unsigned getTypecode12(DataType type)
 {
-    static const uint8_t conversionTable[16] = {2,6,1,5,0,4,11,10,3,7,9,0,2,0,4,8};
+    static const uint8_t conversionTable[16] = {2,6,1,5,0,4,11,10,3,7,9,13,2,0,4,8};
     return conversionTable[static_cast<unsigned>(type) & 0xF];
 }
 
@@ -326,6 +359,7 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
     return op;
 }
 
+
 template <bool dest, typename Tag>
 static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const ExtendedReg &reg, Tag tag)
 {
@@ -355,6 +389,7 @@ static inline constexpr14 TernaryOperand12 encodeTernaryOperand12(const RegData 
     return op;
 }
 
+
 template <bool dest, typename Tag>
 static inline constexpr14 TernaryOperand12 encodeTernaryOperand12(const ExtendedReg &reg, Tag tag)
 {
@@ -380,6 +415,7 @@ static inline void encodeCommon12(Instruction12 &i, Opcode opcode, const Instruc
     i.common.accWrCtrl = mod.parts.accWrCtrl;
     i.common.saturate = mod.parts.saturate;
 }
+
 
 template <typename Tag>
 static inline void encodeCommon12(Instruction12 &i, Opcode opcode, const InstructionModifier &mod, const ExtendedReg &dst, Tag tag)
@@ -523,7 +559,7 @@ static inline DataType decodeRegTypecode12(unsigned dt)
         DataType::ub,      DataType::uw,      DataType::ud,      DataType::uq,
         DataType::b,       DataType::w,       DataType::d,       DataType::q,
         DataType::invalid, DataType::hf,      DataType::f,       DataType::df,
-        DataType::invalid, DataType::invalid, DataType::invalid, DataType::invalid
+        DataType::invalid, DataType::bf,      DataType::invalid, DataType::invalid
     };
     return conversionTable[dt & 0xF];
 }
@@ -537,9 +573,40 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
     RegData rd;
 
     switch (op) {
-        case Opcode::nop_xe:
+        case Opcode::nop_gen12:
         case Opcode::illegal:
             return false;
+        case Opcode::wrdep:
+            if (opNum != 0) return false;
+            BinaryOperand12 o0, o1;
+            o0.bits = binary.src0;
+            o1.bits = binary.src1;
+            region = DependencyRegion(hw, GRF(o0.direct.regNum)-GRF(o1.direct.regNum));
+            return true;
+        case Opcode::dpas:
+        case Opcode::dpasw: {
+            unsigned sdepth = 1 << dpas.sdepth;
+            unsigned rcount = 1 + dpas.rcount;
+            unsigned len;
+            TernaryOperand12 o;
+
+            switch (opNum) {
+                case -1: len = rcount; o.bits = ternary.dst; break;
+                case 0:  len = rcount; o.bits = ternary.src0; break;
+                case 1:  len = sdepth; o.bits = ternary.src1; break;
+                case 2: {
+                    if (op == Opcode::dpasw) rcount = (rcount + 1) >> 1;
+                    o.bits = ternary.src2;
+                    auto sr = o.direct.subRegNum;
+                    len = (sr + sdepth * rcount * 4 + 31) >> 5;
+                    break;
+                }
+                default: return false;
+            }
+
+            region = DependencyRegion(hw, GRFRange(o.direct.regNum, len));
+            return true;
+        }
         case Opcode::send:
         case Opcode::sendc: {
             int base = 0, len = 0;
@@ -571,9 +638,11 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             return true;
         }
         case Opcode::dp4a:
-        case Opcode::bfe_xe:
-        case Opcode::bfi2_xe:
-        case Opcode::csel_xe:
+        case Opcode::add3:
+        case Opcode::bfn:
+        case Opcode::bfe_gen12:
+        case Opcode::bfi2_gen12:
+        case Opcode::csel_gen12:
         case Opcode::mad:
         case Opcode::madm: {  // ternary
             TernaryOperand12 o;
@@ -658,6 +727,45 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
     return true;
 }
 
+unsigned Instruction12::srcTypecode(int opNum) const
+{
+    auto op = opcode();
+
+    switch (op) {
+        case Opcode::nop_gen12:
+        case Opcode::illegal:
+        case Opcode::send:
+        case Opcode::sendc:
+        case Opcode::dp4a:
+            return 0;
+        case Opcode::dpas:
+        case Opcode::dpasw:
+            // This method is only used for checking for long pipe types.
+            return 0;
+        case Opcode::add3:
+        case Opcode::bfn:
+        case Opcode::bfe_gen12:
+        case Opcode::bfi2_gen12:
+        case Opcode::csel_gen12:
+        case Opcode::mad:
+        case Opcode::madm: // ternary
+            switch (opNum) {
+                case 0: return ternary.src0Type | (ternary.execType << 3);
+                case 1: return ternary.src1Type | (ternary.execType << 3);
+                case 2: return ternary.src2Type | (ternary.execType << 3);
+                default: return 0;
+            }
+        default: // unary/binary
+            switch (opNum) {
+                case 0: return binary.src0Type;
+                case 1: return binary.src1Type;
+                default: return 0;
+            }
+    }
+
+    return 0;
+}
+
 bool Instruction12::getImm32(uint32_t &imm) const
 {
     // Only need to support sync.allrd/wr.
@@ -690,6 +798,10 @@ bool Instruction12::getARFType(ARFType &arfType, int opNum) const
         case Opcode::mad:
         case Opcode::madm:
         case Opcode::dp4a:
+        case Opcode::add3:
+        case Opcode::bfn:
+        case Opcode::dpas:
+        case Opcode::dpasw:
             return false;
         default: {
             BinaryOperand12 o;

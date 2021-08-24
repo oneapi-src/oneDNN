@@ -36,6 +36,16 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
     x[2] = GWS_GET_X2();
     x[3] = GWS_GET_X3();
 
+    if (x[0] >= DST_D0 || x[1] >= DST_D1 || x[2] >= DST_D2 || x[3] >= DST_D3) {
+        int local_id = get_sub_group_local_id();
+        for (int c = 0; c < C; c += SUB_GROUP_SIZE) {
+            x[NDIMS - 1] = c + local_id;
+            int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+            dst[dst_off] = CONVERT_DATA_T(0.f);
+        }
+        return;
+    }
+
     int s_off = STAT_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
 
     float v_mean = CALCULATE_STATS ? 0 : mean[s_off];
@@ -117,6 +127,15 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
     x[1] = GWS_GET_X1();
     x[2] = GWS_GET_X2();
     x[3] = GWS_GET_X3();
+
+    if (x[0] >= DST_D0 || x[1] >= DST_D1 || x[2] >= DST_D2 || x[3] >= DST_D3) {
+        for (int c = 0; c < C; ++c) {
+            x[NDIMS - 1] = c;
+            int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+            dst[dst_off] = CONVERT_DATA_T(0.f);
+        }
+        return;
+    }
 
     int s_off = STAT_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
 

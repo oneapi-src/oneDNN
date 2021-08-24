@@ -146,6 +146,21 @@ struct gen9_gemm_t : public gpu_gemm_t {
             gemm_type_ = get_gemm_type(engine);
             init_scratchpad();
 
+            bool sub_group_ok = true;
+            switch (gemm_type_) {
+                case type::copy_based:
+                    sub_group_ok &= compute_engine->mayiuse_sub_group(8);
+                    break;
+                case type::no_copy_if_even_off:
+                    sub_group_ok &= compute_engine->mayiuse_sub_group({8, 16});
+                    break;
+                default:
+                    sub_group_ok &= compute_engine->mayiuse_sub_group(16);
+                    break;
+            }
+
+            if (!sub_group_ok) return status::unimplemented;
+
             attr_info_ = attr_info_t::create(attr());
 
             return status::success;

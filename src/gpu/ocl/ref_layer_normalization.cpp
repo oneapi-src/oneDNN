@@ -61,10 +61,13 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     conf.dispatch_scaleshift_finalize = compute_engine->create_dispatch();
     conf.dispatch = compute_engine->create_dispatch(
             pd->is_fwd() ? dst_mdw.md_ : src_mdw.md_);
-    auto &dims = (pd->is_fwd() ? src_mdw : dst_mdw).dims();
+    const auto &dims = pd->is_fwd() ? src_mdw.padded_dims() : dst_mdw.dims();
     if (pd->is_fwd()) {
         if ((conf.norm_axis % 16 == 0) && ndims < 4
-                && (c_block == 1 || src_mdw.is_dense())) {
+                && (c_block == 1
+                        || (c_block % 16 == 0 && conf.norm_axis % 16 == 0
+                                && ndims == 2)
+                        || src_mdw.is_dense())) {
             conf.vectorize_calc_stats = true;
             conf.sub_group_size = 16;
             int vector_size = 8;
@@ -83,8 +86,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                 dim = 16;
                 conf.dispatch.define_dim(
                         utils::format("X%d", i), md_hint_idx, dim);
-                conf.dispatch.vectorize_dim(
-                        utils::format("X%d", i), conf.sub_group_size);
+                CHECK(conf.dispatch.vectorize_dim(
+                        utils::format("X%d", i), conf.sub_group_size));
             } else
                 conf.dispatch.define_dim(
                         utils::format("X%d", i), md_hint_idx, dim);
@@ -113,8 +116,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             if (conf.vectorize_bwd && (i == ndims - 1)) {
                 conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx,
                         conf.sub_group_size);
-                conf.dispatch.vectorize_dim(
-                        utils::format("X%d", i), conf.sub_group_size);
+                CHECK(conf.dispatch.vectorize_dim(
+                        utils::format("X%d", i), conf.sub_group_size));
             } else {
                 conf.dispatch.define_dim(
                         utils::format("X%d", i), md_hint_idx, dim);
@@ -168,7 +171,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             // Scaleshift kernel does partial reduction of N
             conf.dispatch_scaleshift.define_dim("N", conf.n_chunks);
             conf.dispatch_scaleshift.define_dim("C", pd->norm_axis());
-            conf.dispatch_scaleshift.vectorize_dim("C", desired_sg_size);
+            CHECK(conf.dispatch_scaleshift.vectorize_dim(
+                    "C", conf.sub_group_size));
             conf.dispatch_scaleshift.set_kernel_attr_suffix("SCALESHIFT");
             conf.dispatch_scaleshift.generate();
             // Scaleshift finalize kernel reduces results of scaleshift kernel
@@ -254,6 +258,7 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
 
     const auto &conf = pd()->conf;
+    status_t status = status::success;
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &mean = pd()->stats_are_src() ? CTX_IN_STORAGE(DNNL_ARG_MEAN)
@@ -279,7 +284,7 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
 
     auto nd_range_kernel = conf.dispatch.nd_range();
 
-    status_t status = parallel_for(ctx, nd_range_kernel, kernel_, arg_list);
+    status = parallel_for(ctx, nd_range_kernel, kernel_, arg_list);
 
     return status;
 }

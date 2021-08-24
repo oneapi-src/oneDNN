@@ -59,6 +59,8 @@ void jit_post_op_injector<hw>::compute(const ngen::GRFRange &regs) {
 template struct jit_post_op_injector<gpu_gen9>;
 template struct jit_post_op_injector<gpu_gen11>;
 template struct jit_post_op_injector<gpu_xe_lp>;
+template struct jit_post_op_injector<gpu_xe_hp>;
+template struct jit_post_op_injector<gpu_xe_hpg>;
 
 } // namespace jit
 } // namespace gpu

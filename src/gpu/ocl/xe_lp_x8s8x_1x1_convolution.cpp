@@ -70,7 +70,7 @@ status_t xe_lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_conf(engine_t *engine) {
     }
     conf.sp = ow;
 
-    if ((conf.mb == 8 || conf.mb % 16 == 0) && !conf.is_nhwc && !is_padded) {
+    if ((conf.mb % 16 == 0) && !conf.is_nhwc && !is_padded) {
         conf.mb_block = 32;
         conf.sp_block = 1;
     } else {
@@ -195,6 +195,8 @@ status_t xe_lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("OUT_SP_TAIL", conf.sp % conf.sp_block);
 
     kernel_ctx.define_int("WEI_4O8I8O4I", 1);
+
+    kernel_ctx.define_int("DISABLE_DPAS", disable_dpas);
 
     kernel_ctx.set_data_type(conf.dst_data_type);
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");

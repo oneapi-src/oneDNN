@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,25 +14,27 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_GPU_DETECT_HPP
-#define GPU_OCL_OCL_GPU_DETECT_HPP
+#ifndef GPU_JIT_XE_HP_CONV_DATA_KERNEL_HPP
+#define GPU_JIT_XE_HP_CONV_DATA_KERNEL_HPP
 
 #include <CL/cl.h>
 
-#include "gpu/compute/device_info.hpp"
+#include "gpu/compute/compute.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
+namespace jit {
 
-compute::gpu_arch_t detect_gpu_arch(cl_device_id device, cl_context context);
+status_t xe_hp_conv_data_create_kernel(const conv_conf_t &conf,
+        const post_ops_t &post_ops, compute::kernel_t *kernel,
+        gpu_primitive_t *primitive, engine_t *engine);
 
-compute::gpu_arch_t detect_gpu_arch_by_device_name(const std::string &name);
-
-} // namespace ocl
+} // namespace jit
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_OCL_OCL_GPU_DETECT_HPP
+#endif

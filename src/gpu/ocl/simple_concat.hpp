@@ -37,15 +37,16 @@ struct simple_concat_t : public gpu_primitive_t {
         DECLARE_CONCAT_PD_T("simple:any", simple_concat_t);
 
         status_t init(engine_t *engine) {
-
             bool ok = n_inputs() <= 16 && attr()->has_default_values()
                     && set_default_params() == status::success;
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            CHECK(init_conf(engine));
+
+            return status::success;
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         concat_conf_t conf;
     };

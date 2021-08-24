@@ -62,6 +62,7 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
     const int dst_chunks_per_c_block
             = (DST_B1 > 1) ? (DST_B1 / SUB_GROUP_SIZE) : 1;
 #endif
+
     const int ws_stride = dst_stride;
     const int ws_chunks_per_c_block = dst_chunks_per_c_block;
 
@@ -255,6 +256,7 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
     const int dst_chunks_per_c_block
             = (DST_B1 > 1) ? (DST_B1 / SUB_GROUP_SIZE) : 1;
 #endif
+
     const int ws_stride = dst_stride;
     const int ws_chunks_per_c_block = dst_chunks_per_c_block;
 

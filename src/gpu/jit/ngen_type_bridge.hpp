@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ inline ngen::DataType convert_dnnl_type_to_ngen(data_type_t dt) {
 
     switch (dt) {
         case data_type::f16: dt_out = DataType::hf; break;
+        case data_type::bf16: dt_out = DataType::bf; break;
         case data_type::f32: dt_out = DataType::f; break;
         case data_type::s32: dt_out = DataType::d; break;
         case data_type::s8: dt_out = DataType::b; break;

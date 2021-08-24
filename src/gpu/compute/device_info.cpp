@@ -36,6 +36,16 @@ uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
 
     uint64_t extensions = 0;
     switch (gpu_arch) {
+        case gpu_arch_t::xe_hp:
+        case gpu_arch_t::xe_hpg:
+            extensions |= (uint64_t)device_ext_t::intel_global_float_atomics;
+            extensions |= (uint64_t)
+                    device_ext_t::intel_subgroup_matrix_multiply_accumulate;
+            extensions |= (uint64_t)device_ext_t::
+                    intel_subgroup_split_matrix_multiply_accumulate;
+            extensions
+                    |= (uint64_t)device_ext_t::intel_variable_eu_thread_count;
+            extensions |= (uint64_t)device_ext_t::future_bf16_cvt;
         case gpu_arch_t::xe_lp:
             extensions |= (uint64_t)device_ext_t::intel_dot_accumulate;
             break;
@@ -50,6 +60,8 @@ inline gpu_arch_t str2gpu_arch(const char *str) {
 
     CASE(gen9);
     CASE(xe_lp);
+    CASE(xe_hp);
+    CASE(xe_hpg);
     return gpu_arch_t::unknown;
 #undef CASE
 }
@@ -73,6 +85,10 @@ bool device_info_t::mayiuse_ngen_kernels(engine_t *engine) {
     return mayiuse_ngen_kernels_;
 }
 
+bool device_info_t::mayiuse_sub_group(int size) const {
+    return utils::one_of(size, 8, 16, 32);
+}
+
 status_t device_info_t::init_attributes_common(engine_t *engine) {
     // TODO: Fix for discrete GPUs. The code below is written for
     // integrated GPUs assuming that last-level cache for GPU is shared
@@ -89,14 +105,32 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     llc_cache_size_ = std::thread::hardware_concurrency() * (1 << 20);
 
     // Assume 7 threads by default
-    int32_t threads_per_eu = 7;
+    int32_t threads_per_eu[2] = {7, 7};
     switch (gpu_arch_) {
         case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::xe_lp: threads_per_eu = 7; break;
+        case gpu::compute::gpu_arch_t::xe_lp:
+            threads_per_eu[0] = 7;
+            threads_per_eu[1] = 7;
+            break;
+        case gpu::compute::gpu_arch_t::xe_hp:
+        case gpu::compute::gpu_arch_t::xe_hpg:
+            threads_per_eu[0] = 8; // 128 regs/thread
+            threads_per_eu[1] = 4; // 256 regs/thread
+            break;
         default: break;
     }
 
-    hw_threads_ = eu_count_ * threads_per_eu;
+    hw_threads_[0] = eu_count_ * threads_per_eu[0];
+    hw_threads_[1] = eu_count_ * threads_per_eu[1];
+
+    max_eus_per_wg_ = 8;
+    switch (gpu_arch_) {
+        case gpu::compute::gpu_arch_t::gen9: max_eus_per_wg_ = 8; break;
+        case gpu::compute::gpu_arch_t::xe_lp:
+        case gpu::compute::gpu_arch_t::xe_hp:
+        case gpu::compute::gpu_arch_t::xe_hpg: max_eus_per_wg_ = 16; break;
+        default: break;
+    }
 
     mayiuse_non_uniform_work_groups_ = true;
 #ifdef DNNL_WITH_SYCL
