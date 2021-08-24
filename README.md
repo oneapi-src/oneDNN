@@ -5,15 +5,15 @@ oneAPI Deep Neural Network Library (oneDNN)
 > **Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)**
 > and **Deep Neural Network Library (DNNL)**.
 
+<img align="left" src="https://spec.oneapi.io/oneapi-logo-white-scaled.jpg" alt="oneAPI logo">
+
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
+oneDNN is part of [oneAPI](https://oneapi.io).
 The library is optimized for Intel Architecture Processors, Intel Processor
-Graphics and Xe architecture-based Graphics. oneDNN has experimental support
-for the following architectures:
-* Arm\* 64-bit Architecture (AArch64)
-* NVIDIA\* GPU
-* OpenPOWER\* Power ISA (PPC64)
-* IBMz\* (s390x)
+Graphics and Xe Architecture graphics. oneDNN has experimental support
+for the following architectures: Arm\* 64-bit Architecture (AArch64),
+NVIDIA\* GPU, OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x). 
 
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance
