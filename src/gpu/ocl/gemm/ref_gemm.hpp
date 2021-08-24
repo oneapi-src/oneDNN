@@ -48,8 +48,15 @@ struct ref_gemm_t : public gpu_gemm_t {
             const auto acc_dt = desc()->acc_type;
             const auto bia_dt = desc()->bias_type();
 
+            const auto ndims = desc()->c_desc.ndims;
+            const auto a_strides = desc()->a_desc.format_desc.blocking.strides;
+            const auto b_strides = desc()->b_desc.format_desc.blocking.strides;
+            const auto c_strides = desc()->c_desc.format_desc.blocking.strides;
             ok = IMPLICATION(acc_dt == s32, attr()->zero_points_.common())
                     && !has_blocks() && desc()->c_desc.ndims <= 3
+                    && (a_strides[ndims - 1] == 1 || a_strides[ndims - 2] == 1)
+                    && (b_strides[ndims - 1] == 1 || b_strides[ndims - 2] == 1)
+                    && (c_strides[ndims - 1] == 1 || c_strides[ndims - 2] == 1)
                     && IMPLICATION(desc()->is_batched(),
                             desc()->a_desc.dims[0] == desc()->b_desc.dims[0])
                     && IMPLICATION(acc_dt != s32,
