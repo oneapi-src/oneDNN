@@ -424,7 +424,8 @@ def convert_policy(value):
     mask = masks.get(int(value))
     if mask:
         return mask
-    return ''
+    # this is a workaround for tensors with mask more than 4
+    return 'per_tensor'
 
 
 def convert_post_ops(post_ops):
@@ -506,8 +507,13 @@ def convert_scales(scales):
         policy = convert_policy(s['mask'])
         benchdnn_scale = arg + ':' + policy
         value = s['value']
-        if value != None:
-            benchdnn_scale += ':' + value
+        # benchdnn requires user to pass a value
+        if value == None:
+            value = '0.5'
+        # benchdnn doesn't allow user to pass * without an actual value
+        if value == '*':
+            value = '0.5'
+        benchdnn_scale += ':' + value
         res.append(benchdnn_scale)
     return '+'.join(res)
 
@@ -519,8 +525,13 @@ def convert_zero_points(zero_points):
         policy = convert_policy(zp['mask'])
         benchdnn_zp = arg + ':' + policy
         value = zp['value']
-        if value != None:
-            benchdnn_zp += ':' + value
+        # benchdnn requires user to pass a value
+        if value == None:
+            value = '1'
+        # benchdnn doesn't allow user to pass * without an actual value
+        if value == '*':
+            value = '1'
+        benchdnn_zp += ':' + value
         res.append(benchdnn_zp)
     return '+'.join(res)
 
