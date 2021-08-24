@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/aarch64/acl_convolution_utils.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -39,6 +40,9 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const memory_desc_wrapper wei_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bia_d(&bias_md);
+
+    auto math_mode = get_fpmath_mode();
+    acp.fast_math = one_of(math_mode, fpmath_mode::bf16, fpmath_mode::any);
 
     // Compute Library currently supports forward propagation only
     const prop_kind_t prop_kind = cd.prop_kind;
@@ -231,7 +235,8 @@ status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         acp.padstride_info,
         acp.weights_info,
         acp.dilation_info,
-        acp.act_info);
+        acp.act_info,
+        acp.fast_math);
     // clang-format on
     if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
         return status::unimplemented;
@@ -264,7 +269,7 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         arm_compute::Conv2dInfo(acp.padstride_info,
                                 acp.dilation_info,
                                 acp.act_info,
-                                false,
+                                acp.fast_math,
                                 1));
     // clang-format on
     if (acl_st.error_code() != arm_compute::ErrorCode::OK) {

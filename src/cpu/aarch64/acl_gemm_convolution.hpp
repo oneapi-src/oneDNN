@@ -51,7 +51,8 @@ struct acl_resource_t : public resource_t {
             acp.padstride_info,
             acp.weights_info,
             acp.dilation_info,
-            acp.sum_with_eltwise ? arm_compute::ActivationLayerInfo() : acp.act_info);
+            acp.sum_with_eltwise ? arm_compute::ActivationLayerInfo() : acp.act_info,
+            acp.fast_math);
         // clang-format on
         if (acp.sum_with_eltwise) {
             acl_obj_->add.configure(&acl_obj_->dst_tensor,
