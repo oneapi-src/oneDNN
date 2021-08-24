@@ -19,6 +19,7 @@
 #include "common/impl_list_item.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_sum_pd.hpp"
+#include "gpu/jit/gen9_simple_sum.hpp"
 #include "gpu/ocl/gen9_sum.hpp"
 #include "gpu/ocl/ref_sum.hpp"
 #include "gpu/ocl/simple_sum.hpp"
@@ -28,6 +29,9 @@ namespace impl {
 namespace gpu {
 
 namespace {
+// TODO: Re-enable nGEN-based implementation after architecture
+// dispatching is implemented.
+// INSTANCE(jit::gen9_simple_sum_t),
 #define INSTANCE(...) \
     impl_list_item_t(impl_list_item_t::sum_type_deduction_helper_t< \
             __VA_ARGS__::pd_t>())

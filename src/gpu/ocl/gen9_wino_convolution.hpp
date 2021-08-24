@@ -78,8 +78,11 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                     && post_ops_with_binary_ok(attr(), dst_data_t);
             if (!ok) return status::unimplemented;
 
-            status_t status = init_conf(compute_engine);
-            if (status != status::success) return status;
+            CHECK(init_conf(compute_engine));
+
+            int sub_group_size = conf.wino_ic_block / 2; // LWX
+            if (!compute_engine->mayiuse_sub_group(sub_group_size))
+                return status::unimplemented;
 
             init_scratchpad();
 

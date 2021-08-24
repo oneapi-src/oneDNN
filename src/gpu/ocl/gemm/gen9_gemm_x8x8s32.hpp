@@ -96,6 +96,9 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                                     && attr()->post_ops_.find(eltwise) == 1)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
+            if (!compute_engine->mayiuse_sub_group(8))
+                return status::unimplemented;
+
             init_scratchpad();
             attr_info = attr_info_t::create(attr());
             return status::success;

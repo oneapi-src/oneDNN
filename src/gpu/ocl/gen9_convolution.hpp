@@ -79,7 +79,10 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type);
             if (!ok) return status::unimplemented;
 
-            CHECK(init_conf());
+            CHECK(init_conf(engine));
+
+            if (!compute_engine->mayiuse_sub_group(conf.sub_group_size))
+                return status::unimplemented;
 
             ok = set_default_formats_common(
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
@@ -90,7 +93,7 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
@@ -170,15 +173,17 @@ struct gen9_convolution_bwd_data_t : public gpu_primitive_t {
                     && !has_zero_dim_memory() && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            status_t status = init_conf();
-            if (status != status::success) return status;
+            CHECK(init_conf(engine));
+
+            if (!compute_engine->mayiuse_sub_group(conf.sub_group_size))
+                return status::unimplemented;
 
             ok = set_default_formats_common(
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
             return ok ? status::success : status::unimplemented;
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
@@ -249,8 +254,10 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
                     && !has_zero_dim_memory() && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            status_t status = init_conf(engine);
-            if (status != status::success) return status;
+            CHECK(init_conf(engine));
+            if (!compute_engine->mayiuse_sub_group(conf.sub_group_size))
+                return status::unimplemented;
+
             if (!IMPLICATION(utils::one_of(bf16,
                                      this->desc()->diff_weights_desc.data_type,
                                      this->desc()->src_desc.data_type,

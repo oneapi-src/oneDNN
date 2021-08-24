@@ -1,18 +1,18 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *******************************************************************************/
+* Copyright 2020-2021 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
 
 #include "gpu/jit/jit_eltwise_injector.hpp"
 
@@ -56,7 +56,7 @@ int jit_eltwise_injector_f32<hw>::min_scratch_regs() {
             case eltwise_clip:
             case eltwise_clip_v2:
             case eltwise_clip_v2_use_dst_for_bwd: return 0;
-            case eltwise_gelu_tanh: return 1;
+            case eltwise_gelu_tanh: return 2;
             case eltwise_logistic:
             case eltwise_logistic_use_dst_for_bwd: return 0;
             default: assert(!"unsupported eltwise algorithm");
@@ -117,7 +117,6 @@ int jit_eltwise_injector_f32<hw>::max_batch_size() {
                     return ss;
             case eltwise_elu:
             case eltwise_elu_use_dst_for_bwd:
-            case eltwise_gelu_tanh:
             case eltwise_hardswish:
             case eltwise_logsigmoid:
             case eltwise_pow:
@@ -125,6 +124,7 @@ int jit_eltwise_injector_f32<hw>::max_batch_size() {
             case eltwise_swish: return ss;
             case eltwise_mish:
             case eltwise_gelu_erf: return ss / min_scratch_regs();
+            case eltwise_gelu_tanh: return ss & ~1;
             default: break;
         }
     } else {
@@ -312,15 +312,19 @@ void jit_eltwise_injector_f32<hw>::gelu_tanh_compute_fwd(
     const float sqrt_2_over_pi = 0.7978845f; // sqrt(2/pi)
     const float log2e = 1.442695f; // log_2(e)
 
+    int msimd = simd;
+    if (hw == gpu_xe_hp)
+        msimd = 16; // workaround for intermittent hang with DPAS+EM
+
     auto a = scratch_[off].f();
     switch (phase) {
         case 0: h->mul(simd, a, r, r); break;
         case 1: h->mul(simd, a, a, k); break;
         case 2: h->mad(simd, a, r, a, r); break;
         case 3: h->mul(simd, a, a, -2 * sqrt_2_over_pi * log2e); break;
-        case 4: h->eexp(simd, a, a); break;
+        case 4: h->exp(msimd, a, a); break;
         case 5: h->add(simd, a, a, 1.0f); break;
-        case 6: h->einv(simd, a, a); break;
+        case 6: h->inv(msimd, a, a); break;
         case 7: h->mul(simd, r, a, r); break;
         default: assert(!"invalid phase");
     }
@@ -425,6 +429,9 @@ void jit_eltwise_injector_f32<hw>::gelu_tanh_compute_bwd(
     const float sqrt_2_over_pi = 0.7978845f; // sqrt(2/pi)
     const float log2e = 1.442695f; // log_2(e)
 
+    int msimd = simd;
+    if (hw == gpu_xe_hp) msimd = 16;
+
     auto a = scratch_[off].f();
     auto b = scratch_[off + batch].f();
     switch (phase) {
@@ -435,9 +442,9 @@ void jit_eltwise_injector_f32<hw>::gelu_tanh_compute_bwd(
         case 4: h->mad(simd, b, r, b, r); break;
         case 5: h->mul(simd, a, a, -2 * sqrt_2_over_pi * log2e); break;
         case 6: h->mul(simd, b, b, 2 * sqrt_2_over_pi); break;
-        case 7: h->eexp(simd, a, a); break;
+        case 7: h->exp(msimd, a, a); break;
         case 8: h->add(simd, r, a, 1.0f); break;
-        case 9: h->einv(simd, r, r); break;
+        case 9: h->inv(msimd, r, r); break;
         case 10: h->mul(simd, a, a, r); break;
         case 11: h->mul(simd, a, a, b); break;
         case 12: h->add(simd, a, a, 1.0f); break;
@@ -603,7 +610,7 @@ void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
         for (int phase = 0; phase < phases; phase++) {
             for (int ii = 0; ii < batch; ii += 2) {
                 int nreg = nstl::min(2, batch - ii);
-                int simd = nreg * 8;
+                int simd = nreg * GRF::bytes(hw) / sizeof(float);
                 auto base = regs[idx0 + ii].f();
 
                 if (is_fwd_) {
@@ -737,6 +744,8 @@ void jit_eltwise_injector_f32<hw>::prepare() {
 template struct jit_eltwise_injector_f32<gpu_gen9>;
 template struct jit_eltwise_injector_f32<gpu_gen11>;
 template struct jit_eltwise_injector_f32<gpu_xe_lp>;
+template struct jit_eltwise_injector_f32<gpu_xe_hp>;
+template struct jit_eltwise_injector_f32<gpu_xe_hpg>;
 
 } // namespace jit
 } // namespace gpu

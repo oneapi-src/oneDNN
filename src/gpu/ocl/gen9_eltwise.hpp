@@ -70,7 +70,8 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::f16,
                             compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16));
+                                    compute::device_ext_t::khr_fp16))
+                    && compute_engine->mayiuse_sub_group(16);
             if (!ok) return status::unimplemented;
 
             return init_conf(engine);

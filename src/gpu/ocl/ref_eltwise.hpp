@@ -78,7 +78,10 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
                                     compute::device_ext_t::khr_fp16));
             if (!ok) return status::unimplemented;
 
-            return init_conf(engine);
+            CHECK(init_conf(engine));
+            if (!compute_engine->mayiuse_sub_group(conf.sub_group_size))
+                return status::unimplemented;
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
@@ -124,6 +127,9 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
             using namespace utils;
             assert(engine->kind() == engine_kind::gpu);
 
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+
             using namespace alg_kind;
             const bool ok = desc()->prop_kind == backward_data
                     && utils::one_of(desc()->alg_kind, eltwise_relu,
@@ -147,7 +153,10 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return init_conf(engine);
+            CHECK(init_conf(engine));
+            if (!compute_engine->mayiuse_sub_group(conf.sub_group_size))
+                return status::unimplemented;
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);

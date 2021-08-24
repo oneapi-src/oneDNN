@@ -30,41 +30,69 @@ class ELFCodeGenerator : public BinaryCodeGenerator<hw>
 {
 public:
     inline std::vector<uint8_t> getBinary();
-    static inline HW getBinaryArch(const std::vector<uint8_t> &binary);
+    static inline void getHWInfo(const std::vector<uint8_t> &binary, HW &_hw, int &steppingID);
 
 protected:
     NEOInterfaceHandler interface_{hw};
 
     void externalName(const std::string &name)                           { interface_.externalName(name); }
-    const std::string &getExternalName() const                           { return interface_.getExternalName(); }
 
+    const std::string &getExternalName() const                           { return interface_.getExternalName(); }
+    int getSIMD() const                                                  { return interface_.getSIMD(); }
+    int getGRFCount() const                                              { return interface_.getGRFCount(); }
+    size_t getSLMSize() const                                            { return interface_.getSLMSize(); }
+
+    void require32BitBuffers()                                           { interface_.require32BitBuffers(); }
     void requireBarrier()                                                { interface_.requireBarrier(); }
+    void requireDPAS()                                                   { interface_.requireDPAS(); }
+    void requireGlobalAtomics()                                          { interface_.requireGlobalAtomics(); }
     void requireGRF(int grfs)                                            { interface_.requireGRF(grfs); }
     void requireLocalID(int dimensions)                                  { interface_.requireLocalID(dimensions); }
     void requireLocalSize()                                              { interface_.requireLocalSize(); }
     void requireNonuniformWGs()                                          { interface_.requireNonuniformWGs(); }
+    void requireNoPreemption()                                           { interface_.requireNoPreemption(); }
     void requireScratch(size_t bytes = 1)                                { interface_.requireScratch(bytes); }
     void requireSIMD(int simd_)                                          { interface_.requireSIMD(simd_); }
     void requireSLM(size_t bytes)                                        { interface_.requireSLM(bytes); }
+    void requireStatelessWrites(bool req = true)                         { interface_.requireStatelessWrites(req); }
     inline void requireType(DataType type)                               { interface_.requireType(type); }
     template <typename T> void requireType()                             { interface_.requireType<T>(); }
+    void requireWalkOrder(int o1, int o2)                                { interface_.requireWalkOrder(o1, o2); }
+    void requireWalkOrder(int o1, int o2, int o3)                        { interface_.requireWalkOrder(o1, o2, o3); }
+    void requireWorkgroup(size_t x, size_t y = 1, size_t z = 1)          { interface_.requireWorkgroup(x, y, z); }
 
     void finalizeInterface()                                             { interface_.finalize(); }
 
     template <typename DT>
     void newArgument(std::string name)                                   { interface_.newArgument<DT>(name); }
     void newArgument(std::string name, DataType type,
-                     ExternalArgumentType exttype = ExternalArgumentType::Scalar)
+                     ExternalArgumentType exttype = ExternalArgumentType::Scalar,
+                     GlobalAccessType access = GlobalAccessType::All)
     {
-        interface_.newArgument(name, type, exttype);
+        interface_.newArgument(name, type, exttype, access);
     }
-    void newArgument(std::string name, ExternalArgumentType exttype)     { interface_.newArgument(name, exttype); }
+    void newArgument(std::string name, ExternalArgumentType exttype,
+                     GlobalAccessType access = GlobalAccessType::All)
+    {
+        interface_.newArgument(name, exttype, access);
+    }
 
     Subregister getArgument(const std::string &name) const               { return interface_.getArgument(name); }
     Subregister getArgumentIfExists(const std::string &name) const       { return interface_.getArgumentIfExists(name); }
     int getArgumentSurface(const std::string &name) const                { return interface_.getArgumentSurface(name); }
+    int getArgumentSurfaceIfExists(const std::string &name) const        { return interface_.getArgumentSurfaceIfExists(name); }
     GRF getLocalID(int dim) const                                        { return interface_.getLocalID(dim); }
+    RegData getSIMD1LocalID(int dim) const                               { return interface_.getSIMD1LocalID(dim); }
     Subregister getLocalSize(int dim) const                              { return interface_.getLocalSize(dim); }
+
+    void prologue()                                                      { interface_.generatePrologue(*this); }
+    void epilogue(RegData r0_info = RegData())
+    {
+        if (r0_info.isInvalid()) r0_info = this->r0;
+        int GRFCount = interface_.getGRFCount();
+        bool hasSLM = (interface_.getSLMSize() > 0);
+        BinaryCodeGenerator<hw>::epilogue(GRFCount, hasSLM, r0_info);
+    }
 
 private:
     using BinaryCodeGenerator<hw>::labelManager;
@@ -148,6 +176,10 @@ private:
             fileHeader.flags.all = 0;
             fileHeader.flags.parts.useGfxCoreFamily = 1;
             fileHeader.machine = static_cast<uint16_t>(npack::encodeGfxCoreFamily(hw));
+            if (hw == HW::XeHPG) {
+                fileHeader.flags.parts.useGfxCoreFamily = 0;
+                fileHeader.machine = static_cast<uint16_t>(npack::ProductFamily::DG2);
+            }
 
             sectionHeaders[0].name = 0;
             sectionHeaders[0].type = SectionHeader::Type::Null;
@@ -192,26 +224,45 @@ private:
 
 #define NGEN_FORWARD_ELF(hw) NGEN_FORWARD(hw) \
 template <typename... Targs> void externalName(Targs&&... args) { ngen::ELFCodeGenerator<hw>::externalName(std::forward<Targs>(args)...); } \
+const std::string &getExternalName() const { return ngen::ELFCodeGenerator<hw>::getExternalName(); } \
+int getSIMD() const { return ngen::ELFCodeGenerator<hw>::getSIMD(); } \
+int getGRFCount() const { return ngen::ELFCodeGenerator<hw>::getGRFCount(); } \
+size_t getSLMSize() const { return ngen::ELFCodeGenerator<hw>::getSLMSize(); } \
+template <typename... Targs> void require32BitBuffers(Targs&&... args) { ngen::ELFCodeGenerator<hw>::require32BitBuffers(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireBarrier(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireBarrier(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireGlobalAtomics(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireGlobalAtomics(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireGRF(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireGRF(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireLocalID(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireLocalID(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireLocalSize(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireLocalSize(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireNonuniformWGs(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireNonuniformWGs(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireNoPreemption(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireNoPreemption(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireScratch(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireScratch(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireSIMD(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireSIMD(std::forward<Targs>(args)...); } \
 template <typename... Targs> void requireSLM(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireSLM(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireStatelessWrites(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireStatelessWrites(std::forward<Targs>(args)...); } \
 void requireType(ngen::DataType type) { ngen::ELFCodeGenerator<hw>::requireType(type); } \
 template <typename DT = void> void requireType() { ngen::BinaryCodeGenerator<hw>::template requireType<DT>(); } \
+template <typename... Targs> void requireWalkOrder(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireWalkOrder(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireWorkgroup(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireWorkgroup(std::forward<Targs>(args)...); } \
 template <typename... Targs> void finalizeInterface(Targs&&... args) { ngen::ELFCodeGenerator<hw>::finalizeInterface(std::forward<Targs>(args)...); } \
 template <typename... Targs> void newArgument(Targs&&... args) { ngen::ELFCodeGenerator<hw>::newArgument(std::forward<Targs>(args)...); } \
 template <typename... Targs> ngen::Subregister getArgument(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getArgument(std::forward<Targs>(args)...); } \
 template <typename... Targs> ngen::Subregister getArgumentIfExists(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getArgumentIfExists(std::forward<Targs>(args)...); } \
 template <typename... Targs> int getArgumentSurface(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getArgumentSurface(std::forward<Targs>(args)...); } \
+template <typename... Targs> int getArgumentSurfaceIfExists(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getArgumentSurfaceIfExists(std::forward<Targs>(args)...); } \
 template <typename... Targs> ngen::GRF getLocalID(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getLocalID(std::forward<Targs>(args)...); } \
+template <typename... Targs> ngen::RegData getSIMD1LocalID(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getSIMD1LocalID(std::forward<Targs>(args)...); } \
 template <typename... Targs> ngen::Subregister getLocalSize(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getLocalSize(std::forward<Targs>(args)...); } \
-NGEN_FORWARD_ELF_EXTRA
+void epilogue(const ngen::RegData &r0_info = ngen::RegData()) { ngen::ELFCodeGenerator<hw>::epilogue(r0_info); } \
+NGEN_FORWARD_ELF_EXTRA \
+NGEN_FORWARD_ELF_EXTRA2
 
-#define NGEN_FORWARD_ELF_EXTRA
+#define NGEN_FORWARD_ELF_EXTRA \
+template <typename... Targs> void requireDPAS(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireDPAS(std::forward<Targs>(args)...); } \
+void prologue() { ngen::ELFCodeGenerator<hw>::prologue(); }
+
+#define NGEN_FORWARD_ELF_EXTRA2
+
 
 template <HW hw>
 std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary()
@@ -222,6 +273,17 @@ std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary()
 
     // Get raw kernel, also fixing up labels.
     auto kernel = super::getCode();
+
+    // Locate entrypoints for XeHP+.
+    if (hw >= HW::XeHP) {
+        auto idPerThread = super::_labelLocalIDsLoaded.getID(labelManager);
+        auto idCrossThread = super::_labelArgsLoaded.getID(labelManager);
+
+        if (labelManager.hasTarget(idPerThread))
+            interface_.setSkipPerThreadOffset(labelManager.getTarget(idPerThread));
+        if (labelManager.hasTarget(idCrossThread))
+            interface_.setSkipCrossThreadOffset(labelManager.getTarget(idCrossThread));
+    }
 
     // Generate metadata.
     metadata = interface_.generateZeInfo();
@@ -243,16 +305,20 @@ std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary()
 }
 
 template <HW hw>
-inline HW ELFCodeGenerator<hw>::getBinaryArch(const std::vector<uint8_t> &binary)
+void ELFCodeGenerator<hw>::getHWInfo(const std::vector<uint8_t> &binary, HW &_hw, int &steppingID)
 {
     auto zebinELF = reinterpret_cast<const ZebinELF *>(binary.data());
     if (zebinELF->valid()) {
         if (zebinELF->fileHeader.flags.parts.useGfxCoreFamily)
-            return npack::decodeGfxCoreFamily(static_cast<npack::GfxCoreFamily>(zebinELF->fileHeader.machine));
+            _hw = npack::decodeGfxCoreFamily(static_cast<npack::GfxCoreFamily>(zebinELF->fileHeader.machine));
         else
-            return npack::decodeProductFamily(static_cast<npack::ProductFamily>(zebinELF->fileHeader.machine));
+            _hw = npack::decodeProductFamily(static_cast<npack::ProductFamily>(zebinELF->fileHeader.machine));
+        // XXX: Report minHWRevision when minHWRevision != maxHWRevision: it's
+        // important to reliably detect early steppings to apply potential WAs.
+        steppingID = zebinELF->fileHeader.flags.parts.minHWRevision;
+    } else {
+        npack::getHWInfo(binary, _hw, steppingID);
     }
-    return npack::getBinaryArch(binary);
 }
 
 } /* namespace ngen */

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,38 +15,6 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_types.h"
-
-#define OFF(dim, idx) \
-    (dim % CONCAT2(DATA_B, idx)) * CONCAT2(DATA_SB, idx) \
-            + (dim / CONCAT2(DATA_B, idx)) * CONCAT2(DATA_S, idx)
-
-#if SOFTMAX_AXIS_IDX == 0
-#define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
-    OFF(softmax_dim, 0) + OFF(dim0, 1) + OFF(dim1, 2) + OFF(dim2, 3) \
-            + OFF(dim3, 4) + OFF(dim4, 5)
-#elif SOFTMAX_AXIS_IDX == 1
-#define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
-    OFF(dim0, 0) + OFF(softmax_dim, 1) + OFF(dim1, 2) + OFF(dim2, 3) \
-            + OFF(dim3, 4) + OFF(dim4, 5)
-#elif SOFTMAX_AXIS_IDX == 2
-#define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
-    OFF(dim0, 0) + OFF(dim1, 1) + OFF(softmax_dim, 2) + OFF(dim2, 3) \
-            + OFF(dim3, 4) + OFF(dim4, 5)
-#elif SOFTMAX_AXIS_IDX == 3
-#define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
-    OFF(dim0, 0) + OFF(dim1, 1) + OFF(dim2, 2) + OFF(softmax_dim, 3) \
-            + OFF(dim3, 4) + OFF(dim4, 5)
-#elif SOFTMAX_AXIS_IDX == 4
-#define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
-    OFF(dim0, 0) + OFF(dim1, 1) + OFF(dim2, 2) + OFF(dim3, 3) \
-            + OFF(softmax_dim, 4) + OFF(dim4, 5)
-#elif SOFTMAX_AXIS_IDX == 5
-#define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
-    OFF(dim0, 0) + OFF(dim1, 1) + OFF(dim2, 2) + OFF(dim3, 3) + OFF(dim4, 4) \
-            + OFF(softmax_dim, 5)
-#else
-#error unsupported softmax dimension
-#endif
 
 #define LOAD_DATA_8x16(ptr) \
     CONVERT_FLOAT8_T( \
@@ -64,25 +32,13 @@
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 gen9_softmax_fwd(__global DATA_T *src, __global DATA_T *dst) {
-
-    const int dim[] = {
-            (get_global_id(0) / GROUP_SIZE) % BLOCK_0,
-            get_global_id(1) % BLOCK_1,
-            get_global_id(2) % BLOCK_2,
-            (get_global_id(0) / GROUP_SIZE) / BLOCK_0,
-            get_global_id(1) / BLOCK_1,
-            get_global_id(2) / BLOCK_2,
-    };
+    const int data_off = (get_global_id(0) / GROUP_SIZE) * SOFTMAX_AXIS_SIZE;
 
     float8 d[NUM_BUF];
-
-    int local_id = get_sub_group_local_id();
-    int begin = local_id * (SOFTMAX_AXIS_SIZE / VECT_SIZE);
 
     float max_ = -FLT_MAX;
     float denom_ = 0.f;
 
-    size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], begin);
     src += data_off;
 
     for (int k = 0; k < NUM_BUF; ++k) {

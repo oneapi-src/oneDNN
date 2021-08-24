@@ -111,7 +111,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         conf.dispatch.define_dim("IH", nstl::max(2, ndims - 2), conf.ih);
         conf.dispatch.define_dim("IW", nstl::max(2, ndims - 1), conf.iw);
     }
-    conf.dispatch.vectorize_dim("C", conf.sub_group_size);
+    CHECK(conf.dispatch.vectorize_dim("C", conf.sub_group_size));
     conf.dispatch.generate();
 
     return status::success;

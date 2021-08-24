@@ -170,7 +170,10 @@ inline HW decodeGfxCoreFamily(GfxCoreFamily family)
         case GfxCoreFamily::Gen10LP:  return HW::Gen10;
         case GfxCoreFamily::Gen11:    return HW::Gen11;
         case GfxCoreFamily::Gen11LP:  return HW::Gen11;
-        case GfxCoreFamily::Xe_LP:  return HW::Xe_LP;
+        case GfxCoreFamily::Gen12LP:  return HW::Gen12LP;
+        case GfxCoreFamily::Gen12:
+        case GfxCoreFamily::XeHP:     return HW::XeHP;
+        case GfxCoreFamily::XeHPG:    return HW::XeHPG;
         default:                      return HW::Unknown;
     }
 }
@@ -181,7 +184,9 @@ inline GfxCoreFamily encodeGfxCoreFamily(HW hw)
         case HW::Gen9:    return GfxCoreFamily::Gen9;
         case HW::Gen10:   return GfxCoreFamily::Gen10;
         case HW::Gen11:   return GfxCoreFamily::Gen11LP;
-        case HW::Xe_LP: return GfxCoreFamily::Xe_LP;
+        case HW::Gen12LP: return GfxCoreFamily::Gen12LP;
+        case HW::XeHP:    return GfxCoreFamily::XeHP;
+        case HW::XeHPG:   return GfxCoreFamily::XeHPG;
         default:          return GfxCoreFamily::Unknown;
     }
 }
@@ -191,18 +196,34 @@ inline HW decodeProductFamily(ProductFamily family)
     if (family >= ProductFamily::SKL && family < ProductFamily::CNL) return HW::Gen9;
     if (family >= ProductFamily::CNL && family < ProductFamily::ICL) return HW::Gen10;
     if (family >= ProductFamily::ICL && family < ProductFamily::TGLLP) return HW::Gen11;
-    if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return HW::Xe_LP;
+    if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return HW::Gen12LP;
+    if (family == ProductFamily::XE_HP_SDV) return HW::XeHP;
+    if (family == ProductFamily::DG2) return HW::XeHPG;
     return HW::Unknown;
 }
 
-inline HW getBinaryArch(const std::vector<uint8_t> &binary)
+inline HW getBinaryArch(const std::vector<uint8_t> &binary, const SProgramBinaryHeader *pheader)
 {
+    auto hw = decodeGfxCoreFamily(pheader->Device);
+
+    // XeHPG identifies with older runtimes as XeHP. Check whether EOT goes to TS (XeHP) or gateway (XeHPG).
+    using b14 = std::array<uint8_t, 14>;
+    b14 gtwyEOT{{3, 0x80, 4, 0, 0, 0, 0xC, 0x7F, 0x20, 0x30, 0, 0, 0, 0}};
+    if (hw == HW::XeHP) for (size_t i = 0; i < binary.size() - 0x10; i++) {
+        if (binary[i] == 0x31 && *(b14 *)(binary.data() + i + 2) == gtwyEOT) {
+            hw = HW::XeHPG;
+            break;
+        }
+    }
+    return hw;
+}
+
+inline void getHWInfo(const std::vector<uint8_t> &binary, HW &hw, int &steppingID) {
     const SProgramBinaryHeader *pheader = nullptr;
 
     findDeviceBinary(binary, nullptr, &pheader, nullptr);
-    auto hw = decodeGfxCoreFamily(pheader->Device);
-
-    return hw;
+    hw = getBinaryArch(binary, pheader);
+    steppingID = pheader->SteppingId;
 }
 
 

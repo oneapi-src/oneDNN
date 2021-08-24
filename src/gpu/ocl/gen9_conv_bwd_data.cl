@@ -25,21 +25,22 @@
 #if BWD_DATA == 1
 
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
-#if VER_16MB16C == 1 || VER_8OW16C == 1
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
-#endif
 __kernel void
 gen9_conv_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
         __global DATA_T *diff_dst, __global DATA_T *bias) {
 
+    MAYBE_SKIP_NON_UNIFORM_WG();
+
 #if VER_16MB16C == 1
     const int sp = get_group_id(1);
-    const int local_id = get_local_id(0);
+    const int sglid = get_sub_group_local_id();
 
     const int icb_mb = get_group_id(2);
     const int mb = icb_mb / (G * IC / ICB) * MB_BLOCK;
     const int icb = icb_mb % (G * IC / ICB);
-    const int ic = (icb * ICB) / IC_BLOCK + get_group_id(0);
+    const int ic = (icb * ICB) / IC_BLOCK
+            + get_group_id(0) * (LWS_0 / SUB_GROUP_SIZE) + get_sub_group_id();
 
     const int g = ic / (IC / IC_BLOCK);
     const int gic = ic % (IC / IC_BLOCK);
@@ -61,14 +62,14 @@ gen9_conv_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
 
     if (WITH_BIAS) {
 #if IS_DW
-        const int bg_off = g * IC + local_id;
+        const int bg_off = g * IC + sglid;
         const int bc_off = gic * IC_BLOCK;
         DATA_T b = (G_WO_PADDING % IC_BLOCK == 0 || bg_off < G_WO_PADDING)
                 ? bias[bg_off + bc_off]
                 : DATA_ZERO;
 #else
         const int bg_off = g * IC;
-        const int bc_off = gic * IC_BLOCK + local_id;
+        const int bc_off = gic * IC_BLOCK + sglid;
         DATA_T b = (IC_WO_PADDING % IC_BLOCK == 0 || bc_off < IC_WO_PADDING)
                 ? bias[bg_off + bc_off]
                 : DATA_ZERO;
@@ -241,11 +242,12 @@ gen9_conv_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
 #if VER_8OW16C == 1
 
     const int sp = get_group_id(1);
-    const int local_id = get_local_id(0);
+    const int sglid = get_sub_group_local_id();
     const int icb_mb = get_group_id(2);
     const int mb = icb_mb / (G * IC / ICB);
     const int icb = icb_mb % (G * IC / ICB);
-    const int ic = (icb * ICB) / IC_BLOCK + get_group_id(0);
+    const int ic = (icb * ICB) / IC_BLOCK
+            + get_group_id(0) * (LWS_0 / SUB_GROUP_SIZE) + get_sub_group_id();
 
     const int g = ic / (IC / IC_BLOCK);
     const int gic = ic % (IC / IC_BLOCK);
@@ -265,14 +267,14 @@ gen9_conv_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
 
     if (WITH_BIAS) {
 #if IS_DW
-        const int bg_off = g * IC + local_id;
+        const int bg_off = g * IC + sglid;
         const int bc_off = gic * IC_BLOCK;
         DATA_T b = (G_WO_PADDING % IC_BLOCK == 0 || bg_off < G_WO_PADDING)
                 ? bias[bg_off + bc_off]
                 : DATA_ZERO;
 #else
         const int bg_off = g * IC;
-        const int bc_off = gic * IC_BLOCK + local_id;
+        const int bc_off = gic * IC_BLOCK + sglid;
         DATA_T b = (IC_WO_PADDING % IC_BLOCK == 0 || bc_off < IC_WO_PADDING)
                 ? bias[bg_off + bc_off]
                 : DATA_ZERO;

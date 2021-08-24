@@ -94,9 +94,9 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
     dims0[4] = GWS_GET_D4();
     dims0[5] = GWS_GET_D5();
     int d1_block = GWS_GET_D1_BLOCK();
-    int d1_init = GWS_GET_D1();
     int dims0_po[6]
             = {dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]};
+    int d1_init = GWS_GET_D1();
 
     int src1_off = 0;
     int src0_off = SRC0_OFF(

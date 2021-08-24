@@ -91,6 +91,8 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
                             compute::device_ext_t::intel_subgroups);
 
             if (!ok) return status::unimplemented;
+            if (!compute_engine->mayiuse_sub_group(16))
+                return status::unimplemented;
 
             attr_info_ = attr_info_t::create(attr());
             init_scratchpad();

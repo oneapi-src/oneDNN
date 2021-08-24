@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_gpu_detect.hpp"
+#include "gpu/ocl/ocl_gpu_hw_info.hpp"
 #include "gpu/jit/jit_generator.hpp"
 
 namespace dnnl {
@@ -22,24 +22,20 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-compute::gpu_arch_t detect_gpu_arch(cl_device_id device, cl_context context) {
+void init_gpu_hw_info(cl_device_id device, cl_context context,
+        compute::gpu_arch_t &gpu_arch, int &stepping_id) {
     using namespace ngen;
 
-    HW hw = jit::jit_generator<HW::Unknown>::detectHW(context, device);
+    HW hw;
+    jit::jit_generator<HW::Unknown>::getHWInfo(
+            context, device, hw, stepping_id);
     switch (hw) {
-        case HW::Gen9: return compute::gpu_arch_t::gen9;
-        case HW::Xe_LP: return compute::gpu_arch_t::xe_lp;
-        default: return compute::gpu_arch_t::unknown;
+        case HW::Gen9: gpu_arch = compute::gpu_arch_t::gen9; break;
+        case HW::XeLP: gpu_arch = compute::gpu_arch_t::xe_lp; break;
+        case HW::XeHP: gpu_arch = compute::gpu_arch_t::xe_hp; break;
+        case HW::XeHPG: gpu_arch = compute::gpu_arch_t::xe_hpg; break;
+        default: gpu_arch = compute::gpu_arch_t::unknown; break;
     }
-}
-
-compute::gpu_arch_t detect_gpu_arch_by_device_name(const std::string &name) {
-    if (name.find("Gen9") != std::string::npos)
-        return compute::gpu_arch_t::gen9;
-    if (name.find("Xe_LP") != std::string::npos)
-        return compute::gpu_arch_t::xe_lp;
-
-    return compute::gpu_arch_t::unknown;
 }
 
 } // namespace ocl

@@ -87,6 +87,13 @@
 #define AS_BLOCK_DATA2_T as_uint2
 #define AS_BLOCK_DATA4_T as_uint4
 #define AS_BLOCK_DATA8_T as_uint8
+
+#define MMAD_DATA_T uint
+#define MMAD_DATA4_T uint4
+#define MMAD_DATA8_T uint8
+#define MMAD_ACC_DATA4_T float4
+#define MMAD_ACC_DATA8_T float8
+
 #elif DT_F16 == 1
 
 #define DATA_T half
@@ -94,6 +101,7 @@
 #define DATA4_T half4
 #define DATA8_T half8
 #define DATA16_T half16
+#define AS_DATA2_T as_half2
 #define DATA_MAX HALF_MAX
 #define DATA_MIN -DATA_MAX
 #define DATA_ZERO 0.0h
@@ -141,8 +149,15 @@
 #define AS_BLOCK_DATA2_T as_ushort2
 #define AS_BLOCK_DATA4_T as_ushort4
 #define AS_BLOCK_DATA8_T as_ushort8
+
+#define MMAD_DATA_T uint
+#define MMAD_DATA4_T uint4
+#define MMAD_DATA8_T uint8
+#define MMAD_ACC_DATA4_T float4
+#define MMAD_ACC_DATA8_T float8
 #elif DT_BF16 == 1
 #define DATA_T ushort
+#define DATA2_T ushort2
 #define POST_OP_DATA_T float
 #define DATA2_T ushort2
 #define DATA4_T ushort4
@@ -194,6 +209,12 @@
 #define AS_BLOCK_DATA2_T as_ushort2
 #define AS_BLOCK_DATA4_T as_ushort4
 #define AS_BLOCK_DATA8_T as_ushort8
+
+#define MMAD_DATA_T uint
+#define MMAD_DATA4_T uint4
+#define MMAD_DATA8_T uint8
+#define MMAD_ACC_DATA4_T float4
+#define MMAD_ACC_DATA8_T float8
 #elif DT_S8 == 1
 #define DATA_T char
 #define DATA2_T char2
@@ -250,6 +271,12 @@
 #define AS_BLOCK_DATA2_T as_uchar2
 #define AS_BLOCK_DATA4_T as_uchar4
 #define AS_BLOCK_DATA8_T as_uchar8
+
+#define MMAD_DATA_T int
+#define MMAD_DATA4_T int4
+#define MMAD_DATA8_T int8
+#define MMAD_ACC_DATA4_T int4
+#define MMAD_ACC_DATA8_T int8
 #elif DT_U8 == 1
 #define DATA_T uchar
 #define DATA2_T uchar2
@@ -306,7 +333,16 @@
 #define AS_BLOCK_DATA2_T as_uchar2
 #define AS_BLOCK_DATA4_T as_uchar4
 #define AS_BLOCK_DATA8_T as_uchar8
+
+#define MMAD_DATA_T uint
+#define MMAD_DATA4_T uint4
+#define MMAD_DATA8_T uint8
+#define MMAD_ACC_DATA4_T int4
+#define MMAD_ACC_DATA8_T int8
 #elif DT_S32 == 1
+#define MMAD_DATA_T uint
+#define MMAD_DATA4_T uint4
+#define MMAD_DATA8_T uint8
 #define DATA_T int
 #define DATA2_T int2
 #define DATA4_T int4
@@ -465,9 +501,23 @@
 #define SRC_MMAD_DATA_T int
 #define SRC_MMAD_DATA4_T int4
 #define SRC_MMAD_DATA8_T int8
+#elif SRC_DT_F16 || SRC_DT_BF16
+#define SRC_MMAD_DATA_T uint
+#define SRC_MMAD_DATA4_T uint4
+#define SRC_MMAD_DATA8_T uint8
 #endif
+
+#if defined(SRC_DT_U8) || defined(SRC_DT_S8)
+#define SRC_MMAD_ACC_DATA4_T int4
+#define SRC_MMAD_ACC_DATA8_T int8
+#else
+#define SRC_MMAD_ACC_DATA4_T float4
+#define SRC_MMAD_ACC_DATA8_T float8
+#endif
+
 #define AS_SRC_DATA2_T CONCAT2(as_, SRC_DATA2_T)
 #define AS_SRC_DATA4_T CONCAT2(as_, SRC_DATA4_T)
+#define AS_SRC_DATA8_T CONCAT2(as_, SRC_DATA8_T)
 #define AS_SRC_DATA16_T CONCAT2(as_, SRC_DATA16_T)
 #define AS_SRC_MMAD_DATA_T CONCAT2(as_, SRC_MMAD_DATA_T)
 #define AS_SRC_MMAD_DATA4_T CONCAT2(as_, SRC_MMAD_DATA4_T)
@@ -582,6 +632,7 @@
 #endif
 
 #ifdef BIA_DATA_T
+#define BIA_DATA2_T CONCAT2(BIA_DATA_T, 2)
 #if BIA_DT_BF16
 #define BIA_TO_REF(x) cvt_bf16_to_f32(x)
 #define REF_TO_BIA(x) cvt_f32_to_bf16(x)
@@ -640,6 +691,10 @@
 
 // Block read/write macros for dst.
 #if DST_DT_U8 || DST_DT_S8
+#define BLOCK_READ_DST2(ptr) \
+    AS_DST_DATA2_T(intel_sub_group_block_read_uc2((__global uchar *)ptr))
+#define BLOCK_WRITE_DST2(ptr, v) \
+    intel_sub_group_block_write_uc2((__global uchar *)ptr, as_uchar2(v))
 
 #define BLOCK_READ_DST(ptr) \
     AS_DST_DATA_T(intel_sub_group_block_read_uc((__global uchar *)ptr))
@@ -665,6 +720,36 @@
     AS_DST_DATA16_T(intel_sub_group_block_read_uc16((__global uchar *)ptr))
 #define BLOCK_WRITE_DST16(ptr, v) \
     intel_sub_group_block_write_uc16((__global uchar *)ptr, as_uchar16(v))
+
+#elif DST_DT_F16 || DST_DT_BF16
+#define BLOCK_READ_DST(ptr) \
+    AS_DST_DATA_T(intel_sub_group_block_read_us((__global ushort *)ptr))
+#define BLOCK_WRITE_DST(ptr, v) \
+    intel_sub_group_block_write_us((__global ushort *)ptr, as_ushort(v))
+
+#define BLOCK_READ_DST2(ptr) \
+    AS_DST_DATA2_T(intel_sub_group_block_read_us2((__global ushort *)ptr))
+#define BLOCK_WRITE_DST2(ptr, v) \
+    intel_sub_group_block_write_us2((__global ushort *)ptr, as_ushort2(v))
+
+#define BLOCK_READ_DST4(ptr) \
+    AS_DST_DATA4_T(intel_sub_group_block_read_us4((__global ushort *)ptr))
+#define BLOCK_WRITE_DST4(ptr, v) \
+    intel_sub_group_block_write_us4((__global ushort *)ptr, as_ushort4(v))
+
+#define BLOCK_READ_DST8(ptr) \
+    AS_DST_DATA8_T(intel_sub_group_block_read_us8((__global ushort *)ptr))
+#define BLOCK_WRITE_DST8(ptr, v) \
+    intel_sub_group_block_write_us8((__global ushort *)ptr, as_ushort8(v))
+
+#define BLOCK_READ_DST16(ptr) \
+    (DST_DATA16_T)( \
+            BLOCK_READ_DST8(ptr), BLOCK_READ_DST8(ptr + 8 * SUB_GROUP_SIZE))
+#define BLOCK_WRITE_DST16(ptr, v) \
+    do { \
+        BLOCK_WRITE_DST8(ptr, (v).s01234567); \
+        BLOCK_WRITE_DST8(ptr + 8 * SUB_GROUP_SIZE, (v).s89abcdef); \
+    } while (0)
 
 #elif DST_DT_S32 || DST_DT_F32
 
@@ -732,11 +817,30 @@
 
 #if DST_DT_BF16
 #define DST_TO_REF(x) cvt_bf16_to_f32(x)
+#define DST_TO_REF2(x) cvt_bf16_to_f32(x)
 #define DST_TO_REF8(x) cvt_bf16_to_f32(x)
 #define REF_TO_DST(x) cvt_f32_to_bf16(x)
 #define REF_TO_DST8(x) cvt_f32_to_bf16(convert_float8(x))
+#elif DST_DT_F16
+#define REF_TO_DST(x) convert_half(x)
+#define DST_TO_REF(x) convert_float(x)
+#define DST_TO_REF2(x) convert_float2(x)
+#define DST_TO_REF8(x) convert_float8(x)
+#elif DST_DT_U8
+#define DST_TO_REF(x) (x)
+#define DST_TO_REF2(x) (x)
+#define DST_TO_REF8(x) (x)
+#define REF_TO_DST(x) convert_uchar(x)
+#define REF_TO_DST8(x) convert_uchar8(x)
+#elif DST_DT_S8
+#define DST_TO_REF(x) (x)
+#define DST_TO_REF2(x) (x)
+#define DST_TO_REF8(x) (x)
+#define REF_TO_DST(x) convert_char(x)
+#define REF_TO_DST8(x) convert_char8(x)
 #else
 #define DST_TO_REF(x) (x)
+#define DST_TO_REF2(x) (x)
 #define DST_TO_REF8(x) (x)
 #define REF_TO_DST(x) (x)
 #define REF_TO_DST8(x) (x)
@@ -1113,5 +1217,22 @@
 
 #define NAMED_KERNEL_ATTR(name) \
     CONCAT2(NAMED_KERNEL_ATTR_SG, CONCAT2(GWS_WITH_SG_, name))(name)
+
+// Macro to emulate behavior of non-uniform work-groups. It is expected to be
+// called at the beginning of the kernel.
+// NOTE: The kernel cannot use synchronization within work-group (barrier,
+// etc).
+#define MAYBE_SKIP_NON_UNIFORM_WG() \
+    do { \
+        if ((GWS_0 != GWS_ORIG_0) && (GWS_ORIG_0 % LWS_0 != 0) \
+                && (get_global_id(0) >= GWS_ORIG_0)) \
+            return; \
+        if ((GWS_1 != GWS_ORIG_1) && (GWS_ORIG_1 % LWS_1 != 0) \
+                && (get_global_id(1) >= GWS_ORIG_1)) \
+            return; \
+        if ((GWS_2 != GWS_ORIG_2) && (GWS_ORIG_2 % LWS_2 != 0) \
+                && (get_global_id(2) >= GWS_ORIG_2)) \
+            return; \
+    } while (0)
 
 #endif

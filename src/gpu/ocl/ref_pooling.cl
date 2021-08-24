@@ -132,7 +132,6 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
                         * (KW - iw_start_excluded - iw_end_excluded);
 #endif
                 d /= num_summands;
-
 #endif
 
                     // post op service

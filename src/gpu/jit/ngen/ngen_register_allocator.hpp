@@ -35,7 +35,7 @@ struct Bundle {
     Bundle(int8_t bank_id_, int8_t bundle_id_) : bundle_id(bundle_id_), bank_id(bank_id_) {}
 
     // Number of bundles in each bank (per thread).
-    static constexpr int bundle_count(HW hw)    { return (hw == HW::Xe_LP) ? 8 : 2; }
+    static constexpr int bundle_count(HW hw)    { return (hw >= HW::XeHP) ? 16 : (hw == HW::Gen12LP) ? 8 : 2; }
     // Number of banks.
     static constexpr int bank_count(HW hw)      { return 2; }
 
@@ -85,7 +85,7 @@ struct BundleGroup {
 private:
     HW hw;
 
-    static constexpr int max_regs = 128;
+    static constexpr int max_regs = 256;
     static constexpr int nmasks = max_regs / 64;
 
     uint64_t reg_masks[nmasks] = {0};
@@ -95,6 +95,8 @@ private:
 class RegisterAllocator {
 public:
     explicit RegisterAllocator(HW hw_) : hw(hw_) { init(); }
+
+    HW hardware() const { return hw; }
 
     // Allocation functions: sub-GRFs, full GRFs, and GRF ranges.
     GRFRange alloc_range(int nregs, Bundle base_bundle = Bundle(),
@@ -125,7 +127,7 @@ public:
     void release(FlagRegister flag);
 
     template <typename RD>
-    void safeRelease(RD &reg) { if (!reg.isInvalid()) release(reg); reg.invalidate(); }
+    void safeRelease(RD &reg) { release(reg); reg.invalidate(); }
 
     // Claim specific registers.
     void claim(GRF reg);
@@ -133,10 +135,13 @@ public:
     void claim(Subregister subreg);
     void claim(FlagRegister flag);
 
+    // Set register count.
+    void setRegisterCount(int rcount);
+
     void dump(std::ostream &str);
 
 protected:
-    static constexpr int max_regs = 128;
+    static constexpr int max_regs = 256;
     using mtype = uint8_t;
 
     HW hw;                              // HW generation.

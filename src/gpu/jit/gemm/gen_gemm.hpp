@@ -36,7 +36,6 @@ namespace gpu {
 namespace jit {
 
 struct gen_gemm_t : public gpu_gemm_t {
-    using gpu_gemm_t::gpu_gemm_t;
 
     struct pd_t : public gpu_gemm_pd_t {
         using gpu_gemm_pd_t::gpu_gemm_pd_t;
@@ -56,11 +55,12 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             // LIMITATIONS:
             // - runtime dims are not supported
-            // - bias only supported for f16 and f32 with same c_type.
-            // - postops only supported for f32.
             bool ok = true;
 
             auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
+
+            dev_info_ = compute_engine->device_info();
+            arch_ = dev_info_->gpu_arch();
 
             ok = set_default_formats();
             if (!ok) return status::unimplemented;
@@ -71,18 +71,42 @@ struct gen_gemm_t : public gpu_gemm_t {
                 ok = ok && utils::one_of(d->a_type(), u8, s8)
                         && utils::one_of(d->b_type(), u8, s8)
                         && d->acc_type == d->c_type()
-                        && attr()->zero_points_.defined(DNNL_ARG_SRC)
-                        && attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)
                         && (attr()->zero_points_.has_default_values(
                                     DNNL_ARG_DST)
                                 || !attr()->zero_points_.defined(DNNL_ARG_DST));
 
-                int cmask = 0;
+                if (attr()->zero_points_.defined(DNNL_ARG_SRC)) {
+                    const int *ao_i32 = nullptr;
+                    attr()->zero_points_.get(
+                            DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
+                    ab_zp_ |= (*ao_i32 != 0);
+                } else if (!attr()->zero_points_.has_default_values(
+                                   DNNL_ARG_SRC))
+                    return status::unimplemented;
+
+                if (attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)) {
+                    const int *bo_i32 = nullptr;
+                    attr()->zero_points_.get(
+                            DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
+                    ab_zp_ |= (*bo_i32 != 0);
+                } else if (!attr()->zero_points_.has_default_values(
+                                   DNNL_ARG_WEIGHTS))
+                    return status::unimplemented;
+
+                int cmask_a = 0, cmask_b = 0, cmask_c = 0;
                 attr()->zero_points_.get(
-                        DNNL_ARG_DST, nullptr, &cmask, nullptr);
-                ok &= utils::one_of(cmask, 0, 1 << 0, 1 << 1);
+                        DNNL_ARG_WEIGHTS, nullptr, &cmask_b, nullptr);
+                attr()->zero_points_.get(
+                        DNNL_ARG_SRC, nullptr, &cmask_a, nullptr);
+                attr()->zero_points_.get(
+                        DNNL_ARG_DST, nullptr, &cmask_c, nullptr);
+                ok &= (cmask_a == 0) && (cmask_b == 0)
+                        && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
 
                 attr_skip_mask |= smask_t::zero_points_runtime;
+            } else if (d->c_type() == bf16) {
+                ok = ok && d->a_type() == bf16 && d->b_type() == bf16
+                        && utils::one_of(d->acc_type, bf16, f32);
             } else {
                 ok = ok && utils::one_of(d->c_type(), f32, f16)
                         && d->a_type() == d->c_type()
@@ -102,7 +126,13 @@ struct gen_gemm_t : public gpu_gemm_t {
                                     && (d->bias_desc.ndims <= 3))
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
-                    && attr()->output_scales_.mask_ == 0;
+                    && attr()->output_scales_.mask_ == 0
+                    && IMPLICATION(with_bias(),
+                            utils::one_of(d->c_type(), f32, f16, bf16)
+                                    && utils::one_of(
+                                            bias_cmask(), 0, 1 << 0, 1 << 1)
+                                    && (attr()->zero_points_.has_default_values(
+                                            DNNL_ARG_DST)));
 
             // check if there is sum post op and only at first place
             ok &= IMPLICATION(attr()->post_ops_.find(sum) != -1,
@@ -115,27 +145,108 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (!ok) return status::unimplemented;
 
-            auto *dev_info = compute_engine->device_info();
+            ok &= utils::one_of(arch_, arch_t::gen9, arch_t::xe_lp,
+                    arch_t::xe_hp, arch_t::xe_hpg);
 
-            arch_ = dev_info->gpu_arch();
+            bool int8_ok = arch_ < arch_t::xe_hp;
 
-            ok &= utils::one_of(arch_, arch_t::gen9, arch_t::xe_lp);
+            // int8 not enabled on Xe_HP/Xe_HPG for now. bf16 only enabled on Xe_HP+.
+            ok &= IMPLICATION(utils::one_of(d->a_type(), s8, u8), int8_ok);
+            ok &= IMPLICATION(d->c_type() == bf16, arch_ >= arch_t::xe_hp);
 
             if (!ok) return status::unimplemented;
 
-            eu_count_ = dev_info->eu_count();
-            hw_threads_ = dev_info->hw_threads();
+            choose_kernel();
+
+            // k-parallel kernels don't support post-ops.
+            bool with_eltwise = (attr()->post_ops_.find(eltwise) != -1);
+            ok &= IMPLICATION(tag_ == 'K', !with_bias() && !with_eltwise);
 
             if (!ok) return status::unimplemented;
 
             return status::success;
         }
 
+        void choose_kernel() {
+            using kernel_t = gen_gemm_nocopy_kernel_t;
+
+            const auto &d = desc();
+            kernel_t::choose_unrolls(arch_, dev_info_->hw_threads(),
+                    eff_transa(), eff_transb(), d->a_type(), d->b_type(),
+                    d->c_type(), eff_align_a(), eff_align_b(), align_c(),
+                    eff_m(), eff_n(), d->k(), d->batch(), unroll_m_, unroll_n_,
+                    tag_);
+        }
+
         bool set_default_formats() {
+            using namespace data_type;
+            using namespace format_tag;
+            using arch_t = compute::gpu_arch_t;
+
+            auto d = desc();
+
+            auto m = d->m();
+            auto n = d->n();
+            auto k = d->k();
+            auto a_t = d->a_type();
+            auto b_t = d->b_type();
+            auto c_t = d->c_type();
+            auto a_t_sz = types::data_type_size(a_t);
+            auto b_t_sz = types::data_type_size(b_t);
+
+            bool is_f16 = utils::everyone_is(f16, a_t, b_t, c_t);
+            bool is_xe_hp_plus = arch_ >= arch_t::xe_hp;
+
+            // Rename memory descriptors following column major format.
+            auto &a_desc = desc_.b_desc;
+            auto &b_desc = desc_.a_desc;
+
+            memory_desc_wrapper a_mdw(&a_desc);
+            memory_desc_wrapper b_mdw(&b_desc);
+
+            bool is_a_trans = a_mdw.matches_one_of_tag(ba, acb);
+            bool is_b_trans = b_mdw.matches_one_of_tag(ba, acb);
+
+            auto lda = is_a_trans ? m : k;
+            auto ldb = is_b_trans ? k : n;
+
+            auto is_aligned = [](dim_t ld, size_t sz, int byte) {
+                return ld * sz % byte == 0;
+            };
+
+            bool a_4B_aligned = is_aligned(lda, a_t_sz, 4);
+            bool b_4B_aligned = is_aligned(ldb, b_t_sz, 4);
+            bool ab_4B_aligned = a_4B_aligned && b_4B_aligned;
+
+            bool a_tn_4B_aligned = is_aligned(k, a_t_sz, 4);
+            bool b_tn_4B_aligned = is_aligned(k, b_t_sz, 4);
+            bool ab_tn_4B_aligned = a_tn_4B_aligned && b_tn_4B_aligned;
+
+            bool use_tn = (m <= 32 || n <= 32) && !ab_4B_aligned
+                    && ab_tn_4B_aligned;
+
+            bool a_any = a_mdw.format_any();
+            bool b_any = b_mdw.format_any();
+            bool batch = d->is_batched();
+
+            auto dotrans = batch ? acb : ba;
+            auto notrans = batch ? abc : ab;
+
+            if (is_f16 && is_xe_hp_plus && use_tn) {
+                if (a_any && b_any) {
+                    CHECK(memory_desc_init_by_tag(a_desc, dotrans));
+                    CHECK(memory_desc_init_by_tag(b_desc, notrans));
+                } else if (a_any && !is_b_trans) {
+                    CHECK(memory_desc_init_by_tag(a_desc, dotrans));
+                } else if (b_any && is_a_trans) {
+                    CHECK(memory_desc_init_by_tag(b_desc, notrans));
+                }
+            }
+
             return gpu_gemm_pd_t::set_default_formats();
         }
 
-        bool with_c_offset() const {
+        bool with_c_zero_points() const {
             return !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
         }
 
@@ -156,43 +267,88 @@ struct gen_gemm_t : public gpu_gemm_t {
             return with_bias() ? to_cmask[(desc()->bias_mask() >> 1) & 3] : -1;
         }
 
+        bool with_ab_zero_points() const { return ab_zp_; }
+
+        bool swap_ab() const {
+            bool check_lda
+                    = ((desc()->transa() == dnnl_notrans && desc()->lda() == 1)
+                            || (desc()->transa() == dnnl_trans));
+            return (desc()->a_type() == data_type::f16 && desc()->m() == 1
+                    && desc()->ldc() == 1 && check_lda);
+        }
+
         int batch_dims() const {
             return nstl::max(desc()->c_desc.ndims - 2, 0);
         }
+
+        int align_a() const {
+            return int(utils::max_pow2_div(
+                    types::data_type_size(desc()->a_type()) * desc()->lda()));
+        }
+        int align_b() const {
+            return int(utils::max_pow2_div(
+                    types::data_type_size(desc()->b_type()) * desc()->ldb()));
+        }
+        int align_c() const {
+            return int(utils::max_pow2_div(
+                    types::data_type_size(desc()->c_type()) * desc()->ldc()));
+        }
+
+        int eff_align_a() const { return !swap_ab() ? align_a() : align_b(); }
+        int eff_align_b() const { return !swap_ab() ? align_b() : align_a(); }
+        bool eff_transa() const {
+            return !swap_ab() ? (desc()->transa() == dnnl_trans)
+                              : (desc()->transb() == dnnl_notrans);
+        }
+        bool eff_transb() const {
+            return !swap_ab() ? (desc()->transb() == dnnl_trans) : false;
+        }
+        dim_t eff_m() const { return !swap_ab() ? desc()->m() : desc()->n(); }
+        dim_t eff_n() const { return !swap_ab() ? desc()->n() : desc()->m(); }
 
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;
         size_t dyn_offset_co = 0;
-        int hw_threads_ = 0;
-        int eu_count_ = 0;
+
+        bool ab_zp_ = false;
+        int unroll_m_ = 0, unroll_n_ = 0;
+        char tag_ = '\0';
+
+        const compute::device_info_t *dev_info_;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
     };
+
+    gen_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     status_t init(engine_t *engine) override { return init_nocopy(engine); }
 
     status_t init_nocopy(engine_t *engine) {
         using kernel_t = gen_gemm_nocopy_kernel_t;
 
-        int unroll_m, unroll_n;
-        auto batch = pd()->desc()->batch();
-        int batch_dims = pd()->batch_dims();
-        bool transa = (pd()->desc()->transa() == dnnl_trans);
-        bool transb = (pd()->desc()->transb() == dnnl_trans);
-        auto a_type = pd()->desc()->a_type();
-        auto b_type = pd()->desc()->b_type();
-        auto c_type = pd()->desc()->c_type();
+        const auto &d = pd()->desc();
+        auto c_type = d->c_type();
+        auto co_type = pd()->with_bias() ? d->bias_type() : c_type;
+        auto acc_type = c_type;
 
-        kernel_t::choose_unrolls(pd()->arch_, pd()->hw_threads_, transa, transb,
-                a_type, b_type, c_type, pd()->desc()->m(), pd()->desc()->n(),
-                pd()->desc()->k(), batch, unroll_m, unroll_n);
+        if (acc_type == data_type::bf16) acc_type = data_type::f32;
+
+        if (get_verbose() >= 2) {
+            char tag_s[2] = {pd()->tag_, 0};
+            printf("dnnl_verbose,info,gpu,gemm,kernel:%dx%d,%s\n",
+                    pd()->unroll_m_, pd()->unroll_n_, tag_s);
+        }
 
         kernel_t kernel;
 
-        auto status = kernel.init(pd()->arch_, batch_dims, transa, transb,
-                pd()->with_c_offset(), pd()->with_bias(),
-                pd()->attr()->post_ops_, a_type, b_type, c_type, unroll_m,
-                unroll_n);
+        auto status = kernel.init(pd()->arch_, pd()->batch_dims(),
+                pd()->eff_transa(), pd()->eff_transb(),
+                pd()->with_ab_zero_points(), pd()->with_c_zero_points(),
+                pd()->with_bias(), pd()->attr()->post_ops_, d->a_type(),
+                d->b_type(), c_type, co_type, acc_type, pd()->eff_align_a(),
+                pd()->eff_align_b(), pd()->align_c(), pd()->unroll_m_,
+                pd()->unroll_n_, pd()->tag_);
+
         if (status != status::success) return status;
 
         create_kernel(engine, &nocopy_kernel_, kernel);
@@ -210,9 +366,9 @@ private:
             const memory_storage_t &b, const memory_storage_t &c,
             const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
             int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
-            int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha,
-            float beta, int16_t ao, int16_t bo, int32_t cmask,
-            bool last_k_block) const;
+            int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0,
+            float alpha, float beta, int16_t ao, int16_t bo, int32_t cmask,
+            bool last_k_block, bool swapab, bool disable_hilbert) const;
 
     compute::kernel_t nocopy_kernel_;
     CommonDriverInfo nocopy_info_;

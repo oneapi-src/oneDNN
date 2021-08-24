@@ -24,33 +24,29 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-unsigned get_block_size(bool is_backward, int hw_threads, int nn, int ic,
+int get_block_size(bool is_backward, int hw_threads, int nn, int ic,
         int work_size, int simd = 16) {
-    unsigned block_size = 256;
+    int block_size = 256;
     float thread_efficiency = 0;
     int hw_thread_mult = hw_threads;
-    if (is_backward) {
-        do {
-            const unsigned nof_blocks = nstl::max(
-                    utils::rnd_dn(hw_thread_mult * simd, ic) / ic, 1);
-            const unsigned min_block_size
-                    = utils::rnd_up(work_size, nof_blocks) / nof_blocks;
-            const unsigned curr_block_size = utils::rnd_up(min_block_size, 8);
-            const unsigned nof_blocks_generated
-                    = utils::rnd_up(work_size, curr_block_size)
-                    / curr_block_size;
-            const unsigned threads_generated = nof_blocks_generated * ic / simd;
-            const float curr_thread_efficiency = float(threads_generated * nn)
-                    / float(utils::rnd_up(threads_generated * nn, hw_threads));
-            if (curr_thread_efficiency > thread_efficiency) {
-                thread_efficiency = curr_thread_efficiency;
-                block_size = curr_block_size;
-            }
-            if (curr_thread_efficiency == 1.0 || curr_block_size < 150) {
-                break;
-            }
-            hw_thread_mult += hw_threads;
-        } while (true);
+    const int align_size = is_backward ? 8 : 16;
+    while (true) {
+        const int nof_blocks
+                = nstl::max(utils::rnd_dn(hw_thread_mult * simd, ic) / ic, 1);
+        const int min_block_size
+                = utils::rnd_up(work_size, nof_blocks) / nof_blocks;
+        const int curr_block_size = utils::rnd_up(min_block_size, align_size);
+        const int nof_blocks_generated
+                = utils::rnd_up(work_size, curr_block_size) / curr_block_size;
+        const int threads_generated = nof_blocks_generated * ic / simd;
+        const float curr_thread_efficiency = float(threads_generated * nn)
+                / float(utils::rnd_up(threads_generated * nn, hw_threads));
+        if (curr_thread_efficiency > thread_efficiency) {
+            thread_efficiency = curr_thread_efficiency;
+            block_size = curr_block_size;
+        }
+        if (curr_thread_efficiency == 1.0 || curr_block_size <= 128) { break; }
+        hw_thread_mult += hw_threads;
     }
     return block_size;
 }
@@ -129,7 +125,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     }
 
     const int max_sp_block_size = get_block_size(conf.is_backward,
-            compute_engine->device_info()->hw_threads(), conf.nn, conf.ic,
+            compute_engine->device_info()->eu_count(), conf.nn, conf.ic,
             conf.sp);
 
     if (conf.nn == 1)
@@ -149,7 +145,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch_calc_stat.define_dim("STAT_MB", 0, conf.nn);
     conf.dispatch_calc_stat.define_dim("STAT_SP", 1, conf.stat_sp_nblocks);
     conf.dispatch_calc_stat.define_dim("STAT_IC", 2, conf.ic);
-    conf.dispatch_calc_stat.vectorize_dim("STAT_IC", 16);
+    CHECK(conf.dispatch_calc_stat.vectorize_dim("STAT_IC", 16));
     conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
     conf.dispatch_calc_stat.generate();
 
@@ -175,7 +171,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch.define_dim("MB", 0, conf.nn);
     conf.dispatch.define_dim("SP", 1, sp_pad / conf.vect_size);
     conf.dispatch.define_dim("IC", 2, conf.ic);
-    conf.dispatch.vectorize_dim("IC", 16);
+    CHECK(conf.dispatch.vectorize_dim("IC", 16));
     conf.dispatch.generate();
 
     return status::success;

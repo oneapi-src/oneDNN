@@ -33,7 +33,13 @@ struct ref_zero_pad_t : public gpu_primitive_t {
         using gpu_zero_pad_pd_t::gpu_zero_pad_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_zero_pad_t);
-        status_t init(engine_t *engine) { return status::success; }
+        status_t init(engine_t *engine) {
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+            if (!compute_engine->mayiuse_sub_group(16))
+                return status::unimplemented;
+            return status::success;
+        }
     };
 
     ;

@@ -17,6 +17,8 @@
 #ifndef GPU_GPU_PRIMITIVE_HPP
 #define GPU_GPU_PRIMITIVE_HPP
 
+#include <cassert>
+
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
@@ -104,10 +106,38 @@ struct gpu_primitive_t : public primitive_t {
     }
 
 protected:
+    void register_kernels(const std::vector<compute::kernel_t> &kernels) {
+        for (const auto &k : kernels) {
+            registered_kernels_.push_back(k);
+        }
+    }
+
     virtual primitive_list_t nested_primitives() const { return {}; }
 
     virtual status_t init_res_storage(
             engine_t *engine, gpu_resource_t *r) const {
+        return status::success;
+    }
+
+    status_t init_output_scales_res_storage(engine_t *engine, gpu_resource_t *r,
+            gpu_resource_t::key_memory_t storage_key) const {
+        auto &oscales = pd()->attr()->output_scales_;
+        if (oscales.has_default_values() || !oscales.defined())
+            return status::success;
+        if (oscales.mask_ == 0 && oscales.defined()) return status::success;
+
+        assert(utils::one_of(oscales.mask_, 0, 1 << 1));
+
+        auto scales_sz = oscales.count_ * sizeof(float);
+        memory_storage_t *tmp_mem_storage_ptr;
+        CHECK(engine->create_memory_storage(&tmp_mem_storage_ptr, scales_sz));
+
+        std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
+        void *scales_ptr = nullptr;
+        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr, scales_sz));
+        utils::array_copy((float *)scales_ptr, oscales.scales_, oscales.count_);
+        CHECK(tmp_mem_storage->unmap_data(scales_ptr, nullptr));
+        r->add_memory_storage(storage_key, std::move(tmp_mem_storage));
         return status::success;
     }
 
@@ -134,12 +164,6 @@ protected:
         rm = ctx.get_resource_mapper();
 #endif
         return parallel_for(rm, ctx.stream(), range, kernel, arg_list);
-    }
-
-    void register_kernels(const std::vector<compute::kernel_t> &kernels) {
-        for (const auto &k : kernels) {
-            registered_kernels_.push_back(k);
-        }
     }
 
 private:

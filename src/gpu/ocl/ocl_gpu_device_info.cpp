@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_gpu_device_info.hpp"
-#include "gpu/ocl/ocl_gpu_detect.hpp"
 #include "gpu/ocl/ocl_gpu_engine.hpp"
+#include "gpu/ocl/ocl_gpu_hw_info.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,19 +35,31 @@ status_t ocl_gpu_device_info_t::init_arch(engine_t *engine) {
     OCL_CHECK(err);
     if (vendor_id != intel_vendor_id) return status::success;
 
-    // try to detect gpu by device name first
-    gpu_arch_ = detect_gpu_arch_by_device_name(name());
-    if (gpu_arch_ != compute::gpu_arch_t::unknown) return status::success;
-
-    // if failed, use slower method
     cl_context context
             = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
     OCL_CHECK(err);
 
-    gpu_arch_ = detect_gpu_arch(device, context);
+    init_gpu_hw_info(device, context, gpu_arch_, stepping_id_);
+
     err = clReleaseContext(context);
     OCL_CHECK(err);
 
+    // XXX: temporary WA for different Xe_HP devices
+    if (gpu_arch_ == compute::gpu_arch_t::xe_hp) {
+        // query extensions
+        size_t param_size = 0;
+        err = clGetDeviceInfo(
+                device, CL_DEVICE_EXTENSIONS, 0, nullptr, &param_size);
+        OCL_CHECK(err);
+
+        std::string extension_string(param_size, '\0');
+        err = clGetDeviceInfo(device, CL_DEVICE_EXTENSIONS, param_size,
+                &extension_string[0], &param_size);
+        OCL_CHECK(err);
+        if (extension_string.find(ext2cl_str(compute::device_ext_t::khr_fp64))
+                == std::string::npos)
+            gpu_arch_ = compute::gpu_arch_t::xe_hpg;
+    }
     return status::success;
 }
 
@@ -147,8 +159,13 @@ std::string ocl_gpu_device_info_t::get_cl_ext_options() const {
 
         // These extensions are not handled properly by the OpenCL runtime.
         // Pass macros for them manually.
-        if (utils::one_of(ext, device_ext_t::intel_dot_accumulate))
-
+        if (utils::one_of(ext, device_ext_t::intel_global_float_atomics,
+                    device_ext_t::intel_subgroup_matrix_multiply_accumulate,
+                    device_ext_t::
+                            intel_subgroup_split_matrix_multiply_accumulate,
+                    device_ext_t::intel_global_float_atomics,
+                    device_ext_t::future_bf16_cvt,
+                    device_ext_t::intel_dot_accumulate))
             opts += std::string("-D") + ext2cl_str(ext) + " ";
     }
     if (!opts.empty()) { opts[opts.size() - 1] = '\0'; }

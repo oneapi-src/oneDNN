@@ -25,6 +25,7 @@
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
 #include "cpu/platform.hpp"
+#include "oneapi/dnnl/dnnl_config.h"
 
 namespace dnnl {
 namespace impl {
@@ -35,6 +36,8 @@ enum class gpu_arch_t {
     unknown,
     gen9,
     xe_lp,
+    xe_hp,
+    xe_hpg,
 };
 
 enum class device_ext_t : uint64_t {
@@ -58,6 +61,13 @@ enum class device_ext_t : uint64_t {
     // Intel specific Xe_LP+
     intel_subgroup_local_block_io = 1ull << 21,
     intel_dot_accumulate          = 1ull << 22,
+    // Intel specific Xe_HP+
+    intel_global_float_atomics                      = 1ull << 23,
+    intel_subgroup_matrix_multiply_accumulate       = 1ull << 24,
+    intel_subgroup_split_matrix_multiply_accumulate = 1ull << 25,
+    intel_variable_eu_thread_count                  = 1ull << 26,
+    // Future extensions
+    future_bf16_cvt                                 = 1ull << 31,
     last
     // clang-format on
 };
@@ -85,6 +95,11 @@ static inline const char *ext2cl_str(device_ext_t ext) {
         CASE(intel_subgroup_local_block_io)
         CASE(intel_dot_accumulate)
 
+        CASE(intel_global_float_atomics)
+        CASE(intel_subgroup_matrix_multiply_accumulate)
+        CASE(intel_subgroup_split_matrix_multiply_accumulate)
+        CASE(intel_variable_eu_thread_count)
+        CASE(future_bf16_cvt)
         default: return nullptr;
     }
 #undef CASE
@@ -172,8 +187,13 @@ public:
 
     bool has(device_ext_t ext) const { return extensions_ & (uint64_t)ext; }
     gpu_arch_t gpu_arch() const { return gpu_arch_; }
+    int stepping_id() const { return stepping_id_; }
+    int max_eus_per_wg() const { return max_eus_per_wg_; }
     int eu_count() const { return eu_count_; }
-    int hw_threads() const { return hw_threads_; }
+    int hw_threads() const { return hw_threads_[0]; }
+    int hw_threads(bool large_grf_mode) const {
+        return hw_threads_[large_grf_mode ? 1 : 0];
+    }
     size_t llc_cache_size() const { return llc_cache_size_; }
 
     const runtime_version_t &runtime_version() const {
@@ -187,6 +207,8 @@ public:
         return mayiuse_non_uniform_work_groups_;
     }
 
+    bool mayiuse_sub_group(int size) const;
+
 protected:
     virtual status_t init_device_name(engine_t *engine) = 0;
     virtual status_t init_arch(engine_t *engine) = 0;
@@ -195,13 +217,17 @@ protected:
     virtual status_t init_attributes(engine_t *engine) = 0;
 
     compute::gpu_arch_t gpu_arch_ = compute::gpu_arch_t::unknown;
+    int stepping_id_ = 0;
 
     std::string name_;
     runtime_version_t runtime_version_;
 
     // total number of hardware threads:
-    int32_t hw_threads_;
+    // [0] - default mode
+    // [1] - large GRF mode
+    int32_t hw_threads_[2] = {0, 0};
     int32_t eu_count_ = 0;
+    int32_t max_eus_per_wg_ = 0;
     size_t llc_cache_size_ = 0;
 
     // extensions_ and gpu_arch_ describe effective extensions and GPU architecture.

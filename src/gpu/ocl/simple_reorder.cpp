@@ -345,7 +345,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
 
     if (matches_one_NxN_layout(src_mdw, dst_mdw, 16, conf.scale_mask)) {
         // W/A for compiler bug: avoid using intel_sub_group_shuffle with
-        // SIMD16 on xe_lp
+        // SIMD16 on gen12lp
         if (dev_info->gpu_arch() == compute::gpu_arch_t::xe_lp) {
             return reorder_kernel_t::transpose8x8;
         }
@@ -435,7 +435,8 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
     }
 
     if ((src_mdw.matches_one_of_tag(abcd, acdb))
-            && dst_mdw.matches_one_of_tag(ABcd4a4b, ABcd8a2b, ABcd8a4b)
+            && dst_mdw.matches_one_of_tag(
+                    ABcd4a2b, ABcd4a4b, ABcd8a2b, ABcd8a4b)
             && src_mdw.is_dense() && dst_mdw.is_dense(true)) {
         return reorder_kernel_t::plain_to_ABcd84a42b;
     }
@@ -554,10 +555,16 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
     int temp_block = 1;
 
+    const bool may_use_sg8 = compute_engine->mayiuse_sub_group(8);
+    auto fallback_to_reference = [&]() {
+        conf.implementation = reorder_reference;
+        conf.sub_group_size = 1;
+        vect_size = 1;
+        blocks[2] = blocks[3] = blocks[4] = blocks[5] = 0;
+    };
+
     switch (conf.implementation) {
-        case reorder_reference:
-            blocks[2] = blocks[3] = blocks[4] = blocks[5] = 0;
-            break;
+        case reorder_reference: fallback_to_reference(); break;
         case reorder_alt:
             // special handling with dispatcher override
             conf.sub_group_size = 16;
@@ -599,6 +606,12 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             conf.sub_group_size = vect_size;
             break;
         case vectorize_last_dim:
+            vect_size = (last_dim % 16 == 0) ? 16 : 8;
+            if (!may_use_sg8 && vect_size == 8) {
+                fallback_to_reference();
+                break;
+            }
+            vect_dim = last;
             for (int dim = last - 1;
                     dim >= 0 && dim < MAX_NDIMS && temp_block == 1; dim--) {
                 if (padded_dims[dim] % 4 == 0) { temp_block = 4; }
@@ -606,8 +619,6 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                 if (padded_dims[dim] % 16 == 0) { temp_block = 16; }
                 blocks[dim] = temp_block;
             }
-            vect_dim = last;
-            vect_size = (last_dim % 16 == 0) ? 16 : 8;
             break;
         case pad_innermost: {
             auto last_dim_src = get_Nth_last_dim_or_block(src_mdw);
@@ -619,6 +630,11 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                     = std::min(last_dim_src.size, last_dim_dst.size);
             int max_common_size
                     = std::max(last_dim_src.size, last_dim_dst.size);
+            conf.sub_group_size = max_common_size;
+            if (!may_use_sg8 && conf.sub_group_size == 8) {
+                fallback_to_reference();
+                break;
+            }
 
             // Group size bigger than 4 would need too much private mem;
             // group size 1 will give worse perf than reference kernel.
@@ -632,7 +648,6 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             conf.aux_data.vg.src_loop_dim = nextlast_dim_dst.idx;
             conf.aux_data.vg.dst_loop_dim = nextlast_dim_src.idx;
             conf.aux_data.vg.innermost_size = min_common_size;
-            conf.sub_group_size = max_common_size;
 
             blocks[conf.aux_data.vg.src_loop_dim] = max_group_size;
             blocks[conf.aux_data.vg.dst_loop_dim] = max_group_size;
@@ -655,8 +670,12 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             auto nextlast_dim_dst = get_Nth_last_dim_or_block(dst_mdw, 1);
             int min_common_size
                     = std::min(last_dim_src.size, last_dim_dst.size);
-            vect_dim = last_dim_src.idx;
             vect_size = (min_common_size % 16 == 0) ? 16 : 8;
+            if (!may_use_sg8 && vect_size == 8) {
+                fallback_to_reference();
+                break;
+            }
+            vect_dim = last_dim_src.idx;
             assert(last_dim_src.size % vect_size == 0
                     && last_dim_dst.size % vect_size == 0);
             assert(last_dim_src.idx == last_dim_dst.idx);
@@ -716,6 +735,10 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             break;
         case transpose8x8:
         case local8x8:
+            if (!may_use_sg8) {
+                fallback_to_reference();
+                break;
+            }
             conf.sub_group_size = 8;
             blocks[get_Nth_last_dim_or_block(dst_mdw).idx] = 8;
             vect_dim = get_Nth_last_dim_or_block(src_mdw).idx;
@@ -740,7 +763,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     // special case for dense_vector kernel - treat tensors as flat 1D vectors
     if (conf.implementation == dense_vector) {
         conf.dispatch.define_dim("D0", 0, conf.nelems, 16);
-        conf.dispatch.vectorize_dim("D0", 16);
+        CHECK(conf.dispatch.vectorize_dim("D0", 16));
     } else {
         for (int i = 0; i < MAX_NDIMS; ++i) {
             auto dim_str = utils::format("D%d", i);
@@ -754,7 +777,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
         }
         if (vect_size != 1) {
             auto dim_str = utils::format("D%d", vect_dim);
-            conf.dispatch.vectorize_dim(dim_str, vect_size);
+            CHECK(conf.dispatch.vectorize_dim(dim_str, vect_size));
         }
     }
 
@@ -875,6 +898,7 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("GROUP", conf.aux_data.vg.group_size);
         auto r = conf.dispatch.nd_range();
         auto *lr = r.local_range();
+        if (!lr) return status::runtime_error;
         kernel_ctx.define_int(
                 "SG_PER_WG", (lr[0] * lr[1] * lr[2]) / conf.sub_group_size);
         kernel_ctx.define_int(
@@ -913,6 +937,7 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("LOCAL_NXN", 1);
         auto r = conf.dispatch.nd_range();
         auto *lr = r.local_range();
+        if (!lr) return status::runtime_error;
         kernel_ctx.define_int("SG_PER_WG", lr[0] * lr[1] * lr[2]);
         kernel_ctx.define_int(
                 "DST_BLOCK_DIM", get_Nth_last_dim_or_block(src_mdw).idx);

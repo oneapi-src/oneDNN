@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,6 +82,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 __kernel void
 gen9_conv_nhwc_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
         __global DATA_T *diff_dst, __global DATA_T *bias) {
+    MAYBE_SKIP_NON_UNIFORM_WG();
     const int sp = get_group_id(1);
     const int local_id = get_sub_group_local_id();
     const int icb_mb = get_group_id(2);

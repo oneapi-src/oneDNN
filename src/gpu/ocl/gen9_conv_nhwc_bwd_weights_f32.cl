@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
+#include "gpu/ocl/ocl_math_utils.h"
+#include "gpu/ocl/ocl_types.h"
 
 #if ID > 1
 #define CASE_3D 1
@@ -27,26 +28,12 @@
 
 #if BWD_WEIGHTS == 1
 
-inline void atomic_add_global(
-        volatile __global atomic_float *source, float operand) {
-    float old_val = atomic_load_explicit(
-            source, memory_order_relaxed, memory_scope_device);
-    if (isnan(operand)) return;
-    bool success = false;
-    do {
-        float new_val = old_val + operand;
-        success = atomic_compare_exchange_strong_explicit(source, &old_val,
-                new_val, memory_order_acq_rel, memory_order_relaxed,
-                memory_scope_device);
-    } while (!success);
-}
-
 inline float read_ic_block(const __global float *ptr, int off) {
 #if (IS_DW ? G : IC) % IC_BLOCK != 0
     int tail = (IS_DW ? G : IC) - off;
     if (tail < IC_BLOCK) {
-        const int local_x = get_local_id(0);
-        return (local_x < tail) ? ptr[local_x] : 0.0f;
+        const int sglid = get_sub_group_local_id();
+        return (sglid < tail) ? ptr[sglid] : 0.0f;
     }
 #endif
     return as_float(intel_sub_group_block_read((const __global uint *)ptr));
@@ -56,8 +43,8 @@ inline float read_oc_block(const __global float *ptr, int off) {
 #if (IS_DW ? G : OC_WO_PADDING) % OC_BLOCK != 0
     int tail = (IS_DW ? G : OC_WO_PADDING) - off;
     if (tail < OC_BLOCK) {
-        const int local_x = get_local_id(0);
-        return (local_x < tail) ? ptr[local_x] : 0.0f;
+        const int sglid = get_sub_group_local_id();
+        return (sglid < tail) ? ptr[sglid] : 0.0f;
     }
 #endif
     return as_float(intel_sub_group_block_read((const __global uint *)ptr));
@@ -69,6 +56,7 @@ __kernel void
 gen9_conv_nhwc_bwd_weights(__global float *src,
         volatile __global atomic_float *diff_wei,
         volatile __global atomic_float *diff_bias, __global float *diff_dst) {
+    MAYBE_SKIP_NON_UNIFORM_WG();
     const int ksp = get_global_id(1);
 #if CASE_3D
     const int kd = ksp / (KW * KH);
@@ -79,7 +67,7 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
 #endif
     const int kh = khw / KW;
     const int kw = khw % KW;
-    const int local_x = get_local_id(0);
+    const int sglid = get_sub_group_local_id();
 
     const int chunk = get_global_id(2) % NCHUNK;
     const int icb_ocb = get_global_id(2) / NCHUNK;
@@ -91,7 +79,8 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
 
 #if IS_DW
     const int g = 0;
-    const int oc = get_group_id(0);
+    const int oc
+            = get_group_id(0) * (LWS_0 / SUB_GROUP_SIZE) + get_sub_group_id();
     const int ic = oc;
 #else
     const int g_ic_oc = get_global_id(0);
@@ -122,7 +111,7 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
     diff_dst += g * OC_WO_PADDING + oc * OC_BLOCK;
 
 #if WITH_BIAS == 1
-    diff_bias += g * OC_WO_PADDING + oc * OC_BLOCK + local_x;
+    diff_bias += g * OC_WO_PADDING + oc * OC_BLOCK + sglid;
     float bias_loc = 0.0f;
 #endif
 
@@ -209,12 +198,12 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
 
                     float8 blockA, blockB;
 #if IC == 3
-                    if (local_x < IC) {
+                    if (sglid < IC) {
                         for (int i = 0; i < OW_BLOCK; i++) {
                             if (iw + i * SW < 0 || iw + i * SW >= IW) {
                                 blockA[i] = 0;
                             } else {
-                                blockA[i] = src1[i * SW * G * IC + local_x];
+                                blockA[i] = src1[i * SW * G * IC + sglid];
                             }
                         }
                     } else {
@@ -262,7 +251,7 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
     }
 
 #if WITH_BIAS == 1
-    if (do_bias && oc * OC_BLOCK + local_x < (IS_DW ? G : OC_WO_PADDING))
+    if (do_bias && oc * OC_BLOCK + sglid < (IS_DW ? G : OC_WO_PADDING))
         atomic_add_global(diff_bias, bias_loc);
 #endif
 
@@ -271,11 +260,11 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
     diff_wei += oc * KD * KH * KW * ic_padded * OC_BLOCK;
     diff_wei += (kd * KH * KW + kh * KW + kw) * ic_padded * OC_BLOCK;
     for (int i = 0; i < 3; i++)
-        atomic_add_global(diff_wei + i * OC_BLOCK + local_x, blockC00[i]);
+        atomic_add_global(diff_wei + i * OC_BLOCK + sglid, blockC00[i]);
 #elif IS_DW
     diff_wei += oc * KD * KH * KW * OC_BLOCK;
     diff_wei += (kd * KH * KW + kh * KW + kw) * OC_BLOCK;
-    atomic_add_global(diff_wei + local_x, blockC00);
+    atomic_add_global(diff_wei + sglid, blockC00);
 #else
     diff_wei += g * ic_padded * oc_padded * KD * KH * KW;
     diff_wei += ic * oc_padded * KD * KH * KW * IC_BLOCK;
@@ -283,10 +272,10 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
     diff_wei += (kd * KH * KW + kh * KW + kw) * IC_BLOCK * OC_BLOCK;
 
     for (int i = 0; i < 8; i++)
-        atomic_add_global(diff_wei + i * OC_BLOCK + local_x, blockC00[i]);
+        atomic_add_global(diff_wei + i * OC_BLOCK + sglid, blockC00[i]);
 
     for (int i = 0; i < 8; i++)
-        atomic_add_global(diff_wei + (8 + i) * OC_BLOCK + local_x, blockC01[i]);
+        atomic_add_global(diff_wei + (8 + i) * OC_BLOCK + sglid, blockC01[i]);
 #endif
 }
 #endif

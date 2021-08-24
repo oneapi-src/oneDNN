@@ -56,6 +56,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
                             desc()->data_desc.data_type == data_type::f16,
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
+                    && compute_engine->mayiuse_sub_group(16)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

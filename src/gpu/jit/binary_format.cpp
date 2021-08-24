@@ -59,9 +59,10 @@ public:
         newArgument("src_ptr", ExternalArgumentType::GlobalPtr);
         newArgument("ok", ExternalArgumentType::GlobalPtr);
 
-        requireSIMD(8);
+        setDefaultAutoSWSB();
+        requireSIMD((GRF::bytes(hw) == 64) ? 16 : 8);
         requireLocalID(3); // r1-r3
-        requireLocalSize(); // r4.3-5:ud
+        requireLocalSize(); // r7.0-2:ud
         finalizeInterface();
 
         Label doWrite;
@@ -80,6 +81,7 @@ public:
         auto ok = data.ud(0);
         auto header = r64;
 
+        prologue();
         setDefaultNoMask();
 
         // Default: test failure.
@@ -126,9 +128,14 @@ public:
         mark(doWrite);
 
         // Write out results.
-        mov<uint32_t>(1, header, uint16_t(0));
-        store(1 | SWSB(sb2, 1), scattered_dword(), ok_surface, header, data);
+        {
+            // bti surface
+            mov<uint32_t>(1, header, uint16_t(0));
+            store(1 | SWSB(sb2, 1), scattered_dword(), ok_surface, header,
+                    data);
+        }
 
+        if (hw >= HW::XeHP) memfence(sb2, header);
         mov<uint32_t>(8, r127, r0);
         threadend(SWSB(sb2, 1), r127);
     }
@@ -148,10 +155,18 @@ public:
                             engine);
                     break;
                 case compute::gpu_arch_t::xe_lp:
-                    kernel = binary_format_kernel_t<HW::Xe_LP>::make_kernel(
+                    kernel = binary_format_kernel_t<HW::XeLP>::make_kernel(
                             engine);
                     break;
-                default: break;
+                case compute::gpu_arch_t::xe_hp:
+                    kernel = binary_format_kernel_t<HW::XeHP>::make_kernel(
+                            engine);
+                    break;
+                case compute::gpu_arch_t::xe_hpg:
+                    kernel = binary_format_kernel_t<HW::XeHPG>::make_kernel(
+                            engine);
+                    break;
+                default: kernel = nullptr; break;
             }
         }
         return kernel;
