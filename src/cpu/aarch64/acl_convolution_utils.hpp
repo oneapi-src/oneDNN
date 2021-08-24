@@ -42,6 +42,7 @@ struct acl_conv_conf_t {
     bool with_bias;
     bool is_int8;
     bool sum_with_eltwise;
+    bool fast_math;
     arm_compute::TensorInfo src_info;
     arm_compute::TensorInfo wei_info;
     arm_compute::TensorInfo bia_info;
