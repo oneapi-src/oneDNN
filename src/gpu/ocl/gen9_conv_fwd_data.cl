@@ -718,7 +718,7 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
             for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) {
                 const int bg_off = g * OC;
                 const int bc_off = oc + oc_outer * 16 + local_id;
-#if (DST_DT_U8 || DST_DT_S8)
+#if (DT_F16 || DST_DT_U8 || DST_DT_S8)
 #if OC_WO_PADDING == SUB_GROUP_SIZE && (DST_DT_U8 || DST_DT_S8)
                 if (OC_WO_PADDING % OC_BLOCK == 0 && bc_off < OC_WO_PADDING) {
 #else
