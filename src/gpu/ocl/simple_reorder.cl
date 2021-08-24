@@ -873,6 +873,17 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
         b[DST_LOOP_DIM] = coeff * i;
         const int dst_off = DST_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
                 d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+
+        int pad_d0 = d[0] + b[0] >= DST_PD0;
+        int pad_d1 = NDIMS > 1 && d[1] + b[1] >= DST_PD1;
+        int pad_d2 = NDIMS > 2 && d[2] + b[2] >= DST_PD2;
+        int pad_d3 = NDIMS > 3 && d[3] + b[3] >= DST_PD3;
+        int pad_d4 = NDIMS > 4 && d[4] + b[4] >= DST_PD4;
+        int pad_d5 = NDIMS > 5 && d[5] + b[5] >= DST_PD5;
+        if (pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4 || pad_d5) {
+            continue;
+        }
+
         unroll_for(int j = 0; j < GROUP; j++) {
             int cidx = i + j * GROUP;
             int didx = dst_off + get_sub_group_size() * j;
