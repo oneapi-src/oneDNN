@@ -70,11 +70,12 @@ int main(int argc, char **argv) {
 
     std::vector<int64_t> input_dims {8, 56, 56, 256}; // NXC
     std::vector<int64_t> conv0_weight_dims {64, 256, 1, 1}; // OIX
-    std::vector<int64_t> conv0_dst_dims {8, 56, 56, 64};
 
     logical_tensor conv0_src_desc {id_mgr["conv0_src"], data_type::f32, input_dims, layout_type::strided};
     logical_tensor conv0_weight_desc {id_mgr["conv0_weight"], data_type::f32, conv0_weight_dims, layout_type::strided};
-    logical_tensor conv0_dst_desc {id_mgr["conv0_dst"], data_type::f32, conv0_dst_dims, layout_type::strided};
+
+    // ndims = 4, let the library to calculate the output shape.
+    logical_tensor conv0_dst_desc {id_mgr["conv0_dst"], data_type::f32, 4, layout_type::strided};
     
     op input0(id_mgr["input0"], op::kind::Wildcard, {}, {conv0_src_desc}, "input0");
     
@@ -87,7 +88,8 @@ int main(int argc, char **argv) {
     conv0.set_attr("filter_format", std::string("OIX"));
     conv0.set_attr("groups", int64_t {1});
 
-    logical_tensor relu0_dst_desc {id_mgr["relu0_dst"], data_type::f32, conv0_dst_dims, layout_type::strided};
+    // ndims = 4, let the library to calculate the output shape.
+    logical_tensor relu0_dst_desc {id_mgr["relu0_dst"], data_type::f32, 4, layout_type::strided};
     
     op relu0 {id_mgr["relu0"], op::kind::ReLU, {conv0_dst_desc}, {relu0_dst_desc}, "relu0"};
     std::cout << "Success!\n";

@@ -74,7 +74,6 @@ int main(int argc, char **argv) {
     std::vector<int64_t> input_dims {8, 56, 56, 256}; // NXC
     std::vector<int64_t> conv0_weight_dims {1, 1 , 256, 64}; // XIO
     std::vector<int64_t> conv0_bias_dims {64};
-    std::vector<int64_t> conv0_dst_dims {8, 56, 56, 64};
 
     logical_tensor dequant0_src_desc {id_mgr["dequant0_src"], data_type::u8, input_dims, layout_type::strided};
     op input0(id_mgr["input0"], op::kind::Wildcard, {}, {dequant0_src_desc}, "input0");
@@ -96,7 +95,7 @@ int main(int argc, char **argv) {
     dequant1.set_attr<int64_t>("axis", 1);
 
     logical_tensor conv0_bias_desc {id_mgr["conv0_bias"], data_type::f32, conv0_bias_dims, layout_type::strided};
-    logical_tensor conv0_dst_desc {id_mgr["conv0_dst"], data_type::f32, conv0_dst_dims, layout_type::strided};
+    logical_tensor conv0_dst_desc {id_mgr["conv0_dst"], data_type::f32, -1, layout_type::strided};
     op conv0(id_mgr["conv0"], op::kind::Convolution, {conv0_src_desc, conv0_weight_desc, conv0_bias_desc}, {conv0_dst_desc}, "conv0");
     conv0.set_attr<std::vector<int64_t>>("strides",  {1, 1});
     conv0.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
@@ -106,10 +105,10 @@ int main(int argc, char **argv) {
     conv0.set_attr<std::string>("filter_format", "XIO");
     conv0.set_attr<int64_t>("groups", 1);
 
-    logical_tensor relu0_dst_desc {id_mgr["relu0_dst"], data_type::f32, conv0_dst_dims, layout_type::strided};
+    logical_tensor relu0_dst_desc {id_mgr["relu0_dst"], data_type::f32, -1, layout_type::strided};
     op relu0(id_mgr["relu0"], op::kind::ReLU, {conv0_dst_desc}, {relu0_dst_desc}, "relu0");
 
-    logical_tensor quant0_dst_desc {id_mgr["quant0_dst"], data_type::u8, conv0_dst_dims, layout_type::strided};
+    logical_tensor quant0_dst_desc {id_mgr["quant0_dst"], data_type::u8, -1, layout_type::strided};
     op quant0(id_mgr["quant0"], op::kind::Quantize, {relu0_dst_desc}, {quant0_dst_desc}, "quant0");
     quant0.set_attr<std::string>("qtype", "per_tensor");
     quant0.set_attr<std::vector<float>>("scales", {0.1f});
