@@ -138,6 +138,9 @@ public:
                 if (compiled_lt.id == outputs[i].id) {
                     auto lt = const_cast<impl::logical_tensor_t *>(&outputs[i]);
                     auto md = make_dnnl_memory_desc(compiled_lt);
+                    lt->ndims = compiled_lt.ndims;
+                    impl::utils::array_copy(
+                            lt->dims, compiled_lt.dims, DNNL_GRAPH_MAX_NDIMS);
                     fill_layout_info(lt, md);
                 }
             }
