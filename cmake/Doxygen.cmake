@@ -45,7 +45,7 @@ function(build_doc)
         DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
     )
     file(COPY
-        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/oneDNN/doc/dnnl.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/doc/dnnl.js
         DESTINATION ${DOXYGEN_OUTPUT_DIR}/html/assets/mathjax/config/
     )
     file(GLOB_RECURSE HEARDERS
@@ -63,7 +63,7 @@ function(build_doc)
         OUTPUT ${DOXYGEN_STAMP_FILE}
         DEPENDS ${HEARDERS} ${DOX} ${EXAMPLES}
         COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/third_party/oneDNN/doc/assets ${DOXYGEN_OUTPUT_DIR}/html/assets
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/doc/assets ${DOXYGEN_OUTPUT_DIR}/html/assets
         COMMAND ${CMAKE_COMMAND} -E touch ${DOXYGEN_STAMP_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating API documentation with Doxygen" VERBATIM)
