@@ -1139,6 +1139,39 @@ TEST(pass_test, binary_sum_fusion_unknown_shape) {
     }
 }
 
+TEST(pass_test, binary_add_mul_fusion) {
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+
+    graph_t agraph;
+    op_t add {0, Add, "add"};
+    op_t mul {1, Multiply, "mul"};
+
+    std::vector<logical_tensor_t> lt_vec;
+    lt_vec.reserve(5);
+    for (size_t i = 0; i < 5; i++)
+        lt_vec.emplace_back(
+                logical_tensor_init(i, {2, 3, 4, 5}, data_type::f32));
+
+    add.add_input(lt_vec[0]);
+    add.add_input(lt_vec[1]);
+    add.add_output(lt_vec[2]);
+    mul.add_input(lt_vec[3]); // need swap input
+    mul.add_input(lt_vec[2]);
+    mul.add_output(lt_vec[4]);
+
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&mul), status::success);
+    agraph.build_graph();
+
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::add_multiply);
+}
+
 TEST(pass_test, binary_eltwise_fusion) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
