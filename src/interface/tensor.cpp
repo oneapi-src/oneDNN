@@ -22,10 +22,10 @@
 
 using namespace dnnl::graph::impl;
 
-status_t DNNL_GRAPH_API dnnl_graph_tensor_create_with_logical_tensor(
-        tensor_t **created_tensor, const logical_tensor_t *logical_tensor,
+status_t DNNL_GRAPH_API dnnl_graph_tensor_create(tensor_t **created_tensor,
+        const logical_tensor_t *logical_tensor, const engine_t *eng,
         void *data_handle) {
-    *created_tensor = new tensor_t {*logical_tensor, data_handle};
+    *created_tensor = new tensor_t {*logical_tensor, eng, data_handle};
     return status::success;
 }
 

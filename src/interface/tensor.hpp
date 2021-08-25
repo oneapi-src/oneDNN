@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "c_types_map.hpp"
+#include "engine.hpp"
 #include "logical_tensor.hpp"
 
 struct dnnl_graph_tensor {
@@ -30,8 +31,8 @@ public:
     dnnl_graph_tensor() {}
 
     dnnl_graph_tensor(const dnnl::graph::impl::logical_tensor_t &lt,
-            void *handle = nullptr)
-        : tensor_desc_(lt), data_handle_(handle) {}
+            const dnnl::graph::impl::engine_t *eng, void *handle = nullptr)
+        : tensor_desc_(lt), eng_(eng), data_handle_(handle) {}
 
     bool is(dnnl::graph::impl::data_type_t dtype) const {
         return dtype == tensor_desc_.data_type;
@@ -75,6 +76,7 @@ private:
 
 private:
     dnnl::graph::impl::logical_tensor_t tensor_desc_;
+    const dnnl::graph::impl::engine_t *eng_ {nullptr};
     void *data_handle_ {nullptr};
 };
 
