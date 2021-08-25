@@ -167,7 +167,7 @@ impl::status_t run_graph(impl::graph_t &agraph,
                 temp_data.insert(
                         {in_lt.id, test::vector<char>(ltw(in_lt).size(), 0)});
             }
-            in_ts.emplace_back(in_lt, temp_data.at(in_lt.id).data());
+            in_ts.emplace_back(in_lt, &eng, temp_data.at(in_lt.id).data());
         }
         for (auto &out_val : op->get_output_values()) {
             auto out_lt = out_val->get_logical_tensor();
@@ -183,7 +183,7 @@ impl::status_t run_graph(impl::graph_t &agraph,
                 temp_data.insert(
                         {out_lt.id, test::vector<char>(ltw(out_lt).size(), 0)});
             }
-            out_ts.emplace_back(out_lt, temp_data.at(out_lt.id).data());
+            out_ts.emplace_back(out_lt, &eng, temp_data.at(out_lt.id).data());
         }
 
         // execute
@@ -554,11 +554,11 @@ public:
 
         ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
 
-        impl::tensor_t src_ts(src, src_data.data());
-        impl::tensor_t scale_ts(scale, scale_data.data());
-        impl::tensor_t shift_ts(shift, shift_data.data());
-        impl::tensor_t dst_ts(dst, dst_data.data());
-        impl::tensor_t ref_dst_ts(dst, ref_dst_data.data());
+        impl::tensor_t src_ts(src, &engine, src_data.data());
+        impl::tensor_t scale_ts(scale, &engine, scale_data.data());
+        impl::tensor_t shift_ts(shift, &engine, shift_data.data());
+        impl::tensor_t dst_ts(dst, &engine, dst_data.data());
+        impl::tensor_t ref_dst_ts(dst, &engine, ref_dst_data.data());
 
         impl::stream_t &strm = get_stream();
 
@@ -679,14 +679,14 @@ TEST(operator_compile, bn_compile_bwd_fp32) {
     // compile the bn operator
     bn_kernel->compile(&bn_op, &engine, inputs, outputs);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t scale_ts(scale, scale_data.data());
-    impl::tensor_t mean_ts(mean, mean_data.data());
-    impl::tensor_t varience_ts(varience, varience_data.data());
-    impl::tensor_t diff_dst_ts(diff_dst, diff_dst_data.data());
-    impl::tensor_t diff_src_ts(diff_src, diff_src_data.data());
-    impl::tensor_t diff_scale_ts(diff_scale, diff_scale_data.data());
-    impl::tensor_t diff_shift_ts(diff_shift, diff_shift_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t scale_ts(scale, &engine, scale_data.data());
+    impl::tensor_t mean_ts(mean, &engine, mean_data.data());
+    impl::tensor_t varience_ts(varience, &engine, varience_data.data());
+    impl::tensor_t diff_dst_ts(diff_dst, &engine, diff_dst_data.data());
+    impl::tensor_t diff_src_ts(diff_src, &engine, diff_src_data.data());
+    impl::tensor_t diff_scale_ts(diff_scale, &engine, diff_scale_data.data());
+    impl::tensor_t diff_shift_ts(diff_shift, &engine, diff_shift_data.data());
 
     impl::stream_t &strm = get_stream();
     bn_kernel->execute(&bn_op, &strm,
@@ -765,9 +765,9 @@ public:
         const auto &eng = get_engine();
         concat_kernel->compile(&concat_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-        impl::tensor_t src0_ts(src0_lt, src0_data.data());
-        impl::tensor_t src1_ts(src1_lt, src1_data.data());
-        impl::tensor_t dst_ts(dst_lt, dst_data.data());
+        impl::tensor_t src0_ts(src0_lt, &eng, src0_data.data());
+        impl::tensor_t src1_ts(src1_lt, &eng, src1_data.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst_data.data());
 
         auto &strm = get_stream();
 
@@ -867,8 +867,8 @@ TEST(operator_kernel, relu) {
     // compile the relu operator
     relu_kernel->compile(&relu_op, &eng, {src_lt}, {dst_lt});
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     relu_kernel->execute(&relu_op, &strm, {src_ts}, {dst_ts});
@@ -903,9 +903,9 @@ TEST(operator_kernel, relu_backward) {
     // compile the relu backward operator
     relu_kernel->compile(&relu_op, &eng, {diff_dst_lt, src_lt}, {diff_src_lt});
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t diff_src_ts(diff_src_lt, diff_src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
 
     impl::stream_t &strm = get_stream();
     relu_kernel->execute(&relu_op, &strm, {diff_dst_ts, src_ts}, {diff_src_ts});
@@ -936,8 +936,8 @@ TEST(operator_kernel, gelu) {
 
     gelu_kernel->compile(&gelu_op, &eng, {src_lt}, {dst_lt});
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     gelu_kernel->execute(&gelu_op, &strm, {src_ts}, {dst_ts});
@@ -972,9 +972,9 @@ TEST(operator_kernel, gelu_backward) {
     // compile the helu backward operator
     gelu_kernel->compile(&gelu_op, &eng, {diff_dst_lt, src_lt}, {diff_src_lt});
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t diff_src_ts(diff_src_lt, diff_src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
 
     impl::stream_t &strm = get_stream();
     gelu_kernel->execute(&gelu_op, &strm, {diff_dst_ts, src_ts}, {diff_src_ts});
@@ -1012,9 +1012,9 @@ TEST(operator_kernel, add) {
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::any);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     add_kernel->execute(&add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -1031,9 +1031,9 @@ TEST(operator_kernel, add) {
             2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
     test::vector<float> dst_2nd(src0_2nd.size(), 0.0);
 
-    impl::tensor_t src0_2nd_ts(src0_lt, src0_2nd.data());
-    impl::tensor_t src1_2nd_ts(src1_lt, src1_2nd.data());
-    impl::tensor_t dst_2nd_ts(outputs[0], dst_2nd.data());
+    impl::tensor_t src0_2nd_ts(src0_lt, &eng, src0_2nd.data());
+    impl::tensor_t src1_2nd_ts(src1_lt, &eng, src1_2nd.data());
+    impl::tensor_t dst_2nd_ts(outputs[0], &eng, dst_2nd.data());
     add_kernel->execute(
             &add_op, &strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
     strm.wait();
@@ -1066,9 +1066,9 @@ TEST(operator_kernel, different_format_add) {
     // compile the add operator
     add_kernel->compile(&add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     add_kernel->execute(&add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -1109,9 +1109,9 @@ TEST(operator_kernel, broadcast_add) {
     broadcast_add_kernel->compile(
             &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     broadcast_add_kernel->execute(
@@ -1130,9 +1130,9 @@ TEST(operator_kernel, broadcast_add) {
             2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
     test::vector<float> dst_2nd(src0_2nd.size(), 0.0);
 
-    impl::tensor_t src0_2nd_ts(src0_lt, src0_2nd.data());
-    impl::tensor_t src1_2nd_ts(src1_lt, src1_2nd.data());
-    impl::tensor_t dst_2nd_ts(dst_lt, dst_2nd.data());
+    impl::tensor_t src0_2nd_ts(src0_lt, &eng, src0_2nd.data());
+    impl::tensor_t src1_2nd_ts(src1_lt, &eng, src1_2nd.data());
+    impl::tensor_t dst_2nd_ts(dst_lt, &eng, dst_2nd.data());
     broadcast_add_kernel->execute(
             &broadcast_add_op, &strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
     strm.wait();
@@ -1167,9 +1167,9 @@ TEST(operator_kernel, multidirectional_broadcast_add_BA) {
     broadcast_add_kernel->compile(
             &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     broadcast_add_kernel->execute(
@@ -1187,9 +1187,9 @@ TEST(operator_kernel, multidirectional_broadcast_add_BA) {
             2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
     test::vector<float> dst_2nd(ref_dst_2nd.size(), 0.0);
 
-    impl::tensor_t src0_2nd_ts(src0_lt, src0_2nd.data());
-    impl::tensor_t src1_2nd_ts(src1_lt, src1_2nd.data());
-    impl::tensor_t dst_2nd_ts(dst_lt, dst_2nd.data());
+    impl::tensor_t src0_2nd_ts(src0_lt, &eng, src0_2nd.data());
+    impl::tensor_t src1_2nd_ts(src1_lt, &eng, src1_2nd.data());
+    impl::tensor_t dst_2nd_ts(dst_lt, &eng, dst_2nd.data());
     broadcast_add_kernel->execute(
             &broadcast_add_op, &strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
     strm.wait();
@@ -1224,9 +1224,9 @@ TEST(operator_kernel, multidirectional_broadcast_add_AB) {
     broadcast_add_kernel->compile(
             &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     broadcast_add_kernel->execute(
@@ -1263,9 +1263,9 @@ TEST(operator_kernel, multidirectional_broadcast_add_2x1x4_1x3x1) {
     broadcast_add_kernel->compile(
             &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     broadcast_add_kernel->execute(
@@ -1302,9 +1302,9 @@ TEST(operator_kernel, multidirectional_broadcast_add_2x1x1_3x4) {
     broadcast_add_kernel->compile(
             &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     broadcast_add_kernel->execute(
@@ -1407,9 +1407,9 @@ TEST(operator_kernel, reversed_different_format_broadcast_add) {
     broadcast_add_kernel->compile(
             &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     broadcast_add_kernel->execute(
@@ -1459,9 +1459,9 @@ TEST(operator_kernel, bias_add) {
         bias_add_kernel->compile(
                 &bias_add_op, &eng, {src_lt, bias_lt}, {dst_lt});
 
-        impl::tensor_t src_ts(src_lt, src.data());
-        impl::tensor_t bias_ts(bias_lt, bias.data());
-        impl::tensor_t dst_ts(dst_lt, dst.data());
+        impl::tensor_t src_ts(src_lt, &eng, src.data());
+        impl::tensor_t bias_ts(bias_lt, &eng, bias.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
         impl::stream_t &strm = get_stream();
         bias_add_kernel->execute(
@@ -1508,10 +1508,10 @@ TEST(operator_kernel, add_mul) {
     std::vector<impl::logical_tensor_t> outputs {dst_lt};
     add_kernel->compile(&add_op, &eng, inputs, outputs);
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     add_kernel->execute(
@@ -1552,10 +1552,10 @@ TEST(operator_kernel, add_mul_post_src_as_nxc) {
     std::vector<impl::logical_tensor_t> outputs {dst_lt};
     add_kernel->compile(&add_op, &eng, inputs, outputs);
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     add_kernel->execute(
@@ -1595,9 +1595,9 @@ TEST(operator_kernel, add_relu) {
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::any);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     add_kernel->execute(&add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -1637,9 +1637,9 @@ TEST(operator_kernel, add_sigmoid) {
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::any);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     add_kernel->execute(&add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -1674,9 +1674,9 @@ TEST(operator_kernel, mul) {
     // compile the add operator
     mul_kernel->compile(&mul_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     mul_kernel->execute(&mul_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -1711,9 +1711,9 @@ TEST(operator_kernel, mul_relu) {
     // compile the add operator
     mul_kernel->compile(&mul_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     mul_kernel->execute(&mul_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -1748,9 +1748,9 @@ TEST(operator_kernel, mul_sigmoid) {
     // compile the add operator
     mul_kernel->compile(&mul_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     mul_kernel->execute(&mul_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -1789,10 +1789,10 @@ TEST(operator_kernel, mul_add) {
     mul_kernel->compile(
             &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     mul_kernel->execute(
@@ -1836,9 +1836,9 @@ TEST(operator_kernel, min) {
     // compile the add operator
     max_kernel->compile(&max_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     max_kernel->execute(&max_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -1873,9 +1873,9 @@ TEST(operator_kernel, min_relu) {
     // compile the add operator
     max_kernel->compile(&max_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     max_kernel->execute(&max_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -1910,9 +1910,9 @@ TEST(operator_kernel, min_sigmoid) {
     // compile the add operator
     max_kernel->compile(&max_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     max_kernel->execute(&max_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -1951,10 +1951,10 @@ TEST(operator_kernel, min_add) {
     min_kernel->compile(
             &min_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     min_kernel->execute(
@@ -1998,9 +1998,9 @@ TEST(operator_kernel, max) {
     // compile the add operator
     min_kernel->compile(&min_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     min_kernel->execute(&min_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -2035,9 +2035,9 @@ TEST(operator_kernel, max_relu) {
     // compile the add operator
     min_kernel->compile(&min_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     min_kernel->execute(&min_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -2073,9 +2073,9 @@ TEST(operator_kernel, max_sigmoid) {
     // compile the add operator
     min_kernel->compile(&min_op, &eng, {src0_lt, src1_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     min_kernel->execute(&min_op, &strm, {src0_ts, src1_ts}, {dst_ts});
@@ -2114,10 +2114,10 @@ TEST(operator_kernel, max_add) {
     max_kernel->compile(
             &max_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     max_kernel->execute(
@@ -2140,7 +2140,7 @@ TEST(operator_kernel, max_add) {
 TEST(operator_kernel, matmul_compile_fwd_fp32) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
     matmul_op.set_attr<bool>("transpose_b", true);
-    impl::engine_t &engine = get_engine();
+    impl::engine_t &eng = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
     test::vector<float> weight_data {-2.0, -1.5};
@@ -2181,12 +2181,12 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
     std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
     std::vector<const impl::logical_tensor_t *> outputs {&dst};
 
-    p.compile(&cp, inputs, outputs, &engine);
+    p.compile(&cp, inputs, outputs, &eng);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(dst, dst_data.data());
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t weight_ts(weight, &eng, weight_data.data());
+    impl::tensor_t bias_ts(bias, &eng, bias_data.data());
+    impl::tensor_t dst_ts(dst, &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
@@ -2203,10 +2203,10 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
     test::vector<float> ref_dst_data2 {5};
     test::vector<float> dst_data2(ref_dst_data2.size(), 0.0);
 
-    impl::tensor_t src_ts2(src, src_data2.data());
-    impl::tensor_t weight_ts2(weight, weight_data2.data());
-    impl::tensor_t bias_ts2(bias, bias_data2.data());
-    impl::tensor_t dst_ts2(dst, dst_data2.data());
+    impl::tensor_t src_ts2(src, &eng, src_data2.data());
+    impl::tensor_t weight_ts2(weight, &eng, weight_data2.data());
+    impl::tensor_t bias_ts2(bias, &eng, bias_data2.data());
+    impl::tensor_t dst_ts2(dst, &eng, dst_data2.data());
 
     cp.execute(&strm, {src_ts2, weight_ts2, bias_ts2}, {dst_ts2});
     strm.wait();
@@ -2218,8 +2218,8 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
 TEST(operator_kernel, matmul_compile_fwd_f16f16f16) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
 
-    impl::engine_t &engine = get_engine();
-    SKIP_IF(engine.kind() != impl::engine_kind::gpu,
+    impl::engine_t &eng = get_engine();
+    SKIP_IF(eng.kind() != impl::engine_kind::gpu,
             "Skip fp16 test for non-GPU device.");
 
     // in real use case, the data type should be half
@@ -2258,11 +2258,11 @@ TEST(operator_kernel, matmul_compile_fwd_f16f16f16) {
     std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
     std::vector<const impl::logical_tensor_t *> outputs {&dst};
 
-    p.compile(&cp, inputs, outputs, &engine);
+    p.compile(&cp, inputs, outputs, &eng);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t dst_ts(dst, dst_data.data());
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t weight_ts(weight, &eng, weight_data.data());
+    impl::tensor_t dst_ts(dst, &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -2272,10 +2272,10 @@ TEST(operator_kernel, matmul_compile_fwd_f16f16f16) {
 TEST(operator_kernel, matmul_compile_fwd_bf16bf16bf16) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
 
-    impl::engine_t &engine = get_engine();
+    impl::engine_t &eng = get_engine();
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core
-                    && engine.kind() == impl::engine_kind::cpu,
+                    && eng.kind() == impl::engine_kind::cpu,
             "Skip bf16 examples for systems that do not support avx512_core.");
 
     // in real use case, the data type should be half
@@ -2314,11 +2314,11 @@ TEST(operator_kernel, matmul_compile_fwd_bf16bf16bf16) {
     std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
     std::vector<const impl::logical_tensor_t *> outputs {&dst};
 
-    p.compile(&cp, inputs, outputs, &engine);
+    p.compile(&cp, inputs, outputs, &eng);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t dst_ts(dst, dst_data.data());
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t weight_ts(weight, &eng, weight_data.data());
+    impl::tensor_t dst_ts(dst, &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -2394,9 +2394,9 @@ TEST(operator_kernel, matmul_ndx2d) {
 
             p.compile(&cp, inputs, outputs, &engine);
 
-            impl::tensor_t src_ts(src, src_data.data());
-            impl::tensor_t weight_ts(weight, weight_data.data());
-            impl::tensor_t dst_ts(dst, dst_data.data());
+            impl::tensor_t src_ts(src, &engine, src_data.data());
+            impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+            impl::tensor_t dst_ts(dst, &engine, dst_data.data());
 
             cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
             strm.wait();
@@ -2427,7 +2427,7 @@ TEST(operator_kernel, matmul_ndx2d) {
 
 TEST(operator_kernel, matmul_3dx3d) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
-    impl::engine_t &engine = get_engine();
+    impl::engine_t &eng = get_engine();
 
     test::vector<float> src_data {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
     test::vector<float> weight_data {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -2464,11 +2464,11 @@ TEST(operator_kernel, matmul_3dx3d) {
     std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
     std::vector<const impl::logical_tensor_t *> outputs {&dst};
 
-    p.compile(&cp, inputs, outputs, &engine);
+    p.compile(&cp, inputs, outputs, &eng);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t dst_ts(dst, dst_data.data());
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t weight_ts(weight, &eng, weight_data.data());
+    impl::tensor_t dst_ts(dst, &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -2482,7 +2482,7 @@ TEST(operator_kernel, matmul_relu_fusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t relu_op(1, impl::op_kind::ReLU, "relu_op");
 
-    impl::engine_t &engine = get_engine();
+    impl::engine_t &eng = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
     test::vector<float> weight_data {2.0, 1.5};
@@ -2524,11 +2524,11 @@ TEST(operator_kernel, matmul_relu_fusion) {
     std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
     std::vector<const impl::logical_tensor_t *> outputs {&relu_dst};
 
-    p.compile(&cp, inputs, outputs, &engine);
+    p.compile(&cp, inputs, outputs, &eng);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t dst_ts(relu_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t weight_ts(weight, &eng, weight_data.data());
+    impl::tensor_t dst_ts(relu_dst, &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -2541,7 +2541,7 @@ TEST(operator_kernel, matmul_relu_fusion) {
 TEST(operator_kernel, matmul_bias_fusion) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
 
-    impl::engine_t &engine = get_engine();
+    impl::engine_t &eng = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5, 3.0, 0.5};
     test::vector<float> weight_data {-2.0, -1.5, 1.0, 1.0};
@@ -2582,12 +2582,12 @@ TEST(operator_kernel, matmul_bias_fusion) {
     std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
     std::vector<const impl::logical_tensor_t *> outputs {&dst};
 
-    p.compile(&cp, inputs, outputs, &engine);
+    p.compile(&cp, inputs, outputs, &eng);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(dst, dst_data.data());
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t weight_ts(weight, &eng, weight_data.data());
+    impl::tensor_t bias_ts(bias, &eng, bias_data.data());
+    impl::tensor_t dst_ts(dst, &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
@@ -2651,10 +2651,10 @@ TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t add_src1_ts(add_src1, add_src1_data.data());
-    impl::tensor_t dst_ts(add_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t add_src1_ts(add_src1, &engine, add_src1_data.data());
+    impl::tensor_t dst_ts(add_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, add_src1_ts}, {dst_ts});
@@ -2718,10 +2718,10 @@ TEST(operator_kernel, matmul_sum_fusion) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t add_src1_ts(add_src1, add_src1_data.data());
-    impl::tensor_t dst_ts(add_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t add_src1_ts(add_src1, &engine, add_src1_data.data());
+    impl::tensor_t dst_ts(add_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, add_src1_ts}, {dst_ts});
@@ -2737,7 +2737,7 @@ TEST(operator_kernel, matmul_sum_gelu_fusion) {
     impl::op_t add_op(1, impl::op_kind::Add, "add_op");
     impl::op_t gelu_op(2, impl::op_kind::GELU, "gelu_op");
 
-    impl::engine_t &engine = get_engine();
+    impl::engine_t &eng = get_engine();
 
     test::vector<float> src_data {1.0, 1.0, 1.0, 1.0};
     test::vector<float> weight_data {0.5, 0.5, 0.5, 0.5};
@@ -2788,12 +2788,12 @@ TEST(operator_kernel, matmul_sum_gelu_fusion) {
     std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &other};
     std::vector<const impl::logical_tensor_t *> outputs {&gelu_dst};
 
-    p.compile(&cp, inputs, outputs, &engine);
+    p.compile(&cp, inputs, outputs, &eng);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t other_ts(other, other_data.data());
-    impl::tensor_t dst_ts(gelu_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t weight_ts(weight, &eng, weight_data.data());
+    impl::tensor_t other_ts(other, &eng, other_data.data());
+    impl::tensor_t dst_ts(gelu_dst, &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, other_ts}, {dst_ts});
@@ -2862,10 +2862,10 @@ TEST(operator_kernel, matmul_sum_relu_fusion) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t other_ts(other, other_data.data());
-    impl::tensor_t dst_ts(relu_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t other_ts(other, &engine, other_data.data());
+    impl::tensor_t dst_ts(relu_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, other_ts}, {dst_ts});
@@ -2927,10 +2927,10 @@ TEST(operator_kernel, matmul_bias_relu_fusion) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(relu_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t bias_ts(bias, &engine, bias_data.data());
+    impl::tensor_t dst_ts(relu_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
@@ -2991,10 +2991,10 @@ TEST(operator_kernel, matmul_bias_gelu_fusion) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(gelu_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t bias_ts(bias, &engine, bias_data.data());
+    impl::tensor_t dst_ts(gelu_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
@@ -3058,10 +3058,10 @@ TEST(operator_kernel, matmul_bias_relu6_fusion) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(hardtanh_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t bias_ts(bias, &engine, bias_data.data());
+    impl::tensor_t dst_ts(hardtanh_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
@@ -3125,10 +3125,10 @@ TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(hardtanh_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t bias_ts(bias, &engine, bias_data.data());
+    impl::tensor_t dst_ts(hardtanh_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
@@ -3191,10 +3191,10 @@ TEST(operator_kernel, matmul_bias_elu_fusion) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(elu_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t bias_ts(bias, &engine, bias_data.data());
+    impl::tensor_t dst_ts(elu_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
@@ -3255,10 +3255,10 @@ TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(sigmoid_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t bias_ts(bias, &engine, bias_data.data());
+    impl::tensor_t dst_ts(sigmoid_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
@@ -3324,11 +3324,11 @@ TEST(operator_kernel, matmul_bias_add_fusion) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t post_src_ts(post_src, post_src_data.data());
-    impl::tensor_t dst_ts(add_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t bias_ts(bias, &engine, bias_data.data());
+    impl::tensor_t post_src_ts(post_src, &engine, post_src_data.data());
+    impl::tensor_t dst_ts(add_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
@@ -3399,11 +3399,11 @@ TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
 
         p.compile(&cp, inputs, outputs, &engine);
 
-        impl::tensor_t src_ts(src, src_data.data());
-        impl::tensor_t weight_ts(weight, weight_data.data());
-        impl::tensor_t bias_ts(bias, bias_data.data());
-        impl::tensor_t post_src_ts(post_src, post_src_data.data());
-        impl::tensor_t dst_ts(add_dst, dst_data.data());
+        impl::tensor_t src_ts(src, &engine, src_data.data());
+        impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+        impl::tensor_t bias_ts(bias, &engine, bias_data.data());
+        impl::tensor_t post_src_ts(post_src, &engine, post_src_data.data());
+        impl::tensor_t dst_ts(add_dst, &engine, dst_data.data());
 
         cp.execute(&strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
         strm.wait();
@@ -3473,11 +3473,11 @@ TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
 
         p.compile(&cp, inputs, outputs, &engine);
 
-        impl::tensor_t src_ts(src, src_data.data());
-        impl::tensor_t weight_ts(weight, weight_data.data());
-        impl::tensor_t bias_ts(bias, bias_data.data());
-        impl::tensor_t post_src_ts(post_src, post_src_data.data());
-        impl::tensor_t dst_ts(add_dst, dst_data.data());
+        impl::tensor_t src_ts(src, &engine, src_data.data());
+        impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+        impl::tensor_t bias_ts(bias, &engine, bias_data.data());
+        impl::tensor_t post_src_ts(post_src, &engine, post_src_data.data());
+        impl::tensor_t dst_ts(add_dst, &engine, dst_data.data());
 
         cp.execute(&strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
         strm.wait();
@@ -3605,11 +3605,11 @@ TEST(operator_kernel, matmul_bias_add_relu_fusion) {
 
     p.compile(&cp, inputs, outputs, &engine);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t post_src_ts(post_src, post_src_data.data());
-    impl::tensor_t dst_ts(relu_dst, dst_data.data());
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t bias_ts(bias, &engine, bias_data.data());
+    impl::tensor_t post_src_ts(post_src, &engine, post_src_data.data());
+    impl::tensor_t dst_ts(relu_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
@@ -3651,8 +3651,8 @@ TEST(operator_kernel, max_pool) {
     max_pool_kernel->compile(&max_pool_op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     max_pool_kernel->execute(&max_pool_op, &strm, {src_ts}, {dst_ts});
@@ -3738,8 +3738,8 @@ TEST(operator_kernel, avg_pool_exclude_pad) {
     avg_pool_kernel->compile(&avg_pool_op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     avg_pool_kernel->execute(&avg_pool_op, &strm, {src_ts}, {dst_ts});
@@ -3782,8 +3782,8 @@ TEST(operator_kernel, avg_pool_include_pad) {
     avg_pool_kernel->compile(&avg_pool_op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     avg_pool_kernel->execute(&avg_pool_op, &strm, {src_ts}, {dst_ts});
@@ -3848,9 +3848,9 @@ TEST(operator_compile, Convolution_NCX_OIX) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -3896,9 +3896,9 @@ TEST(operator_compile, Convtranspose_with_groups) {
     convtranspose_kernel->compile(&convtranspose_op, &eng, inputs, outputs);
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     convtranspose_kernel->execute(
@@ -3964,9 +3964,9 @@ public:
         convtranspose_kernel->compile(&convtranspose_op, &eng, inputs, outputs);
         ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
 
-        impl::tensor_t src_ts(src_lt, params.src.data());
-        impl::tensor_t weight_ts(weight_lt, params.weight.data());
-        impl::tensor_t dst_ts(dst_lt, dst.data());
+        impl::tensor_t src_ts(src_lt, &eng, params.src.data());
+        impl::tensor_t weight_ts(weight_lt, &eng, params.weight.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
         impl::stream_t &strm = get_stream();
         convtranspose_kernel->execute(
@@ -4092,9 +4092,9 @@ TEST(operator_compile, Convolution3D_NCX_OIX) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4159,9 +4159,9 @@ TEST(operator_compile, Convolution_NCX_XIO) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4226,9 +4226,9 @@ TEST(operator_compile, Convolution3D_NCX_XIO) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4294,9 +4294,9 @@ TEST(operator_compile, Convolution_NXC_XIO) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4362,9 +4362,9 @@ TEST(operator_compile, Convolution3D_NXC_XIO) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4429,9 +4429,9 @@ TEST(operator_compile, Convolution_NXC_OIX) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4496,9 +4496,9 @@ TEST(operator_compile, Convolution3D_NXC_OIX) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4564,9 +4564,9 @@ TEST(operator_compile, ConvolutionF16F16F16) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4636,9 +4636,9 @@ TEST(operator_compile, ConvolutionBF16BF16BF16) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4704,9 +4704,9 @@ TEST(operator_compile, ConvolutionBF16BF16F32) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4768,9 +4768,9 @@ TEST(operator_kernel, group_convolution) {
     test::vector<float> weight(32 * 8 * 1 * 1, 1);
     test::vector<float> dst(8 * 32 * 16 * 16, 1);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
@@ -4837,9 +4837,9 @@ TEST(operator_kernel, ConvolutionBackpropData) {
     cp.query_logical_tensor(diff_src_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
-    impl::tensor_t diff_src_ts(diff_src_lt, diff_src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {diff_dst_ts, weight_ts}, {diff_src_ts});
@@ -4890,10 +4890,10 @@ TEST(operator_kernel, conv_bwd_weight_bias) {
     ASSERT_EQ(diff_weights_lt.layout_type, impl::layout_type::strided);
     ASSERT_EQ(diff_bias_lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
-    impl::tensor_t diff_weights_ts(diff_weights_lt, diff_weights.data());
-    impl::tensor_t diff_bias_ts(diff_bias_lt, diff_bias.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_weights_ts(diff_weights_lt, &eng, diff_weights.data());
+    impl::tensor_t diff_bias_ts(diff_bias_lt, &eng, diff_bias.data());
 
     impl::stream_t &strm = get_stream();
     conv_bwd_kernel->execute(&conv_op, &strm, {src_ts, diff_dst_ts},
@@ -4950,9 +4950,9 @@ TEST(operator_compile, conv_relu_unfused) {
     test::vector<float> conv_weight(32 * 32 * 1 * 1, 1);
     test::vector<float> relu_dst(8 * 32 * 16 * 16, 1);
 
-    impl::tensor_t conv_src_ts(conv_src_lt, conv_src.data());
-    impl::tensor_t conv_weight_ts(conv_weight_lt, conv_weight.data());
-    impl::tensor_t relu_dst_ts(relu_dst_lt, relu_dst.data());
+    impl::tensor_t conv_src_ts(conv_src_lt, &eng, conv_src.data());
+    impl::tensor_t conv_weight_ts(conv_weight_lt, &eng, conv_weight.data());
+    impl::tensor_t relu_dst_ts(relu_dst_lt, &eng, relu_dst.data());
 
     // run unfused graph to compute the reference
     ASSERT_EQ(run_graph(g, {conv_src_ts, conv_weight_ts}, {relu_dst_ts}, eng,
@@ -5027,13 +5027,13 @@ TEST(operator_compile, convolution_bn_fp32) {
     std::generate(bn_shift.begin(), bn_shift.end(),
             [&]() { return distribution(generator); });
 
-    impl::tensor_t conv_src_ts(conv_src_lt, conv_src.data());
-    impl::tensor_t conv_weight_ts(conv_weight_lt, conv_weight.data());
-    impl::tensor_t bn_gamma_ts(gamma_lt, bn_gamma.data());
-    impl::tensor_t bn_beta_ts(beta_lt, bn_beta.data());
-    impl::tensor_t bn_scale_ts(scale_lt, bn_scale.data());
-    impl::tensor_t bn_shift_ts(shift_lt, bn_shift.data());
-    impl::tensor_t bn_dst_ts(bn_dst_lt, bn_dst.data());
+    impl::tensor_t conv_src_ts(conv_src_lt, &eng, conv_src.data());
+    impl::tensor_t conv_weight_ts(conv_weight_lt, &eng, conv_weight.data());
+    impl::tensor_t bn_gamma_ts(gamma_lt, &eng, bn_gamma.data());
+    impl::tensor_t bn_beta_ts(beta_lt, &eng, bn_beta.data());
+    impl::tensor_t bn_scale_ts(scale_lt, &eng, bn_scale.data());
+    impl::tensor_t bn_shift_ts(shift_lt, &eng, bn_shift.data());
+    impl::tensor_t bn_dst_ts(bn_dst_lt, &eng, bn_dst.data());
 
     conv_op.add_input(conv_src_lt);
     conv_op.add_input(conv_weight_lt);
@@ -5076,7 +5076,7 @@ TEST(operator_compile, convolution_bn_fp32) {
     p.compile(&cp, inputs, outputs, &eng);
 
     test::vector<float> convbn_dst(8 * 32 * 16 * 16, 0.0);
-    impl::tensor_t convbn_dst_ts(bn_dst_lt, convbn_dst.data());
+    impl::tensor_t convbn_dst_ts(bn_dst_lt, &eng, convbn_dst.data());
 
     cp.execute(&strm,
             {conv_src_ts, conv_weight_ts, bn_gamma_ts, bn_beta_ts, bn_scale_ts,
@@ -5161,10 +5161,10 @@ TEST(operator_kernel, conv_add) {
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t add_dst_ts(add_dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {add_dst_ts});
@@ -5245,10 +5245,10 @@ TEST(operator_kernel, conv_per_tensor_broadcast_add) {
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
@@ -5327,10 +5327,10 @@ TEST(operator_kernel, conv_expanded_per_tensor_broadcast_add) {
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
@@ -5410,10 +5410,10 @@ TEST(operator_kernel, conv_per_channel_broadcast_add) {
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
@@ -5493,10 +5493,10 @@ TEST(operator_kernel, conv_nxc_per_channel_broadcast_add) {
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
@@ -5648,10 +5648,10 @@ TEST(operator_kernel, conv_add_relu) {
     cp.query_logical_tensor(relu_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t post_src_ts(post_lt, post_src.data());
-    impl::tensor_t relu_dst_ts(relu_dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t post_src_ts(post_lt, &eng, post_src.data());
+    impl::tensor_t relu_dst_ts(relu_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {relu_dst_ts});
@@ -5686,8 +5686,8 @@ TEST(operator_kernel, abs) {
     this_kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -5723,8 +5723,8 @@ TEST(operator_kernel, elu) {
     this_kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -5770,8 +5770,8 @@ TEST(operator_kernel, exp) {
     this_kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -5813,8 +5813,8 @@ TEST(operator_kernel, hardtanh) {
     this_kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -5850,8 +5850,8 @@ TEST(operator_kernel, sqrt) {
     this_kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -5892,8 +5892,8 @@ TEST(operator_kernel, square) {
     this_kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -5935,8 +5935,8 @@ TEST(operator_kernel, pow) {
     this_kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -5977,8 +5977,8 @@ TEST(operator_kernel, log) {
     this_kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -6019,8 +6019,8 @@ TEST(operator_kernel, tanh) {
     this_kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -6163,10 +6163,10 @@ TEST(operator_compile, conv_bias_eltwise) {
         cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-        impl::tensor_t src_ts(src_lt, src.data());
-        impl::tensor_t weight_ts(weight_lt, weight.data());
-        impl::tensor_t bias_ts(bias_lt, param.bias.data());
-        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, dst.data());
+        impl::tensor_t src_ts(src_lt, &eng, src.data());
+        impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+        impl::tensor_t bias_ts(bias_lt, &eng, param.bias.data());
+        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, &eng, dst.data());
 
         impl::stream_t &strm = get_stream();
         cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {eltwise_dst_ts});
@@ -6271,11 +6271,11 @@ TEST(operator_compile, conv_bias_add_eltwise) {
         cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-        impl::tensor_t src_ts(src_lt, src.data());
-        impl::tensor_t weight_ts(weight_lt, weight.data());
-        impl::tensor_t bias_ts(bias_lt, param.bias.data());
-        impl::tensor_t post_src_ts(post_lt, post_src.data());
-        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, dst.data());
+        impl::tensor_t src_ts(src_lt, &eng, src.data());
+        impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+        impl::tensor_t bias_ts(bias_lt, &eng, param.bias.data());
+        impl::tensor_t post_src_ts(post_lt, &eng, post_src.data());
+        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, &eng, dst.data());
 
         impl::stream_t &strm = get_stream();
         cp.execute(&strm, {src_ts, weight_ts, bias_ts, post_src_ts},
@@ -6376,10 +6376,10 @@ TEST(operator_compile, conv_add_eltwise) {
         cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-        impl::tensor_t src_ts(src_lt, src.data());
-        impl::tensor_t weight_ts(weight_lt, weight.data());
-        impl::tensor_t post_src_ts(post_lt, post_src.data());
-        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, dst.data());
+        impl::tensor_t src_ts(src_lt, &eng, src.data());
+        impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+        impl::tensor_t post_src_ts(post_lt, &eng, post_src.data());
+        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, &eng, dst.data());
 
         impl::stream_t &strm = get_stream();
         cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {eltwise_dst_ts});
@@ -6415,8 +6415,8 @@ TEST(operator_kernel, softmax) {
     softmax_kernel->compile(&softmax_op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     softmax_kernel->execute(&softmax_op, &strm, {src_ts}, {dst_ts});
@@ -6451,8 +6451,8 @@ TEST(operator_kernel, softmax_with_last_dim) {
     softmax_kernel->compile(&softmax_op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     softmax_kernel->execute(&softmax_op, &strm, {src_ts}, {dst_ts});
@@ -6490,9 +6490,9 @@ TEST(operator_kernel, softmax_backward) {
     softmax_kernel->compile(&softmax_op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t dst_ts(dst_lt, dst.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
     softmax_kernel->execute(
@@ -6529,8 +6529,8 @@ TEST(operator_kernel, logsoftmax) {
     softmax_kernel->compile(&logsoftmax_op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     softmax_kernel->execute(&logsoftmax_op, &strm, {src_ts}, {dst_ts});
@@ -6568,9 +6568,9 @@ TEST(operator_kernel, logsoftmax_backward) {
     softmax_kernel->compile(&logsoftmax_op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t dst_ts(dst_lt, dst.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
     softmax_kernel->execute(
@@ -6617,9 +6617,9 @@ TEST(operator_kernel, avg_pool_backward_exclude_pad) {
     avg_pool_bwd_kernel->compile(&avg_pool_bwd_op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
     avg_pool_bwd_kernel->execute(
@@ -6666,9 +6666,9 @@ TEST(operator_kernel, avg_pool_backward_include_pad) {
     avg_pool_bwd_kernel->compile(&avg_pool_bwd_op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
     avg_pool_bwd_kernel->execute(
@@ -6726,10 +6726,10 @@ TEST(operator_kernel, max_pool_backward_with_incides) {
             &max_pool_bwd_op, &eng, {src_lt, diff_dst_lt}, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
-    impl::tensor_t indices_ts(indices_lt, indices.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+    impl::tensor_t indices_ts(indices_lt, &eng, indices.data());
 
     impl::stream_t &strm = get_stream();
     max_pool_bwd_kernel->execute(&max_pool_bwd_op, &strm,
@@ -6776,9 +6776,9 @@ TEST(operator_kernel, max_pool_backward_without_incides) {
             &max_pool_bwd_op, &eng, {src_lt, diff_dst_lt}, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
     max_pool_bwd_kernel->execute(
@@ -6831,12 +6831,12 @@ TEST(operator_kernel, layernorm_training) {
     ASSERT_EQ(outputs[1].layout_type, impl::layout_type::opaque);
     ASSERT_EQ(outputs[2].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t scale_ts(scale_lt, scale.data());
-    impl::tensor_t shift_ts(shift_lt, shift.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::tensor_t mean_ts(outputs[1], mean.data());
-    impl::tensor_t var_ts(outputs[2], var.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t scale_ts(scale_lt, &eng, scale.data());
+    impl::tensor_t shift_ts(shift_lt, &eng, shift.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t mean_ts(outputs[1], &eng, mean.data());
+    impl::tensor_t var_ts(outputs[2], &eng, var.data());
 
     impl::stream_t &strm = get_stream();
     kernel->execute(&op, &strm, {src_ts, scale_ts, shift_ts},
@@ -6886,10 +6886,10 @@ TEST(operator_kernel, layernorm_inference) {
 
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t scale_ts(scale_lt, scale.data());
-    impl::tensor_t shift_ts(shift_lt, shift.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t scale_ts(scale_lt, &eng, scale.data());
+    impl::tensor_t shift_ts(shift_lt, &eng, shift.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     kernel->execute(&op, &strm, {src_ts, scale_ts, shift_ts}, {dst_ts});
@@ -6927,8 +6927,8 @@ TEST(operator_kernel, layernorm_inference_without_scale_shift) {
 
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -6964,8 +6964,8 @@ TEST(operator_kernel, reorder_data) {
     kernel->compile(&reorder_op, &engine, {src_lt}, {dst_lt});
 
     impl::stream_t &stream = get_stream();
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
     kernel->execute(&reorder_op, &stream, {src_ts}, {dst_ts});
     stream.wait();
@@ -7027,8 +7027,8 @@ TEST(operator_kernel, quantize_per_tensor) {
     op->compile(&quantize, &engine, {src_lt}, {dst_lt});
 
     impl::stream_t &stream = get_stream();
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
     op->execute(&quantize, &stream, {src_ts}, {dst_ts});
     stream.wait();
@@ -7065,8 +7065,8 @@ TEST(operator_kernel, quantize_per_tensor_any) {
     op->compile(&quantize, &engine, {src_lt}, {dst_lt});
 
     impl::stream_t &stream = get_stream();
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
     op->execute(&quantize, &stream, {src_ts}, {dst_ts});
     stream.wait();
@@ -7103,8 +7103,8 @@ TEST(operator_kernel, quantize_per_channel_symmetric) {
     op->compile(&quantize, &engine, {src_lt}, {dst_lt});
 
     impl::stream_t &stream = get_stream();
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
     op->execute(&quantize, &stream, {src_ts}, {dst_ts});
     stream.wait();
@@ -7141,8 +7141,8 @@ TEST(operator_kernel, dequantize_per_tensor) {
     op->compile(&dequantize, &engine, {src_lt}, {dst_lt});
 
     impl::stream_t &stream = get_stream();
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
     op->execute(&dequantize, &stream, {src_ts}, {dst_ts});
     stream.wait();
@@ -7179,8 +7179,8 @@ TEST(operator_kernel, dequantize_per_tensor_any) {
     op->compile(&dequantize, &engine, {src_lt}, {dst_lt});
 
     impl::stream_t &stream = get_stream();
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
     op->execute(&dequantize, &stream, {src_ts}, {dst_ts});
     stream.wait();
@@ -7217,8 +7217,8 @@ TEST(operator_kernel, dequantize_per_channel_symmetric) {
     op->compile(&dequantize, &engine, {src_lt}, {dst_lt});
 
     impl::stream_t &stream = get_stream();
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
     op->execute(&dequantize, &stream, {src_ts}, {dst_ts});
     stream.wait();
@@ -7402,14 +7402,14 @@ TEST(int8_subgraph_mode, int8_conv1d_conv2d_conv3d) {
         g.add_op(&qout_node);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_s8_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
         impl::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, bias_data.data());
+            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
         }
-        impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -7572,14 +7572,14 @@ TEST(int8_subgraph_mode, int8_conv2d_relu) {
         g.add_op(&qout_node);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_s8_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
         impl::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, bias_data.data());
+            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
         }
-        impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -7785,15 +7785,15 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
         }
         dst_s8 = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
 
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, other_s8_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
+        impl::tensor_t other_s8_ts(other_s8, &engine, other_s8_data.data());
         impl::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, bias_data.data());
+            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
         }
-        impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
@@ -7999,15 +7999,15 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_NXC) {
         }
         dst_s8 = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
 
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, other_s8_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
+        impl::tensor_t other_s8_ts(other_s8, &engine, other_s8_data.data());
         impl::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, bias_data.data());
+            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
         }
-        impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
@@ -8174,16 +8174,16 @@ TEST(int8_subgraph_mode, x8s8f32_conv1d_conv2d_conv3d) {
         g.add_op(&conv_node);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_s8_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
         impl::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, bias_data.data());
+            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
         }
 
         // -------------------------case 1----------------------------------
         test::vector<float> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(dst_f32, case1_out_data.data());
+        impl::tensor_t dst_f32_ts(dst_f32, &engine, case1_out_data.data());
 
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_f32_ts}, engine, strm),
@@ -8213,7 +8213,8 @@ TEST(int8_subgraph_mode, x8s8f32_conv1d_conv2d_conv3d) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<float> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_case2_ts(dst_f32, case2_out_data.data());
+        impl::tensor_t dst_f32_case2_ts(
+                dst_f32, &engine, case2_out_data.data());
         if (with_bias)
             cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                     {dst_f32_case2_ts});
@@ -8341,14 +8342,16 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_relu) {
         g.add_op(&relu_node);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_s8_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
         impl::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, bias_data.data());
+            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
         }
-        impl::tensor_t dst_relu_f32_ts(dst_relu_f32, case1_out_data.data());
-        impl::tensor_t dst_f32_case2_ts(dst_relu_f32, case2_out_data.data());
+        impl::tensor_t dst_relu_f32_ts(
+                dst_relu_f32, &engine, case1_out_data.data());
+        impl::tensor_t dst_f32_case2_ts(
+                dst_relu_f32, &engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -8541,15 +8544,17 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu) {
         dst_relu_f32 = utils::logical_tensor_init(
                 8, dst_shape, impl::data_type::f32);
 
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, other_s8_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
+        impl::tensor_t other_s8_ts(other_s8, &engine, other_s8_data.data());
         impl::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, bias_data.data());
+            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
         }
-        impl::tensor_t dst_relu_f32_ts(dst_relu_f32, case1_out_data.data());
-        impl::tensor_t dst_f32_case2_ts(dst_relu_f32, case2_out_data.data());
+        impl::tensor_t dst_relu_f32_ts(
+                dst_relu_f32, &engine, case1_out_data.data());
+        impl::tensor_t dst_f32_case2_ts(
+                dst_relu_f32, &engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
@@ -8750,15 +8755,17 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu_NXC) {
         dst_relu_f32 = utils::logical_tensor_init(
                 8, dst_shape, impl::data_type::f32);
 
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, other_s8_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
+        impl::tensor_t other_s8_ts(other_s8, &engine, other_s8_data.data());
         impl::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, bias_data.data());
+            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
         }
-        impl::tensor_t dst_relu_f32_ts(dst_relu_f32, case1_out_data.data());
-        impl::tensor_t dst_f32_case2_ts(dst_relu_f32, case2_out_data.data());
+        impl::tensor_t dst_relu_f32_ts(
+                dst_relu_f32, &engine, case1_out_data.data());
+        impl::tensor_t dst_f32_case2_ts(
+                dst_relu_f32, &engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
@@ -8920,13 +8927,13 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d) {
         g.add_op(&qout_op);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, bias_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
+        impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
 
         // -------------------------case 1----------------------------------
         test::vector<int8_t> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_s8_ts}, engine, strm),
                 impl::status::success);
@@ -8949,7 +8956,7 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<int8_t> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
         cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                 {dst_s8_case2_ts});
         strm.wait();
@@ -9063,11 +9070,12 @@ TEST(int8_subgraph_mode, int8_matmul_ndx1d) {
             g.add_op(&qout_op);
             g.build_graph();
 
-            impl::tensor_t src_u8_ts(src_u8, src_data.data());
-            impl::tensor_t weight_s8_ts(weight_s8, weight_data.data());
+            impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+            impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
             // -------------------------case 1----------------------------------
             test::vector<int8_t> case1_out_data(product(dst_shape));
-            impl::tensor_t dst_s8_case1_ts(dst_s8, case1_out_data.data());
+            impl::tensor_t dst_s8_case1_ts(
+                    dst_s8, &engine, case1_out_data.data());
             ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts}, {dst_s8_case1_ts},
                               engine, strm),
                     impl::status::success);
@@ -9091,7 +9099,8 @@ TEST(int8_subgraph_mode, int8_matmul_ndx1d) {
             p.compile(&cp, lt_ins, lt_outs, &engine);
 
             test::vector<int8_t> case2_out_data(product(dst_shape));
-            impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+            impl::tensor_t dst_s8_case2_ts(
+                    dst_s8, &engine, case2_out_data.data());
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
             strm.wait();
 
@@ -9219,13 +9228,13 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d_with_transpose) {
             g.add_op(&qout_op);
             g.build_graph();
 
-            impl::tensor_t src_u8_ts(src_u8, src_data.data());
-            impl::tensor_t weight_s8_ts(weight_s8, weight_data.data());
+            impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+            impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
             impl::tensor_t bias_f32_ts
-                    = impl::tensor_t(bias_f32, bias_data.data());
+                    = impl::tensor_t(bias_f32, &engine, bias_data.data());
             // -------------------------case 1----------------------------------
             test::vector<int8_t> case1_out_data(product(dst_shape));
-            impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
+            impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
             ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                               {dst_s8_ts}, engine, strm),
                     impl::status::success);
@@ -9250,7 +9259,8 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d_with_transpose) {
             p.compile(&cp, lt_ins, lt_outs, &engine);
 
             test::vector<int8_t> case2_out_data(product(dst_shape));
-            impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+            impl::tensor_t dst_s8_case2_ts(
+                    dst_s8, &engine, case2_out_data.data());
             cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                     {dst_s8_case2_ts});
             strm.wait();
@@ -9368,11 +9378,11 @@ TEST(int8_subgraph_mode, int8_matmul_relu_fusion) {
     g.add_op(&qout_op);
     g.build_graph();
 
-    impl::tensor_t src_u8_ts(src_u8, src_data.data());
-    impl::tensor_t weight_s8_ts(weight_s8, weight_data.data());
+    impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+    impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
     // -------------------------case 1----------------------------------
     test::vector<int8_t> case1_out_data(product(dst_shape));
-    impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
+    impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
     ASSERT_EQ(
             run_graph(g, {src_u8_ts, weight_s8_ts}, {dst_s8_ts}, engine, strm),
             impl::status::success);
@@ -9395,7 +9405,7 @@ TEST(int8_subgraph_mode, int8_matmul_relu_fusion) {
     p.compile(&cp, lt_ins, lt_outs, &engine);
 
     test::vector<int8_t> case2_out_data(product(dst_shape));
-    impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+    impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
     cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
     strm.wait();
 
@@ -9434,8 +9444,8 @@ TEST(operator_kernel, interpolate_forkward_nearest) {
     kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -9471,8 +9481,8 @@ TEST(operator_kernel, interpolate_forkward_linear) {
     kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     kernel->execute(&op, &strm, {src_ts}, {dst_ts});
@@ -9510,9 +9520,9 @@ TEST(operator_kernel, interpolate_backward_nearest) {
     kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
     kernel->execute(&op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
@@ -9550,9 +9560,9 @@ TEST(operator_kernel, interpolate_backward_linear) {
     kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
     kernel->execute(&op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
@@ -9707,13 +9717,13 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
         g.add_op(&qout_op);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, bias_data.data());
-        impl::tensor_t other_s8_ts(other_s8, other_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
+        impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+        impl::tensor_t other_s8_ts(other_s8, &engine, other_data.data());
         // -------------------------case 1----------------------------------
         test::vector<int8_t> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
                           {dst_s8_ts}, engine, strm),
@@ -9738,7 +9748,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<int8_t> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
         cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
                 {dst_s8_case2_ts});
         strm.wait();
@@ -9883,13 +9893,13 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_sum_ndx2d) {
         g.add_op(&add_op);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, bias_data.data());
-        impl::tensor_t other_s8_ts(other_s8, other_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
+        impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+        impl::tensor_t other_s8_ts(other_s8, &engine, other_data.data());
         // -------------------------case 1----------------------------------
         test::vector<float> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(dst_add_f32, case1_out_data.data());
+        impl::tensor_t dst_f32_ts(dst_add_f32, &engine, case1_out_data.data());
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
                           {dst_f32_ts}, engine, strm),
@@ -9914,7 +9924,8 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_sum_ndx2d) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<float> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_case2_ts(dst_add_f32, case2_out_data.data());
+        impl::tensor_t dst_f32_case2_ts(
+                dst_add_f32, &engine, case2_out_data.data());
         cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
                 {dst_f32_case2_ts});
         strm.wait();
@@ -10028,12 +10039,12 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_ndx2d) {
         g.add_op(&matmul_op);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, bias_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
+        impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
         // -------------------------case 1----------------------------------
         test::vector<float> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(dst_f32, case1_out_data.data());
+        impl::tensor_t dst_f32_ts(dst_f32, &engine, case1_out_data.data());
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_f32_ts}, engine, strm),
                 impl::status::success);
@@ -10057,7 +10068,8 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_ndx2d) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<float> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_case2_ts(dst_f32, case2_out_data.data());
+        impl::tensor_t dst_f32_case2_ts(
+                dst_f32, &engine, case2_out_data.data());
         cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                 {dst_f32_case2_ts});
         strm.wait();
@@ -10163,11 +10175,11 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_ndx2d) {
         g.add_op(&matmul_op);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
         // -------------------------case 1----------------------------------
         test::vector<float> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(dst_f32, case1_out_data.data());
+        impl::tensor_t dst_f32_ts(dst_f32, &engine, case1_out_data.data());
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts}, {dst_f32_ts}, engine,
                           strm),
                 impl::status::success);
@@ -10190,7 +10202,8 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_ndx2d) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<float> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_case2_ts(dst_f32, case2_out_data.data());
+        impl::tensor_t dst_f32_case2_ts(
+                dst_f32, &engine, case2_out_data.data());
         cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
         strm.wait();
 
@@ -10311,12 +10324,12 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_gelu_ndx2d) {
         g.add_op(&gelu_op);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, bias_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
+        impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
         // -------------------------case 1----------------------------------
         test::vector<float> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(gelu_f32, case1_out_data.data());
+        impl::tensor_t dst_f32_ts(gelu_f32, &engine, case1_out_data.data());
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_f32_ts}, engine, strm),
                 impl::status::success);
@@ -10340,7 +10353,8 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_gelu_ndx2d) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<float> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_case2_ts(gelu_f32, case2_out_data.data());
+        impl::tensor_t dst_f32_case2_ts(
+                gelu_f32, &engine, case2_out_data.data());
         cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                 {dst_f32_case2_ts});
         strm.wait();
@@ -10582,9 +10596,9 @@ TEST(operator_kernel, relu_add_fusion) {
     kernel->compile(&op, &eng, inputs, outputs);
     ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     kernel->execute(&op, &strm, {src_ts, post_src_ts}, {dst_ts});
@@ -10656,9 +10670,9 @@ TEST(operator_kernel, avgpool_add) {
         std::vector<impl::logical_tensor_t> outputs {dst_lt};
         avgpool_kernel->compile(&avgpool_op, &eng, inputs, outputs);
 
-        impl::tensor_t src_ts(src_lt, src.data());
-        impl::tensor_t dst_ts(dst_lt, dst.data());
-        impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+        impl::tensor_t src_ts(src_lt, &eng, src.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+        impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
 
         impl::stream_t &strm = get_stream();
         avgpool_kernel->execute(
@@ -10729,9 +10743,9 @@ TEST(operator_kernel, maxpool_add) {
         std::vector<impl::logical_tensor_t> outputs {dst_lt};
         maxpool_kernel->compile(&maxpool_op, &eng, inputs, outputs);
 
-        impl::tensor_t src_ts(src_lt, src.data());
-        impl::tensor_t dst_ts(dst_lt, dst.data());
-        impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+        impl::tensor_t src_ts(src_lt, &eng, src.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+        impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
 
         impl::stream_t &strm = get_stream();
         maxpool_kernel->execute(
@@ -10841,24 +10855,25 @@ TEST(int8_subgraph_mode, int8_maxpool) {
 
         // execute
         test::vector<uint8_t> src_u8_data(product(src_shape));
-        impl::tensor_t src_f32_ts(src_f32, src_data.data());
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
+        impl::tensor_t src_f32_ts(src_f32, &engine, src_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
         kernel_qdata->execute(&qdata_op, &strm, {src_f32_ts}, {src_u8_ts});
         strm.wait();
 
         test::vector<float> src_f32_dq_data(product(src_shape));
-        impl::tensor_t src_f32_dq_ts(src_f32_dq, src_f32_dq_data.data());
+        impl::tensor_t src_f32_dq_ts(
+                src_f32_dq, &engine, src_f32_dq_data.data());
         kernel_dqdata->execute(&dqdata_op, &strm, {src_u8_ts}, {src_f32_dq_ts});
         strm.wait();
 
         test::vector<float> out_f32_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(dst_f32, out_f32_data.data());
+        impl::tensor_t dst_f32_ts(dst_f32, &engine, out_f32_data.data());
         kernel_maxpool->execute(
                 &maxpool_op, &strm, {src_f32_dq_ts}, {dst_f32_ts});
         strm.wait();
 
         test::vector<int8_t> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_u8_ts(dst_u8, case1_out_data.data());
+        impl::tensor_t dst_u8_ts(dst_u8, &engine, case1_out_data.data());
         kernel_qout->execute(&qout_op, &strm, {dst_f32_ts}, {dst_u8_ts});
         strm.wait();
 
@@ -10895,7 +10910,7 @@ TEST(int8_subgraph_mode, int8_maxpool) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<int8_t> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_u8_case2_ts(dst_u8, case2_out_data.data());
+        impl::tensor_t dst_u8_case2_ts(dst_u8, &engine, case2_out_data.data());
         cp.execute(&strm, {src_u8_ts}, {dst_u8_case2_ts});
         strm.wait();
 
@@ -11010,24 +11025,25 @@ TEST(int8_subgraph_mode, int8_avgpool) {
 
         // execute
         test::vector<uint8_t> src_u8_data(product(src_shape));
-        impl::tensor_t src_f32_ts(src_f32, src_data.data());
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
+        impl::tensor_t src_f32_ts(src_f32, &engine, src_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
         kernel_qdata->execute(&qdata_op, &strm, {src_f32_ts}, {src_u8_ts});
         strm.wait();
 
         test::vector<float> src_f32_dq_data(product(src_shape));
-        impl::tensor_t src_f32_dq_ts(src_f32_dq, src_f32_dq_data.data());
+        impl::tensor_t src_f32_dq_ts(
+                src_f32_dq, &engine, src_f32_dq_data.data());
         kernel_dqdata->execute(&dqdata_op, &strm, {src_u8_ts}, {src_f32_dq_ts});
         strm.wait();
 
         test::vector<float> out_f32_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(dst_f32, out_f32_data.data());
+        impl::tensor_t dst_f32_ts(dst_f32, &engine, out_f32_data.data());
         kernel_avgpool->execute(
                 &avgpool_op, &strm, {src_f32_dq_ts}, {dst_f32_ts});
         strm.wait();
 
         test::vector<int8_t> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_u8_ts(dst_u8, case1_out_data.data());
+        impl::tensor_t dst_u8_ts(dst_u8, &engine, case1_out_data.data());
         kernel_qout->execute(&qout_op, &strm, {dst_f32_ts}, {dst_u8_ts});
         strm.wait();
 
@@ -11064,7 +11080,7 @@ TEST(int8_subgraph_mode, int8_avgpool) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<int8_t> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_u8_case2_ts(dst_u8, case2_out_data.data());
+        impl::tensor_t dst_u8_case2_ts(dst_u8, &engine, case2_out_data.data());
         cp.execute(&strm, {src_u8_ts}, {dst_u8_case2_ts});
         strm.wait();
 
@@ -11312,15 +11328,16 @@ TEST(int8_subgraph_mode, int8_quant_wei_conv2d_sum_relu) {
             bias_f32.property = impl::property_type::constant;
         }
 
-        impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
-        impl::tensor_t weight_f32_ts(weight_f32, weight_f32_data.data());
-        impl::tensor_t other_s8_ts(other_s8, other_s8_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_f32_ts(
+                weight_f32, &engine, weight_f32_data.data());
+        impl::tensor_t other_s8_ts(other_s8, &engine, other_s8_data.data());
         impl::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, bias_data.data());
+            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
         }
-        impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
@@ -11552,13 +11569,13 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
         // set bias to be constant
         bias_f32.property = impl::property_type::constant;
 
-        impl::tensor_t src_u8_ts(src_u8, src_data.data());
-        impl::tensor_t weight_f32_ts(weight_f32, weight_data.data());
-        impl::tensor_t other_s8_ts(other_s8, other_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, bias_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+        impl::tensor_t weight_f32_ts(weight_f32, &engine, weight_data.data());
+        impl::tensor_t other_s8_ts(other_s8, &engine, other_data.data());
+        impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
         // -------------------------case 1----------------------------------
         test::vector<int8_t> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_f32_ts, bias_f32_ts, other_s8_ts},
                           {dst_s8_ts}, engine, strm),
@@ -11584,7 +11601,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<int8_t> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
         for (size_t iter = 0; iter < 5; iter++) {
             cp.execute(&strm,
                     {src_u8_ts, weight_f32_ts, bias_f32_ts, other_s8_ts},
@@ -11741,12 +11758,12 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_ndx2d_with_transpose) {
         // set bias to be constant
         bias_f32.property = impl::property_type::constant;
 
-        impl::tensor_t src_u8_ts(src_u8, src_data.data());
-        impl::tensor_t weight_f32_ts(weight_f32, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, bias_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+        impl::tensor_t weight_f32_ts(weight_f32, &engine, weight_data.data());
+        impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
         // -------------------------case 1----------------------------------
         test::vector<int8_t> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_f32_ts, bias_f32_ts},
                           {dst_s8_ts}, engine, strm),
                 impl::status::success);
@@ -11770,7 +11787,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_ndx2d_with_transpose) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<int8_t> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
         for (size_t iter = 0; iter < 1; iter++) {
             cp.execute(&strm, {src_u8_ts, weight_f32_ts, bias_f32_ts},
                     {dst_s8_case2_ts});
@@ -11921,12 +11938,12 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_relu_ndx2d) {
         g.add_op(&qout_op);
         g.build_graph();
 
-        impl::tensor_t src_u8_ts(src_u8, src_data.data());
-        impl::tensor_t weight_f32_ts(weight_f32, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, bias_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+        impl::tensor_t weight_f32_ts(weight_f32, &engine, weight_data.data());
+        impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
         // -------------------------case 1----------------------------------
         test::vector<int8_t> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_s8_ts(dst_s8, case1_out_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_f32_ts, bias_f32_ts},
                           {dst_s8_ts}, engine, strm),
                 impl::status::success);
@@ -11955,7 +11972,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_relu_ndx2d) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         test::vector<int8_t> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_s8_case2_ts(dst_s8, case2_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
         for (size_t iter = 0; iter < 5; iter++) {
             if (with_bias) {
                 cp.execute(&strm, {src_u8_ts, weight_f32_ts, bias_f32_ts},
@@ -12116,11 +12133,11 @@ TEST(int8_subgraph_mode, int8_matmul_2dx3d_with_transpose) {
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
         // execute
-        impl::tensor_t src_u8_ts(src_u8, src_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, bias_data.data());
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
+        impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
         test::vector<int8_t> dst_data(product(dst_shape));
-        impl::tensor_t dst_s8_ts(dst_s8, dst_data.data());
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, dst_data.data());
         cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts}, {dst_s8_ts});
         strm.wait();
     }
@@ -12365,10 +12382,10 @@ TEST(operator_kernel, mul_add_per_tensor_broadcast) {
     mul_kernel->compile(
             &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     mul_kernel->execute(
@@ -12408,10 +12425,10 @@ TEST(operator_kernel, mul_add_per_hw_broadcast) {
     mul_kernel->compile(
             &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     mul_kernel->execute(
@@ -12451,10 +12468,10 @@ TEST(operator_kernel, mul_add_per_channel_broadcast) {
     mul_kernel->compile(
             &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
     mul_kernel->execute(
@@ -12542,11 +12559,11 @@ TEST(int8_subgraph_mode, u8u8f32_bmm) {
     g.add_op(&matmul_op);
     g.build_graph();
 
-    impl::tensor_t src_u8_ts(src_u8, src_data.data());
-    impl::tensor_t weight_u8_ts(weight_u8, weight_data.data());
+    impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+    impl::tensor_t weight_u8_ts(weight_u8, &engine, weight_data.data());
     // -------------------------case 1----------------------------------
     test::vector<float> case1_out_data(product(dst_shape));
-    impl::tensor_t dst_f32_ts(dst_f32, case1_out_data.data());
+    impl::tensor_t dst_f32_ts(dst_f32, &engine, case1_out_data.data());
     ASSERT_EQ(
             run_graph(g, {src_u8_ts, weight_u8_ts}, {dst_f32_ts}, engine, strm),
             impl::status::success);
@@ -12568,7 +12585,7 @@ TEST(int8_subgraph_mode, u8u8f32_bmm) {
     p.compile(&cp, lt_ins, lt_outs, &engine);
 
     test::vector<float> case2_out_data(product(dst_shape));
-    impl::tensor_t dst_f32_case2_ts(dst_f32, case2_out_data.data());
+    impl::tensor_t dst_f32_case2_ts(dst_f32, &engine, case2_out_data.data());
     cp.execute(&strm, {src_u8_ts, weight_u8_ts}, {dst_f32_case2_ts});
     strm.wait();
 
@@ -12684,11 +12701,11 @@ TEST(int8_subgraph_mode, u8u8f32_bmm_div) {
 
     p.compile(&cp, lt_ins, lt_outs, &engine);
 
-    impl::tensor_t src_u8_ts(src_u8, src_data.data());
-    impl::tensor_t weight_u8_ts(weight_u8, weight_data.data());
-    impl::tensor_t div_src1_ts(div_src1, div_src1_data.data());
+    impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+    impl::tensor_t weight_u8_ts(weight_u8, &engine, weight_data.data());
+    impl::tensor_t div_src1_ts(div_src1, &engine, div_src1_data.data());
     test::vector<float> case2_out_data(product(dst_shape));
-    impl::tensor_t dst_f32_case2_ts(div_f32, case2_out_data.data());
+    impl::tensor_t dst_f32_case2_ts(div_f32, &engine, case2_out_data.data());
     cp.execute(
             &strm, {src_u8_ts, weight_u8_ts, div_src1_ts}, {dst_f32_case2_ts});
     strm.wait();

@@ -31,7 +31,7 @@ public:
     dnnl_graph_tensor() {}
 
     dnnl_graph_tensor(const dnnl::graph::impl::logical_tensor_t &lt,
-            const dnnl::graph::impl::engine_t *eng, void *handle = nullptr)
+            const dnnl::graph::impl::engine_t *eng, void *handle)
         : tensor_desc_(lt), eng_(eng), data_handle_(handle) {}
 
     bool is(dnnl::graph::impl::data_type_t dtype) const {

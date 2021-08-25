@@ -75,8 +75,8 @@ TEST(compiled_partition, relu) {
         data_in[i] = static_cast<float>(i) - static_cast<float>(ele_num_in / 2);
     }
 
-    impl::tensor_t t_in(lt_in, data_in.data()),
-            t_out(query_out_lt, data_out.data());
+    impl::tensor_t t_in(lt_in, &eng, data_in.data()),
+            t_out(query_out_lt, &eng, data_out.data());
 
     std::vector<impl::tensor_t> t_inputs, t_outputs;
     t_inputs.emplace_back(t_in);
@@ -175,12 +175,12 @@ TEST(compiled_partition, search_required_inputs_outputs) {
         data_in[i] = static_cast<float>(i) - static_cast<float>(ele_num_in / 2);
     }
 
-    impl::tensor_t t_in(lt_in, data_in.data()),
-            t_out(query_lt_out, data_out.data());
-    impl::tensor_t t_in_additional1(lt_in_additional1, nullptr),
-            t_in_additional2(lt_in_additional2, nullptr);
-    impl::tensor_t t_out_additional1(lt_out_additional1, nullptr),
-            t_out_additional2(lt_out_additional2, nullptr);
+    impl::tensor_t t_in(lt_in, &eng, data_in.data()),
+            t_out(query_lt_out, &eng, data_out.data());
+    impl::tensor_t t_in_additional1(lt_in_additional1, &eng, nullptr),
+            t_in_additional2(lt_in_additional2, &eng, nullptr);
+    impl::tensor_t t_out_additional1(lt_out_additional1, &eng, nullptr),
+            t_out_additional2(lt_out_additional2, &eng, nullptr);
 
     // when submit, in/outputs tensor's order must be same as compile
     // funcstion's in/outputs logical tensor
@@ -253,8 +253,8 @@ TEST(compiled_partition, allow_repeated_inputs) {
     test::vector<float> ref_out {
             1.0f, 4.0f, 9.0f, 16.0f, 25.0f, 36.0f, 49.0f, 64.0f, 81.0f};
 
-    impl::tensor_t t_in1(lt_in1, data_in.data());
-    impl::tensor_t t_out(query_lt_out, data_out.data());
+    impl::tensor_t t_in1(lt_in1, &eng, data_in.data());
+    impl::tensor_t t_out(query_lt_out, &eng, data_out.data());
 
     // only one input
     std::vector<impl::tensor_t> t_ins {t_in1};
