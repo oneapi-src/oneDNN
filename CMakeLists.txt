@@ -178,3 +178,7 @@ add_subdirectory(src)
 add_subdirectory(tests)
 add_subdirectory(examples/c)
 add_subdirectory(examples/cpp)
+
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_NAME})
+install(FILES THIRD-PARTY-PROGRAMS DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_NAME})
+install(FILES README.md DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_NAME})
