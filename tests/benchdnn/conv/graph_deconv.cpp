@@ -28,6 +28,19 @@
 namespace benchdnnext {
 namespace deconv {
 
+void check_known_skipped_case_graph(
+        const ::conv::prb_t *prb, res_t *res) noexcept {
+    ::deconv::check_known_skipped_case(prb, res);
+    if (res->state == SKIPPED) return;
+
+    const auto with_groups = prb->g > 1;
+    const auto filter_format = tag2filter_format(prb->wtag, with_groups);
+    // required in order to make strides aligned with oneDNN graph expectations
+    if (with_groups && filter_format != "IOX") {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+    }
+}
+
 fill_status_t deconv_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
@@ -56,7 +69,7 @@ fill_status_t deconv_graph_prb_t::handle_main_op_() {
         // calculate the original strides
         dims_t strides(wei_dims_permuted.size());
         strides[strides.size() - 1] = 1;
-        for (int i = strides.size() - 2; i >= 0; --i) {
+        for (int i = static_cast<int>(strides.size()) - 2; i >= 0; --i) {
             strides[i] = wei_dims_permuted[i + 1] * strides[i + 1];
         }
         // permute strides IOX => OIX
@@ -97,7 +110,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    ::deconv::check_known_skipped_case(prb, res);
+    check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
     deconv_graph_prb_t graph_prb(prb);
