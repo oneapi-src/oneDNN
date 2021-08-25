@@ -491,7 +491,7 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     /* Step 7: performance measurement */
-    return measure_perf(res->timer, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace reorder

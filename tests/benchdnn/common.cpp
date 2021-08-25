@@ -147,10 +147,11 @@ void parse_result(
         default: assert(!"unknown state"); SAFE_V(FAIL);
     }
 
-    if (is_bench_mode(PERF)) {
+    if (want_perf_report && is_bench_mode(PERF)) {
         using bt = timer::timer_t;
+        const auto &t = res.timer_map.perf_timer();
         for (int mode = 0; mode < (int)bt::n_modes; ++mode)
-            bs.ms[mode] += res.timer.ms((bt::mode_t)mode);
+            bs.ms[mode] += t.ms((bt::mode_t)mode);
     }
 }
 

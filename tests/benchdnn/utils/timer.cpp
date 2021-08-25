@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <chrono>
 
+#include "common.hpp"
 #include "utils/timer.hpp"
 
 namespace timer {
@@ -96,5 +97,20 @@ timer_t &timer_t::operator=(const timer_t &rhs) {
     ms_start_ = rhs.ms_start_;
     return *this;
 }
+
+timer_t &timer_map_t::get_timer(const std::string &name) {
+    auto it = timers.find(name);
+    if (it != timers.end()) return it->second;
+    // Set a new timer if requested one wasn't found
+    timers.insert(std::make_pair(std::string(name), timer_t()));
+    return timers.find(name)->second;
+}
+
+timer_t &timer_map_t::perf_timer() {
+    return get_timer(timer_t::perf_timer);
+}
+
+// Initializing timers with fixed names.
+const std::string timer_t::perf_timer = "perf_timer";
 
 } // namespace timer

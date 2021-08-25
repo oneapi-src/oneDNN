@@ -164,7 +164,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    return measure_perf(res->timer, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace sum

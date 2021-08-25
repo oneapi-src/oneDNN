@@ -35,7 +35,7 @@ struct base_perf_report_t {
     base_perf_report_t(const char *perf_template) : pt_(perf_template) {}
     virtual ~base_perf_report_t() = default;
 
-    void report(const res_t *res, const char *prb_str) const;
+    void report(res_t *res, const char *prb_str) const;
 
     /* truly common types */
     virtual double ops() const { return 0.; }
@@ -70,7 +70,7 @@ struct base_perf_report_t {
 private:
     const char *pt_;
 
-    void handle_option(std::ostream &s, const char *&option, const res_t *res,
+    void handle_option(std::ostream &s, const char *&option, res_t *res,
             const char *prb_str) const;
 
     void dump_perf_footer() const {

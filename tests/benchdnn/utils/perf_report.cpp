@@ -19,7 +19,7 @@
 
 #include "utils/perf_report.hpp"
 
-void base_perf_report_t::report(const res_t *res, const char *prb_str) const {
+void base_perf_report_t::report(res_t *res, const char *prb_str) const {
     dump_perf_footer();
 
     std::stringstream ss;
@@ -39,8 +39,7 @@ void base_perf_report_t::report(const res_t *res, const char *prb_str) const {
 };
 
 void base_perf_report_t::handle_option(std::ostream &s, const char *&option,
-        const res_t *res, const char *prb_str) const {
-    const auto &t = res->timer;
+        res_t *res, const char *prb_str) const {
     timer::timer_t::mode_t mode = timer::timer_t::min;
     (void)mode;
     double unit = 1e0;
@@ -56,17 +55,17 @@ void base_perf_report_t::handle_option(std::ostream &s, const char *&option,
         c = *(++option);
     }
 
-    auto get_flops = [&]() -> double {
+    auto get_flops = [&](const timer::timer_t &t) -> double {
         if (!t.sec(mode)) return 0;
         return ops() / t.sec(mode) / unit;
     };
 
-    auto get_bw = [&]() -> double {
+    auto get_bw = [&](const timer::timer_t &t) -> double {
         if (!t.sec(mode)) return 0;
         return (res->ibytes + res->obytes) / t.sec(mode) / unit;
     };
 
-    auto get_freq = [&]() -> double {
+    auto get_freq = [&](const timer::timer_t &t) -> double {
         if (!t.sec(mode)) return 0;
         return t.ticks(mode) / t.sec(mode) / unit;
     };
@@ -106,14 +105,14 @@ void base_perf_report_t::handle_option(std::ostream &s, const char *&option,
     HANDLE("stat_tag", if (stat_tag()) s << *stat_tag());
     HANDLE("wtag", if (wtag()) s << *wtag());
     // Options operating on driver independent objects, e.g. timer values.
-    HANDLE("bw", s << get_bw());
+    HANDLE("bw", s << get_bw(res->timer_map.perf_timer()));
     HANDLE("driver", s << driver_name);
-    HANDLE("flops", s << get_flops());
-    HANDLE("clocks", s << t.ticks(mode) / unit);
+    HANDLE("flops", s << get_flops(res->timer_map.perf_timer()));
+    HANDLE("clocks", s << res->timer_map.perf_timer().ticks(mode) / unit);
     HANDLE("prb", s << prb_str);
-    HANDLE("freq", s << get_freq());
+    HANDLE("freq", s << get_freq(res->timer_map.perf_timer()));
     HANDLE("ops", s << ops() / unit);
-    HANDLE("time", s << t.ms(mode) / unit);
+    HANDLE("time", s << res->timer_map.perf_timer().ms(mode) / unit);
     HANDLE("impl", s << res->impl_name);
     HANDLE("ibytes", s << res->ibytes / unit);
     HANDLE("obytes", s << res->obytes / unit);

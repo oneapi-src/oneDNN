@@ -17,6 +17,17 @@
 #ifndef UTILS_TIMER_HPP
 #define UTILS_TIMER_HPP
 
+#include <map>
+#include <string>
+
+#define TIME_FUNC(func, res, name) \
+    do { \
+        auto &t = res->timer_map.get_timer(name); \
+        t.start(); \
+        func; \
+        t.stop(); \
+    } while (0)
+
 namespace timer {
 
 struct timer_t {
@@ -52,6 +63,17 @@ struct timer_t {
     int times_;
     unsigned long long ticks_[n_modes], ticks_start_;
     double ms_[n_modes], ms_start_;
+
+    // Section with timer fixed timer names for ease of use
+    static const std::string perf_timer;
+};
+
+struct timer_map_t {
+    timer_t &get_timer(const std::string &name);
+
+    timer_t &perf_timer();
+
+    std::map<std::string, timer_t> timers;
 };
 
 } // namespace timer
