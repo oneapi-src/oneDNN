@@ -1363,7 +1363,8 @@ TEST(op_schema_test, PowBackpropExponent) {
     const size_t expected_in_size = 4;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data;
+    // clang3 requires user-provided default constructor
+    const std::map<std::string, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2821,7 +2822,8 @@ TEST(op_schema_test, Index) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data;
+    // clang3 requires user-provided default constructor
+    const std::map<std::string, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
