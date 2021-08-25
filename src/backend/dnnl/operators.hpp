@@ -21,6 +21,7 @@
 #include "operators/binary.hpp"
 #include "operators/concat.hpp"
 #include "operators/conv.hpp"
+#include "operators/convtranspose.hpp"
 #include "operators/eltwise.hpp"
 #include "operators/inner_product.hpp"
 #include "operators/layernorm.hpp"

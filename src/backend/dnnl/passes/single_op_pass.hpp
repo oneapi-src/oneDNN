@@ -59,6 +59,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         conv_data_bw_pass, dnnl, ConvolutionBackpropData, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         conv_filter_bw_pass, dnnl, ConvolutionBackpropFilters, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(convtranspose_pass, dnnl, ConvTranspose, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(matmul_pass, dnnl, MatMul, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(max_pool_pass, dnnl, MaxPool, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(max_pool_bw_pass, dnnl, MaxPoolBackprop, 8.f)

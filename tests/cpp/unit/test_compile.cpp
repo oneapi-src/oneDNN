@@ -160,6 +160,41 @@ TEST(operator_compile, convolution_backward_weights_compile_fp32) {
     ASSERT_EQ(outputs[1].layout_type, impl::layout_type::opaque);
 }
 
+TEST(operator_compile, convtranspose_compile_fp32) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &engine = get_engine();
+
+    impl::op_t convtranspose_op(impl::op_kind::ConvTranspose);
+    convtranspose_op.set_attr<dims>("strides", dims {1, 1});
+    convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
+    convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
+    convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
+    convtranspose_op.set_attr<int64_t>("groups", 0);
+    convtranspose_op.set_attr<std::string>("data_format", "NCX");
+    convtranspose_op.set_attr<std::string>("filter_format", "OIX");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src = utils::logical_tensor_init(
+            0, {8, 3, 222, 222}, impl::data_type::f32);
+    impl::logical_tensor_t weight = utils::logical_tensor_init(
+            1, {16, 3, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst = utils::logical_tensor_init(
+            2, {8, 16, 224, 224}, impl::data_type::f32, impl::layout_type::any);
+
+    std::vector<impl::logical_tensor_t> inputs {src, weight};
+    std::vector<impl::logical_tensor_t> outputs {dst};
+
+    size_t operator_num = get_dnnl_kernel_registry().get_register_kernels_num();
+    ASSERT_NE(operator_num, 0);
+
+    auto kernel = get_dnnl_kernel_registry().create_kernel(convtranspose_op);
+    ASSERT_TRUE(kernel);
+
+    kernel->compile(&convtranspose_op, &engine, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+}
+
 void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
         impl::dim_t iw, impl::tensor_t *src, impl::tensor_t *dst,
         impl::tensor_t *scale, impl::tensor_t *shift,
@@ -3150,6 +3185,183 @@ TEST(operator_compile, Convolution_NCX_OIX) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
+
+TEST(operator_compile, Convtranspose_with_groups) {
+    using dims = impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src {1.0, 2.0, 3.0, 4.0};
+    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+            0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+    test::vector<float> ref_dst {1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0};
+    test::vector<float> dst(ref_dst.size(), 0);
+    impl::op_t convtranspose_op(impl::op_kind::ConvTranspose);
+    convtranspose_op.set_attr<dims>("strides", dims {1, 1});
+    convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
+    convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
+    convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
+    convtranspose_op.set_attr<int64_t>("groups", 2);
+    convtranspose_op.set_attr<std::string>("data_format", "NCX");
+    convtranspose_op.set_attr<std::string>("filter_format", "OIX");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 4, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt
+            = utils::logical_tensor_init(1, {4, 4, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(2, {1, 8, 1, 1}, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto convtranspose_kernel = op_factory.create_kernel(convtranspose_op);
+
+    convtranspose_kernel->compile(&convtranspose_op, &eng, inputs, outputs);
+    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t weight_ts(weight_lt, weight.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    convtranspose_kernel->execute(
+            &convtranspose_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+struct dnnl_graph_test_convtranspose_params {
+    std::string data_format;
+    std::string filter_format;
+    std::vector<int64_t> src_shape;
+    std::vector<int64_t> weight_shape;
+    std::vector<int64_t> dst_shape;
+    impl::dnnl_impl::dims strides;
+    impl::dnnl_impl::dims dilations;
+    impl::dnnl_impl::dims pads_begin;
+    impl::dnnl_impl::dims pads_end;
+    test::vector<float> src;
+    test::vector<float> weight;
+    test::vector<float> ref_dst;
+};
+
+class test_convtranspose_compile
+    : public ::testing::TestWithParam<dnnl_graph_test_convtranspose_params> {
+public:
+    void TestConvtranspose() {
+        using dims = impl::dnnl_impl::dims;
+
+        auto params = ::testing::TestWithParam<
+                dnnl_graph_test_convtranspose_params>::GetParam();
+
+        // default engine kind is cpu.
+        impl::engine_t &eng = get_engine();
+        test::vector<float> dst(params.ref_dst.size(), 0.0);
+        impl::op_t convtranspose_op(impl::op_kind::ConvTranspose);
+        convtranspose_op.set_attr<dims>("strides", params.strides);
+        convtranspose_op.set_attr<dims>("dilations", params.dilations);
+        convtranspose_op.set_attr<dims>("pads_begin", params.pads_begin);
+        convtranspose_op.set_attr<dims>("pads_end", params.pads_end);
+        convtranspose_op.set_attr<int64_t>("groups", 0);
+        convtranspose_op.set_attr<std::string>(
+                "data_format", params.data_format);
+        convtranspose_op.set_attr<std::string>(
+                "filter_format", params.filter_format);
+
+        // prepare logical tensor
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, params.src_shape, impl::data_type::f32);
+        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, params.weight_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                2, params.dst_shape, impl::data_type::f32);
+
+        std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
+        std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+        auto &op_factory = get_dnnl_kernel_registry();
+        auto convtranspose_kernel = op_factory.create_kernel(convtranspose_op);
+
+        convtranspose_kernel->compile(&convtranspose_op, &eng, inputs, outputs);
+        ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+
+        impl::tensor_t src_ts(src_lt, params.src.data());
+        impl::tensor_t weight_ts(weight_lt, params.weight.data());
+        impl::tensor_t dst_ts(dst_lt, dst.data());
+
+        impl::stream_t &strm = get_stream();
+        convtranspose_kernel->execute(
+                &convtranspose_op, &strm, {src_ts, weight_ts}, {dst_ts});
+        strm.wait();
+        for (size_t i = 0; i < dst.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst[i], params.ref_dst[i]);
+        }
+    }
+};
+
+TEST_P(test_convtranspose_compile, TestConvtranspose_compile) {
+    TestConvtranspose();
+}
+
+INSTANTIATE_TEST_SUITE_P(TestConvtranspose_compile, test_convtranspose_compile,
+        ::testing::Values(
+                dnnl_graph_test_convtranspose_params {"NXC", "OIX",
+                        {1, 2, 2, 1}, {1, 1, 3, 3}, {1, 4, 4, 1}, {1, 1},
+                        {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
+                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                dnnl_graph_test_convtranspose_params {"NCX", "OIX",
+                        {1, 1, 2, 2}, {1, 1, 3, 3}, {1, 1, 4, 4}, {1, 1},
+                        {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
+                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                dnnl_graph_test_convtranspose_params {"NXC", "XIO",
+                        {1, 2, 2, 1}, {3, 3, 1, 1}, {1, 4, 4, 1}, {1, 1},
+                        {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
+                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                dnnl_graph_test_convtranspose_params {"NCX", "XIO",
+                        {1, 1, 2, 2}, {3, 3, 1, 1}, {1, 1, 4, 4}, {1, 1},
+                        {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
+                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                dnnl_graph_test_convtranspose_params {"NXC", "OIX",
+                        {1, 1, 2, 2, 1}, {1, 1, 1, 3, 3}, {1, 1, 4, 4, 1},
+                        {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
+                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                dnnl_graph_test_convtranspose_params {"NCX", "OIX",
+                        {1, 1, 1, 2, 2}, {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4},
+                        {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
+                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                dnnl_graph_test_convtranspose_params {"NXC", "XIO",
+                        {1, 1, 2, 2, 1}, {1, 3, 3, 1, 1}, {1, 1, 4, 4, 1},
+                        {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
+                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                dnnl_graph_test_convtranspose_params {"NCX", "XIO",
+                        {1, 1, 1, 2, 2}, {1, 3, 3, 1, 1}, {1, 1, 1, 4, 4},
+                        {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
+                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}}));
 
 TEST(operator_compile, Convolution3D_NCX_OIX) {
     using dims = std::vector<int64_t>;

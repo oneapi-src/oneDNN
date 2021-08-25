@@ -115,6 +115,9 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(
             op_kind::conv_bwd_f_biasadd_bwd, convolution_backward_weights)
 
+    // convtranspose related operators
+    DNNL_REGISTER_KERNEL(impl::op_kind::ConvTranspose, convtranspose_forward)
+
     // bn related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormInference,
             batch_normalization_forward_inference)

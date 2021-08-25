@@ -277,6 +277,14 @@ memory::desc permute_OIX2XIO(const memory::desc &adesc) {
     return adesc.permute_axes(axes);
 }
 
+memory::desc transpose(const memory::desc &adesc, dim dim0, dim dim1) {
+    std::vector<int> axes(static_cast<std::size_t>(adesc.dims().size()));
+    std::iota(axes.begin(), axes.end(), 0);
+    axes[static_cast<std::size_t>(dim0)] = dim1;
+    axes[static_cast<std::size_t>(dim1)] = dim0;
+    return adesc.permute_axes(axes);
+}
+
 memory::desc to_grouped(const memory::desc &adesc, dim groups) {
     auto grouped_shape = group_dims(adesc.dims(), groups);
     return adesc.reshape(grouped_shape);
