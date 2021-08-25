@@ -417,7 +417,7 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
 
     need_postwork = jcp.with_bias || jcp.with_eltwise || jcp.with_binary
             || (one_of(src_type, u8, s8) && wei_type == s8) // oscales needed
-            || (jcp.dst_dt != jcp.acc_dt) || jcp.with_sum;
+            || (jcp.dst_dt != jcp.acc_dt) || jcp.with_sum || jcp.use_M_mask;
 
     // ---- Initialize arrays ---------------------
     brg_kernels_.resize(_pd->brgs_sz_);
