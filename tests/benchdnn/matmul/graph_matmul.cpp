@@ -46,6 +46,27 @@ matmul_graph_prb_t::spec_t::spec_t(const ::matmul::prb_t *prb) noexcept {
     raw_dst_tag = prb->stag;
 }
 
+void check_known_skipped_case_graph(
+        const ::matmul::prb_t *prb, res_t *res) noexcept {
+    ::matmul::check_known_skipped_case(prb, res);
+    if (res->state == SKIPPED) return;
+
+    for (const auto &po : prb->attr.post_ops.entry) {
+        if (po.is_eltwise_kind()) {
+            // for swish, alpha is always set to 1.0 in the oneDNN graph
+            // it's because swish is represented as Multiply+Sigmoid
+            // and Sigmoid don't have either alpha or beta
+            const auto is_swish = po.kind == attr_t::post_ops_t::SWISH;
+            const auto alpha_differs_from_one
+                    = std::fabs(1.0 - po.eltwise.alpha) > 1.0e-05;
+            if (is_swish && alpha_differs_from_one) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
+            }
+        }
+    }
+}
+
 fill_status_t matmul_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
@@ -196,7 +217,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    ::matmul::check_known_skipped_case(prb, res);
+    check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
     matmul_graph_prb_t graph_prb(prb);

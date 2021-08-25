@@ -1,0 +1,47 @@
+# main op
+--reset
+--cfg=bf16bf16bf16
+384x4096:4096x1024:384x1024
+8x384x4096:1x4096x1024:8x384x1024
+8x16x384x64:8x16x64x384:8x16x384x384
+
+# post bias
+--reset
+--cfg=bf16bf16bf16
+--bia_dt=bf16
+384x4096:4096x1024:384x1024
+
+# post bias + swish/relu6
+--reset
+--cfg=bf16bf16bf16
+--bia_dt=bf16
+--attr-post-ops=swish:1,clip:0:6
+384x4096:4096x1024:384x1024
+
+# post eltwise (with and without post bias)
+--reset
+--cfg=bf16bf16bf16
+--bia_dt=undef,bf16
+--attr-post-ops=elu,relu,clip:-1:1,logistic
+# gelu_erf <- disabled due to accuracy issue
+384x4096:4096x1024:384x1024
+
+# post binary-add
+--reset
+--cfg=bf16bf16bf16
+--attr-post-ops=add:bf16:common,add:bf16:per_oc
+384x4096:4096x1024:384x1024
+
+# post sum (with and without eltwise)
+--reset
+--cfg=bf16bf16bf16
+--attr-post-ops=sum,sum+relu,sum+logistic
+# sum+gelu_erf <- disabled due to accuracy issue
+384x4096:4096x1024:384x1024
+
+# post bias + sum (with and without eltwise)
+--reset
+--cfg=bf16bf16bf16
+--bia_dt=bf16
+--attr-post-ops=sum+relu,sum
+384x4096:4096x1024:384x1024

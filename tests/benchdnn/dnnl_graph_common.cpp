@@ -180,7 +180,7 @@ std::map<std::string, float> convert_eltw_entry(
 bool should_handle_swish(graph_prb_t &p, const dnnl_alg_kind_t kind) noexcept {
     using op = dnnl::graph::op;
     static const std::vector<op::kind> possible_base_ops
-            = {op::kind::Convolution};
+            = {op::kind::Convolution, op::kind::MatMul};
 
     const bool valid_base_op
             = std::find(possible_base_ops.cbegin(), possible_base_ops.cend(),
