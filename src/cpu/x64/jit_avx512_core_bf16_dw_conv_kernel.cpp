@@ -227,8 +227,9 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
                                 vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
                         rhs_arg_params_tail.vmm_idx_to_oc_elem_off_val.emplace(
                                 vmm_idx, ch * jcp.ch_block);
-                        rhs_arg_params_tail.vmm_idx_to_oc_off_oprnd.emplace(
-                                vmm_idx, oc_off_oprnd);
+                        if (dst_layout_nxc)
+                            rhs_arg_params_tail.vmm_idx_to_oc_off_oprnd.emplace(
+                                    vmm_idx, oc_off_oprnd);
                         rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
                                 vmm_idx, aux_output_l_off);
                         rhs_arg_params_tail.vmm_idx_to_out_off_oprnd.emplace(
@@ -239,12 +240,19 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
             rhs_arg_params = rhs_arg_params_tail;
             rhs_arg_params.vmm_tail_idx_.clear();
 
-            const injector_utils::register_preserve_guard_t register_guard(
-                    this, {oc_off_oprnd, out_off_oprnd});
-            mov(out_off_oprnd, reg_output);
-            sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
-            shr(out_off_oprnd, std::log2(types::data_type_size(jcp.dst_dt)));
-
+            const injector_utils::conditional_register_preserve_guard_t
+                    cond_reg_guard_no_bcast(
+                            jcp.with_binary_no_bcast, this, {out_off_oprnd});
+            if (jcp.with_binary_no_bcast) {
+                mov(out_off_oprnd, reg_output);
+                sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
+                shr(out_off_oprnd,
+                        std::log2(types::data_type_size(jcp.dst_dt)));
+            }
+            const injector_utils::conditional_register_preserve_guard_t
+                    cond_reg_guard_per_oc(
+                            jcp.with_binary_per_oc_bcast && dst_layout_nxc,
+                            this, {oc_off_oprnd});
             if (jcp.with_binary_per_oc_bcast && dst_layout_nxc)
                 sub(oc_off_oprnd, aux_reg_ch_blocks);
 
