@@ -49,8 +49,10 @@ struct layout_desc_t {
 };
 
 status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
-        layout_desc_t &ld, const dims_t &blocks, const dims_t &ext_padding,
+        layout_desc_t &ld, const dims_t &blocks, const dims_t &external_padding,
         const dims_t &tails) {
+    static constexpr bool it_is_blk = true;
+
     const auto md = memory_desc_wrapper(md_);
 
     if (!md.is_blocking_desc()) return invalid_arguments;
@@ -79,14 +81,21 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
             for (int iblk = bd.inner_nblks - 1; iblk >= 0; --iblk) {
                 if (bd.inner_idxs[iblk] == d) {
                     const int inner_tail = tail % bd.inner_blks[iblk];
-                    add_dim(d, bd.inner_blks[iblk], inner_tail, true, stride);
+                    add_dim(d, bd.inner_blks[iblk], inner_tail, it_is_blk,
+                            stride);
                     tail = utils::div_up(tail, bd.inner_blks[iblk]);
                 }
                 stride *= bd.inner_blks[iblk];
             }
         }
-        add_dim(d, (md.padded_dims()[d] + ext_padding[d]) / blocks[d], 0, false,
-                bd.strides[d]);
+        const int dim_with_external_padding
+                = (md.padded_dims()[d] + external_padding[d]) / blocks[d];
+        const int padded_dim = md.padded_dims()[d] / blocks[d];
+        const int tail = dim_with_external_padding != padded_dim
+                ? dim_with_external_padding
+                        - (dim_with_external_padding - padded_dim)
+                : 0;
+        add_dim(d, dim_with_external_padding, tail, !it_is_blk, bd.strides[d]);
 
         // TODO: NOW: revisit, do we need a reverse?
         // TODO: NOW: consider using strides instead of block sizes in md
@@ -124,9 +133,6 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             && check_post_ops(attr);
     if (!ok) return unimplemented;
 
-    /* padding_dim consistency check
-     * only supports inconsitent padding for dst
-     * TODO: Add inconsistent padding support for src */
     bool is_tail_present = false;
     dims_t iblocks, oblocks, i_tails, o_tails, i_paddings, o_paddings;
     im_d.compute_blocks(iblocks);
@@ -142,19 +148,34 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
         const int i_tail = i_dim % iblocks[d];
         const int o_tail = o_dim % oblocks[d];
 
-        const bool are_input_and_output_dim_consistent
-                = i_dim == o_dim && i_tail == 0 && o_tail == 0;
-        const bool is_tail_acceptable = i_tail == 0;
-        if (!are_input_and_output_dim_consistent && !is_tail_acceptable)
-            return status::unimplemented;
-
         if (o_tail > 0) {
             is_tail_present = true;
             o_tails[d] = o_tail;
             o_paddings[d] = oblocks[d] - o_tail;
         }
+
+        if (i_tail > 0) {
+            is_tail_present = true;
+            i_tails[d] = i_tail;
+            i_paddings[d] = iblocks[d] - i_tail;
+        }
     }
 
+    // To compute input layout description we need to pass output paddings
+    // which will be used to compute input dims rounded up to multiple of
+    // output dims. Analogous applies to output layout description.
+    // This is demanded by the algorithm of nodes creation.
+    // Example:
+    // input:
+    //  format: abc
+    //  size: 77, 15, 3
+    //  o_padding: 3, 17, 0
+    //  returns ild: 80, 32, 3
+    // output:
+    //  format: ABc16b16a2b
+    //  size: 77, 15, 3
+    //  i_padding: 0, 0, 0
+    //  returns old: 5, 16, 1, 16, 2, 3
     layout_desc_t ild, old;
     CHECK(cvt_mem_desc_to_layout_desc(imd, ild, iblocks, o_paddings, i_tails));
     CHECK(cvt_mem_desc_to_layout_desc(omd, old, oblocks, i_paddings, o_tails));
@@ -191,7 +212,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
                   ptrdiff_t last_stride = 1;
                   for (int d = old.ndims - 1; d >= 0; --d) {
                       assert((d == 0 || old.id[d - 1] <= old.id[d])
-                    && "logical dimensions should be in ascending order");
+                                    && "logical dimensions should be in ascending order");
                       if (mask & (1 << old.id[d])) {
                           strides[d] = last_stride;
                           last_stride *= old.dims[d];
@@ -230,8 +251,9 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
         if (ild.dims[i_pos] == old.dims[o_pos]) {
             p.nodes[ndims].n = ild.dims[i_pos];
             p.nodes[ndims].dim_id = old.id[o_pos];
-            p.nodes[ndims].is_blk = old.is_blk[o_pos];
             p.nodes[ndims].tail_size = old.tails[o_pos];
+            p.nodes[ndims].is_zero_pad_needed
+                    = old.is_blk[o_pos] && old.tails[o_pos] > 0;
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos];
             p.nodes[ndims].ss = ss[o_pos];
@@ -251,8 +273,9 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
             p.nodes[ndims].n = ild.dims[i_pos];
             p.nodes[ndims].dim_id = old.id[o_pos];
-            p.nodes[ndims].is_blk = old.is_blk[o_pos];
             p.nodes[ndims].tail_size = tail_of_upper_dim;
+            p.nodes[ndims].is_zero_pad_needed
+                    = old.is_blk[o_pos] && tail_of_upper_dim > 0;
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos] * factor;
             p.nodes[ndims].ss = ss[o_pos] * factor;
@@ -261,14 +284,14 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             ++i_pos;
             old.dims[o_pos] = factor;
             old.tails[o_pos] = tail_of_lower_dim;
-            old.is_blk[o_pos] = true;
         } else if (ild.dims[i_pos] > old.dims[o_pos]) {
             assert(ild.dims[i_pos] % old.dims[o_pos] == 0);
             int factor = ild.dims[i_pos] / old.dims[o_pos];
             p.nodes[ndims].n = old.dims[o_pos];
             p.nodes[ndims].dim_id = old.id[o_pos];
-            p.nodes[ndims].is_blk = old.is_blk[o_pos];
             p.nodes[ndims].tail_size = old.tails[o_pos];
+            p.nodes[ndims].is_zero_pad_needed
+                    = old.is_blk[o_pos] && old.tails[o_pos] > 0;
             p.nodes[ndims].is = ild.strides[i_pos] * factor;
             p.nodes[ndims].os = old.strides[o_pos];
             p.nodes[ndims].ss = ss[o_pos];
@@ -308,14 +331,12 @@ void prb_node_dependency(prb_t &prb) {
     for (int i = 0; i < prb.ndims; i++) {
         tr::node_t &node = prb.nodes[i];
         node.parent_node_id = -1;
-        if (node.is_blk) {
-            for (int j = i + 1; j < prb.ndims; j++) {
-                tr::node_t &potential_parent_node = prb.nodes[j];
-                if (potential_parent_node.dim_id != -1
-                        && potential_parent_node.dim_id == node.dim_id) {
-                    node.parent_node_id = j;
-                    break;
-                }
+        for (int j = i + 1; j < prb.ndims; j++) {
+            const tr::node_t &potential_parent_node = prb.nodes[j];
+            if (potential_parent_node.dim_id != -1
+                    && potential_parent_node.dim_id == node.dim_id) {
+                node.parent_node_id = j;
+                break;
             }
         }
     }
@@ -332,7 +353,7 @@ void prb_simplify(prb_t &p) {
     const auto skip_dim_combining = [&p](const int node_id) -> bool {
         return (p.is_tail_in_one_of_child_nodes(node_id)
                        && p.nodes[node_id].n > 1)
-                || (p.nodes[node_id].is_blk && p.nodes[node_id].tail_size > 0);
+                || p.nodes[node_id].tail_size > 0;
     };
 
     if (p.is_tail_present) prb_node_dependency(p);
@@ -362,7 +383,7 @@ void prb_simplify(prb_t &p) {
         if (fold) {
             this_node.n *= next_node.n;
             this_node.dim_id = -1;
-            this_node.is_blk = false;
+            this_node.is_zero_pad_needed = false;
             for (int j = d + 2; j < p.ndims; ++j)
                 p.nodes[j - 1] = p.nodes[j];
             --p.ndims;
@@ -380,8 +401,6 @@ void prb_node_split(prb_t &p, int dim, size_t n1) {
     assert(dim < p.ndims);
     assert(p.ndims < max_ndims);
     assert(p.nodes[dim].n % n1 == 0);
-    assert(IMPLICATION(p.nodes[dim].tail_size > 0,
-            p.nodes[dim].tail_size > p.nodes[dim].n - n1));
 
     p.ndims += 1;
     p.full_ndims += 1;
@@ -398,8 +417,10 @@ void prb_node_split(prb_t &p, int dim, size_t n1) {
     p.nodes[dim].tail_size = is_tail ? tail_of_lower_dim : 0;
     p.nodes[dim + 1].tail_size = is_tail ? tail_of_upper_dim : 0;
 
-    p.nodes[dim + 1].is_blk = p.nodes[dim].is_blk;
-    p.nodes[dim].is_blk = true;
+    p.nodes[dim + 1].is_zero_pad_needed
+            = p.nodes[dim].is_zero_pad_needed && p.nodes[dim + 1].tail_size > 0;
+    p.nodes[dim].is_zero_pad_needed
+            = p.nodes[dim].is_zero_pad_needed && p.nodes[dim].tail_size > 0;
 
     p.nodes[dim + 1].dim_id = p.nodes[dim].dim_id;
     p.nodes[dim + 1].n = p.nodes[dim].n / n1;
@@ -446,8 +467,9 @@ void prb_dump(const prb_t &p) {
     for (int d = 0; d < p.ndims; ++d)
         printf("[%zu:%zu:%d:%d:%s:%td:%td:%td:%td]", p.nodes[d].n,
                 p.nodes[d].tail_size, p.nodes[d].dim_id,
-                p.nodes[d].parent_node_id, p.nodes[d].is_blk ? "true" : "false",
-                p.nodes[d].is, p.nodes[d].os, p.nodes[d].ss, p.nodes[d].cs);
+                p.nodes[d].parent_node_id,
+                p.nodes[d].is_zero_pad_needed ? "true" : "false", p.nodes[d].is,
+                p.nodes[d].os, p.nodes[d].ss, p.nodes[d].cs);
     printf(" off:%zu:%zu\n", p.ioff, p.ooff);
 }
 

@@ -38,7 +38,7 @@ struct node_t {
     size_t tail_size = 0;
     int dim_id = -1;
     int parent_node_id = -1;
-    bool is_blk = false;
+    bool is_zero_pad_needed = false;
     ptrdiff_t is = 0; // input stride
     ptrdiff_t os = 0; // output stride
     ptrdiff_t ss = 0; // scale stride
@@ -140,7 +140,8 @@ struct call_param_t {
     int src_zp = 0;
     int dst_zp = 0;
     int64_t curr_data_chunks[DNNL_MAX_NDIMS] = {-1};
-    int64_t zeroing_data = static_cast<int64_t>(false);
+    int8_t zeroing_data = static_cast<int64_t>(false);
+    int8_t skip_kernel_execution = static_cast<int64_t>(false);
     int32_t *compensation_scratch = nullptr;
 };
 

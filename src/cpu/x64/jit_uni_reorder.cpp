@@ -96,9 +96,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     };
 
     struct simple_impl_desc_t {
-        int ndims_full_unroll;
-        int len_last_dim_unroll;
-        int len_unroll;
+        int ndims_full_unroll = 0;
+        int len_last_dim_unroll = 0;
+        int tail_len_unroll = 0;
+        int len_unroll = 0;
     };
 
     static bool simple_impl_desc_init(
@@ -107,6 +108,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         int ndims_full_unroll = 0;
         int len_last_dim_unroll = 1;
+        int tail_len_unroll = 0;
         int len_unroll = 1;
 
         // It is responsible for finding as many values
@@ -118,6 +120,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         if (prb.is_tail_present) {
             ndims_full_unroll = 1;
             len_unroll = prb.nodes[0].n;
+            tail_len_unroll = prb.nodes[0].is_zero_pad_needed
+                    ? 0
+                    : static_cast<int>(prb.nodes[0].tail_size);
         } else {
             for (int d = 0; d < ndims; ++d) {
                 const auto &node = prb.nodes[d];
@@ -139,6 +144,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         if (desc) {
             desc->ndims_full_unroll = ndims_full_unroll;
             desc->len_last_dim_unroll = len_last_dim_unroll;
+            desc->tail_len_unroll = tail_len_unroll;
             desc->len_unroll = len_unroll;
         }
 
@@ -511,7 +517,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
     void process_unroll_generic_step(int reg_unroll, const int *i_off,
             const int *o_off, const int *s_off, const int *c_off,
-            const int *zero_padding, const bool h_padded) {
+            const int *zero_padding, const bool tail_processing) {
         using namespace data_type;
 
         const auto cvt2ps
@@ -655,7 +661,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 = (utils::one_of(prb_.otype, u8, s8, s32) && interim_f32);
 
         std::vector<int> store_masks;
-        if (h_padded) {
+        if (tail_processing) {
             for (int ur = 0; ur < reg_unroll; ur += load_tail_step) {
                 uni_vpxor(Xmm(ur), Xmm(ur), Xmm(ur));
                 store_masks.push_back(0);
@@ -774,7 +780,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                             scale_load_type = scale_load_type_t::load;
 
                     if (scale_load_type == scale_load_type_t::bcast
-                            && !h_padded) {
+                            && !tail_processing) {
                         uni_vbroadcastss(xmm_scale_, s_addr(s_off[ur]));
                         uni_vmulps(Xmm(ur), Xmm(ur), xmm_scale_);
                         continue;
@@ -786,7 +792,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                             scale_load_type = scale_load_type_t::gather;
 
                     if (scale_load_type == scale_load_type_t::load
-                            && !h_padded) {
+                            && !tail_processing) {
                         uni_vmovups(xmm_scale_, s_addr(s_off[ur]));
                         uni_vmulps(Xmm(ur), Xmm(ur), xmm_scale_);
                         continue;
@@ -795,7 +801,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     // load doesn't work as well
                     // so gather the scale factors one by one
                     for (int r = ur; r < ur + ur_step; ++r) {
-                        if (zero_padding[r] == 0 || !h_padded)
+                        if (zero_padding[r] == 0 || !tail_processing)
                             uni_vpinsrd(xmm_scale_, xmm_scale_,
                                     s_addr(s_off[r]), r - ur);
                     }
@@ -830,7 +836,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     uni_vmulss(Xmm(ur), Xmm(ur), xmm_scale_);
             } else if (prb_.scale_type == scale_type_t::MANY) {
                 for (int ur = 0; ur < reg_unroll; ur += ur_step) {
-                    if (zero_padding[ur] == 0 || !h_padded)
+                    if (zero_padding[ur] == 0 || !tail_processing)
                         uni_vmulss(Xmm(ur), Xmm(ur), s_addr(s_off[ur]));
                 }
             }
@@ -980,7 +986,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     uni_vcvttps2dq(xmm_reorder_result_dq, xmm_reorder_result);
 
                     for (int r = ur; r < ur + ur_step; ++r) {
-                        if (zero_padding[r] == 0 || !h_padded) {
+                        if (zero_padding[r] == 0 || !tail_processing) {
                             uni_vshufps(xmm_tmp_, xmm_reorder_result_dq,
                                     xmm_reorder_result_dq, r);
                             const Reg32 reg_tmp_32 = reg_tmp_.cvt32();
@@ -992,7 +998,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 }
             } else {
                 for (int ur = 0; ur < reg_unroll; ur += ur_step) {
-                    if (zero_padding[ur] == 0 || !h_padded) {
+                    if (zero_padding[ur] == 0 || !tail_processing) {
                         const auto xmm_reorder_result_dq = get_temp_xmm();
                         const auto xmm_reorder_result = Xmm(ur);
                         const auto comp_addr = c_addr(c_off[ur]);
@@ -1032,9 +1038,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 || prb_.scale_adjust != 1.f;
     }
 
-    void process_unroll_generic(const int ndims, int len, const bool h_padded) {
+    void process_unroll_generic(
+            const int ndims, int len, const bool tail_processing) {
         assert(IMPLICATION(prb_.nodes[0].tail_size > 0,
-                len == static_cast<int>(prb_.nodes[0].n)));
+                len == static_cast<int>(prb_.nodes[0].n)
+                        || len == static_cast<int>(prb_.nodes[0].tail_size)));
 
         const int blk = 8;
 
@@ -1072,24 +1080,25 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 step(off + ur, i_off[ur_p], o_off[ur_p], s_off[ur_p],
                         c_off[ur_p], i_off[ur_c], o_off[ur_c], s_off[ur_c],
                         c_off[ur_c]);
-                if (h_padded && is_tail) zero_padding[ur] = 1;
+                if (tail_processing && is_tail) zero_padding[ur] = 1;
             }
 
             process_unroll_generic_step(reg_unroll, i_off + curr_blk,
                     o_off + curr_blk, s_off + curr_blk, c_off + curr_blk,
-                    zero_padding, h_padded);
+                    zero_padding, tail_processing);
 
             curr = 1 - curr;
         }
     }
 
     void compute_ker(
-            const int ndims, const int len_unroll, const bool h_padded) {
+            const int ndims, const int len_unroll, const bool tail_processing) {
         bool optimized = false;
         optimized = optimized || process_direct_copy<avx>(ndims, len_unroll)
                 || process_direct_copy<sse41>(ndims, len_unroll)
                 || process_unroll_tr8x8(ndims, len_unroll);
-        if (!optimized) process_unroll_generic(ndims, len_unroll, h_padded);
+        if (!optimized)
+            process_unroll_generic(ndims, len_unroll, tail_processing);
     }
 
     void loop_begin(Label &l, Reg64 reg_cnt, int len) {
@@ -1140,17 +1149,20 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             sub(reg_off_out_, num_of_bytes_in_xmm * xmms_to_zeroing);
     }
 
-    void fill_zero_padding_area(int i_step, int o_step, int s_step, int c_step,
+    void finalize_tail_loop(int i_step, int o_step, int s_step, int c_step,
             const int curr_node_id) {
         const int padded_area = prb_.nodes[curr_node_id].n
                 - prb_.nodes[curr_node_id].tail_size;
-        int num_of_zero_padded_values = padded_area;
-        for (int i = curr_node_id - 1; i >= 0; i--) {
-            num_of_zero_padded_values *= prb_.nodes[i].n;
-        }
 
-        const int bytes_to_zeroing = num_of_zero_padded_values * otype_sz_;
-        zero_dst_memory(bytes_to_zeroing);
+        if (prb_.nodes[curr_node_id].is_zero_pad_needed) {
+            int num_of_zero_padded_values = padded_area;
+            for (int i = curr_node_id - 1; i >= 0; i--) {
+                num_of_zero_padded_values *= prb_.nodes[i].n;
+            }
+
+            const int bytes_to_zeroing = num_of_zero_padded_values * otype_sz_;
+            zero_dst_memory(bytes_to_zeroing);
+        }
 
         // This function is called by loop_end. At the end
         // of loop_end is section that is responsible for
@@ -1188,8 +1200,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
             cmp(reg_tmp_, with_tail_info);
             jne(if_end, T_NEAR);
-            fill_zero_padding_area(
-                    i_step, o_step, s_step, c_step, curr_node_id);
+            finalize_tail_loop(i_step, o_step, s_step, c_step, curr_node_id);
             L(if_end);
         }
 
@@ -1203,11 +1214,12 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             sub(reg_off_comp_, len * c_step * sizeof(int32_t));
     }
 
-    void compute_blk_ker(const int len_unroll) {
+    void compute_blk_ker(const simple_impl_desc_t &desc) {
 #define CURR_DATA_CHUNK(node_id) \
     ptr[abi_param1 + offsetof(call_param_t, curr_data_chunks) \
             + sizeof(int64_t) * (node_id)]
 
+        static constexpr bool with_tail_processing = true;
         Label no_last_chunk, end_label;
         int omp_ndims = prb_.full_ndims - prb_.ndims;
 
@@ -1219,18 +1231,21 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 jne(no_last_chunk, T_NEAR);
             }
 
-            compute_ker(omp_ndims, len_unroll, true);
+            const int len_unroll = desc.tail_len_unroll > 0
+                    ? desc.tail_len_unroll
+                    : desc.len_unroll;
+            compute_ker(omp_ndims, len_unroll, with_tail_processing);
             jmp(end_label, T_NEAR);
         }
 
         L(no_last_chunk);
-        compute_ker(omp_ndims, len_unroll, false);
+        compute_ker(omp_ndims, desc.len_unroll, !with_tail_processing);
         L(end_label);
 
 #undef CURR_DATA_CHUNK
     }
 
-    void create_loops(const simple_impl_desc_t &d,
+    void create_loops(const simple_impl_desc_t &desc,
             const std::array<const Reg64, 3> &reg_cnt, int jit_loop) {
 #define CURR_DATA_CHUNK(node_id) \
     ptr[abi_param1 + offsetof(call_param_t, curr_data_chunks) \
@@ -1241,8 +1256,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         if (jit_loop > 0) {
             static constexpr int empty = -1;
 
-            const int nfu = d.ndims_full_unroll;
-            const int unroll_factor = jit_loop == 1 ? d.len_last_dim_unroll : 1;
+            const int nfu = desc.ndims_full_unroll;
+            const int unroll_factor
+                    = jit_loop == 1 ? desc.len_last_dim_unroll : 1;
             const int curr_node_id = nfu + (jit_loop - 1);
             const int parent_node_id = prb_.nodes[curr_node_id].parent_node_id;
             const int tail_size = prb_.tail(curr_node_id) / unroll_factor;
@@ -1252,8 +1268,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             Label loop, if_no_tail, if_end;
 
             if (prb_.tail(curr_node_id) != 0) {
-                if (parent_node_id == empty
-                        && prb_.nodes[curr_node_id].is_blk) {
+                if (parent_node_id == empty) {
                     mov(reg_loop_cnt, tail_size);
                     // Put info that node is being processed with tail.
                     mov(reg_tmp_, with_tail_info);
@@ -1282,8 +1297,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
 
             if (prb_.is_tail_in_one_of_child_nodes(curr_node_id)) {
-                if (prb_.nodes[curr_node_id].is_blk
-                        && parent_node_id != empty) {
+                if (parent_node_id != empty) {
                     Label if_no_tail_in_child_node;
                     mov(reg_tmp_, CURR_DATA_CHUNK(parent_node_id));
                     check_if_this_is_last_chunk(reg_tmp_, parent_node_id);
@@ -1295,7 +1309,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 }
             }
 
-            create_loops(d, reg_cnt, jit_loop - 1);
+            create_loops(desc, reg_cnt, jit_loop - 1);
 
             loop_end(loop, reg_loop_cnt, node_size,
                     prb_.is(curr_node_id) * unroll_factor,
@@ -1303,7 +1317,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     prb_.ss(curr_node_id) * unroll_factor,
                     prb_.cs(curr_node_id) * unroll_factor, curr_node_id);
         } else {
-            compute_blk_ker(d.len_unroll);
+            compute_blk_ker(desc);
         }
 
 #undef CURR_DATA_CHUNK
@@ -1374,6 +1388,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         if (is_tail_in_drv_dims) {
             Label reorder_kernel;
+
+            mov(reg_tmp_, PARAM(skip_kernel_execution));
+            cmp(reg_tmp_, static_cast<int64_t>(true));
+            je(end_of_kernel, T_NEAR);
+
             mov(reg_tmp_, PARAM(zeroing_data));
             cmp(reg_tmp_, static_cast<int64_t>(false));
             je(reorder_kernel, T_NEAR);
@@ -2394,7 +2413,7 @@ void jit_uni_reorder_t::fill_curr_data_chunks(const tr::prb_t &prb,
                     : prb.nodes[curr_node_id].n;
             const int64_t data_chunk = node_size - omp_data_chunks[inner_idx];
 
-            if (prb.nodes[curr_node_id].is_blk && parent_node_id != empty) {
+            if (parent_node_id != empty) {
                 const bool is_parent_chunk_last
                         = c.curr_data_chunks[parent_node_id] == last_chunk;
                 c.curr_data_chunks[curr_node_id]
@@ -2405,6 +2424,9 @@ void jit_uni_reorder_t::fill_curr_data_chunks(const tr::prb_t &prb,
                 c.curr_data_chunks[curr_node_id] = data_chunk;
                 c.zeroing_data = static_cast<int64_t>(data_chunk <= 0);
             }
+            c.skip_kernel_execution = static_cast<int64_t>(c.zeroing_data
+                    && !prb.nodes[curr_node_id].is_zero_pad_needed);
+            if (c.zeroing_data || c.skip_kernel_execution) break;
         } else
             c.curr_data_chunks[curr_node_id] = empty;
     }
