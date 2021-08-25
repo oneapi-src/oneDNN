@@ -128,7 +128,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_gelu_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_fusion)
-        .set_priority(8.9f)
+        .set_priority(8.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
@@ -149,7 +149,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sigmoid_fusion)
-        .set_priority(9.0f)
+        .set_priority(8.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);

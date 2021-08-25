@@ -161,7 +161,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_relu_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
-        .set_priority(10.0f)
+        .set_priority(10.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *conv
@@ -353,7 +353,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_relu_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
-        .set_priority(9.9f)
+        .set_priority(10.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *conv
@@ -388,7 +388,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
-        .set_priority(9.9f)
+        .set_priority(10.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *conv
@@ -1065,7 +1065,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_relu_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_conv_bias_add_relu_fusion)
-        .set_priority(10.2f)
+        .set_priority(10.4f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
@@ -1418,7 +1418,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
-        .set_priority(9.8f)
+        .set_priority(10.1f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *conv
