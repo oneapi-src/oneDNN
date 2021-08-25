@@ -28,29 +28,13 @@ file(GLOB HEADERS_ONEAPI
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/*.hpp
     )
 
-file(GLOB SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/interface/*.[ch]pp
-    ${CMAKE_CURRENT_SOURCE_DIR}/backend/*.[ch]pp
-    ${CMAKE_CURRENT_SOURCE_DIR}/backend/dnnl/*.[ch]pp
-    ${CMAKE_CURRENT_SOURCE_DIR}/backend/dnnl/subgraph/*.[ch]pp
-    ${CMAKE_CURRENT_SOURCE_DIR}/backend/fake/*.[ch]pp
-    ${CMAKE_CURRENT_SOURCE_DIR}/utils/*.[ch]pp
-    ${CMAKE_CURRENT_SOURCE_DIR}/utils/pm/*.[ch]pp
-)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     set_source_files_properties(${SOURCES}
         PROPERTIES COMPILE_FLAGS "-prec-sqrt")
     set_source_files_properties(${SOURCES}
         PROPERTIES COMPILE_FLAGS "-prec-div")
-endif()
-
-if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel"))
-    file(GLOB FILES_REQUIRED_BIGOBJ
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/dnnl/dnnl_backend.cpp
-        )
-    set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
-        PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
 
 if(WIN32)
@@ -70,40 +54,37 @@ append(CMAKE_CXX_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")
 append(CMAKE_C_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
-add_library(${LIB_NAME}_objlib OBJECT ${SOURCES})
 
-APPLY_VERSION_DEFINITIONS(${CMAKE_CURRENT_SOURCE_DIR}/utils/verbose.cpp)
+add_subdirectory(backend)
+add_subdirectory(utils)
+add_subdirectory(interface)
+
+get_property(LIB_DEPS GLOBAL PROPERTY ${LIB_NAME}_LIB_DEPS)
+
+add_library(${LIB_NAME}_static STATIC  ${HEADERS_ROOT} ${HEADERS_ONEAPI} ${SOURCES} ${LIB_DEPS})
+add_library(${LIB_NAME} SHARED  ${HEADERS_ROOT} ${HEADERS_ONEAPI} ${SOURCES} ${LIB_DEPS})
 
 if (NOT DNNL_GRAPH_LOGGER)
     message(STATUS "DNNL Graph logger is disabled")
-    target_compile_definitions(${LIB_NAME}_objlib PRIVATE DNNL_GRAPH_DISABLE_LOGGER)
+    target_compile_definitions(${LIB_NAME}_static PRIVATE DNNL_GRAPH_DISABLE_LOGGER)
+    target_compile_definitions(${LIB_NAME} PRIVATE DNNL_GRAPH_DISABLE_LOGGER)
 endif()
 
 if(NOT DNNL_GRAPH_VERBOSE)
     message(STATUS "DNNL Graph verbose mode is disabled")
-    target_compile_definitions(${LIB_NAME}_objlib PRIVATE DNNL_GRAPH_DISABLE_VERBOSE)
+    target_compile_definitions(${LIB_NAME}_static PRIVATE DNNL_GRAPH_DISABLE_VERBOSE)
+    target_compile_definitions(${LIB_NAME} PRIVATE DNNL_GRAPH_DISABLE_VERBOSE)
 endif()
 
 if(DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE)
     message(STATUS "Compiled partition cache is enabled")
 else()
-    target_compile_definitions(${LIB_NAME}_objlib
+    target_compile_definitions(${LIB_NAME}
+        PRIVATE DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE)
+    target_compile_definitions(${LIB_NAME}_static
         PRIVATE DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE)
     message(STATUS "Compiled partition cache is disabled")
 endif()
-
-target_include_directories(${LIB_NAME}_objlib
-    PRIVATE
-    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
-    ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
-    PRIVATE
-    ${PROJECT_SOURCE_DIR}/src
-    PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
-    )
-
-add_library(${LIB_NAME}_static STATIC $<TARGET_OBJECTS:${LIB_NAME}_objlib>)
-add_library(${LIB_NAME} SHARED $<TARGET_OBJECTS:${LIB_NAME}_objlib>)
 
 set_target_properties(${LIB_NAME}_static PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}
@@ -141,6 +122,7 @@ target_link_libraries(${LIB_NAME}_static
 target_include_directories(${LIB_NAME}_static
     PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>
     $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>
     )
 
@@ -157,10 +139,12 @@ target_link_libraries(${LIB_NAME}
 target_include_directories(${LIB_NAME}
     PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>
     $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>
     )
 
 set(DNNL_GRAPH_EXPORT_NAME "${LIB_NAME}-targets")
+
 install(TARGETS ${LIB_NAME} ${LIB_NAME}_static
     EXPORT ${DNNL_GRAPH_EXPORT_NAME}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

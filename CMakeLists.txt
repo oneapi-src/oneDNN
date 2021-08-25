@@ -137,7 +137,10 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif()
 
 include("cmake/build_oneDNN.cmake")
+
 include("cmake/utils.cmake")
+
+include_directories(include)
 
 set(DNNL_GRAPH_COMMON_LINK_FLAGS)
 
