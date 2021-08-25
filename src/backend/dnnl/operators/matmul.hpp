@@ -97,8 +97,9 @@ struct matmul_op_set {
                 op_kind::matmul_bias_elu, op_kind::matmul_bias_hardtanh,
                 op_kind::matmul_bias_relu6, op_kind::matmul_bias_relu,
                 op_kind::matmul_bias_gelu, op_kind::matmul_bias_sigmoid,
-                op_kind::matmul_bias_add_relu, op_kind::matmul_add_gelu,
-                op_kind::matmul_add_relu, op_kind::matmul_add_sigmoid};
+                op_kind::matmul_bias_swish, op_kind::matmul_bias_add_relu,
+                op_kind::matmul_add_gelu, op_kind::matmul_add_relu,
+                op_kind::matmul_add_sigmoid};
         return with_eltwise_set.count(kind);
     }
 };
@@ -196,6 +197,10 @@ public:
             transpose_a_ = op->get_attr<bool>("transpose_a");
         if (op->has_attr("transpose_b"))
             transpose_b_ = op->get_attr<bool>("transpose_b");
+
+        // special handle for swish, spec doesn't support setting attr of alpha
+        // in sigmoid op (swish op is formed by sigmoid and multiply ops)
+        if (op->get_kind() == op_kind::matmul_bias_swish) { alpha_ = 1.f; }
 
         if (transpose_a_ && src.dims().size() > 1) {
             const logical_tensor_wrapper src_lt_wrapper(
@@ -555,6 +560,8 @@ private:
             case op_kind::matmul_gelu:
             case op_kind::matmul_bias_gelu:
             case op_kind::matmul_add_gelu: return (algorithm::eltwise_gelu_erf);
+
+            case op_kind::matmul_bias_swish: return (algorithm::eltwise_swish);
 
             default:
                 BACKEND_DNNL_ENFORCE(

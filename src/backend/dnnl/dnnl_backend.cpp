@@ -177,6 +177,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::matmul_bias_relu6, matmul_forward)
     DNNL_REGISTER_KERNEL(op_kind::matmul_bias_elu, matmul_forward)
     DNNL_REGISTER_KERNEL(op_kind::matmul_bias_sigmoid, matmul_forward)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_swish, matmul_forward)
     DNNL_REGISTER_KERNEL(op_kind::matmul_bias_hardtanh, matmul_forward)
     DNNL_REGISTER_KERNEL(op_kind::matmul_bias_add, matmul_forward)
     DNNL_REGISTER_KERNEL(op_kind::matmul_bias_add_relu, matmul_forward)
