@@ -251,9 +251,10 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
         binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
                 binary_po_dt.back(), binary_po_fp.back());
     }
+    dnnl::graph::engine &eng = get_test_engine();
 
-    dnnl::graph::tensor src_tensor(ins[0], static_cast<void *>(src_dt));
-    dnnl::graph::tensor dst_tensor(outs[0], static_cast<void *>(dst_dt));
+    dnnl::graph::tensor src_tensor(ins[0], eng, static_cast<void *>(src_dt));
+    dnnl::graph::tensor dst_tensor(outs[0], eng, static_cast<void *>(dst_dt));
     dnnl::graph::tensor bin_tensor;
 
     std::vector<dnnl::graph::tensor> tensors_in {src_tensor};
@@ -261,7 +262,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
 
     if (graph_prb.has_post_bin()) {
         bin_tensor = dnnl::graph::tensor(
-                ins.back(), static_cast<void *>(binary_po_dt.back()));
+                ins.back(), eng, static_cast<void *>(binary_po_dt.back()));
         tensors_in.emplace_back(bin_tensor);
     }
 

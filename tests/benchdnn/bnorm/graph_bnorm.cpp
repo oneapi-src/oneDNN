@@ -188,12 +188,14 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     SAFE(var_dt.reorder(var_fp), WARN);
 
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
-    tensors_in.emplace_back(ins[0], static_cast<void *>(src_dt));
-    tensors_in.emplace_back(ins[1], static_cast<void *>(scale_dt));
-    tensors_in.emplace_back(ins[2], static_cast<void *>(shift_dt));
-    tensors_in.emplace_back(ins[3], static_cast<void *>(mean_dt));
-    tensors_in.emplace_back(ins[4], static_cast<void *>(var_dt));
-    tensors_out.emplace_back(outs[0], static_cast<void *>(dst_dt));
+    dnnl::graph::engine &eng = get_test_engine();
+
+    tensors_in.emplace_back(ins[0], eng, static_cast<void *>(src_dt));
+    tensors_in.emplace_back(ins[1], eng, static_cast<void *>(scale_dt));
+    tensors_in.emplace_back(ins[2], eng, static_cast<void *>(shift_dt));
+    tensors_in.emplace_back(ins[3], eng, static_cast<void *>(mean_dt));
+    tensors_in.emplace_back(ins[4], eng, static_cast<void *>(var_dt));
+    tensors_out.emplace_back(outs[0], eng, static_cast<void *>(dst_dt));
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
     if (is_bench_mode(CORR)) {

@@ -161,16 +161,17 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
         cmp.set_driver_check_function(eltwise_add_check);
     }
 
+    dnnl::graph::engine &eng = get_test_engine();
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
     tensors_in.emplace_back(
-            dnnl::graph::tensor(ins[0], static_cast<void *>(src_dt)));
+            dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
     tensors_out.emplace_back(
-            dnnl::graph::tensor(outs[0], static_cast<void *>(dst_dt)));
+            dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
 
     if (graph_prb.has_post_bin()) {
         tensors_in.emplace_back(dnnl::graph::tensor(
-                ins.back(), static_cast<void *>(binary_po_dt.back())));
+                ins.back(), eng, static_cast<void *>(binary_po_dt.back())));
     }
 
     if (prb->dir & FLAG_FWD) {

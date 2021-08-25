@@ -157,9 +157,11 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
 
     SAFE(::deconv::transpose_data_wei(prb, wei_fp, wei_tr_fp), WARN);
 
-    dnnl::graph::tensor src_tensor(ins[0], static_cast<void *>(src_dt));
-    dnnl::graph::tensor wei_tensor(ins[1], static_cast<void *>(wei_dt));
-    dnnl::graph::tensor dst_tensor(outs[0], static_cast<void *>(dst_dt));
+    dnnl::graph::engine &eng = get_test_engine();
+
+    dnnl::graph::tensor src_tensor(ins[0], eng, static_cast<void *>(src_dt));
+    dnnl::graph::tensor wei_tensor(ins[1], eng, static_cast<void *>(wei_dt));
+    dnnl::graph::tensor dst_tensor(outs[0], eng, static_cast<void *>(dst_dt));
 
     std::vector<dnnl::graph::tensor> tensors_in {src_tensor, wei_tensor};
     std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};

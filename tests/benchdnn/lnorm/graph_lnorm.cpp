@@ -244,37 +244,42 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
+    dnnl::graph::engine &eng = get_test_engine();
+
     tensors_in.emplace_back(
-            dnnl::graph::tensor(ins[0], static_cast<void *>(src_dt)));
+            dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
     tensors_out.emplace_back(
-            dnnl::graph::tensor(outs[0], static_cast<void *>(dst_dt)));
+            dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
     std::vector<float> gamma_v(prb->c, 0.f), beta_v(prb->c, 0.f);
     if (spec.use_affine) {
         for (int64_t i = 0; i < prb->c; i++) {
             gamma_v[i] = ss_dt.get_elem(i);
             beta_v[i] = ss_dt.get_elem(prb->c + i);
         }
-        tensors_in.emplace_back(dnnl::graph::tensor(ins[1], gamma_v.data()));
-        tensors_in.emplace_back(dnnl::graph::tensor(ins[2], beta_v.data()));
+        tensors_in.emplace_back(
+                dnnl::graph::tensor(ins[1], eng, gamma_v.data()));
+        tensors_in.emplace_back(
+                dnnl::graph::tensor(ins[2], eng, beta_v.data()));
     }
     if (use_sc) {
         for (int64_t i = 0; i < prb->c; i++) {
             gamma_v[i] = ss_dt.get_elem(i);
         }
         tensors_in.emplace_back(
-                dnnl::graph::tensor(ins.back(), gamma_v.data()));
+                dnnl::graph::tensor(ins.back(), eng, gamma_v.data()));
     }
     if (use_sh) {
         for (int64_t i = 0; i < prb->c; i++) {
             beta_v[i] = ss_dt.get_elem(prb->c + i);
         }
-        tensors_in.emplace_back(dnnl::graph::tensor(ins.back(), beta_v.data()));
+        tensors_in.emplace_back(
+                dnnl::graph::tensor(ins.back(), eng, beta_v.data()));
     }
     if (spec.keep_stats) {
+        tensors_out.emplace_back(dnnl::graph::tensor(
+                outs[1], eng, static_cast<void *>(mean_dt)));
         tensors_out.emplace_back(
-                dnnl::graph::tensor(outs[1], static_cast<void *>(mean_dt)));
-        tensors_out.emplace_back(
-                dnnl::graph::tensor(outs[2], static_cast<void *>(var_dt)));
+                dnnl::graph::tensor(outs[2], eng, static_cast<void *>(var_dt)));
     }
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);

@@ -184,6 +184,8 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
     std::vector<dnnl::graph::tensor> src_tensors {};
     src_tensors.reserve(prb->n_inputs());
 
+    dnnl::graph::engine &eng = get_test_engine();
+
     for (auto i = 0; i < prb->n_inputs(); ++i) {
         src_fp.emplace_back(
                 make_dnn_mem(ins[i], spec.src_dims[i], dt::f32, tag::abx));
@@ -192,11 +194,11 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
 
         SAFE(::concat::fill_src(i, prb->ddt, src_dt[i], src_fp[i]), WARN);
 
-        src_tensors.emplace_back(
-                dnnl::graph::tensor(ins[i], static_cast<void *>(src_dt[i])));
+        src_tensors.emplace_back(dnnl::graph::tensor(
+                ins[i], eng, static_cast<void *>(src_dt[i])));
     }
 
-    dnnl::graph::tensor dst_tensor(outs[0], static_cast<void *>(dst_dt));
+    dnnl::graph::tensor dst_tensor(outs[0], eng, static_cast<void *>(dst_dt));
 
     std::vector<dnnl::graph::tensor> tensors_in {src_tensors};
     std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};

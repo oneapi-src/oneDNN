@@ -108,10 +108,12 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
 
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
+    dnnl::graph::engine &eng = get_test_engine();
+
     tensors_in.emplace_back(
-            dnnl::graph::tensor(ins[0], static_cast<void *>(src_dt)));
+            dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
     tensors_out.emplace_back(
-            dnnl::graph::tensor(outs[0], static_cast<void *>(dst_dt)));
+            dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 

@@ -272,12 +272,14 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
                 binary_po_dt.back(), binary_po_fp.back());
     }
 
-    graph::tensor src_tensor(ins[0], static_cast<float *>(src_dt));
-    graph::tensor wei_tensor(ins[1], static_cast<float *>(wei_dt));
+    dnnl::graph::engine &eng = get_test_engine();
+
+    graph::tensor src_tensor(ins[0], eng, static_cast<float *>(src_dt));
+    graph::tensor wei_tensor(ins[1], eng, static_cast<float *>(wei_dt));
     graph::tensor bia_tensor;
     if (prb->dir == FWD_B)
-        bia_tensor = graph::tensor(ins[2], static_cast<float *>(bia_dt));
-    graph::tensor dst_tensor(outs[0], static_cast<float *>(dst_dt));
+        bia_tensor = graph::tensor(ins[2], eng, static_cast<float *>(bia_dt));
+    graph::tensor dst_tensor(outs[0], eng, static_cast<float *>(dst_dt));
 
     std::vector<graph::tensor> tensors_in {src_tensor, wei_tensor};
     if (prb->dir == FWD_B) tensors_in.emplace_back(bia_tensor);
@@ -286,11 +288,12 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     graph::tensor bin_tensor;
     if (graph_prb.has_post_sum()) { // Always use in-place operation.
         const size_t idx = prb->dir == FWD_B ? 3 : 2;
-        sum_src1_tensor = graph::tensor(ins[idx], static_cast<float *>(dst_dt));
+        sum_src1_tensor
+                = graph::tensor(ins[idx], eng, static_cast<float *>(dst_dt));
         tensors_in.emplace_back(sum_src1_tensor);
     } else if (graph_prb.has_post_bin()) {
         bin_tensor = graph::tensor(
-                ins.back(), static_cast<void *>(binary_po_dt.back()));
+                ins.back(), eng, static_cast<void *>(binary_po_dt.back()));
         tensors_in.emplace_back(bin_tensor);
     }
     std::vector<graph::tensor> tensors_out {dst_tensor};

@@ -106,11 +106,13 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
     const dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
+    dnnl::graph::engine &eng = get_test_engine();
+
     if (prb->dir & FLAG_FWD) {
         SAFE(::softmax::fill_data_fwd(prb, src_dt, src_fp), WARN);
 
-        tensors_in.emplace_back(ins[0], static_cast<void *>(src_dt));
-        tensors_out.emplace_back(outs[0], static_cast<void *>(dst_dt));
+        tensors_in.emplace_back(ins[0], eng, static_cast<void *>(src_dt));
+        tensors_out.emplace_back(outs[0], eng, static_cast<void *>(dst_dt));
 
         SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 

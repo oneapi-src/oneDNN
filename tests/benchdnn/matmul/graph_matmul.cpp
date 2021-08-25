@@ -318,9 +318,11 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
                 binary_po_dt.back(), binary_po_fp.back());
     }
 
-    dnnl::graph::tensor src_tensor(ins[0], static_cast<void *>(src_dt));
-    dnnl::graph::tensor wei_tensor(ins[1], static_cast<void *>(wei_dt));
-    dnnl::graph::tensor dst_tensor(outs[0], static_cast<void *>(dst_dt));
+    dnnl::graph::engine &eng = get_test_engine();
+
+    dnnl::graph::tensor src_tensor(ins[0], eng, static_cast<void *>(src_dt));
+    dnnl::graph::tensor wei_tensor(ins[1], eng, static_cast<void *>(wei_dt));
+    dnnl::graph::tensor dst_tensor(outs[0], eng, static_cast<void *>(dst_dt));
     dnnl::graph::tensor bia_tensor;
     dnnl::graph::tensor bin_tensor;
     dnnl::graph::tensor sum_src1_tensor;
@@ -329,17 +331,18 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
 
     if (apply_bias) {
-        bia_tensor = dnnl::graph::tensor(ins[2], static_cast<void *>(bia_dt));
+        bia_tensor
+                = dnnl::graph::tensor(ins[2], eng, static_cast<void *>(bia_dt));
         tensors_in.emplace_back(bia_tensor);
     }
     // we can't have fuse with both sum and binary-add at the same time
     if (graph_prb.has_post_bin()) {
         bin_tensor = dnnl::graph::tensor(
-                ins.back(), static_cast<void *>(binary_po_dt.back()));
+                ins.back(), eng, static_cast<void *>(binary_po_dt.back()));
         tensors_in.emplace_back(bin_tensor);
     } else if (graph_prb.has_post_sum()) {
-        sum_src1_tensor
-                = dnnl::graph::tensor(ins.back(), static_cast<void *>(dst_dt));
+        sum_src1_tensor = dnnl::graph::tensor(
+                ins.back(), eng, static_cast<void *>(dst_dt));
         tensors_in.emplace_back(sum_src1_tensor);
     }
 

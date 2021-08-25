@@ -177,9 +177,11 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
                 binary_po_dt.back(), binary_po_fp.back());
     }
 
-    dnnl::graph::tensor src0_tensor(ins[0], static_cast<void *>(src0_dt));
-    dnnl::graph::tensor src1_tensor(ins[1], static_cast<void *>(src1_dt));
-    dnnl::graph::tensor dst_tensor(outs[0], static_cast<void *>(dst_dt));
+    dnnl::graph::engine &eng = get_test_engine();
+
+    dnnl::graph::tensor src0_tensor(ins[0], eng, static_cast<void *>(src0_dt));
+    dnnl::graph::tensor src1_tensor(ins[1], eng, static_cast<void *>(src1_dt));
+    dnnl::graph::tensor dst_tensor(outs[0], eng, static_cast<void *>(dst_dt));
     dnnl::graph::tensor bin_src1_tensor;
     dnnl::graph::tensor sum_src1_tensor;
 
@@ -188,11 +190,11 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
 
     if (graph_prb.has_post_bin()) {
         bin_src1_tensor = dnnl::graph::tensor(
-                ins.back(), static_cast<void *>(binary_po_dt.back()));
+                ins.back(), eng, static_cast<void *>(binary_po_dt.back()));
         tensors_in.emplace_back(bin_src1_tensor);
     } else if (graph_prb.has_post_sum()) {
-        sum_src1_tensor
-                = dnnl::graph::tensor(ins.back(), static_cast<void *>(dst_dt));
+        sum_src1_tensor = dnnl::graph::tensor(
+                ins.back(), eng, static_cast<void *>(dst_dt));
         tensors_in.emplace_back(sum_src1_tensor);
     }
 
