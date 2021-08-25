@@ -21,5 +21,6 @@
 --stag=axb --dtag=axb
 --dir=FWD_D
 --cfg=bf16bf16f32,bf16bf16bf16
---attr-post-ops=relu,sum,sum+relu,prelu 
+--attr-post-ops=relu,sum,sum+relu,prelu,add:bf16:per_oc
 --batch=shapes_mobilenet_dw
+--batch=shapes_regression_dw
