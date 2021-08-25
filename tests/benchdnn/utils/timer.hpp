@@ -31,7 +31,7 @@
 namespace timer {
 
 struct timer_t {
-    enum mode_t { min = 0, avg = 1, max = 2, n_modes };
+    enum mode_t { min = 0, avg = 1, max = 2, sum = 3, n_modes };
 
     timer_t() { reset(); }
 

@@ -69,19 +69,21 @@ void timer_t::stop(int add_times) {
     ticks_start_ += d_ticks;
     ms_start_ += d_ms;
 
-    ms_[timer_t::avg] += d_ms;
-    ticks_[timer_t::avg] += d_ticks;
+    ms_[mode_t::avg] += d_ms;
+    ms_[mode_t::sum] += d_ms;
+    ticks_[mode_t::avg] += d_ticks;
+    ticks_[mode_t::sum] += d_ticks;
 
     d_ticks /= add_times;
     d_ms /= add_times;
 
-    ms_[timer_t::min] = times_ ? std::min(ms_[timer_t::min], d_ms) : d_ms;
-    ms_[timer_t::max] = times_ ? std::max(ms_[timer_t::max], d_ms) : d_ms;
+    ms_[mode_t::min] = times_ ? std::min(ms_[mode_t::min], d_ms) : d_ms;
+    ms_[mode_t::max] = times_ ? std::max(ms_[mode_t::max], d_ms) : d_ms;
 
-    ticks_[timer_t::min]
-            = times_ ? std::min(ticks_[timer_t::min], d_ticks) : d_ticks;
-    ticks_[timer_t::max]
-            = times_ ? std::max(ticks_[timer_t::max], d_ticks) : d_ticks;
+    ticks_[mode_t::min]
+            = times_ ? std::min(ticks_[mode_t::min], d_ticks) : d_ticks;
+    ticks_[mode_t::max]
+            = times_ ? std::max(ticks_[mode_t::max], d_ticks) : d_ticks;
 
     times_ += add_times;
 }
