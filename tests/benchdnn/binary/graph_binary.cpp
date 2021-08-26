@@ -71,13 +71,11 @@ void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
-    // MAX, MUL, MIN supports relu, sigmoid, sum post-ops.
-    // ADD supports relu and sigmoid post-ops.
+    // Binary ops supports relu, sigmoid, sum and binary post-ops.
     // Other cases are being skipped.
     for (const auto &po : prb->attr.post_ops.entry) {
-        if (po.kind == p::RELU || po.kind == p::LOGISTIC
-                || (po.is_sum_kind() && prb->alg != p::kind_t::ADD)
-                || (po.kind == p::kind_t::ADD && prb->alg != p::kind_t::ADD)) {
+        if (po.kind == p::RELU || po.kind == p::LOGISTIC || po.is_binary_kind()
+                || po.is_sum_kind()) {
             continue;
         } else {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
