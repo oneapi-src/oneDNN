@@ -52,3 +52,11 @@ status_t DNNL_GRAPH_API dnnl_graph_tensor_get_element_num(
     *num = logical_tensor_wrapper(lt).nelems();
     return status::success;
 }
+
+status_t DNNL_GRAPH_API dnnl_graph_tensor_get_engine(
+        const tensor_t *tensor, engine_t **engine) {
+    if (utils::any_null(tensor, engine)) return status::invalid_argument;
+    *engine = const_cast<engine_t *>(tensor->get_engine());
+
+    return status::success;
+}

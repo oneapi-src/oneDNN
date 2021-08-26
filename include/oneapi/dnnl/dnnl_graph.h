@@ -218,7 +218,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_id(
 /// @param engine Output engine on which the tensor is located.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_memory_get_engine(
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_engine(
         const dnnl_graph_tensor_t *tensor, dnnl_graph_engine_t **engine);
 
 /// @} dnnl_graph_api_tensor

@@ -638,7 +638,7 @@ public:
     /// @returns An engine object
     engine get_engine() const {
         dnnl_graph_engine_t *c_engine;
-        error::check_succeed(dnnl_graph_memory_get_engine(get(), &c_engine),
+        error::check_succeed(dnnl_graph_tensor_get_engine(get(), &c_engine),
                 "could not get an engine from a tensor object");
         return engine(c_engine, true);
     }

@@ -61,6 +61,8 @@ public:
 
     operator bool() const { return data_handle_ != nullptr; }
 
+    const dnnl::graph::impl::engine_t *get_engine() const { return eng_; }
+
 private:
     template <typename T>
     dnnl::graph::impl::data_type_t get_data_type() const {
