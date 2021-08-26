@@ -456,9 +456,10 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
             iwork += cur_n_owb * nstl::min(rem_work, rem_chb_work);
 
             while (chb_loop_work) {
-                // brgemm_offs mode enables us to run this loop, without
-                // changing brg_batch elements.
-                assert(IMPLICATION(chb != 0, jcp.batch_kind == brgemm_offs));
+                // brgemm_offs and brgemm_strd mode enables us to run this loop,
+                // without changing brg_batch elements.
+                assert(IMPLICATION(chb != 0,
+                        one_of(jcp.batch_kind, brgemm_offs, brgemm_strd)));
                 post_ops_data.bias = bias + ch * jcp.bia_dsz;
                 post_ops_data.scales = &oscales[jcp.is_oc_scale * ch];
                 post_ops_data.oc_logical_off = ch;
