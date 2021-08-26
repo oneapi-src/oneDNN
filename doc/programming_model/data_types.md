@@ -35,7 +35,6 @@ See topics for the corresponding data types details:
  * @ref dev_guide_training_bf16
 
 Individual primitives may have additional limitations with respect to data type
-support based on the precision requirements. The list of data types supported
 by each primitive is included in the corresponding sections of the developer
 guide.
 
@@ -92,7 +91,7 @@ fp32 arithmetics, that is not the case for other data types. Support
 for low precision data types may not be available for older
 platforms. The next sections explain limitations that exist for low
 precision data types for Intel(R) Architecture processors, Intel
-Processor Graphics and Xe architecture-based Graphics.
+Processor Graphics and Xe Architecture graphics.
 
 ### Intel(R) Architecture Processors
 
@@ -131,10 +130,10 @@ types that oneDNN recognizes.
   flag and always round to nearest tie-even and flush denormals to
   zero.
 
-### Intel(R) Processor Graphics and Xe architecture-based Graphics
+### Intel(R) Processor Graphics and Xe Architecture graphics
 
 Intel Processor Graphics provides hardware acceleration for fp32 and fp16
-arithmetic. Xe architecture-based Graphics additionally provides
+arithmetic. Xe Architecture graphics additionally provides
 acceleration for int8 arithmetic (both signed and unsigned). Implementations
 for the bf16 data type are functional only and do not currently provide
 performance benefits.
@@ -144,4 +143,4 @@ performance benefits.
 | f32       | optimized
 | bf16      | functional only
 | f16       | optimized
-| s8, u8    | optimized for Xe architecture-based Graphics (code named DG1 and Tiger Lake)
+| s8, u8    | optimized for Xe Architecture graphics (code named DG1 and Tiger Lake)

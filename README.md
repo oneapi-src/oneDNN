@@ -172,7 +172,7 @@ Intel C++ Compiler.
 
 ### GPU Engine
 
-Intel Processor Graphics and Xe architecture-based Graphics are supported by
+Intel Processor Graphics and Xe Architecture graphics are supported by
 the oneDNN GPU engine. The GPU engine is disabled in the default build
 configuration. The following additional requirements apply when GPU engine
 is enabled:
