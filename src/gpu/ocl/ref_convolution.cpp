@@ -163,7 +163,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
                     : conf.attr_info.sum_data_type,
             "SUM");
 
-    dnnl_dims_t dst_dims;
+    dims_t dst_dims {};
 
     for (int d = 0; d < MAX_NDIMS; d++) {
         if (d < conf.ndims)
