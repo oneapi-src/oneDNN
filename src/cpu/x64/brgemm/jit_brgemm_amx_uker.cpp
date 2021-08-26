@@ -777,6 +777,8 @@ void jit_brgemm_amx_uker_base_t::store_vector(const int idx, const int bd,
         apply_alpha_beta_to_vector(idx, ptr_C, is_ld_tail);
     if (apply_post_ops)
         store_vector_with_post_ops(idx, ptr_D, bd, ldb, is_ld_tail);
+    else if (are_post_ops_applicable_)
+        store_vector_without_post_ops(idx, ptr_C, is_ld_tail);
     else
         store_vector_without_post_ops(idx, ptr_D, is_ld_tail);
 }
@@ -785,7 +787,9 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
 
     if (!use_ils) return;
     if (!ils_buffer_ready) return;
-    if (!need_to_apply_alpha_beta_ && !are_post_ops_applicable_
+    const auto need_apply_post_ops
+            = are_post_ops_applicable_ && ils_apply_post_ops;
+    if (!need_to_apply_alpha_beta_ && !need_apply_post_ops
             && !brg.brgattr.bd_mask_level)
         return;
 
@@ -845,8 +849,10 @@ int jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2, int ld_block2,
         int l_step, bool is_ld_tail, size_t c_offset, size_t d_offset,
         int bd_ind, int ldb_ind, bool apply_post_ops) {
 
+    const bool need_to_apply_post_ops
+            = are_post_ops_applicable_ && apply_post_ops;
     const auto store_by_vectors = need_to_apply_alpha_beta_
-            || are_post_ops_applicable_ || brg.brgattr.bd_mask_level;
+            || need_to_apply_post_ops || brg.brgattr.bd_mask_level;
 
     if (store_by_vectors)
         mov(reg_stride_ld_block, brg.ld_block * brg.typesize_C);
@@ -1060,6 +1066,8 @@ int jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
 }
 
 void jit_brgemm_amx_uker_base_t::bdb_loop(bool apply_post_ops) {
+    ils_buffer_ready = false;
+    ils_apply_post_ops = apply_post_ops;
     auto do_ldb_loop = [=](int bd_block2, int bd_ind, bool apply_post_ops) {
         size_t c_offset = 0;
         size_t d_offset = 0;
