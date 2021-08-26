@@ -31,17 +31,22 @@ DNNL_GRAPH_OP_SCHEMA(Abs, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Add, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "a", "first input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "b", "second input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
@@ -53,8 +58,10 @@ DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("strides", "the distance to slide the filter", true,
                         attribute_kind::is)
                 .set_attr("pads_begin", "top and left padding", true,
@@ -107,13 +114,19 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
         op_schema()
                 .set_num_inputs(5)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "gamma", "gamma scaling for normalized value")
-                .set_input(
-                        2, "beta", "beta added to the scaled normalized value")
-                .set_input(3, "mean", "value for mean normalization")
-                .set_input(4, "variance", "value for variance normalization")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "gamma", "gamma scaling for normalized value",
+                        data_type::f32)
+                .set_input(2, "beta",
+                        "beta added to the scaled normalized value",
+                        data_type::f32)
+                .set_input(3, "mean", "value for mean normalization",
+                        data_type::f32)
+                .set_input(4, "variance", "value for variance normalization",
+                        data_type::f32)
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("epsilon",
                         "the number to be added to the variance to avoid "
                         "division by zero",
@@ -227,8 +240,10 @@ DNNL_GRAPH_OP_SCHEMA(Clamp, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("min", "lower bound of values in the output", true,
                         attribute_kind::f)
                 .set_attr("max", "upper bound of values in the output", true,
@@ -340,9 +355,12 @@ DNNL_GRAPH_OP_SCHEMA(Divide, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "a", "first input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "b", "second input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
@@ -354,8 +372,10 @@ DNNL_GRAPH_OP_SCHEMA(Elu, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("alpha", "scale for the negative factor", true,
                         attribute_kind::f)
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -381,24 +401,30 @@ DNNL_GRAPH_OP_SCHEMA(Erf, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Exp, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(GELU, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(GELUBackprop, 1,
@@ -416,8 +442,10 @@ DNNL_GRAPH_OP_SCHEMA(HardTanh, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("min", "lower bound of values in the output", true,
                         attribute_kind::f)
                 .set_attr("max", "upper bound of values in the output", true,
@@ -629,8 +657,10 @@ DNNL_GRAPH_OP_SCHEMA(Log, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(LogSoftmax, 1,
@@ -665,10 +695,14 @@ DNNL_GRAPH_OP_SCHEMA(MatMul, 1,
                 .set_inputs_option(op_schema::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "a", "first input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "b", "second input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(2, "bias", "bias tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
@@ -676,9 +710,12 @@ DNNL_GRAPH_OP_SCHEMA(Maximum, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "a", "first input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "b", "second input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
@@ -690,8 +727,10 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("strides", "the distance to slide the filter", true,
                         attribute_kind::is)
                 .set_attr("pads_begin", "top and left padding", true,
@@ -752,9 +791,12 @@ DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "a", "first input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "b", "second input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
@@ -766,9 +808,12 @@ DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "a", "first input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "b", "second input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
@@ -780,9 +825,12 @@ DNNL_GRAPH_OP_SCHEMA(Pow, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "a", "first input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "b", "second input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
@@ -866,16 +914,20 @@ DNNL_GRAPH_OP_SCHEMA(Round, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Sigmoid, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SigmoidBackprop, 1,
@@ -922,8 +974,10 @@ DNNL_GRAPH_OP_SCHEMA(SoftPlus, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("beta", "value for the Softplus formulation", false,
                         attribute_kind::i, int64_t(1))
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -945,8 +999,10 @@ DNNL_GRAPH_OP_SCHEMA(Sqrt, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SqrtBackprop, 1,
@@ -970,16 +1026,20 @@ DNNL_GRAPH_OP_SCHEMA(Square, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Tanh, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(TanhBackprop, 1,
