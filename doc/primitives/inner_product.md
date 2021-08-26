@@ -73,14 +73,14 @@ N/A.
 Inner product primitive supports the following combination of data types for
 source, destination, weights, and bias:
 
-| Propagation        | Source    | Weights   | Destination      | Bias             |
-| :--                | :--       | :--       | :--              | :--              |
-| forward / backward | f32       | f32       | f32              | f32              |
-| forward            | f16       | f16       | f16, u8, s8      | f16              |
-| forward            | u8, s8    | s8        | u8, s8, s32, f32 | u8, s8, s32, f32 |
-| forward            | bf16      | bf16      | f32, bf16        | f32, bf16        |
-| backward           | f32, bf16 | bf16      | bf16             |                  |
-| weights update     | bf16      | f32, bf16 | bf16             | f32, bf16        |
+| Propagation        | Source    | Weights   | Destination            | Bias                   |
+| :--                | :--       | :--       | :--                    | :--                    |
+| forward / backward | f32       | f32       | f32                    | f32                    |
+| forward            | f16       | f16       | f16, u8, s8            | f16                    |
+| forward            | u8, s8    | s8        | u8, s8, s32, bf16, f32 | u8, s8, s32, bf16, f32 |
+| forward            | bf16      | bf16      | f32, bf16              | f32, bf16              |
+| backward           | f32, bf16 | bf16      | bf16                   |                        |
+| weights update     | bf16      | f32, bf16 | bf16                   | f32, bf16              |
 
 ### Data Representation
 

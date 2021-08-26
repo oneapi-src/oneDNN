@@ -65,8 +65,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                             dst_dt, data_type::undef)
                     && IMPLICATION(with_bias(),
                             ((one_of(src_dt, u8, s8)
-                                     && one_of(bias_md_.data_type, f32, s32, s8,
-                                             u8))
+                                     && one_of(bias_md_.data_type, f32, bf16,
+                                             s32, s8, u8))
                                     || (one_of(src_dt, bf16)
                                             && one_of(bias_md_.data_type, f32,
                                                     bf16))

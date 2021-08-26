@@ -827,7 +827,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
             ? pick_by_prop_kind(jbgp.prop_kind, ipd.bias_desc.data_type,
                     data_type::undef, ipd.diff_bias_desc.data_type)
             : data_type::undef;
-    jbgp.signed_input = isa == avx512_core_vnni && jbgp.src_dt == s8;
+    jbgp.signed_input = one_of(isa, avx512_core_vnni, avx512_core_bf16)
+            && jbgp.src_dt == s8;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
     const bool is_bf16
             = everyone_is(bf16, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt)
@@ -841,7 +842,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
     if (!IMPLICATION(is_int8,
-                one_of(isa, avx512_core_vnni, avx512_core_bf16_amx_int8)))
+                one_of(isa, avx512_core_vnni, avx512_core_bf16,
+                        avx512_core_bf16_amx_int8)))
         return status::unimplemented;
     if (!IMPLICATION(is_bf16,
                 one_of(isa, avx512_core_bf16, avx512_core_bf16_amx_bf16)))

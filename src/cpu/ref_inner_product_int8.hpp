@@ -48,8 +48,11 @@ struct ref_inner_product_int8_fwd_t : public primitive_t {
             bool ok = is_fwd() && utils::one_of(src_type, s8, u8)
                     && wei_type == s8
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, s32, s8, u8))
-                    && utils::one_of(dst_type, f32, s32, s8, u8)
+                            utils::one_of(bia_type, f32, bf16, s32, s8, u8))
+                    && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
+                    && IMPLICATION(with_bias(),
+                            platform::has_data_type_support(bia_type))
+                    && platform::has_data_type_support(dst_type)
                     && set_default_params() == status::success
                     && attr()->has_default_values(
                             smask_t::oscale | smask_t::post_ops)

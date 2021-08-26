@@ -177,6 +177,18 @@ const std::map<ip_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
         REG_IP_P_FWD(CPU_INSTANCE(ref_inner_product_int8_fwd_t))
         nullptr,
     }},
+    {{forward, s8, s8, bf16}, {
+        REG_IP_P_FWD(CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>))
+        REG_IP_P_FWD(CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16>))
+        REG_IP_P_FWD(CPU_INSTANCE(ref_inner_product_int8_fwd_t))
+        nullptr,
+    }},
+    {{forward, u8, s8, bf16}, {
+        REG_IP_P_FWD(CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>))
+        REG_IP_P_FWD(CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16>))
+        REG_IP_P_FWD(CPU_INSTANCE(ref_inner_product_int8_fwd_t))
+        nullptr,
+    }},
 };
 // clang-format on
 } // namespace
