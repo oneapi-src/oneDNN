@@ -500,8 +500,8 @@ int main(int argc, char **argv) {
             DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_query_logical_tensor(
                     l_cp, e_t->id_, &l_lt));
 
-            DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-                    &l_ts_in[j], &l_lt, e_t->data_));
+            DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+                    &l_ts_in[j], &l_lt, engine, e_t->data_));
         }
 
         dnnl_graph_tensor_t *l_ts_out[2];
@@ -512,8 +512,8 @@ int main(int argc, char **argv) {
             DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_query_logical_tensor(
                     l_cp, e_t->id_, &l_lt));
 
-            DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-                    &l_ts_out[j], &l_lt, e_t->data_));
+            DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+                    &l_ts_out[j], &l_lt, engine, e_t->data_));
         }
 
         // execute the compiled partition

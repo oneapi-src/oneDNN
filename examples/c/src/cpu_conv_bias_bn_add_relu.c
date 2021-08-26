@@ -631,25 +631,22 @@ int main(int argc, char **argv) {
     dnnl_graph_tensor_t *conv1_src, *conv1_weight, *conv1_bias,
             *batch_norm1_scale, *batch_norm1_shift, *batch_norm1_mean,
             *batch_norm1_variance, *batch_norm1_dst;
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv1_src, &conv1_src_desc, conv1_src_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv1_weight, &conv1_weight_desc, conv1_weight_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv1_bias, &conv1_bias_desc, conv1_bias_data));
-    DNNL_GRAPH_CHECK(
-            dnnl_graph_tensor_create_with_logical_tensor(&batch_norm1_scale,
-                    &batch_norm1_scale_desc, batch_norm1_scale_data));
-    DNNL_GRAPH_CHECK(
-            dnnl_graph_tensor_create_with_logical_tensor(&batch_norm1_shift,
-                    &batch_norm1_shift_desc, batch_norm1_shift_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &batch_norm1_mean, &batch_norm1_mean_desc, batch_norm1_mean_data));
-    DNNL_GRAPH_CHECK(
-            dnnl_graph_tensor_create_with_logical_tensor(&batch_norm1_variance,
-                    &batch_norm1_variance_desc, batch_norm1_variance_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &batch_norm1_dst, &batch_norm1_dst_desc, batch_norm1_dst_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv1_src, &conv1_src_desc, engine, conv1_src_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv1_weight, &conv1_weight_desc, engine, conv1_weight_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv1_bias, &conv1_bias_desc, engine, conv1_bias_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(&batch_norm1_scale,
+            &batch_norm1_scale_desc, engine, batch_norm1_scale_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(&batch_norm1_shift,
+            &batch_norm1_shift_desc, engine, batch_norm1_shift_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(&batch_norm1_mean,
+            &batch_norm1_mean_desc, engine, batch_norm1_mean_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(&batch_norm1_variance,
+            &batch_norm1_variance_desc, engine, batch_norm1_variance_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(&batch_norm1_dst,
+            &batch_norm1_dst_desc, engine, batch_norm1_dst_data));
 
     /// Execute the compiled partition
     /// \note The given inputs and outputs tensors should correspond
@@ -758,25 +755,22 @@ int main(int argc, char **argv) {
     dnnl_graph_tensor_t *conv0_src, *conv0_weight, *conv0_bias,
             *batch_norm0_scale, *batch_norm0_shift, *batch_norm0_mean,
             *batch_norm0_variance, *relu0_dst;
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv0_src, &conv0_src_desc, conv0_src_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv0_weight, &conv0_weight_desc, conv0_weight_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv0_bias, &conv0_bias_desc, conv0_bias_data));
-    DNNL_GRAPH_CHECK(
-            dnnl_graph_tensor_create_with_logical_tensor(&batch_norm0_scale,
-                    &batch_norm0_scale_desc, batch_norm0_scale_data));
-    DNNL_GRAPH_CHECK(
-            dnnl_graph_tensor_create_with_logical_tensor(&batch_norm0_shift,
-                    &batch_norm0_shift_desc, batch_norm0_shift_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &batch_norm0_mean, &batch_norm0_mean_desc, batch_norm0_mean_data));
-    DNNL_GRAPH_CHECK(
-            dnnl_graph_tensor_create_with_logical_tensor(&batch_norm0_variance,
-                    &batch_norm0_variance_desc, batch_norm0_variance_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &relu0_dst, &relu0_dst_desc, relu0_dst_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv0_src, &conv0_src_desc, engine, conv0_src_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv0_weight, &conv0_weight_desc, engine, conv0_weight_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv0_bias, &conv0_bias_desc, engine, conv0_bias_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(&batch_norm0_scale,
+            &batch_norm0_scale_desc, engine, batch_norm0_scale_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(&batch_norm0_shift,
+            &batch_norm0_shift_desc, engine, batch_norm0_shift_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(&batch_norm0_mean,
+            &batch_norm0_mean_desc, engine, batch_norm0_mean_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(&batch_norm0_variance,
+            &batch_norm0_variance_desc, engine, batch_norm0_variance_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &relu0_dst, &relu0_dst_desc, engine, relu0_dst_data));
 
     /// Execute compiled_partition[1]
     const dnnl_graph_tensor_t *cpartition1_inputs[] = {conv0_src, conv0_weight,

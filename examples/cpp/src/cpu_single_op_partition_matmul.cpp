@@ -80,9 +80,9 @@ int main(int argc, char **argv) {
     std::vector<float> data1(1024 * 2048);
     std::vector<float> data2(32 * 2048);
 
-    tensor t0 {src0, data0.data()};
-    tensor t1 {src1, data1.data()};
-    tensor t2 {dst, data2.data()};
+    tensor t0 {src0, eng, data0.data()};
+    tensor t1 {src1, eng, data1.data()};
+    tensor t2 {dst, eng, data2.data()};
 
     /// construct a new stream
     stream stm {eng};

@@ -300,8 +300,8 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
                 id_to_queried_logical_tensors);
 
             std::cout << "Creating tensors and allocating memory buffer--";
-            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(inputs, c_partitions[i], 1);
-            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(outputs, c_partitions[i], 0);
+            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(inputs, c_partitions[i], eng, 1);
+            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(outputs, c_partitions[i], eng, 0);
             std::cout << "Success!\n";
 
             std::cout << "Executing compiled partition-------------------";

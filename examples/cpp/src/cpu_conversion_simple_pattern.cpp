@@ -188,8 +188,8 @@ int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
                 id_to_queried_logical_tensors);
 
             std::cout << "Creating tensors and allocating memory buffer--";
-            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(inputs, c_partitions[i], 1);
-            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(outputs, c_partitions[i], 0);
+            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(inputs, c_partitions[i], e, 1);
+            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(outputs, c_partitions[i], e, 0);
             
             /// Convert data to the opaque layout which is determined by the backend.
             /// Here, we can query the logical tensor of `weight` tensor. And then,

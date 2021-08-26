@@ -108,11 +108,13 @@ public:
     ///
     /// @param lts a list of logical tensors to be constructed and initialized
     /// @param c_partition target compiled partition
+    /// @param eng target engine for the tensor
     /// @param value an initialization value of buffer
     /// @return a list of copies of tensors
     std::vector<dnnl::graph::tensor> construct_and_initialize_tensors(
             const std::vector<dnnl::graph::logical_tensor> &lts,
-            dnnl::graph::compiled_partition &c_partition, int value) {
+            dnnl::graph::compiled_partition &c_partition,
+            dnnl::graph::engine &eng, int value) {
         std::vector<dnnl::graph::tensor> ret;
         ret.reserve(lts.size());
         for (auto &lt : lts) {
@@ -145,7 +147,7 @@ public:
                     fill_buffer<dtype>(mem_ptr, new_lt.get_mem_size(), value);
                 });
 #endif
-                ret.emplace_back(dnnl::graph::tensor {new_lt, mem_ptr});
+                ret.emplace_back(dnnl::graph::tensor {new_lt, eng, mem_ptr});
                 this->insert_or_replace(new_lt.get_id(), ret.back());
             }
         }
@@ -198,7 +200,7 @@ public:
             dnnl::graph::compiled_partition convert_executable
                     = convert.compile({ori_lt}, {queried_lt}, eng);
             // real tensor with queried layout
-            dnnl::graph::tensor tensor_r {queried_lt, buffer.get()};
+            dnnl::graph::tensor tensor_r {queried_lt, eng, buffer.get()};
             // execute the conversion
             convert_executable.execute(strm, {ts[idx]}, {tensor_r});
             // replace the original tensor with the new one

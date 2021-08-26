@@ -461,14 +461,14 @@ int main(int argc, char **argv) {
 
     /// Wrap buffer and dnnl_graph_logical_tensor to dnnl_graph_tensor
     dnnl_graph_tensor_t *conv0_src, *conv0_weight, *conv0_bias, *relu0_dst;
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv0_src, &conv0_src_desc, conv0_src_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv0_weight, &conv0_weight_desc, conv0_weight_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv0_bias, &conv0_bias_desc, conv0_bias_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &relu0_dst, &relu0_dst_desc, relu0_dst_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv0_src, &conv0_src_desc, engine, conv0_src_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv0_weight, &conv0_weight_desc, engine, conv0_weight_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv0_bias, &conv0_bias_desc, engine, conv0_bias_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &relu0_dst, &relu0_dst_desc, engine, relu0_dst_data));
 
     /// Execute the compiled partition
     /// \note The given inputs and outputs tensors should correspond
@@ -520,15 +520,15 @@ int main(int argc, char **argv) {
 
     /// Wrap buffer and dnnl_graph_logical_tensor to dnnl_graph_tensor
     dnnl_graph_tensor_t *conv1_src, *conv1_weight, *conv1_bias, *relu1_dst;
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(&conv1_src,
-            &conv1_src_desc,
-            relu0_dst_data)); // use compiled partition[0] output buffer
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv1_weight, &conv1_weight_desc, conv1_weight_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &conv1_bias, &conv1_bias_desc, conv1_bias_data));
-    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create_with_logical_tensor(
-            &relu1_dst, &relu1_dst_desc, relu1_dst_data));
+    DNNL_GRAPH_CHECK(
+            dnnl_graph_tensor_create(&conv1_src, &conv1_src_desc, engine,
+                    relu0_dst_data)); // use compiled partition[0] output buffer
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv1_weight, &conv1_weight_desc, engine, conv1_weight_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &conv1_bias, &conv1_bias_desc, engine, conv1_bias_data));
+    DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
+            &relu1_dst, &relu1_dst_desc, engine, relu1_dst_data));
 
     /// Execute the compiled partition
     const dnnl_graph_tensor_t *cpartition1_inputs[]

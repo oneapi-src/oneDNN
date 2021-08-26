@@ -150,8 +150,8 @@ int cpu_programming_aot_tutorial(engine::kind engine_kind) {
         if (partitions[i].is_supported()) {
             std::cout << "\nPartition[" << partitions[i].get_id() << "] is being executed.\n";
             std::cout << "Creating tensors and allocating memory buffer--";
-            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(partitions[i].get_in_ports(), c_partitions[i], 1);
-            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(partitions[i].get_out_ports(), c_partitions[i], 0);
+            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(partitions[i].get_in_ports(), c_partitions[i], e, 1);
+            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(partitions[i].get_out_ports(), c_partitions[i], e, 0);
             std::cout << "Success!\n";
 
             std::cout << "Executing compiled partition-------------------";

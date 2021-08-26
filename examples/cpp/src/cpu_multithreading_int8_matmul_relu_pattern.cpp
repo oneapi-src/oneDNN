@@ -199,8 +199,8 @@ int main(int argc, char **argv) {
 
             auto thread_func = [&](size_t tid) {
                 std::cout << "Start thread " << tid << std::endl;
-                std::vector<tensor> input_ts = tms[tid].construct_and_initialize_tensors(inputs, c_partitions[i], 1);
-                std::vector<tensor> output_ts = tms[tid].construct_and_initialize_tensors(outputs, c_partitions[i], 0);
+                std::vector<tensor> input_ts = tms[tid].construct_and_initialize_tensors(inputs, c_partitions[i], e, 1);
+                std::vector<tensor> output_ts = tms[tid].construct_and_initialize_tensors(outputs, c_partitions[i], e, 0);
                 /// construct a new stream
                 stream s {e};
 

@@ -305,10 +305,10 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     /// partition 0.
     /// @snippet cpu_get_started.cpp Prepare tensors 0
     //[Prepare tensors 0]
-    tensor conv0_src(conv0_src_desc_plain, conv0_src_data.data());
-    tensor conv0_weight(conv0_weight_desc_plain, conv0_weight_data.data());
-    tensor conv0_bias(conv0_bias_desc_plain, conv0_bias_data.data());
-    tensor relu0_dst(relu0_dst_desc_plain, relu0_dst_data.data());
+    tensor conv0_src(conv0_src_desc_plain, eng, conv0_src_data.data());
+    tensor conv0_weight(conv0_weight_desc_plain, eng, conv0_weight_data.data());
+    tensor conv0_bias(conv0_bias_desc_plain, eng, conv0_bias_data.data());
+    tensor relu0_dst(relu0_dst_desc_plain, eng, relu0_dst_data.data());
     //[Prepare tensors 0]
 
     /// Execute the compiled partition 0 on the specified stream.
@@ -321,9 +321,9 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     /// partition 1.
     /// @snippet cpu_get_started.cpp Prepare tensors 1
     //[Prepare tensors 1]
-    tensor conv1_weight(conv1_weight_desc_plain, conv1_weight_data.data());
-    tensor conv1_bias(conv1_bias_desc_plain, conv1_bias_data.data());
-    tensor relu1_dst(relu1_dst_desc_plain, relu1_dst_data.data());
+    tensor conv1_weight(conv1_weight_desc_plain, eng, conv1_weight_data.data());
+    tensor conv1_bias(conv1_bias_desc_plain, eng, conv1_bias_data.data());
+    tensor relu1_dst(relu1_dst_desc_plain, eng, relu1_dst_data.data());
     //[Prepare tensors 1]
 
     /// Execute the compiled partition 1 on the specified stream.
