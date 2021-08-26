@@ -297,7 +297,8 @@ void jit_brgemm_matmul_copy_a_impl_t::copy_M_loop(
 
 void jit_brgemm_matmul_copy_a_impl_t::generate() {
     preamble();
-    src_stride = conf_->K * typesize;
+    src_stride = (conf_->src_tag == format_tag::acbd ? conf_->copy_A_src_stride
+                                                     : conf_->K * typesize);
     const dim_t LDA = conf_->use_buffer_a_tail_only ? (dim_t)conf_->wei_k_blk
                                                     : conf_->LDA;
     tr_src_stride = LDA * typesize;
@@ -377,7 +378,9 @@ struct jit_brgemm_matmul_copy_a_transposed_impl_t
     jit_brgemm_matmul_copy_a_transposed_impl_t(const brgemm_matmul_conf_t *conf)
         : jit_brgemm_matmul_copy_a_t(conf)
         , typesize(conf_->a_dt_sz)
-        , src_stride(conf_->M * typesize)
+        , src_stride(conf_->src_tag == format_tag::adbc
+                          ? conf_->copy_A_src_stride
+                          : conf_->M * typesize)
         , dst_stride(conf_->LDA * typesize)
         , m_loop_src_shift(columns_step * typesize)
         , m_loop_dst_shift(columns_step * dst_stride)
@@ -1142,7 +1145,8 @@ void jit_brgemm_matmul_copy_b_int8_t::copy_4x64_vnni_avx512_core(
 void jit_brgemm_matmul_copy_b_int8_t::generate() {
     preamble();
     vpxord(zmm_zero, zmm_zero, zmm_zero);
-    src_stride = conf_->N * typesize;
+    src_stride = (conf_->wei_tag == format_tag::acbd ? conf_->copy_B_wei_stride
+                                                     : conf_->N * typesize);
     tr_src_stride = conf_->LDB * k_blk_step * typesize;
     is_amx = conf_->isa == avx512_core_bf16_amx_int8;
     do_compute_compensation
@@ -1458,7 +1462,8 @@ void jit_brgemm_matmul_copy_b_bf16_t::copy_2x32_vnni(int nrows, int ncolumns) {
 void jit_brgemm_matmul_copy_b_bf16_t::generate() {
     preamble();
     vpxord(zmm_zero, zmm_zero, zmm_zero);
-    src_stride = conf_->N * typesize;
+    src_stride = (conf_->wei_tag == format_tag::acbd ? conf_->copy_B_wei_stride
+                                                     : conf_->N * typesize);
     tr_src_stride = conf_->LDB * k_blk_step * typesize;
 
     alignas(64) static constexpr const int16_t bf16_vnni_permute[32]
@@ -1548,7 +1553,8 @@ struct jit_brgemm_matmul_copy_b_f32_t : public jit_brgemm_matmul_copy_b_t,
 
     jit_brgemm_matmul_copy_b_f32_t(const brgemm_matmul_conf_t *conf)
         : jit_brgemm_matmul_copy_b_t(conf)
-        , src_stride_(conf_->N * typesize)
+        , src_stride_(conf_->wei_tag == acbd ? conf_->copy_B_wei_stride
+                                             : conf_->N * typesize)
         , tr_src_stride_(conf_->LDB * typesize) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
@@ -1991,7 +1997,8 @@ void jit_brgemm_matmul_copy_b_transposed_t::generate() {
 
     preamble();
 
-    src_stride = conf_->K * typesize;
+    src_stride = (conf_->wei_tag == format_tag::adbc ? conf_->copy_B_wei_stride
+                                                     : conf_->K * typesize);
     tr_src_stride = conf_->LDB * vnni_granularity * typesize;
 
     mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
@@ -2099,7 +2106,7 @@ status_t create_brgemm_matmul_copy_b(
         std::unique_ptr<jit_brgemm_matmul_copy_b_t> &copy_ker,
         const brgemm_matmul_conf_t *conf) {
     const bool is_B_transposed
-            = one_of(conf->wei_tag, ba, acb, abdc, abced, abcdfe, abcdegf,
+            = one_of(conf->wei_tag, ba, acb, abdc, adbc, abced, abcdfe, abcdegf,
                     abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
     const bool is_bf16
             = everyone_is(data_type::bf16, conf->src_dt, conf->wei_dt);

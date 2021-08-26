@@ -127,6 +127,13 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
         if (format_tag::undef == bgmmc.wei_tag) return status::unimplemented;
 
         CHECK(memory_desc_init_by_tag(B_md, bgmmc.wei_tag));
+        const int dmax = nstl::min(bgmmc.ndims, 3);
+        const memory_desc_wrapper B_d(&B_md);
+        for (int d = 0; d < dmax; d++) {
+            int dim = bgmmc.ndims - 1 - d;
+            bgmmc.B_strides[d]
+                    = bgmmc.b_dt_sz * B_d.blocking_desc().strides[dim];
+        }
     } else {
         bgmmc.wei_tag = blocked_B_layouts_allowed
                 ? memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
@@ -134,7 +141,7 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
                         blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
                         blocked_16n_B_layout_tag)
                 : memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
-                        transposed_tensor_layout_tag);
+                        transposed_tensor_layout_tag, acbd, adbc);
         if (format_tag::undef == bgmmc.wei_tag) return status::unimplemented;
     }
 
@@ -161,8 +168,9 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
     } else {
         bgmmc.src_tag = (this->is_bf16() || this->is_f32())
                 ? memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag,
-                        transposed_tensor_layout_tag)
-                : memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag);
+                        transposed_tensor_layout_tag, acbd, adbc)
+                : memory_desc_matches_one_of_tag(
+                        A_md, plain_tensor_layout_tag, acbd);
     }
 
     if (C_any_layout) {
@@ -170,8 +178,8 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
         CHECK(memory_desc_init_by_tag(C_md, desired_C_tag));
         bgmmc.dst_tag = desired_C_tag;
     } else {
-        bgmmc.dst_tag
-                = memory_desc_matches_one_of_tag(C_md, plain_tensor_layout_tag);
+        bgmmc.dst_tag = memory_desc_matches_one_of_tag(
+                C_md, plain_tensor_layout_tag, acbd);
     }
 
     if (one_of(format_tag::undef, bgmmc.src_tag, bgmmc.dst_tag))
@@ -465,7 +473,9 @@ struct matmul_avx512_blocking_params_t {
 
         bgmmc.use_buffer_c = is_buffer_c_required(
                 bgmmc.acc_dt, bgmmc.dst_dt, bgmmc.with_sum);
-        bgmmc.LDA = get_actual_lda(bgmmc.use_buffer_a, bgmmc.a_dt_sz);
+        bgmmc.LDA = (bgmmc.src_tag == acbd && !bgmmc.use_buffer_a
+                        ? bgmmc.A_strides[1] / bgmmc.a_dt_sz
+                        : get_actual_lda(bgmmc.use_buffer_a, bgmmc.a_dt_sz));
     }
 };
 
@@ -814,7 +824,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.blocked_B = bm_conf_utils.get_blocked_B();
     bgmmc.use_buffer_b = bm_conf_utils.use_buffer_b();
 
-    bgmmc.transposed_A = bm_conf_utils.check_is_transposed(bgmmc.src_tag);
+    bgmmc.transposed_A = (bm_conf_utils.check_is_transposed(bgmmc.src_tag)
+            || bgmmc.src_tag == adbc);
     const bool lda_is_big_2pow = bm_conf_utils.is_bf16() && !bgmmc.transposed_A
             && math::is_pow2(bgmmc.K) && bgmmc.K >= 4096 && bgmmc.M >= 1024;
     const bool is_copy_a_required
@@ -828,6 +839,15 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // show worse performance for it in comparison with copy whole A approach
     // (especially for big K sizes).
     bgmmc.use_buffer_a_tail_only = false;
+
+    const int dmax = nstl::min(bgmmc.ndims, 3);
+    for (int d = 0; d < dmax; d++) {
+        int dim = bgmmc.ndims - 1 - d;
+        bgmmc.A_strides[d] = bgmmc.a_dt_sz * src_d.blocking_desc().strides[dim];
+        bgmmc.B_strides[d]
+                = bgmmc.b_dt_sz * weights_d.blocking_desc().strides[dim];
+        bgmmc.C_strides[d] = bgmmc.c_dt_sz * dst_d.blocking_desc().strides[dim];
+    }
 
     // Heuristic tries to optimize the following parameters:
     // - M_blk, M_Chunk
@@ -851,7 +871,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             : 0;
 
     bgmmc.LDB = bm_conf_utils.get_actual_LDB();
-    bgmmc.LDD = bgmmc.N;
+    bgmmc.LDD = bgmmc.dst_tag == acbd ? dst_d.blocking_desc().strides[2]
+                                      : bgmmc.N;
     bgmmc.LDC
             = bgmmc.use_buffer_c && bgmmc.nthr_k <= 1 ? bgmmc.N_blk : bgmmc.LDD;
 
@@ -898,13 +919,43 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
             : div_up(bgmmc.N, bgmmc.wei_n_blk) * bgmmc.wei_n_blk;
     bgmmc.s8s8_comp_n_str = bgmmc.wei_n_blk;
 
-    const int dmax = nstl::min(bgmmc.ndims, 3);
-    for (int d = 0; d < dmax; d++) {
-        int dim = bgmmc.ndims - 1 - d;
-        bgmmc.A_strides[d] = bgmmc.a_dt_sz * src_d.blocking_desc().strides[dim];
-        bgmmc.B_strides[d] = bgmmc.b_dt_sz * wei_d.blocking_desc().strides[dim];
-        bgmmc.C_strides[d] = bgmmc.c_dt_sz * dst_d.blocking_desc().strides[dim];
+    bgmmc.A_ptr_shift_b = 0;
+    bgmmc.copy_A_src_stride = 0;
+    if (bgmmc.src_tag == acbd || bgmmc.src_tag == adbc) {
+        const dim_t factor = bgmmc.src_dt == f32 ? 2 : 1;
+        const dim_t src_stride = bgmmc.src_tag == acbd ? bgmmc.A_strides[1]
+                                                       : bgmmc.A_strides[0];
+        bgmmc.copy_A_src_stride = nstl::min(src_d.blocking_desc().strides[0],
+                                          src_stride / factor)
+                * factor;
+        const dim_t bcast_shift_b = bgmmc.src_tag == acbd ? bgmmc.K : bgmmc.M;
+        bgmmc.A_ptr_shift_b
+                = (bgmmc.bcast_A_desc.bcast_mask == 2
+                                  ? bcast_shift_b
+                                  : src_d.blocking_desc().strides[0])
+                * bgmmc.a_dt_sz;
     }
+
+    bgmmc.B_ptr_shift_b = 0;
+    bgmmc.copy_B_wei_stride = 0;
+    if (bgmmc.wei_tag == acbd || bgmmc.wei_tag == adbc) {
+        const dim_t factor = bgmmc.wei_dt == f32 ? 2 : 1;
+        const dim_t wei_stride = bgmmc.wei_tag == acbd ? bgmmc.B_strides[1]
+                                                       : bgmmc.B_strides[0];
+        bgmmc.copy_B_wei_stride = nstl::min(wei_d.blocking_desc().strides[0],
+                                          wei_stride / factor)
+                * factor;
+        const dim_t bcast_shift_b = bgmmc.wei_tag == acbd ? bgmmc.N : bgmmc.K;
+        bgmmc.B_ptr_shift_b
+                = (bgmmc.bcast_B_desc.bcast_mask == 2
+                                  ? bcast_shift_b
+                                  : wei_d.blocking_desc().strides[0])
+                * bgmmc.b_dt_sz;
+    }
+
+    bgmmc.C_ptr_shift_b = bgmmc.dst_tag == acbd
+            ? dst_d.blocking_desc().strides[0] * bgmmc.c_dt_sz
+            : 0;
 
     bgmmc.has_zero_point_a = bgmmc.src_zp_type != brgemm_broadcast_t::none;
     bgmmc.has_zero_point_b = bgmmc.wei_zp_type != brgemm_broadcast_t::none;
@@ -1117,7 +1168,7 @@ void matmul_amx_blocking_params_t::update_configuration(
 }
 
 dim_t matmul_amx_blocking_params_t::get_actual_lda() {
-    if (!use_buffer_a) return K;
+    if (!use_buffer_a) return src_tag == acbd ? A_strides[1] / a_dt_sz : K;
 
     constexpr int bytes_in_cacheline = 64;
     const int elems_in_cacheline = bytes_in_cacheline / a_dt_sz;

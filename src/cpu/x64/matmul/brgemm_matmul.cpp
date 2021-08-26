@@ -108,7 +108,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
                 bgmmc_.wei_dt, false, false, brgemm_row_major, alpha, vbeta,
                 LDA, bgmmc_.LDB, bgmmc_.LDC, vM, vN, vK));
 
-        auto LDD = bgmmc_.N;
+        auto LDD = bgmmc_.LDD;
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, bgmmc_.bia_dt));
 
@@ -839,16 +839,42 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     // strides for each tensor to get general sulution for all possible
     // dimension without significant overhead
     dim_t get_data_A_off(int b, int m, int k) const {
-        return bgmmc_.A_strides[2] * b + bgmmc_.A_strides[1] * m
-                + bgmmc_.A_strides[0] * k;
+        using namespace format_tag;
+        if (bgmmc_.src_tag == acbd || bgmmc_.src_tag == adbc) {
+            dim_t b_off = 0;
+            if (!bgmmc_.bcast_A_desc.bcast_mask) { // no broadcast
+                const dim_t batch_dim1 = bgmmc_.bcast_A_desc.batch_dims[1];
+                b_off = bgmmc_.A_strides[2] * (b % batch_dim1)
+                        + (b / batch_dim1) * bgmmc_.A_ptr_shift_b;
+            } else {
+                b_off = b * bgmmc_.A_ptr_shift_b;
+            }
+            return b_off + bgmmc_.A_strides[1] * m + bgmmc_.A_strides[0] * k;
+        } else {
+            return bgmmc_.A_strides[2] * b + bgmmc_.A_strides[1] * m
+                    + bgmmc_.A_strides[0] * k;
+        }
     }
-    dim_t get_data_B_off(int b, int k, int n) const {
-        int k_idx = bgmmc_.blocked_B ? k / bgmmc_.wei_k_blk : k;
-        int n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;
 
-        return bgmmc_.B_strides[2] * b + bgmmc_.B_strides[1] * k_idx
-                + bgmmc_.B_strides[0] * n_idx
-                + get_data_B_off_within_block(k, n);
+    dim_t get_data_B_off(int b, int k, int n) const {
+        using namespace format_tag;
+        if (bgmmc_.wei_tag == acbd || bgmmc_.wei_tag == adbc) {
+            dim_t b_off = 0;
+            if (!bgmmc_.bcast_B_desc.bcast_mask) { // no broadcast
+                const dim_t batch_dim1 = bgmmc_.bcast_B_desc.batch_dims[1];
+                b_off = bgmmc_.B_strides[2] * (b % batch_dim1)
+                        + (b / batch_dim1) * bgmmc_.B_ptr_shift_b;
+            } else {
+                b_off = b * bgmmc_.B_ptr_shift_b;
+            }
+            return b_off + bgmmc_.B_strides[1] * k + bgmmc_.B_strides[0] * n;
+        } else {
+            int k_idx = bgmmc_.blocked_B ? k / bgmmc_.wei_k_blk : k;
+            int n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;
+            return bgmmc_.B_strides[2] * b + bgmmc_.B_strides[1] * k_idx
+                    + bgmmc_.B_strides[0] * n_idx
+                    + get_data_B_off_within_block(k, n);
+        }
     }
 
     dim_t get_data_B_off_within_block(int k, int n) const {
@@ -864,8 +890,17 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     }
 
     dim_t get_data_C_off(int b, int m, int n) const {
-        return bgmmc_.C_strides[2] * b + bgmmc_.C_strides[1] * m
-                + bgmmc_.C_strides[0] * n;
+        using namespace format_tag;
+        assert(bgmmc_.dst_tag != adbc);
+        if (bgmmc_.dst_tag == acbd) {
+            const dim_t batch_dim1 = bgmmc_.bcast_A_desc.batch_dims[1];
+            dim_t b_off = bgmmc_.C_strides[2] * (b % batch_dim1)
+                    + (b / batch_dim1) * bgmmc_.C_ptr_shift_b;
+            return b_off + bgmmc_.C_strides[1] * m + bgmmc_.C_strides[0] * n;
+        } else {
+            return bgmmc_.C_strides[2] * b + bgmmc_.C_strides[1] * m
+                    + bgmmc_.C_strides[0] * n;
+        }
     }
 
     const char *get_bias_ptr(int n) const {

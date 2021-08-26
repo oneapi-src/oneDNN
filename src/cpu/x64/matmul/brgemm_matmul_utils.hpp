@@ -135,6 +135,12 @@ struct brgemm_matmul_conf_t {
     dim_t buffer_c_chunk_sz;
     dim_t buffer_c_per_thread_sz;
 
+    dim_t A_ptr_shift_b;
+    dim_t B_ptr_shift_b;
+    dim_t C_ptr_shift_b;
+    dim_t copy_A_src_stride;
+    dim_t copy_B_wei_stride;
+
     dim_t buffer_a_chunk_sz;
     dim_t buffer_a_chunk_shift_along_m;
     dim_t buffer_a_per_thread_sz;
@@ -191,10 +197,14 @@ struct brgemm_matmul_conf_utils_t {
         bool use_copy_buffer = IMPLICATION(
                 this->is_f32(), use_heuristic && (big_LDB && is_pow2));
         return (use_copy_buffer && this->check_is_plain(bgmmc.wei_tag))
-                || this->check_is_transposed(bgmmc.wei_tag);
+                || this->check_is_transposed(bgmmc.wei_tag)
+                || (bgmmc.wei_tag == format_tag::acbd)
+                || (bgmmc.wei_tag == format_tag::adbc);
     }
 
     inline dim_t get_actual_LDB() const {
+        if (bgmmc.wei_tag == format_tag::acbd && !bgmmc.use_buffer_b)
+            return bgmmc.B_strides[1] / bgmmc.b_dt_sz;
         bool use_blocked_LDB = bgmmc.is_amx || bgmmc.use_buffer_b
                 || bgmmc.wei_tag != plain_tensor_layout_tag;
         return use_blocked_LDB ? bgmmc.wei_n_blk : bgmmc.N;
