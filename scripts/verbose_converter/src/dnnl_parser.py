@@ -247,10 +247,14 @@ class LogParser:
                 'timestamp': 'timestamp'
             }
 
+            ir_req = [ 'engine', 'prim_kind', 'impl', 'prop_kind', 'mds',
+                    'exts', 'alg_kind', 'shapes']
+
             entry = {}
 
             t = template.split(',')
             for key, value in dnnl_to_ir.items():
+                notification_level = "WARN" if key in ir_req else "INFO"
                 try:
                     idx = t.index(value)
                     if idx != -1:
@@ -263,13 +267,13 @@ class LogParser:
                         except:
                             self.__writer.print(
                                 f"Parser: parsing entry error: {field}: {value}",
-                                'WARN')
+                                notification_level)
                     else:
                         self.__writer.print(f"Parser: Unknown entry: {value}",
-                                            'WARN')
+                                            notification_level)
                 except:
                     self.__writer.print(f"Parser: skipping empty entry: {key}",
-                                        'WARN')
+                                        notification_level)
             return entry
 
         verbose_template = "dnnl_verbose,operation,engine,primitive," + \
