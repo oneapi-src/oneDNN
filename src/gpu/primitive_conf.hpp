@@ -1064,7 +1064,7 @@ inline void def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             assert(dst_dims != nullptr);
 
             dnnl_memory_desc_t weight_mem_desc;
-            dnnl_dims_t weight_dims;
+            dims_t weight_dims {};
             format_tag_t weights_tag;
             int weight_ndims = 0;
             if (e.prelu.mask == 0) {
