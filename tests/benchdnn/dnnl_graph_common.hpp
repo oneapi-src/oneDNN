@@ -18,6 +18,7 @@
 #define DNNL_GRAPH_COMMON_HPP
 
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <map>
 #include <numeric>
