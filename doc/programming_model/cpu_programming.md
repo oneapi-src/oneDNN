@@ -212,8 +212,8 @@ buffer. So, a helper function is provided in the example like below:
   according to the given logical tensors.
 
 ~~~cpp
-std::vector<tensor> input_ts = construct_and_initialize_tensors(inputs, c_partitions[i], tm, 1);
-std::vector<tensor> output_ts = construct_and_initialize_tensors(outputs, c_partitions[i], tm, 0);
+std::vector<tensor> input_ts = construct_and_initialize_tensors(inputs, c_partitions[i], tm, e, 1);
+std::vector<tensor> output_ts = construct_and_initialize_tensors(outputs, c_partitions[i], tm, e, 0);
 ~~~
 
 Finally, users can execute the compiled partition with input and output tensors.
@@ -331,7 +331,7 @@ be known at the compilation time.
     compiled_partition cp = partitions[0].compile({conv_src, conv_wei}, {conv_dst}, eng);
     // execute the compiled partition with input/output tensors
     tensor src_tensor = tensor_from_last_layer; // with opaque layout id
-    tensor wei_tensor = tensor(conv_wei, buf_wei); // strided weight
-    tensor dst = tensor(cp.query_logical_tensor(2), buf_dst);
+    tensor wei_tensor = tensor(conv_wei, eng, buf_wei); // strided weight
+    tensor dst = tensor(cp.query_logical_tensor(2), eng, buf_dst);
     cp.execute(stream, {src_tensor, wei_tensor}, {dst_tensor});
     ~~~

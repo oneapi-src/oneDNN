@@ -208,10 +208,10 @@ Before the execution, users also need to bind the logical tensor and memory
 buffer to [dnnl::graph::tensor](../../include/oneapi/dnnl/dnnl_graph.hpp#L542).
 
 ~~~cpp
-tensor conv0_src(conv0_src_desc_plain, conv0_src_data);
-tensor conv0_weight(conv0_weight_desc_plain, conv0_weight_data);
-tensor conv0_bias(conv0_bias_desc_plain, conv0_bias_data);
-tensor relu0_dst(relu0_dst_desc_plain, relu0_dst_data);
+tensor conv0_src(conv0_src_desc_plain, eng, conv0_src_data);
+tensor conv0_weight(conv0_weight_desc_plain, eng, conv0_weight_data);
+tensor conv0_bias(conv0_bias_desc_plain, eng, conv0_bias_data);
+tensor relu0_dst(relu0_dst_desc_plain, eng, relu0_dst_data);
 std::vector<tensor> out0_list = {relu0_dst};
 
 sycl_interop::execute(cp0, strm, {conv0_src, conv0_weight, conv0_bias}, out0_list);
@@ -220,9 +220,9 @@ sycl_interop::execute(cp0, strm, {conv0_src, conv0_weight, conv0_bias}, out0_lis
 In the same way, users can execute the second compiled partition.
 
 ~~~cpp
-tensor conv1_weight(conv1_weight_desc_plain, conv1_weight_data);
-tensor conv1_bias(conv1_bias_desc_plain, conv1_bias_data);
-tensor relu1_dst(relu1_dst_desc_plain, relu1_dst_data);
+tensor conv1_weight(conv1_weight_desc_plain, eng, conv1_weight_data);
+tensor conv1_bias(conv1_bias_desc_plain, eng, conv1_bias_data);
+tensor relu1_dst(relu1_dst_desc_plain, eng, relu1_dst_data);
 std::vector<tensor> out1_list {relu1_dst};
 
 sycl_interop::execute(cp1, strm, {relu0_dst, conv1_weight, conv1_bias}, out1_list);
