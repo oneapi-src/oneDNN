@@ -757,7 +757,7 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
         uint32_t abo = (uint16_t(ao) | (uint16_t(bo) << 16));
         arg_list.set(argn++, abo);
     }
-    if (last_k_block && (pd()->with_bias() || pd()->with_c_zero_points())) {
+    if ((pd()->with_bias() || pd()->with_c_zero_points())) {
         arg_list.set(argn++, co);
         arg_list.set(argn++, offset_co);
     }
