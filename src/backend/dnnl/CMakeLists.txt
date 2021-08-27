@@ -24,10 +24,9 @@ file(GLOB SOURCES
     )
 
 file(GLOB_RECURSE SOURCES_EXTRA
-    ${CMAKE_CURRENT_SOURCE_DIR}/operator/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/passes/*.[ch]pp
-    ${CMAKE_CURRENT_SOURCE_DIR}/subgraph/*.[ch]pp
-    ${CMAKE_CURRENT_SOURCE_DIR}/subgraph/operators/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/patterns/*.[ch]pp
     )
 
 foreach(SOURCE_FILE ${SOURCES_EXTRA})

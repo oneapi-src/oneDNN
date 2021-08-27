@@ -14,7 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <limits>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -93,27 +95,6 @@ dims group_dims(const dims &adims, dim groups) {
     return new_dims;
 }
 
-std::pair<std::vector<float>, std::vector<float>> compute_scales(
-        float src_scale, float dst_scale, std::vector<float> weight_scales) {
-    auto scale_size = weight_scales.size();
-    std::vector<float> bias_scales(scale_size), op_scales(scale_size);
-
-    for (size_t i = 0; i < scale_size; i++) {
-        bias_scales[i] = src_scale * weight_scales[i];
-        op_scales[i] = dst_scale / bias_scales[i];
-    }
-    return std::make_pair(std::move(bias_scales), std::move(op_scales));
-}
-
-std::pair<bool, int64_t> try_reverse_axis(
-        const int64_t axis, const int32_t rank) {
-    // oneDNN can not operate on the negative axis
-    const auto new_axis = (axis < 0) ? rank + axis : axis;
-    if (new_axis < 0 || new_axis >= static_cast<int64_t>(rank))
-        return std::make_pair(false, axis);
-    return std::make_pair(true, new_axis);
-}
-
 dnnl::engine make_dnnl_engine(const impl::engine_t &g_engine) {
 #if DNNL_GRAPH_WITH_SYCL
     return dnnl::sycl_interop::make_engine(
@@ -151,8 +132,7 @@ dnnl::memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt) {
 
         const auto &td = dnnl_backend::get_singleton().get_mem_desc(
                 static_cast<size_t>(ltw.layout_id()));
-        return static_cast<dnnl::memory::desc>(
-                impl::utils::any_cast<tensor::desc>(td.value()));
+        return impl::utils::any_cast<memory::desc>(td.value());
     } else if (ltw.is_any()) {
         return {ltw.vdims(), dtype, dnnl::memory::format_tag::any};
     } else if (ltw.is_strided()) {
@@ -306,6 +286,36 @@ bool is_4c_blocked(const memory::desc &adesc) {
 memory::desc to_default_format(const memory::desc &adesc) {
     return memory::desc(adesc.dims(), adesc.data_type(),
             get_default_format(adesc.data.ndims));
+}
+
+void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td) {
+    const impl::logical_tensor_wrapper ltw(lt);
+    if (ltw.is_any()) { // we only reset any format
+#ifdef DNNL_GRAPH_LAYOUT_DEBUG
+        const int ndims = td.data.ndims;
+        if (ndims <= 1) { // scratchpads mem
+            const dnnl_dims_t &dims = td.data.dims;
+            lt->ndims = ndims;
+            std::copy(dims, dims + ndims, lt->dims);
+            lt->data_type = static_cast<impl::data_type_t>(td.data.data_type);
+        }
+#endif // DNNL_GRAPH_LAYOUT_DEBUG
+
+        impl::utils::optional<size_t> layout_id
+                = dnnl_backend::get_singleton().set_mem_desc(td);
+        lt->layout.layout_id = static_cast<int64_t>(layout_id.value());
+        lt->layout_type = impl::layout_type::opaque;
+    }
+}
+
+void fill_layout_info(
+        std::shared_ptr<impl::value_t> &val, const memory::desc &td) {
+    impl::logical_tensor_t lt = val->get_logical_tensor();
+    const impl::logical_tensor_wrapper ltw(lt);
+    if (ltw.is_any()) { // we only reset any format
+        val->set_layout_id(static_cast<int64_t>(
+                dnnl_backend::get_singleton().set_mem_desc(td).value()));
+    }
 }
 
 } // namespace dnnl_impl

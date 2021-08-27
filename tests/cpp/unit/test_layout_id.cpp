@@ -28,9 +28,9 @@ namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = dnnl::graph::impl::dnnl_impl;
 
 TEST(layout_id_test, opaque_md_layout_id_mapping) {
-    using tensor = dnnl_impl::tensor;
-    using data_type = dnnl_impl::tensor::desc::data_type;
-    using format_tag = dnnl_impl::tensor::desc::format_tag;
+    using memory = dnnl_impl::memory;
+    using data_type = dnnl_impl::data_type;
+    using format_tag = dnnl_impl::format_tag;
 
     dnnl_impl::dnnl_layout_id_manager &mgr
             = impl::dnnl_impl::dnnl_backend::get_singleton()
@@ -38,11 +38,11 @@ TEST(layout_id_test, opaque_md_layout_id_mapping) {
 
     // opaque md should be cached and generate a layout id, and the later
     // layout id should be greater than the former one
-    tensor::desc md1({8, 3, 224, 224}, data_type::f32, format_tag::nChw16c);
+    memory::desc md1({8, 3, 224, 224}, data_type::f32, format_tag::nChw16c);
     auto id1 = mgr.set_mem_desc(md1);
     ASSERT_TRUE(id1.has_value());
 
-    tensor::desc md2({8, 16, 96, 96}, data_type::f32, format_tag::nChw8c);
+    memory::desc md2({8, 16, 96, 96}, data_type::f32, format_tag::nChw8c);
     auto id2 = mgr.set_mem_desc(md2);
     ASSERT_TRUE(id2.has_value());
 
@@ -50,7 +50,7 @@ TEST(layout_id_test, opaque_md_layout_id_mapping) {
     ASSERT_EQ(id1.value(), static_cast<size_t>(format_tag::nChw16c));
     ASSERT_EQ(id2.value(), static_cast<size_t>(format_tag::nChw8c));
 
-    tensor::desc md3({1, 2, 3, 4}, data_type::s8, format_tag::nChw16c);
+    memory::desc md3({1, 2, 3, 4}, data_type::s8, format_tag::nChw16c);
     auto id3 = mgr.set_mem_desc(md3);
     ASSERT_EQ(id3.value(), static_cast<size_t>(format_tag::nChw16c));
 #else
@@ -60,13 +60,13 @@ TEST(layout_id_test, opaque_md_layout_id_mapping) {
     // layout id
     auto recovered_md1 = mgr.get_mem_desc(id1.value());
     ASSERT_TRUE(recovered_md1.has_value());
-    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<tensor::desc>(
+    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<memory::desc>(
                       recovered_md1.value()),
             md1);
 
     auto recovered_md2 = mgr.get_mem_desc(id2.value());
     ASSERT_TRUE(recovered_md2.has_value());
-    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<tensor::desc>(
+    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<memory::desc>(
                       recovered_md2.value()),
             md2);
 #endif // DNNL_GRAPH_LAYOUT_DEBUG

@@ -20,10 +20,16 @@
 
 #include "dnnl_backend.hpp"
 #include "dnnl_opset.hpp"
-#include "operators.hpp"
-#include "passes.hpp"
+#include "kernels/kernels.hpp"
+#include "patterns/binary_fusion.hpp"
+#include "patterns/bn_fusion.hpp"
+#include "patterns/conv_fusion.hpp"
+#include "patterns/eltwise_fusion.hpp"
+#include "patterns/gelu_fusion.hpp"
+#include "patterns/matmul_fusion.hpp"
+#include "patterns/pool_fusion.hpp"
+#include "patterns/single_op_pattern.hpp"
 #include "tensor.hpp"
-#include "transformation_pass.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -33,8 +39,8 @@ namespace dnnl_impl {
 bool dnnl_layout_id_manager::is_mem_desc_equal(
         const impl::utils::any &mem_desc1,
         const impl::utils::any &mem_desc2) const {
-    auto &md1 = impl::utils::any_cast<const tensor::desc &>(mem_desc1);
-    auto &md2 = impl::utils::any_cast<const tensor::desc &>(mem_desc2);
+    auto &md1 = impl::utils::any_cast<const memory::desc &>(mem_desc1);
+    auto &md2 = impl::utils::any_cast<const memory::desc &>(mem_desc2);
     return md1 == md2;
 }
 

@@ -134,7 +134,7 @@ public:
 
     impl::utils::optional<size_t> set_mem_desc(
             const impl::utils::any &mem_desc) override {
-        auto &md = impl::utils::any_cast<const tensor::desc &>(mem_desc);
+        auto &md = impl::utils::any_cast<const memory::desc &>(mem_desc);
         size_t layout_id = 0;
         {
             std::lock_guard<std::mutex> lock(mem_descs_.m_);

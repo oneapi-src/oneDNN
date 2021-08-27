@@ -23,6 +23,8 @@
 #include <utility>
 #include <vector>
 
+#include "backend/dnnl/common.hpp"
+
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -107,6 +109,39 @@ inline bool is_aligned_ptr(void *ptr, size_t bytes) {
 inline bool is_enable_constant_cache() {
     char *env = std::getenv("DNNL_GRAPH_CONSTANT_CACHE");
     return env != nullptr && std::strcmp(env, "1") == 0;
+}
+
+inline std::pair<std::vector<float>, std::vector<float>> compute_scales(
+        float src_scale, float dst_scale, std::vector<float> weight_scales) {
+    auto scale_size = weight_scales.size();
+    std::vector<float> bias_scales(scale_size), op_scales(scale_size);
+
+    for (size_t i = 0; i < scale_size; i++) {
+        bias_scales[i] = src_scale * weight_scales[i];
+        op_scales[i] = dst_scale / bias_scales[i];
+    }
+    return std::make_pair(std::move(bias_scales), std::move(op_scales));
+}
+
+inline std::pair<bool, int64_t> try_reverse_axis(
+        const int64_t axis, const int32_t rank) {
+    // oneDNN can not operate on the negative axis
+    const auto new_axis = (axis < 0) ? rank + axis : axis;
+    if (new_axis < 0 || new_axis >= static_cast<int64_t>(rank))
+        return std::make_pair(false, axis);
+    return std::make_pair(true, new_axis);
+}
+
+inline int op_scale_mask(dim scale_size) {
+    return scale_size > 1 ? 2 : 0;
+}
+
+inline int tensor_scale_mask(dim scale_size, bool grouped) {
+    return scale_size > 1 ? grouped ? 3 : 1 : 0;
+}
+
+inline int tensor_zp_mask(dim zp_size) {
+    return zp_size > 1 ? 1 : 0;
 }
 
 } // namespace utils

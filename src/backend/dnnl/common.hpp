@@ -17,6 +17,7 @@
 #ifndef BACKEND_DNNL_COMMON_HPP
 #define BACKEND_DNNL_COMMON_HPP
 
+#include <memory>
 #include <utility>
 #include <vector>
 #include <unordered_map>
@@ -25,6 +26,7 @@
 
 #include "interface/allocator.hpp"
 #include "interface/logical_tensor.hpp"
+#include "interface/value.hpp"
 #include "utils/compatible.hpp"
 
 #include "dnnl.hpp"
@@ -67,24 +69,6 @@ dims get_compatible_dilates(const dims &dilates, size_t input_size = 4);
 
 dims group_dims(const dims &adims, dim groups);
 
-std::pair<std::vector<float>, std::vector<float>> compute_scales(
-        float src_scale, float dst_scale, std::vector<float> weight_scales);
-
-std::pair<bool, int64_t> try_reverse_axis(
-        const int64_t axis, const int32_t rank);
-
-inline int op_scale_mask(dim scale_size) {
-    return scale_size > 1 ? 2 : 0;
-}
-
-inline int tensor_scale_mask(dim scale_size, bool grouped) {
-    return scale_size > 1 ? grouped ? 3 : 1 : 0;
-}
-
-inline int tensor_zp_mask(dim zp_size) {
-    return zp_size > 1 ? 1 : 0;
-}
-
 engine make_dnnl_engine(const impl::engine_t &g_engine);
 
 stream make_dnnl_stream(const engine &p_engine, const impl::stream_t &g_stream);
@@ -119,6 +103,11 @@ memory::desc permute_OIX2XIO(const memory::desc &adesc);
 bool is_4c_blocked(const memory::desc &adesc);
 
 memory::desc to_default_format(const memory::desc &adesc);
+
+void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td);
+
+void fill_layout_info(
+        std::shared_ptr<impl::value_t> &val, const memory::desc &td);
 
 #ifndef NDEBUG
 #define BACKEND_DNNL_ENFORCE(condition, message) \

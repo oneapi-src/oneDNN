@@ -160,7 +160,7 @@ TEST(logical_tensor_test, implicit_equal_layout) {
     using data_type = dnnl_impl::tensor::desc::data_type;
     using format_tag = dnnl_impl::tensor::desc::format_tag;
 
-    tensor::desc md({1, 2, 3, 4}, data_type::f32, format_tag::nchw);
+    dnnl_impl::memory::desc md({1, 2, 3, 4}, data_type::f32, format_tag::nchw);
     auto layout_idx = dnnl_impl::dnnl_backend::get_singleton().set_mem_desc(md);
     ASSERT_TRUE(layout_idx.has_value());
     auto backend_idx = dnnl_impl::dnnl_backend::get_singleton().get_id();

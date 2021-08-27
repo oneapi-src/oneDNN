@@ -21,7 +21,7 @@
 
 #include "interface/c_types_map.hpp"
 
-#include "backend/dnnl/subgraph/memory_binding.hpp"
+#include "backend/dnnl/passes/memory_binding.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
 
 #include <dnnl.hpp>

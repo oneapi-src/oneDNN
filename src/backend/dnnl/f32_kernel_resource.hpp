@@ -25,7 +25,6 @@
 #include "utils/utils.hpp"
 
 #include "backend/dnnl/common.hpp"
-#include "backend/dnnl/md_hashing.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
 
 namespace dnnl {
