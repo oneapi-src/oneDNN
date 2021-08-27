@@ -4036,7 +4036,8 @@ private:
         std::vector<stage_t> stages;
         stages.emplace_back(reg_sub_layout, reg_buf_); // M_x
         if (!post_op_builders_.empty()) {
-            auto po_layout = r2g.reg_layout().retype(type_t::f32());
+            auto po_layout
+                    = r2g.reg_layout().retype(type_t::f32()).make_dense();
             for (int i = 0; i < int(post_op_builders_.size()); i++) {
                 auto buf = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "c_tmp");
                 stages.emplace_back(po_layout, buf); // Pi_f32
