@@ -308,7 +308,9 @@ status_t brgemm_convolution_fwd_t<isa>::add_po_kernel(
     bcfg.LDD = (is_init && jcp.use_buffer) ? jcp.LDC : jcp.LDD;
     bcfg.dt_c = (!is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt; // inp
     bcfg.dt_d = (is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt; // out
-    bcfg.alpha = bcfg.beta = (is_init ? 0 : 1);
+    bcfg.alpha
+            = (!is_init && IMPLICATION(jcp.with_sum, jcp.use_buffer)) ? 1 : 0;
+    bcfg.beta = is_init ? 0 : 1;
     CHECK(safe_ptr_assign(kernels_po_[ker_idx],
             new jit_brgemm_kernel_post_ops(jcp, bcfg, *_pd->attr())));
     kernels_po_[ker_idx]->create_kernel();
@@ -727,13 +729,16 @@ template <cpu_isa_t isa>
 void brgemm_convolution_fwd_t<isa>::perform_outwork(char *dst_base,
         char *c_buffer, const char *bias_w, int od, int oh, int ow, int g_oc,
         bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l, int kh_l,
-        const void *post_ops_binary_rhs_arg_vec, bool do_init,
+        const void *post_ops_binary_rhs_arg_vec, bool maybe_do_init,
         bool do_postwork) const {
-
-    if (!do_init && !do_postwork) return;
 
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
+
+    const auto do_init
+            = maybe_do_init && IMPLICATION(jcp.with_sum, jcp.use_buffer);
+    if (!do_init && !do_postwork) return;
+
     assert(!jcp.is_os_blocking);
 
     const bool is_ow_tail = (OW - ow < jcp.ow_block);

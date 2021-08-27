@@ -1654,6 +1654,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (is_amx(isa)) {
         // disabled for first convolutions
         if (jcp.ic <= 4) return status::unimplemented;
+        if (jcp.f_pad >= jcp.kd || jcp.t_pad >= jcp.kh || jcp.r_pad >= jcp.kw)
+            return status::unimplemented;
         if (jcp.dilate_d > 0 || jcp.dilate_h > 0 || jcp.dilate_w > 0)
             return status::unimplemented;
     }
@@ -1775,8 +1777,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 && jcp.ic * jcp.kw_sets > ic_padded_block;
 
         if (is_amx(isa) && (/* heuristic*/ jcp.kw_sets == 1 && jcp.ow < 256)) {
-            jcp.is_os_blocking = true;
-            jcp.use_M_mask = 2;
+            jcp.is_os_blocking = jcp.f_pad < jcp.kd && jcp.back_pad < jcp.kd
+                    && jcp.t_pad < jcp.kh && jcp.b_pad < jcp.kh
+                    && jcp.r_pad < jcp.kw && jcp.l_pad < jcp.kw;
+            jcp.use_M_mask = jcp.is_os_blocking ? 2 : 0;
             jcp.use_uker = true;
             jcp.use_interleave_stores = true;
             // assuming 2x2 decomposition in amx brgemm kernel
