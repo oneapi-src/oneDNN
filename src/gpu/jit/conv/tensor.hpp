@@ -1540,14 +1540,21 @@ private:
             const layout_t &_vlayout, int vidx,
             std::vector<dim_t> &vargs) const {
         if (vidx == _vlayout.ndims()) {
-            std::vector<expr_t> vvalues = vstart_;
-            for (int i = 0; i < nvdims(); i++)
-                vvalues[i] += vargs[i];
-            auto targs = cvt_vargs_to_targs<dim_t, expr_t>(vargs);
+            bool is_init = false;
+            std::vector<expr_t> vvalues;
+            std::vector<expr_t> targs;
             expr_t mask = bool_imm_t::make(true);
             for (int i = 0; i < ntdims(); i++) {
                 auto &tdim = tdims_[i];
                 if (tdim.mask().is_empty()) continue;
+                if (!is_init) {
+                    // Lazily initialize values
+                    vvalues = vstart_;
+                    for (int i = 0; i < nvdims(); i++)
+                        vvalues[i] += vargs[i];
+                    targs = cvt_vargs_to_targs<dim_t, expr_t>(vargs);
+                    is_init = true;
+                }
                 mask &= tdim.mask(targs[i], vvars_, vvalues);
             }
             mask_tensor.set_mask(_vlayout(vargs), mask);
