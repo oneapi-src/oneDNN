@@ -77,6 +77,8 @@ Cons:
 2. May require complicated validation and can't be fully covered as there are
    enormous number of combinations to build and run.
 
+There is also an ISA extension RFC [here](ISA_extension.md).
+
 ## Additional Comments
 [1] oneDNN v2.2 + gcc 4.8.5 + release mode + standard linker +
     TBB threading (2017.2) + c++11 + native optimizations on AVX2.
