@@ -26,9 +26,10 @@ namespace x64 {
 
 #define PARAM_OFF(x) offsetof(jit_binary_call_s, x)
 
-static bcast_set_t get_supported_bcast_strategies() {
+static bcast_set_t get_supported_postops_bcast_strategies() {
     return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
-            broadcasting_strategy_t::per_oc_spatial};
+            broadcasting_strategy_t::per_oc_spatial,
+            broadcasting_strategy_t::no_broadcast};
 }
 
 binary_kernel_t::binary_kernel_t(const size_t vlen, const binary_pd_t *pd,
@@ -125,8 +126,8 @@ void jit_uni_binary_kernel_t<isa>::init_post_ops_injector() {
             reg_elt_inj_table_, true /*preserve gpr*/, true /*preserve vmm*/,
             PARAM_OFF(post_ops_binary_rhs_arg_vec), src0_d, tail_size_,
             tail_opmask_, false /*use_exact_tail_scalar_bcast*/};
-    const binary_injector::static_params_t bsp(
-            this->param1, get_supported_bcast_strategies(), rhs_arg_bsp);
+    const binary_injector::static_params_t bsp(this->param1,
+            get_supported_postops_bcast_strategies(), rhs_arg_bsp);
 
     postops_injector_ = utils::make_unique<
             injector::jit_uni_postops_injector_t<inject_isa>>(
@@ -136,7 +137,22 @@ void jit_uni_binary_kernel_t<isa>::init_post_ops_injector() {
 template <cpu_isa_t isa>
 void jit_uni_binary_kernel_t<isa>::apply_postops(int unroll, bool tail) {
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+
+    mov(reg_off_rhs_postops_, reg_offt_src0_);
+    const auto dt_size = types::data_type_size(conf_.src0_type);
+    if (dt_size == 4)
+        shr(reg_off_rhs_postops_, 0x2);
+    else if (dt_size == 2)
+        shr(reg_off_rhs_postops_, 0x1);
+
     for (int vmm_idx = 1; vmm_idx < unroll + vmm_start_idx_; vmm_idx++) {
+        rhs_arg_params.vmm_idx_to_out_elem_off_addr.emplace(
+                vmm_idx, ptr[param1 + PARAM_OFF(l_off)]);
+        rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
+                vmm_idx, reg_off_rhs_postops_);
+        rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(vmm_idx,
+                (vmm_idx - vmm_start_idx_) * static_cast<int>(simd_w_));
+
         if (utils::one_of(conf_.op_type, op_t::c_blocked, op_t::n_c_spatial)) {
             rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
                     vmm_idx, ptr[param1 + PARAM_OFF(oc_l_off)]);

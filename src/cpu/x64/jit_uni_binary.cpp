@@ -24,9 +24,10 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-static bcast_set_t get_supported_bcast_strategies() {
+static bcast_set_t get_supported_postops_bcast_strategies() {
     return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
-            broadcasting_strategy_t::per_oc_spatial};
+            broadcasting_strategy_t::per_oc_spatial,
+            broadcasting_strategy_t::no_broadcast};
 }
 
 static bool compare_layouts(const memory_desc_wrapper &src0_md,
@@ -114,7 +115,7 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
 
     conf_.postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
-                    po, src0_md_, get_supported_bcast_strategies());
+                    po, src0_md_, get_supported_postops_bcast_strategies());
     conf_.is_bf16 = conf_.dst_type == bf16;
     conf_.op_type = get_op_type(src0_md_);
     assert(conf_.op_type != op_t::none);
@@ -399,7 +400,7 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
                                     : is_i8 && mayiuse(avx512_common)
                     ? cpu_isa_traits<avx512_common>::vlen
                     : cpu_isa_traits<avx2>::vlen;
-    const auto supported_strategies = get_supported_bcast_strategies();
+    const auto supported_strategies = get_supported_postops_bcast_strategies();
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
                     p, src0_d, supported_strategies);
@@ -433,7 +434,7 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
     const bool blocked_tail = p.len() && blocked_format && oc % blksize;
 
     return binary_injector::binary_args_broadcast_supported(
-                   p, src0_d, get_supported_bcast_strategies())
+                   p, src0_d, get_supported_postops_bcast_strategies())
             && IMPLICATION(
                     utils::one_of(src0_d.data_type(), s8, u8), !blocked_tail)
             && IMPLICATION(postops_per_oc_broadcast_exists,
@@ -577,6 +578,7 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
                     p.scales_src1 = scale1;
                     p.post_ops_binary_rhs_arg_vec
                             = post_ops_binary_rhs_arg_vec.data();
+                    p.l_off = start + batch_off;
                     (*kernel)(&p);
                 });
     } else {
@@ -609,6 +611,7 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            p.l_off = start * simd_w;
             (*kernel)(&p);
         });
     }
@@ -682,6 +685,7 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            p.l_off = off;
             kernel_blocked(&p, C_blk);
         });
     } else if (op_type == op_t::n_spatial_c) {
@@ -700,6 +704,7 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            p.l_off = off;
             (*kernel)(&p);
         });
     } else if (op_type == op_t::n_c_spatial) {
@@ -719,6 +724,7 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             p.oc_l_off = c;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
+            p.l_off = off;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
             (*kernel)(&p);
         });
@@ -819,6 +825,7 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            p.l_off = off;
             (*kernel)(&p);
         });
     } else if (op_type == op_t::n_c_spatial) {
@@ -840,6 +847,7 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            p.l_off = off;
             (*kernel)(&p);
         });
     }
@@ -864,7 +872,7 @@ status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
 
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
-                    post_ops, src0_d, get_supported_bcast_strategies());
+                    post_ops, src0_d, get_supported_postops_bcast_strategies());
     const auto &bcast_type = pd()->get_conf().bcast_type;
     const bool point_broadcast = bcast_type == bcast_t::scalar;
     const auto &op_type = pd()->get_conf().op_type;

@@ -982,6 +982,7 @@ struct jit_binary_call_s {
     const void *post_ops_binary_rhs_arg_vec;
     size_t oc_l_off;
     size_t src1_stride_range;
+    size_t l_off;
 };
 
 struct jit_reduction_conf_t {
