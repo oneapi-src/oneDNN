@@ -674,14 +674,13 @@ expr_t nary_op_flatten(const expr_t &e) {
     return nary_op_flattener_t().mutate(e);
 }
 
-class mul_nary_op_expander_t : public nary_op_mutator_t {
+class mul_nary_op_expander_t : public nary_op_flattener_t {
 public:
     object_t _mutate(const nary_op_t &obj) override {
-        if (obj.op_kind != op_kind_t::_mul) {
-            return nary_op_flatten(nary_op_mutator_t::_mutate(obj));
-        }
+        auto flat_object = nary_op_flattener_t::_mutate(obj);
+        if (obj.op_kind != op_kind_t::_mul) { return flat_object; }
 
-        auto args = mutate(obj.args);
+        auto args = flat_object.as<nary_op_t>().args;
         std::vector<expr_t> new_args;
         for (size_t i = 0; i < args.size(); i++) {
             auto *nary = args[i].as_ptr<nary_op_t>();
@@ -700,7 +699,7 @@ public:
 
             new_args = next_args;
         }
-        return nary_op_flatten(make_nary_op(op_kind_t::_add, new_args));
+        return make_nary_op(op_kind_t::_add, new_args);
     }
 };
 
@@ -2010,7 +2009,6 @@ expr_t nary_op_canonicalize(const expr_t &_e) {
     auto e = _e;
 
     e = nary_op_transformer_t().mutate(e);
-    e = nary_op_flatten(e);
     e = mul_nary_op_expander_t().mutate(e);
 
     ir_assert(is_nary_op_canonical(e)) << e;
