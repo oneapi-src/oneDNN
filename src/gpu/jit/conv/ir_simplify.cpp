@@ -639,14 +639,14 @@ public:
             case op_kind_t::_sub:
             case op_kind_t::_mul: {
                 auto a = mutate(obj.a);
-                auto b = mutate(obj.b);
-                std::vector<expr_t> args = {a, b};
+                auto b = obj.b;
                 auto nary_op_kind = obj.op_kind;
                 if (obj.op_kind == op_kind_t::_sub) {
                     nary_op_kind = op_kind_t::_add;
-                    args[1] *= -1;
+                    b *= -1;
                 }
-                return mutate(make_nary_op(nary_op_kind, args));
+                b = mutate(b);
+                return make_nary_op(nary_op_kind, {a, b});
             }
             default: return nary_op_mutator_t::_mutate(obj);
         }
