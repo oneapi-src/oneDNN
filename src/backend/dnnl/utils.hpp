@@ -144,6 +144,11 @@ inline int tensor_zp_mask(dim zp_size) {
     return zp_size > 1 ? 1 : 0;
 }
 
+inline bool is_dump_subgraph() {
+    char *env = std::getenv("DNNL_GRAPH_DUMP_SUBGRAPH");
+    return env != nullptr && std::strcmp(env, "1") == 0;
+}
+
 } // namespace utils
 } // namespace dnnl_impl
 } // namespace impl

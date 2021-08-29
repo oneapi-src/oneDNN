@@ -103,7 +103,7 @@ public:
         // whether to insert transpose/expand op into subgraph, however
         // PyTorch doesn't have ndims info when adding op to graph, so here
         // directly used the input logical tensors passed from compilation stage
-        set_given_inputs_outputs(subgraph, inputs, outputs);
+        BACKEND_DNNL_CHECK(set_given_inputs_outputs(subgraph, inputs, outputs));
 
         // split quant/dequant to pairs of mul_scales and add_zps
         split_quant_dequant(subgraph);
@@ -125,6 +125,9 @@ public:
         insert_expand_for_matmul(subgraph);
         insert_reorder(subgraph);
 
+        subgraph_visualizer_t vis(part->id());
+        vis.run(subgraph, "after_lower_down", false);
+
         impl::graph_t agraph(subgraph);
         BACKEND_DNNL_CHECK(agraph.infer_shape());
         BACKEND_DNNL_CHECK(infer_type(agraph));
@@ -137,8 +140,13 @@ public:
             set_weight_bias_constant(subgraph);
             constant_propagation(subgraph);
         }
+
+        vis.run(subgraph, "after_infer_shape_infer_type", true);
+
         BACKEND_DNNL_CHECK(
                 layout_propagation(subgraph, p_engine_, prm_attr_mgr_));
+
+        vis.run(subgraph, "after_layout_propagation", true);
 
         // fill layout information for outputs logical tensors
         for (size_t i = 0; i < outputs.size(); i++) {

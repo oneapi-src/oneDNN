@@ -26,6 +26,7 @@
 #include "interface/graph.hpp"
 #include "interface/op.hpp"
 #include "interface/value.hpp"
+#include "utils/utils.hpp"
 
 #include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/utils.hpp"
@@ -49,7 +50,7 @@ void fuse_op_to_successor(
 void fuse_op_to_predecessor(op_t *op,
         std::vector<std::shared_ptr<op_t>> &subgraph, size_t in_offset = 0);
 
-void set_given_inputs_outputs(std::vector<std::shared_ptr<op_t>> &subgraph,
+status_t set_given_inputs_outputs(std::vector<std::shared_ptr<op_t>> &subgraph,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs);
 
@@ -62,6 +63,23 @@ inline bool is_preprocess_op(impl::op_t &op) {
             = {op_kind::permute, op_kind::to_group, op_kind::expand};
     return preprocess_ops.count(op.get_kind()) != 0;
 }
+
+class subgraph_visualizer_t {
+public:
+    subgraph_visualizer_t(size_t partition_id)
+        : partition_id_(partition_id), enabled_(false), index_(0) {
+        // Set DNNL_GRAPH_DUMP=2 to enable dump subgraph
+        enabled_ = impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 1;
+    }
+
+    status_t run(const std::vector<std::shared_ptr<op_t>> &subgraph,
+            const std::string &name_suffix, bool is_layout_sensitive);
+
+private:
+    size_t partition_id_;
+    bool enabled_;
+    size_t index_;
+};
 
 } // namespace dnnl_impl
 } // namespace impl

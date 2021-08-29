@@ -43,6 +43,10 @@ option(DNNL_GRAPH_LAYOUT_DEBUG
     "allows backends in oneDNN Graph library to generate user-comprehensive
     layout id which helps debugging for layout propagation" OFF)
 
+option(DNNL_GRAPH_ENABLE_DUMP
+    "allows oneDNN Graph library to dump graphs and pattern file via DNNL_GRAPH_DUMP 
+    environment variable" OFF)
+
 # =============================
 # Building properties and scope
 # =============================

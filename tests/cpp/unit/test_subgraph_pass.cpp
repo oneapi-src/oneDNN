@@ -511,6 +511,21 @@ TEST(pass_test, subgraph_passes) {
             = {src_u8, weight_s8, bias_f32, other_s8};
     std::vector<logical_tensor_t> outputs = {dst_s8};
 
+    std::vector<logical_tensor_t> wrong_inputs = {src_u8, weight_s8, bias_f32};
+    std::vector<logical_tensor_t> wrong_outputs = {};
+
+    ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(
+                      subgraph, wrong_inputs, outputs),
+            status::miss_ins_outs);
+    ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(
+                      subgraph, inputs, wrong_outputs),
+            status::miss_ins_outs);
+
+    // output shape is not must
+    ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(subgraph, inputs,
+                      {logical_tensor_init(9, impl::data_type::s8)}),
+            status::success);
+
     dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
 
     for (auto &val : impl::graph_t(subgraph).get_input_values()) {

@@ -28,6 +28,7 @@
 
 #include "interface/c_types_map.hpp"
 #include "interface/engine.hpp"
+#include "interface/logical_tensor.hpp"
 #include "interface/op.hpp"
 #include "interface/op_schema.hpp"
 #include "interface/partition.hpp"
@@ -253,7 +254,7 @@ public:
             tmp_inputs.reserve(op->num_inputs());
             tmp_outputs.reserve(op->num_outputs());
             tmp_inputs_ptr.reserve(op->num_inputs());
-            tmp_outputs_ptr.reserve(op->num_inputs());
+            tmp_outputs_ptr.reserve(op->num_outputs());
 
             for (const value_ptr &in : op->get_input_values()) {
                 tmp_inputs.emplace_back(in->get_logical_tensor());

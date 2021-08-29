@@ -162,6 +162,11 @@ if(DNNL_GRAPH_LAYOUT_DEBUG)
     append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-DDNNL_GRAPH_LAYOUT_DEBUG")
 endif()
 
+if(DNNL_GRAPH_ENABLE_DUMP)
+    message(STATUS "Graph/passes dump enabled")
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-DDNNL_GRAPH_ENABLE_DUMP")
+endif()
+
 if(NOT WIN32)
     include("cmake/check_headers.cmake")
 endif()

@@ -91,14 +91,22 @@ public:
         insert_permute(subgraph);
         insert_reorder(subgraph);
 
+        subgraph_visualizer_t vis(part->id());
+        vis.run(subgraph, "after_lower_down", false);
+
         // have to set the given inputs and outputs before infer shape and
         // compile
-        set_given_inputs_outputs(subgraph, inputs, outputs);
+        BACKEND_DNNL_CHECK(set_given_inputs_outputs(subgraph, inputs, outputs));
         impl::graph_t agraph(subgraph);
         BACKEND_DNNL_CHECK(agraph.infer_shape());
         BACKEND_DNNL_CHECK(infer_type(agraph));
+
+        vis.run(subgraph, "after_infer_shape_infer_type", true);
+
         BACKEND_DNNL_CHECK(
                 layout_propagation(subgraph, p_engine_, prm_attr_mgr_));
+
+        vis.run(subgraph, "after_layout_propagation", true);
 
         // fill layout information for outputs logical tensors
         for (size_t i = 0; i < outputs.size(); i++) {

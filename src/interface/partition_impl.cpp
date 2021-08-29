@@ -27,7 +27,8 @@ partition_impl_t::partition_impl_t(const partition_impl_t &other)
     , engine_kind_(other.engine_kind_)
     , ops_(impl::graph_t::deep_copy(other.ops_))
     , inputs_(other.inputs_)
-    , outputs_(other.outputs_) {}
+    , outputs_(other.outputs_)
+    , id_(other.id_) {}
 
 status_t compiled_partition_impl_t::query_logical_tensor(
         size_t tid, logical_tensor_t *lt) const {
