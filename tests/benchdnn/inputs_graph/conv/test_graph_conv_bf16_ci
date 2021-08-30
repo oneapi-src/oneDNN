@@ -13,7 +13,8 @@ mb50ic64ih56oc64oh56kh1ph0
 --cfg=bf16bf16bf16,bf16bf16f32
 --attr-post-ops=relu mb50ic64ih56oc64oh56kh1ph0
 
-# post bias+sum
+# post bias+sum, bias+add, bias+logistic, bias+sqrt, bias+tanh, bias+sum+elu, bias+sum+relu, bias+sum+relu6
 --reset
---cfg=bf16bf16f32
---dir=FWD_B --attr-post-ops=sum mb50ic64ih56oc64oh56kh1ph0
+--cfg=bf16bf16bf16,bf16bf16f32
+--dir=FWD_B
+--attr-post-ops=sum,add:bf16:common,add:bf16:per_oc,logistic,sqrt,tanh,sum+elu,sum+relu,sum+clip:0:6 mb50ic64ih56oc64oh56kh1ph0
