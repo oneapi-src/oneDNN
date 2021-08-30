@@ -1,0 +1,36 @@
+# main op - no alpha, no beta
+--reset
+--inplace=true,false
+--dir=FWD_I
+--dt=bf16
+--alpha=0 --beta=0
+--alg=abs,exp,gelu_erf,log,relu,sqrt,square,tanh
+64x512x28x28
+
+# main op - hardtanh, alpha andbeta
+--reset
+--inplace=true,false
+--dir=FWD_I
+--dt=bf16
+--alg=clip
+--alpha=-1 --beta=1
+64x512x28x28
+
+# main op - elu, only alpha
+--reset
+--inplace=true,false
+--dir=FWD_I
+--dt=bf16
+--alg=elu
+--alpha= --beta=0
+64x512x28x28
+
+# post binary-add
+--reset
+--inplace=true,false
+--dir=FWD_I
+--dt=bf16
+--alg=relu
+--alpha=0 --beta=0
+--attr-post-ops=add:bf16:common,add:bf16:per_oc
+64x512x28x28
