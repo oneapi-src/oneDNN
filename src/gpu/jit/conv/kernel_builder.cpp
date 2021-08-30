@@ -44,14 +44,14 @@ public:
     permutation_injector_t(const grf_permutator_t &grf_perm)
         : grf_perm_(new grf_permutator_t(grf_perm)) {}
 
-    object_t _mutate(const func_call_t *obj) override {
-        if (!is_func_call<reorder_t>(obj)) return ir_mutator_t::_mutate(obj);
+    object_t _mutate(const func_call_t &obj) override {
+        if (!is_func_call<reorder_t>(&obj)) return ir_mutator_t::_mutate(obj);
 
-        auto &func = obj->func.as<reorder_t>();
+        auto &func = obj.func.as<reorder_t>();
         auto new_func
                 = reorder_t::make(func.src_layout, func.dst_layout, grf_perm_);
 
-        return new_func.call(obj->args);
+        return new_func.call(obj.args);
     }
 
 private:
@@ -546,8 +546,8 @@ public:
 
     int slm_size() const { return slm_size_; }
 
-    object_t _mutate(const alloc_t *obj) override {
-        if (obj->kind != alloc_kind_t::slm) return ir_mutator_t::_mutate(obj);
+    object_t _mutate(const alloc_t &obj) override {
+        if (obj.kind != alloc_kind_t::slm) return ir_mutator_t::_mutate(obj);
 
         auto new_buf = push(obj);
         auto new_obj = ir_mutator_t::_mutate(obj);
@@ -560,11 +560,11 @@ public:
     }
 
 private:
-    expr_t push(const alloc_t *obj) {
+    expr_t push(const alloc_t &obj) {
         int cur_off = slm_off_.back();
         expr_t new_buf = slm_base_ + cur_off;
-        slm_off_.push_back(cur_off + obj->size);
-        slm_size_ = std::max(slm_size_, cur_off + obj->size);
+        slm_off_.push_back(cur_off + obj.size);
+        slm_size_ = std::max(slm_size_, cur_off + obj.size);
         return new_buf;
     }
 
@@ -588,8 +588,8 @@ stmt_t merge_slm_buffers(const stmt_t &_stmt) {
 
 class buffer_offset_lifter_t : public ir_mutator_t {
 public:
-    object_t _mutate(const func_call_t *obj) {
-        if (!obj->func.is<send_t>()) return ir_mutator_t::_mutate(obj);
+    object_t _mutate(const func_call_t &obj) {
+        if (!obj.func.is<send_t>()) return ir_mutator_t::_mutate(obj);
 
         auto &mem_buf = send_t::arg_mem_buf(obj);
         if (!mem_buf.is<ptr_t>()) return ir_mutator_t::_mutate(obj);
@@ -597,10 +597,10 @@ public:
         auto &base = mem_buf.as<ptr_t>().base;
         auto &off = mem_buf.as<ptr_t>().off;
 
-        std::vector<expr_t> new_args = obj->args;
+        std::vector<expr_t> new_args = obj.args;
         send_t::arg_mem_buf(new_args) = base;
         send_t::arg_mem_off(new_args) += off;
-        return obj->func.call(new_args, obj->attr);
+        return obj.func.call(new_args, obj.attr);
     }
 };
 
@@ -622,8 +622,8 @@ public:
     send_injector_t(ir_context_t &ir_ctx, const constraint_set_t &cset)
         : ir_ctx_(ir_ctx), cset_(cset) {}
 
-    object_t _mutate(const func_call_t *obj) {
-        auto *send = obj->func.as_ptr<send_t>();
+    object_t _mutate(const func_call_t &obj) {
+        auto *send = obj.func.as_ptr<send_t>();
         if (!send) return ir_mutator_t::_mutate(obj);
 
         auto &mem_buf = send_t::arg_mem_buf(obj);
@@ -638,7 +638,7 @@ public:
                 send->create_offset_store(header_buf, mem_buf, mem_off));
 
         auto new_call = func_call_t::make(
-                obj->func, {mem_buf, header_buf, reg_buf, mask}, obj->attr);
+                obj.func, {mem_buf, header_buf, reg_buf, mask}, obj.attr);
         auto body = stmt_seq_t::make(off_store, new_call);
 
         // Allocate header.
@@ -686,15 +686,15 @@ public:
         }
     }
 
-    object_t _mutate(const alloc_t *obj) override {
+    object_t _mutate(const alloc_t &obj) override {
         if (!do_lift(obj)) return ir_mutator_t::_mutate(obj);
         // Remove alloc and insert it before the compute loop.
-        allocs_.push_back(obj);
-        return obj->body;
+        allocs_.push_back(&obj);
+        return obj.body;
     }
 
-    object_t _mutate(const stmt_group_t *obj) override {
-        bool is_compute_loop = (obj->label == stmt_label_t::compute_loop());
+    object_t _mutate(const stmt_group_t &obj) override {
+        bool is_compute_loop = (obj.label == stmt_label_t::compute_loop());
         if (is_compute_loop) in_compute_loop_ = true;
         auto new_obj = ir_mutator_t::_mutate(obj);
         if (is_compute_loop) {
@@ -710,10 +710,10 @@ public:
     }
 
 private:
-    bool do_lift(const alloc_t *obj) const {
+    bool do_lift(const alloc_t &obj) const {
         if (!in_compute_loop_) return false;
         if (reuse_headers_) {
-            bool is_header_alloc = (header_bufs_.count(obj->buf) != 0);
+            bool is_header_alloc = (header_bufs_.count(obj.buf) != 0);
             return !is_header_alloc;
         }
         return true;
@@ -1063,16 +1063,16 @@ class cse_mutator_t : public ir_mutator_t {
 public:
     cse_mutator_t(cse_context_t &ctx) : ctx_(ctx) {}
 
-    object_t _mutate(const binary_op_t *obj) override {
+    object_t _mutate(const binary_op_t &obj) override {
         return mutate_expr(obj);
     }
-    object_t _mutate(const shuffle_t *obj) override { return mutate_expr(obj); }
-    object_t _mutate(const unary_op_t *obj) override {
+    object_t _mutate(const shuffle_t &obj) override { return mutate_expr(obj); }
+    object_t _mutate(const unary_op_t &obj) override {
         return mutate_expr(obj);
     }
 
 #define HANDLE_IR_OBJECT(type) \
-    object_t _mutate(const type *obj) override { return mutate_stmt(obj); }
+    object_t _mutate(const type &obj) override { return mutate_stmt(obj); }
 
     HANDLE_STMT_IR_OBJECTS()
 
@@ -1080,7 +1080,7 @@ public:
 
 private:
     template <typename T>
-    object_t mutate_expr(const T *obj) {
+    object_t mutate_expr(const T &obj) {
         auto new_obj = ir_mutator_t::_mutate(obj);
         if (ctx_.has(obj) && !new_obj.is_equal(obj)) {
             ctx_.update_expr(obj, new_obj);
@@ -1096,7 +1096,7 @@ private:
     }
 
     template <typename T>
-    object_t mutate_stmt(const T *obj) {
+    object_t mutate_stmt(const T &obj) {
         auto new_obj = ir_mutator_t::_mutate(obj);
         auto it = to_update_.find(obj);
         if (it == to_update_.end()) return new_obj;
@@ -1148,50 +1148,51 @@ public:
 
     ~hoist_exprs_mutator_t() override { ir_assert(let_vars_.empty()); }
 
-    object_t _mutate(const func_call_t *obj) override {
-        if (!obj->func.is<send_t>()) return ir_mutator_t::_mutate(obj);
+    object_t _mutate(const func_call_t &obj) override {
+        if (!obj.func.is<send_t>()) return ir_mutator_t::_mutate(obj);
 
         std::vector<expr_t> new_args;
-        for (auto &e : obj->args) {
+        for (auto &e : obj.args) {
             new_args.push_back(hoist_expr(e));
         }
 
-        if (ir_utils::is_equal(new_args, obj->args)) return obj;
+        if (ir_utils::is_equal(new_args, obj.args)) return obj;
 
-        return func_call_t::make(obj->func, new_args, obj->attr);
+        return func_call_t::make(obj.func, new_args, obj.attr);
     }
 
-    object_t _mutate(const stmt_group_t *obj) override {
-        if (obj->body.is<for_t>()) {
-            loops_.emplace_back(obj->body.as<for_t>().var);
-            auto body = ir_mutator_t::_mutate(obj->body.as_ptr<for_t>());
-            if (body.is_same(obj->body)) return obj;
-            auto new_obj = stmt_group_t::make(obj->label, body);
+    object_t _mutate(const stmt_group_t &obj) override {
+        if (obj.body.is<for_t>()) {
+            loops_.emplace_back(obj.body.as<for_t>().var);
+            const for_t *for_obj = obj.body.as_ptr<for_t>();
+            auto body = for_obj ? ir_mutator_t::_mutate(*for_obj) : for_obj;
+            if (body.is_same(obj.body)) return obj;
+            auto new_obj = stmt_group_t::make(obj.label, body);
             return injects_lets_and_pop_loop(new_obj);
         }
         return ir_mutator_t::_mutate(obj);
     }
 
-    object_t _mutate(const store_t *obj) override {
-        auto value = hoist_expr(obj->value);
-        if (value.is_equal(obj->value)) return obj;
-        return store_t::make(obj->buf, obj->off, value, obj->stride);
+    object_t _mutate(const store_t &obj) override {
+        auto value = hoist_expr(obj.value);
+        if (value.is_equal(obj.value)) return obj;
+        return store_t::make(obj.buf, obj.off, value, obj.stride);
     }
 
-    object_t _mutate(const for_t *obj) override {
-        loops_.emplace_back(obj->var);
+    object_t _mutate(const for_t &obj) override {
+        loops_.emplace_back(obj.var);
         auto new_obj = ir_mutator_t::_mutate(obj);
         return injects_lets_and_pop_loop(new_obj);
     }
 
-    object_t _mutate(const let_t *obj) override {
+    object_t _mutate(const let_t &obj) override {
         bool fully_hoisted = false;
-        auto new_value = hoist_expr(obj->value, obj->var, &fully_hoisted);
-        if (fully_hoisted) return mutate(obj->body);
-        register_let(obj->var, new_value);
+        auto new_value = hoist_expr(obj.value, obj.var, &fully_hoisted);
+        if (fully_hoisted) return mutate(obj.body);
+        register_let(obj.var, new_value);
         auto new_obj = let_t::make(
-                obj->var, new_value, ir_mutator_t::mutate(obj->body));
-        unregister_let(obj->var);
+                obj.var, new_value, ir_mutator_t::mutate(obj.body));
+        unregister_let(obj.var);
         return std::move(new_obj);
     }
 
@@ -1350,29 +1351,30 @@ public:
         ir_assert(post_inc_stores.empty());
     }
 
-    object_t _mutate(const for_t *obj) override {
+    object_t _mutate(const for_t &obj) override {
         loops_.emplace_back(obj);
         auto new_obj = ir_mutator_t::_mutate(obj);
         return inject_stores_and_pop_loop(new_obj);
     }
 
-    object_t _mutate(const let_t *obj) override {
+    object_t _mutate(const let_t &obj) override {
         int loop_level = int(loops_.size()) - 1;
         auto ret = lets_.insert(
-                {obj->var, let_info_t(obj->var, obj->value, loop_level)});
+                {obj.var, let_info_t(obj.var, obj.value, loop_level)});
         ir_assert(ret.second);
         MAYBE_UNUSED(ret);
         auto new_obj = ir_mutator_t::_mutate(obj);
-        lets_.erase(obj->var);
+        lets_.erase(obj.var);
         return new_obj;
     }
 
-    object_t _mutate(const stmt_group_t *obj) override {
-        if (obj->body.is<for_t>()) {
-            loops_.emplace_back(obj->body);
-            auto body = ir_mutator_t::_mutate(obj->body.as_ptr<for_t>());
-            if (body.is_same(obj->body)) return obj;
-            auto new_obj = stmt_group_t::make(obj->label, body);
+    object_t _mutate(const stmt_group_t &obj) override {
+        if (obj.body.is<for_t>()) {
+            loops_.emplace_back(obj.body);
+            const for_t *for_obj = obj.body.as_ptr<for_t>();
+            auto body = for_obj ? ir_mutator_t::_mutate(*for_obj) : for_obj;
+            if (body.is_same(obj.body)) return obj;
+            auto new_obj = stmt_group_t::make(obj.label, body);
             return inject_stores_and_pop_loop(new_obj);
         }
         return ir_mutator_t::_mutate(obj);
@@ -1384,7 +1386,7 @@ public:
     //         // ...
     //         stmt_t(..., buf_ptr, ...) <- Read (consumer).
     //     }
-    object_t _mutate(const store_t *obj) override {
+    object_t _mutate(const store_t &obj) override {
         if (loops_.size() == 1) return ir_mutator_t::_mutate(obj);
 
         // Try to reduce strength, moving the store up.
@@ -1393,7 +1395,7 @@ public:
         post_inc_store_info_t post_inc_store(obj);
         for (int level = int(loops_.size()) - 1; level >= 1; level--) {
             auto &loop_info = loops_[level];
-            int refs = count_object(loop_info.loop, obj->buf);
+            int refs = count_object(loop_info.loop, obj.buf);
             // Producer and consumer - must be 2 references.
             if (refs != 2) break;
 
@@ -1426,14 +1428,14 @@ public:
         // Move this store up, remove from here.
         loops_[init_store_level].init_stores.push_back(init_store_stmt);
         if (!post_inc_store.is_empty()) {
-            auto ret = post_inc_stores.insert({obj->buf, post_inc_store});
+            auto ret = post_inc_stores.insert({obj.buf, post_inc_store});
             ir_assert(ret.second);
             MAYBE_UNUSED(ret);
         }
         return stmt_t();
     }
 
-    object_t _mutate(const func_call_t *obj) override {
+    object_t _mutate(const func_call_t &obj) override {
         for (auto &kv : post_inc_stores) {
             int refs = count_object(obj, kv.first);
             if (refs == 1) {
@@ -1475,8 +1477,8 @@ private:
     };
 
     struct post_inc_store_info_t {
-        post_inc_store_info_t(const store_t *obj)
-            : store(obj), inc(0), last_iter_cond(true), compensation(0) {}
+        post_inc_store_info_t(const store_t &obj)
+            : store(&obj), inc(0), last_iter_cond(true), compensation(0) {}
 
         stmt_t stmt() const {
             auto load
@@ -1572,23 +1574,23 @@ stmt_t loop_strength_reduce(const stmt_t &s) {
 class let_optimizer_t : public ir_mutator_t {
 public:
     // Also track alloc_t and for_t to validate all variable usages.
-    object_t _mutate(const alloc_t *obj) override {
-        return mutate_scope(obj, obj->buf);
+    object_t _mutate(const alloc_t &obj) override {
+        return mutate_scope(obj, obj.buf);
     }
-    object_t _mutate(const for_t *obj) override {
+    object_t _mutate(const for_t &obj) override {
         level_++;
-        auto new_obj = mutate_scope(obj, obj->var);
+        auto new_obj = mutate_scope(obj, obj.var);
         level_--;
         return new_obj;
     }
-    object_t _mutate(const let_t *obj) override {
-        return mutate_scope(obj, obj->var);
+    object_t _mutate(const let_t &obj) override {
+        return mutate_scope(obj, obj.var);
     }
 
-    object_t _mutate(const var_t *obj) override {
+    object_t _mutate(const var_t &obj) override {
         ir_assert(refs_.count(obj) == 1)
-                << "Variable is not defined: " << expr_t(obj);
-        refs_[obj].update(increment_, level_);
+                << "Variable is not defined: " << expr_t(&obj);
+        refs_[&obj].update(increment_, level_);
         return ir_mutator_t::_mutate(obj);
     }
 
@@ -1610,7 +1612,7 @@ private:
     };
 
     template <typename T>
-    object_t mutate_scope(const T *obj, const expr_t &var) {
+    object_t mutate_scope(const T &obj, const expr_t &var) {
         auto ret = refs_.insert({var, ref_info_t(level_)});
         ir_assert(ret.second) << stmt_t(obj);
         MAYBE_UNUSED(ret);
@@ -1640,7 +1642,7 @@ private:
                 && !obj.value.is_empty()) {
             return substitute(obj.body, obj.var, obj.value);
         }
-        return &obj;
+        return obj;
     }
 
     void remove_refs(const let_t &obj) {
@@ -1662,24 +1664,24 @@ stmt_t optimize_let(const stmt_t &s) {
 
 class unrolling_updater_t : public ir_mutator_t {
 public:
-    object_t _mutate(const let_t *obj) override {
+    object_t _mutate(const let_t &obj) override {
         if (level_ == 0) {
             // Skip top-level let statements.
             return ir_mutator_t::_mutate(obj);
         }
-        lets_.push_back(obj);
-        auto new_body = mutate(obj->body);
+        lets_.push_back(&obj);
+        auto new_body = mutate(obj.body);
         if (!lets_.back()) {
             // Let was moved to the innermost loop.
             lets_.pop_back();
             return new_body;
         }
         lets_.pop_back();
-        if (new_body.is_same(obj->body)) return obj;
-        return let_t::make(obj->var, obj->value, new_body);
+        if (new_body.is_same(obj.body)) return obj;
+        return let_t::make(obj.var, obj.value, new_body);
     }
 
-    object_t _mutate(const for_t *obj) override {
+    object_t _mutate(const for_t &obj) override {
         level_++;
         found_loop_ = false;
         auto new_obj = ir_mutator_t::_mutate(obj);
@@ -3030,10 +3032,10 @@ class store_splitter_t : public ir_mutator_t {
 public:
     store_splitter_t(ngen::HW hw) : hw_(hw) {}
 
-    object_t _mutate(const store_t *obj) override {
-        int elems = obj->value.type().elems();
-        int elem_size = obj->value.type().scalar().size();
-        int stride = (obj->has_default_stride() ? 1 : obj->stride / elem_size);
+    object_t _mutate(const store_t &obj) override {
+        int elems = obj.value.type().elems();
+        int elem_size = obj.value.type().scalar().size();
+        int stride = (obj.has_default_stride() ? 1 : obj.stride / elem_size);
         int store_size = elem_size * stride * elems;
         const auto grf_size = ngen::GRF::bytes(hw_);
         if (store_size <= 2 * grf_size) return ir_mutator_t::_mutate(obj);
@@ -3044,8 +3046,8 @@ public:
             int cur_elems = std::min(step, elems - i);
             ir_assert(math::is_pow2(cur_elems));
             int off = i * stride * elem_size;
-            auto store = store_t::make(obj->buf, obj->off + off,
-                    split_expr(obj->value, i, i + cur_elems), obj->stride);
+            auto store = store_t::make(obj.buf, obj.off + off,
+                    split_expr(obj.value, i, i + cur_elems), obj.stride);
             new_stmt = new_stmt.append(store);
         }
         return std::move(new_stmt);
@@ -3078,7 +3080,7 @@ stmt_t split_wide_stores(ngen::HW hw, const stmt_t &s) {
 
 class peephole_optimizer_t : public ir_mutator_t {
 public:
-    object_t _mutate(const binary_op_t *obj) override {
+    object_t _mutate(const binary_op_t &obj) override {
         auto old_obj = ir_mutator_t::_mutate(obj);
         auto new_obj
                 = simplify_rewrite_with_ternary(old_obj, /*recursive=*/false);
@@ -3148,7 +3150,7 @@ class if_condition_fixer_t : public ir_mutator_t {
 public:
     if_condition_fixer_t(int simd_size) : simd_size_(simd_size) {}
 
-    object_t _mutate(const if_t *obj) override {
+    object_t _mutate(const if_t &obj) override {
         auto _new_obj = ir_mutator_t::_mutate(obj);
         auto &new_obj = _new_obj.as<if_t>();
         auto cond = shuffle_t::make_broadcast(new_obj.cond, simd_size_);
@@ -3174,27 +3176,27 @@ class loop_unroller_t : public ir_mutator_t {
 public:
     loop_unroller_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
 
-    object_t _mutate(const for_t *obj) override {
+    object_t _mutate(const for_t &obj) override {
         auto new_obj = ir_mutator_t::_mutate(obj);
         auto &_for = new_obj.as<for_t>();
         // No unrolling.
         if (_for.unroll == 1) return new_obj;
 
-        ir_assert(is_const(obj->init))
-                << "Can't unroll loop with non-const bound: " << obj->init;
-        ir_assert(is_const(obj->bound))
-                << "Can't unroll loop with non-const bound: " << obj->bound;
+        ir_assert(is_const(obj.init))
+                << "Can't unroll loop with non-const bound: " << obj.init;
+        ir_assert(is_const(obj.bound))
+                << "Can't unroll loop with non-const bound: " << obj.bound;
 
-        auto init = to_cpp<int>(obj->init);
-        auto bound = to_cpp<int>(obj->bound);
+        auto init = to_cpp<int>(obj.init);
+        auto bound = to_cpp<int>(obj.bound);
 
         ir_assert(_for.unroll == (bound - init))
                 << "Only full loop unroll is supported.";
 
         stmt_t ret;
         for (int i = init; i < bound; i++) {
-            auto iter_stmt = substitute(
-                    obj->body, obj->var, to_expr(i, obj->var.type()));
+            auto iter_stmt
+                    = substitute(obj.body, obj.var, to_expr(i, obj.var.type()));
             iter_stmt = rename_let_alloc(iter_stmt, i - init);
             ret = ret.append(iter_stmt);
         }
@@ -3256,19 +3258,19 @@ public:
     }
 
 #define HANDLE_IR_OBJECT(type) \
-    object_t _mutate(const type *obj) override { return mutate_stmt(obj); }
+    object_t _mutate(const type &obj) override { return mutate_stmt(obj); }
 
     HANDLE_STMT_IR_OBJECTS()
 
 #undef HANDLE_IR_OBJECT
 private:
-    object_t _mutate(const var_t *obj) override {
+    object_t _mutate(const var_t &obj) override {
         if (allocs_.find(obj) != allocs_.end()) buf_cur_refs_[obj]++;
         return obj;
     }
 
     template <typename T>
-    object_t mutate_stmt(const T *obj) {
+    object_t mutate_stmt(const T &obj) {
         if (in_ctor_) return ir_mutator_t::_mutate(obj);
         object_t new_obj = obj;
         object_set_t<expr_t> undef_bufs;

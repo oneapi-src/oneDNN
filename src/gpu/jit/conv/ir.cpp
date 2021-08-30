@@ -241,7 +241,7 @@ public:
     }
 
     static object_t mutate_object(
-            ir_mutator_t *mutator, const object_impl_t *obj) {
+            ir_mutator_t *mutator, const object_impl_t &obj) {
         auto *this_mutator = (substitute_mutator_t *)mutator;
 
         if (this_mutator->from_.is_same(obj)) {
@@ -249,7 +249,7 @@ public:
             return this_mutator->to_;
         }
 
-        auto ti = obj->dispatch_type_id();
+        auto ti = obj.dispatch_type_id();
         auto f = mutator->ir_mutator_t::find_dispatch_func(ti);
         return f(mutator, obj);
     }

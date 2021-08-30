@@ -502,6 +502,8 @@ public:
         sanity_check();
 #endif
     }
+    object_t(const object_impl_t &impl)
+        : object_t(const_cast<object_impl_t *>(&impl)) {}
     object_t(const object_impl_t *impl)
         : object_t(const_cast<object_impl_t *>(impl)) {}
     object_t(const object_t &obj) : object_t(obj.impl()) {}

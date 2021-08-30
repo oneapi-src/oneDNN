@@ -141,13 +141,13 @@ public:
         return ir_mutator_t::find_dispatch_func(ti);
     }
 
-    object_t _mutate(const pexpr_t *obj) { return (*ctx_)[expr_t(obj)]; }
+    object_t _mutate(const pexpr_t &obj) { return (*ctx_)[expr_t(obj)]; }
 
 private:
     template <typename T>
-    static object_t call(ir_mutator_t *mutator, const object_impl_t *obj) {
+    static object_t call(ir_mutator_t *mutator, const object_impl_t &obj) {
         auto *this_mutator = (pexpr_substitute_t *)mutator;
-        return this_mutator->_mutate((const T *)obj);
+        return this_mutator->_mutate((const T &)obj);
     }
 
     const match_context_t *ctx_;
@@ -351,13 +351,13 @@ expr_t simplify_try_ternary_rules(const expr_t &_e) {
 
 class term_rewrite_transformer_t : public ir_mutator_t {
 public:
-    object_t _mutate(const binary_op_t *obj) override {
+    object_t _mutate(const binary_op_t &obj) override {
         return mutate_expr(obj);
     }
-    object_t _mutate(const iif_t *obj) override { return mutate_expr(obj); }
+    object_t _mutate(const iif_t &obj) override { return mutate_expr(obj); }
 
     template <typename T>
-    expr_t mutate_expr(const T *obj) {
+    expr_t mutate_expr(const T &obj) {
         auto e_old = ir_mutator_t::_mutate(obj);
         auto e = simplify_try_rules(e_old);
         if (e.is_same(e_old)) return e_old;
@@ -379,13 +379,13 @@ expr_t simplify_rewrite(const expr_t &e) {
 
 class ternary_rewrite_transformer_t : public ir_mutator_t {
 public:
-    object_t _mutate(const binary_op_t *obj) override {
+    object_t _mutate(const binary_op_t &obj) override {
         return mutate_expr(obj);
     }
-    object_t _mutate(const iif_t *obj) override { return mutate_expr(obj); }
+    object_t _mutate(const iif_t &obj) override { return mutate_expr(obj); }
 
     template <typename T>
-    expr_t mutate_expr(const T *obj) {
+    expr_t mutate_expr(const T &obj) {
         auto e_old = ir_mutator_t::_mutate(obj);
         auto e = simplify_try_ternary_rules(e_old);
         if (e.is_same(e_old)) return e_old;
@@ -408,7 +408,7 @@ expr_t simplify_rewrite_with_ternary(const expr_t &e, bool recursive) {
 
 class cmp_simplifier_t : public ir_mutator_t {
 public:
-    object_t _mutate(const binary_op_t *obj) override {
+    object_t _mutate(const binary_op_t &obj) override {
         auto e = ir_mutator_t::_mutate(obj);
         if (!is_binary_cmp_op(e)) return e;
 
@@ -520,7 +520,7 @@ class range_simplifier_t : public ir_mutator_t {
 public:
     range_simplifier_t(const constraint_set_t &cset) : cset(cset) {}
 
-    object_t _mutate(const var_t *obj) override {
+    object_t _mutate(const var_t &obj) override {
         expr_t value;
         if (cset.is_single_value(obj, value)) return std::move(value);
         return obj;
@@ -606,10 +606,10 @@ class nary_op_mutator_t : public ir_mutator_t {
 public:
     using ir_mutator_t::_mutate;
 
-    virtual object_t _mutate(const nary_op_t *obj) {
-        auto args = mutate(obj->args);
-        if (ir_utils::is_equal(args, obj->args)) return obj;
-        return make_nary_op(obj->op_kind, args);
+    virtual object_t _mutate(const nary_op_t &obj) {
+        auto args = mutate(obj.args);
+        if (ir_utils::is_equal(args, obj.args)) return obj;
+        return make_nary_op(obj.op_kind, args);
     }
 
 protected:
@@ -621,9 +621,9 @@ protected:
 
 private:
     template <typename T>
-    static object_t call(ir_mutator_t *mutator, const object_impl_t *obj) {
+    static object_t call(ir_mutator_t *mutator, const object_impl_t &obj) {
         auto *this_mutator = (nary_op_mutator_t *)mutator;
-        return this_mutator->_mutate((const nary_op_t *)obj);
+        return this_mutator->_mutate((const nary_op_t &)obj);
     }
 };
 
@@ -631,18 +631,18 @@ class nary_op_transformer_t : public nary_op_mutator_t {
 public:
     using nary_op_mutator_t::_mutate;
 
-    object_t _mutate(const binary_op_t *obj) override {
+    object_t _mutate(const binary_op_t &obj) override {
         // Skip vector types.
-        if (!obj->type.is_scalar()) return nary_op_mutator_t::_mutate(obj);
-        switch (obj->op_kind) {
+        if (!obj.type.is_scalar()) return nary_op_mutator_t::_mutate(obj);
+        switch (obj.op_kind) {
             case op_kind_t::_add:
             case op_kind_t::_sub:
             case op_kind_t::_mul: {
-                auto a = mutate(obj->a);
-                auto b = mutate(obj->b);
+                auto a = mutate(obj.a);
+                auto b = mutate(obj.b);
                 std::vector<expr_t> args = {a, b};
-                auto nary_op_kind = obj->op_kind;
-                if (obj->op_kind == op_kind_t::_sub) {
+                auto nary_op_kind = obj.op_kind;
+                if (obj.op_kind == op_kind_t::_sub) {
                     nary_op_kind = op_kind_t::_add;
                     args[1] *= -1;
                 }
@@ -655,18 +655,18 @@ public:
 
 class nary_op_flattener_t : public nary_op_mutator_t {
 public:
-    object_t _mutate(const nary_op_t *obj) override {
+    object_t _mutate(const nary_op_t &obj) override {
         std::vector<expr_t> args;
-        for (auto &a : obj->args) {
+        for (auto &a : obj.args) {
             auto new_a = mutate(a);
             auto *nary = new_a.as_ptr<nary_op_t>();
-            if (nary && nary->op_kind == obj->op_kind) {
+            if (nary && nary->op_kind == obj.op_kind) {
                 args.insert(args.end(), nary->args.begin(), nary->args.end());
             } else {
                 args.push_back(new_a);
             }
         }
-        return make_nary_op(obj->op_kind, args);
+        return make_nary_op(obj.op_kind, args);
     }
 };
 
@@ -676,12 +676,12 @@ expr_t nary_op_flatten(const expr_t &e) {
 
 class mul_nary_op_expander_t : public nary_op_mutator_t {
 public:
-    object_t _mutate(const nary_op_t *obj) override {
-        if (obj->op_kind != op_kind_t::_mul) {
+    object_t _mutate(const nary_op_t &obj) override {
+        if (obj.op_kind != op_kind_t::_mul) {
             return nary_op_flatten(nary_op_mutator_t::_mutate(obj));
         }
 
-        auto args = mutate(obj->args);
+        auto args = mutate(obj.args);
         std::vector<expr_t> new_args;
         for (size_t i = 0; i < args.size(); i++) {
             auto *nary = args[i].as_ptr<nary_op_t>();
@@ -774,7 +774,7 @@ bool is_nary_op_canonical(const expr_t &e) {
 
 class nary_op_back_transformer_t : public nary_op_mutator_t {
 public:
-    object_t _mutate(const nary_op_t *obj) {
+    object_t _mutate(const nary_op_t &obj) {
         auto new_obj = nary_op_mutator_t::_mutate(obj);
         auto &nary = new_obj.as<nary_op_t>();
         ir_assert(nary.args.size() > 0) << new_obj;
@@ -1057,12 +1057,12 @@ class division_reducer_t : public nary_op_mutator_t {
 public:
     using nary_op_mutator_t::_mutate;
 
-    object_t _mutate(const binary_op_t *obj) override {
-        if (obj->op_kind != op_kind_t::_div)
+    object_t _mutate(const binary_op_t &obj) override {
+        if (obj.op_kind != op_kind_t::_div)
             return nary_op_mutator_t::_mutate(obj);
 
-        expr_t a = mutate(obj->a);
-        expr_t b = mutate(obj->b);
+        expr_t a = mutate(obj.a);
+        expr_t b = mutate(obj.b);
 
         factored_expr_t::reduce(a, b);
 
@@ -1088,7 +1088,7 @@ public:
 
     int_div_mod_expander_t(const constraint_set_t &cset) : cset(cset) {}
 
-    object_t _mutate(const binary_op_t *_obj) override {
+    object_t _mutate(const binary_op_t &_obj) override {
         auto obj = nary_op_mutator_t::_mutate(_obj);
         auto *binary_op = obj.as_ptr<binary_op_t>();
         if (!binary_op) return obj;
@@ -1106,7 +1106,7 @@ public:
         auto *a_nary = a.as_ptr<nary_op_t>();
 
         if (a_nary && a_nary->op_kind == op_kind_t::_add)
-            return mutate_with_add(binary_op);
+            return mutate_with_add(*binary_op);
 
         // Try to reduce a and b.
         factored_expr_t::reduce(a, b);
@@ -1122,7 +1122,7 @@ public:
         return obj;
     }
 
-    expr_t mutate_with_add(const binary_op_t *obj) {
+    expr_t mutate_with_add(const binary_op_t &obj) {
         expr_t e = obj;
         if (reduce_v1(e)) return e;
         if (reduce_v2(e)) return e;
@@ -1293,12 +1293,12 @@ public:
 
     int_div_mod_range_simplifier_t(const constraint_set_t &cset) : cset(cset) {}
 
-    object_t _mutate(const binary_op_t *obj) override {
-        if (!utils::one_of(obj->op_kind, op_kind_t::_div, op_kind_t::_mod))
+    object_t _mutate(const binary_op_t &obj) override {
+        if (!utils::one_of(obj.op_kind, op_kind_t::_div, op_kind_t::_mod))
             return nary_op_mutator_t::_mutate(obj);
 
-        auto a = mutate(obj->a);
-        auto b = mutate(obj->b);
+        auto a = mutate(obj.a);
+        auto b = mutate(obj.b);
 
         auto _a = nary_op_back_transform(a);
         auto _b = nary_op_back_transform(b);
@@ -1308,11 +1308,11 @@ public:
 
         // 0 <= a < b => (a % b) == a
         if (abs_a_lt_b) {
-            if (obj->op_kind == op_kind_t::_div) return to_expr(0);
-            if (obj->op_kind == op_kind_t::_mod) return a;
+            if (obj.op_kind == op_kind_t::_div) return to_expr(0);
+            if (obj.op_kind == op_kind_t::_mod) return a;
         }
 
-        return binary_op_t::make(obj->op_kind, a, b);
+        return binary_op_t::make(obj.op_kind, a, b);
     }
 
     const constraint_set_t &cset;
@@ -1321,11 +1321,11 @@ public:
 // Factors out common factors in an N-ary expression.
 class common_factor_simplifier_t : public nary_op_mutator_t {
 public:
-    object_t _mutate(const nary_op_t *obj) override {
-        if (obj->op_kind != op_kind_t::_add)
+    object_t _mutate(const nary_op_t &obj) override {
+        if (obj.op_kind != op_kind_t::_add)
             return nary_op_mutator_t::_mutate(obj);
 
-        auto args = mutate(obj->args);
+        auto args = mutate(obj.args);
         for (auto &a : args) {
             auto *nary = a.as_ptr<nary_op_t>();
             if (nary) ir_assert(nary->op_kind == op_kind_t::_mul) << a;
@@ -1388,7 +1388,7 @@ public:
             }
         }
 
-        return make_nary_op(obj->op_kind, args);
+        return make_nary_op(obj.op_kind, args);
     }
 };
 
@@ -1414,19 +1414,19 @@ class stmt_simplifier_t : public ir_mutator_t {
 public:
     stmt_simplifier_t(const constraint_set_t &cset) : cset_(cset) {}
 
-    object_t _mutate(const binary_op_t *obj) override {
+    object_t _mutate(const binary_op_t &obj) override {
         return simplify(obj, cset_);
     }
 
-    object_t _mutate(const if_t *obj) override {
-        auto cond = simplify(obj->cond);
+    object_t _mutate(const if_t &obj) override {
+        auto cond = simplify(obj.cond);
 
         if (is_const(cond)) {
-            if (to_cpp<bool>(cond)) return mutate(obj->body);
-            return mutate(obj->else_body);
+            if (to_cpp<bool>(cond)) return mutate(obj.body);
+            return mutate(obj.else_body);
         }
 
-        auto body = obj->body;
+        auto body = obj.body;
         if (!body.is_empty()) {
             auto cset_old = cset_;
             cset_.add_constraint(cond);
@@ -1434,7 +1434,7 @@ public:
             cset_ = cset_old;
         }
 
-        auto else_body = obj->else_body;
+        auto else_body = obj.else_body;
         if (!else_body.is_empty()) {
             auto cset_old = cset_;
             cset_.add_constraint(flip_condition(cond));
@@ -1445,34 +1445,34 @@ public:
         return if_t::make(cond, body, else_body);
     }
 
-    object_t _mutate(const let_t *obj) override {
+    object_t _mutate(const let_t &obj) override {
         // External variable.
-        if (obj->value.is_empty()) return ir_mutator_t::_mutate(obj);
+        if (obj.value.is_empty()) return ir_mutator_t::_mutate(obj);
 
         // Substitute constants.
-        auto value = simplify(obj->value);
+        auto value = simplify(obj.value);
         if (is_const(value)) {
-            auto body = substitute(obj->body, obj->var, value);
+            auto body = substitute(obj.body, obj.var, value);
             return mutate(body);
         }
         auto cset_old = cset_;
-        cset_.add_constraint(obj->var == value);
-        auto new_obj = let_t::make(obj->var, value, obj->body);
-        new_obj = ir_mutator_t::_mutate(new_obj.as_ptr<let_t>());
+        cset_.add_constraint(obj.var == value);
+        auto new_obj = let_t::make(obj.var, value, obj.body);
+        new_obj = ir_mutator_t::_mutate(new_obj.as<let_t>());
         cset_ = cset_old;
 
         return std::move(new_obj);
     }
 
-    object_t _mutate(const for_t *obj) override {
-        if (is_zero(obj->init) && is_one(obj->bound)) {
-            auto body = substitute(obj->body, obj->var, expr_t(0));
+    object_t _mutate(const for_t &obj) override {
+        if (is_zero(obj.init) && is_one(obj.bound)) {
+            auto body = substitute(obj.body, obj.var, expr_t(0));
             return mutate(body);
         }
 
         auto cset_old = cset_;
-        cset_.add_constraint(obj->var >= obj->init);
-        cset_.add_constraint(obj->var < obj->bound);
+        cset_.add_constraint(obj.var >= obj.init);
+        cset_.add_constraint(obj.var < obj.bound);
         auto new_obj = ir_mutator_t::_mutate(obj);
         cset_ = cset_old;
 
@@ -1630,18 +1630,18 @@ public:
 
 class const_folder_t : public ir_mutator_t {
 public:
-    object_t _mutate(const binary_op_t *obj) override {
+    object_t _mutate(const binary_op_t &obj) override {
         return mutate_expr(obj);
     }
-    object_t _mutate(const cast_t *obj) override { return mutate_expr(obj); }
-    object_t _mutate(const iif_t *obj) override { return mutate_expr(obj); }
-    object_t _mutate(const unary_op_t *obj) override {
+    object_t _mutate(const cast_t &obj) override { return mutate_expr(obj); }
+    object_t _mutate(const iif_t &obj) override { return mutate_expr(obj); }
+    object_t _mutate(const unary_op_t &obj) override {
         return mutate_expr(obj);
     }
 
 private:
     template <typename T>
-    object_t mutate_expr(const T *obj) {
+    object_t mutate_expr(const T &obj) {
         auto new_obj = ir_mutator_t::_mutate(obj);
         return const_fold_non_recursive(new_obj);
     }

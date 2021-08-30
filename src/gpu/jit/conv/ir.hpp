@@ -193,7 +193,7 @@ private:
 class ir_mutator_t {
 public:
     using dispatch_func_type
-            = object_t (*)(ir_mutator_t *, const object_impl_t *);
+            = object_t (*)(ir_mutator_t *, const object_impl_t &);
 
     virtual ~ir_mutator_t() = default;
 
@@ -210,13 +210,14 @@ public:
     }
 
     // To catch missing _mutate() handlers ir ir_mutator_t.
-    object_t _mutate(const object_impl_t *obj) {
+    object_t _mutate(const object_impl_t *obj) = delete;
+    object_t _mutate(const object_impl_t &obj) {
         ir_error_not_expected() << "Can't handle type: " << object_t(obj);
         return {};
     }
 
 #define DECL_MUTATE_LEAF(name) \
-    virtual object_t _mutate(const name *obj) { return obj; }
+    virtual object_t _mutate(const name &obj) { return obj; }
 
     DECL_MUTATE_LEAF(bool_imm_t)
     DECL_MUTATE_LEAF(float_imm_t)
@@ -226,162 +227,162 @@ public:
 
 #undef DECL_MUTATE_LEAF
 
-    virtual object_t _mutate(const alloc_t *obj) {
-        auto buf = mutate(obj->buf);
-        auto body = mutate(obj->body);
+    virtual object_t _mutate(const alloc_t &obj) {
+        auto buf = mutate(obj.buf);
+        auto body = mutate(obj.body);
 
-        if (buf.is_same(obj->buf) && body.is_same(obj->body)) return obj;
+        if (buf.is_same(obj.buf) && body.is_same(obj.body)) return obj;
 
-        return alloc_t::make(buf, obj->size, obj->kind, obj->attr, body);
+        return alloc_t::make(buf, obj.size, obj.kind, obj.attr, body);
     }
 
-    virtual object_t _mutate(const binary_op_t *obj) {
-        auto a = mutate(obj->a);
-        auto b = mutate(obj->b);
+    virtual object_t _mutate(const binary_op_t &obj) {
+        auto a = mutate(obj.a);
+        auto b = mutate(obj.b);
 
-        if (a.is_same(obj->a) && b.is_same(obj->b)) return obj;
+        if (a.is_same(obj.a) && b.is_same(obj.b)) return obj;
 
-        return binary_op_t::make(obj->op_kind, a, b);
+        return binary_op_t::make(obj.op_kind, a, b);
     }
 
-    virtual object_t _mutate(const cast_t *obj) {
-        auto expr = mutate(obj->expr);
+    virtual object_t _mutate(const cast_t &obj) {
+        auto expr = mutate(obj.expr);
 
-        if (expr.is_same(obj->expr)) return obj;
+        if (expr.is_same(obj.expr)) return obj;
 
-        return cast_t::make(obj->type, expr, obj->saturate);
+        return cast_t::make(obj.type, expr, obj.saturate);
     }
 
-    virtual object_t _mutate(const for_t *obj) {
-        auto var = mutate(obj->var);
-        auto init = mutate(obj->init);
-        auto bound = mutate(obj->bound);
-        auto body = mutate(obj->body);
+    virtual object_t _mutate(const for_t &obj) {
+        auto var = mutate(obj.var);
+        auto init = mutate(obj.init);
+        auto bound = mutate(obj.bound);
+        auto body = mutate(obj.body);
 
-        if (var.is_same(obj->var) && init.is_same(obj->init)
-                && bound.is_same(obj->bound) && body.is_same(obj->body))
+        if (var.is_same(obj.var) && init.is_same(obj.init)
+                && bound.is_same(obj.bound) && body.is_same(obj.body))
             return obj;
 
-        return for_t::make(var, init, bound, body, obj->unroll);
+        return for_t::make(var, init, bound, body, obj.unroll);
     }
 
-    virtual object_t _mutate(const func_call_t *obj) {
-        auto func = mutate(obj->func);
-        auto args = mutate(obj->args);
+    virtual object_t _mutate(const func_call_t &obj) {
+        auto func = mutate(obj.func);
+        auto args = mutate(obj.args);
 
-        if (func.is_same(obj->func) && ir_utils::is_same(args, obj->args))
+        if (func.is_same(obj.func) && ir_utils::is_same(args, obj.args))
             return obj;
 
-        return func_call_t::make(func, args, obj->attr);
+        return func_call_t::make(func, args, obj.attr);
     }
 
-    virtual object_t _mutate(const if_t *obj) {
-        auto cond = mutate(obj->cond);
-        auto body = mutate(obj->body);
-        auto else_body = mutate(obj->else_body);
+    virtual object_t _mutate(const if_t &obj) {
+        auto cond = mutate(obj.cond);
+        auto body = mutate(obj.body);
+        auto else_body = mutate(obj.else_body);
 
-        if (cond.is_same(obj->cond) && body.is_same(obj->body)
-                && else_body.is_same(obj->else_body))
+        if (cond.is_same(obj.cond) && body.is_same(obj.body)
+                && else_body.is_same(obj.else_body))
             return obj;
 
         return if_t::make(cond, body, else_body);
     }
 
-    virtual object_t _mutate(const iif_t *obj) {
-        auto cond = mutate(obj->cond);
-        auto true_expr = mutate(obj->true_expr);
-        auto false_expr = mutate(obj->false_expr);
+    virtual object_t _mutate(const iif_t &obj) {
+        auto cond = mutate(obj.cond);
+        auto true_expr = mutate(obj.true_expr);
+        auto false_expr = mutate(obj.false_expr);
 
-        if (cond.is_same(obj->cond) && true_expr.is_same(obj->true_expr)
-                && false_expr.is_same(obj->false_expr))
+        if (cond.is_same(obj.cond) && true_expr.is_same(obj.true_expr)
+                && false_expr.is_same(obj.false_expr))
             return obj;
 
         return iif_t::make(cond, true_expr, false_expr);
     }
 
-    virtual object_t _mutate(const let_t *obj) {
-        auto var = mutate(obj->var);
-        auto value = mutate(obj->value);
-        auto body = mutate(obj->body);
+    virtual object_t _mutate(const let_t &obj) {
+        auto var = mutate(obj.var);
+        auto value = mutate(obj.value);
+        auto body = mutate(obj.body);
 
-        if (var.is_same(obj->var) && value.is_same(obj->value)
-                && body.is_same(obj->body))
+        if (var.is_same(obj.var) && value.is_same(obj.value)
+                && body.is_same(obj.body))
             return obj;
 
         return let_t::make(var, value, body);
     }
 
-    virtual object_t _mutate(const load_t *obj) {
-        auto buf = mutate(obj->buf);
-        auto off = mutate(obj->off);
+    virtual object_t _mutate(const load_t &obj) {
+        auto buf = mutate(obj.buf);
+        auto off = mutate(obj.off);
 
-        if (buf.is_same(obj->buf) && off.is_same(obj->off)) return obj;
+        if (buf.is_same(obj.buf) && off.is_same(obj.off)) return obj;
 
-        return load_t::make(obj->type, buf, off, obj->stride);
+        return load_t::make(obj.type, buf, off, obj.stride);
     }
 
-    virtual object_t _mutate(const ptr_t *obj) {
-        auto base = mutate(obj->base);
-        auto off = mutate(obj->off);
+    virtual object_t _mutate(const ptr_t &obj) {
+        auto base = mutate(obj.base);
+        auto off = mutate(obj.off);
 
-        if (base.is_same(obj->base) && off.is_same(obj->off)) return obj;
+        if (base.is_same(obj.base) && off.is_same(obj.off)) return obj;
 
         return ptr_t::make(base, off);
     }
 
-    virtual object_t _mutate(const shuffle_t *obj) {
-        auto vec = mutate(obj->vec);
+    virtual object_t _mutate(const shuffle_t &obj) {
+        auto vec = mutate(obj.vec);
 
-        if (ir_utils::is_same(vec, obj->vec)) return obj;
+        if (ir_utils::is_same(vec, obj.vec)) return obj;
 
-        return shuffle_t::make(vec, obj->idx);
+        return shuffle_t::make(vec, obj.idx);
     }
 
-    virtual object_t _mutate(const stmt_group_t *obj) {
-        auto body = mutate(obj->body);
+    virtual object_t _mutate(const stmt_group_t &obj) {
+        auto body = mutate(obj.body);
 
-        if (body.is_same(obj->body)) return obj;
+        if (body.is_same(obj.body)) return obj;
 
-        return stmt_group_t::make(obj->label, body);
+        return stmt_group_t::make(obj.label, body);
     }
 
-    virtual object_t _mutate(const stmt_seq_t *obj) {
-        auto head = mutate(obj->head);
-        auto tail = mutate(obj->tail);
+    virtual object_t _mutate(const stmt_seq_t &obj) {
+        auto head = mutate(obj.head);
+        auto tail = mutate(obj.tail);
 
-        if (head.is_same(obj->head) && tail.is_same(obj->tail)) return obj;
+        if (head.is_same(obj.head) && tail.is_same(obj.tail)) return obj;
 
         return stmt_seq_t::make(head, tail);
     }
 
-    virtual object_t _mutate(const store_t *obj) {
-        auto buf = mutate(obj->buf);
-        auto off = mutate(obj->off);
-        auto value = mutate(obj->value);
-        auto mask = mutate(obj->mask);
+    virtual object_t _mutate(const store_t &obj) {
+        auto buf = mutate(obj.buf);
+        auto off = mutate(obj.off);
+        auto value = mutate(obj.value);
+        auto mask = mutate(obj.mask);
 
-        if (buf.is_same(obj->buf) && off.is_same(obj->off)
-                && value.is_same(obj->value) && mask.is_same(obj->mask))
+        if (buf.is_same(obj.buf) && off.is_same(obj.off)
+                && value.is_same(obj.value) && mask.is_same(obj.mask))
             return obj;
 
-        return store_t::make(buf, off, value, obj->stride, mask);
+        return store_t::make(buf, off, value, obj.stride, mask);
     }
 
-    virtual object_t _mutate(const ternary_op_t *obj) {
-        auto a = mutate(obj->a);
-        auto b = mutate(obj->b);
-        auto c = mutate(obj->c);
+    virtual object_t _mutate(const ternary_op_t &obj) {
+        auto a = mutate(obj.a);
+        auto b = mutate(obj.b);
+        auto c = mutate(obj.c);
 
-        if (a.is_same(obj->a) && b.is_same(obj->b) && c.is_same(obj->c))
+        if (a.is_same(obj.a) && b.is_same(obj.b) && c.is_same(obj.c))
             return obj;
 
-        return ternary_op_t::make(obj->op_kind, a, b, c);
+        return ternary_op_t::make(obj.op_kind, a, b, c);
     }
 
-    virtual object_t _mutate(const unary_op_t *obj) {
-        auto a = mutate(obj->a);
-        if (a.is_same(obj->a)) return obj;
-        return unary_op_t::make(obj->op_kind, a);
+    virtual object_t _mutate(const unary_op_t &obj) {
+        auto a = mutate(obj.a);
+        if (a.is_same(obj.a)) return obj;
+        return unary_op_t::make(obj.op_kind, a);
     }
 
     virtual dispatch_func_type find_dispatch_func(int64_t ti) const {
@@ -407,8 +408,8 @@ private:
     }
 
     template <typename T>
-    static object_t call(ir_mutator_t *mutator, const object_impl_t *obj) {
-        return mutator->_mutate((const T *)obj);
+    static object_t call(ir_mutator_t *mutator, const object_impl_t &obj) {
+        return mutator->_mutate((const T &)obj);
     }
 
     object_t dispatch(const object_impl_t *obj) {
@@ -417,7 +418,7 @@ private:
         auto ti = obj->dispatch_type_id();
         auto f = find_dispatch_func(ti);
         ir_assert(f);
-        return f(this, obj);
+        return f(this, *obj);
     }
 };
 
@@ -451,7 +452,7 @@ public:
 
     stmt_t update(const stmt_t &stmt) { return mutate(stmt); }
 
-    object_t _mutate(const alloc_t *obj) override {
+    object_t _mutate(const alloc_t &obj) override {
         auto new_obj = ir_mutator_t::_mutate(obj);
 
         if (try_remove(new_obj)) return new_obj;
