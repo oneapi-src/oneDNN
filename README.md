@@ -76,6 +76,7 @@ on macOS* 11.2 (BigSur) with
 on Windows* with
 
 * Microsoft Visual C++ 16.0 (Visual Studio 2019)
+* Microsoft Visual C++ 15.0 (Visual Studio 2017)
 
 GPU engine was validated on Ubuntu* 18.04 with
 
