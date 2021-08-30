@@ -85,6 +85,8 @@ namespace op_kind {
     X(matmul_add_gelu, MatMul_add_gelu) \
     X(matmul_add_relu, MatMul_add_relu) \
     X(matmul_add_sigmoid, MatMul_add_sigmoid) \
+    X(avgpool_add, AvgPool_add) \
+    X(maxpool_add, MaxPool_add) \
     X(int8_conv, INT8_Conv) \
     X(int8_quant_wei_conv, INT8_Quant_wei_Conv) \
     X(int8_conv_bias, INT8_Conv_bias) \

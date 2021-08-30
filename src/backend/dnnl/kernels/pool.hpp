@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 #include "interface/c_types_map.hpp"
 
@@ -61,11 +62,13 @@ struct pooling_forward : public dnnl::pooling_v2_forward, public kernel_base {
     using dims_t = std::vector<dnnl::graph::impl::dim_t>;
 
 private:
+    attr_t attr_;
+    algorithm algo_;
     primitive_desc pd_;
     dnnl::pooling_v2_forward prim_;
-    algorithm algo_;
 
     bool is_training_ {false};
+    bool with_post_binary_ {false};
     prop_kind prop_kind_;
 
     dnnl::engine p_engine_;
@@ -79,6 +82,34 @@ private:
     std::function<std::shared_ptr<f32_kernel_resource_t>()> resource_ctor_;
 
     f32_kernel_resource_t::desc_t res_desc_;
+
+    /**
+     * Check if pooling operator fuses binary
+     *
+     * @param kind operator kind
+     * @return whether the operator fused binary
+     */
+    static bool fuse_binary(op_kind_t kind) {
+        static const std::unordered_set<op_kind_t, enum_hash> with_binary_set {
+                op_kind::avgpool_add, op_kind::maxpool_add};
+        return with_binary_set.find(kind) != with_binary_set.end();
+    }
+
+    static op_kind_t get_fuse_base_op(op_kind_t kind) {
+        switch (static_cast<int>(kind)) {
+            case op_kind::avgpool_add: return (impl::op_kind::AvgPool);
+            case op_kind::maxpool_add: return (impl::op_kind::MaxPool);
+            default: return (impl::op_kind::LastSymbol);
+        }
+    }
+
+    static algorithm get_binary_algo(op_kind_t kind) {
+        switch (static_cast<int>(kind)) {
+            case op_kind::avgpool_add:
+            case op_kind::maxpool_add: return (algorithm::binary_add);
+            default: return (algorithm::undef);
+        }
+    }
 
 public:
     virtual ~pooling_forward() {
@@ -105,21 +136,54 @@ public:
             res_desc_.cvt_dst_ = permute_NXC2NCX(res_desc_.cvt_dst_);
         }
 
-        op_kind_t kind = op->get_kind();
+        const auto kind = op->get_kind();
         dims dilations;
-        if (kind == impl::op_kind::MaxPool) {
+        if (kind == impl::op_kind::MaxPool
+                || get_fuse_base_op(kind) == impl::op_kind::MaxPool) {
             algo_ = algorithm::pooling_max;
             dilations = op->get_attr<dims>("dilations");
             // default dilations are all 1s but in primitive, they're 0s.
             std::for_each(dilations.begin(), dilations.end(),
                     [](dim_t &v) { v -= 1; });
-        } else if (kind == impl::op_kind::AvgPool) {
+        } else if (kind == impl::op_kind::AvgPool
+                || get_fuse_base_op(kind) == impl::op_kind::AvgPool) {
             dilations = dims(strides.size(), 0);
             bool exclude_pad = op->get_attr<bool>("exclude_pad");
             algo_ = exclude_pad ? algorithm::pooling_avg_exclude_padding
                                 : algorithm::pooling_avg_include_padding;
         } else {
             BACKEND_DNNL_ENFORCE(0, "Unsupported pool op.");
+        }
+
+        if (fuse_binary(kind)) {
+            with_post_binary_ = true;
+
+            const int dst_ndims
+                    = static_cast<int>(res_desc_.cvt_dst_.dims().size());
+            res_desc_.cvt_post_src_ = make_dnnl_memory_desc(inputs.back());
+            if (data_format == "NXC") {
+                res_desc_.cvt_post_src_
+                        = permute_NXC2NCX(res_desc_.cvt_post_src_);
+            }
+            res_desc_.cvt_post_src_
+                    = expand(res_desc_.cvt_post_src_, dst_ndims);
+
+            // currently, we support two scenarios that are optimized for post
+            // binary, per tensor and per channel broadcast. That means
+            // the expanded shape of post src should be all one or the
+            // post_src_dim[c_axis] == dst_dims[c_axis]
+            const int c_axis = 1;
+            for (int i = dst_ndims - 1; i >= 0; i--) {
+                if (res_desc_.cvt_post_src_.dims()[i] == 1) continue;
+
+                if (i != c_axis
+                        || res_desc_.cvt_dst_.dims()[i]
+                                != res_desc_.cvt_post_src_.dims()[i]) {
+                    return impl::status::compile_fail;
+                }
+            }
+            attr_ = attr_t::fuse_binary(
+                    res_desc_.cvt_post_src_, get_binary_algo(kind));
         }
 
         p_engine_ = make_dnnl_engine(*g_engine);
@@ -139,7 +203,7 @@ public:
 
         pd_ = primitive_desc({prop_kind_, algo_, expected_src, any_dst, strides,
                                      kernel, dilations, pads_begin, pads_end},
-                p_engine_);
+                attr_, p_engine_);
         prim_ = super(pd_);
         res_desc_.opt_src_ = pd_.src_desc();
         res_desc_.opt_dst_ = pd_.dst_desc();
@@ -219,6 +283,10 @@ public:
         res->scratchpad_.set_data_handle(grantor.get(pool::kScratchpad));
         if (with_workspace_)
             res->workspace_.set_data_handle(grantor.get(pool::kWorkspace));
+
+        if (with_post_binary_) {
+            res->cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
+        }
 
         prim_.execute(p_stream, res->exec_args_);
 

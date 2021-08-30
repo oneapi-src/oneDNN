@@ -11258,6 +11258,152 @@ TEST(operator_kernel, relu_add_fusion) {
     }
 }
 
+TEST(operator_kernel, avgpool_add) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<std::string> data_formats {"NCX", "NXC"};
+    std::vector<bool> with_channel_broadcast_flags {true, false};
+    std::vector<impl::data_type_t> data_types {
+            impl::data_type::f32, impl::data_type::bf16};
+
+    for_(const auto dt : data_types)
+    for_(const auto &data_format : data_formats)
+    for (const auto c_broadcast : with_channel_broadcast_flags) {
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (dt == impl::data_type::bf16 && isa < dnnl_cpu_isa_avx512_core
+                && eng.kind() == impl::engine_kind::cpu) {
+            continue;
+        }
+
+        std::vector<int64_t> src_shape {3, 3, 4, 4, 4};
+        std::vector<int64_t> dst_shape {3, 3, 2, 2, 2};
+        const size_t spatial_size = src_shape.size() - 2;
+        std::vector<int64_t> post_src_shape {1, 1, 1, 1, 1};
+
+        if (c_broadcast) { post_src_shape[1] = src_shape[1]; }
+        if (data_format == "NXC") {
+            src_shape.emplace_back(src_shape[1]);
+            src_shape.erase(src_shape.begin() + 1);
+            dst_shape.emplace_back(dst_shape[1]);
+            dst_shape.erase(dst_shape.begin() + 1);
+            post_src_shape.emplace_back(post_src_shape[1]);
+            post_src_shape.erase(post_src_shape.begin() + 1);
+        }
+
+        std::vector<float> src(product(src_shape), 4.0);
+        std::vector<float> dst(product(dst_shape), 0.0);
+        std::vector<float> post_src(product(post_src_shape), 2.0);
+
+        impl::op_t avgpool_op(impl::dnnl_impl::op_kind::avgpool_add);
+        avgpool_op.set_attr<dims>("strides", dims(spatial_size, 2));
+        avgpool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
+        avgpool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
+        avgpool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
+        avgpool_op.set_attr<std::string>("data_format", data_format);
+        avgpool_op.set_attr<bool>("exclude_pad", false);
+
+        auto &op_factory = get_dnnl_kernel_registry();
+        auto avgpool_kernel = op_factory.create_kernel(avgpool_op);
+        ASSERT_TRUE(avgpool_kernel);
+
+        impl::logical_tensor_t src_lt
+                = utils::logical_tensor_init(0, src_shape, dt);
+        impl::logical_tensor_t dst_lt
+                = utils::logical_tensor_init(1, dst_shape, dt);
+        impl::logical_tensor_t post_src_lt
+                = utils::logical_tensor_init(2, post_src_shape, dt);
+
+        std::vector<impl::logical_tensor_t> inputs {src_lt, post_src_lt};
+        std::vector<impl::logical_tensor_t> outputs {dst_lt};
+        avgpool_kernel->compile(&avgpool_op, &eng, inputs, outputs);
+
+        impl::tensor_t src_ts(src_lt, src.data());
+        impl::tensor_t dst_ts(dst_lt, dst.data());
+        impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+
+        impl::stream_t &strm = get_stream();
+        avgpool_kernel->execute(
+                &avgpool_op, &strm, {src_ts, post_src_ts}, {dst_ts});
+        strm.wait();
+    }
+}
+
+TEST(operator_kernel, maxpool_add) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<std::string> data_formats {"NCX", "NXC"};
+    std::vector<bool> with_channel_broadcast_flags {true, false};
+    std::vector<impl::data_type_t> data_types {
+            impl::data_type::f32, impl::data_type::bf16};
+
+    for_(const auto dt : data_types)
+    for_(const auto &data_format : data_formats)
+    for (const auto c_broadcast : with_channel_broadcast_flags) {
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (dt == impl::data_type::bf16 && isa < dnnl_cpu_isa_avx512_core
+                && eng.kind() == impl::engine_kind::cpu) {
+            continue;
+        }
+
+        std::vector<int64_t> src_shape {3, 3, 4, 4, 4};
+        std::vector<int64_t> dst_shape {3, 3, 2, 2, 2};
+        const size_t spatial_size = src_shape.size() - 2;
+        std::vector<int64_t> post_src_shape {1, 1, 1, 1, 1};
+
+        if (c_broadcast) { post_src_shape[1] = src_shape[1]; }
+        if (data_format == "NXC") {
+            src_shape.emplace_back(src_shape[1]);
+            src_shape.erase(src_shape.begin() + 1);
+            dst_shape.emplace_back(dst_shape[1]);
+            dst_shape.erase(dst_shape.begin() + 1);
+            post_src_shape.emplace_back(post_src_shape[1]);
+            post_src_shape.erase(post_src_shape.begin() + 1);
+        }
+
+        std::vector<float> src(product(src_shape), 4.0);
+        std::vector<float> dst(product(dst_shape), 0.0);
+        std::vector<float> post_src(product(post_src_shape), 2.0);
+
+        impl::op_t maxpool_op(impl::dnnl_impl::op_kind::maxpool_add);
+        maxpool_op.set_attr<dims>("strides", dims(spatial_size, 2));
+        maxpool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
+        maxpool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
+        maxpool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
+        maxpool_op.set_attr<std::string>("data_format", data_format);
+        maxpool_op.set_attr<dims>("dilations", dims(spatial_size, 1));
+
+        auto &op_factory = get_dnnl_kernel_registry();
+        auto maxpool_kernel = op_factory.create_kernel(maxpool_op);
+        ASSERT_TRUE(maxpool_kernel);
+
+        impl::logical_tensor_t src_lt
+                = utils::logical_tensor_init(0, src_shape, dt);
+        impl::logical_tensor_t dst_lt
+                = utils::logical_tensor_init(1, dst_shape, dt);
+        impl::logical_tensor_t post_src_lt
+                = utils::logical_tensor_init(2, post_src_shape, dt);
+
+        std::vector<impl::logical_tensor_t> inputs {src_lt, post_src_lt};
+        std::vector<impl::logical_tensor_t> outputs {dst_lt};
+        maxpool_kernel->compile(&maxpool_op, &eng, inputs, outputs);
+
+        impl::tensor_t src_ts(src_lt, src.data());
+        impl::tensor_t dst_ts(dst_lt, dst.data());
+        impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+
+        impl::stream_t &strm = get_stream();
+        maxpool_kernel->execute(
+                &maxpool_op, &strm, {src_ts, post_src_ts}, {dst_ts});
+        strm.wait();
+    }
+}
+
 TEST(int8_subgraph_mode, int8_maxpool) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_maxpool] - [quantize]
