@@ -22,5 +22,4 @@ env = {
 primary_domain = 'cpp'
 
 def setup(app):
-    add_custom_css = getattr(app,'add_css_file',getattr(app,'add_stylesheet'))
-    add_custom_css('custom.css')
+    app.add_css_file('custom.css')
