@@ -33,7 +33,7 @@ namespace binary {
 
 //TODO: Consider filling with powers of 2 for division to avoid rounding errors
 int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        bool only_positive_values = false) {
+        bool only_positive_values = false, bool only_integer_values = false) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
@@ -43,7 +43,8 @@ int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const int64_t gen = (12 * i + 5 * input_idx + 16) % (range + 1);
-        float value = (f_min + gen) * 1.25f;
+        const float scale = only_integer_values ? 1.f : 1.25f;
+        float value = (f_min + gen) * scale;
         if (only_positive_values) value = fabs(value);
         // Remove zeroes in src1 to avoid division by zero
         if (input_idx == 1 && value == 0.0f) value = 1.0f;
@@ -57,7 +58,7 @@ int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp,
-        bool only_positive_values) {
+        bool only_positive_values, bool only_integer_values) {
     // TODO: currently run-time dimensions are not supported in binary post-op.
     // To add a support two ways are possible: 1) add query support to the
     // library and extract expected md from pd; 2) pass a vector of pre-defined
@@ -87,7 +88,8 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         mem_fp.emplace_back(po_md, dnnl_f32, tag::abx, get_test_engine());
         mem_dt.emplace_back(po_md, get_test_engine());
         args.push_back(po_idx);
-        fill_mem(po_idx, mem_dt.back(), mem_fp.back(), only_positive_values);
+        fill_mem(po_idx, mem_dt.back(), mem_fp.back(), only_positive_values,
+                only_integer_values);
     }
     return OK;
 }
