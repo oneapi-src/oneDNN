@@ -21,6 +21,7 @@
 #include "dnnl_graph_common.hpp"
 #include "utils/compare.hpp"
 
+#include "binary/binary.hpp"
 #include "pool/graph_pool.hpp"
 
 #include <algorithm>
@@ -89,6 +90,25 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) noexcept {
     exclude_pad = prb->alg == ::pool::avg_np;
 }
 
+void check_known_skipped_case_graph(
+        const ::pool::prb_t *prb, res_t *res) noexcept {
+    ::pool::check_known_skipped_case(prb, res);
+    if (res->state == SKIPPED) return;
+
+    for (const auto &po : prb->attr.post_ops.entry) {
+        if (po.is_binary_kind()) {
+            // currently, in the backend there are supported
+            // only two policies for binary post op:
+            // COMMON and PER_OC
+            const auto policy = po.binary.policy;
+            if (!(policy == attr_t::COMMON || policy == attr_t::PER_OC)) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
+            }
+        }
+    }
+}
+
 fill_status_t pool_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
@@ -134,6 +154,11 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
     curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
+}
+
+fill_status_t pool_graph_prb_t::handle_bin_(
+        const attr_t::post_ops_t::entry_t &po_entry) {
+    return po_handler.pool.bin_handler(*this, spec_.data_format, po_entry);
 }
 
 fill_status_t pool_graph_prb_t::handle_low_precision_() {
@@ -184,7 +209,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    ::pool::check_known_skipped_case(prb, res);
+    check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
     pool_graph_prb_t graph_prb(prb);
@@ -211,7 +236,6 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
     dnn_mem_t ws_fp;
-    std::vector<dnn_mem_t> binary_po_fp;
 
     auto src_dt = make_dnn_mem(ins[0], prb->tag);
     auto dst_dt = make_dnn_mem(outs[0], prb->tag);
@@ -219,11 +243,27 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
     SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
 
-    dnnl::graph::tensor src_tensor(ins[0], static_cast<float *>(src_dt));
-    dnnl::graph::tensor dst_tensor(outs[0], static_cast<float *>(dst_dt));
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    if (graph_prb.has_post_bin()) {
+        binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
+        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), prb->tag));
+        const int idx = 0;
+        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
+                binary_po_dt.back(), binary_po_fp.back());
+    }
+
+    dnnl::graph::tensor src_tensor(ins[0], static_cast<void *>(src_dt));
+    dnnl::graph::tensor dst_tensor(outs[0], static_cast<void *>(dst_dt));
+    dnnl::graph::tensor bin_tensor;
 
     std::vector<dnnl::graph::tensor> tensors_in {src_tensor};
     std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
+
+    if (graph_prb.has_post_bin()) {
+        bin_tensor = dnnl::graph::tensor(
+                ins.back(), static_cast<void *>(binary_po_dt.back()));
+        tensors_in.emplace_back(bin_tensor);
+    }
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 

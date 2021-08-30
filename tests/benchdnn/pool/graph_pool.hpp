@@ -34,6 +34,14 @@ struct pool_graph_prb_t : public graph_prb_t {
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
 
+        for (const auto &po : prb->attr.post_ops.entry) {
+            if (po.is_binary_kind()) {
+                has_post_bin_ = true;
+                ctor_status = handle_bin_(po);
+                if (stop_work(ctor_status)) return;
+            }
+        }
+
         auto dtypes = {spec_.src_dt, spec_.dst_dt};
         if (benchdnnext::is_low_precision(dtypes)) {
             ctor_status = handle_low_precision_();
@@ -71,9 +79,11 @@ private:
         dnnl::graph::op::kind op_kind;
     };
     spec_t spec_;
+    po_handlers_t po_handler;
 
     fill_status_t handle_main_op_();
     fill_status_t handle_low_precision_();
+    fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return spec_.op_kind;
