@@ -65,6 +65,7 @@ CPU engine was validated on RedHat* Enterprise Linux 7 with
 on Ubuntu* 18.04 with
 
 * GNU Compiler Collection 7.5
+* Clang\* 3.8.1, 10.0
 * [Intel C++ Compiler Classic](https://software.intel.com/content/www/us/en/develop/tools/oneapi/hpc-toolkit.html)
 
 on macOS* 11.2 (BigSur) with
