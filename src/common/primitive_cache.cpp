@@ -266,7 +266,7 @@ lru_primitive_cache_t::~lru_primitive_cache_t() {
 // DPCPP and OpenCL runtimes when DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE is ON.
 #ifndef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     return;
-#endif
+#else
 
 #if defined(_WIN32) \
         && (defined(DNNL_WITH_SYCL) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL)
@@ -325,6 +325,8 @@ lru_primitive_cache_t::~lru_primitive_cache_t() {
     // library unloading order in such cases.
     cache_mapper_.reset();
 #endif
+
+#endif /* DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE */
 }
 
 } // namespace impl
