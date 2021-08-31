@@ -21,7 +21,7 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #include "matmul/graph_matmul.hpp"
 #include "matmul/matmul.hpp"

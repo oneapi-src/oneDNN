@@ -23,9 +23,9 @@
 
 #include "tests/test_thread.hpp"
 
-#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
 #include "resampling/resampling.hpp"
@@ -127,7 +127,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     SAFE(status, WARN);
 
     attr_args_t attr_args;
-    attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims, dst_dims);
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims);
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 

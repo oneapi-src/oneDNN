@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "compare.hpp"
+#include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
 #include "eltwise/graph_eltwise.hpp"

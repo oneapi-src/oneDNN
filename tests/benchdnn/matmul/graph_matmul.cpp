@@ -17,8 +17,8 @@
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_types.h"
 
-#include "compare.hpp"
 #include "dnnl_graph_common.hpp"
+#include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
 #include "matmul/graph_matmul.hpp"

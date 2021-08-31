@@ -112,6 +112,10 @@ argument `OUTPUTSCALE` defines the semantics of output scale as for
 `BINARY` post operation kind applies one of supported binary algorithms to the
 operation result and then stores it. It requires mandatory argument of `DT`
 specifying data type of second memory operand. It supports optional argument of
+
+`PRELU` post operation kind applies forward algorithm to the operations result
+and then stores it. Weights `DT` is always implicitly f32.
+
 `POLICY` giving a hint what are the dimensions for a second memory operand. In
 case `POLICY` value is `per_tensor`, additional optional argument `TAG` is
 supported, positioned after `POLICY`, to specify memory physical format. `TAG`

@@ -21,6 +21,7 @@
 
 #include "binary/binary.hpp"
 #include "conv/graph_conv.hpp"
+#include "prelu/prelu.hpp"
 
 #include <string>
 #include <vector>
@@ -232,6 +233,12 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<dnn_mem_t> prelu_po_fp, prelu_po_dt;
+    std::vector<int> prelu_po_args;
+    //TODO - Please add support for prelu in dnnl-graph
+    //SAFE(prelu::setup_prelu_po(
+    //             const_pd, dst_md, prelu_po_args, prelu_po_fp, prelu_po_dt),
+    //        WARN);
     if (graph_prb.has_post_bin()) {
         binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
         binary_po_dt.emplace_back(make_dnn_mem(ins.back(), tag::abx));
@@ -279,7 +286,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
 
         const auto &dnnl_test_engine = ::get_test_engine();
         ::conv::compute_ref_fwd(prb, c_ref, src_fp, wei_fp, bia_fp_scaled,
-                binary_po_fp, dst_fp);
+                binary_po_fp, prelu_po_fp, dst_fp);
         dnn_mem_t dst(dst_dt, fp, src_tag, dnnl_test_engine);
         SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
     }

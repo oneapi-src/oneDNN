@@ -16,8 +16,8 @@
 
 #include "oneapi/dnnl/dnnl_graph_buildin_ops.h"
 
-#include "compare.hpp"
 #include "dnnl_graph_common.hpp"
+#include "utils/compare.hpp"
 
 #include "lnorm/graph_lnorm.hpp"
 

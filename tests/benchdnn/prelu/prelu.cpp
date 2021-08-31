@@ -23,13 +23,100 @@
 
 #include "tests/test_thread.hpp"
 
-#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "utils/compare.hpp"
 
 #include "prelu/prelu.hpp"
 
 namespace prelu {
+
+int fill_data(data_kind_t kind, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    // Do fixed partitioning to have same filling for any number of threads.
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+
+    dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        // Note 1: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // we avoid it for two reasons:
+        //   a. it has a complexity in O(idx_start).
+        //   b. igen and fgen below might require more than 1 sample
+        //   per idx, so the we cannot deterministically compute the
+        //   number of states we need to discard
+        // Note 2: We also advance the state to avoid having only
+        // small values as first chunk input.  The +1 is necessary to
+        // avoid generating zeros in first chunk.
+        // Note 3: we multiply by kind + 1 to have different values in
+        // src/dst and diff_dst. The +1 is to avoid 0 again.
+        std::minstd_rand msr((idx_start + 1) * (kind + 1));
+        msr.discard(1);
+        std::uniform_int_distribution<> igen_02(0, 2), igen_05(0, 5);
+        std::uniform_real_distribution<> fgen(-1.f, 1.f);
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            float value;
+            if (is_integral_dt(mem_dt.dt()))
+                value = igen_05(msr);
+            else
+                value = kind == SRC
+                        ? igen_02(msr)
+                        : kind == WEI ? fgen(msr) : igen_02(msr) / 16.f;
+            // TODO: amount of negative values should depend on number of points
+            // to reduce as summation becomes inaccurate.
+            float sign = mem_dt.dt() == dnnl_u8
+                    ? 1.f
+                    : flip_coin(idx, 0.1f) ? -1.f : 1.f;
+            value = round_to_nearest_representable(mem_dt.dt(), sign * value);
+            mem_fp.set_elem(idx, value);
+        }
+    });
+
+    SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int setup_prelu_po(const_dnnl_primitive_desc_t pd,
+        const dnnl_memory_desc_t &dst_md, std::vector<int> &args,
+        std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem) {
+    const_dnnl_primitive_attr_t const_attr;
+    DNN_SAFE(dnnl_primitive_desc_get_attr(pd, &const_attr), WARN);
+
+    const_dnnl_post_ops_t const_attr_po;
+    DNN_SAFE(
+            dnnl_primitive_attr_get_post_ops(const_attr, &const_attr_po), WARN);
+
+    const auto po_len = dnnl_post_ops_len(const_attr_po);
+    for (int idx = 0; idx < po_len; ++idx) {
+        const auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
+        if (kind != dnnl_prelu) continue;
+
+        const auto ndims = dst_md.ndims;
+        int mask = 0;
+        dnnl_dims_t dims = {0};
+        dnnl_post_ops_get_params_prelu(const_attr_po, idx, &mask);
+
+        // Deduce prelu weights dims based on input policy.
+        for (int d = 0; d < ndims; ++d) {
+            dims[d] = (mask & (1 << d)) ? dst_md.dims[d] : 1;
+        }
+
+        // Following call can not be executed if po_md has runtime dimension due
+        // to undefined size.
+        ref_mem.emplace_back(
+                ndims, dims, dnnl_f32, tag::abx, get_test_engine());
+        prim_mem.emplace_back(
+                ndims, dims, dnnl_f32, tag::axb, get_test_engine());
+        args.push_back(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_WEIGHTS);
+        fill_data(WEI, prim_mem.back(), ref_mem.back());
+    }
+    return OK;
+}
 
 static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &ppd, res_t *res, dir_t dir,
@@ -84,57 +171,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     return OK;
 }
 
-int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp) {
-    const auto nelems = mem_fp.nelems();
-    if (nelems == 0) return OK;
-
-    // Do fixed partitioning to have same filling for any number of threads.
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
-
-    dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx_chunk) {
-        int64_t idx_start = idx_chunk * chunk_size;
-        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
-        // Note 1: we use a different seed for each chunk to avoid
-        // repeating patterns. We could use discard(idx_start) too but
-        // we avoid it for two reasons:
-        //   a. it has a complexity in O(idx_start).
-        //   b. igen and fgen below might require more than 1 sample
-        //   per idx, so the we cannot deterministically compute the
-        //   number of states we need to discard
-        // Note 2: We also advance the state to avoid having only
-        // small values as first chunk input.  The +1 is necessary to
-        // avoid generating zeros in first chunk.
-        // Note 3: we multiply by kind + 1 to have different values in
-        // src/dst and diff_dst. The +1 is to avoid 0 again.
-        std::minstd_rand msr((idx_start + 1) * (kind + 1));
-        msr.discard(1);
-        std::uniform_int_distribution<> igen_02(0, 2), igen_05(0, 5);
-        std::uniform_real_distribution<> fgen(-1.f, 1.f);
-        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            float value;
-            if (is_integral_dt(mem_dt.dt()))
-                value = igen_05(msr);
-            else
-                value = kind == SRC
-                        ? igen_02(msr)
-                        : kind == WEI ? fgen(msr) : igen_02(msr) / 16.f;
-            // TODO: amount of negative values should depend on number of points
-            // to reduce as summation becomes inaccurate.
-            float sign = mem_dt.dt() == dnnl_u8
-                    ? 1.f
-                    : flip_coin(idx, 0.1f) ? -1.f : 1.f;
-            value = round_to_nearest_representable(mem_dt.dt(), sign * value);
-            mem_fp.set_elem(idx, value);
-        }
-    });
-
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-
-    return OK;
-}
-
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(prb->sdt, FWD_D, res);
     if (res->state == SKIPPED) return;
@@ -180,8 +216,8 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t weights_dt(weight_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
-    SAFE(fill_data(prb, SRC, src_dt, src_fp), WARN);
-    SAFE(fill_data(prb, WEI, weights_dt, weights_fp), WARN);
+    SAFE(fill_data(SRC, src_dt, src_fp), WARN);
+    SAFE(fill_data(WEI, weights_dt, weights_fp), WARN);
 
     args_t args;
     args.set(DNNL_ARG_SRC, src_dt);
@@ -218,7 +254,7 @@ int doit(const prb_t *prb, res_t *res) {
         d_weights_dt = dnn_mem_t(d_weights_md, test_engine);
         d_dst_dt = dnn_mem_t(d_data_md, test_engine);
 
-        SAFE(fill_data(prb, DST, d_dst_dt, d_dst_fp), WARN);
+        SAFE(fill_data(DST, d_dst_dt, d_dst_fp), WARN);
 
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);

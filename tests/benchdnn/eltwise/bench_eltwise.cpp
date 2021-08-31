@@ -21,7 +21,7 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #include "eltwise/eltwise.hpp"
 #include "eltwise/graph_eltwise.hpp"

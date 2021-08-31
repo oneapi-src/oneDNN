@@ -28,7 +28,7 @@
 #include "dnnl.h"
 
 #include "common.hpp"
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #include "tests/test_thread.hpp"
 
@@ -77,86 +77,6 @@ api_mode_t str2api_mode(const char *str) {
     return mode;
 }
 
-/* perf */
-#include <chrono>
-
-static inline double ms_now() {
-    auto timePointTmp
-            = std::chrono::high_resolution_clock::now().time_since_epoch();
-    return std::chrono::duration<double, std::milli>(timePointTmp).count();
-}
-
-#if !defined(BENCHDNN_USE_RDPMC) || defined(_WIN32)
-unsigned long long ticks_now() {
-    return (unsigned long long)0;
-}
-#else
-unsigned long long ticks_now() {
-    unsigned eax, edx, ecx;
-
-    ecx = (1 << 30) + 1;
-    __asm__ volatile("rdpmc" : "=a"(eax), "=d"(edx) : "c"(ecx));
-
-    return (unsigned long long)eax | (unsigned long long)edx << 32;
-}
-#endif
-
-void benchdnn_timer_t::reset() {
-    times_ = 0;
-    for (int i = 0; i < n_modes; ++i)
-        ticks_[i] = 0;
-    ticks_start_ = 0;
-    for (int i = 0; i < n_modes; ++i)
-        ms_[i] = 0;
-    ms_start_ = 0;
-
-    start();
-}
-
-void benchdnn_timer_t::start() {
-    ticks_start_ = ticks_now();
-    ms_start_ = ms_now();
-}
-
-void benchdnn_timer_t::stop(int add_times) {
-    if (add_times == 0) return;
-
-    unsigned long long d_ticks = ticks_now() - ticks_start_;
-    double d_ms = ms_now() - ms_start_;
-
-    ticks_start_ += d_ticks;
-    ms_start_ += d_ms;
-
-    ms_[benchdnn_timer_t::avg] += d_ms;
-    ticks_[benchdnn_timer_t::avg] += d_ticks;
-
-    d_ticks /= add_times;
-    d_ms /= add_times;
-
-    ms_[benchdnn_timer_t::min]
-            = times_ ? MIN2(ms_[benchdnn_timer_t::min], d_ms) : d_ms;
-    ms_[benchdnn_timer_t::max]
-            = times_ ? MAX2(ms_[benchdnn_timer_t::max], d_ms) : d_ms;
-
-    ticks_[benchdnn_timer_t::min]
-            = times_ ? MIN2(ticks_[benchdnn_timer_t::min], d_ticks) : d_ticks;
-    ticks_[benchdnn_timer_t::max]
-            = times_ ? MAX2(ticks_[benchdnn_timer_t::max], d_ticks) : d_ticks;
-
-    times_ += add_times;
-}
-
-benchdnn_timer_t &benchdnn_timer_t::operator=(const benchdnn_timer_t &rhs) {
-    if (this == &rhs) return *this;
-    times_ = rhs.times_;
-    for (int i = 0; i < n_modes; ++i)
-        ticks_[i] = rhs.ticks_[i];
-    ticks_start_ = rhs.ticks_start_;
-    for (int i = 0; i < n_modes; ++i)
-        ms_[i] = rhs.ms_[i];
-    ms_start_ = rhs.ms_start_;
-    return *this;
-}
 
 /* result structure */
 const char *state2str(res_state_t state) {
@@ -246,18 +166,11 @@ void parse_result(
             want_perf_report = false;
             bs.listed++;
             break;
-        default:
-            assert(!"unknown state");
-            {
-                []() {
-                    SAFE(FAIL, CRIT);
-                    return 0;
-                }();
-            }
+        default: assert(!"unknown state"); SAFE_V(FAIL);
     }
 
     if (is_bench_mode(PERF)) {
-        using bt = benchdnn_timer_t;
+        using bt = timer::timer_t;
         for (int mode = 0; mode < (int)bt::n_modes; ++mode) {
             bs.ms[mode] += res.timer.ms((bt::mode_t)mode);
             bs.par_compl_ms[mode] += res.par_compl_timer.ms((bt::mode_t)mode);

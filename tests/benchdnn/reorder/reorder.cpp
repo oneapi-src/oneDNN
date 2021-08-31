@@ -20,10 +20,10 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "compare.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "utils/compare.hpp"
 
 #include "reorder.hpp"
 

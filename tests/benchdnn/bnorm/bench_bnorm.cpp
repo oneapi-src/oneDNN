@@ -22,7 +22,7 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #include "bnorm/bnorm.hpp"
 #include "bnorm/graph_bnorm.hpp"

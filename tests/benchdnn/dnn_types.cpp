@@ -34,7 +34,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #define BENCHDNN_DNNL_ARG_UNDEF 0
 
@@ -365,6 +365,8 @@ static po_table_entry_t kind_table[] = {
         {pk_t::NE, {"ne", "binary_ne"}, dnnl_binary_ne},
         {pk_t::SUB, {"sub", "binary_sub"}, dnnl_binary_sub},
         {pk_t::BINARY_END, {"binary_undef"}, dnnl_alg_kind_undef},
+        // prelu
+        {pk_t::PRELU, {"prelu"}, dnnl_alg_kind_undef},
         // guard entry
         {pk_t::KIND_TOTAL, {"kind_undef"}, dnnl_alg_kind_undef}};
 
@@ -413,6 +415,19 @@ std::vector<int> attr_t::post_ops_t::get_binary_po_masks() const {
     return v_masks;
 }
 
+std::vector<int> attr_t::post_ops_t::get_prelu_po_masks() const {
+    std::vector<int> v_masks;
+    for (int idx = 0; idx < len(); ++idx) {
+        const auto &e = this->entry[idx];
+        if (!e.is_prelu_kind()) continue;
+
+        const auto policy = e.prelu.policy;
+        const auto mask = attr_t::get_default_mask(policy);
+        v_masks.push_back(mask);
+    }
+    return v_masks;
+}
+
 int attr_t::post_ops_t::from_str(const std::string &s) {
     *this = post_ops_t();
     if (s.empty()) return OK;
@@ -450,13 +465,11 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
-            std::string zero_point_str
-                    = parser::get_substr(subs, subs_pos, ':');
-            // TODO: update this check to validate whole string for digits
-            if (!std::isdigit(zero_point_str[0])) return FAIL;
-            e.sum.zero_point = std::stoi(zero_point_str);
+            auto zp_str = parser::get_substr(subs, subs_pos, ':');
+            e.sum.zero_point = std::stoi(zp_str);
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
+            if (std::to_string(e.sum.zero_point) != zp_str) return FAIL;
 
             e.sum.dt = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
             // sum dt, if specified, should be defined
@@ -498,6 +511,12 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
             e.binary.tag = parser::get_substr(subs, subs_pos, ':');
             SAFE(check_tag(e.binary.tag), WARN);
+        } else if (e.is_prelu_kind()) {
+            e.prelu.policy
+                    = str2policy(parser::get_substr(subs, subs_pos, ':'));
+            if (e.prelu.policy == POLICY_TOTAL) return FAIL;
+            if (subs_pos == std::string::npos) continue;
+            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
         }
         if (subs_pos == std::string::npos) continue;
         if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
@@ -531,6 +550,9 @@ bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
 bool attr_t::post_ops_t::entry_t::is_binary_kind() const {
     return kind > pk_t::BINARY_START && kind < pk_t::BINARY_END;
 }
+bool attr_t::post_ops_t::entry_t::is_prelu_kind() const {
+    return kind == PRELU;
+}
 
 int attr_t::post_ops_t::convolution_index() const {
     for (int i = 0; i < len(); ++i) {
@@ -549,6 +571,13 @@ int attr_t::post_ops_t::eltwise_index() const {
 int attr_t::post_ops_t::binary_index() const {
     for (int i = 0; i < len(); ++i) {
         if (entry[i].is_binary_kind()) return i;
+    }
+    return -1;
+}
+
+int attr_t::post_ops_t::prelu_index() const {
+    for (int i = 0; i < len(); ++i) {
+        if (entry[i].is_prelu_kind()) return i;
     }
     return -1;
 }
@@ -693,6 +722,10 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 if (attr_t::get_default_mask(e.binary.policy) >= 4)
                     s << ":" << e.binary.tag;
             }
+        } else if (e.is_prelu_kind()) {
+            if (e.prelu.policy != policy_t::COMMON) {
+                s << ":" << e.prelu.policy;
+            }
         } else {
             assert(!"unknown kind");
             s << "unknown_kind";
@@ -783,28 +816,55 @@ void attr_args_t::prepare_output_scales(
     insert(DNNL_ARG_ATTR_OUTPUT_SCALES, vals, count, mask, attr.oscale.runtime);
 }
 
-int attr_args_t::prepare_binary_post_op_mds(
+struct post_ops_rhs_tensor_entry_t {
+    dnnl_data_type_t dt;
+    policy_t policy;
+    std::string tag;
+    int arg_attr_mask;
+};
+
+namespace {
+
+post_ops_rhs_tensor_entry_t get_po_rhs_tensor_entry(
+        const attr_t::post_ops_t::entry_t &entry) {
+    if (entry.is_prelu_kind()) {
+        const auto &prelu = entry.prelu;
+        return {dnnl_f32, prelu.policy, tag::axb, DNNL_ARG_WEIGHTS};
+    } else if (entry.is_binary_kind()) {
+        const auto &binary = entry.binary;
+        return {binary.src1_dt, binary.policy, binary.tag, DNNL_ARG_SRC_1};
+    }
+
+    return post_ops_rhs_tensor_entry_t {};
+}
+
+} // namespace
+
+int attr_args_t::prepare_post_ops_mds(
         const attr_t &attr, int ndims, const dnnl_dims_t dims) {
     const auto &po = attr.post_ops;
     // iterate over all post ops and prepare md for each binary
     for (int idx = 0; idx < po.len(); ++idx) {
         const auto &e = po.entry[idx];
-        if (!e.is_binary_kind()) continue;
+        if (e.is_binary_kind() || e.is_prelu_kind()) {
 
-        const auto dt = e.binary.src1_dt;
-        const auto policy = e.binary.policy;
-        const int mask = attr_t::get_default_mask(policy);
+            const auto po_rhs_tensor_entry = get_po_rhs_tensor_entry(e);
+            const int mask
+                    = attr_t::get_default_mask(po_rhs_tensor_entry.policy);
 
-        // deduce binary dims based on input policy
-        dnnl_dims_t binary_dims;
-        for (auto d = 0; d < ndims; ++d)
-            binary_dims[d] = (!(mask & (1 << d))) ? 1 : dims[d];
+            // deduce binary, prelu dims based on input policy
+            dnnl_dims_t rhs_tensor_dims = {};
+            for (auto d = 0; d < ndims; ++d)
+                rhs_tensor_dims[d] = (!(mask & (1 << d))) ? 1 : dims[d];
 
-        dnnl_memory_desc_t src1_desc;
-        SAFE(init_md(&src1_desc, ndims, binary_dims, dt, e.binary.tag), WARN);
-        mds.insert(std::make_pair(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
-                src1_desc));
+            dnnl_memory_desc_t rhs_tensor_desc;
+            SAFE(init_md(&rhs_tensor_desc, ndims, rhs_tensor_dims,
+                         po_rhs_tensor_entry.dt, po_rhs_tensor_entry.tag),
+                    WARN);
+            mds.emplace((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                | po_rhs_tensor_entry.arg_attr_mask),
+                    rhs_tensor_desc);
+        }
     }
 
     return OK;
@@ -911,6 +971,10 @@ dnnl_primitive_attr_t create_dnnl_attr(
                 assert(src1_md.ndims != 0);
                 DNN_SAFE_V(dnnl_post_ops_append_binary(
                         ops, e.binary.alg, &src1_md));
+            } else if (e.is_prelu_kind()) {
+                const auto &policy = e.prelu.policy;
+                const auto mask = attr_t::get_default_mask(policy);
+                DNN_SAFE_V(dnnl_post_ops_append_prelu(ops, mask));
             } else {
                 assert(!"unknown attr::post_ops::kind");
             }
@@ -1310,10 +1374,12 @@ float compute_binary(pk_t kind, float src0, float src1) {
 }
 
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
-        const std::vector<float> &v_binary_vals) {
+        const std::vector<float> &v_binary_vals,
+        const std::vector<float> &v_prelu_weights) {
     using namespace dnnl::impl::math;
 
     auto it_bin_po = v_binary_vals.begin();
+    auto it_prelu_po = v_prelu_weights.begin();
     const auto &po = attr.post_ops;
     for (int idx = 0; idx < po.len(); ++idx) {
         const auto &e = po.entry[idx];
@@ -1330,6 +1396,9 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
         } else if (e.is_binary_kind()) {
             val = compute_binary(e.kind, val, *it_bin_po);
             it_bin_po++;
+        } else if (e.is_prelu_kind()) {
+            val = val > 0 ? val : val * (*it_prelu_po);
+            it_prelu_po++;
         }
     }
 }

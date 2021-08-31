@@ -17,9 +17,9 @@
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_types.h"
 
-#include "compare.hpp"
 #include "dnn_graph_types.hpp"
 #include "dnnl_graph_common.hpp"
+#include "utils/compare.hpp"
 
 #include "pool/graph_pool.hpp"
 

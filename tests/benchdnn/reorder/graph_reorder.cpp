@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include <utility>
-#include "compare.hpp"
+#include "utils/compare.hpp"
 
 #include "reorder/graph_reorder.hpp"
 

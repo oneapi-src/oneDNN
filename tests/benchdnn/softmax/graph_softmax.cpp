@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "compare.hpp"
 #include "dnnl_graph_common.hpp"
+#include "utils/compare.hpp"
 
 #include "softmax/graph_softmax.hpp"
 #include "softmax/softmax.hpp"

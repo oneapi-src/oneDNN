@@ -33,6 +33,8 @@
 
 #include "src/common/z_magic.hpp"
 
+#include "utils/timer.hpp"
+
 #define ABS(a) ((a) > 0 ? (a) : (-(a)))
 
 #define MIN2(a, b) ((a) < (b) ? (a) : (b))
@@ -131,41 +133,6 @@ extern bool fast_ref_gpu;
 extern bool allow_enum_tags_only;
 extern int test_start;
 
-struct benchdnn_timer_t {
-    enum mode_t { min = 0, avg = 1, max = 2, n_modes };
-
-    benchdnn_timer_t() { reset(); }
-
-    void reset(); /** fully reset the measurements */
-
-    void start(); /** restart timer */
-    void stop(int add_times = 1); /** stop timer & update statistics */
-
-    void stamp(int add_times = 1) { stop(add_times); }
-
-    int times() const { return times_; }
-
-    double total_ms() const { return ms_[avg]; }
-
-    double ms(mode_t mode = min) const {
-        if (!times()) return 0; // nothing to report
-        return ms_[mode] / (mode == avg ? times() : 1);
-    }
-
-    double sec(mode_t mode = min) const { return ms(mode) / 1e3; }
-
-    unsigned long long ticks(mode_t mode = min) const {
-        if (!times()) return 0; // nothing to report
-        return ticks_[mode] / (mode == avg ? times() : 1);
-    }
-
-    benchdnn_timer_t &operator=(const benchdnn_timer_t &rhs);
-
-    int times_;
-    unsigned long long ticks_[n_modes], ticks_start_;
-    double ms_[n_modes], ms_start_;
-};
-
 /* global stats */
 struct stat_t {
     int tests;
@@ -175,9 +142,9 @@ struct stat_t {
     int mistrusted;
     int unimplemented;
     int listed;
-    double ms[benchdnn_timer_t::mode_t::n_modes];
-    double par_compl_ms[benchdnn_timer_t::mode_t::n_modes];
-    double prim_create_ms[benchdnn_timer_t::mode_t::n_modes];
+    double ms[timer::timer_t::mode_t::n_modes];
+    double par_compl_ms[timer::timer_t::mode_t::n_modes];
+    double prim_create_ms[timer::timer_t::mode_t::n_modes];
 };
 extern stat_t benchdnn_stat;
 
@@ -208,9 +175,9 @@ const char *skip_reason2str(skip_reason_t skip_reason);
 struct res_t {
     res_state_t state;
     size_t errors, total;
-    benchdnn_timer_t timer;
-    benchdnn_timer_t par_compl_timer;
-    benchdnn_timer_t prim_create_timer;
+    timer::timer_t timer;
+    timer::timer_t par_compl_timer;
+    timer::timer_t prim_create_timer;
     std::string impl_name;
     skip_reason_t reason;
     size_t ibytes, obytes;
@@ -219,7 +186,7 @@ struct res_t {
 void parse_result(
         res_t &res, bool &want_perf_report, int status, const char *pstr);
 
-void fill_ms(double *ms, benchdnn_timer_t &timer);
+void fill_ms(double *ms, timer::timer_t &timer);
 
 /* misc */
 void init_fp_mode();

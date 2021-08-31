@@ -18,8 +18,8 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
-#include "compare.hpp"
 #include "dnnl_graph_common.hpp"
+#include "utils/compare.hpp"
 
 #include "concat/concat.hpp"
 #include "concat/graph_concat.hpp"

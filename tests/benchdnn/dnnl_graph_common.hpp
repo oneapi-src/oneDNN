@@ -329,7 +329,7 @@ inline dnnl::graph::engine &get_test_engine() {
     return instance;
 }
 
-int measure_cmpl(benchdnn_timer_t &t, const dnnl::graph::engine &engine,
+int measure_cmpl(timer::timer_t &t, const dnnl::graph::engine &engine,
         const dnnl::graph::partition &par,
         const std::vector<dnnl::graph::logical_tensor> &inputs,
         const std::vector<dnnl::graph::logical_tensor> &outputs);
@@ -343,15 +343,15 @@ int execute_and_wait(dnnl::graph::compiled_partition &cp,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs);
 
-int measure_perf(benchdnn_timer_t &t, perf_function_t &perf_func,
+int measure_perf(timer::timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs);
 
-int measure_perf(benchdnn_timer_t &t, dnnl::graph::compiled_partition &cp,
+int measure_perf(timer::timer_t &t, dnnl::graph::compiled_partition &cp,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs);
 
-int measure_partition_compl(benchdnn_timer_t &t,
+int measure_partition_compl(timer::timer_t &t,
         const dnnl::graph::partition &par,
         const std::vector<dnnl::graph::logical_tensor> &inputs,
         const std::vector<dnnl::graph::logical_tensor> &outputs,

@@ -377,17 +377,19 @@ int check_pd_w_and_wo_attr(
     return OK;
 }
 
-bool should_stop(const benchdnn_timer_t &t);
+bool should_stop(const timer::timer_t &t);
 
-int measure_prim_create(benchdnn_timer_t &t, dnnl_primitive_t &prim_,
-        dnnl_primitive_desc_t &pd);
+int measure_prim_create(
+        timer::timer_t &t, dnnl_primitive_t &prim_, dnnl_primitive_desc_t &pd);
 
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
-    dnnl_primitive_desc_t pd {};
+    dnnl_primitive_desc_t pd_ {};
     dnnl_primitive_t prim_ {};
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pd;
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
 
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
@@ -414,37 +416,37 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     engine_t engine(engine_tgt_kind);
 #endif
 
-    SAFE(init_pd_func(engine, prb, pd, res, dir, hint), WARN);
-    auto pd1 = make_benchdnn_dnnl_wrapper(pd);
+    SAFE(init_pd_func(engine, prb, pd_, res, dir, hint), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
+    pd.reset(pd_);
+    prim.reset(prim_);
 
-    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
-    DNN_SAFE(dnnl_primitive_destroy(prim_), CRIT);
 #endif
     // The second (if the cache is enabled) primitive creation using
     // the global test engine.
-    SAFE(init_pd_func(get_test_engine(), prb, pd, res, dir, hint), WARN);
-    auto pd2 = make_benchdnn_dnnl_wrapper(pd);
+    SAFE(init_pd_func(get_test_engine(), prb, pd_, res, dir, hint), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    int check_pd_cache_status = check_pd_cache(pd2);
-
-    // Collect memory footprint for a given primitive descriptor.
-    SAFE(get_memory_footprint(pd, res), WARN);
 
     if (api_mode == GRAPH && is_bench_mode(PERF)) {
         // For graph api mode we call init_prim function to measure
         // primitive creation time.
-        SAFE(measure_prim_create(res->prim_create_timer, prim_, pd), WARN);
+        SAFE(measure_prim_create(res->prim_create_timer, prim_, pd_), WARN);
     } else {
         // This primitive is expected to come from the cache.
-        DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
+        DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
     }
 
-    int check_primitive_cache_status = check_primitive_cache(prim_);
+    pd.reset(pd_);
+    prim.reset(prim_);
 
-    SAFE(check_pd_cache_status | check_primitive_cache_status, WARN);
+    SAFE(check_pd_cache(pd), WARN);
+    SAFE(check_primitive_cache(prim), WARN);
 
-    user_prim.reset(prim_);
+    // Collect memory footprint for a given primitive descriptor.
+    SAFE(get_memory_footprint(pd, res), WARN);
+
+    user_prim.reset(prim.release());
 
     return OK;
 }
@@ -457,8 +459,8 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
         const args_t &args);
 int execute_and_wait(dnnl_primitive_t prim, const args_t &args);
 
-int measure_perf(benchdnn_timer_t &t, perf_function_t &perf_func, args_t &args);
-int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
+int measure_perf(timer::timer_t &t, perf_function_t &perf_func, args_t &args);
+int measure_perf(timer::timer_t &t, dnnl_primitive_t prim, args_t &args);
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
         const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales);

@@ -134,7 +134,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     const auto dw_bia_dt = prb->dir == FWD_B ? dnnl_f32 : dnnl_data_type_undef;
     attr_args.prepare_dw_post_op(
             prb->attr, prb->cfg[WEI].dt, dw_bia_dt, prb->scales_dw, prb->oc);
-    attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims, dst_dims);
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 

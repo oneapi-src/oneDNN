@@ -27,7 +27,7 @@
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "perf_report.hpp"
+#include "utils/perf_report.hpp"
 
 namespace conv {
 
@@ -346,7 +346,8 @@ float oscale(const prb_t *prb, int oc);
 
 void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t prim_ref,
         dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m);
+        const std::vector<dnn_mem_t> &binary_po,
+        const std::vector<dnn_mem_t> &prelu_po, dnn_mem_t &dst_m);
 void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t prim_ref,
         dnn_mem_t &diff_src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m);
@@ -356,7 +357,8 @@ void compute_ref_bwd_w(const prb_t *prb, dnnl_primitive_t prim_ref,
 
 void compute_ref_direct_fwd(const prb_t *prb, dnn_mem_t &src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m);
+        const std::vector<dnn_mem_t> &binary_po,
+        const std::vector<dnn_mem_t> &prelu_po, dnn_mem_t &dst_m);
 void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m);

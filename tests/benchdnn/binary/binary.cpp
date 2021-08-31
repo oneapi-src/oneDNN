@@ -21,10 +21,10 @@
 
 #include "tests/test_thread.hpp"
 
-#include "compare.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
 #include "eltwise/eltwise.hpp"
@@ -118,7 +118,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
             WARN);
 
     attr_args_t attr_args;
-    attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims[0], dst_dims);
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims[0], dst_dims);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 

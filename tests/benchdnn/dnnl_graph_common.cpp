@@ -20,6 +20,7 @@
 #include <oneapi/dnnl/dnnl_debug.h>
 
 #include "dnnl_graph_common.hpp"
+#include "utils/timer.hpp"
 
 namespace benchdnnext {
 
@@ -323,7 +324,7 @@ int execute_and_wait(dnnl::graph::compiled_partition &cp,
     return execute_and_wait(perf_func, engine, inputs, outputs);
 };
 
-inline int measure_perf_individual(benchdnn_timer_t &t,
+inline int measure_perf_individual(timer::timer_t &t,
         dnnl::graph::stream &stream, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
@@ -336,7 +337,7 @@ inline int measure_perf_individual(benchdnn_timer_t &t,
     return OK;
 }
 
-int measure_perf(benchdnn_timer_t &t, perf_function_t &perf_func,
+int measure_perf(timer::timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
     if (is_bench_mode(PERF)) {
@@ -347,7 +348,7 @@ int measure_perf(benchdnn_timer_t &t, perf_function_t &perf_func,
     }
 }
 
-int measure_perf(benchdnn_timer_t &t, dnnl::graph::compiled_partition &cp,
+int measure_perf(timer::timer_t &t, dnnl::graph::compiled_partition &cp,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
     perf_function_t perf_func
@@ -357,7 +358,7 @@ int measure_perf(benchdnn_timer_t &t, dnnl::graph::compiled_partition &cp,
     return measure_perf(t, perf_func, inputs, outputs);
 }
 
-int measure_partition_compl(benchdnn_timer_t &t,
+int measure_partition_compl(timer::timer_t &t,
         const dnnl::graph::partition &par,
         const std::vector<dnnl::graph::logical_tensor> &inputs,
         const std::vector<dnnl::graph::logical_tensor> &outputs,

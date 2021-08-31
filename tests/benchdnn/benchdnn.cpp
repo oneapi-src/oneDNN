@@ -25,7 +25,7 @@
 #include "common.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #include "binary/binary.hpp"
 #include "bnorm/bnorm.hpp"
@@ -138,8 +138,8 @@ int main(int argc, char **argv) {
             benchdnn_stat.failed, benchdnn_stat.listed);
     if (is_bench_mode(PERF)) {
         printf("total perf: min(ms):%g avg(ms):%g\n",
-                benchdnn_stat.ms[benchdnn_timer_t::min],
-                benchdnn_stat.ms[benchdnn_timer_t::avg]);
+                benchdnn_stat.ms[timer::timer_t::min],
+                benchdnn_stat.ms[timer::timer_t::avg]);
     }
 
     return !!benchdnn_stat.failed;

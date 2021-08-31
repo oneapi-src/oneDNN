@@ -21,7 +21,7 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #include "concat/concat.hpp"
 #include "concat/graph_concat.hpp"
