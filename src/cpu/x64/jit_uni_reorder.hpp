@@ -140,8 +140,8 @@ struct call_param_t {
     int src_zp = 0;
     int dst_zp = 0;
     int64_t curr_data_chunks[DNNL_MAX_NDIMS] = {-1};
-    int8_t zeroing_data = static_cast<int64_t>(false);
-    int8_t skip_kernel_execution = static_cast<int64_t>(false);
+    int64_t zeroing_data = static_cast<int64_t>(false);
+    int64_t skip_kernel_execution = static_cast<int64_t>(false);
     int32_t *compensation_scratch = nullptr;
 };
 
