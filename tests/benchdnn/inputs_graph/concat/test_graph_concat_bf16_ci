@@ -1,0 +1,9 @@
+--reset
+
+--sdt=bf16
+--ddt=bf16
+
+--dtag=nchw
+--stag=nchw:nchw             --axis=1 64x128x28x28:64x128x28x28
+                             --axis=0 1x4096x14x14:1x4096x14x14
+--stag=nchw:nchw:nchw        --axis=3 8x16x384x64:8x16x384x384:8x16x384x384

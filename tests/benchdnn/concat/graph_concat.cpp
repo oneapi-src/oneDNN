@@ -46,7 +46,7 @@ concat_graph_prb_t::spec_t::spec_t(const ::concat::prb_t *prb) {
     axis = permute_axis(prb->axis, src_dims[0], raw_src_tag[0]);
 }
 
-void check_ranks_and_shapes(const ::concat::prb_t *prb, res_t *res) {
+void check_ranks_shapes_and_dtypes(const ::concat::prb_t *prb, res_t *res) {
     auto rank = prb->sdims[0].size();
     auto axis = prb->axis;
 
@@ -88,6 +88,13 @@ void check_ranks_and_shapes(const ::concat::prb_t *prb, res_t *res) {
                 return acc + sdim[axis];
             });
     if (dst_axis_dim != src_axis_dim_sum) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
+    // Types of all tensors should match
+    const auto same_dtypes = prb->sdt == prb->ddt;
+    if (!same_dtypes) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
@@ -142,7 +149,7 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
     if (res->state == SKIPPED) return OK;
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
-    check_ranks_and_shapes(prb, res);
+    check_ranks_shapes_and_dtypes(prb, res);
     if (res->state == SKIPPED) return OK;
 
     concat_graph_prb_t graph_prb(prb);
