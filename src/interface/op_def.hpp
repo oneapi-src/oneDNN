@@ -271,8 +271,10 @@ DNNL_GRAPH_OP_SCHEMA(Concat, 1,
                 .set_num_inputs(std::set<size_t>(
                         {1, std::numeric_limits<size_t>::max()}))
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "a", "first input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("axis",
                         "specifies which dimension to concatenate along", true,
                         attribute_kind::i)
