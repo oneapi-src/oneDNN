@@ -37,7 +37,7 @@ on Intel CPUs and GPUs. Deep learning practitioners should use one of the
 * [Developer guide](https://oneapi-src.github.io/oneDNN) explains programming
   model, supported functionality, and implementation details, and
   includes annotated examples.
-* [API reference](https://oneapi-src.github.io/oneDNN/modules.html) provides
+* [API reference](https://oneapi-src.github.io/oneDNN/group_dnnl_api.html) provides
   a comprehensive reference of the library API.
 
 # Installation
