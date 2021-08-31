@@ -2,6 +2,11 @@
 --reset
 384x4096:4096x1024:384x1024
 
+# post bias
+--reset
+--bia_dt=undef 384x4096:4096x1024:384x1024
+--bia_dt=f32 384x4096:4096x1024:384x1024
+
 # post binary
 --reset
 --attr-post-ops=add:f32:common 384x4096:4096x1024:384x1024
@@ -19,11 +24,23 @@
 --reset
 --attr-post-ops=sum+relu 384x4096:4096x1024:384x1024
 
-# post bias
+# post bias+swish
 --reset
---bia_dt=undef 384x4096:4096x1024:384x1024
---bia_dt=f32 384x4096:4096x1024:384x1024
+--bia_dt=f32
+--bia_mask=1,2
+--attr-post-ops=swish:1
+384x4096:4096x1024:384x1024
 
 # int8
 --reset
 --cfg=s8s8s8 --attr-oscale=per_oc:2.25 16x512:512x256:16x256
+
+# int8 post bias+relu
+--reset
+--cfg=s8s8s8
+--bia_dt=f32
+--bia_mask=1,2
+--attr-post-ops=eltwise_relu
+--attr-oscale=per_oc
+128x512:512x256:128x256
+

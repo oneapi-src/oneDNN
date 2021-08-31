@@ -33,6 +33,12 @@ matmul_graph_prb_t::spec_t::spec_t(const ::matmul::prb_t *prb) noexcept {
     wei_dims = get_runtime_dims(
             prb->weights_dims(), prb->weights_runtime_dim_mask());
     dst_dims = get_runtime_dims(prb->dst_dims(), prb->dst_runtime_dim_mask());
+    if (dt::undef != convert_dt(prb->bia_dt)) {
+        bia_dims.resize(dst_dims.size());
+        for (int i = 0; i < prb->ndims; ++i)
+            bia_dims[i] = (prb->bia_mask & (1 << i)) ? dst_dims[i] : 1;
+        bia_dims = get_runtime_dims(bia_dims, prb->dst_runtime_dim_mask());
+    }
 
     src_dt = convert_dt(prb->cfg[SRC].dt);
     wei_dt = convert_dt(prb->cfg[WEI].dt);
@@ -70,12 +76,19 @@ void check_known_skipped_case_graph(
 fill_status_t matmul_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
+    const bool with_bias = has_post_bia();
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
 
+    // this is needed to align with po_handlers convention
+    // some patterns like `matmul + bias + swish` may want to
+    // reuse bias output via `tensor_id["bias"].back() + "_DST"`
+    if (with_bias) tensor_id["bias"].push_back(TENSOR_ID);
+
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string WEI {TENSOR_ID + "_WEI"};
+    const std::string BIA {TENSOR_ID + "_BIA"};
     const std::string DST {TENSOR_ID + "_DST"};
 
     const auto is_lprec = is_low_precision(get_dtypes());
@@ -85,10 +98,16 @@ fill_status_t matmul_graph_prb_t::handle_main_op_() {
     tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
     tensor_descs_.emplace(WEI, wei_dt, spec_.wei_dims, spec_.raw_wei_tag);
     tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
+    if (with_bias) {
+        tensor_descs_.emplace(BIA, spec_.bia_dt, spec_.bia_dims, lt::strided);
+    }
 
-    op matmul(new_op_id, op::kind::MatMul,
-            {tensor_descs_[SRC], tensor_descs_[WEI]}, {tensor_descs_[DST]},
-            "matmul");
+    std::vector<dnnl::graph::logical_tensor> lt_inputs {
+            tensor_descs_[SRC], tensor_descs_[WEI]};
+    std::vector<dnnl::graph::logical_tensor> lt_outputs {tensor_descs_[DST]};
+    if (with_bias) lt_inputs.push_back(tensor_descs_[BIA]);
+
+    op matmul(new_op_id, op::kind::MatMul, lt_inputs, lt_outputs, "matmul");
 
     matmul.set_attr("transpose_a", spec_.transpose_a)
             .set_attr("transpose_b", spec_.transpose_b);
@@ -97,11 +116,6 @@ fill_status_t matmul_graph_prb_t::handle_main_op_() {
     curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
-}
-
-fill_status_t matmul_graph_prb_t::handle_bia_() {
-    return po_handler.matmul.bias_handler(
-            *this, spec_.data_format, spec_.bia_dt);
 }
 
 fill_status_t matmul_graph_prb_t::handle_elt_(
@@ -247,13 +261,13 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     auto wei_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
     auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
     dnn_mem_t bia_fp;
-    if (apply_bias) bia_fp = make_dnn_mem(ins[2], dt::f32, tag::x);
+    if (apply_bias) bia_fp = make_dnn_mem(ins[2], dt::f32, tag::abx);
 
     auto src_dt = make_dnn_mem(ins[0], prb->stag);
     auto wei_dt = make_dnn_mem(ins[1], prb->wtag);
     auto dst_dt = make_dnn_mem(outs[0], prb->dtag);
     dnn_mem_t bia_dt;
-    if (apply_bias) bia_dt = make_dnn_mem(ins[2], tag::x);
+    if (apply_bias) bia_dt = make_dnn_mem(ins[2], tag::abx);
 
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);
@@ -302,7 +316,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
 
         if (apply_bias && is_low_precision(graph_prb.get_dtypes())) {
             dnn_mem_t bia_fp_scaled;
-            bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
+            bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::abx);
             scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
             ::matmul::compute_ref(dnnl_test_engine, prb, src_fp, wei_fp,
                     bia_fp_scaled, binary_po_fp, dst_fp);

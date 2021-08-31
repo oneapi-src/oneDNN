@@ -30,13 +30,14 @@ struct matmul_graph_prb_t : public graph_prb_t {
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
+        if (spec_.bia_dt != dt::undef) {
+            // bias will become 3rd input (optionall) for MatMul
+            // this case is handled in handle_main_op_()
+            has_post_bia_ = true;
+        }
+
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
-        if (spec_.bia_dt != dt::undef) {
-            has_post_bia_ = true;
-            ctor_status = handle_bia_();
-            if (stop_work(ctor_status)) return;
-        }
 
         for (const auto &po : prb->attr.post_ops.entry) {
             if (po.is_eltwise_kind()) {
@@ -79,6 +80,7 @@ private:
         dims_t src_dims;
         dims_t wei_dims;
         dims_t dst_dims;
+        dims_t bia_dims;
 
         dt src_dt;
         dt wei_dt;
@@ -98,7 +100,6 @@ private:
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_();
-    fill_status_t handle_bia_();
     fill_status_t handle_sum_();
     fill_status_t handle_low_precision_(const ::matmul::prb_t *prb_);
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
