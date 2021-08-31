@@ -183,6 +183,7 @@ struct conv_fwd_executable : public op_executable {
     conv_fwd_executable(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
         pd_ = create_conv_pd(op, p_engine, prm_attr_mgr);
+        prim_ = dnnl::convolution_forward(pd_);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
         if (op->has_attr("output_format")
@@ -212,11 +213,12 @@ struct conv_fwd_executable : public op_executable {
             }
         }
 
-        dnnl::convolution_forward(pd_).execute(stream, cached_args);
+        prim_.execute(stream, cached_args);
     }
 
 private:
     dnnl::convolution_forward::primitive_desc pd_;
+    dnnl::convolution_forward prim_;
     bool with_sum_ {false};
     bool perm_dst_ {false};
 };
@@ -225,6 +227,7 @@ struct matmul_executable : public op_executable {
     matmul_executable(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
         pd_ = create_matmul_pd(op, p_engine, prm_attr_mgr);
+        prim_ = dnnl::matmul(pd_);
 
         // The scratchpad size of pd created by using any format tag may be
         // different from the scratchpad size of pd created by using queried
@@ -257,11 +260,12 @@ struct matmul_executable : public op_executable {
                         .execute(stream, psrc_mem, dst_mem);
             }
         }
-        dnnl::matmul(pd_).execute(stream, args);
+        prim_.execute(stream, args);
     }
 
 private:
     dnnl::matmul::primitive_desc pd_;
+    dnnl::matmul prim_;
     bool with_sum_ {false};
 };
 
@@ -269,6 +273,7 @@ struct pool_executable : public op_executable {
     pool_executable(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
         pd_ = create_pool_pd(op, p_engine, prm_attr_mgr);
+        prim_ = dnnl::pooling_v2_forward(pd_);
         if (op->has_attr("output_format")
                 && op->get_attr<std::string>("output_format") == "NXC")
             perm_dst_ = true;
@@ -282,11 +287,12 @@ struct pool_executable : public op_executable {
                     args.find(DNNL_ARG_DST)->second.get_data_handle());
             cached_args_[DNNL_ARG_DST] = dst_mem;
         }
-        dnnl::pooling_v2_forward(pd_).execute(stream, cached_args_);
+        prim_.execute(stream, cached_args_);
     }
 
 private:
     dnnl::pooling_v2_forward::primitive_desc pd_;
+    dnnl::pooling_v2_forward prim_;
     bool perm_dst_ {false};
 };
 
@@ -334,15 +340,17 @@ struct reorder_executable : public op_executable {
 
         pd_ = dnnl::reorder::primitive_desc(
                 p_engine, in_md, p_engine, out_md, prm_attr);
+        prim_ = dnnl::reorder(pd_);
     }
 
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        dnnl::reorder(pd_).execute(stream, args);
+        prim_.execute(stream, args);
     }
 
 private:
     dnnl::reorder::primitive_desc pd_;
+    dnnl::reorder prim_;
 };
 
 } // namespace dnnl_impl
