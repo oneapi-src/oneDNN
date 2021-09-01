@@ -97,6 +97,12 @@ private:
             if (std::string(vendor_name).find("Intel") != std::string::npos)
                 intel_platforms.push_back(p);
         }
+
+        // OpenCL can return a list of platforms that contains duplicates.
+        std::sort(intel_platforms.begin(), intel_platforms.end());
+        intel_platforms.erase(
+                std::unique(intel_platforms.begin(), intel_platforms.end()),
+                intel_platforms.end());
         return intel_platforms;
     }
 };
