@@ -1080,7 +1080,7 @@ void jit_uni_binary_injector_t<sse41,
                 {MM_SHUFFLE(3, 2, 0, 0), MM_SHUFFLE(3, 0, 0, 0)}};
 
         host_->movss(tmp_vmm, rhs_addr);
-        if (tail_size > 1) host_->shufps(tmp_vmm, tmp_vmm, imms[tail_size - 1]);
+        if (tail_size > 1) host_->shufps(tmp_vmm, tmp_vmm, imms[tail_size - 2]);
 
     } else if (data_type == data_type::u8 || data_type == data_type::s8) {
         for (std::size_t i = 0; i < tail_size; i++)
