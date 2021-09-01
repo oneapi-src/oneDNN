@@ -106,8 +106,7 @@ private:
     std::vector<std::string> stag_;
 };
 
-int setup_prelu_po(const_dnnl_primitive_desc_t pd,
-        const dnnl_memory_desc_t &dst_md, std::vector<int> &args,
+int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem);
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &weights, dnn_mem_t &dst);

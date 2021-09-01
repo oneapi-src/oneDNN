@@ -908,7 +908,7 @@ int doit(const prb_t *prb, res_t *res) {
     std::vector<dnn_mem_t> prelu_po_ref;
     std::vector<int> prelu_po_args;
     SAFE(prelu::setup_prelu_po(
-                 const_pd, dst_md, prelu_po_args, prelu_po_ref, prelu_po_prim),
+                 const_pd, prelu_po_args, prelu_po_ref, prelu_po_prim),
             WARN);
 
     dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
