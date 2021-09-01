@@ -547,15 +547,8 @@ int fill_dst(
     return OK;
 }
 
-inline int init_pd_custom(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &cpd, res_t *res,
-        dnnl_data_type_t src_dt = dnnl_data_type_undef,
-        dnnl_data_type_t wei_dt = dnnl_data_type_undef,
-        dnnl_data_type_t bia_dt = dnnl_data_type_undef,
-        dnnl_data_type_t dst_dt = dnnl_data_type_undef,
-        dnnl_data_type_t acc_dt = dnnl_data_type_undef,
-        std::string src_tag = tag::undef, std::string wei_tag = tag::undef,
-        std::string bia_tag = tag::undef, std::string dst_tag = tag::undef) {
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_convolution_desc_t cd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
@@ -586,25 +579,17 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *prb,
             ? dst_3d_dims
             : prb->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
-    if (src_dt == dnnl_data_type_undef) src_dt = prb->cfg[SRC].dt;
-    if (wei_dt == dnnl_data_type_undef) wei_dt = prb->cfg[WEI].dt;
-    if (bia_dt == dnnl_data_type_undef) bia_dt = prb->cfg[BIA].dt;
-    if (dst_dt == dnnl_data_type_undef) dst_dt = prb->cfg[DST].dt;
-    if (acc_dt == dnnl_data_type_undef) acc_dt = prb->cfg[ACC].dt;
-    if (src_tag == tag::undef) src_tag = normalize_tag(prb->stag, prb->ndims);
-    if (wei_tag == tag::undef) wei_tag = normalize_tag(prb->wtag, prb->ndims);
-    if (bia_tag == tag::undef) bia_tag = tag::any;
-    if (dst_tag == tag::undef) dst_tag = normalize_tag(prb->dtag, prb->ndims);
-
-    SAFE(init_md(&src_d, prb->ndims, src_dims, src_dt, src_tag), WARN);
-
-    SAFE(init_md(&wei_d, prb->ndims + prb->has_groups, wei_dims, wei_dt,
-                 wei_tag),
+    SAFE(init_md(&src_d, prb->ndims, src_dims, prb->cfg[SRC].dt,
+                 normalize_tag(prb->stag, prb->ndims)),
             WARN);
-
-    SAFE(init_md(&bia_d, 1, bia_dims, bia_dt, bia_tag), WARN);
-
-    SAFE(init_md(&dst_d, prb->ndims, dst_dims, dst_dt, dst_tag), WARN);
+    SAFE(init_md(&wei_d, prb->ndims + prb->has_groups, wei_dims,
+                 prb->cfg[WEI].dt,
+                 normalize_tag(prb->wtag, prb->ndims + prb->has_groups)),
+            WARN);
+    SAFE(init_md(&bia_d, 1, bia_dims, prb->cfg[BIA].dt, tag::any), WARN);
+    SAFE(init_md(&dst_d, prb->ndims, dst_dims, prb->cfg[DST].dt,
+                 normalize_tag(prb->dtag, prb->ndims)),
+            WARN);
 
     dnnl_dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
     dnnl_dim_t dilates_nd[] = {prb->dd, prb->dh, prb->dw};
@@ -649,7 +634,8 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *prb,
         default: DNN_SAFE(dnnl_invalid_arguments, CRIT);
     }
 
-    DNN_SAFE(cd.accum_data_type == acc_dt ? dnnl_success : dnnl_unimplemented,
+    DNN_SAFE(cd.accum_data_type == prb->cfg[ACC].dt ? dnnl_success
+                                                    : dnnl_unimplemented,
             CRIT);
 
     attr_args_t attr_args;
@@ -835,15 +821,6 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    // TODO: align init_pd interface with a common one which is used
-    // in the rest of the benchdnn drivers
-    auto init_pd = [&](dnnl_engine_t engine, const prb_t *prb,
-                           dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
-                           const_dnnl_primitive_desc_t hint) {
-        SAFE(init_pd_custom(engine, prb, cpd, res), WARN);
-        return OK;
-    };
-
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
@@ -896,11 +873,11 @@ int doit(const prb_t *prb, res_t *res) {
         // Create a new copy of prb to avoid potentially corrupting the test by
         // modifying prb in place. DIRECT algorithm is used to prevent fallback
         // to the slow benchdnn reference implementation.
-        prb_t prb_cpu {*prb, prb->dir, prb->cfg, prb->stag, prb->wtag,
-                prb->dtag, DIRECT, prb->attr, prb->mb, prb->is_deconv};
+        prb_t prb_cpu {*prb, prb->dir, conf_f32, tag::abx, tag::abx, tag::abx,
+                DIRECT, prb->attr, prb->mb, prb->is_deconv};
         dnnl_primitive_desc_t cpd_ref_ {};
-        SAFE(init_pd_custom(get_cpu_engine(), &prb_cpu, cpd_ref_, nullptr, fp,
-                     fp, fp, fp, fp, src_tag, wei_tag, tag::x, src_tag),
+        SAFE(init_pd(get_cpu_engine(), &prb_cpu, cpd_ref_, nullptr, prb->dir,
+                     nullptr),
                 WARN);
         auto cpd_ref = make_benchdnn_dnnl_wrapper(cpd_ref_);
 
