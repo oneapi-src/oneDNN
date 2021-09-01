@@ -4531,14 +4531,19 @@ layout_t get_fma_friendly_layout(abc_kind_t abc_kind, int simd_size,
 }
 
 layout_t convert_to_fma_friendly_type(const conv_config_t &cfg,
-        const layout_t &layout, const type_t &a_type, const type_t &b_type,
-        bool *changed = nullptr) {
+        abc_kind_t abc_kind, const layout_t &layout, const type_t &a_type,
+        const type_t &b_type, bool *changed = nullptr) {
     if (changed) *changed = false;
     if (cfg.fma_kind != fma_kind_t::mad) return layout;
 
     if (a_type.is_x8() && b_type.is_x8()) {
         if (changed) *changed = true;
         return layout.retype(type_t::s16()).make_strided(2);
+    }
+    // f16/bf16 mixed mode mad requires src2 to be f32
+    if (abc_kind == abc_kind_t::b && (a_type.is_f16() || a_type.is_bf16())) {
+        if (changed) *changed = true;
+        return layout.retype(type_t::f32());
     }
     return layout;
 }
@@ -4554,7 +4559,7 @@ layout_t convert_to_fma_friendly_layout(const conv_config_t &cfg,
     if (!utils::one_of(cfg.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw)) {
         // mad may require type conversion.
         return convert_to_fma_friendly_type(
-                cfg, layout, a_type, b_type, changed);
+                cfg, abc_kind, layout, a_type, b_type, changed);
     }
 
     std::vector<bmnk_kind_t> bmnk_kinds;

@@ -70,11 +70,16 @@ type_t multiply_desc_t::get_c_type(
         return type_t::s32();
 
     if (a == type_t::bf16() && b == type_t::bf16()) return type_t::f32();
+    if (a == type_t::f32() && b == type_t::f32()) return type_t::f32();
+
+    if (utils::one_of(a, type_t::f16(), type_t::bf16()) && b == type_t::f32()) {
+        return type_t::f32();
+    }
+
     if (a == type_t::f16() && b == type_t::f16()) {
         if (force_c_upconvert) return type_t::f32();
         return type_t::f16();
     }
-    if (a == type_t::f32() && b == type_t::f32()) return type_t::f32();
 
     ir_error_not_expected()
             << "Can't deduce C type. A type: " << a << " B type: " << b;
