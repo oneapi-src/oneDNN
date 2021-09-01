@@ -91,11 +91,12 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         }
     } else {
         conf.vectorize_bwd = false;
-        if (conf.norm_axis % 16 == 0
+        const int desired_sg_size = 16;
+        if (conf.norm_axis % desired_sg_size == 0
                 && (src_mdw.matches_one_of_tag(ab, abc, abcd, abcde)
-                        || (ndims == 2 && c_block % 16 == 0))) {
+                        || (ndims == 2 && c_block % desired_sg_size == 0))) {
             conf.vectorize_bwd = true;
-            conf.sub_group_size = 16;
+            conf.sub_group_size = desired_sg_size;
             conf.vect_dt_n = 8;
             while (conf.norm_axis % (conf.sub_group_size * conf.vect_dt_n)
                     != 0) {
@@ -128,14 +129,18 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                 && src_mdw.blocking_desc().inner_idxs[0] == 0) {
             n_block = src_mdw.blocking_desc().inner_blks[0];
         }
+        // Scaleshift vectorization is supported for tensors
+        // with shapes AxB, 1xBxC
         conf.vectorize_bwd_scaleshift = conf.vectorize_bwd
                 && stat_mdw.matches_one_of_tag(a, ab)
-                && ((ndims == 2 && c_block == 16 && dims[1] % c_block == 0)
+                && ((ndims == 2
+                            && (c_block == desired_sg_size
+                                    || src_mdw.matches_tag(ab)))
                         || (ndims == 3 && src_mdw.matches_tag(abc)
                                 && dims[0] == 1));
         if (conf.vectorize_bwd_scaleshift) {
             // Use partial reduction in order to increase number of used threads
-            conf.vector_size_scaleshift = 8;
+            conf.vector_size_scaleshift = c_block == desired_sg_size ? 8 : 1;
             const int first_dim = ndims == 2 ? dims[0] : dims[1];
             while (n_block % conf.vector_size_scaleshift != 0
                     || first_dim % conf.vector_size_scaleshift != 0) {
@@ -159,12 +164,11 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             }
             conf.n_chunk_size = desired_first_dim_block_reads
                     * conf.vector_size_scaleshift;
-            conf.sub_group_size = 16;
             conf.n_chunks = first_dim / conf.n_chunk_size;
             // Scaleshift kernel does partial reduction of N
             conf.dispatch_scaleshift.define_dim("N", conf.n_chunks);
             conf.dispatch_scaleshift.define_dim("C", pd->norm_axis());
-            conf.dispatch_scaleshift.vectorize_dim("C", conf.sub_group_size);
+            conf.dispatch_scaleshift.vectorize_dim("C", desired_sg_size);
             conf.dispatch_scaleshift.set_kernel_attr_suffix("SCALESHIFT");
             conf.dispatch_scaleshift.generate();
             // Scaleshift finalize kernel reduces results of scaleshift kernel
