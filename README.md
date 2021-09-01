@@ -42,33 +42,9 @@ on Intel CPUs and GPUs. Deep learning practitioners should use one of the
 
 # Installation
 
-Binary distribution of this software is available as:
-* [Intel oneAPI Deep Neural Network Library](https://software.intel.com/en-us/oneapi/onednn)
-  in [Intel oneAPI]( https://software.intel.com/en-us/oneapi).
-* [oneAPI Deep Neural Network Library](https://anaconda.org/conda-forge/onednn)
-  in [Anaconda](https://anaconda.org).
-
-Pre-built binaries for Linux\*, Windows\*, and macOS\* are available
-for download in the
-[releases section](https://github.com/oneapi-src/oneDNN/releases). Package
-names use the following convention:
-
-| OS      | Package name
-| :------ | :-----------
-| Linux   | `dnnl_lnx_<version>_cpu_<cpu runtime>[_gpu_<gpu runtime>].tgz`
-| Windows | `dnnl_win_<version>_cpu_<cpu runtime>[_gpu_<gpu runtime>].zip`
-| macOS   | `dnnl_mac_<version>_cpu_<cpu runtime>.tgz`
-
-Several packages are available for each operating system to ensure
-interoperability with CPU or GPU runtime libraries used by the application.
-
-| Configuration         | Dependency
-| :---------------------| :---------
-| `cpu_iomp`            | Intel OpenMP runtime
-| `cpu_gomp`            | GNU\* OpenMP runtime
-| `cpu_vcomp`           | Microsoft Visual C OpenMP runtime
-| `cpu_tbb`             | Threading Building Blocks (TBB)
-| `cpu_dpcpp_gpu_dpcpp` | [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler), TBB, OpenCL runtime, oneAPI Level Zero runtime
+Binary distribution of this software is available in:
+* [Anaconda](https://anaconda.org/conda-forge/onednn)
+* [Intel oneAPI](https://software.intel.com/en-us/oneapi/onednn)
 
 The packages do not include library dependencies and these need to be resolved
 in the application at build time. See the
