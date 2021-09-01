@@ -293,7 +293,7 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #else
     float sm = 1.0f;
 #endif
-#if USE_SCALE == 1 || USE_SHIFT == 1
+#if USE_SHIFT == 1
     float sv = LOAD_FLOAT_1x16(&shift[c]);
 #else
     float sv = 0.0f;
