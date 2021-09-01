@@ -25,7 +25,11 @@ set(Sphinx_cmake_included true)
 find_package(PythonInterp 2.7)
 find_package(Sphinx)
 if (PYTHONINTERP_FOUND AND SPHINX_FOUND)
-    set(SPHINX_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/reference/html)
+    set(SPHINX_GENERATOR "html" CACHE STRING "specifies generator for Sphinx")
+
+    set(SPHINX_OUTPUT_DIR
+        ${CMAKE_CURRENT_BINARY_DIR}/reference/${SPHINX_GENERATOR}
+    )
     set(SPHINX_STAMP_FILE ${CMAKE_CURRENT_BINARY_DIR}/sphinx.stamp)
     set(SPHINX_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/reference/rst)
     file(MAKE_DIRECTORY ${SPHINX_OUTPUT_DIR})
@@ -50,8 +54,8 @@ if (PYTHONINTERP_FOUND AND SPHINX_FOUND)
             ${SPHINX_SOURCE_DIR}/_static
         COMMAND ${PYTHON_EXECUTABLE}
             ${CMAKE_CURRENT_BINARY_DIR}/cleanup.py ${SPHINX_SOURCE_DIR}
-        COMMAND ${SPHINX_EXECUTABLE} -D release=v${PROJECT_VERSION} -j auto
-                rst ${SPHINX_OUTPUT_DIR}
+        COMMAND ${SPHINX_EXECUTABLE} -b ${SPHINX_GENERATOR}
+            -D release=v${PROJECT_VERSION} -j auto rst ${SPHINX_OUTPUT_DIR}
         COMMAND ${CMAKE_COMMAND} -E touch ${SPHINX_STAMP_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/reference
         COMMENT "Generating API documentation with Sphinx" VERBATIM)
