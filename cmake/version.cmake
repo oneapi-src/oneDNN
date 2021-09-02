@@ -29,7 +29,7 @@ list(GET VERSION_LIST 2 DNNL_VERSION_PATCH)
 
 find_package(Git)
 if(GIT_FOUND)
-    execute_process(COMMAND ${GIT_EXECUTABLE} log -1 --format=%H
+    execute_process(COMMAND ${GIT_EXECUTABLE} -c log.showSignature=false log --no-abbrev-commit --oneline -1 --format=%H
         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         RESULT_VARIABLE RESULT
         OUTPUT_VARIABLE DNNL_VERSION_HASH
