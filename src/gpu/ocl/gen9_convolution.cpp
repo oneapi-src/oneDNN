@@ -274,11 +274,10 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf(engine_t *engine) {
                 src_tag = utils::pick(conf.ndims - 3, ncw, nchw, ncdhw);
 
             if (is_xe_hp_plus && is_fp16) {
-                dst_tag = (conf.mb == 8 || conf.mb == 16 || conf.mb % 32 == 0)
-                        ? utils::pick(conf.ndims - 3, NCw32n16c, NChw32n16c,
-                                NCdhw32n16c)
-                        : utils::pick(
-                                conf.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+                dst_tag = conf.mb % 32 == 0 ? utils::pick(conf.ndims - 3,
+                                  NCw32n16c, NChw32n16c, NCdhw32n16c)
+                                            : utils::pick(conf.ndims - 3,
+                                                    nCw16c, nChw16c, nCdhw16c);
             } else {
                 dst_tag = conf.mb % 16 == 0 ? utils::pick(conf.ndims - 3,
                                   NCw16n16c, NChw16n16c, NCdhw16n16c)
