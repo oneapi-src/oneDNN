@@ -28,11 +28,13 @@
 // - DNNL_AARCH64
 // - DNNL_PPC64
 // - DNNL_S390X
+// - DNNL_RV64
 // - DNNL_ARCH_GENERIC
 // Target architecture macro is set to 1, others to 0. All macros are defined.
 
 #if defined(DNNL_X64) + defined(DNNL_AARCH64) + defined(DNNL_PPC64) \
-                + defined(DNNL_S390X) + defined(DNNL_ARCH_GENERIC) \
+                + defined(DNNL_S390X) + defined(DNNL_RV64) \
+                + defined(DNNL_ARCH_GENERIC) \
         == 0
 #if defined(__x86_64__) || defined(_M_X64)
 #define DNNL_X64 1
@@ -42,13 +44,16 @@
 #define DNNL_PPC64 1
 #elif defined(__s390x__)
 #define DNNL_S390X 1
+#elif defined(__riscv)
+#define DNNL_RV64 1
 #else
 #define DNNL_ARCH_GENERIC 1
 #endif
 #endif // defined(DNNL_X64) + ... == 0
 
 #if defined(DNNL_X64) + defined(DNNL_AARCH64) + defined(DNNL_PPC64) \
-                + defined(DNNL_S390X) + defined(DNNL_ARCH_GENERIC) \
+                + defined(DNNL_S390X) + defined(DNNL_RV64) \
+                + defined(DNNL_ARCH_GENERIC) \
         != 1
 #error One and only one architecture should be defined at a time
 #endif
@@ -64,6 +69,9 @@
 #endif
 #if !defined(DNNL_S390X)
 #define DNNL_S390X 0
+#endif
+#if !defined(DNNL_RV64)
+#define DNNL_RV64 0
 #endif
 #if !defined(DNNL_ARCH_GENERIC)
 #define DNNL_ARCH_GENERIC 0
