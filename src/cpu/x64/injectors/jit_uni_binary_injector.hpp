@@ -192,9 +192,9 @@ enum class tail_lode_mode_t { STATIC, DYNAMIC, DEFAULT };
  *
  * @param vmm_idx_to_out_elem_off_addr - vmm mapped to offset in elements stored under
  * memory address intended to use in no_broadcast strategy.
- * @param vmm_idx_to_out_elem_off_addr - vmm mapped to offset in elements passed as raw
+ * @param vmm_idx_to_out_elem_off_val - vmm mapped to offset in elements passed as raw
  * value intended to use in no_broadcast strategy
- * @param vmm_idx_to_out_elem_off_addr - vmm mapped to offset in elements inside operand
+ * @param vmm_idx_to_out_off_oprnd - vmm mapped to offset in elements inside operand
  * intended to use in no_broadcast strategy
  * @param vmm_idx_to_oc_elem_off_addr - vmm mapped to output channel offset in elements
  * stored under memory address intended to use in per_oc broadcast strategies.
