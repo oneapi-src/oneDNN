@@ -599,31 +599,31 @@ inline void msan_unpoison(void *ptr, size_t size) {
 // std::optional? std::maybe? std::whatever
 
 // Since std::string is not TriviallyCopyable, value_ cannot be declared as
-// std::atomic. So, guard accesses to both value_ and initialized_ using the
-// same mutex. Note that initialized_ is not declared as std::atomic because
-// its value is "set" only when set() is called.
+// std::atomic. So, guard access to value_ using a mutex.
+// The set() method has a 'soft' mode where value_ is set only if it is
+// uninitialized.
 template <typename T>
 struct setting_t {
 private:
     T value_;
-    bool initialized_;
+    std::atomic<bool> initialized_;
     std::mutex m_;
 
 public:
     setting_t() : initialized_ {false} {}
     setting_t(const T init) : value_ {init}, initialized_ {false} {}
-    bool initialized() {
-        std::lock_guard<std::mutex> g(m_);
-        return initialized_;
-    }
     T get() {
         std::lock_guard<std::mutex> g(m_);
         return value_;
     }
-    void set(T new_value) {
+    void set(T new_value, bool soft = false) {
         std::lock_guard<std::mutex> g(m_);
-        value_ = new_value;
-        initialized_ = true;
+        bool expected = false;
+        if (IMPLICATION(soft,
+                    initialized_.compare_exchange_strong(expected, false))) {
+            value_ = new_value;
+            initialized_ = true;
+        }
     }
     DNNL_DISALLOW_COPY_AND_ASSIGN(setting_t);
 };

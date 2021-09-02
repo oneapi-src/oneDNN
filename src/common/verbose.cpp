@@ -71,13 +71,11 @@ namespace impl {
 static setting_t<int> verbose {0};
 int get_verbose() {
 #if !defined(DISABLE_VERBOSE)
-    if (!verbose.initialized()) {
-        // Assumes that all threads see the same environment
-        const int len = 2;
-        char val[len] = {0};
-        if (getenv("DNNL_VERBOSE", val, len) == 1) verbose.set(atoi(val));
-        if (!verbose.initialized()) verbose.set(0);
-    }
+    // Assumes that all threads see the same environment
+    const int len = 2;
+    char val[len] = {0};
+    static int get_verbose_val = getenv("DNNL_VERBOSE", val, len);
+    if (get_verbose_val == 1) verbose.set(atoi(val), true);
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
     if (verbose.get() > 0 && !version_printed.test_and_set()) {
         printf("dnnl_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
@@ -109,14 +107,12 @@ int get_verbose() {
 static setting_t<bool> verbose_timestamp {false};
 bool get_verbose_timestamp() {
 #if !defined(DISABLE_VERBOSE)
-    if (!verbose_timestamp.initialized()) {
-        // Assumes that all threads see the same environment
-        const int len = 2;
-        char val[len] = {0};
-        if (getenv("DNNL_VERBOSE_TIMESTAMP", val, len) == 1)
-            verbose_timestamp.set(atoi(val));
-        if (!verbose_timestamp.initialized()) verbose_timestamp.set(false);
-    }
+    // Assumes that all threads see the same environment
+    const int len = 2;
+    char val[len] = {0};
+    static int get_verbose_timestamp_val
+            = getenv("DNNL_VERBOSE_TIMESTAMP", val, len);
+    if (get_verbose_timestamp_val == 1) verbose_timestamp.set(atoi(val), true);
 #endif
     // No effect if verbose is not set.
     return verbose.get() && verbose_timestamp.get();
