@@ -260,33 +260,36 @@ elseif(UNIX OR MINGW)
         endif()
 
         if(DNNL_TARGET_ARCH STREQUAL "AARCH64")
-             if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-                 set(DEF_ARCH_OPT_FLAGS "-O3")
-             endif()
-             # For native compilation tune for the host processor
-             if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
-                 append(DEF_ARCH_OPT_FLAGS "-mcpu=native")
-             endif()
+            if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+                set(DEF_ARCH_OPT_FLAGS "-O3")
+            endif()
+            # For native compilation tune for the host processor
+            if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
+                append(DEF_ARCH_OPT_FLAGS "-mcpu=native")
+            endif()
         elseif(DNNL_TARGET_ARCH STREQUAL "PPC64")
-             if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-                 set(DEF_ARCH_OPT_FLAGS "-O3")
-             endif()
-             # In GCC, -ftree-vectorize is turned on under -O3 since 2007.
-             # For native compilation tune for the host processor
-             if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
-                 append(DEF_ARCH_OPT_FLAGS "-mcpu=native")
-             endif()
+            if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+                set(DEF_ARCH_OPT_FLAGS "-O3")
+            endif()
+            # In GCC, -ftree-vectorize is turned on under -O3 since 2007.
+            # For native compilation tune for the host processor
+            if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
+                append(DEF_ARCH_OPT_FLAGS "-mcpu=native")
+            endif()
         elseif(DNNL_TARGET_ARCH STREQUAL "S390X")
-             if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-                 set(DEF_ARCH_OPT_FLAGS "-O3")
-             endif()
-             # In GCC, -ftree-vectorize is turned on under -O3 since 2007.
-             # For native compilation tune for the host processor
-             if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
-                 append(DEF_ARCH_OPT_FLAGS "-march=native")
-             endif()
+            if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+                set(DEF_ARCH_OPT_FLAGS "-O3")
+            endif()
+            # In GCC, -ftree-vectorize is turned on under -O3 since 2007.
+            # For native compilation tune for the host processor
+            if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
+                append(DEF_ARCH_OPT_FLAGS "-march=native")
+            endif()
+        elseif(DNNL_TARGET_ARCH STREQUAL "RV64")
+            # G = General-purpose extensions, C = Compression extension (very common).
+            append(DEF_ARCH_OPT_FLAGS "-march=rv64gc")
         elseif(DNNL_TARGET_ARCH STREQUAL "X64")
-             platform_gnu_x64_arch_ccxx_flags(DEF_ARCH_OPT_FLAGS)
+            platform_gnu_x64_arch_ccxx_flags(DEF_ARCH_OPT_FLAGS)
         endif()
         platform_gnu_nowarn_ccxx_flags(CMAKE_CCXX_NOWARN_FLAGS)
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")

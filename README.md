@@ -63,11 +63,12 @@ oneDNN supports platforms based on the following architectures:
 - [Arm 64-bit Architecture (AArch64)](https://developer.arm.com/architectures/cpu-architecture/a-profile).
 - [OpenPOWER](https://openpowerfoundation.org/) / [IBM Power ISA](https://en.wikipedia.org/wiki/Power_ISA).
 - [IBMz z/Architecture (s390x)](https://en.wikipedia.org/wiki/Z/Architecture).
+- [RISC-V 64-bit (RV64)](https://en.wikipedia.org/wiki/RISC-V).
 
 > **WARNING**
 >
-> Arm 64-bit Architecture (AArch64), Power ISA (PPC64) and IBMz (s390x) support
-> is **experimental** with limited testing validation.
+> Arm 64-bit Architecture (AArch64), Power ISA (PPC64), IBMz (s390x),
+> and RISC-V (RV64) support is **experimental** with limited testing validation.
 
 The library is optimized for the following CPUs:
 * Intel Atom processor with Intel SSE4.1 support
