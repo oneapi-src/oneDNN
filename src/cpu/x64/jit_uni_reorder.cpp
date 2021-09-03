@@ -1155,7 +1155,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     ptr[abi_param1 + offsetof(call_param_t, curr_data_chunks) \
             + sizeof(int64_t) * (node_id)]
 
-        mov(reg_tmp_, -1);
+        mov(reg_tmp_, empty_chunk_info);
         mov(CURR_DATA_CHUNK(curr_node_id), reg_tmp_);
 
         const int padded_area = prb_.nodes[curr_node_id].n
@@ -1233,7 +1233,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         int omp_ndims = prb_.full_ndims - prb_.ndims;
 
         if (prb_.nodes[0].tail_size > 0) {
-            if (prb_.nodes[0].parent_node_id != -1) {
+            if (prb_.nodes[0].parent_node_id != empty_chunk_info) {
                 const int parent_node_id = prb_.nodes[0].parent_node_id;
                 mov(reg_tmp_, CURR_DATA_CHUNK(parent_node_id));
                 check_if_this_is_last_chunk(reg_tmp_, parent_node_id);
@@ -1263,8 +1263,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         assert(jit_loop <= ndims_jit_loop_max);
 
         if (jit_loop > 0) {
-            static constexpr int empty = -1;
-
             const int nfu = desc.ndims_full_unroll;
             const int unroll_factor
                     = jit_loop == 1 ? desc.len_last_dim_unroll : 1;
@@ -1277,7 +1275,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             Label loop, if_no_tail, if_end;
 
             if (prb_.tail(curr_node_id) != 0) {
-                if (parent_node_id == empty) {
+                if (parent_node_id == empty_chunk_info) {
                     mov(reg_loop_cnt, tail_size);
                     // Put info that node is being processed with tail.
                     mov(reg_tmp_, with_tail_info);
@@ -1306,7 +1304,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
 
             if (prb_.is_tail_in_one_of_child_nodes(curr_node_id)) {
-                if (parent_node_id != empty) {
+                if (parent_node_id != empty_chunk_info) {
                     Label if_no_tail_in_child_node;
                     mov(reg_tmp_, CURR_DATA_CHUNK(parent_node_id));
                     check_if_this_is_last_chunk(reg_tmp_, parent_node_id);
@@ -1444,6 +1442,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     ~jit_uni_reorder_kernel_f32_t() override = default;
 
 private:
+    static constexpr int empty_chunk_info = -1;
     static constexpr int64_t with_tail_info = static_cast<int64_t>(true);
     static constexpr int64_t without_tail_info = static_cast<int64_t>(false);
 
