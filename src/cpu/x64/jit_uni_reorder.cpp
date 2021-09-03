@@ -1151,6 +1151,13 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
     void finalize_tail_loop(int i_step, int o_step, int s_step, int c_step,
             const int curr_node_id) {
+#define CURR_DATA_CHUNK(node_id) \
+    ptr[abi_param1 + offsetof(call_param_t, curr_data_chunks) \
+            + sizeof(int64_t) * (node_id)]
+
+        mov(reg_tmp_, -1);
+        mov(CURR_DATA_CHUNK(curr_node_id), reg_tmp_);
+
         const int padded_area = prb_.nodes[curr_node_id].n
                 - prb_.nodes[curr_node_id].tail_size;
 
@@ -1178,6 +1185,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             add(reg_off_scale_, padded_area * s_step * stype_sz_);
         if (compensation_needed_)
             add(reg_off_comp_, padded_area * c_step * sizeof(int32_t));
+
+#undef CURR_DATA_CHUNK
     }
 
     void loop_end(Label &l, const Reg64 &reg_cnt, int len, int i_step,
