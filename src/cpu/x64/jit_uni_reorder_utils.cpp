@@ -330,10 +330,10 @@ void prb_normalize(prb_t &p) {
 void prb_node_dependency(prb_t &prb) {
     for (int i = 0; i < prb.ndims; i++) {
         tr::node_t &node = prb.nodes[i];
-        node.parent_node_id = -1;
+        node.parent_node_id = node_t::empty_field;
         for (int j = i + 1; j < prb.ndims; j++) {
             const tr::node_t &potential_parent_node = prb.nodes[j];
-            if (potential_parent_node.dim_id != -1
+            if (!potential_parent_node.is_dim_id_empty()
                     && potential_parent_node.dim_id == node.dim_id) {
                 node.parent_node_id = j;
                 break;
@@ -382,7 +382,7 @@ void prb_simplify(prb_t &p) {
                                         this_node.n * this_node.cs));
         if (fold) {
             this_node.n *= next_node.n;
-            this_node.dim_id = -1;
+            this_node.dim_id = node_t::empty_field;
             this_node.is_zero_pad_needed = false;
             for (int j = d + 2; j < p.ndims; ++j)
                 p.nodes[j - 1] = p.nodes[j];
