@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -303,6 +304,19 @@ constexpr typename remove_reference<T>::type rnd_dn(const T a, const U b) {
     return static_cast<typename remove_reference<T>::type>((a / b) * b);
 }
 
+template <typename T>
+inline typename remove_reference<T>::type rnd_up_pow2(const T a) {
+    using R = typename remove_reference<T>::type;
+    if (a <= 0)
+        return static_cast<R>(1);
+    else {
+        T b = a - 1;
+        for (size_t v = 1; v < sizeof(T) * CHAR_BIT; v <<= 1)
+            b |= (b >> v);
+        return static_cast<R>(b + 1);
+    }
+}
+
 template <typename T, typename U>
 inline typename remove_reference<T>::type max_div(const T a, const U b) {
     U div = b;
@@ -311,6 +325,11 @@ inline typename remove_reference<T>::type max_div(const T a, const U b) {
         div--;
     }
     return static_cast<typename remove_reference<T>::type>(div);
+}
+
+template <typename T>
+inline typename remove_reference<T>::type max_pow2_div(const T a) {
+    return static_cast<typename remove_reference<T>::type>(((a - 1) & ~a) + 1);
 }
 
 template <typename T>
