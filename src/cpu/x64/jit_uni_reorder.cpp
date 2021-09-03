@@ -1155,6 +1155,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     ptr[abi_param1 + offsetof(call_param_t, curr_data_chunks) \
             + sizeof(int64_t) * (node_id)]
 
+        static constexpr int empty_chunk_info = -1;
+
         mov(reg_tmp_, empty_chunk_info);
         mov(CURR_DATA_CHUNK(curr_node_id), reg_tmp_);
 
@@ -1207,7 +1209,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             // was processed with tail or not.
             pop(reg_tmp_);
 
-            cmp(reg_tmp_, with_tail_info);
+            cmp(reg_tmp_, with_tail_info_);
             jne(if_end, T_NEAR);
             finalize_tail_loop(i_step, o_step, s_step, c_step, curr_node_id);
             L(if_end);
@@ -1233,7 +1235,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         int omp_ndims = prb_.full_ndims - prb_.ndims;
 
         if (prb_.nodes[0].tail_size > 0) {
-            if (prb_.nodes[0].parent_node_id != empty_chunk_info) {
+            if (!prb_.nodes[0].is_parent_empty()) {
                 const int parent_node_id = prb_.nodes[0].parent_node_id;
                 mov(reg_tmp_, CURR_DATA_CHUNK(parent_node_id));
                 check_if_this_is_last_chunk(reg_tmp_, parent_node_id);
@@ -1275,10 +1277,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             Label loop, if_no_tail, if_end;
 
             if (prb_.tail(curr_node_id) != 0) {
-                if (parent_node_id == empty_chunk_info) {
+                if (prb_.nodes[curr_node_id].is_parent_empty()) {
                     mov(reg_loop_cnt, tail_size);
                     // Put info that node is being processed with tail.
-                    mov(reg_tmp_, with_tail_info);
+                    mov(reg_tmp_, with_tail_info_);
                     push(reg_tmp_);
                 } else {
                     mov(reg_tmp_, CURR_DATA_CHUNK(parent_node_id));
@@ -1286,14 +1288,14 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     jne(if_no_tail, T_NEAR);
                     mov(reg_loop_cnt, tail_size);
                     // Put info that node is being processed with tail.
-                    mov(reg_tmp_, with_tail_info);
+                    mov(reg_tmp_, with_tail_info_);
                     push(reg_tmp_);
                     jmp(if_end, T_NEAR);
 
                     L(if_no_tail);
                     mov(reg_loop_cnt, node_size);
                     // Put info that node is being processed without tail.
-                    mov(reg_tmp_, without_tail_info);
+                    mov(reg_tmp_, without_tail_info_);
                     push(reg_tmp_);
                     L(if_end);
                 }
@@ -1304,7 +1306,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
 
             if (prb_.is_tail_in_one_of_child_nodes(curr_node_id)) {
-                if (parent_node_id != empty_chunk_info) {
+                if (!prb_.nodes[curr_node_id].is_parent_empty()) {
                     Label if_no_tail_in_child_node;
                     mov(reg_tmp_, CURR_DATA_CHUNK(parent_node_id));
                     check_if_this_is_last_chunk(reg_tmp_, parent_node_id);
@@ -1442,9 +1444,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     ~jit_uni_reorder_kernel_f32_t() override = default;
 
 private:
-    static constexpr int empty_chunk_info = -1;
-    static constexpr int64_t with_tail_info = static_cast<int64_t>(true);
-    static constexpr int64_t without_tail_info = static_cast<int64_t>(false);
+    static constexpr int64_t with_tail_info_ = static_cast<int64_t>(true);
+    static constexpr int64_t without_tail_info_ = static_cast<int64_t>(false);
 
     int itype_sz_;
     int otype_sz_;
@@ -2402,7 +2403,7 @@ void jit_uni_reorder_t::fill_curr_data_chunks(const tr::prb_t &prb,
     // and check if it is equal to zero than increment and check
     // if it is equal to node_size in jit kernel.
 
-    static constexpr int64_t empty = -1;
+    static constexpr int64_t empty_chunk_info = -1;
     static constexpr int64_t last_chunk = 1;
 
     for (int curr_node_id = prb.ndims - 1; curr_node_id >= 0; curr_node_id--) {
@@ -2421,11 +2422,11 @@ void jit_uni_reorder_t::fill_curr_data_chunks(const tr::prb_t &prb,
                     : prb.nodes[curr_node_id].n;
             const int64_t data_chunk = node_size - omp_data_chunks[inner_idx];
 
-            if (parent_node_id != empty) {
+            if (!prb.nodes[curr_node_id].is_parent_empty()) {
                 const bool is_parent_chunk_last
                         = c.curr_data_chunks[parent_node_id] == last_chunk;
                 c.curr_data_chunks[curr_node_id]
-                        = is_parent_chunk_last ? data_chunk : empty;
+                        = is_parent_chunk_last ? data_chunk : empty_chunk_info;
                 c.zeroing_data = static_cast<int64_t>(
                         is_parent_chunk_last && data_chunk <= 0);
             } else {
@@ -2436,7 +2437,7 @@ void jit_uni_reorder_t::fill_curr_data_chunks(const tr::prb_t &prb,
                     && !prb.nodes[curr_node_id].is_zero_pad_needed);
             if (c.zeroing_data || c.skip_kernel_execution) break;
         } else
-            c.curr_data_chunks[curr_node_id] = empty;
+            c.curr_data_chunks[curr_node_id] = empty_chunk_info;
     }
 }
 

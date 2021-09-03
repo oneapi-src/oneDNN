@@ -34,15 +34,20 @@ namespace tr {
 constexpr int max_ndims = DNNL_MAX_NDIMS;
 
 struct node_t {
+    static constexpr int64_t empty_field = -1;
+
     size_t n = 0;
     size_t tail_size = 0;
-    int dim_id = -1;
-    int parent_node_id = -1;
+    int dim_id = empty_field;
+    int parent_node_id = empty_field;
     bool is_zero_pad_needed = false;
     ptrdiff_t is = 0; // input stride
     ptrdiff_t os = 0; // output stride
     ptrdiff_t ss = 0; // scale stride
     ptrdiff_t cs = 0; // compensation stride
+
+    bool is_dim_id_empty() const { return dim_id == empty_field; }
+    bool is_parent_empty() const { return parent_node_id == empty_field; }
 };
 
 enum class scale_type_t { NONE, COMMON, MANY };
