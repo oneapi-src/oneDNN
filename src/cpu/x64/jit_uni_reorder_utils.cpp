@@ -397,10 +397,10 @@ void prb_simplify(prb_t &p) {
 #endif
 }
 
-void prb_node_split(prb_t &p, int dim, size_t n1) {
+void prb_node_split(prb_t &p, int dim, size_t new_node_size) {
     assert(dim < p.ndims);
     assert(p.ndims < max_ndims);
-    assert(p.nodes[dim].n % n1 == 0);
+    assert(p.nodes[dim].n % new_node_size == 0);
 
     p.ndims += 1;
     p.full_ndims += 1;
@@ -408,19 +408,20 @@ void prb_node_split(prb_t &p, int dim, size_t n1) {
     for (int d = p.ndims; d > dim + 1; --d)
         p.nodes[d] = p.nodes[d - 1];
 
-    const size_t size_of_upper_dim = p.nodes[dim].n / n1;
-    const size_t size_of_lower_dim = n1;
-    p.nodes[dim + 1].n = size_of_upper_dim;
-    p.nodes[dim].n = size_of_lower_dim;
+    const size_t upper_node_size = p.nodes[dim].n / new_node_size;
+    const size_t lower_node_size = new_node_size;
+    p.nodes[dim + 1].n = upper_node_size;
+    p.nodes[dim].n = lower_node_size;
 
     const bool is_tail = p.nodes[dim].tail_size > 0;
-    const size_t tail_of_upper_dim
-            = utils::div_up(p.nodes[dim].tail_size, n1) == size_of_upper_dim
+    const size_t upper_node_tail
+            = utils::div_up(p.nodes[dim].tail_size, lower_node_size)
+                    == upper_node_size
             ? 0
-            : utils::div_up(p.nodes[dim].tail_size, n1);
-    const size_t tail_of_lower_dim = p.nodes[dim].tail_size % n1;
-    p.nodes[dim].tail_size = is_tail ? tail_of_lower_dim : 0;
-    p.nodes[dim + 1].tail_size = is_tail ? tail_of_upper_dim : 0;
+            : utils::div_up(p.nodes[dim].tail_size, lower_node_size);
+    const size_t lower_node_tail = p.nodes[dim].tail_size % lower_node_size;
+    p.nodes[dim].tail_size = is_tail ? lower_node_tail : 0;
+    p.nodes[dim + 1].tail_size = is_tail ? upper_node_tail : 0;
 
     p.nodes[dim + 1].is_zero_pad_needed
             = p.nodes[dim].is_zero_pad_needed && p.nodes[dim + 1].tail_size > 0;
@@ -428,12 +429,10 @@ void prb_node_split(prb_t &p, int dim, size_t n1) {
             = p.nodes[dim].is_zero_pad_needed && p.nodes[dim].tail_size > 0;
 
     p.nodes[dim + 1].dim_id = p.nodes[dim].dim_id;
-    p.nodes[dim + 1].is = p.nodes[dim].is * n1;
-    p.nodes[dim + 1].os = p.nodes[dim].os * n1;
-    p.nodes[dim + 1].ss = p.nodes[dim].ss * n1;
-    p.nodes[dim + 1].cs = p.nodes[dim].cs * n1;
-
-    p.nodes[dim].n = n1;
+    p.nodes[dim + 1].is = p.nodes[dim].is * lower_node_size;
+    p.nodes[dim + 1].os = p.nodes[dim].os * lower_node_size;
+    p.nodes[dim + 1].ss = p.nodes[dim].ss * lower_node_size;
+    p.nodes[dim + 1].cs = p.nodes[dim].cs * lower_node_size;
 }
 
 void prb_node_swap(prb_t &p, int d0, int d1) {
