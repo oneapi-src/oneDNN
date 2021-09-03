@@ -348,7 +348,7 @@ public:
                 op_kind::x8s8f32_quant_wei_matmul_bias_sigmoid,
                 op_kind::x8s8f32_quant_wei_matmul_gelu,
                 op_kind::x8s8f32_quant_wei_matmul_bias_gelu,
-                // f32 pattern
+                // f32 conv pattern
                 impl::op_kind::Convolution, op_kind::conv_relu,
                 op_kind::conv_add, op_kind::conv_add_relu,
                 op_kind::conv_add_elu, op_kind::conv_add_relu6,
@@ -363,7 +363,19 @@ public:
                 op_kind::conv_bias_bn_add, op_kind::conv_bias_bn_add_relu,
                 op_kind::conv_bias_bn_relu, op_kind::conv_bn,
                 op_kind::conv_bn_add, op_kind::conv_bn_add_relu,
-                op_kind::conv_bn_relu};
+                op_kind::conv_bn_relu,
+                // fp32 matmul pattern
+                impl::op_kind::MatMul, op_kind::matmul_relu,
+                op_kind::matmul_elu, op_kind::matmul_sigmoid,
+                op_kind::matmul_hardtanh, op_kind::matmul_gelu,
+                op_kind::matmul_bias, op_kind::matmul_bias_relu,
+                op_kind::matmul_bias_gelu, op_kind::matmul_bias_relu6,
+                op_kind::matmul_bias_elu, op_kind::matmul_bias_sigmoid,
+                op_kind::matmul_bias_swish, op_kind::matmul_bias_hardtanh,
+                op_kind::matmul_bias_add, op_kind::matmul_bias_add_relu,
+                op_kind::matmul_bias_bn, op_kind::matmul_add,
+                op_kind::matmul_add_gelu, op_kind::matmul_add_relu,
+                op_kind::matmul_add_sigmoid};
 
         // compile will transform the subgraph in partition, so we make
         // a copy

@@ -32,7 +32,8 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-void constant_propagation(std::vector<std::shared_ptr<impl::op_t>> &subgraph);
+void constant_propagation(std::vector<std::shared_ptr<impl::op_t>> &subgraph,
+        bool with_scratchpad = true);
 
 } // namespace dnnl_impl
 } // namespace impl

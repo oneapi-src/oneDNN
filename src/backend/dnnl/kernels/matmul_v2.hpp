@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef BACKEND_DNNL_KERNELS_INT8_MATMUL_HPP
-#define BACKEND_DNNL_KERNELS_INT8_MATMUL_HPP
+#ifndef BACKEND_DNNL_KERNELS_MATMUL_V2_HPP
+#define BACKEND_DNNL_KERNELS_MATMUL_V2_HPP
 
 #include <algorithm>
 #include <memory>
@@ -25,15 +25,17 @@
 #include <vector>
 
 #include "backend/dnnl/common.hpp"
-#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/constant_cache.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/passes/compile_ops.hpp"
+#include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/infer_type.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
 #include "backend/dnnl/passes/memory_binding.hpp"
 #include "backend/dnnl/passes/op_executable.hpp"
+#include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
 #include "backend/dnnl/utils.hpp"
 
@@ -42,7 +44,8 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-struct quantized_matmul : public dnnl::matmul, public kernel_base {
+template <bool quantized>
+struct matmul : public kernel_base {
 private:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;
@@ -52,7 +55,6 @@ private:
     executable_mgr exec_mgr_;
 
     std::vector<op_executable *> execs_;
-    std::vector<exec_args> exec_args_;
 
     std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
 
@@ -70,7 +72,7 @@ private:
     std::vector<bool> is_skip_;
 
 public:
-    virtual ~quantized_matmul() {
+    virtual ~matmul() {
         thread_local_cache_t<subgraph_resource_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
@@ -101,27 +103,29 @@ public:
         BACKEND_DNNL_CHECK(set_given_inputs_outputs(subgraph, inputs, outputs));
 
         fuse_bias_add(subgraph);
-
         // check if bias exists
         check_with_bias(subgraph);
 
-        // split quant/dequant to pairs of mul_scales and add_zps
-        split_quant_dequant(subgraph);
-        fuse_to_int8_matmul(subgraph);
-        folding_mul_scales(subgraph);
-
-        // construct fused matmul attr
-        fuse_output_scales(subgraph, prm_attr_mgr_);
-        BACKEND_DNNL_CHECK(fuse_post_ops(subgraph, prm_attr_mgr_));
-        fuse_zero_points(subgraph, prm_attr_mgr_);
-
-        // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
-        fuse_mul_scales_add_zps(subgraph);
-
-        insert_u8_to_s8_for_matmul(subgraph, prm_attr_mgr_);
-
         BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
 
+        if (quantized) {
+            // split quant/dequant to pairs of mul_scales and add_zps
+            split_quant_dequant(subgraph);
+            fuse_to_int8_matmul(subgraph);
+            folding_mul_scales(subgraph);
+            fuse_output_scales(subgraph, prm_attr_mgr_);
+        }
+
+        BACKEND_DNNL_CHECK(fuse_post_ops(subgraph, prm_attr_mgr_));
+
+        if (quantized) {
+            fuse_zero_points(subgraph, prm_attr_mgr_);
+            // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
+            fuse_mul_scales_add_zps(subgraph);
+        }
+
+        insert_u8_to_s8_for_matmul(subgraph, prm_attr_mgr_);
+        BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
         insert_transpose_for_matmul(subgraph);
         BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
         insert_expand_for_matmul(subgraph);
@@ -135,7 +139,7 @@ public:
         BACKEND_DNNL_CHECK(infer_type(agraph));
         // do constant propagation here so that we can
         // prepare constant info for other optimizations.
-        if (enable_constant_cache_) { constant_propagation(subgraph); }
+        if (enable_constant_cache_) { constant_propagation(subgraph, false); }
 
         vis.run(subgraph, "after_infer_shape_infer_type", true);
 
@@ -340,6 +344,9 @@ public:
         return impl::status::success;
     }
 };
+
+using float_matmul = matmul</* quantized */ false>;
+using quantized_matmul = matmul</* quantized */ true>;
 
 } // namespace dnnl_impl
 } // namespace impl

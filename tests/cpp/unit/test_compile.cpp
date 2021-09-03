@@ -2012,25 +2012,41 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
             = utils::logical_tensor_init(1, {2}, impl::data_type::f32);
     impl::logical_tensor_t bias
             = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            2, {1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, bias};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    g.add_op(&matmul_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2047,10 +2063,9 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
     impl::tensor_t src_ts2(src, src_data2.data());
     impl::tensor_t weight_ts2(weight, weight_data2.data());
     impl::tensor_t bias_ts2(bias, bias_data2.data());
-    impl::tensor_t dst_ts2(outputs[0], dst_data2.data());
+    impl::tensor_t dst_ts2(dst, dst_data2.data());
 
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts2, weight_ts2, bias_ts2}, {dst_ts2});
+    cp.execute(&strm, {src_ts2, weight_ts2, bias_ts2}, {dst_ts2});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data2.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data2[i], ref_dst_data2[i]);
@@ -2075,23 +2090,39 @@ TEST(operator_kernel, matmul_compile_fwd_f16f16f16) {
             = utils::logical_tensor_init(0, {2}, impl::data_type::f16);
     impl::logical_tensor_t weight
             = utils::logical_tensor_init(1, {2}, impl::data_type::f16);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            2, {1, 1}, impl::data_type::f16, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f16);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    g.add_op(&matmul_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(&matmul_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
 }
 
@@ -2115,23 +2146,39 @@ TEST(operator_kernel, matmul_compile_fwd_bf16bf16bf16) {
             = utils::logical_tensor_init(0, {2}, impl::data_type::bf16);
     impl::logical_tensor_t weight
             = utils::logical_tensor_init(1, {2}, impl::data_type::bf16);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            2, {1, 1}, impl::data_type::bf16, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(2, {1, 1}, impl::data_type::bf16);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    g.add_op(&matmul_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(&matmul_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
 }
 
@@ -2143,10 +2190,8 @@ static size_t product(std::vector<int64_t> &in) {
 }
 
 TEST(operator_kernel, matmul_ndx2d) {
-    impl::op_t matmul_op(impl::op_kind::MatMul);
     impl::engine_t &engine = get_engine();
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
+    impl::stream_t &strm = get_stream();
 
     std::vector<std::vector<int64_t>> weight_shapes {{16}, {16, 1}};
     std::vector<std::vector<int64_t>> src_shapes {
@@ -2179,21 +2224,38 @@ TEST(operator_kernel, matmul_ndx2d) {
             impl::logical_tensor_t weight = utils::logical_tensor_init(
                     1, weight_shapes[w_idx], impl::data_type::f32);
             impl::logical_tensor_t dst = utils::logical_tensor_init(
-                    2, dst_shape, impl::data_type::f32, impl::layout_type::any);
+                    2, dst_shape, impl::data_type::f32);
 
-            std::vector<impl::logical_tensor_t> inputs {src, weight};
-            std::vector<impl::logical_tensor_t> outputs {dst};
+            impl::op_t matmul_op(impl::op_kind::MatMul);
+            matmul_op.add_input(src);
+            matmul_op.add_input(weight);
+            matmul_op.add_output(dst);
 
-            matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-            ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+            impl::graph_t g;
+            g.add_op(&matmul_op);
+            g.build_graph();
+
+            impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1);
+            auto part = g.get_partitions()[0];
+
+            // compile
+            impl::partition_t p;
+            p.init(part);
+
+            impl::compiled_partition_t cp(p);
+
+            std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
+            std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+            p.compile(&cp, inputs, outputs, &engine);
 
             impl::tensor_t src_ts(src, src_data.data());
             impl::tensor_t weight_ts(weight, weight_data.data());
-            impl::tensor_t dst_ts(outputs[0], dst_data.data());
+            impl::tensor_t dst_ts(dst, dst_data.data());
 
-            impl::stream_t &strm = get_stream();
-            matmul_kernel->execute(
-                    &matmul_op, &strm, {src_ts, weight_ts}, {dst_ts});
+            cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
             strm.wait();
 
             // compute the ref results
@@ -2234,23 +2296,39 @@ TEST(operator_kernel, matmul_3dx3d) {
             = utils::logical_tensor_init(0, {4, 1, 2}, impl::data_type::f32);
     impl::logical_tensor_t weight
             = utils::logical_tensor_init(1, {4, 2, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            2, {4, 1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(2, {4, 1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    g.add_op(&matmul_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(&matmul_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2258,7 +2336,8 @@ TEST(operator_kernel, matmul_3dx3d) {
 }
 
 TEST(operator_kernel, matmul_relu_fusion) {
-    impl::op_t matmul_relu_op(impl::dnnl_impl::op_kind::matmul_relu);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t relu_op(1, impl::op_kind::ReLU, "relu_op");
 
     impl::engine_t &engine = get_engine();
 
@@ -2272,25 +2351,44 @@ TEST(operator_kernel, matmul_relu_fusion) {
             = utils::logical_tensor_init(0, {1, 2}, impl::data_type::f32);
     impl::logical_tensor_t weight
             = utils::logical_tensor_init(1, {2, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            2, {1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t relu_dst
+            = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+    relu_op.add_input(dst);
+    relu_op.add_output(relu_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_relu_kernel = op_factory.create_kernel(matmul_relu_op);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
+    g.build_graph();
 
-    matmul_relu_kernel->compile(&matmul_relu_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass = get_pass("matmul_relu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
+    std::vector<const impl::logical_tensor_t *> outputs {&relu_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(relu_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_relu_kernel->execute(
-            &matmul_relu_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2298,7 +2396,7 @@ TEST(operator_kernel, matmul_relu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias);
+    impl::op_t matmul_op(impl::op_kind::MatMul);
 
     impl::engine_t &engine = get_engine();
 
@@ -2315,25 +2413,41 @@ TEST(operator_kernel, matmul_bias_fusion) {
             = utils::logical_tensor_init(1, {2, 2, 1}, impl::data_type::f32);
     impl::logical_tensor_t bias
             = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            3, {2, 1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {2, 1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, bias};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    g.add_op(&matmul_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
@@ -2342,7 +2456,10 @@ TEST(operator_kernel, matmul_bias_fusion) {
 }
 
 TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_add);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t add_op(1, impl::op_kind::Add, "add_op");
+
+    impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5, 3.0, 0.5};
     test::vector<float> weight_data {-2.0, -1.5, 1.0, 1.0};
@@ -2356,27 +2473,48 @@ TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
     impl::logical_tensor_t weight
             = utils::logical_tensor_init(1, {2, 1, 2}, impl::data_type::f32);
     impl::logical_tensor_t add_src1
-            = utils::logical_tensor_init(2, {2}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            3, {2, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {2, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst
+            = utils::logical_tensor_init(4, {2, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, add_src1};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+    add_op.add_input(dst);
+    add_op.add_input(add_src1);
+    add_op.add_output(add_dst);
 
-    impl::engine_t &engine = get_engine();
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src, &weight, &add_src1};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t add_src1_ts(add_src1, add_src1_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(add_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, add_src1_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, add_src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
@@ -2385,7 +2523,8 @@ TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
 }
 
 TEST(operator_kernel, matmul_sum_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_add);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t add_op(1, impl::op_kind::Add, "add_op");
 
     test::vector<float> src_data {-2.0, -1.5, 3.0, 0.5};
     test::vector<float> weight_data {-2.0, -1.5, 1.0, 1.0};
@@ -2400,26 +2539,49 @@ TEST(operator_kernel, matmul_sum_fusion) {
             = utils::logical_tensor_init(1, {2, 1, 2}, impl::data_type::f32);
     impl::logical_tensor_t add_src1
             = utils::logical_tensor_init(2, {2, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            3, {2, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {2, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst
+            = utils::logical_tensor_init(4, {2, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, add_src1};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+    add_op.add_input(dst);
+    add_op.add_input(add_src1);
+    add_op.add_output(add_dst);
+
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src, &weight, &add_src1};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
 
     impl::engine_t &engine = get_engine();
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t add_src1_ts(add_src1, add_src1_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(add_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, add_src1_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, add_src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
@@ -2428,13 +2590,15 @@ TEST(operator_kernel, matmul_sum_fusion) {
 }
 
 TEST(operator_kernel, matmul_sum_gelu_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_add_gelu);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t add_op(1, impl::op_kind::Add, "add_op");
+    impl::op_t gelu_op(2, impl::op_kind::GELU, "gelu_op");
 
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {1.0, 1.0, 1.0, 1.0};
     test::vector<float> weight_data {0.5, 0.5, 0.5, 0.5};
-    test::vector<float> other_data {1.0};
+    test::vector<float> other_data {1.0, 1.0};
     test::vector<float> ref_dst_data {1.9544998f, 1.9544998f};
     test::vector<float> dst_data(ref_dst_data.size(), 0.0);
 
@@ -2445,25 +2609,51 @@ TEST(operator_kernel, matmul_sum_gelu_fusion) {
             = utils::logical_tensor_init(1, {2, 2, 1}, impl::data_type::f32);
     impl::logical_tensor_t other
             = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            3, {2, 1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {2, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst
+            = utils::logical_tensor_init(4, {2, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t gelu_dst
+            = utils::logical_tensor_init(5, {2, 1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, other};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+    add_op.add_input(dst);
+    add_op.add_input(other);
+    add_op.add_output(add_dst);
+    gelu_op.add_input(add_dst);
+    gelu_op.add_output(gelu_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&gelu_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_sum_gelu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &other};
+    std::vector<const impl::logical_tensor_t *> outputs {&gelu_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t other_ts(other, other_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(gelu_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, other_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, other_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
@@ -2472,7 +2662,10 @@ TEST(operator_kernel, matmul_sum_gelu_fusion) {
 }
 
 TEST(operator_kernel, matmul_sum_relu_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_add_relu);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t add_op(1, impl::op_kind::Add, "add_op");
+    impl::op_t relu_op(2, impl::op_kind::ReLU, "relu_op");
+
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {1.0, 2.0, 3.0, 4.0};
@@ -2488,25 +2681,51 @@ TEST(operator_kernel, matmul_sum_relu_fusion) {
             = utils::logical_tensor_init(1, {2, 2, 1}, impl::data_type::f32);
     impl::logical_tensor_t other
             = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            3, {2, 1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {2, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst
+            = utils::logical_tensor_init(4, {2, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t relu_dst
+            = utils::logical_tensor_init(5, {2, 1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, other};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+    add_op.add_input(dst);
+    add_op.add_input(other);
+    add_op.add_output(add_dst);
+    relu_op.add_input(add_dst);
+    relu_op.add_output(relu_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_sum_relu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &other};
+    std::vector<const impl::logical_tensor_t *> outputs {&relu_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t other_ts(other, other_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(relu_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, other_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, other_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
@@ -2515,7 +2734,8 @@ TEST(operator_kernel, matmul_sum_relu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_relu_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_relu);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t relu_op(1, impl::op_kind::ReLU, "relu_op");
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -2531,25 +2751,46 @@ TEST(operator_kernel, matmul_bias_relu_fusion) {
             = utils::logical_tensor_init(1, {2, 1}, impl::data_type::f32);
     impl::logical_tensor_t bias
             = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            3, {1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t relu_dst
+            = utils::logical_tensor_init(5, {1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, bias};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
+    relu_op.add_input(dst);
+    relu_op.add_output(relu_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_relu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
+    std::vector<const impl::logical_tensor_t *> outputs {&relu_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(relu_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2557,7 +2798,8 @@ TEST(operator_kernel, matmul_bias_relu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_gelu_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_gelu);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t gelu_op(1, impl::op_kind::GELU, "gelu_op");
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {1.0, 1.0, 1.0, 1.0};
@@ -2573,25 +2815,46 @@ TEST(operator_kernel, matmul_bias_gelu_fusion) {
             = utils::logical_tensor_init(1, {2, 2, 1}, impl::data_type::f32);
     impl::logical_tensor_t bias
             = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            3, {2, 1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {2, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t gelu_dst
+            = utils::logical_tensor_init(5, {2, 1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, bias};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
+    gelu_op.add_input(dst);
+    gelu_op.add_output(gelu_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&gelu_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_gelu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
+    std::vector<const impl::logical_tensor_t *> outputs {&gelu_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(gelu_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2599,9 +2862,10 @@ TEST(operator_kernel, matmul_bias_gelu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_relu6_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_relu6);
-    matmul_op.set_attr<float>("min", 0.0);
-    matmul_op.set_attr<float>("max", 6.0);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t hardtanh_op(1, impl::op_kind::HardTanh, "hardtanh_op");
+    hardtanh_op.set_attr<float>("min", 0.0);
+    hardtanh_op.set_attr<float>("max", 6.0);
 
     impl::engine_t &engine = get_engine();
 
@@ -2618,25 +2882,46 @@ TEST(operator_kernel, matmul_bias_relu6_fusion) {
             = utils::logical_tensor_init(1, {2, 1}, impl::data_type::f32);
     impl::logical_tensor_t bias
             = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            3, {1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t hardtanh_dst
+            = utils::logical_tensor_init(5, {1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, bias};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
+    hardtanh_op.add_input(dst);
+    hardtanh_op.add_output(hardtanh_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&hardtanh_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_relu6_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
+    std::vector<const impl::logical_tensor_t *> outputs {&hardtanh_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(hardtanh_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2644,9 +2929,10 @@ TEST(operator_kernel, matmul_bias_relu6_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_hardtanh);
-    matmul_op.set_attr<float>("min", -3.0);
-    matmul_op.set_attr<float>("max", 3.0);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t hardtanh_op(1, impl::op_kind::HardTanh, "hardtanh_op");
+    hardtanh_op.set_attr<float>("min", -3.0);
+    hardtanh_op.set_attr<float>("max", 3.0);
 
     impl::engine_t &engine = get_engine();
 
@@ -2663,25 +2949,46 @@ TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
             = utils::logical_tensor_init(1, {2, 1}, impl::data_type::f32);
     impl::logical_tensor_t bias
             = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            3, {1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t hardtanh_dst
+            = utils::logical_tensor_init(5, {1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, bias};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
+    hardtanh_op.add_input(dst);
+    hardtanh_op.add_output(hardtanh_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&hardtanh_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_hardtanh_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
+    std::vector<const impl::logical_tensor_t *> outputs {&hardtanh_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(hardtanh_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2689,8 +2996,9 @@ TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_elu_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_elu);
-    matmul_op.set_attr<float>("alpha", 1.f);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t elu_op(1, impl::op_kind::Elu, "elu_op");
+    elu_op.set_attr<float>("alpha", 1.f);
 
     impl::engine_t &engine = get_engine();
 
@@ -2707,25 +3015,46 @@ TEST(operator_kernel, matmul_bias_elu_fusion) {
             = utils::logical_tensor_init(1, {2, 1}, impl::data_type::f32);
     impl::logical_tensor_t bias
             = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            3, {1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t elu_dst
+            = utils::logical_tensor_init(5, {1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, bias};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
+    elu_op.add_input(dst);
+    elu_op.add_output(elu_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&elu_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_elu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
+    std::vector<const impl::logical_tensor_t *> outputs {&elu_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(elu_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2733,7 +3062,8 @@ TEST(operator_kernel, matmul_bias_elu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_sigmoid);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t sigmoid_op(1, impl::op_kind::Sigmoid, "sigmoid_op");
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -2751,23 +3081,44 @@ TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
             = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             3, {1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t sigmoid_dst
+            = utils::logical_tensor_init(5, {1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, bias};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
+    sigmoid_op.add_input(dst);
+    sigmoid_op.add_output(sigmoid_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&sigmoid_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sigmoid_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
+    std::vector<const impl::logical_tensor_t *> outputs {&sigmoid_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(sigmoid_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(
-            &matmul_op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2775,7 +3126,8 @@ TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_add_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_add);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t add_op(1, impl::op_kind::Add, "add_op");
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -2796,24 +3148,47 @@ TEST(operator_kernel, matmul_bias_add_fusion) {
             = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             4, {1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t add_dst
+            = utils::logical_tensor_init(5, {1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, bias, post_src};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
+    add_op.add_input(dst);
+    add_op.add_input(post_src);
+    add_op.add_output(add_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src, &weight, &bias, &post_src};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t bias_ts(bias, bias_data.data());
     impl::tensor_t post_src_ts(post_src, post_src_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(add_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(&matmul_op, &strm,
-            {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2821,8 +3196,8 @@ TEST(operator_kernel, matmul_bias_add_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_add);
     impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
 
     test::vector<float> src_data {-2.0, -1.5};
     test::vector<float> weight_data {2.0, -1.5};
@@ -2834,6 +3209,9 @@ TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
     std::vector<impl::dims> post_src_shapes = {{1}, {1, 1}};
 
     for (auto &post_src_shape : post_src_shapes) {
+        impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+        impl::op_t add_op(1, impl::op_kind::Add, "add_op");
+
         // prepare logical tensor
         impl::logical_tensor_t src
                 = utils::logical_tensor_init(0, {2, 1}, impl::data_type::f32);
@@ -2845,24 +3223,46 @@ TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
                 3, post_src_shape, impl::data_type::f32);
         impl::logical_tensor_t dst
                 = utils::logical_tensor_init(4, {2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t add_dst
+                = utils::logical_tensor_init(5, {2, 2}, impl::data_type::f32);
 
-        std::vector<impl::logical_tensor_t> inputs {
-                src, weight, bias, post_src};
-        std::vector<impl::logical_tensor_t> outputs {dst};
+        matmul_op.add_input(src);
+        matmul_op.add_input(weight);
+        matmul_op.add_input(bias);
+        matmul_op.add_output(dst);
+        add_op.add_input(dst);
+        add_op.add_input(post_src);
+        add_op.add_output(add_dst);
 
-        auto &op_factory = get_dnnl_kernel_registry();
-        auto matmul_kernel = op_factory.create_kernel(matmul_op);
-        matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
+        impl::graph_t g;
+        ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+        ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sum_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src, &weight, &bias, &post_src};
+        std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
+
+        p.compile(&cp, inputs, outputs, &engine);
 
         impl::tensor_t src_ts(src, src_data.data());
         impl::tensor_t weight_ts(weight, weight_data.data());
         impl::tensor_t bias_ts(bias, bias_data.data());
         impl::tensor_t post_src_ts(post_src, post_src_data.data());
-        impl::tensor_t dst_ts(outputs[0], dst_data.data());
+        impl::tensor_t dst_ts(add_dst, dst_data.data());
 
-        impl::stream_t &strm = get_stream();
-        matmul_kernel->execute(&matmul_op, &strm,
-                {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
+        cp.execute(&strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
         strm.wait();
         for (size_t i = 0; i < ref_dst_data.size(); ++i) {
             ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2871,8 +3271,8 @@ TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_add);
     impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
 
     test::vector<float> src_data {-2.0, -1.5};
     test::vector<float> weight_data {2.0, -1.5};
@@ -2884,6 +3284,8 @@ TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
     std::vector<impl::dims> post_src_shapes = {{2}, {1, 2}};
 
     for (auto &post_src_shape : post_src_shapes) {
+        impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+        impl::op_t add_op(1, impl::op_kind::Add, "add_op");
         // prepare logical tensor
         impl::logical_tensor_t src
                 = utils::logical_tensor_init(0, {2, 1}, impl::data_type::f32);
@@ -2895,25 +3297,46 @@ TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
                 3, post_src_shape, impl::data_type::f32);
         impl::logical_tensor_t dst
                 = utils::logical_tensor_init(4, {2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t add_dst
+                = utils::logical_tensor_init(5, {2, 2}, impl::data_type::f32);
 
-        std::vector<impl::logical_tensor_t> inputs {
-                src, weight, bias, post_src};
-        std::vector<impl::logical_tensor_t> outputs {dst};
+        matmul_op.add_input(src);
+        matmul_op.add_input(weight);
+        matmul_op.add_input(bias);
+        matmul_op.add_output(dst);
+        add_op.add_input(dst);
+        add_op.add_input(post_src);
+        add_op.add_output(add_dst);
 
-        auto &op_factory = get_dnnl_kernel_registry();
-        auto matmul_kernel = op_factory.create_kernel(matmul_op);
-        ASSERT_EQ(matmul_kernel->compile(&matmul_op, &engine, inputs, outputs),
-                impl::status::success);
+        impl::graph_t g;
+        ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+        ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sum_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src, &weight, &bias, &post_src};
+        std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
+
+        p.compile(&cp, inputs, outputs, &engine);
 
         impl::tensor_t src_ts(src, src_data.data());
         impl::tensor_t weight_ts(weight, weight_data.data());
         impl::tensor_t bias_ts(bias, bias_data.data());
         impl::tensor_t post_src_ts(post_src, post_src_data.data());
-        impl::tensor_t dst_ts(outputs[0], dst_data.data());
+        impl::tensor_t dst_ts(add_dst, dst_data.data());
 
-        impl::stream_t &strm = get_stream();
-        matmul_kernel->execute(&matmul_op, &strm,
-                {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
+        cp.execute(&strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
         strm.wait();
         for (size_t i = 0; i < ref_dst_data.size(); ++i) {
             ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -2922,12 +3345,14 @@ TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_unsupported_broadcast_add_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_add);
     impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
 
     std::vector<impl::dims> post_src_shapes = {{3}, {1, 3}, {2, 1}};
 
     for (auto &post_src_shape : post_src_shapes) {
+        impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+        impl::op_t add_op(1, impl::op_kind::Add, "add_op");
         // prepare logical tensor
         impl::logical_tensor_t src
                 = utils::logical_tensor_init(0, {2, 1}, impl::data_type::f32);
@@ -2939,20 +3364,46 @@ TEST(operator_kernel, matmul_bias_unsupported_broadcast_add_fusion) {
                 3, post_src_shape, impl::data_type::f32);
         impl::logical_tensor_t dst
                 = utils::logical_tensor_init(4, {2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t add_dst
+                = utils::logical_tensor_init(5, {2, 2}, impl::data_type::f32);
 
-        std::vector<impl::logical_tensor_t> inputs {
-                src, weight, bias, post_src};
-        std::vector<impl::logical_tensor_t> outputs {dst};
+        matmul_op.add_input(src);
+        matmul_op.add_input(weight);
+        matmul_op.add_input(bias);
+        matmul_op.add_output(dst);
+        add_op.add_input(dst);
+        add_op.add_input(post_src);
+        add_op.add_output(add_dst);
 
-        auto &op_factory = get_dnnl_kernel_registry();
-        auto matmul_kernel = op_factory.create_kernel(matmul_op);
-        ASSERT_EQ(matmul_kernel->compile(&matmul_op, &engine, inputs, outputs),
+        impl::graph_t g;
+        ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+        ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sum_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src, &weight, &bias, &post_src};
+        std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
+
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine),
                 impl::status::compile_fail);
     }
 }
 
 TEST(operator_kernel, matmul_bias_add_relu_fusion) {
-    impl::op_t matmul_op(impl::dnnl_impl::op_kind::matmul_bias_add_relu);
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t add_op(1, impl::op_kind::Add, "add_op");
+    impl::op_t relu_op(2, impl::op_kind::ReLU, "relu_op");
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -2973,24 +3424,52 @@ TEST(operator_kernel, matmul_bias_add_relu_fusion) {
             = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             4, {1, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t add_dst
+            = utils::logical_tensor_init(5, {1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t relu_dst
+            = utils::logical_tensor_init(6, {1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight, bias, post_src};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
+    add_op.add_input(dst);
+    add_op.add_input(post_src);
+    add_op.add_output(add_dst);
+    relu_op.add_input(add_dst);
+    relu_op.add_output(relu_dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sum_relu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src, &weight, &bias, &post_src};
+    std::vector<const impl::logical_tensor_t *> outputs {&relu_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
     impl::tensor_t bias_ts(bias, bias_data.data());
     impl::tensor_t post_src_ts(post_src, post_src_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+    impl::tensor_t dst_ts(relu_dst, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(&matmul_op, &strm,
-            {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -9036,16 +9515,18 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d) {
         qout_op.set_attr<int64_t>("axis", 0);
 
         // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_op);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-        auto kernel_matmul
-                = get_dnnl_kernel_registry().create_kernel(matmul_op);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_op);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                = std::make_shared<dnnl_impl::matmul_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -9248,18 +9729,18 @@ TEST(int8_subgraph_mode, int8_matmul_ndx1d) {
             qout_op.set_attr<int64_t>("axis", 0);
 
             // create kernels
-            auto kernel_qdata
-                    = get_dnnl_kernel_registry().create_kernel(qdata_op);
-            auto kernel_dqdata
-                    = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-            auto kernel_qweight
-                    = get_dnnl_kernel_registry().create_kernel(qweight_op);
-            auto kernel_dqweight
-                    = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-            auto kernel_matmul
-                    = get_dnnl_kernel_registry().create_kernel(matmul_op);
-            auto kernel_qout
-                    = get_dnnl_kernel_registry().create_kernel(qout_op);
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                    = std::make_shared<dnnl_impl::quantize_dequantize>();
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                    = std::make_shared<dnnl_impl::quantize_dequantize>();
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                    = std::make_shared<dnnl_impl::quantize_dequantize>();
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                    = std::make_shared<dnnl_impl::quantize_dequantize>();
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                    = std::make_shared<dnnl_impl::matmul_forward>();
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                    = std::make_shared<dnnl_impl::quantize_dequantize>();
 
             // prepare logical tensor
             impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -9469,18 +9950,18 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d_with_transpose) {
             qout_op.set_attr<int64_t>("axis", 0);
 
             // create kernels
-            auto kernel_qdata
-                    = get_dnnl_kernel_registry().create_kernel(qdata_op);
-            auto kernel_dqdata
-                    = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-            auto kernel_qweight
-                    = get_dnnl_kernel_registry().create_kernel(qweight_op);
-            auto kernel_dqweight
-                    = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-            auto kernel_matmul
-                    = get_dnnl_kernel_registry().create_kernel(matmul_op);
-            auto kernel_qout
-                    = get_dnnl_kernel_registry().create_kernel(qout_op);
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                    = std::make_shared<dnnl_impl::quantize_dequantize>();
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                    = std::make_shared<dnnl_impl::quantize_dequantize>();
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                    = std::make_shared<dnnl_impl::quantize_dequantize>();
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                    = std::make_shared<dnnl_impl::quantize_dequantize>();
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                    = std::make_shared<dnnl_impl::matmul_forward>();
+            std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                    = std::make_shared<dnnl_impl::quantize_dequantize>();
 
             // prepare logical tensor
             impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -9686,14 +10167,20 @@ TEST(int8_subgraph_mode, int8_matmul_relu_fusion) {
     qout_op.set_attr<int64_t>("axis", 0);
 
     // create kernels
-    auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-    auto kernel_dqdata = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-    auto kernel_qweight = get_dnnl_kernel_registry().create_kernel(qweight_op);
-    auto kernel_dqweight
-            = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-    auto kernel_matmul = get_dnnl_kernel_registry().create_kernel(matmul_op);
-    auto kernel_relu = get_dnnl_kernel_registry().create_kernel(relu_op);
-    auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_op);
+    std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+            = std::make_shared<dnnl_impl::quantize_dequantize>();
+    std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+            = std::make_shared<dnnl_impl::quantize_dequantize>();
+    std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+            = std::make_shared<dnnl_impl::quantize_dequantize>();
+    std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+            = std::make_shared<dnnl_impl::quantize_dequantize>();
+    std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+            = std::make_shared<dnnl_impl::matmul_forward>();
+    std::shared_ptr<dnnl_impl::kernel_base> kernel_relu
+            = std::make_shared<dnnl_impl::eltwise_forward>();
+    std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+            = std::make_shared<dnnl_impl::quantize_dequantize>();
 
     // prepare logical tensor
     impl::logical_tensor_t src_f32
@@ -10089,21 +10576,26 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
         impl::op_t add_op(8, impl::op_kind::Add, "add_op");
 
         // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_op);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-        auto kernel_matmul
-                = get_dnnl_kernel_registry().create_kernel(matmul_op);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_op);
-        auto kernel_qother
-                = get_dnnl_kernel_registry().create_kernel(qother_op);
-        auto kernel_dqother
-                = get_dnnl_kernel_registry().create_kernel(dqother_op);
-        auto kernel_add = get_dnnl_kernel_registry().create_kernel(add_op);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                = std::make_shared<dnnl_impl::matmul_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_relu
+                = std::make_shared<dnnl_impl::eltwise_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_add
+                = std::make_shared<dnnl_impl::binary>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -10373,20 +10865,22 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_sum_ndx2d) {
         impl::op_t add_op(7, impl::op_kind::Add, "add_op");
 
         // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_op);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-        auto kernel_matmul
-                = get_dnnl_kernel_registry().create_kernel(matmul_op);
-        auto kernel_qother
-                = get_dnnl_kernel_registry().create_kernel(qother_op);
-        auto kernel_dqother
-                = get_dnnl_kernel_registry().create_kernel(dqother_op);
-        auto kernel_add = get_dnnl_kernel_registry().create_kernel(add_op);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                = std::make_shared<dnnl_impl::matmul_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_add
+                = std::make_shared<dnnl_impl::binary>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -10622,15 +11116,16 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_ndx2d) {
         matmul_op.set_attr<bool>("transpose_b", false);
 
         // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_op);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-        auto kernel_matmul
-                = get_dnnl_kernel_registry().create_kernel(matmul_op);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                = std::make_shared<dnnl_impl::matmul_forward>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -10821,15 +11316,16 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_ndx2d) {
         matmul_op.set_attr<bool>("transpose_b", false);
 
         // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_op);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-        auto kernel_matmul
-                = get_dnnl_kernel_registry().create_kernel(matmul_op);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                = std::make_shared<dnnl_impl::matmul_forward>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -11020,16 +11516,18 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_gelu_ndx2d) {
         impl::op_t gelu_op(5, impl::op_kind::GELU, "gelu_op");
 
         // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_op);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-        auto kernel_matmul
-                = get_dnnl_kernel_registry().create_kernel(matmul_op);
-        auto kernel_gelu = get_dnnl_kernel_registry().create_kernel(gelu_op);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                = std::make_shared<dnnl_impl::matmul_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_gelu
+                = std::make_shared<dnnl_impl::eltwise_forward>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -11891,7 +12389,7 @@ TEST(operator_compile, matmul_add_get_inplace_pair) {
     impl::logical_tensor_t lt_mm_weight
             = utils::logical_tensor_init(2, {4, 4}, impl::data_type::f32);
     impl::logical_tensor_t lt_mm_out = utils::logical_tensor_init(
-            3, {3, 3}, impl::data_type::f32, impl::layout_type::any);
+            3, {1, 16, 4, 4}, impl::data_type::f32, impl::layout_type::any);
     impl::logical_tensor_t lt_mm_src2 = utils::logical_tensor_init(
             4, {1, 16, 4, 4}, impl::data_type::f32);
     impl::logical_tensor_t lt_mm_weight2
@@ -11945,7 +12443,6 @@ TEST(operator_compile, matmul_add_get_inplace_pair) {
     p1.compile(&cp1, inputs1, outputs1, &eng);
 
     std::vector<impl::inplace_pair_t> inplace_pairs = cp1.get_inplace_pairs();
-
     ASSERT_EQ(inplace_pairs.size(), 1);
     ASSERT_EQ(inplace_pairs[0].input, lt_mm_out2.id);
     ASSERT_EQ(inplace_pairs[0].output, lt_add_out.id);
@@ -12439,21 +12936,24 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
         impl::op_t add_op(8, impl::op_kind::Add, "add_op");
 
         // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_op);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-        auto kernel_matmul
-                = get_dnnl_kernel_registry().create_kernel(matmul_op);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_op);
-        auto kernel_qother
-                = get_dnnl_kernel_registry().create_kernel(qother_op);
-        auto kernel_dqother
-                = get_dnnl_kernel_registry().create_kernel(dqother_op);
-        auto kernel_add = get_dnnl_kernel_registry().create_kernel(add_op);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                = std::make_shared<dnnl_impl::matmul_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_add
+                = std::make_shared<dnnl_impl::binary>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -12743,16 +13243,18 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_ndx2d_with_transpose) {
         qout_op.set_attr<int64_t>("axis", 0);
 
         // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_op);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-        auto kernel_matmul
-                = get_dnnl_kernel_registry().create_kernel(matmul_op);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_op);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                = std::make_shared<dnnl_impl::matmul_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -12996,17 +13498,20 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_relu_ndx2d) {
         qout_op.set_attr<int64_t>("axis", 0);
 
         // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_op);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_op);
-        auto kernel_matmul
-                = get_dnnl_kernel_registry().create_kernel(matmul_op);
-        auto kernel_relu = get_dnnl_kernel_registry().create_kernel(relu_op);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_op);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_matmul
+                = std::make_shared<dnnl_impl::matmul_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_relu
+                = std::make_shared<dnnl_impl::eltwise_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(

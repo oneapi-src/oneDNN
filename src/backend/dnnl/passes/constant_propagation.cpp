@@ -49,13 +49,14 @@ inline bool has_scratchpad(impl::op_kind_t kind) {
 // Because we don't know which logical tensors (may be partition's ins/outs
 // edges, or edges inside partition) will be set constant by FWK, so we have to
 // do constant propagation bidirectionally
-void constant_propagation(std::vector<op_ptr> &subgraph) {
+void constant_propagation(std::vector<op_ptr> &subgraph, bool with_scratchpad) {
     impl::graph_t tmp_graph(subgraph);
     bool changed;
     do {
         changed = false;
         impl::topo_order_visit(tmp_graph.get_output_ops(), [&](op_t *op) {
-            size_t scpad_num = has_scratchpad(op->get_kind()) ? 1 : 0;
+            size_t scpad_num
+                    = with_scratchpad && has_scratchpad(op->get_kind()) ? 1 : 0;
 
             bool all_inputs_are_constant = true;
             for (const auto &in : op->get_input_values()) {
