@@ -408,9 +408,14 @@ void prb_node_split(prb_t &p, int dim, size_t n1) {
     for (int d = p.ndims; d > dim + 1; --d)
         p.nodes[d] = p.nodes[d - 1];
 
+    const size_t size_of_upper_dim = p.nodes[dim].n / n1;
+    const size_t size_of_lower_dim = n1;
+    p.nodes[dim + 1].n = size_of_upper_dim;
+    p.nodes[dim].n = size_of_lower_dim;
+
     const bool is_tail = p.nodes[dim].tail_size > 0;
     const size_t tail_of_upper_dim
-            = utils::div_up(p.nodes[dim].tail_size, n1) == n1
+            = utils::div_up(p.nodes[dim].tail_size, n1) == size_of_upper_dim
             ? 0
             : utils::div_up(p.nodes[dim].tail_size, n1);
     const size_t tail_of_lower_dim = p.nodes[dim].tail_size % n1;
@@ -423,7 +428,6 @@ void prb_node_split(prb_t &p, int dim, size_t n1) {
             = p.nodes[dim].is_zero_pad_needed && p.nodes[dim].tail_size > 0;
 
     p.nodes[dim + 1].dim_id = p.nodes[dim].dim_id;
-    p.nodes[dim + 1].n = p.nodes[dim].n / n1;
     p.nodes[dim + 1].is = p.nodes[dim].is * n1;
     p.nodes[dim + 1].os = p.nodes[dim].os * n1;
     p.nodes[dim + 1].ss = p.nodes[dim].ss * n1;
