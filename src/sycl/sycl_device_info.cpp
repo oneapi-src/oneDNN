@@ -21,7 +21,7 @@
 #include "sycl/sycl_utils.hpp"
 
 #include "gpu/ocl/ocl_engine.hpp"
-#include "gpu/ocl/ocl_gpu_detect.hpp"
+#include "gpu/ocl/ocl_gpu_hw_info.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 #include "cpu/platform.hpp"
@@ -42,11 +42,6 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
     auto vendor_id = device.get_info<cl::sycl::info::device::vendor_id>();
     if (vendor_id != intel_vendor_id) return status::success;
 
-    // try to detect gpu by device name first
-    gpu_arch_ = gpu::ocl::detect_gpu_arch_by_device_name(name());
-    if (gpu_arch_ != gpu::compute::gpu_arch_t::unknown) return status::success;
-
-    // if failed, use slower method
     backend_t be = get_sycl_backend(device);
     if (be == backend_t::opencl) {
         cl_int err = CL_SUCCESS;
@@ -58,7 +53,8 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
                 clCreateContext(nullptr, 1, &ocl_dev, nullptr, nullptr, &err));
         OCL_CHECK(err);
 
-        gpu_arch_ = gpu::ocl::detect_gpu_arch(ocl_dev_wrapper, ocl_ctx_wrapper);
+        gpu::ocl::init_gpu_hw_info(
+                ocl_dev_wrapper, ocl_ctx_wrapper, gpu_arch_, stepping_id_);
     } else if (be == backend_t::level0) {
         // TODO: add support for L0 binary ngen check
         // XXX: query from ocl_engine for now
@@ -78,6 +74,11 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
         assert(!"not_expected");
     }
 
+    // XXX: temporary WA for different Xe_HP devices
+    if (gpu_arch_ == gpu::compute::gpu_arch_t::xe_hpg
+            && !device.has_extension(
+                    ext2cl_str(gpu::compute::device_ext_t::khr_fp64)))
+        gpu_arch_ = gpu::compute::gpu_arch_t::xe_hpg;
     return status::success;
 }
 
