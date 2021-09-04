@@ -444,7 +444,7 @@ public:
     virtual int64_t dispatch_type_id() const { return type_id(); }
 
     // Provides equality semantics.
-    virtual bool is_equal(const object_impl_t *obj) const = 0;
+    virtual bool is_equal(const object_impl_t &obj) const = 0;
 
     virtual size_t get_hash() const = 0;
 
@@ -580,7 +580,7 @@ public:
         if (is_empty() || other.is_empty())
             return is_empty() == other.is_empty();
 
-        return impl_->is_equal(other.impl());
+        return impl_->is_equal(*other.impl());
     }
 
     size_t get_hash() const {
@@ -796,9 +796,9 @@ public:
         return expr_t(new binary_op_t(op_kind, a, b));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return (op_kind == other.op_kind) && a.is_equal(other.a)
                 && b.is_equal(other.b);
@@ -828,9 +828,9 @@ public:
 
     static expr_t make(bool value) { return expr_t(new bool_imm_t(value)); }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return value == other.value;
     }
@@ -853,9 +853,9 @@ public:
         return expr_t(new cast_t(type, expr, saturate));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return (type == other.type) && expr.is_equal(other.expr)
                 && (saturate == other.saturate);
@@ -884,9 +884,9 @@ public:
 
     static expr_t make(float value) { return expr_t(new float_imm_t(value)); }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return value == other.value;
     }
@@ -910,9 +910,9 @@ public:
         return expr_t(new iif_t(cond, true_expr, false_expr));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return cond.is_equal(other.cond) && true_expr.is_equal(other.true_expr)
                 && false_expr.is_equal(other.false_expr);
@@ -945,9 +945,9 @@ public:
         return expr_t(new int_imm_t(value, type));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return value == other.value;
     }
@@ -1007,9 +1007,9 @@ public:
         return expr_t(new load_t(type, buf, off, stride));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return type.is_equal(other.type) && buf.is_equal(other.buf)
                 && off.is_equal(other.off) && (stride == other.stride);
@@ -1048,9 +1048,9 @@ public:
         return expr_t(new nary_op_t(op_kind, args));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return (op_kind == other.op_kind)
                 && ir_utils::is_equal(args, other.args);
@@ -1091,9 +1091,9 @@ public:
         return expr_t(new ptr_t(base, off));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return base.is_equal(other.base) && off.is_equal(other.off);
     }
@@ -1178,9 +1178,9 @@ public:
         return make(vec, idx);
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return ir_utils::is_equal(vec, other.vec)
                 && ir_utils::is_equal(idx, other.idx);
@@ -1236,9 +1236,9 @@ public:
         return expr_t(new ternary_op_t(op_kind, a, b, c));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return (op_kind == other.op_kind) && a.is_equal(other.a)
                 && b.is_equal(other.b) && c.is_equal(other.c);
@@ -1280,9 +1280,9 @@ public:
         return expr_t(new unary_op_t(op_kind, a));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return (op_kind == other.op_kind) && a.is_equal(other.a);
     }
@@ -1305,9 +1305,9 @@ public:
         return expr_t(new var_t(type, name));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
+    bool is_equal(const object_impl_t &obj) const override {
         // Do not allow variable cloning.
-        return this == obj;
+        return this == &obj;
     }
 
     size_t get_hash() const override { return ir_utils::get_hash(name); }
@@ -1491,9 +1491,9 @@ public:
         return alloc_attr_t(new grf_alloc_attr_t(bundle));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return bundle == other.bundle;
     }
@@ -1523,9 +1523,9 @@ public:
         return stmt_t(new alloc_t(buf, size, kind, attr, body));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return buf.is_equal(other.buf) && (size == other.size)
                 && (kind == other.kind) && attr.is_equal(other.attr)
@@ -1571,9 +1571,9 @@ public:
         return stmt_t(new store_t(buf, off, value, stride, mask));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return buf.is_equal(other.buf) && off.is_equal(other.off)
                 && value.is_equal(other.value) && (stride == other.stride)
@@ -1622,9 +1622,9 @@ public:
         return stmt_t(new for_t(var, init, bound, body, unroll));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return var.is_equal(other.var) && init.is_equal(other.init)
                 && bound.is_equal(other.bound) && body.is_equal(other.body)
@@ -1663,9 +1663,9 @@ public:
         return stmt_t(new if_t(cond, body, else_body));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return cond.is_equal(other.cond) && body.is_equal(other.body)
                 && else_body.is_equal(other.else_body);
@@ -1699,9 +1699,9 @@ public:
         return stmt_t(new let_t(var, value, body));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return var.is_equal(other.var) && value.is_equal(other.value)
                 && body.is_equal(other.body);
@@ -1822,9 +1822,9 @@ public:
         return stmt_t(new stmt_group_t(label, body));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return (label == other.label) && body.is_equal(other.body);
     }
@@ -1853,9 +1853,9 @@ public:
         return stmt_t(new stmt_seq_t(head, tail));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return head.is_equal(other.head) && tail.is_equal(other.tail);
     }
@@ -1914,9 +1914,9 @@ public:
         return func_call_attr_t(new instruction_modifier_attr_t(mod));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return mod == other.mod;
     }
@@ -1995,9 +1995,9 @@ public:
         return stmt_t(new func_call_t(func, args, attr));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return func.is_equal(other.func) && ir_utils::is_equal(args, other.args)
                 && attr.is_equal(other.attr);
@@ -2047,9 +2047,9 @@ public:
         return func_t(new builtin_t(name));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return name == other.name;
     }

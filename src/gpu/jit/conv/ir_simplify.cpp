@@ -39,9 +39,9 @@ public:
 
     static expr_t make(int id) { return expr_t(new pexpr_t(id)); }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return id == other.id;
     }
@@ -83,9 +83,9 @@ public:
         return true;
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return value == other.value;
     }
@@ -812,9 +812,9 @@ public:
         return expr_t(new factored_expr_t(type, factors));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         if (factors.size() != other.factors.size()) return false;
         if (!factors.back().is_equal(other.factors.back())) return false;
@@ -825,9 +825,9 @@ public:
     }
 
     // Constant factor is ignored during comparison.
-    bool is_equal_ignore_const(const object_impl_t *obj) const {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal_ignore_const(const object_impl_t &obj) const {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         if (factors.size() != other.factors.size()) return false;
 
@@ -1345,8 +1345,8 @@ public:
 
                 auto e_fij_common = fi.intersect_ignore_const(e_fj);
                 auto &fij_common = e_fij_common.as<factored_expr_t>();
-                if (fi.is_equal_ignore_const(&fij_common)
-                        && fj.is_equal_ignore_const(&fij_common)) {
+                if (fi.is_equal_ignore_const(fij_common)
+                        && fj.is_equal_ignore_const(fij_common)) {
                     auto new_args = fij_common.factors;
                     new_args.push_back(fi.const_factor() + fj.const_factor());
                     args[i] = make_nary_op(op_kind_t::_mul, new_args);

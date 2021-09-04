@@ -56,9 +56,9 @@ public:
                 eff_mask_count));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return (hw == other.hw) && (access_type == other.access_type)
                 && (type == other.type) && (data_type == other.data_type)

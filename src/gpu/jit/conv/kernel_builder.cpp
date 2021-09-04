@@ -328,7 +328,7 @@ private:
     //    dpas.sxr(b_dst, b_src0, src1, src2 + s * r * 4)
     static bool can_convert_to_dpasw(
             const dpas_info_t &a, const dpas_info_t &b) {
-        if (!a.dpas().is_equal(&b.dpas())) return false;
+        if (!a.dpas().is_equal(b.dpas())) return false;
         if (!a.src1_buf().is_equal(b.src1_buf())) return false;
 
         auto src2_off0 = to_cpp<int>(a.src2_buf().as<ptr_t>().off);
@@ -358,7 +358,7 @@ private:
         // Where:
         //   p_a_dst[:] = a_dst[0:rcount / 2] + b_dst[0:rcount / 2]
         //   p_b_dst[:] = a_dst[rcount / 2:rcount] + b_dst[rcount / 2:rcount]
-        ir_assert(a.dpas().is_equal(&b.dpas()));
+        ir_assert(a.dpas().is_equal(b.dpas()));
         auto _dpasw = dpas_t::make_dpasw(a.dpas());
         auto &dpasw = _dpasw.as<dpas_t>();
 

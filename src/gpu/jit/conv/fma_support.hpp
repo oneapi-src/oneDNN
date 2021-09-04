@@ -100,9 +100,9 @@ public:
                 dpas.dst_type, dpas.src1_type, dpas.src2_type));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return (is_dpasw == other.is_dpasw) && (sdepth == other.sdepth)
                 && (rcount == other.rcount) && (dst_type == other.dst_type)
@@ -184,9 +184,9 @@ public:
                 src2_type, src2_stride));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return (dst_type == other.dst_type) && (src1_type == other.src1_type)
                 && (src2_type == other.src2_type)

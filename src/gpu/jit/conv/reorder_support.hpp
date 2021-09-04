@@ -113,9 +113,9 @@ public:
         return func_t(new reorder_t(src_layout, dst_layout, grf_perm));
     }
 
-    bool is_equal(const object_impl_t *obj) const override {
-        if (!obj->is<self_type>()) return false;
-        auto &other = obj->as<self_type>();
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
 
         return (src_layout == other.src_layout)
                 && (dst_layout == other.dst_layout)
