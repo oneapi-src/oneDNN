@@ -42,124 +42,122 @@ public:
         out_ << obj.str();
     }
 
-    void _visit(const alloc_t *obj) override {
+    void _visit(const alloc_t &obj) override {
         print_indent();
-        out_ << "alloc " << obj->buf.as<var_t>().name << "[" << obj->size
+        out_ << "alloc " << obj.buf.as<var_t>().name << "[" << obj.size
              << "]\n";
-        visit(obj->body);
+        visit(obj.body);
     }
 
-    void _visit(const binary_op_t *obj) override {
-        if (utils::one_of(obj->op_kind, op_kind_t::_min, op_kind_t::_max)) {
-            out_ << to_string(obj->op_kind) << "(" << obj->a << ", " << obj->b
+    void _visit(const binary_op_t &obj) override {
+        if (utils::one_of(obj.op_kind, op_kind_t::_min, op_kind_t::_max)) {
+            out_ << to_string(obj.op_kind) << "(" << obj.a << ", " << obj.b
                  << ")";
             return;
         }
         out_ << "(";
-        visit(obj->a);
-        out_ << " " << to_string(obj->op_kind) << " ";
-        visit(obj->b);
+        visit(obj.a);
+        out_ << " " << to_string(obj.op_kind) << " ";
+        visit(obj.b);
         out_ << ")";
     }
 
-    void _visit(const bool_imm_t *obj) override {
-        out_ << (obj->value ? "true" : "false");
+    void _visit(const bool_imm_t &obj) override {
+        out_ << (obj.value ? "true" : "false");
     }
 
-    void _visit(const cast_t *obj) override {
-        out_ << obj->type;
-        if (obj->saturate) out_ << ".sat";
-        out_ << "(" << obj->expr << ")";
+    void _visit(const cast_t &obj) override {
+        out_ << obj.type;
+        if (obj.saturate) out_ << ".sat";
+        out_ << "(" << obj.expr << ")";
     }
 
-    void _visit(const float_imm_t *obj) override { out_ << obj->value; }
+    void _visit(const float_imm_t &obj) override { out_ << obj.value; }
 
-    void _visit(const for_t *obj) override {
+    void _visit(const for_t &obj) override {
         print_indent();
-        out_ << "for (" << obj->var << " = " << obj->init << "; " << obj->var
-             << " < " << obj->bound << "; " << obj->var << "++) ";
-        if (obj->unroll != 1) out_ << "[unroll: " << obj->unroll << "] ";
+        out_ << "for (" << obj.var << " = " << obj.init << "; " << obj.var
+             << " < " << obj.bound << "; " << obj.var << "++) ";
+        if (obj.unroll != 1) out_ << "[unroll: " << obj.unroll << "] ";
         out_ << "{\n";
         add_indent();
-        visit(obj->body);
+        visit(obj.body);
         remove_indent();
         print_indent();
         out_ << "}\n";
     }
 
-    void _visit(const func_call_t *obj) override {
+    void _visit(const func_call_t &obj) override {
         print_indent();
-        out_ << obj->func << "(" << make_seq_print_helper(obj->args) << ")";
-        if (!obj->attr.is_empty()) out_ << " " << obj->attr;
+        out_ << obj.func << "(" << make_seq_print_helper(obj.args) << ")";
+        if (!obj.attr.is_empty()) out_ << " " << obj.attr;
         out_ << "\n";
     }
 
-    void _visit(const func_impl_t *obj) override { out_ << obj->str(); }
+    void _visit(const func_impl_t &obj) override { out_ << obj.str(); }
 
-    void _visit(const if_t *obj) override {
+    void _visit(const if_t &obj) override {
         print_indent();
-        out_ << "if (" << strip_parens(obj->cond.str()) << ") {\n";
+        out_ << "if (" << strip_parens(obj.cond.str()) << ") {\n";
         add_indent();
-        visit(obj->body);
+        visit(obj.body);
         remove_indent();
         print_indent();
-        if (obj->else_body.is_empty()) {
+        if (obj.else_body.is_empty()) {
             out_ << "}\n";
             return;
         }
         out_ << "} else {\n";
         add_indent();
-        visit(obj->else_body);
+        visit(obj.else_body);
         remove_indent();
         print_indent();
         out_ << "}\n";
     }
 
-    void _visit(const iif_t *obj) override {
-        out_ << "(" << obj->cond << " ? " << obj->true_expr << " : "
-             << obj->false_expr << ")";
+    void _visit(const iif_t &obj) override {
+        out_ << "(" << obj.cond << " ? " << obj.true_expr << " : "
+             << obj.false_expr << ")";
     }
 
-    void _visit(const int_imm_t *obj) override {
-        out_ << std::to_string(obj->value);
+    void _visit(const int_imm_t &obj) override {
+        out_ << std::to_string(obj.value);
     }
 
-    void _visit(const let_t *obj) override {
+    void _visit(const let_t &obj) override {
         print_indent();
-        out_ << obj->var << "." << obj->var.type() << " = " << obj->value
-             << "\n";
-        visit(obj->body);
+        out_ << obj.var << "." << obj.var.type() << " = " << obj.value << "\n";
+        visit(obj.body);
     }
 
-    void _visit(const load_t *obj) override {
-        out_ << obj->buf;
-        if (obj->has_default_stride()) {
-            out_ << "." << obj->type << "(" << obj->off / obj->type.size()
-                 << ")";
+    void _visit(const load_t &obj) override {
+        out_ << obj.buf;
+        if (obj.has_default_stride()) {
+            out_ << "." << obj.type << "(" << obj.off / obj.type.size() << ")";
         } else {
-            out_ << "[" << obj->off << "]." << obj->type;
-            out_ << "<" << obj->stride << ">";
+            out_ << "[" << obj.off << "]." << obj.type;
+            out_ << "<" << obj.stride << ">";
         }
     }
 
-    void _visit(const ptr_t *obj) override {
-        out_ << obj->base << "[" << obj->off << "]";
+    void _visit(const ptr_t &obj) override {
+        out_ << obj.base << "[" << obj.off << "]";
     }
 
-    void _visit(const shuffle_t *obj) override {
-        if (obj->is_broadcast()) {
-            out_ << "bcast" << obj->elems() << "(" << obj->vec[0] << ")";
+    void _visit(const shuffle_t &obj) override {
+        if (obj.is_broadcast()) {
+            out_ << "bcast" << obj.elems() << "(" << obj.vec[0] << ")";
             return;
         }
         std::vector<expr_t> vec_all;
-        for (auto &v : obj->vec) {
+        for (auto &v : obj.vec) {
             for (int i = 0; i < v.type().elems(); i++)
                 vec_all.push_back(v);
         }
-        int elems = obj->type.elems();
+        int elems = obj.type.elems();
         out_ << "(";
         for (int i = 0; i < elems; i++) {
-            int idx = obj->idx[i];
+            int idx = obj.idx[i];
             auto &v = vec_all[idx];
             int v_elems = v.type().elems();
             out_ << v;
@@ -169,43 +167,42 @@ public:
         out_ << ")";
     }
 
-    void _visit(const stmt_group_t *obj) override {
+    void _visit(const stmt_group_t &obj) override {
         print_indent();
-        out_ << obj->label << " {\n";
+        out_ << obj.label << " {\n";
         add_indent();
-        visit(obj->body);
+        visit(obj.body);
         remove_indent();
         print_indent();
         out_ << "}\n";
         return;
     }
 
-    void _visit(const stmt_seq_t *obj) override {
-        visit(obj->head);
-        visit(obj->tail);
+    void _visit(const stmt_seq_t &obj) override {
+        visit(obj.head);
+        visit(obj.tail);
     }
 
-    void _visit(const store_t *obj) override {
+    void _visit(const store_t &obj) override {
         print_indent();
-        out_ << load_t::make(
-                obj->value.type(), obj->buf, obj->off, obj->stride);
-        out_ << " = " << obj->value;
-        if (!obj->mask.is_empty()) out_ << " [masked]";
+        out_ << load_t::make(obj.value.type(), obj.buf, obj.off, obj.stride);
+        out_ << " = " << obj.value;
+        if (!obj.mask.is_empty()) out_ << " [masked]";
         out_ << "\n";
     }
 
-    void _visit(const ternary_op_t *obj) override {
-        out_ << to_string(obj->op_kind) << "(" << obj->a << ", " << obj->b
-             << ", " << obj->c << ")";
+    void _visit(const ternary_op_t &obj) override {
+        out_ << to_string(obj.op_kind) << "(" << obj.a << ", " << obj.b << ", "
+             << obj.c << ")";
         return;
     }
 
-    void _visit(const unary_op_t *obj) override {
-        out_ << to_string(obj->op_kind);
-        visit(obj->a);
+    void _visit(const unary_op_t &obj) override {
+        out_ << to_string(obj.op_kind);
+        visit(obj.a);
     }
 
-    void _visit(const var_t *obj) override { out_ << obj->name; }
+    void _visit(const var_t &obj) override { out_ << obj.name; }
 
 private:
     static std::string strip_parens(const std::string &s) {
@@ -264,11 +261,11 @@ private:
 class stmt_flattener_t : public ir_visitor_t {
 public:
 #define HANDLE_IR_OBJECT(type) \
-    void _visit(const type *obj) { \
+    void _visit(const type &obj) { \
         size_t old_size = stmts.size(); \
         ir_visitor_t::_visit(obj); \
         if (stmts.size() > old_size) return; \
-        if (obj->is_stmt()) stmts.push_back(obj); \
+        if (obj.is_stmt()) stmts.push_back(obj); \
     }
 
     HANDLE_ALL_IR_OBJECTS()

@@ -592,13 +592,13 @@ public:
         return ir_visitor_t::find_dispatch_func(ti);
     }
 
-    virtual void _visit(const nary_op_t *obj) { visit(obj->args); }
+    virtual void _visit(const nary_op_t &obj) { visit(obj.args); }
 
 private:
     template <typename T>
-    static void call(ir_visitor_t *visitor, const object_impl_t *obj) {
+    static void call(ir_visitor_t *visitor, const object_impl_t &obj) {
         auto *this_visitor = (nary_op_visitor_t *)visitor;
-        this_visitor->_visit((const nary_op_t *)obj);
+        this_visitor->_visit((const nary_op_t &)obj);
     }
 };
 
@@ -708,13 +708,13 @@ class nary_op_canonical_verifier_t : public nary_op_visitor_t {
 public:
     bool is_canonical() const { return is_canonical_; }
 
-    void _visit(const binary_op_t *obj) override {
+    void _visit(const binary_op_t &obj) override {
         // Skip vector types.
-        if (!obj->type.is_scalar()) {
+        if (!obj.type.is_scalar()) {
             visit_new_scope(obj);
             return;
         }
-        switch (obj->op_kind) {
+        switch (obj.op_kind) {
             // These operations must be converted to nary_op_t at this point.
             case op_kind_t::_add:
             case op_kind_t::_sub:
@@ -728,16 +728,16 @@ public:
         }
     }
 
-    void _visit(const iif_t *obj) override { visit_new_scope(obj); }
+    void _visit(const iif_t &obj) override { visit_new_scope(obj); }
 
-    void _visit(const load_t *obj) override { visit_new_scope(obj); }
+    void _visit(const load_t &obj) override { visit_new_scope(obj); }
 
-    void _visit(const ptr_t *obj) override { visit_new_scope(obj); }
+    void _visit(const ptr_t &obj) override { visit_new_scope(obj); }
 
-    void _visit(const nary_op_t *obj) override {
+    void _visit(const nary_op_t &obj) override {
         if (parent_nary_) {
             if (!(parent_nary_->op_kind == op_kind_t::_add
-                        && obj->op_kind == op_kind_t::_mul)) {
+                        && obj.op_kind == op_kind_t::_mul)) {
                 // Multiplications must be expanded at this point.
                 set_canonical_false();
                 return;
@@ -745,8 +745,8 @@ public:
         }
 
         auto *old_parent_nary = parent_nary_;
-        parent_nary_ = obj;
-        visit(obj->args);
+        parent_nary_ = &obj;
+        visit(obj.args);
         parent_nary_ = old_parent_nary;
     }
 
@@ -754,7 +754,7 @@ private:
     void set_canonical_false() { is_canonical_ = false; }
 
     template <typename T>
-    void visit_new_scope(const T *obj) {
+    void visit_new_scope(const T &obj) {
         auto *old_parent_nary = parent_nary_;
         parent_nary_ = nullptr;
         nary_op_visitor_t::_visit(obj);

@@ -516,7 +516,7 @@ void trace_pass(const char *pass_name, const stmt_t &stmt) {
 
 class external_var_visitor_t : public scope_visitor_t {
 public:
-    void _visit(const var_t *obj) {
+    void _visit(const var_t &obj) {
         if (!is_expr_defined(obj)) external_vars.insert(obj);
     }
 
@@ -854,15 +854,15 @@ class cse_visitor_t : public ir_visitor_t {
 public:
     cse_visitor_t(cse_context_t &ctx) : ctx_(ctx) {}
 
-    void _visit(const binary_op_t *obj) override { visit_expr(obj); }
-    void _visit(const shuffle_t *obj) override {
+    void _visit(const binary_op_t &obj) override { visit_expr(obj); }
+    void _visit(const shuffle_t &obj) override {
         if (is_const_broadcast(obj)) return;
         visit_expr(obj);
     }
-    void _visit(const unary_op_t *obj) override { visit_expr(obj); }
+    void _visit(const unary_op_t &obj) override { visit_expr(obj); }
 
 #define HANDLE_IR_OBJECT(type) \
-    void _visit(const type *obj) override { visit_stmt(obj); }
+    void _visit(const type &obj) override { visit_stmt(obj); }
 
     HANDLE_STMT_IR_OBJECTS()
 
@@ -870,7 +870,7 @@ public:
 
 private:
     template <typename T>
-    void visit_expr(const T *obj) {
+    void visit_expr(const T &obj) {
         // Exclude loads as they may have side effects.
         if (count_objects<load_t>(obj) > 0) {
             ir_visitor_t::_visit(obj);
@@ -895,38 +895,38 @@ private:
     }
 
     template <typename T>
-    void visit_stmt(const T *obj) {
+    void visit_stmt(const T &obj) {
         if (std::is_same<T, for_t>::value) {
-            visit_for((const object_impl_t *)obj);
+            visit_for((const object_impl_t &)obj);
             return;
         }
         if (std::is_same<T, let_t>::value) {
-            visit_let((const object_impl_t *)obj);
+            visit_let((const object_impl_t &)obj);
             return;
         }
-        root_path_.push(obj);
+        root_path_.push(&obj);
         ir_visitor_t::_visit(obj);
         root_path_.pop();
     }
 
-    void visit_for(const object_impl_t *_obj) {
-        auto *obj = (const for_t *)_obj;
+    void visit_for(const object_impl_t &_obj) {
+        auto &obj = (const for_t &)_obj;
 
-        visit(obj->var);
-        visit(obj->init);
-        visit(obj->bound);
-        root_path_.push(obj);
-        visit(obj->body);
+        visit(obj.var);
+        visit(obj.init);
+        visit(obj.bound);
+        root_path_.push(&obj);
+        visit(obj.body);
         root_path_.pop();
     }
 
-    void visit_let(const object_impl_t *_obj) {
-        auto *obj = (const let_t *)_obj;
+    void visit_let(const object_impl_t &_obj) {
+        auto &obj = (const let_t &)_obj;
 
-        visit(obj->var);
-        visit(obj->value);
-        root_path_.push(obj);
-        visit(obj->body);
+        visit(obj.var);
+        visit(obj.value);
+        root_path_.push(&obj);
+        visit(obj.body);
         root_path_.pop();
     }
 
@@ -943,12 +943,12 @@ public:
 
     ~cse_verifier_t() override { ir_assert(to_check_.empty()); }
 
-    void _visit(const binary_op_t *obj) override { visit_expr(obj); }
-    void _visit(const shuffle_t *obj) override { return visit_expr(obj); }
-    void _visit(const unary_op_t *obj) override { visit_expr(obj); }
+    void _visit(const binary_op_t &obj) override { visit_expr(obj); }
+    void _visit(const shuffle_t &obj) override { return visit_expr(obj); }
+    void _visit(const unary_op_t &obj) override { visit_expr(obj); }
 
 #define HANDLE_IR_OBJECT(type) \
-    void _visit(const type *obj) override { visit_stmt(obj); }
+    void _visit(const type &obj) override { visit_stmt(obj); }
 
     HANDLE_STMT_IR_OBJECTS()
 
@@ -966,7 +966,7 @@ public:
 
 private:
     template <typename T>
-    void visit_expr(const T *obj) {
+    void visit_expr(const T &obj) {
         // Expressions are not used during phase 1.
         if (phase_ == 1) return;
         if (ctx_.has(obj)) {
@@ -977,7 +977,7 @@ private:
     }
 
     template <typename T>
-    void visit_stmt(const T *obj) {
+    void visit_stmt(const T &obj) {
         scope_visitor_t::_visit(obj);
 
         // Statements are not used during phase 0.
@@ -1008,10 +1008,10 @@ public:
     cse_let_generator_t(const cse_context_t &ctx, const stmt_t &stmt)
         : ctx_(ctx), stmt_(stmt) {}
 
-    void _visit(const binary_op_t *obj) override { visit_expr(obj); }
-    void _visit(const shuffle_t *obj) override { visit_expr(obj); }
-    void _visit(const unary_op_t *obj) override { visit_expr(obj); }
-    void _visit(const var_t *obj) override {
+    void _visit(const binary_op_t &obj) override { visit_expr(obj); }
+    void _visit(const shuffle_t &obj) override { visit_expr(obj); }
+    void _visit(const unary_op_t &obj) override { visit_expr(obj); }
+    void _visit(const var_t &obj) override {
         auto it = all_vars_.find(obj);
         if (it == all_vars_.end()) return;
         if (seen_vars_.count(obj) == 0) generate_for_expr(it->second);
@@ -1040,7 +1040,7 @@ private:
     }
 
     template <typename T>
-    void visit_expr(const T *obj) {
+    void visit_expr(const T &obj) {
         ir_visitor_t::_visit(obj);
         if (ctx_.has(obj) && ctx_.has_var(obj)) {
             auto &var = ctx_.get_var(obj);
@@ -1834,14 +1834,14 @@ public:
     }
 
 #define HANDLE_IR_OBJECT(type) \
-    void _visit(const type *obj) override { visit_stmt(obj); }
+    void _visit(const type &obj) override { visit_stmt(obj); }
 
     HANDLE_STMT_IR_OBJECTS()
 
 #undef HANDLE_IR_OBJECT
 
     template <typename T>
-    void visit_stmt(const T *obj) {
+    void visit_stmt(const T &obj) {
         auto obj_type_id = T::_type_id();
         bool is_for = (obj_type_id == for_t::_type_id());
         bool is_stmt_group = (obj_type_id == stmt_group_t::_type_id());
@@ -1858,7 +1858,7 @@ public:
             if (is_for || is_let || is_stmt_group || is_stmt_seq) {
                 ok = true;
             } else if (obj_type_id == func_call_t::_type_id()) {
-                auto &call = obj->template as<func_call_t>();
+                auto &call = obj.template as<func_call_t>();
                 ok = call.func.is_equal(funcs::barrier_func());
             }
 
@@ -1871,7 +1871,7 @@ public:
 
         bool is_compute_loop = false;
         if (is_stmt_group) {
-            auto label = obj->template as<stmt_group_t>().label;
+            auto label = obj.template as<stmt_group_t>().label;
             stmt_groups_.push_back(obj);
             if (utils::one_of(label, stmt_label_t::g2s_load(),
                         stmt_label_t::g2s_store(), stmt_label_t::g2r_load(),

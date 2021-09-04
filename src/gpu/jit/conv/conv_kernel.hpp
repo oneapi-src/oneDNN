@@ -1260,14 +1260,14 @@ public:
         return ret;
     }
 
-    void _visit(const binary_op_t *obj) override {
+    void _visit(const binary_op_t &obj) override {
         auto dst_op = alloc_dst_op(obj);
         auto mod = dst_op.mod();
 
-        switch (obj->op_kind) {
+        switch (obj.op_kind) {
             case op_kind_t::_and: {
-                eval(obj->a, dst_op);
-                eval(obj->b,
+                eval(obj.a, dst_op);
+                eval(obj.b,
                         ngen_operand_t(
                                 dst_op, mod | dst_op.flag_register_mod()));
                 break;
@@ -1275,10 +1275,10 @@ public:
             default: {
                 // Some cases require pre-allocated register regions with
                 // special strides for a/b.
-                auto a_out_op = maybe_alloc_strided_op(obj->type, obj->a);
-                auto b_out_op = maybe_alloc_strided_op(obj->type, obj->b);
-                auto src0_op = eval(obj->a, a_out_op);
-                auto src1_op = eval(obj->b, b_out_op);
+                auto a_out_op = maybe_alloc_strided_op(obj.type, obj.a);
+                auto b_out_op = maybe_alloc_strided_op(obj.type, obj.b);
+                auto src0_op = eval(obj.a, a_out_op);
+                auto src1_op = eval(obj.b, b_out_op);
                 ebinary(obj, mod, dst_op, src0_op, src1_op);
                 break;
             }
@@ -1287,7 +1287,7 @@ public:
         bind(obj, dst_op);
     }
 
-    void _visit(const bool_imm_t *obj) override {
+    void _visit(const bool_imm_t &obj) override {
         // Scalar booleans must never be directly lowered:
         // - Booleans are mapped to flag registers
         // - Flag register stores vector of boolean vectors
@@ -1297,24 +1297,24 @@ public:
         ir_error_not_expected();
     }
 
-    void _visit(const cast_t *obj) override {
-        auto &from_type = obj->expr.type();
-        auto &to_type = obj->type;
+    void _visit(const cast_t &obj) override {
+        auto &from_type = obj.expr.type();
+        auto &to_type = obj.type;
 
         ir_assert(from_type != to_type) << "Equal types are not expected.";
 
-        if (is_const(obj->expr)) {
-            bind(obj, to_ngen(obj->expr, to_type));
+        if (is_const(obj.expr)) {
+            bind(obj, to_ngen(obj.expr, to_type));
             return;
         }
 
         auto dst_op = alloc_dst_op(obj);
 
         // Handle ptr -> u64 and u64 -> ptr casts.
-        if (utils::one_of(obj->type, type_t::u64(), type_t::byte_ptr())
+        if (utils::one_of(obj.type, type_t::u64(), type_t::byte_ptr())
                 && utils::one_of(
-                        obj->expr.type(), type_t::u64(), type_t::byte_ptr())) {
-            eval(obj->expr, dst_op);
+                        obj.expr.type(), type_t::u64(), type_t::byte_ptr())) {
+            eval(obj.expr, dst_op);
             bind(obj, dst_op);
             return;
         }
@@ -1325,32 +1325,32 @@ public:
                 && from_type.is_int() && to_type.is_int()
                 && from_type.size() >= to_type.size());
         if (is_int_convert) {
-            eval(obj->expr, dst_op.reinterpret(hw, from_type));
+            eval(obj.expr, dst_op.reinterpret(hw, from_type));
             bind(obj, dst_op);
             return;
         }
 
-        auto expr_op = eval(obj->expr);
+        auto expr_op = eval(obj.expr);
         auto mod = dst_op.mod();
-        if (obj->saturate) mod |= host_->sat;
+        if (obj.saturate) mod |= host_->sat;
         host_->emov(mod, dst_op, expr_op);
         bind(obj, dst_op);
     }
 
-    void _visit(const float_imm_t *obj) override { bind(obj, to_ngen(obj)); }
+    void _visit(const float_imm_t &obj) override { bind(obj, to_ngen(obj)); }
 
-    void _visit(const int_imm_t *obj) override { bind(obj, to_ngen(obj)); }
+    void _visit(const int_imm_t &obj) override { bind(obj, to_ngen(obj)); }
 
-    void _visit(const load_t *obj) override {
-        auto &type = obj->type;
-        auto buf_op = eval(obj->buf);
-        auto off_op = eval(obj->off);
+    void _visit(const load_t &obj) override {
+        auto &type = obj.type;
+        auto buf_op = eval(obj.buf);
+        auto off_op = eval(obj.off);
         int stride;
-        if (obj->has_default_stride()) {
+        if (obj.has_default_stride()) {
             stride = 1;
         } else {
-            ir_assert(obj->stride % type.scalar().size() == 0);
-            stride = obj->stride / type.scalar().size();
+            ir_assert(obj.stride % type.scalar().size() == 0);
+            stride = obj.stride / type.scalar().size();
         }
         auto load_reg_data = ngen_reg_data(hw, buf_op.reg_data(),
                 to_cpp<int>(off_op.immediate()), to_ngen(type.scalar()),
@@ -1358,17 +1358,17 @@ public:
         bind(obj, load_reg_data);
     }
 
-    void _visit(const ptr_t *obj) override {
-        auto base_op = eval(obj->base);
+    void _visit(const ptr_t &obj) override {
+        auto base_op = eval(obj.base);
 
-        if (is_zero(obj->off)) {
+        if (is_zero(obj.off)) {
             bind(obj, base_op);
             return;
         }
 
         ir_assert(base_op.is_reg_data());
 
-        int off = to_cpp<int>(obj->off);
+        int off = to_cpp<int>(obj.off);
         int base = base_op.reg_data().getBase();
         int grf_size = ngen::GRF::bytes(hw);
         auto grf = ngen::GRF(base + off / grf_size).retype(ngen::DataType::ub);
@@ -1378,9 +1378,9 @@ public:
             bind(obj, grf[off % grf_size]);
     }
 
-    void _visit(const shuffle_t *obj) override {
-        int elems = obj->elems();
-        if (obj->type.is_bool() && is_shuffle_const(obj)) {
+    void _visit(const shuffle_t &obj) override {
+        int elems = obj.elems();
+        if (obj.type.is_bool() && is_shuffle_const(obj)) {
             auto dst_op = alloc_dst_op(obj);
             auto e_shuffle = expr_t(obj);
             ir_assert(dst_op.is_flag_register()) << e_shuffle;
@@ -1401,13 +1401,13 @@ public:
             return;
         }
 
-        if (obj->is_broadcast()) {
-            if (obj->type.is_bool()) {
+        if (obj.is_broadcast()) {
+            if (obj.type.is_bool()) {
                 auto dst_op = alloc_dst_op(obj);
-                eval(obj->vec[0], dst_op);
+                eval(obj.vec[0], dst_op);
                 bind(obj, dst_op);
             } else {
-                auto scalar_op = eval(obj->vec[0]);
+                auto scalar_op = eval(obj.vec[0]);
                 bind(obj, scalar_op);
             }
             return;
@@ -1416,7 +1416,7 @@ public:
         // tuples: <offset, length, idx>
         std::vector<std::tuple<int, int, int>> chunks;
         for (int i = 0; i < elems; i++) {
-            int idx = obj->idx[i];
+            int idx = obj.idx[i];
             if (chunks.empty() || std::get<2>(chunks.back()) != idx) {
                 chunks.emplace_back(i, 1, idx);
             } else {
@@ -1433,7 +1433,7 @@ public:
             while (length > 0) {
                 int exec_size = (1 << math::ilog2q(length));
                 auto chunk_op = dst_op.sub_reg_data(hw, off, exec_size);
-                eval(obj->vec[idx], ngen_operand_t(chunk_op, exec_size));
+                eval(obj.vec[idx], ngen_operand_t(chunk_op, exec_size));
                 length -= exec_size;
                 off += exec_size;
             }
@@ -1441,16 +1441,16 @@ public:
         bind(obj, dst_op);
     }
 
-    void _visit(const ternary_op_t *obj) override {
-        switch (obj->op_kind) {
+    void _visit(const ternary_op_t &obj) override {
+        switch (obj.op_kind) {
             case op_kind_t::_add3:
             case op_kind_t::_mad: {
                 auto dst_op = alloc_dst_op(obj);
                 auto mod = dst_op.mod();
-                auto src0_op = eval(obj->a);
-                auto src1_op = eval(obj->b);
-                auto src2_op = eval(obj->c);
-                if (obj->op_kind == op_kind_t::_add3) {
+                auto src0_op = eval(obj.a);
+                auto src1_op = eval(obj.b);
+                auto src2_op = eval(obj.c);
+                if (obj.op_kind == op_kind_t::_add3) {
                     host_->eadd3(mod, dst_op, src0_op, src1_op, src2_op);
                 } else {
                     host_->emad(mod, dst_op, src0_op, src1_op, src2_op);
@@ -1462,13 +1462,13 @@ public:
         }
     }
 
-    void _visit(const unary_op_t *obj) override {
-        ir_assert(obj->op_kind == op_kind_t::_minus);
-        auto a_op = eval(obj->a);
+    void _visit(const unary_op_t &obj) override {
+        ir_assert(obj.op_kind == op_kind_t::_minus);
+        auto a_op = eval(obj.a);
         bind(obj, -a_op);
     }
 
-    void _visit(const var_t *obj) override {
+    void _visit(const var_t &obj) override {
         ir_assert(expr_binding_.is_bound(obj))
                 << "Variable is not defined: " << expr_t(obj);
     }
@@ -1535,10 +1535,10 @@ private:
         expr_binding_.bind(e, dst_op);
     }
 
-    void ebinary(const binary_op_t *obj, const ngen::InstructionModifier &mod,
+    void ebinary(const binary_op_t &obj, const ngen::InstructionModifier &mod,
             const ngen_operand_t &dst, const ngen_operand_t &src0,
             const ngen_operand_t &src1) {
-        switch (obj->op_kind) {
+        switch (obj.op_kind) {
             case op_kind_t::_add: host_->eadd(mod, dst, src0, src1); break;
             case op_kind_t::_sub: host_->eadd(mod, dst, src0, -src1); break;
             case op_kind_t::_mul: host_->emul(mod, dst, src0, src1); break;
@@ -1556,14 +1556,14 @@ private:
             case op_kind_t::_ne: {
                 ir_assert(!dst.is_negated()) << "Destination can't be negated.";
                 ngen::InstructionModifier cmp_mod = mod;
-                cmp_mod |= cmp_op_to_ngen(obj->op_kind);
+                cmp_mod |= cmp_op_to_ngen(obj.op_kind);
                 cmp_mod |= dst.flag_register();
                 host_->ecmp(cmp_mod, src0, src1);
                 break;
             }
             default:
                 ir_error_not_expected()
-                        << "Unknown kind: " << to_string(obj->op_kind);
+                        << "Unknown kind: " << to_string(obj.op_kind);
         }
     }
 
@@ -2675,59 +2675,59 @@ public:
         , expr_binding_(expr_binding)
         , simd_size_(host->cfg_.simd_size) {}
 
-    void _visit(const alloc_t *obj) override {
+    void _visit(const alloc_t &obj) override {
         auto scope = register_scope();
-        bool do_alloc = (obj->kind == alloc_kind_t::grf);
+        bool do_alloc = (obj.kind == alloc_kind_t::grf);
         if (do_alloc) {
             int grf_size = ngen::GRF::bytes(hw);
-            int regs = utils::div_up(obj->size, grf_size);
+            int regs = utils::div_up(obj.size, grf_size);
             ngen::Bundle bundle;
-            auto *grf_attr = obj->attr.as_ptr<grf_alloc_attr_t>();
+            auto *grf_attr = obj.attr.as_ptr<grf_alloc_attr_t>();
             if (grf_attr) bundle = to_ngen(grf_attr->bundle);
             auto reg_range = scope.alloc_range(regs, bundle);
-            expr_binding_.bind(obj->buf, reg_range[0]);
+            expr_binding_.bind(obj.buf, reg_range[0]);
         }
-        visit(obj->body);
-        if (do_alloc) expr_binding_.unbind(obj->buf);
+        visit(obj.body);
+        if (do_alloc) expr_binding_.unbind(obj.buf);
     }
 
-    void _visit(const for_t *obj) override {
+    void _visit(const for_t &obj) override {
         auto scope = register_scope();
-        auto var_op = scope.alloc_sub(to_ngen(obj->var.type()));
-        auto init_op = eval(obj->init, scope);
-        auto bound_op = eval(obj->bound, scope);
+        auto var_op = scope.alloc_sub(to_ngen(obj.var.type()));
+        auto init_op = eval(obj.init, scope);
+        auto bound_op = eval(obj.bound, scope);
         ngen::Label loop_label;
         host_->emov(1, var_op, init_op);
-        expr_binding_.bind(obj->var, var_op);
+        expr_binding_.bind(obj.var, var_op);
         host_->mark(loop_label);
-        visit(obj->body);
+        visit(obj.body);
         host_->eadd(1, var_op, var_op, ngen::Immediate(1));
         host_->ecmp(1 | host_->lt | host_->f0[0], var_op, bound_op);
         host_->jmpi(1 | host_->f0[0], loop_label);
-        expr_binding_.unbind(obj->var);
+        expr_binding_.unbind(obj.var);
     }
 
-    void _visit(const func_call_t *obj) override {
+    void _visit(const func_call_t &obj) override {
         auto scope = register_scope();
-        auto &func = obj->func;
+        auto &func = obj.func;
         if (func.is<dpas_t>()) {
-            auto arg_ops = eval(obj->args, scope);
-            dpas(func.as<dpas_t>(), arg_ops, obj->attr);
+            auto arg_ops = eval(obj.args, scope);
+            dpas(func.as<dpas_t>(), arg_ops, obj.attr);
         } else if (func.is<mad_t>()) {
-            auto arg_ops = eval(obj->args, scope);
-            mad(scope, func.as<mad_t>(), arg_ops, obj->attr);
+            auto arg_ops = eval(obj.args, scope);
+            mad(scope, func.as<mad_t>(), arg_ops, obj.attr);
         } else if (func.is<reduce_t>()) {
-            auto arg_ops = eval(obj->args, scope);
-            ir_assert(obj->attr.is_empty()) << "Unexpected attribute.";
+            auto arg_ops = eval(obj.args, scope);
+            ir_assert(obj.attr.is_empty()) << "Unexpected attribute.";
             reduce(scope, func.as<reduce_t>(), arg_ops);
         } else if (func.is<reorder_t>()) {
-            auto arg_ops = eval(obj->args, scope);
-            ir_assert(obj->attr.is_empty()) << "Unexpected attribute.";
+            auto arg_ops = eval(obj.args, scope);
+            ir_assert(obj.attr.is_empty()) << "Unexpected attribute.";
             reorder(scope, func.as<reorder_t>(), reorder_t::arg_src_buf(obj),
                     arg_ops);
         } else if (func.is<send_t>()) {
             auto &send_func = func.as<send_t>();
-            auto args = obj->args;
+            auto args = obj.args;
             auto &mem_buf = send_t::arg_mem_buf(args);
             auto &mask = send_t::arg_mask(args);
             // If all channels are disabled for writing, quick return.
@@ -2742,84 +2742,84 @@ public:
             // If all channels are enabled, do not use mask.
             if (all_of(mask, expr_t(true))) mask = expr_t();
             auto arg_ops = eval(args, scope);
-            send(scope, func.as<send_t>(), mem_buf, arg_ops, obj->attr);
+            send(scope, func.as<send_t>(), mem_buf, arg_ops, obj.attr);
         } else if (func.is<eltwise_t>()) {
             auto &eltwise_func = func.as<eltwise_t>();
-            auto arg_ops = eval(obj->args, scope);
+            auto arg_ops = eval(obj.args, scope);
             eltwise(scope, eltwise_func, arg_ops);
         } else if (func.is_equal(funcs::barrier_func())) {
-            barrier(obj->attr);
+            barrier(obj.attr);
         } else if (func.is_equal(funcs::barrier_wait_func())) {
             barrier_wait();
         } else if (func.is_equal(funcs::signal_func())) {
-            signal(obj->attr);
+            signal(obj.attr);
         } else if (func.is_equal(funcs::slm_fence_func())) {
-            slm_fence(obj->attr);
+            slm_fence(obj.attr);
         } else {
             ir_error_not_expected() << object_t(obj);
         }
     }
 
-    void _visit(const if_t *obj) override {
-        ir_assert(obj->cond.is<shuffle_t>());
-        ir_assert(obj->cond.as<shuffle_t>().elems() == simd_size_);
+    void _visit(const if_t &obj) override {
+        ir_assert(obj.cond.is<shuffle_t>());
+        ir_assert(obj.cond.as<shuffle_t>().elems() == simd_size_);
 
-        bool has_else = !obj->else_body.is_empty();
+        bool has_else = !obj.else_body.is_empty();
         auto scope = register_scope();
-        auto cond_op = eval(obj->cond, scope);
+        auto cond_op = eval(obj.cond, scope);
 
         ngen::Label l_else;
         ngen::Label l_endif;
         host_->if_(simd_size_ | cond_op.flag_register(),
                 has_else ? l_else : l_endif, l_endif);
-        visit(obj->body);
+        visit(obj.body);
         if (has_else) {
             host_->else_(simd_size_, l_endif, l_endif);
             host_->mark(l_else);
-            visit(obj->else_body);
+            visit(obj.else_body);
         }
         host_->mark(l_endif);
         host_->endif(simd_size_);
     }
 
-    void _visit(const let_t *obj) override {
-        if (obj->value.is_empty()) {
+    void _visit(const let_t &obj) override {
+        if (obj.value.is_empty()) {
             // External variable, must be already bound.
-            ir_assert(expr_binding_.is_bound(obj->var))
-                    << "Variable is not defined: " << obj->var;
-            visit(obj->body);
+            ir_assert(expr_binding_.is_bound(obj.var))
+                    << "Variable is not defined: " << obj.var;
+            visit(obj.body);
             return;
         }
 
         auto scope = register_scope();
-        if (is_const(obj->value) || is_shuffle_const(obj->value)
-                || obj->var.type() != obj->value.type()) {
-            auto &var_type = obj->var.type();
+        if (is_const(obj.value) || is_shuffle_const(obj.value)
+                || obj.var.type() != obj.value.type()) {
+            auto &var_type = obj.var.type();
             auto var_op = scope.alloc_reg_data(var_type);
-            eval(obj->value, scope, ngen_operand_t(var_op, var_type.elems()));
-            expr_binding_.bind(obj->var, var_op);
+            eval(obj.value, scope, ngen_operand_t(var_op, var_type.elems()));
+            expr_binding_.bind(obj.var, var_op);
         } else {
-            auto value_op = eval(obj->value, scope);
-            expr_binding_.bind(obj->var, value_op);
+            auto value_op = eval(obj.value, scope);
+            expr_binding_.bind(obj.var, value_op);
         }
-        visit(obj->body);
-        expr_binding_.unbind(obj->var);
+        visit(obj.body);
+        expr_binding_.unbind(obj.var);
     }
 
-    void _visit(const store_t *obj) override {
+    void _visit(const store_t &obj) override {
         auto scope = register_scope();
-        auto buf_op = eval(obj->buf, scope);
-        auto off = to_cpp<int>(obj->off);
-        auto mask_op = eval(obj->mask, scope);
+        auto buf_op = eval(obj.buf, scope);
+        auto off = to_cpp<int>(obj.off);
+        auto mask_op = eval(obj.mask, scope);
 
-        auto &type = obj->value.type();
+        auto &type = obj.value.type();
 
         int stride;
-        if (obj->has_default_stride()) {
+        if (obj.has_default_stride()) {
             stride = 1;
         } else {
-            ir_assert(obj->stride % type.scalar().size() == 0);
-            stride = obj->stride / type.scalar().size();
+            ir_assert(obj.stride % type.scalar().size() == 0);
+            stride = obj.stride / type.scalar().size();
         }
 
         ngen::InstructionModifier mod = type.elems();
@@ -2827,7 +2827,7 @@ public:
         auto dst_rd = ngen_reg_data(hw, buf_op.reg_data(), off,
                 to_ngen(type.scalar()), type.elems(), stride);
         ngen_operand_t dst(dst_rd, mod);
-        eval(obj->value, scope, dst);
+        eval(obj.value, scope, dst);
     }
 
 private:

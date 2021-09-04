@@ -32,7 +32,7 @@ namespace jit {
 // Helper class to walk through IR tree.
 class ir_visitor_t {
 public:
-    using dispatch_func_type = void (*)(ir_visitor_t *, const object_impl_t *);
+    using dispatch_func_type = void (*)(ir_visitor_t *, const object_impl_t &);
 
     virtual ~ir_visitor_t() = default;
 
@@ -44,16 +44,17 @@ public:
             visit(e);
     }
 
-    virtual void pre_visit(const object_impl_t *obj) {}
-    virtual void post_visit(const object_impl_t *obj) {}
+    virtual void pre_visit(const object_impl_t &obj) {}
+    virtual void post_visit(const object_impl_t &obj) {}
 
     // To catch missing _visit() handlers in ir_visitor_t.
-    virtual void _visit(const object_impl_t *obj) {
+    virtual void _visit(const object_impl_t *obj) = delete;
+    virtual void _visit(const object_impl_t &obj) {
         ir_error_not_expected() << "Can't handle type: " << object_t(obj);
     }
 
 #define DECL_VISIT_LEAF(name) \
-    virtual void _visit(const name *obj) {}
+    virtual void _visit(const name &obj) {}
 
     DECL_VISIT_LEAF(bool_imm_t)
     DECL_VISIT_LEAF(float_imm_t)
@@ -63,81 +64,81 @@ public:
 
 #undef DECL_VISIT_LEAF
 
-    virtual void _visit(const alloc_t *obj) {
-        visit(obj->buf);
-        visit(obj->body);
+    virtual void _visit(const alloc_t &obj) {
+        visit(obj.buf);
+        visit(obj.body);
     }
 
-    virtual void _visit(const binary_op_t *obj) {
-        visit(obj->a);
-        visit(obj->b);
+    virtual void _visit(const binary_op_t &obj) {
+        visit(obj.a);
+        visit(obj.b);
     }
 
-    virtual void _visit(const cast_t *obj) { visit(obj->expr); }
+    virtual void _visit(const cast_t &obj) { visit(obj.expr); }
 
-    virtual void _visit(const for_t *obj) {
-        visit(obj->var);
-        visit(obj->init);
-        visit(obj->bound);
-        visit(obj->body);
+    virtual void _visit(const for_t &obj) {
+        visit(obj.var);
+        visit(obj.init);
+        visit(obj.bound);
+        visit(obj.body);
     }
 
-    virtual void _visit(const func_call_t *obj) {
-        visit(obj->func);
-        visit(obj->args);
+    virtual void _visit(const func_call_t &obj) {
+        visit(obj.func);
+        visit(obj.args);
     }
 
-    virtual void _visit(const if_t *obj) {
-        visit(obj->cond);
-        visit(obj->body);
-        visit(obj->else_body);
+    virtual void _visit(const if_t &obj) {
+        visit(obj.cond);
+        visit(obj.body);
+        visit(obj.else_body);
     }
 
-    virtual void _visit(const iif_t *obj) {
-        visit(obj->cond);
-        visit(obj->true_expr);
-        visit(obj->false_expr);
+    virtual void _visit(const iif_t &obj) {
+        visit(obj.cond);
+        visit(obj.true_expr);
+        visit(obj.false_expr);
     }
 
-    virtual void _visit(const let_t *obj) {
-        visit(obj->var);
-        visit(obj->value);
-        visit(obj->body);
+    virtual void _visit(const let_t &obj) {
+        visit(obj.var);
+        visit(obj.value);
+        visit(obj.body);
     }
 
-    virtual void _visit(const load_t *obj) {
-        visit(obj->buf);
-        visit(obj->off);
+    virtual void _visit(const load_t &obj) {
+        visit(obj.buf);
+        visit(obj.off);
     }
 
-    virtual void _visit(const ptr_t *obj) {
-        visit(obj->base);
-        visit(obj->off);
+    virtual void _visit(const ptr_t &obj) {
+        visit(obj.base);
+        visit(obj.off);
     }
 
-    virtual void _visit(const shuffle_t *obj) { visit(obj->vec); }
+    virtual void _visit(const shuffle_t &obj) { visit(obj.vec); }
 
-    virtual void _visit(const stmt_group_t *obj) { visit(obj->body); }
+    virtual void _visit(const stmt_group_t &obj) { visit(obj.body); }
 
-    virtual void _visit(const stmt_seq_t *obj) {
-        visit(obj->head);
-        visit(obj->tail);
+    virtual void _visit(const stmt_seq_t &obj) {
+        visit(obj.head);
+        visit(obj.tail);
     }
 
-    virtual void _visit(const store_t *obj) {
-        visit(obj->buf);
-        visit(obj->off);
-        visit(obj->value);
-        visit(obj->mask);
+    virtual void _visit(const store_t &obj) {
+        visit(obj.buf);
+        visit(obj.off);
+        visit(obj.value);
+        visit(obj.mask);
     }
 
-    virtual void _visit(const ternary_op_t *obj) {
-        visit(obj->a);
-        visit(obj->b);
-        visit(obj->c);
+    virtual void _visit(const ternary_op_t &obj) {
+        visit(obj.a);
+        visit(obj.b);
+        visit(obj.c);
     }
 
-    virtual void _visit(const unary_op_t *obj) { visit(obj->a); }
+    virtual void _visit(const unary_op_t &obj) { visit(obj.a); }
 
     bool is_supported(const object_t &obj) const {
         if (obj.is_empty()) return true;
@@ -171,9 +172,9 @@ private:
     }
 
     template <typename T>
-    static void call(ir_visitor_t *visitor, const object_impl_t *obj) {
+    static void call(ir_visitor_t *visitor, const object_impl_t &obj) {
         visitor->pre_visit(obj);
-        visitor->_visit((const T *)obj);
+        visitor->_visit((const T &)obj);
         visitor->post_visit(obj);
     }
 
@@ -185,7 +186,7 @@ private:
         if (!f) {
             ir_error_not_expected() << "Can't handle type: " << object_t(obj);
         }
-        f(this, obj);
+        f(this, *obj);
     }
 };
 
@@ -646,7 +647,7 @@ std::vector<stmt_t> flatten_statements(const stmt_t &root);
 template <typename T, bool find_unique = false, bool save_objects = true>
 class object_finder_t : public ir_visitor_t {
 public:
-    void _visit(const T *obj) override {
+    void _visit(const T &obj) override {
         ir_visitor_t::_visit(obj);
         occurrences++;
         if (!save_objects) return;
@@ -721,19 +722,18 @@ public:
     }
 
 #define CASE(type, var_field, is_pre) \
-    if (obj->type_id() == type::_type_id()) { \
-        visit_scope( \
-                (const type *)obj, ((const type *)obj)->var_field, is_pre); \
+    if (obj.type_id() == type::_type_id()) { \
+        visit_scope((const type &)obj, ((const type &)obj).var_field, is_pre); \
         return; \
     }
 
-    void pre_visit(const object_impl_t *obj) override {
+    void pre_visit(const object_impl_t &obj) override {
         CASE(alloc_t, buf, true);
         CASE(let_t, var, true);
         CASE(for_t, var, true);
     }
 
-    void post_visit(const object_impl_t *obj) override {
+    void post_visit(const object_impl_t &obj) override {
         CASE(alloc_t, buf, false);
         CASE(let_t, var, false);
         CASE(for_t, var, false);
@@ -743,7 +743,7 @@ public:
 
 private:
     template <typename T>
-    void visit_scope(const T *obj, const expr_t &var, bool is_pre_visit) {
+    void visit_scope(const T &obj, const expr_t &var, bool is_pre_visit) {
         if (is_pre_visit) {
             def_vars_.insert(var);
             return;
