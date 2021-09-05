@@ -199,7 +199,8 @@ public:
                     break;
                 }
             }
-            if (!(layout_id > 0 && layout_id < dnnl_format_tag_last)) {
+            if (!(layout_id > 0 && layout_id < dnnl_format_tag_last)
+                    || (md.data.extra.flags != dnnl_memory_extra_flag_none)) {
                 size_t layout_id
                         = layout_id_manager::set_mem_desc(mem_desc).value();
                 return layout_id + LAST_TAG;

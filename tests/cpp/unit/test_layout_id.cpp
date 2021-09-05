@@ -53,6 +53,15 @@ TEST(layout_id_test, opaque_md_layout_id_mapping) {
     memory::desc md3({1, 2, 3, 4}, data_type::s8, format_tag::nChw16c);
     auto id3 = mgr.set_mem_desc(md3);
     ASSERT_EQ(id3.value(), static_cast<size_t>(format_tag::nChw16c));
+
+    md3.data.extra.flags
+            = dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
+    auto id3_asym = mgr.set_mem_desc(md3);
+    auto recovered_md3_asym = mgr.get_mem_desc(id3_asym.value());
+    ASSERT_TRUE(recovered_md3_asym.has_value());
+    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<tensor::desc>(
+                      recovered_md3_asym.value()),
+            md3);
 #else
     ASSERT_GT(id2.value(), id1.value());
 
