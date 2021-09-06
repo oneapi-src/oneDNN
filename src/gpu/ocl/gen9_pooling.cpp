@@ -106,6 +106,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     if (!conf.is_backward) {
         conf.dispatch.define_dim("OD", nstl::max(2, ndims - 3), conf.od);
         conf.dispatch.define_dim("OH", nstl::max(2, ndims - 2), conf.oh);
+        conf.dispatch.define_dim("OW", nstl::max(2, ndims - 1), conf.ow);
     } else {
         conf.dispatch.define_dim("ID", nstl::max(2, ndims - 3), conf.id);
         conf.dispatch.define_dim("IH", nstl::max(2, ndims - 2), conf.ih);

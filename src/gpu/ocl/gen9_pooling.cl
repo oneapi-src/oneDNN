@@ -45,6 +45,7 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
     const int c = GWS_GET_C();
     const int od = GWS_GET_OD();
     const int oh = GWS_GET_OH();
+    const int ow = GWS_GET_OW();
 
     // Calculate number of subgroup chunks inside C block
     // and stride between consecutive MB/C blocks
@@ -67,170 +68,164 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
     if (mb >= SRC_D0) {
         VECT_DATA_T dst_zero = DATA_ZERO;
         VECT_INT_T ws_zero = 0;
-        for (int ow = 0; ow < OW; ++ow) {
-            int off = DST_OFF(mb, c, od, oh, ow);
-            write_vect_c_block(0, &dst[off], c, dst_stride,
-                    dst_chunks_per_c_block, dst_zero);
-            write_vect_c_block(1, &dst[off], c, dst_stride,
-                    dst_chunks_per_c_block, dst_zero);
+        int off = DST_OFF(mb, c, od, oh, ow);
+        write_vect_c_block(
+                0, &dst[off], c, dst_stride, dst_chunks_per_c_block, dst_zero);
+        write_vect_c_block(
+                1, &dst[off], c, dst_stride, dst_chunks_per_c_block, dst_zero);
 #if ALG_MAX && IS_TRAINING
-            write_vect_c_block_int(
-                    0, &ws[off], c, ws_stride, ws_chunks_per_c_block, ws_zero);
-            write_vect_c_block_int(
-                    1, &ws[off], c, ws_stride, ws_chunks_per_c_block, ws_zero);
+        write_vect_c_block_int(
+                0, &ws[off], c, ws_stride, ws_chunks_per_c_block, ws_zero);
+        write_vect_c_block_int(
+                1, &ws[off], c, ws_stride, ws_chunks_per_c_block, ws_zero);
 #endif // ALG_MAX && IS_TRAINING
-        }
 
         return;
     }
 
-    for (int ow = 0; ow < OW; ++ow) {
-        const int id = od * SD - PD;
-        const int ih = oh * SH - PH;
-        const int iw = ow * SW - PW;
+    const int id = od * SD - PD;
+    const int ih = oh * SH - PH;
+    const int iw = ow * SW - PW;
 #if USE_FLOATS
-        VECT_FLOAT_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
-        VECT_FLOAT_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+    VECT_FLOAT_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+    VECT_FLOAT_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
 #else // USE_FLOATS
-        VECT_DATA_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
-        VECT_DATA_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+    VECT_DATA_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+    VECT_DATA_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
 #endif // USE_FLOATS
-        VECT_INT_T WS0 = 0, WS1 = 0;
+    VECT_INT_T WS0 = 0, WS1 = 0;
 
-        for (int kd = 0; kd < KD; ++kd)
-            for (int kh = 0; kh < KH; ++kh) {
-                for (int kw = 0; kw < KW; ++kw) {
-                    if (id + kd < 0 || id + kd >= ID) continue;
-                    if (ih + kh < 0 || ih + kh >= IH) continue;
-                    if (iw + kw < 0 || iw + kw >= IW) continue;
+    for (int kd = 0; kd < KD; ++kd)
+        for (int kh = 0; kh < KH; ++kh) {
+            for (int kw = 0; kw < KW; ++kw) {
+                if (id + kd < 0 || id + kd >= ID) continue;
+                if (ih + kh < 0 || ih + kh >= IH) continue;
+                if (iw + kw < 0 || iw + kw >= IW) continue;
 
-                    int src_off = SRC_OFF(mb, c, id + kd, ih + kh, iw + kw);
+                int src_off = SRC_OFF(mb, c, id + kd, ih + kh, iw + kw);
 #if USE_FLOATS
-                    VECT_FLOAT_T S0 = CONVERT_VECT_FLOAT_T(
-                            read_vect_c_block(0, &src[src_off], c, src_stride,
-                                    src_chunks_per_c_block));
-                    VECT_FLOAT_T S1 = CONVERT_VECT_FLOAT_T(
-                            read_vect_c_block(1, &src[src_off], c, src_stride,
-                                    src_chunks_per_c_block));
+                VECT_FLOAT_T S0 = CONVERT_VECT_FLOAT_T(read_vect_c_block(0,
+                        &src[src_off], c, src_stride, src_chunks_per_c_block));
+                VECT_FLOAT_T S1 = CONVERT_VECT_FLOAT_T(read_vect_c_block(1,
+                        &src[src_off], c, src_stride, src_chunks_per_c_block));
 #else // USE_FLOATS
-                    VECT_DATA_T S0 = read_vect_c_block(0, &src[src_off], c,
-                            src_stride, src_chunks_per_c_block);
-                    VECT_DATA_T S1 = read_vect_c_block(1, &src[src_off], c,
-                            src_stride, src_chunks_per_c_block);
+                VECT_DATA_T S0 = read_vect_c_block(0, &src[src_off], c,
+                        src_stride, src_chunks_per_c_block);
+                VECT_DATA_T S1 = read_vect_c_block(1, &src[src_off], c,
+                        src_stride, src_chunks_per_c_block);
 #endif // USE_FLOATS
 
 #if ALG_MAX
 #if IS_TRAINING
-                    VECT_INT_T CMP0 = isless(D0, S0);
-                    WS0 = select(WS0, kd * KH * KW + kh * KW + kw, CMP0);
-                    D0 = select(D0, S0, CMP0);
+                VECT_INT_T CMP0 = isless(D0, S0);
+                WS0 = select(WS0, kd * KH * KW + kh * KW + kw, CMP0);
+                D0 = select(D0, S0, CMP0);
 
-                    VECT_INT_T CMP1 = isless(D1, S1);
-                    WS1 = select(WS1, kd * KH * KW + kh * KW + kw, CMP1);
-                    D1 = select(D1, S1, CMP1);
+                VECT_INT_T CMP1 = isless(D1, S1);
+                WS1 = select(WS1, kd * KH * KW + kh * KW + kw, CMP1);
+                D1 = select(D1, S1, CMP1);
 
 #else // TRAINING
-                    D0 = max(D0, S0);
-                    D1 = max(D1, S1);
+                D0 = max(D0, S0);
+                D1 = max(D1, S1);
 #endif // TRAINING
 #else // ALG_MAX
-                    D0 += S0;
-                    D1 += S1;
+                D0 += S0;
+                D1 += S1;
 #endif // ALG_MAX
-                }
             }
+        }
 
 #if ALG_AVG_P
-        D0 = D0 / (KD * KH * KW);
-        D1 = D1 / (KD * KH * KW);
+    D0 = D0 / (KD * KH * KW);
+    D1 = D1 / (KD * KH * KW);
 
 #endif // ALG_AVG_P
 
 #if ALG_AVG_NP
-        const int id_start = max(od * SD - PD, 0);
-        const int ih_start = max(oh * SH - PH, 0);
-        const int iw_start = max(ow * SW - PW, 0);
-        const int id_end = min(od * SD - PD + KD, ID);
-        const int ih_end = min(oh * SH - PH + KH, IH);
-        const int iw_end = min(ow * SW - PW + KW, IW);
-        const DATA_T num_summands = (ih_end - ih_start) * (iw_end - iw_start)
-                * (id_end - id_start);
-        D0 = D0 / num_summands;
-        D1 = D1 / num_summands;
+    const int id_start = max(od * SD - PD, 0);
+    const int ih_start = max(oh * SH - PH, 0);
+    const int iw_start = max(ow * SW - PW, 0);
+    const int id_end = min(od * SD - PD + KD, ID);
+    const int ih_end = min(oh * SH - PH + KH, IH);
+    const int iw_end = min(ow * SW - PW + KW, IW);
+    const DATA_T num_summands
+            = (ih_end - ih_start) * (iw_end - iw_start) * (id_end - id_start);
+    D0 = D0 / num_summands;
+    D1 = D1 / num_summands;
 #endif // ALG_AVG_NP
 
-        int dst_off = DST_OFF(mb, c, od, oh, ow);
-        VECT_DATA_T sum0;
-        VECT_DATA_T sum1;
+    int dst_off = DST_OFF(mb, c, od, oh, ow);
+    VECT_DATA_T sum0;
+    VECT_DATA_T sum1;
 #if WITH_SUM
-        sum0 = read_vect_c_block(
-                0, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block);
-        sum1 = read_vect_c_block(
-                1, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block);
+    sum0 = read_vect_c_block(
+            0, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block);
+    sum1 = read_vect_c_block(
+            1, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block);
 #endif
 
-        const int local_id = get_sub_group_local_id();
+    const int local_id = get_sub_group_local_id();
 
 #if VECT_DT_N == 1
-        const int po_mb = mb;
-        const int po_oc = c + local_id;
-        POST_OP_DATA_T po_sum0 = DATA_TO_REF(sum0);
-        float po_D0 = USE_FLOATS ? D0 : CONVERT_FLOAT_T(D0);
-        APPLY_POST_OPS_SERIAL_BINARY_2D(
-                po_D0, float, po_sum0, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-        D0 = USE_FLOATS ? po_D0 : CONVERT_DATA_T(po_D0);
+    const int po_mb = mb;
+    const int po_oc = c + local_id;
+    POST_OP_DATA_T po_sum0 = DATA_TO_REF(sum0);
+    float po_D0 = USE_FLOATS ? D0 : CONVERT_FLOAT_T(D0);
+    APPLY_POST_OPS_SERIAL_BINARY_2D(
+            po_D0, float, po_sum0, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+    D0 = USE_FLOATS ? po_D0 : CONVERT_DATA_T(po_D0);
 
-        POST_OP_DATA_T po_sum1 = DATA_TO_REF(sum1);
-        float po_D1 = USE_FLOATS ? D1 : CONVERT_FLOAT_T(D1);
-        APPLY_POST_OPS_SERIAL_BINARY_2D(
-                po_D1, float, po_sum1, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-        D1 = USE_FLOATS ? po_D1 : CONVERT_DATA_T(po_D1);
+    POST_OP_DATA_T po_sum1 = DATA_TO_REF(sum1);
+    float po_D1 = USE_FLOATS ? D1 : CONVERT_FLOAT_T(D1);
+    APPLY_POST_OPS_SERIAL_BINARY_2D(
+            po_D1, float, po_sum1, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+    D1 = USE_FLOATS ? po_D1 : CONVERT_DATA_T(po_D1);
 #else
-        for (int idx = 0; idx < VECT_DT_N; ++idx) {
+    for (int idx = 0; idx < VECT_DT_N; ++idx) {
 #if USE_MB_C_BLOCK
-            int c_sub_block_id = idx % CHUNKS_PER_C_BLOCK;
-            int mb_sub_block_id = idx / CHUNKS_PER_C_BLOCK;
-            const int po_oc = c + c_sub_block_id * SUB_GROUP_SIZE + local_id;
-            int po_mb = (mb + mb_sub_block_id) % MB;
+        int c_sub_block_id = idx % CHUNKS_PER_C_BLOCK;
+        int mb_sub_block_id = idx / CHUNKS_PER_C_BLOCK;
+        const int po_oc = c + c_sub_block_id * SUB_GROUP_SIZE + local_id;
+        int po_mb = (mb + mb_sub_block_id) % MB;
 #else // USE_MB_C_BLOCK
-            const int po_oc = c + idx * SUB_GROUP_SIZE + local_id;
-            int po_mb = mb;
+        const int po_oc = c + idx * SUB_GROUP_SIZE + local_id;
+        int po_mb = mb;
 #endif // USE_MB_C_BLOCK
 
-            float d0_i = USE_FLOATS ? D0[idx] : CONVERT_FLOAT_T(D0[idx]);
-            POST_OP_DATA_T sum0_i = DATA_TO_REF(sum0[idx]);
-            APPLY_POST_OPS_SERIAL_BINARY_2D(
-                    d0_i, float, sum0_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-            D0[idx] = USE_FLOATS ? d0_i : CONVERT_DATA_T(d0_i);
+        float d0_i = USE_FLOATS ? D0[idx] : CONVERT_FLOAT_T(D0[idx]);
+        POST_OP_DATA_T sum0_i = DATA_TO_REF(sum0[idx]);
+        APPLY_POST_OPS_SERIAL_BINARY_2D(
+                d0_i, float, sum0_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+        D0[idx] = USE_FLOATS ? d0_i : CONVERT_DATA_T(d0_i);
 
-            float d1_i = USE_FLOATS ? D1[idx] : CONVERT_FLOAT_T(D1[idx]);
-            POST_OP_DATA_T sum1_i = DATA_TO_REF(sum1[idx]);
-            po_mb += VECT_DT_N;
-            APPLY_POST_OPS_SERIAL_BINARY_2D(
-                    d1_i, float, sum1_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-            D1[idx] = USE_FLOATS ? d1_i : CONVERT_DATA_T(d1_i);
-        }
+        float d1_i = USE_FLOATS ? D1[idx] : CONVERT_FLOAT_T(D1[idx]);
+        POST_OP_DATA_T sum1_i = DATA_TO_REF(sum1[idx]);
+        po_mb += VECT_DT_N;
+        APPLY_POST_OPS_SERIAL_BINARY_2D(
+                d1_i, float, sum1_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+        D1[idx] = USE_FLOATS ? d1_i : CONVERT_DATA_T(d1_i);
+    }
 #endif // #if VECT_DT_N == 1
 #if USE_FLOATS
-        VECT_DATA_T res0 = CONVERT_VECTOR_DATA_T(D0);
-        VECT_DATA_T res1 = CONVERT_VECTOR_DATA_T(D1);
+    VECT_DATA_T res0 = CONVERT_VECTOR_DATA_T(D0);
+    VECT_DATA_T res1 = CONVERT_VECTOR_DATA_T(D1);
 #else
-        VECT_DATA_T res0 = D0;
-        VECT_DATA_T res1 = D1;
+    VECT_DATA_T res0 = D0;
+    VECT_DATA_T res1 = D1;
 #endif
-        write_vect_c_block(
-                0, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block, res0);
-        write_vect_c_block(
-                1, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block, res1);
+    write_vect_c_block(
+            0, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block, res0);
+    write_vect_c_block(
+            1, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block, res1);
 
 #if ALG_MAX && IS_TRAINING
-        int ws_off = dst_off;
-        write_vect_c_block_int(
-                0, &ws[ws_off], c, ws_stride, ws_chunks_per_c_block, WS0);
-        write_vect_c_block_int(
-                1, &ws[ws_off], c, ws_stride, ws_chunks_per_c_block, WS1);
+    int ws_off = dst_off;
+    write_vect_c_block_int(
+            0, &ws[ws_off], c, ws_stride, ws_chunks_per_c_block, WS0);
+    write_vect_c_block_int(
+            1, &ws[ws_off], c, ws_stride, ws_chunks_per_c_block, WS1);
 #endif // ALG_MAX && IS_TRAINING
-    }
 }
 #endif
 
