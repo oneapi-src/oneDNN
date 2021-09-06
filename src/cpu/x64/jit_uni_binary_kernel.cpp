@@ -219,9 +219,7 @@ void jit_uni_binary_kernel_t<isa>::perform_op(
             alg_kind::binary_gt, alg_kind::binary_le, alg_kind::binary_lt,
             alg_kind::binary_eq, alg_kind::binary_ne);
     if (conf_.do_scale_src0) uni_vmulps(v0, v0, s_src0);
-    if (conf_.do_scale_src1
-            && (conf_.is_i8
-                    || (offt_src1_ != 0 && !conf_.broadcast_src1_value)))
+    if (conf_.do_scale_src1 && offt_src1_ != 0 && !conf_.broadcast_src1_value)
         uni_vmulps(v1, v1, s_src1);
 
     if (alg == binary_add)
@@ -436,10 +434,10 @@ void jit_uni_binary_kernel_t<isa>::forward() {
             = !conf_.is_i8 && is_tail_kernel_ && tail_size_;
 
     if (conf_.do_scale_src0)
-        uni_vbroadcastss(vreg_scales_src0_, dword[reg_scales_src0_]);
+        uni_vbroadcastss(vreg_scales_src0_, ptr[reg_scales_src0_]);
     if (conf_.do_scale_src1) {
-        uni_vbroadcastss(vreg_scales_src1_, dword[reg_scales_src1_]);
-        if (!conf_.is_i8 && (conf_.broadcast_src1_value || offt_src1_ == 0))
+        uni_vbroadcastss(vreg_scales_src1_, ptr[reg_scales_src1_]);
+        if (conf_.broadcast_src1_value || offt_src1_ == 0)
             uni_vmulps(vreg_bcast_src1_, vreg_bcast_src1_, vreg_scales_src1_);
     }
 
