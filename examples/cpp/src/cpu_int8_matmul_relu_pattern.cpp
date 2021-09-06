@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
     logical_tensor matmul_input1_desc {id_mgr["matmul_input1_desc"], data_type::f32, layout_type::strided};
     op dequant_in1 {id_mgr["dequant_in1"], op::kind::Dequantize, {dequant_in1_desc}, {matmul_input1_desc}, "dequant_in1"};
     dequant_in1.set_attr<std::vector<float>>("scales", {0.1f, 0.1f, 0.1f});
-    dequant_in1.set_attr<std::vector<int64_t>>("zps", {10, 10, 10});
+    dequant_in1.set_attr<std::vector<int64_t>>("zps", {0, 0, 0});
     dequant_in1.set_attr<std::string>("qtype", "per_channel");
     dequant_in1.set_attr<int64_t>("axis", 1);
 

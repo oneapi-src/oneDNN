@@ -748,7 +748,7 @@ void fuse_zero_points(
             // only fuse conv/matmul's src and weight zps
             if (!has_int8_support(next_op.get_kind())) continue;
 
-            if (offset == 0) {
+            if (offset == 0 || offset == 1) {
                 int64_t key = -1;
                 if (next_op.has_attr("primitive_attr_key")) {
                     key = next_op.get_attr<int64_t>("primitive_attr_key");
@@ -759,15 +759,28 @@ void fuse_zero_points(
 
                 dnnl::primitive_attr &prm_attr = prm_attr_mgr.get_attr(key);
 
-                int64_t axis = zp_op->get_attr<int64_t>("axis");
                 auto zps = zp_op->get_attr<std::vector<int64_t>>("zps");
+                bool not_all_zero
+                        = std::find_if(zps.begin(), zps.end(),
+                                  [](const int64_t &zp) { return zp != 0; })
+                        != zps.end();
+                if (not_all_zero) {
+                    assertm(zps.size() == 1,
+                            "zp attr only support scalar zp, need to use "
+                            "runtime arg to support vector zp");
 
-                int mask = zps.size() == 1 ? 0 : 1 << axis;
+                    int64_t axis = zp_op->get_attr<int64_t>("axis");
+                    int mask = zps.size() == 1 ? 0 : 1 << axis;
 
-                std::vector<int32_t> neg_int32_zps = dnnl_impl::utils::fmap(zps,
-                        [](int64_t zp) { return static_cast<int32_t>(-zp); });
+                    std::vector<int32_t> neg_int32_zps
+                            = dnnl_impl::utils::fmap(zps, [](int64_t zp) {
+                                  return static_cast<int32_t>(-zp);
+                              });
 
-                prm_attr.set_zero_points(DNNL_ARG_SRC, mask, neg_int32_zps);
+                    prm_attr.set_zero_points(
+                            offset == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS, mask,
+                            neg_int32_zps);
+                }
             }
 
             fuse_op_to_successor(zp_op, subgraph);

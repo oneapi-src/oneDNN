@@ -12189,12 +12189,14 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
     if (engine.kind() == impl::engine_kind::gpu) return;
 
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
+    std::vector<std::string> weight_qtypes = {"symmetric", "asymmetric"};
     std::vector<std::vector<int64_t>> src_shapes {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
             {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
     for_(const auto &qtype : qtypes)
+    for_(const auto &wei_qtype : weight_qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
     for (size_t j = 0; j < weight_shapes.size(); ++j) {
         // prepare fp32 data
@@ -12223,13 +12225,22 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_other = 1 / 127.f;
         float scale_out = 1;
-        int64_t zp_src = 0;
+        int64_t zp_src = 90; // src is asymmetric
         int64_t zp_other = 0;
         int64_t zp_out = 78;
 
+        auto generate_zps = [&]() {
+            // backend integration doesn't support per_channel asym quant now.
+            if (qtype == "per_channel" || wei_qtype == "symmetric")
+                return 0;
+            else {
+                return 78;
+            }
+        };
+
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
-        std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
+        std::vector<int64_t> zp_wei(scales_wei_sizes, generate_zps());
 
         // -------------------------case 1----------------------------------
         impl::op_t qdata_op(0, impl::op_kind::Quantize, "qdata_op");

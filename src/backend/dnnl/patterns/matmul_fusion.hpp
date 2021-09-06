@@ -343,6 +343,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *quant = apattern->create_op(impl::op_kind::Quantize);
@@ -367,6 +369,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_matmul_fusion)
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
@@ -390,6 +394,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 3);
                     op_t *quant = apattern->create_op(impl::op_kind::Quantize);
@@ -403,6 +409,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
@@ -430,6 +438,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 3);
@@ -446,6 +456,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
@@ -471,6 +483,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_relu_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
@@ -498,6 +512,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
@@ -523,6 +539,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_relu_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 3);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
@@ -538,6 +556,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_relu_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
@@ -567,6 +587,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
@@ -585,6 +607,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     op_t *relu = apattern->create_op(impl::op_kind::ReLU);
@@ -612,6 +636,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_sigmoid_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
@@ -639,6 +665,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
@@ -664,6 +692,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_sigmoid_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 3);
                     op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
@@ -679,6 +709,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_sigmoid_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
@@ -708,6 +740,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
@@ -726,6 +760,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
@@ -753,6 +789,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_gelu_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *gelu = apattern->create_op(impl::op_kind::GELU);
@@ -780,6 +818,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
@@ -805,6 +845,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_gelu_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 3);
                     op_t *gelu = apattern->create_op(impl::op_kind::GELU);
@@ -820,6 +862,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_gelu_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
@@ -849,6 +893,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 3);
@@ -867,6 +913,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
@@ -1446,6 +1494,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_add_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *dequant_other
                             = apattern->create_op(impl::op_kind::Dequantize);
 
@@ -1477,6 +1527,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(impl::op_kind::Dequantize);
@@ -1506,6 +1558,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_add_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *dequant_other
                             = apattern->create_op(impl::op_kind::Dequantize);
 
@@ -1525,6 +1579,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_add_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *dequant_other
                             = apattern->create_op(impl::op_kind::Dequantize);
 
@@ -1558,6 +1614,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(impl::op_kind::Dequantize);
@@ -1579,6 +1637,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(impl::op_kind::Quantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(impl::op_kind::Dequantize);
