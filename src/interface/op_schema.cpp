@@ -25,7 +25,8 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 
-op_schema::op_schema() : version_(0) {}
+op_schema::op_schema() : op_kind_(op_kind::LastSymbol), version_(0) {}
+
 op_schema::op_schema(op_kind_t kind, opset_version version)
     : op_kind_(kind), version_(version) {}
 
