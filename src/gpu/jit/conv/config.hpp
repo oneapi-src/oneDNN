@@ -571,6 +571,9 @@ public:
 
         init_bwd_w_spatial_blocks();
 
+        mb_unroll = mb_tg_blk / mb_blk;
+        ow_unroll = mb < 16 && is_dpas_fma() ? ow_tg_blk / ow_thr_blk : 1;
+
         m_tg_blk = ic_tg_blk * kw_tg_blk;
         n_tg_blk = oc_tg_blk;
         k_blk = mb_blk * ow_thr_blk;
@@ -906,6 +909,10 @@ public:
     int m_tg_blk;
     int n_tg_blk;
     int k_blk;
+
+    // Unroll sizes.
+    int mb_unroll;
+    int ow_unroll;
 
     bool do_b_reduction;
 

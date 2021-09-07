@@ -6353,9 +6353,8 @@ void kernel_builder_t::init_bwd_w(gemm_schedule_t &gemm_schedule,
 
     gemm_schedule.reorder({od_inner, oh_inner, ow_inner, mb_thr_blk_idx});
 
-    int ow_unroll = cfg_.is_dpas_fma() ? cfg_.ow_tg_blk / cfg_.ow_thr_blk : 1;
-    gemm_schedule.unroll(mb_thr_blk_idx, cfg_.mb_tg_blk / cfg_.mb_blk);
-    gemm_schedule.unroll(ow_thr_blk_idx, ow_unroll);
+    gemm_schedule.unroll(mb_thr_blk_idx, cfg_.mb_unroll);
+    gemm_schedule.unroll(ow_thr_blk_idx, cfg_.ow_unroll);
     gemm_schedule.tensorize(oc_inner);
     gemm_schedule.tensorize(ic_inner);
     gemm_schedule.tensorize(mb_inner);
