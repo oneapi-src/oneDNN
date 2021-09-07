@@ -36,10 +36,9 @@ using std::vector;
 namespace dnnl {
 namespace graph {
 namespace impl {
-// Declaration to refer to dnnl graph op in function signature
-class pb_op;
 namespace utils {
 namespace pm {
+class pb_op;
 class pb_node;
 class pb_graph;
 // Helper types
@@ -57,6 +56,7 @@ using in_edge_t = pair<iport_t, shared_ptr<producer_t>>;
 using in_edges_t = vector<shared_ptr<in_edge_t>>;
 using port_map = pair<oport_t, iport_t>;
 using port_maps = vector<port_map>;
+using pattern_pair = std::pair<op_t *, impl::utils::pm::pb_op *>;
 
 //
 // Part 1:

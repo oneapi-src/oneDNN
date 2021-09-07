@@ -361,6 +361,8 @@ bool match_pattern(op_ptr first_op, const shared_ptr<pb_graph> &pattern,
         match &m, bool auto_export_externals = false,
         bool match_forward = true);
 
+bool check_inputs_alias(std::vector<op_t *> &candidate_fusion);
+
 } // namespace pm
 } // namespace utils
 } // namespace impl

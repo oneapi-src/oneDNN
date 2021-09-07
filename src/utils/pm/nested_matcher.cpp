@@ -761,7 +761,45 @@ bool match_pattern(op_ptr first_op, const shared_ptr<pb_graph> &pattern,
             }
         }
     }
-    return true;
+
+    std::vector<op_ptr> candidate_fusion;
+    for (auto &pair : m.op_pb_op_pairs) {
+        candidate_fusion.push_back(pair.first);
+    }
+
+    return (!check_inputs_alias(candidate_fusion));
+}
+
+bool check_inputs_alias(std::vector<op_t *> &candidate_fusion) {
+    std::unordered_set<size_t> in_lt_ids;
+    for (const auto &aop : candidate_fusion) {
+        for (const auto &in_val : aop->get_input_values()) {
+            if (!in_val->has_producer()) {
+                logical_tensor_t in_lt = in_val->get_logical_tensor();
+                size_t in_lt_id = in_lt.id;
+                if (in_lt_ids.count(in_lt_id) == 0) {
+                    in_lt_ids.insert(in_lt_id);
+                } else
+                    return true;
+            } else {
+                op_t &producer = in_val->get_producer();
+                if (std::none_of(candidate_fusion.begin(),
+                            candidate_fusion.end(),
+                            [&producer](const op_t *cop) {
+                                return cop == &producer;
+                            })) {
+                    logical_tensor_t in_lt = in_val->get_logical_tensor();
+                    size_t in_lt_id = in_lt.id;
+                    if (in_lt_ids.count(in_lt_id) == 0) {
+                        in_lt_ids.insert(in_lt_id);
+                    } else
+                        return true;
+                }
+            }
+        }
+    }
+
+    return false;
 }
 
 match_context::match_context(

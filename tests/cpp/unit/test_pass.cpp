@@ -53,18 +53,6 @@ dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     return *find;
 }
 
-std::vector<logical_tensor_t> create_logical_tensors(
-        size_t num_lt, data_type_t dtype = data_type::f32) {
-    size_t count = 0;
-    std::vector<logical_tensor_t> lt_vec;
-    lt_vec.reserve(num_lt);
-    while (count < num_lt) {
-        lt_vec.emplace_back(logical_tensor_init(count, dtype));
-        count++;
-    }
-    return lt_vec;
-}
-
 void set_conv_common_attr(op_t &conv, std::vector<int64_t> strides = {1, 1},
         std::vector<int64_t> pads_begin = {0, 0},
         std::vector<int64_t> pads_end = {0, 0},
