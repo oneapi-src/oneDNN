@@ -233,8 +233,10 @@ public:
 
     int substitutions() const { return substitutions_; }
 
-    dispatch_func_type find_dispatch_func(int64_t) const override {
-        return mutate_object;
+    object_t mutate(const object_t &obj) override {
+        auto impl = obj.impl();
+        if (!impl) return impl;
+        return mutate_object(this, *impl);
     }
 
     static object_t mutate_object(
@@ -246,9 +248,7 @@ public:
             return this_mutator->to_;
         }
 
-        auto ti = obj.dispatch_type_id();
-        auto f = mutator->ir_mutator_t::find_dispatch_func(ti);
-        return f(mutator, obj);
+        return obj._mutate(*mutator);
     }
 
 private:

@@ -118,6 +118,13 @@ enum ir_type_id_t {
     IR_DECL_TYPE_ID(class_name) \
     bool is_stmt() const override { return true; }
 
+#define IR_DECL_MUTATE(mutator_template) \
+    object_t _mutate(mutator_template &mutator) const override { \
+        return mutator._mutate(*this); \
+    }
+
+#define IR_DECLARE_TRAVERSERS() IR_DECL_MUTATE(ir_mutator_t)
+
 // Defines getter for a function argument.
 #define IR_DEFINE_ARG_GET(name, index) \
     static const expr_t &arg_##name(const stmt_t &s) { \
@@ -501,6 +508,7 @@ public:
 
     virtual std::string str() const;
 
+    virtual object_t _mutate(ir_mutator_t &mutator) const;
     IR_DEFINE_DUMP()
 
 private:
@@ -682,13 +690,12 @@ using object_eq_map_t
 // Helper class to mutate IR tree.
 class ir_mutator_t {
 public:
-    using dispatch_func_type
-            = object_t (*)(ir_mutator_t *, const object_impl_t &);
-
     virtual ~ir_mutator_t() = default;
 
     virtual object_t mutate(const object_t &obj) {
-        return dispatch(obj.impl());
+        auto impl = obj.impl();
+        if (!impl) return impl;
+        return impl->_mutate(*this);
     }
 
     template <typename T>
@@ -708,29 +715,6 @@ public:
 #define HANDLE_IR_OBJECT(type) virtual object_t _mutate(const type &obj);
     HANDLE_MUTATE_TARGETS()
 #undef HANDLE_IR_OBJECT
-
-    virtual dispatch_func_type find_dispatch_func(int64_t ti) const {
-        return ti < num_dispatch_funcs ? dispatch_funcs()[ti] : nullptr;
-    }
-
-private:
-    static const int64_t num_dispatch_funcs
-            = ir_type_id_t::end_visitable_ir_objects;
-    static std::array<dispatch_func_type, num_dispatch_funcs> &dispatch_funcs();
-
-    template <typename T>
-    static object_t call(ir_mutator_t *mutator, const object_impl_t &obj) {
-        return mutator->_mutate((const T &)obj);
-    }
-
-    object_t dispatch(const object_impl_t *obj) {
-        if (!obj) return obj;
-
-        auto ti = obj->dispatch_type_id();
-        auto f = find_dispatch_func(ti);
-        ir_assert(f);
-        return f(this, *obj);
-    }
 };
 
 // Base class for IR expression objects.
@@ -876,6 +860,8 @@ public:
         return ir_utils::get_hash(op_kind, a, b);
     }
 
+    IR_DECLARE_TRAVERSERS()
+
     op_kind_t op_kind;
     expr_t a;
     expr_t b;
@@ -933,6 +919,8 @@ public:
         return ir_utils::get_hash(type, expr, saturate);
     }
 
+    IR_DECLARE_TRAVERSERS()
+
     expr_t expr;
     bool saturate;
 
@@ -989,6 +977,8 @@ public:
     size_t get_hash() const override {
         return ir_utils::get_hash(cond, true_expr, false_expr);
     }
+
+    IR_DECLARE_TRAVERSERS()
 
     expr_t cond;
     expr_t true_expr;
@@ -1089,6 +1079,8 @@ public:
 
     bool has_default_stride() const { return stride == default_stride; }
 
+    IR_DECLARE_TRAVERSERS()
+
     static const int default_stride = -1;
 
     expr_t buf;
@@ -1139,6 +1131,8 @@ public:
         return oss.str();
     }
 
+    IR_DECLARE_TRAVERSERS()
+
     op_kind_t op_kind;
     std::vector<expr_t> args;
 
@@ -1175,6 +1169,8 @@ public:
     //     After call:  base = base0, off = off0 + off1
     static void normalize(
             expr_t &base, expr_t &off, op_kind_t op_kind = op_kind_t::_add);
+
+    IR_DECLARE_TRAVERSERS()
 
     expr_t base;
     expr_t off;
@@ -1266,6 +1262,8 @@ public:
 
     bool is_broadcast() const { return vec.size() == 1; }
 
+    IR_DECLARE_TRAVERSERS()
+
     std::vector<expr_t> vec;
     std::vector<int> idx;
 
@@ -1316,6 +1314,8 @@ public:
         return ir_utils::get_hash(op_kind, a, b, c);
     }
 
+    IR_DECLARE_TRAVERSERS()
+
     op_kind_t op_kind;
     expr_t a;
     expr_t b;
@@ -1357,6 +1357,8 @@ public:
 
     size_t get_hash() const override { return ir_utils::get_hash(op_kind, a); }
 
+    IR_DECLARE_TRAVERSERS()
+
     op_kind_t op_kind;
     expr_t a;
 
@@ -1379,6 +1381,8 @@ public:
     }
 
     size_t get_hash() const override { return ir_utils::get_hash(name); }
+
+    IR_DECLARE_TRAVERSERS()
 
     std::string name;
 
@@ -1604,6 +1608,8 @@ public:
         return ir_utils::get_hash(buf, size, kind, attr, body);
     }
 
+    IR_DECLARE_TRAVERSERS()
+
     expr_t buf;
     int size;
     alloc_kind_t kind;
@@ -1654,6 +1660,8 @@ public:
 
     bool has_default_stride() const { return stride == default_stride; }
 
+    IR_DECLARE_TRAVERSERS()
+
     static const int default_stride = -1;
 
     expr_t buf;
@@ -1703,6 +1711,8 @@ public:
         return ir_utils::get_hash(var, init, bound, body, unroll);
     }
 
+    IR_DECLARE_TRAVERSERS()
+
     expr_t var;
     expr_t init;
     expr_t bound;
@@ -1743,6 +1753,8 @@ public:
         return ir_utils::get_hash(cond, body, else_body);
     }
 
+    IR_DECLARE_TRAVERSERS()
+
     expr_t cond;
     stmt_t body;
     stmt_t else_body;
@@ -1778,6 +1790,8 @@ public:
     size_t get_hash() const override {
         return ir_utils::get_hash(var, value, body);
     }
+
+    IR_DECLARE_TRAVERSERS()
 
     expr_t var;
     expr_t value;
@@ -1899,6 +1913,8 @@ public:
 
     size_t get_hash() const override { return ir_utils::get_hash(label, body); }
 
+    IR_DECLARE_TRAVERSERS()
+
     stmt_label_t label;
     stmt_t body;
 
@@ -1929,6 +1945,8 @@ public:
     }
 
     size_t get_hash() const override { return ir_utils::get_hash(head, tail); }
+
+    IR_DECLARE_TRAVERSERS()
 
     stmt_t head;
     stmt_t tail;
@@ -2074,6 +2092,8 @@ public:
     size_t get_hash() const override {
         return ir_utils::get_hash(func, args, attr);
     }
+
+    IR_DECLARE_TRAVERSERS()
 
     func_t func;
     std::vector<expr_t> args;

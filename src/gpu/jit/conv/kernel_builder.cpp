@@ -3263,12 +3263,12 @@ public:
     HANDLE_STMT_IR_OBJECTS()
 
 #undef HANDLE_IR_OBJECT
-private:
     object_t _mutate(const var_t &obj) override {
         if (allocs_.find(obj) != allocs_.end()) buf_cur_refs_[obj]++;
         return obj;
     }
 
+private:
     template <typename T>
     object_t mutate_stmt(const T &obj) {
         if (in_ctor_) return ir_mutator_t::_mutate(obj);

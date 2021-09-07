@@ -352,6 +352,10 @@ DEFINE_BINARY_ASSIGN_OPERATOR(&)
 
 #undef DEFINE_BINARY_ASSIGN_OPERATOR
 
+object_t object_impl_t::_mutate(ir_mutator_t &mutator) const {
+    return *this;
+}
+
 #define DECL_MUTATE_LEAF(name) \
     object_t ir_mutator_t::_mutate(const name &obj) { return obj; }
 
@@ -530,20 +534,6 @@ object_t ir_mutator_t::_mutate(const pexpr_t &obj) {
     return {};
 }
 
-using dispatch_func_type = object_t (*)(ir_mutator_t *, const object_impl_t &);
-std::array<dispatch_func_type, ir_mutator_t::num_dispatch_funcs> &
-ir_mutator_t::dispatch_funcs() {
-    static std::array<dispatch_func_type, num_dispatch_funcs> _dispatch_funcs;
-    std::once_flag initialized;
-    std::call_once(initialized, [&]() {
-#define HANDLE_IR_OBJECT(type) \
-    _dispatch_funcs[type::_dispatch_type_id()] = &call<type>;
-        HANDLE_ALL_IR_OBJECTS()
-
-#undef HANDLE_IR_OBJECT
-    });
-    return _dispatch_funcs;
-}
 } // namespace jit
 } // namespace gpu
 } // namespace impl

@@ -58,6 +58,8 @@ public:
     static expr_t y() { return pexpr_t::make(1); }
     static expr_t z() { return pexpr_t::make(2); }
 
+    IR_DECLARE_TRAVERSERS()
+
     int id;
 
 private:
@@ -135,21 +137,11 @@ public:
 
     pexpr_substitute_t(const match_context_t *ctx) : ctx_(ctx) {}
 
-    dispatch_func_type find_dispatch_func(int64_t ti) const override {
-        if (ti == pexpr_t::_dispatch_type_id())
-            return &pexpr_substitute_t::call<pexpr_t>;
-        return ir_mutator_t::find_dispatch_func(ti);
+    object_t _mutate(const pexpr_t &obj) override {
+        return (*ctx_)[expr_t(obj)];
     }
-
-    object_t _mutate(const pexpr_t &obj) { return (*ctx_)[expr_t(obj)]; }
 
 private:
-    template <typename T>
-    static object_t call(ir_mutator_t *mutator, const object_impl_t &obj) {
-        auto *this_mutator = (pexpr_substitute_t *)mutator;
-        return this_mutator->_mutate((const T &)obj);
-    }
-
     const match_context_t *ctx_;
 };
 
@@ -610,20 +602,6 @@ public:
         auto args = mutate(obj.args);
         if (ir_utils::is_equal(args, obj.args)) return obj;
         return make_nary_op(obj.op_kind, args);
-    }
-
-protected:
-    dispatch_func_type find_dispatch_func(int64_t ti) const override {
-        if (ti == nary_op_t::_dispatch_type_id())
-            return &nary_op_mutator_t::call<nary_op_t>;
-        return ir_mutator_t::find_dispatch_func(ti);
-    }
-
-private:
-    template <typename T>
-    static object_t call(ir_mutator_t *mutator, const object_impl_t &obj) {
-        auto *this_mutator = (nary_op_mutator_t *)mutator;
-        return this_mutator->_mutate((const nary_op_t &)obj);
     }
 };
 
