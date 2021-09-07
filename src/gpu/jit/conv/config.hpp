@@ -1358,9 +1358,8 @@ private:
 
     int estimate_register_count() const {
         int reg_bytes = ngen::GRF::bytes(hw);
-        int gmem_msg_bytes = reg_bytes; // Assume 1 register per GMEM load.
-        int slm_msg_bytes
-                = 8 * reg_bytes; // Assume 8 registers per SLM load/store.
+        int gmem_msg_bytes = 32; // Assume 1 HWord per GMEM load.
+        int slm_msg_bytes = 256; // Assume 8 HWords per SLM load/store.
 
         int nthr = tg_grid_dim[0] * tg_grid_dim[1];
         int m_thr_blk = utils::div_up(m_tg_blk, tg_grid_dim[1]);
