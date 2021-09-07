@@ -54,6 +54,7 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - ReLU
 - ReLUBackprop
 - Reshape
+- Reorder
 - Round
 - Sigmoid
 - SigmoidBackprop
@@ -67,6 +68,7 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - Tanh
 - TanhBackprop
 - Transpose
+- TypeCast
 - Wildcard
 
 ## Fusion Patterns

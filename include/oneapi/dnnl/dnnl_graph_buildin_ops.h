@@ -90,7 +90,8 @@
     _(End) \
     _(Quantize) \
     _(Dequantize) \
-    _(Reorder)
+    _(Reorder) \
+    _(TypeCast)
 
 #endif
 
