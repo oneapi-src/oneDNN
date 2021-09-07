@@ -26,15 +26,14 @@
 
 #include "pattern_utils.hpp"
 
+#include "utils/pm/nested_matcher.hpp"
+#include "utils/pm/pbuilder.hpp"
+
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
 namespace pass {
-
-using pattern = impl::pass::pattern;
-using FCreatePattern = impl::pass::FCreatePattern;
-using FCreateOptPattern = impl::pass::FCreateOptPattern;
 
 /*!
  * \brief transformation_pass generates an optimized graph
@@ -56,34 +55,69 @@ public:
     // the criteria of pass execution
     void run(impl::graph_t &agraph) override {
         // we can have only one optimized pattern
-        impl::pass::FCreateOptPattern optfunc
-                = get_attr<impl::pass::FCreateOptPattern>(
-                        "FCreateOptPattern")[0];
-        impl::pass::pattern optimized_pattern;
-        optfunc(&optimized_pattern);
-        op_t *ostarter = optimized_pattern.get_starter_op();
+        if (has_attr("FCreateOptPattern")) {
+            impl::pass::FCreateOptPattern optfunc
+                    = get_attr<impl::pass::FCreateOptPattern>(
+                            "FCreateOptPattern")[0];
+            impl::pass::pattern optimized_pattern;
+            optfunc(&optimized_pattern);
+            op_t *ostarter = optimized_pattern.get_starter_op();
 
-        // we can have many patterns
-        std::vector<impl::pass::FCreatePattern> pfuncs
-                = get_attr<impl::pass::FCreatePattern>("FCreatePattern");
+            // we can have many patterns
+            std::vector<impl::pass::FCreatePattern> pfuncs
+                    = get_attr<impl::pass::FCreatePattern>("FCreatePattern");
 
-        pattern_utils pu;
-        for (auto &pfunc : pfuncs) {
-            impl::pass::pattern original_pattern;
-            pfunc(&original_pattern);
-            op_t *pstarter = original_pattern.get_starter_op();
-            // for each pattern. match it
-            std::vector<std::vector<op_t *>> fusion_ops;
-            pu.match(agraph, pstarter, fusion_ops);
-            if (!fusion_ops.empty()) {
-                // temporary solution here for showing which pattern matched
-                if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
-                    std::cout << "hit pass " << get_pass_name() << "\n";
+            pattern_utils pu;
+            for (auto &pfunc : pfuncs) {
+                impl::pass::pattern original_pattern;
+                pfunc(&original_pattern);
+                op_t *pstarter = original_pattern.get_starter_op();
+                // for each pattern. match it
+                std::vector<std::vector<op_t *>> fusion_ops;
+                pu.match(agraph, pstarter, fusion_ops);
+                if (!fusion_ops.empty()) {
+                    // temporary solution here for showing which pattern matched
+                    char *val = std::getenv("DNNL_GRAPH_DUMP");
+                    if (val != nullptr && std::strcmp(val, "1") == 0) {
+                        std::cout << "hit pass " << get_pass_name() << "\n";
+                    }
+
+                    // Only fuse not rewrite. Will remove the fuse once dnnl
+                    // backend support subgraph mode
+                    pu.fuse(agraph, pstarter, ostarter, fusion_ops);
                 }
+            }
+        } else if (has_attr("FCreateV2FusedOp")) {
+            std::vector<impl::pass::FCreateV2Pattern> pfuncs
+                    = get_attr<impl::pass::FCreateV2Pattern>(
+                            "FCreateV2Pattern");
+            impl::pass::FCreateV2FusedOp optfunc
+                    = get_attr<impl::pass::FCreateV2FusedOp>(
+                            "FCreateV2FusedOp")[0];
+            std::shared_ptr<op_t> fused_op_ptr = optfunc();
+            op_t fused_op = *fused_op_ptr;
+            pattern_utils pu;
+            for (auto &pfunc : pfuncs) {
+                std::shared_ptr<impl::utils::pm::pb_graph> pgraph
+                        = make_shared<impl::utils::pm::pb_graph>("pgraph");
+                pfunc(pgraph);
 
-                // Only fuse not rewrite. Will remove the fuse once dnnl
-                // backend support subgraph mode
-                pu.fuse(agraph, pstarter, ostarter, fusion_ops);
+                // for each pattern. match it
+                std::vector<std::vector<
+                        std::pair<op_t *, impl::utils::pm::pb_op *>>>
+                        matched_pairs_list;
+                pu.match(agraph, pgraph, matched_pairs_list);
+                if (!matched_pairs_list.empty()) {
+                    // temporary solution here for showing which pattern matched
+                    char *val = std::getenv("DNNL_GRAPH_DUMP");
+                    if (val != nullptr && std::strcmp(val, "1") == 0) {
+                        std::cout << "hit pass " << get_pass_name() << "\n";
+                    }
+
+                    // Only fuse not rewrite. Will remove the fuse once dnnl
+                    // backend support subgraph mode
+                    pu.fuse(agraph, matched_pairs_list, fused_op);
+                }
             }
         }
     }

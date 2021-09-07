@@ -16,6 +16,7 @@
 #ifndef BACKEND_DNNL_PATTERNS_SINGLE_OP_PATTERN_HPP
 #define BACKEND_DNNL_PATTERNS_SINGLE_OP_PATTERN_HPP
 
+#include <memory>
 #include <string>
 
 #include "backend/dnnl/internal_ops.hpp"
@@ -27,20 +28,25 @@ namespace impl {
 namespace dnnl_impl {
 namespace pass {
 
+using pb_graph = impl::utils::pm::pb_graph;
+using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
+using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
+
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
 
 #define DNNL_BACKEND_SINGLE_OP_TRANSFORM(name, backend, op, p) \
     DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name) \
             .set_priority(p) \
-            .set_attr<FCreatePattern>("FCreatePattern", \
-                    [](pattern *apattern) -> void { \
-                        apattern->create_op(impl::op_kind::op); \
+            .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
+                    [](std::shared_ptr<pb_graph> pgraph) -> void { \
+                        pgraph->append_op(impl::op_kind::op); \
                     }) \
-            .set_attr<FCreateOptPattern>("FCreateOptPattern", \
-                    [](pattern *optimized_pattern) -> void { \
-                        op_t *aop = optimized_pattern->create_op( \
-                                impl::op_kind::op); \
-                        aop->set_attr<std::string>("backend", #backend); \
+            .set_attr<FCreateV2FusedOp>( \
+                    "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> { \
+                        std::shared_ptr<op_t> fused_op \
+                                = std::make_shared<op_t>(impl::op_kind::op); \
+                        fused_op->set_attr<std::string>("backend", #backend); \
+                        return fused_op; \
                     });
 
 // register passes with dnnl backend support

@@ -33,11 +33,15 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
+#include "utils/pm/nested_matcher.hpp"
+#include "utils/pm/pbuilder.hpp"
+
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
+using pattern_pair = impl::utils::pm::pattern_pair;
 /**
  * Operators set for checking number of op inputs
  */
@@ -372,14 +376,25 @@ inline bool per_op_comp(op_t *graph_op, op_t *pattern_op,
 
 class pattern_utils {
 public:
+    inline void reorder_matched_list(std::vector<pattern_pair> &matched_pairs);
+
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
             op_t *op_pattern, std::vector<std::vector<op_t *>> &fusion_ops);
+    inline void match(dnnl::graph::impl::graph_t &backend_graph,
+            shared_ptr<impl::utils::pm::pb_graph> pgraph,
+            std::vector<std::vector<pattern_pair>> &matched_pairs_list);
+
     inline void rewrite(dnnl::graph::impl::graph_t &backend_graph,
             op_t *origin_pattern, op_t *optimized_pattern,
             std::vector<std::vector<op_t *>> &fusion_ops);
+
     inline void fuse(dnnl::graph::impl::graph_t &backend_graph,
             op_t *origin_pattern, op_t *optimized_pattern,
             std::vector<std::vector<op_t *>> &fusion_ops);
+    inline void fuse(dnnl::graph::impl::graph_t &backend_graph,
+            std::vector<std::vector<pattern_pair>> &matched_pairs_list,
+            op_t &op_with_backend);
+
     // function to convert pattern to a vector based on search order
     std::vector<op_t *> pattern2vector(op_t *op_pattern) {
         std::unordered_set<op_t *> selected;
@@ -392,6 +407,76 @@ public:
     pattern_utils(pattern_utils &&) = delete;
     pattern_utils &operator=(const pattern_utils &) = delete;
 };
+
+// function to reorder the matched list into topo order
+// fuse function need op_list is ordered by topo order,
+// which is not confirmed by v2 matcher, so need to reorder
+// the op_list firstly.
+// can be removed after subgraph mode finished.
+inline void pattern_utils::reorder_matched_list(
+        std::vector<pattern_pair> &matched_pairs) {
+    std::vector<pattern_pair> reordered_pairs;
+    std::deque<pattern_pair> dq;
+    std::set<op_t *> visited;
+    //get the start op which is the end of the pattern.
+    for (auto &pair : matched_pairs)
+        if (pair.second->get_outputs().size() == 0) {
+            dq.push_back(pair);
+            break;
+        }
+
+    while (!dq.empty()) {
+        op_t *op = dq.front().first;
+        // if op has been visited, it means all of it's inputs has been resolved
+        if (visited.count(op)) {
+            reordered_pairs.push_back(dq.front());
+            dq.pop_front();
+            continue;
+        }
+        visited.insert(op);
+
+        //push unvisited inputs into the front of dq
+        if (op->num_inputs() > 0) {
+            for (size_t i = 0; i < op->num_inputs(); ++i) {
+                // need to put the most left input to the front of dq
+                auto input_value
+                        = op->get_input_value(op->num_inputs() - 1 - i);
+                if (!input_value->has_producer()) { continue; }
+
+                op_t *input_op = &(input_value->get_producer());
+                auto iter = find_if(matched_pairs.begin(), matched_pairs.end(),
+                        [&](pattern_pair pair) {
+                            return pair.first == input_op;
+                        });
+                if (iter != matched_pairs.end()
+                        && !visited.count(iter->first)) {
+                    dq.push_front(*iter);
+                }
+            }
+        }
+
+        //push unvisited outputs into the end of dq
+        if (op->num_outputs() > 0) {
+            for (size_t i = 0; i < op->num_outputs(); i++) {
+                std::shared_ptr<value_t> output_value = op->get_output_value(i);
+                std::vector<value_t::consumer_t> consumers
+                        = output_value->get_consumers();
+                for (size_t j = 0; j < consumers.size(); j++) {
+                    op_t *output_op = &consumers[j].get_op();
+                    auto iter = find_if(matched_pairs.begin(),
+                            matched_pairs.end(), [&](pattern_pair pair) {
+                                return pair.first == output_op;
+                            });
+                    if (iter != matched_pairs.end()
+                            && !visited.count(iter->first)) {
+                        dq.push_back(*iter);
+                    }
+                }
+            }
+        }
+    }
+    matched_pairs = reordered_pairs;
+}
 
 // function to do pattern matching
 inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
@@ -406,6 +491,30 @@ inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
         fusion_ops.emplace_back(candidate_fusion);
         for (auto &aop : candidate_fusion) {
             selected.insert(aop);
+        }
+        return status::success;
+    });
+}
+
+// function to do v2 pattern matching
+inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
+        std::shared_ptr<impl::utils::pm::pb_graph> pgraph,
+        std::vector<std::vector<pattern_pair>> &matched_pairs_list) {
+    // dfs_visit graph, do pattern matching
+    topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
+        impl::utils::pm::match matcher;
+        if (!impl::utils::pm::match_pattern(cur_op, pgraph, matcher)) {
+            return status::success;
+        }
+
+        // need to reorder the matched list by topo order
+        // since v2 matcher don't guarantee it
+        // TODO(jihui): will remove after subgraph mode completed
+        reorder_matched_list(matcher.op_pb_op_pairs);
+        matched_pairs_list.emplace_back(matcher.op_pb_op_pairs);
+
+        for (auto &aop : matcher.op_pb_op_pairs) {
+            aop.first->set_attr<bool>("matched_pattern", true);
         }
         return status::success;
     });
@@ -436,7 +545,7 @@ inline void pattern_utils::rewrite(dnnl::graph::impl::graph_t &backend_graph,
             // update value's connection. if cur_op has input op
             // which is in pattern, add its output_tensor into visited
             for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
-                auto in_value = cur_op->get_input_value(j);
+                std::shared_ptr<value_t> in_value = cur_op->get_input_value(j);
                 //if in_op isn't in pattern,
                 //set it as a input op of fused_op
                 if (!in_value->has_producer()
@@ -532,6 +641,81 @@ inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
             pimpl->add_op(ops[i]->shared_from_this());
             // claim the op belong to the partition
             ops[i]->set_partition(pimpl.get());
+        }
+
+        backend_graph.add_partition(pimpl);
+    }
+}
+
+//do fuse with v2 pattern language
+inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
+        std::vector<std::vector<pattern_pair>> &matched_pairs_list,
+        op_t &fused_op) {
+    std::vector<pattern_pair> fusion_ops_set;
+    std::unordered_set<op_t *> visit;
+
+    for (auto &pairs : matched_pairs_list) {
+        fusion_ops_set.clear();
+        visit.clear();
+        std::shared_ptr<op_t> partition_fused_op(new op_t(fused_op.get_kind()));
+        partition_fused_op->merge_attributes(fused_op.get_attributes());
+        for (size_t i = 0; i < pairs.size(); ++i) {
+            visit.insert(pairs[i].first);
+            fusion_ops_set.push_back(pairs[i]);
+        }
+
+        for (auto &op_map : fusion_ops_set) {
+            op_t *cur_op = op_map.first;
+            impl::utils::pm::pb_op *pattern_op = op_map.second;
+
+            // merge the attrs and op ids
+            partition_fused_op->merge_attributes(cur_op->get_attributes());
+            partition_fused_op->add_op_ids(cur_op->get_op_ids());
+
+            for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
+                std::shared_ptr<value_t> in_value = cur_op->get_input_value(j);
+                // if in_value has no producer or its producer isn't in pattern,
+                // add this input value to fused op
+                if (!in_value->has_producer()
+                        || !visit.count(&in_value->get_producer())) {
+                    std::shared_ptr<value_t> copied_in_value
+                            = std::make_shared<value_t>(
+                                    in_value->get_logical_tensor(),
+                                    /*internal*/ true);
+                    partition_fused_op->add_input(copied_in_value);
+                }
+            }
+
+            // merge the output tensor
+            // TODO(Jihui): intermediate external output is unsupported now
+            if (pattern_op->get_outputs().size() == 0) {
+                // it's the end op of pattern
+                for (size_t k = 0; k < cur_op->num_outputs(); ++k) {
+                    std::shared_ptr<value_t> out_value
+                            = cur_op->get_output_value(k);
+                    std::shared_ptr<value_t> copied_out_value
+                            = std::make_shared<value_t>(
+                                    out_value->get_logical_tensor(),
+                                    /*internal*/ true);
+                    partition_fused_op->add_output(copied_out_value);
+                }
+            }
+        }
+
+        std::shared_ptr<dnnl_partition_impl_t> pimpl
+                = std::make_shared<dnnl_partition_impl_t>(
+                        backend_graph.get_engine_kind());
+
+        // use the fused op to initialize the partition_impl, and merge the
+        // informations to it.
+        pimpl->init(partition_fused_op.get());
+
+        // transfer the ownership of fusion op from graph to partition
+        // note: the fusion op will not be removed from the graph
+        for (size_t i = 0; i < pairs.size(); ++i) {
+            pimpl->add_op(pairs[i].first->shared_from_this());
+            // claim the op belong to the partition
+            pairs[i].first->set_partition(pimpl.get());
         }
 
         backend_graph.add_partition(pimpl);
