@@ -392,8 +392,6 @@ public:
         kernel_grid_dim[1] = g_tg_dim * od * oh * ow_tg_dim;
         kernel_grid_dim[2] = mb_tg_dim;
 
-        CHECK(init_common_config());
-
         allow_grf_reorder = is_small_ic() || is_dw;
 
         if (kd * kh * kw > 9) do_loop_unroll = false;
@@ -483,8 +481,6 @@ public:
         kernel_grid_dim[0] = ic_tg_dim;
         kernel_grid_dim[1] = id * ih * iw_tg_dim;
         kernel_grid_dim[2] = mb_tg_dim;
-
-        CHECK(init_common_config());
 
         allow_grf_reorder = false;
 
