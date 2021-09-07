@@ -53,6 +53,13 @@
     HANDLE_IR_OBJECT(stmt_seq_t) \
     HANDLE_IR_OBJECT(store_t)
 
+#define HANDLE_MUTATE_TARGETS() \
+    HANDLE_EXPR_IR_OBJECTS() \
+    HANDLE_STMT_IR_OBJECTS() \
+    HANDLE_IR_OBJECT(func_impl_t) \
+    HANDLE_IR_OBJECT(nary_op_t) \
+    HANDLE_IR_OBJECT(pexpr_t)
+
 #define HANDLE_ALL_IR_OBJECTS() \
     HANDLE_EXPR_IR_OBJECTS() \
     HANDLE_STMT_IR_OBJECTS() \
@@ -424,6 +431,13 @@ private:
     std::atomic<uint32_t> value_;
 };
 
+// Forward Declare IR objects
+class object_t;
+class ir_mutator_t;
+#define HANDLE_IR_OBJECT(type) class type;
+HANDLE_MUTATE_TARGETS()
+#undef HANDLE_IR_OBJECT
+
 // Base class for all IR objects. Implemented as an intrusive pointer, with
 // the reference counter stored inside the object.
 class object_impl_t {
@@ -664,6 +678,60 @@ using object_map_t
 template <typename KeyT, typename ValueT>
 using object_eq_map_t
         = std::unordered_map<KeyT, ValueT, object_eq_hash_t, object_eq_equal_t>;
+
+// Helper class to mutate IR tree.
+class ir_mutator_t {
+public:
+    using dispatch_func_type
+            = object_t (*)(ir_mutator_t *, const object_impl_t &);
+
+    virtual ~ir_mutator_t() = default;
+
+    virtual object_t mutate(const object_t &obj) {
+        return dispatch(obj.impl());
+    }
+
+    template <typename T>
+    std::vector<T> mutate(const std::vector<T> &v) {
+        std::vector<T> new_v;
+        for (auto &e : v)
+            new_v.push_back(mutate(e));
+        return new_v;
+    }
+
+    // To catch missing _mutate() handlers in ir_mutator_t.
+    object_t _mutate(const object_impl_t &obj) {
+        ir_error_not_expected() << "Can't handle type: " << object_t(&obj);
+        return {};
+    }
+
+#define HANDLE_IR_OBJECT(type) virtual object_t _mutate(const type &obj);
+    HANDLE_MUTATE_TARGETS()
+#undef HANDLE_IR_OBJECT
+
+    virtual dispatch_func_type find_dispatch_func(int64_t ti) const {
+        return ti < num_dispatch_funcs ? dispatch_funcs()[ti] : nullptr;
+    }
+
+private:
+    static const int64_t num_dispatch_funcs
+            = ir_type_id_t::end_visitable_ir_objects;
+    static std::array<dispatch_func_type, num_dispatch_funcs> &dispatch_funcs();
+
+    template <typename T>
+    static object_t call(ir_mutator_t *mutator, const object_impl_t &obj) {
+        return mutator->_mutate((const T &)obj);
+    }
+
+    object_t dispatch(const object_impl_t *obj) {
+        if (!obj) return obj;
+
+        auto ti = obj->dispatch_type_id();
+        auto f = find_dispatch_func(ti);
+        ir_assert(f);
+        return f(this, *obj);
+    }
+};
 
 // Base class for IR expression objects.
 class expr_impl_t : public object_impl_t {
