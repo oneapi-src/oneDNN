@@ -106,6 +106,9 @@
 // When defined, SYCL CUDA backend is used.
 #cmakedefine DNNL_SYCL_CUDA
 
+// When defined, stack checker is enabled.
+#cmakedefine DNNL_ENABLE_STACK_CHECKER
+
 // List of configurating build controls
 // Workload controls
 #cmakedefine01 BUILD_TRAINING

@@ -276,6 +276,13 @@ set(DNNL_USE_CLANG_TIDY "NONE" CACHE STRING
       Enables checks from .clang-tidy and fix found issues.
     This feature is only available on Linux.")
 
+option(DNNL_ENABLE_STACK_CHECKER "enables stack checker that can be used to get
+    information about stack consumption for a particular library entry point.
+    This feature is only available on Linux (see src/common/stack_checker.hpp
+    for more details).
+    Note: This option requires enabling concurrent scratchpad
+    (DNNL_ENABLE_CONCURRENT_EXEC)." OFF)
+
 # =============================
 # External BLAS library options
 # =============================
