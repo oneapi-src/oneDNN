@@ -1553,7 +1553,9 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         balance211(jcp.ih, nthr_oc_b_, ti->ithr_oc_b, ih_start, ih_end);
         tr_ctx.tr_src_ih_start = ih_start;
         tr_ctx.tr_src_ih_end = ih_end;
-        tr_ctx.tr_src_bctx = ti->tr_src_bctx + ti->ithr_but_oc;
+        tr_ctx.tr_src_bctx = ti->tr_src_bctx
+                ? (ti->tr_src_bctx + ti->ithr_but_oc)
+                : nullptr;
 
         auto p = jit_conv_call_s();
         p.src = tr_ctx.tr_src;
