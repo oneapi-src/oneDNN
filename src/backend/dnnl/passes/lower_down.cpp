@@ -1004,6 +1004,71 @@ void insert_bn_folding(std::vector<op_ptr> &subgraph) {
     }
 }
 
+void conv_bwd_data_canonicalization(std::vector<op_ptr> &subgraph) {
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::ConvolutionBackpropData)
+            continue;
+
+        // insert permute
+        bool need_permute_0 = cur_op->has_attr("data_format")
+                ? (cur_op->get_attr<std::string>("data_format") == "NXC")
+                : false;
+        bool need_permute_1 = cur_op->has_attr("filter_format")
+                ? (cur_op->get_attr<std::string>("filter_format") == "XIO")
+                : false;
+
+        if (need_permute_0) {
+            op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            perm_op->set_attr<std::string>("permute_kind", "permute");
+            perm_op->set_attr<std::string>("from_format", "NXC");
+            perm_op->set_attr<std::string>("to_format", "NCX");
+            insert_op_before(perm_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(perm_op);
+            cur_op->set_attr<std::string>("data_format", "NCX");
+            cur_op->set_attr<std::string>("output_format", "NXC");
+        }
+
+        if (need_permute_1) {
+            op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            perm_op->set_attr<std::string>("permute_kind", "permute");
+            perm_op->set_attr<std::string>("from_format", "XIO");
+            perm_op->set_attr<std::string>("to_format", "OIX");
+            insert_op_before(perm_op, cur_op, 1);
+            to_be_inserted_ops.emplace_back(perm_op);
+            cur_op->set_attr<std::string>("filter_format", "OIX");
+        }
+
+        // insert to_group
+        auto groups = cur_op->get_attr<int64_t>("groups");
+        if (groups > 1) {
+            op_ptr to_group_op
+                    = std::make_shared<impl::op_t>(op_kind::to_group);
+            to_group_op->set_attr<int64_t>("groups", groups);
+            insert_op_before(to_group_op, cur_op, 1);
+            to_be_inserted_ops.emplace_back(to_group_op);
+            cur_op->set_attr<int64_t>("groups", 1);
+        }
+
+        // replace original op to dnnl specific op
+        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_conv_bwd_data);
+        replace_op(cur_op, new_op);
+        to_be_inserted_ops.emplace_back(new_op);
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(std::move(op));
+    }
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

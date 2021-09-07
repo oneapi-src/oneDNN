@@ -35,7 +35,8 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 static bool need_insert_reorder(op_kind_t kind) {
     std::set<op_kind_t> ops {op_kind::dnnl_convolution,
             impl::op_kind::Convolution, impl::op_kind::MatMul,
-            impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool};
+            impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool,
+            op_kind::dnnl_conv_bwd_data};
     return ops.count(kind) != 0;
 }
 

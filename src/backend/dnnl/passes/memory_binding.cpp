@@ -179,6 +179,37 @@ static void bind_memory_for_bn_folding(op_ptr &op, const dnnl::engine &p_engine,
 #undef INSERT_ARGS
 }
 
+static void bind_memory_for_conv_bwd_data(op_ptr &op,
+        const dnnl::engine &p_engine, execution_args_mgr &exec_arg_mgr,
+        primitive_attr_mgr &prm_attr_mgr) {
+    int64_t key = exec_arg_mgr.init_args();
+    op->set_attr<int64_t>("execution_args_key", key);
+    auto &args = exec_arg_mgr.get_args(key);
+
+    memory mem;
+    size_t index = 0;
+
+    // bind mem for inputs
+    mem = bind_memory_for_value(
+            op->get_input_value(index++).get(), p_engine, exec_arg_mgr);
+    args.insert({DNNL_ARG_DIFF_DST, mem});
+
+    mem = bind_memory_for_value(
+            op->get_input_value(index++).get(), p_engine, exec_arg_mgr);
+    args.insert({DNNL_ARG_WEIGHTS, mem});
+
+    // bind mem for outputs
+    mem = bind_memory_for_value(
+            op->get_output_value(0).get(), p_engine, exec_arg_mgr);
+    args.insert({DNNL_ARG_DIFF_SRC, mem});
+
+    if (op->num_outputs() > 1) {
+        mem = bind_memory_for_value(
+                op->get_output_value(1).get(), p_engine, exec_arg_mgr);
+        args.insert({DNNL_ARG_SCRATCHPAD, mem});
+    }
+}
+
 /// After doing infer shape, infer type and layout propagation passes, the
 /// information of all logical tensors in the subgraph should be complete. We
 /// can create dnnl::memory objects by using these logical tensors and nullptr
@@ -264,6 +295,9 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
             bind_memory_for_siso_op(cur_op, p_engine, exec_arg_mgr);
         } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
             bind_memory_for_bn_folding(cur_op, p_engine, exec_arg_mgr);
+        } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
+            bind_memory_for_conv_bwd_data(
+                    cur_op, p_engine, exec_arg_mgr, prm_attr_mgr);
         } else {
             assertm(false, "memory binding: unsupported op");
             return impl::status::compile_fail;

@@ -360,6 +360,111 @@ public:
     }
 };
 
+struct conv_bwd_data : public conv_base {
+public:
+    virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+            const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
+
+        // get subgraph from the deep copied partition
+        std::vector<std::shared_ptr<impl::op_t>> subgraph = part->get_ops();
+
+        set_all_layout_to_any(subgraph);
+
+        // have to set the given inputs and outputs fusion because some fusions
+        // can't be performed if shape unknown
+        set_given_inputs_outputs(subgraph, inputs, outputs);
+
+        conv_bwd_data_canonicalization(subgraph);
+
+        insert_reorder(subgraph);
+
+        subgraph_visualizer_t vis(part->id());
+        vis.run(subgraph, "after_lower_down", false);
+
+        impl::graph_t agraph(subgraph);
+        BACKEND_DNNL_CHECK(agraph.infer_shape());
+        BACKEND_DNNL_CHECK(infer_type(agraph));
+
+        vis.run(subgraph, "after_infer_shape_infer_type", true);
+
+        BACKEND_DNNL_CHECK(
+                layout_propagation(subgraph, p_engine_, prm_attr_mgr_));
+
+        vis.run(subgraph, "after_layout_propagation", true);
+
+        // fill layout information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            for (auto out_val : impl::graph_t(subgraph).get_output_values()) {
+                auto compiled_lt = out_val->get_logical_tensor();
+                if (compiled_lt.id == outputs[i].id) {
+                    auto lt = const_cast<impl::logical_tensor_t *>(&outputs[i]);
+                    auto md = make_dnnl_memory_desc(compiled_lt);
+                    lt->ndims = compiled_lt.ndims;
+                    impl::utils::array_copy(
+                            lt->dims, compiled_lt.dims, DNNL_GRAPH_MAX_NDIMS);
+                    impl::utils::array_copy(lt->layout.strides,
+                            compiled_lt.layout.strides, DNNL_GRAPH_MAX_NDIMS);
+                    fill_layout_info(lt, md);
+                }
+            }
+        }
+
+        // bind the memory for each op
+        BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
+                exec_arg_mgr_, prm_attr_mgr_));
+
+        BACKEND_DNNL_CHECK(
+                compile_ops(subgraph, p_engine_, prm_attr_mgr_, exec_mgr_));
+
+        // topologically sort the executables
+        impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),
+                [this](impl::op_t *op) {
+                    auto exec_key = op->get_attr<int64_t>("executable_key");
+                    auto &exec = exec_mgr_.get_executable(exec_key);
+                    execs_.emplace_back(exec.get());
+
+                    auto arg_key = op->get_attr<int64_t>("execution_args_key");
+                    exec_arg_mgr_.add_topo_ordered_key(arg_key);
+
+                    is_constant_.push_back(op->has_attr("is_constant")
+                            && op->get_attr<bool>("is_constant"));
+
+                    is_skip_.push_back(op->has_attr("is_skip")
+                            && op->get_attr<bool>("is_skip"));
+                    return impl::status::success;
+                });
+
+        opt_subgraph_ = subgraph;
+
+        // book buffer (only count total size and calculate offset)
+        // for each internal memory
+        registry_t::key_t key = 0;
+        registrar_t registrar = registry_.registrar();
+        for (const auto &mem : exec_arg_mgr_.get_internal_variable_mems()) {
+            registrar.book(key++, mem.get_desc().get_size());
+        }
+
+        if (enable_constant_cache_) {
+            registry_t::key_t constant_key = 0;
+            registrar_t constant_registrar = c_registry_.registrar();
+            for (auto &mem : exec_arg_mgr_.get_internal_constant_mems()) {
+                constant_registrar.book(
+                        constant_key++, mem.get_desc().get_size());
+            }
+        }
+
+        resource_ctor_ = [this]() {
+            return std::make_shared<subgraph_resource_t>(this->exec_arg_mgr_);
+        };
+
+        return impl::status::success;
+    }
+};
+
 using float_conv_fwd = conv_fwd</* quantized */ false>;
 using quantized_conv = conv_fwd</* quantized */ true>;
 

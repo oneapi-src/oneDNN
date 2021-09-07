@@ -71,6 +71,9 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
             prm = std::make_shared<memory_reparser>();
         } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
             prm = std::make_shared<bn_folding>(cur_op, p_engine);
+        } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
+            prm = std::make_shared<conv_bwd_data_executable>(
+                    cur_op, p_engine, prm_attr_mgr);
         } else {
             assertm(false, "unimplemented op, can't compile it");
             return impl::status::compile_fail;

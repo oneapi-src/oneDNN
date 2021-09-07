@@ -345,6 +345,45 @@ static bool layout_propagation_for_bn_folding(
     return changed;
 }
 
+static bool layout_propagation_for_conv_bwd_data(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+    std::shared_ptr<impl::value_t> diff_dst, wei, bias, diff_src;
+    diff_dst = op->get_input_value(0);
+    wei = op->get_input_value(1);
+    diff_src = op->get_output_value(0);
+
+    assertm(ltw(diff_dst->get_logical_tensor()).is_any()
+                    && ltw(wei->get_logical_tensor()).is_any()
+                    && ltw(diff_src->get_logical_tensor()).is_any(),
+            "conv_bwd_data's diff_dst, weight, diff_src should be any "
+            "layout_type");
+
+    auto pd = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr);
+
+    fill_layout_info(diff_dst, pd.diff_dst_desc());
+    fill_layout_info(wei, pd.weights_desc());
+
+    if (op->has_attr("output_format")
+            && op->get_attr<std::string>("output_format") == "NXC") {
+        fill_layout_info(diff_src, permute_NCX2NXC(pd.diff_src_desc()));
+    } else {
+        fill_layout_info(diff_src, pd.diff_src_desc());
+    }
+
+    // fill scratchpads dimensions and data type to scratchpad value_t
+    auto scratchpad_val = insert_scratchpad(op);
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+
+    // make scratchpad as conv's last output
+    fill_layout_info(scratchpad_val, scratchpad_desc);
+
+    return true;
+}
+
 static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
     std::vector<op_t *> fuse_to_precursor;
     std::vector<op_t *> fuse_to_successor;
@@ -422,7 +461,8 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
 
             if (cur_op->get_kind() == impl::op_kind::Convolution
                     || cur_op->get_kind() == op_kind::dnnl_convolution
-                    || cur_op->get_kind() == impl::op_kind::MatMul)
+                    || cur_op->get_kind() == impl::op_kind::MatMul
+                    || cur_op->get_kind() == op_kind::dnnl_conv_bwd_data)
                 continue;
 
             if (cur_op->get_kind() == impl::op_kind::Reorder
@@ -459,11 +499,16 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
 
     // we need to choose optimal layout for computation-intensive ops first
     for (auto &cur_op : subgraph) {
+        if (!need_prop(cur_op.get())) continue;
+
         if (cur_op->get_kind() == impl::op_kind::Convolution
                 || cur_op->get_kind() == op_kind::dnnl_convolution) {
-            if (!need_prop(cur_op.get())) continue;
-
             layout_propagation_for_conv(cur_op, p_engine, prm_attr_mgr);
+        } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
+            layout_propagation_for_conv_bwd_data(
+                    cur_op, p_engine, prm_attr_mgr);
+        } else {
+            // do nothing
         }
     }
 

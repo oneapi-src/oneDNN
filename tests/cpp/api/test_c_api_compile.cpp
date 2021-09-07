@@ -805,7 +805,10 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
     const int64_t KH = 11;
     const int64_t KW = 11;
 
-    const int64_t OC = 11;
+    // set OC to be much larger than IC to make sure that the conv's output will
+    // have different format with input on all platforms. So the inplace pair
+    // will always be empty.
+    const int64_t OC = 128;
     const int64_t OH = 55;
     const int64_t OW = 55;
 

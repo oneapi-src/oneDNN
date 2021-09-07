@@ -128,7 +128,8 @@ TEST(operator_compile, convolution_backward_data_compile_fp32) {
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    // according to spec, group should be greater than 0
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -140,18 +141,31 @@ TEST(operator_compile, convolution_backward_data_compile_fp32) {
     impl::logical_tensor_t diff_dst = utils::logical_tensor_init(
             2, {8, 16, 222, 222}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {diff_dst, weights};
-    std::vector<impl::logical_tensor_t> outputs {diff_src};
+    conv_op.add_input(diff_dst);
+    conv_op.add_input(weights);
+    conv_op.add_output(diff_src);
 
-    size_t operator_num = get_dnnl_kernel_registry().get_register_kernels_num();
-    ASSERT_NE(operator_num, 0);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    auto conv_bwd_kernel = get_dnnl_kernel_registry().create_kernel(conv_op);
-    ASSERT_TRUE(conv_bwd_kernel);
+    impl::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
 
-    conv_bwd_kernel->compile(&conv_op, &eng, inputs, outputs);
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
 
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
+    std::vector<const impl::logical_tensor_t *> inputs {&diff_dst, &weights};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(diff_src.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 }
 
 TEST(operator_compile, convolution_backward_weights_compile_fp32) {
@@ -4655,7 +4669,7 @@ TEST(operator_kernel, ConvolutionBackpropData) {
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -4667,20 +4681,39 @@ TEST(operator_kernel, ConvolutionBackpropData) {
     impl::logical_tensor_t diff_dst_lt
             = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_bwd_kernel = op_factory.create_kernel(conv_op);
+    conv_op.add_input(diff_dst_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(diff_src_lt);
 
-    conv_bwd_kernel->compile(
-            &conv_op, &eng, {diff_dst_lt, weight_lt}, {diff_src_lt});
-    ASSERT_EQ(diff_src_lt.layout_type, impl::layout_type::strided);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &diff_dst_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(diff_src_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
     impl::tensor_t diff_src_ts(diff_src_lt, diff_src.data());
 
     impl::stream_t &strm = get_stream();
-    conv_bwd_kernel->execute(
-            &conv_op, &strm, {diff_dst_ts, weight_ts}, {diff_src_ts});
+    cp.execute(&strm, {diff_dst_ts, weight_ts}, {diff_src_ts});
     strm.wait();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);

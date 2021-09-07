@@ -78,6 +78,9 @@ void fuse_mul_scales_add_zps(std::vector<std::shared_ptr<op_t>> &subgraph);
 
 void insert_bn_folding(std::vector<std::shared_ptr<op_t>> &subgraph);
 
+void conv_bwd_data_canonicalization(
+        std::vector<std::shared_ptr<op_t>> &subgraph);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

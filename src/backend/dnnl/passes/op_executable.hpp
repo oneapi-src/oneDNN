@@ -166,6 +166,49 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
     return pd;
 }
 
+inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
+        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr &prm_attr_mgr) {
+    // prepare the operator attributes
+    auto strides = op->get_attr<dims>("strides");
+    auto dilates = op->get_attr<dims>("dilations");
+    auto pads_begin = op->get_attr<dims>("pads_begin");
+    auto pads_end = op->get_attr<dims>("pads_end");
+    dilates = get_compatible_dilates(dilates);
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto diff_dst = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto weight = make_dnnl_memory_desc(
+            op->get_input_value(1)->get_logical_tensor());
+    auto diff_src = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+
+    if (op->has_attr("output_format")
+            && op->get_attr<std::string>("output_format") == "NXC") {
+        diff_src = permute_NXC2NCX(diff_src);
+    }
+
+    auto fwd_hints = dnnl::convolution_forward::primitive_desc(
+            {dnnl::prop_kind::forward_training,
+                    dnnl::algorithm::convolution_direct, diff_src, weight,
+                    diff_dst, strides, dilates, pads_begin, pads_end},
+            dnnl::primitive_attr(), p_engine);
+
+    dnnl::convolution_backward_data::primitive_desc pd(
+            {dnnl::algorithm::convolution_direct, diff_src, weight, diff_dst,
+                    strides, dilates, pads_begin, pads_end},
+            p_engine, fwd_hints);
+
+    return pd;
+}
+
 struct op_executable {
     virtual ~op_executable() {}
     virtual void execute(const stream &stream,
@@ -566,6 +609,37 @@ private:
     memory::desc new_variance_desc_;
 
     bool with_bias_ {false};
+};
+
+struct conv_bwd_data_executable : public op_executable {
+    conv_bwd_data_executable(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+        pd_ = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr);
+        prim_ = dnnl::convolution_backward_data(pd_);
+        if (op->has_attr("output_format")
+                && op->get_attr<std::string>("output_format") == "NXC")
+            perm_dst_ = true;
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    virtual void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        std::unordered_map<int, memory> cached_args = args;
+
+        if (perm_dst_) {
+            memory dst_mem = make_dnnl_memory(pd_.dst_desc(), pd_.get_engine(),
+                    args.find(DNNL_ARG_DST)->second.get_data_handle());
+            cached_args[DNNL_ARG_DST] = dst_mem;
+        }
+
+        prim_.execute(stream, cached_args);
+    }
+
+private:
+    dnnl::convolution_backward_data::primitive_desc pd_;
+    dnnl::convolution_backward_data prim_;
+    bool perm_dst_ {false};
 };
 
 } // namespace dnnl_impl

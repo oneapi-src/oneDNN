@@ -201,6 +201,48 @@ status_t infer_bn_folding_output_shape(op_t *n,
     return status::success;
 }
 
+status_t infer_dnnl_conv_bwd_data_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    using ltw = impl::logical_tensor_wrapper;
+
+    auto backup = *inputs[1];
+    auto out0 = logical_tensor_wrapper(outputs[0]);
+    bool out_shape_unknown = out0.is_shape_unknown();
+    if (n->get_attr<int64_t>("groups") > 1) {
+        auto ndims = ltw(inputs[1]).ndims() - 1;
+        auto dims = ltw(inputs[1]).vdims();
+        dims[1] *= dims[0];
+        dims.erase(dims.begin());
+
+        inputs[1]->ndims = ndims;
+        for (size_t i = 0; i < ndims; i++) {
+            inputs[1]->dims[i] = dims[i];
+        }
+    }
+
+    auto ret = infer_conv_bprop_data_output_shape(n, inputs, outputs);
+    if (ret != status::success) return ret;
+    *inputs[1] = backup;
+
+    // permute output from NCX to NXC
+    if (out_shape_unknown && n->has_attr("output_format")
+            && n->get_attr<std::string>("output_format") == "NXC") {
+        auto ndims = outputs[0]->ndims;
+        auto channel = outputs[0]->dims[1];
+        for (size_t i = 1; i < ndims - 1; i++) {
+            outputs[0]->dims[i] = outputs[0]->dims[i + 1];
+        }
+        outputs[0]->dims[ndims - 1] = channel;
+    }
+
+    // set strides
+    set_shape_and_strides(
+            *outputs[0], logical_tensor_wrapper(outputs[0]).vdims());
+
+    return status::success;
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
