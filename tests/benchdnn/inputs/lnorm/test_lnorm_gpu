@@ -24,7 +24,7 @@
 --dir=FWD_D,BWD_DW
 --inplace=true
 --flags=,GS,S,CH,C,H
---tag=AB48a16b
+--tag=AB48a16b,abx
 --stat_tag=abx
 30x300
 256x768

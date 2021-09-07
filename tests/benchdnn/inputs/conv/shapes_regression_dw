@@ -51,6 +51,7 @@ g128mb1ic128ih56oc128kh4sh1ph1n"dw_regression:conv23"
 g128mb1ic128ih56oc128kh4sh2ph0n"dw_regression:conv24"
 g128mb1ic128ih56oh29oc128kh4sh2ph1n"dw_regression:conv25"
 g128mb1ic128ih56oh32oc128kh4sh2ph0n"dw_regression:conv26"
+g56mb1ic56ih266oh264oc56kh3ph0n"dw_regression:conv27"
 
 # Known failing cases
 g113mb1ic113ih1oc113oh1kh3ph1n"depthwise_channel_tail_nxc_format"
