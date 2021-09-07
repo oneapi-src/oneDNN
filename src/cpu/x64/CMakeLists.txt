@@ -51,7 +51,7 @@ if(MSVC)
         PROPERTIES COMPILE_FLAGS "/Od")
 else()
     set_source_files_properties(${FILES_WITHOUT_OPT}
-        PROPERTIES COMPILE_FLAGS "-O0 -U_FORTIFY_SOURCE")
+        PROPERTIES COMPILE_FLAGS "-O1 -U_FORTIFY_SOURCE")
 endif()
 
 set(OBJ_LIB ${DNNL_LIBRARY_NAME}_cpu_x64)
