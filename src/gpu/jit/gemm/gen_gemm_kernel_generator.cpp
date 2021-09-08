@@ -7449,8 +7449,8 @@ void gemm_kernel_generator_t<hw>::gemmKReduce(const GEMMProblem &problem,
         throw std::runtime_error("Max workgroup size not specified");
 
     int regs = state.C_regs[0].getLen();
-    int sliceRegs = int(gemmSLMSize(problem, strategy, state))
-            / (maxThreads * GRF::bytes(hw));
+    int sliceRegs = int(gemmSLMSize(problem, strategy, state)
+            / (maxThreads * GRF::bytes(hw)));
     if (sliceRegs <= 0)
         throw std::runtime_error("Not enough SLM for k reduction");
 
