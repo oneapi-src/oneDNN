@@ -489,8 +489,7 @@ void jit_brgemm_kernel_t::read_params() {
     } else if (with_binary_per_oc_sp_bcast_) {
         mov(reg_binary_postops_oc_l,
                 ptr[param1 + GET_OFF(dst_row_logical_off)]);
-        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
-                reg_binary_postops_oc_l);
+        mov(ptr[rsp + reg_binary_postops_oc_l_offs_], reg_binary_postops_oc_l);
     }
 
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
@@ -1046,6 +1045,20 @@ void jit_brgemm_kernel_t::store_accumulators(int bd_block2, bool is_bdb_tail,
                         mov(ptr[rsp + reg_aux_zp_comp_b_offs_],
                                 reg_aux_zp_comp_b);
                     }
+                    if (bdb < bd_block2 - 1 && with_binary_per_oc_sp_bcast_) {
+                        post_processed = true;
+                        const injector_utils::register_preserve_guard_t
+                                register_guard(
+                                        this, {reg_aux_binary_postops_oc_l});
+                        mov(reg_aux_binary_postops_oc_l,
+                                ptr[rsp + reg_aux_binary_postops_oc_l_offs_
+                                        + register_guard
+                                                  .stack_space_occupied()]);
+                        add(reg_aux_binary_postops_oc_l, adj_bd_block);
+                        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_
+                                    + register_guard.stack_space_occupied()],
+                                reg_aux_binary_postops_oc_l);
+                    }
                     if (post_processed) mov(reg_buf, ptr[rsp + reg_buf_offs_]);
                 }
             }
@@ -1060,6 +1073,19 @@ void jit_brgemm_kernel_t::store_accumulators(int bd_block2, bool is_bdb_tail,
                     mov(reg_aux_zp_comp_b, ptr[rsp + reg_aux_zp_comp_b_offs_]);
                     sub(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(bd_block2 - 1));
                     mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_aux_zp_comp_b);
+                }
+                if (bd_block2 > 1 && with_binary_per_oc_sp_bcast_) {
+                    post_processed = true;
+                    const injector_utils::register_preserve_guard_t
+                            register_guard(this, {reg_aux_binary_postops_oc_l});
+                    mov(reg_aux_binary_postops_oc_l,
+                            ptr[rsp + reg_aux_binary_postops_oc_l_offs_
+                                    + register_guard.stack_space_occupied()]);
+                    sub(reg_aux_binary_postops_oc_l,
+                            (bd_block2 - 1) * brg.bd_block);
+                    mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_
+                                + register_guard.stack_space_occupied()],
+                            reg_aux_binary_postops_oc_l);
                 }
                 if (post_processed) mov(reg_buf, ptr[rsp + reg_buf_offs_]);
             }
@@ -1469,6 +1495,12 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
         mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
         mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_zp_comp_b);
     }
+    if (with_binary_per_oc_sp_bcast_) {
+        mov(reg_aux_binary_postops_oc_l,
+                ptr[rsp + reg_binary_postops_oc_l_offs_]);
+        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
+                reg_binary_postops_oc_l);
+    }
 
     auto ld_loop_body = [=](int vpad) {
         set_A_B_matrices();
@@ -1668,6 +1700,13 @@ void jit_brgemm_kernel_t::bdb_loop() {
         add(reg_C, bdb_C_offset(bd_block2));
         add(reg_D, bdb_D_offset(bd_block2));
         add(reg_a_offset, bdb_A_offset(bd_block2));
+        if (with_binary_per_oc_sp_bcast_) {
+            mov(reg_aux_binary_postops_oc_l,
+                    ptr[rsp + reg_binary_postops_oc_l_offs_]);
+            add(reg_binary_postops_oc_l, bd_block2 * brg.bd_block);
+            mov(ptr[rsp + reg_binary_postops_oc_l_offs_],
+                    reg_aux_binary_postops_oc_l);
+        }
         if (with_binary_channel_bcast_) {
             mov(reg_aux_binary_postops_sp,
                     ptr[rsp + reg_binary_postops_sp_offs_]);
