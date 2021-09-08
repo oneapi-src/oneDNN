@@ -101,11 +101,8 @@ struct spec_t {
         bia_dt = convert_dt(prb->cfg[BIA].dt);
         dst_dt = convert_dt(prb->cfg[DST].dt);
 
-        data_format = tag2data_format(prb->stag);
-        validate_data_format(data_format);
-        filter_format = tag2filter_format(prb->wtag, groups > 1);
-        if (is_deconv && filter_format == "IOX") { filter_format = "OIX"; }
-        validate_filter_format(filter_format);
+        data_format = "NCX";
+        filter_format = "OIX";
         raw_src_tag = prb->stag;
         raw_wei_tag = prb->wtag;
         raw_dst_tag = prb->dtag;

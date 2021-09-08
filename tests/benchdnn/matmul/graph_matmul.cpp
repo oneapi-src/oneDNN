@@ -45,7 +45,7 @@ matmul_graph_prb_t::spec_t::spec_t(const ::matmul::prb_t *prb) noexcept {
     dst_dt = convert_dt(prb->cfg[DST].dt);
     bia_dt = convert_dt(prb->bia_dt);
 
-    data_format = convert_tag(prb->dtag);
+    data_format = "NCX";
 
     raw_src_tag = prb->stag;
     raw_wei_tag = prb->stag;

@@ -76,7 +76,7 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) noexcept {
     pads_end.assign(padding_r_nd + offset, end(padding_r_nd));
 
     rounding_type = "floor";
-    data_format = convert_tag(prb->tag);
+    data_format = "NCX";
     raw_data_format = prb->tag;
 
     op_kind = (prb->alg == ::pool::max) ? graph_op::MaxPool : graph_op::AvgPool;

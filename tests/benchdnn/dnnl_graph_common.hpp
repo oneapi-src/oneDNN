@@ -85,71 +85,6 @@ inline std::string get_ou_format(const std::string &fmt_tag) {
     return fmt;
 }
 
-inline std::string tag2data_format(const std::string &tag_) {
-    if (tag_ == tag::any) return "NCX";
-    std::string tag = normalize_tag(tag_);
-    tag = get_ou_format(tag);
-    std::string ret;
-    for (size_t i = 0; i < tag.size(); ++i) {
-        if (tag[i] == 'a') {
-            ret += "N";
-        } else if (tag[i] == 'b') {
-            ret += "C";
-        } else {
-            if (ret.back() == 'X') continue;
-            ret += "X";
-        }
-    }
-    return ret;
-}
-
-inline void validate_data_format(const std::string &format_) {
-    if (!(format_ == "NCX" || format_ == "NXC")) {
-        []() {
-            SAFE(FAIL, CRIT);
-            return 0;
-        }();
-    }
-}
-
-inline std::string tag2filter_format(
-        const std::string &tag_, bool with_groups = false) {
-    if (tag_ == tag::any) return "OIX";
-    std::string tag = normalize_tag(tag_);
-    tag = get_ou_format(tag);
-    std::string ret;
-
-    char out_c_repr = 'a';
-    char in_c_repr = 'b';
-    if (with_groups) {
-        // groups becomes 'a', OC and IC take next values
-        ++out_c_repr;
-        ++in_c_repr;
-    }
-    for (size_t i = 0; i < tag.size(); ++i) {
-        if (tag[i] == out_c_repr) {
-            ret += "O";
-        } else if (tag[i] == in_c_repr) {
-            ret += "I";
-        } else if (with_groups && tag[i] == 'a') {
-            continue;
-        } else {
-            if (ret.back() == 'X') continue;
-            ret += "X";
-        }
-    }
-    return ret;
-}
-
-inline void validate_filter_format(const std::string &format_) {
-    if (!(format_ == "XIO" || format_ == "OIX")) {
-        []() {
-            SAFE(FAIL, CRIT);
-            return 0;
-        }();
-    }
-}
-
 #define BENCHDNNEXT_SAFE(f, s) \
     do { \
         try { \
@@ -251,29 +186,23 @@ struct tensor_descs_t {
         static_assert(DNNL_GRAPH_MAX_NDIMS == DNNL_MAX_NDIMS,
                 "Maximum number of dimensions of primitive and graph is not "
                 "the same.");
-        // The permutation keys is used to sort the order of graph dimensions
-        // according to the format tag specified by benchdnn command line in
-        // tag knob. If user makes a dnnl memory desc with a format tag, the
-        // order of dimensions is always `abcdefg...`. Different tag, for
-        // instance with `acdb` (comparing to `abcd`), logical tensor could be
-        // created with either
-        //     i) `acdb` order dimensions plus strided/opaque layout type, or
-        //    ii) `abcd` order with strides [b*c*d, 1, d*b, b].
-        //
-        // NOTE: Currently, only the first method is used.
-        dims_t permuted_dims(ndims, 0);
-        for (size_t d = 0; d < ndims; ++d) {
-            const size_t coord = static_cast<size_t>(ou_fmt_str[d] - 'a');
-            permuted_dims[d] = adims[coord];
-        }
 
         if (fmt_tag <= dnnl_abcdefghijlk) {
-            emplace(str, dtype, permuted_dims, lt::strided);
+            dims_t strides(ndims, 0);
+            dim_t acc = 1;
+            // if the layout can be described with strides, let's calculate
+            // the strides according to the given tag.
+            for (int d = static_cast<int>(ndims) - 1; d >= 0; --d) {
+                const size_t coord = static_cast<size_t>(ou_fmt_str[d] - 'a');
+                strides[coord] = acc;
+                acc *= adims[coord];
+            }
+            emplace(str, dtype, adims, strides);
         } else {
             const size_t dnnl_layout_id
                     = encode_dnnl_layout(static_cast<size_t>(fmt_tag));
             dnnl::graph::logical_tensor t(
-                    idmgr_[str], dtype, permuted_dims, dnnl_layout_id);
+                    idmgr_[str], dtype, adims, dnnl_layout_id);
             map_.emplace(str, t);
         }
     }

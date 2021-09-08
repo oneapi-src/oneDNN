@@ -36,6 +36,7 @@ softmax_graph_prb_t::spec_t::spec_t(const ::softmax::prb_t *prb) noexcept {
             break;
         default: op_kind = dnnl::graph::op::kind::LastSymbol;
     }
+    tag = prb->tag;
 }
 
 void check_known_skipped_case_graph(
@@ -56,8 +57,8 @@ fill_status_t softmax_graph_prb_t::handle_main_op_() {
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string DST {TENSOR_ID + "_DST"};
 
-    tensor_descs_.emplace(SRC, spec_.softmax_dt, spec_.dims, lt::strided);
-    tensor_descs_.emplace(DST, spec_.softmax_dt, spec_.dims, lt::strided);
+    tensor_descs_.emplace(SRC, spec_.softmax_dt, spec_.dims, spec_.tag);
+    tensor_descs_.emplace(DST, spec_.softmax_dt, spec_.dims, spec_.tag);
 
     std::string name
             = spec_.op_kind == op::kind::SoftMax ? "Softmax" : "LogSoftMax";

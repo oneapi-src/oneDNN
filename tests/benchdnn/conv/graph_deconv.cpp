@@ -33,8 +33,8 @@ void check_known_skipped_case_graph(
     ::deconv::check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return;
 
-    const auto with_groups = prb->g > 1;
-    const auto filter_format = tag2filter_format(prb->wtag, with_groups);
+    const bool with_groups = prb->g > 1;
+    const std::string filter_format = "OIX";
     // required in order to make strides aligned with oneDNN graph expectations
     if (with_groups && filter_format != "IOX") {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;

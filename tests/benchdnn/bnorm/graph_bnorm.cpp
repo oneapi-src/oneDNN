@@ -96,7 +96,7 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
             {tensor_descs_[DST]}, "bnorm");
 
     bnorm_op.set_attr("epsilon", spec_.epsilon);
-    bnorm_op.set_attr<std::string>("data_format", convert_tag(spec_.tag));
+    bnorm_op.set_attr<std::string>("data_format", "NCX");
 
     ops_.emplace_back(bnorm_op);
     curr_out_map_ids_.assign({TENSOR_ID});

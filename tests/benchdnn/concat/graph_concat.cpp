@@ -42,8 +42,7 @@ concat_graph_prb_t::spec_t::spec_t(const ::concat::prb_t *prb) {
     src_dt = convert_dt(prb->sdt);
     dst_dt = convert_dt(prb->ddt);
 
-    // If we operate on different tags axis has to be permuted
-    axis = permute_axis(prb->axis, src_dims[0], raw_src_tag[0]);
+    axis = prb->axis;
 }
 
 void check_ranks_shapes_and_dtypes(const ::concat::prb_t *prb, res_t *res) {

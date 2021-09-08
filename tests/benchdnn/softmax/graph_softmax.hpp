@@ -48,6 +48,7 @@ private:
         dims_t dims;
         dt softmax_dt;
         dnnl::graph::op::kind op_kind;
+        std::string tag;
     };
 
     spec_t spec_;
