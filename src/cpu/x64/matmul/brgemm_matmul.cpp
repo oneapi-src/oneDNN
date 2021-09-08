@@ -290,8 +290,7 @@ void brgemm_matmul_t<isa>::compute_kernel(
                     : static_cast<void *>(brgmm_ctx.get_s8s8_comp_ptr(
                             ithr, b_idx, n_blk_idx));
 
-            const size_t dst_row_logical_off
-                    = b_idx * m_blk_idx * bgmmc.M_chunk_size;
+            const size_t dst_row_logical_off = m_blk_idx * bgmmc.M_blk;
             const size_t batch_first_dim_idx = bgmmc.batch_ndims > 1
                     ? b_idx / bgmmc.batch_without_first_dim
                     : 0;
@@ -336,8 +335,7 @@ void brgemm_matmul_t<isa>::compute_kernel(
                     : static_cast<void *>(brgmm_ctx.get_s8s8_comp_ptr(
                             ithr, b_idx, n_blk_idx));
 
-            const size_t dst_row_logical_off
-                    = b_idx * m_blk_idx * bgmmc.M_chunk_size;
+            const size_t dst_row_logical_off = m_blk_idx * bgmmc.M_blk;
             const size_t batch_first_dim_idx = bgmmc.batch_ndims > 1
                     ? b_idx / bgmmc.batch_without_first_dim
                     : 0;
@@ -445,8 +443,7 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
                         const auto &post_ops_binary_rhs_arg_vec
                                 = brgmm_ctx.get_post_ops_binary_rhs_arg_vec();
 
-                        const size_t dst_row_logical_off
-                                = b * mb * bgmmc.M_chunk_size;
+                        const size_t dst_row_logical_off = mb * bgmmc.M_blk;
                         const size_t batch_first_dim_idx = bgmmc.batch_ndims > 1
                                 ? b / bgmmc.batch_without_first_dim
                                 : 0;
