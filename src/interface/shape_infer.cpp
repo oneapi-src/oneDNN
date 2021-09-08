@@ -317,8 +317,11 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
     std::string fil_fmt = n->get_attr<std::string>("filter_format");
     std::string src_fmt = n->get_attr<std::string>("data_format");
 
-    // check if src channel / groups == weight input channel
-    if (in0.get_src_c(src_fmt) / g != in1.get_weight_i(fil_fmt)) {
+    // check if diff_dst channel == weight output channel.
+    // Since the input of conv_bwd_data op is diff_dst, which has the same shape
+    // with conv fwd op's dst, so it's channel should be equal to weight's o
+    // channel.
+    if (in0.get_src_c(src_fmt) != in1.get_weight_o(fil_fmt)) {
         return status::invalid_shape;
     }
 
@@ -376,7 +379,7 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
     }
 
     const dims out0_shape = make_data_dims(
-            src_fmt, in0.get_src_n(), in1.get_weight_o(fil_fmt), output_sp);
+            src_fmt, in0.get_src_n(), in1.get_weight_i(fil_fmt) * g, output_sp);
 
     set_shape_and_strides(*outputs[0], out0_shape);
 

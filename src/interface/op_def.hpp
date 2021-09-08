@@ -311,7 +311,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackpropData, 1,
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
                         false, attribute_kind::is,
-                        std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
                 .set_shape_inference_function(
                         infer_conv_bprop_data_output_shape)
                 .SET_CONV_COMMON_ATTRS)

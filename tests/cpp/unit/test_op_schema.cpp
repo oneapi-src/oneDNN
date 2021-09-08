@@ -2444,9 +2444,9 @@ TEST(op_schema_test, conv_bprop_data_ncx_oix_infer_shape) {
 
     std::vector<int64_t> groups_vec {1, 2, 4};
     // data shape {N, IC, H, W}
-    std::vector<int64_t> in_data {1, 32, 224, 224};
+    std::vector<int64_t> in_data {1, 16, 224, 224};
     std::vector<int64_t> in_output_shape {};
-    std::vector<int64_t> expected_out_shape {1, 16, 452, 452};
+    std::vector<int64_t> expected_out_shape {1, 32, 452, 452};
 
     for (auto groups : groups_vec) {
         // weight shape {OC, IC, KH, KW}
@@ -2466,9 +2466,9 @@ TEST(op_schema_test, conv_bprop_data_nxc_oix_infer_shape) {
 
     std::vector<int64_t> groups_vec {1, 2, 4};
     // data shape {N, H, W, IC}
-    std::vector<int64_t> in_data {1, 224, 224, 32};
+    std::vector<int64_t> in_data {1, 224, 224, 16};
     std::vector<int64_t> in_output_shape {};
-    std::vector<int64_t> expected_out_shape {1, 452, 452, 16};
+    std::vector<int64_t> expected_out_shape {1, 452, 452, 32};
 
     for (auto groups : groups_vec) {
         // weight shape {OC, IC, KH, KW}
@@ -2488,12 +2488,12 @@ TEST(op_schema_test, conv_bprop_data_nxc_xio_infer_shape) {
 
     std::vector<int64_t> groups_vec {1, 2, 4};
     // data shape {N, H, W, IC}
-    std::vector<int64_t> in_data {1, 224, 224, 32};
+    std::vector<int64_t> in_data {1, 224, 224, 16};
     std::vector<int64_t> in_output_shape {};
-    std::vector<int64_t> expected_out_shape {1, 452, 452, 16};
+    std::vector<int64_t> expected_out_shape {1, 452, 452, 32};
 
     for (auto groups : groups_vec) {
-        // weight shape {OC, IC, KH, KW}
+        // weight shape {KH, KW, IC, OC}
         std::vector<int64_t> in_weight = {3, 3, 32 / groups, 16};
 
         verify_shape_infer_for_conv_bprop_data(op_kind_, data_format,
@@ -2509,13 +2509,13 @@ TEST(op_schema_test, conv_bprop_data_ncx_xio_infer_shape) {
     std::string filter_format = "XIO";
 
     // data shape {N, IC, H, W}
-    std::vector<int64_t> in_data {1, 32, 224, 224};
+    std::vector<int64_t> in_data {1, 16, 224, 224};
     std::vector<int64_t> in_output_shape {};
-    std::vector<int64_t> expected_out_shape {1, 16, 452, 452};
+    std::vector<int64_t> expected_out_shape {1, 32, 452, 452};
 
     std::vector<int64_t> groups_vec {1, 2, 4};
     for (auto groups : groups_vec) {
-        // weight shape {OC, IC, KH, KW}
+        // weight shape {KH, KW, IC, OC}
         std::vector<int64_t> in_weight {3, 3, 32 / groups, 16};
 
         verify_shape_infer_for_conv_bprop_data(op_kind_, data_format,
@@ -3763,7 +3763,7 @@ TEST(op_schema_test, test_convolutionbackpropdata_default_attributes) {
 
     const std::vector<int64_t> *vval {nullptr};
     tmp_op.get_attr<std::vector<int64_t>>("output_padding", &vval);
-    std::vector<int64_t> vector_value(0, DNNL_GRAPH_MAX_NDIMS);
+    std::vector<int64_t> vector_value(DNNL_GRAPH_MAX_NDIMS, 0);
     EXPECT_EQ(*vval, vector_value);
 
     const std::string *sval {nullptr};
