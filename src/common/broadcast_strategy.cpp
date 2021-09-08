@@ -89,8 +89,9 @@ broadcasting_strategy_t get_per_oc_bcast(
     if (use_per_oc_spatial_strategy && dst_d.is_blocking_desc()) {
         const auto &strides = dst_d.blocking_desc().strides;
 
-        //per_oc_spatial basically used in nchw data format
-        return (dst_d.is_plain() && strides[1] != 1 && strides[0] >= strides[1]
+        //per_oc_spatial used in nchw data format and matmul having ndims >= 3
+        return (dst_d.is_plain() && strides[0] >= strides[1]
+                       && IMPLICATION(ndims < 3, strides[1] != 1)
                        && IMPLICATION(ndims >= 3, strides[1] >= strides[2]))
                 ? broadcasting_strategy_t::per_oc_spatial
                 : broadcasting_strategy_t::per_oc;
