@@ -438,8 +438,8 @@ public:
     /// @param adims Tensor dimensions, -1 means a particular axis of dims is
     /// @param lid Layout id
     /// @param ptype Tensor property type
-    logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
-            int64_t lid, property_type ptype = property_type::undef) {
+    logical_tensor(size_t tid, data_type dtype, const dims_t &adims, size_t lid,
+            property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
 
         if (adims.size() == 0) {
@@ -503,7 +503,7 @@ public:
     /// Returns the layout of the tensor
     ///
     /// @returns Layout id
-    int64_t get_layout_id() const {
+    size_t get_layout_id() const {
         if (get_layout_type() != layout_type::opaque) {
             error::check_succeed(dnnl_graph_result_error_invalid_argument,
                     "layout type should be opaque");

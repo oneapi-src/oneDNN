@@ -63,7 +63,7 @@ public:
         val_.layout_type = new_type;
     }
 
-    void set_layout_id(int64_t layout_id) {
+    void set_layout_id(size_t layout_id) {
         val_.layout.layout_id = layout_id;
         val_.layout_type = layout_type::opaque;
     }

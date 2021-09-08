@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ static size_t s_tensor_id = 10000;
 
 example_result_t example_tensor_create(example_tensor_t **created_tensor,
         example_data_type_t type, int32_t ndims, const int64_t *dims,
-        int64_t layout_id) {
+        size_t layout_id) {
     *created_tensor = (example_tensor_t *)malloc(sizeof(example_tensor_t));
     if (*created_tensor == NULL) return example_result_error_common_fail;
 

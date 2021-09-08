@@ -280,7 +280,7 @@ typedef struct {
 
         /// Valid when layout_type is `dnnl_graph_opaque`.
         /// `layout_id` is generated and managed by backend.
-        int64_t layout_id;
+        size_t layout_id;
     } layout;
 } dnnl_graph_logical_tensor_t;
 

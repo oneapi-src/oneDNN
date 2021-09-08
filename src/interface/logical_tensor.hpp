@@ -58,7 +58,7 @@ struct logical_tensor_wrapper {
     int32_t ndims() const { return lt->ndims; }
     data_type_t data_type() const { return lt->data_type; }
     layout_type_t layout_type() const { return lt->layout_type; }
-    int64_t layout_id() const { return lt->layout.layout_id; }
+    size_t layout_id() const { return lt->layout.layout_id; }
     property_type_t property_type() const { return lt->property; }
 
     const dims_t &dims() const { return lt->dims; }

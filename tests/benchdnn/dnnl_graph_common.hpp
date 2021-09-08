@@ -268,7 +268,7 @@ struct tensor_descs_t {
         if (fmt_tag <= dnnl_abcdefghijlk) {
             emplace(str, dtype, permuted_dims, lt::strided);
         } else {
-            const int64_t dnnl_layout_id
+            const size_t dnnl_layout_id
                     = encode_dnnl_layout(static_cast<size_t>(fmt_tag));
             dnnl::graph::logical_tensor t(
                     idmgr_[str], dtype, permuted_dims, dnnl_layout_id);

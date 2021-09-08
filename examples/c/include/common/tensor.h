@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ typedef enum {
 
 typedef struct {
     example_data_type_t dtype_;
-    int64_t layout_id_;
+    size_t layout_id_;
     int32_t ndims_;
 
     int64_t dims_[MAX_DIMS_NUM];
@@ -98,7 +98,7 @@ typedef struct {
 
 example_result_t example_tensor_create(example_tensor_t **created_tensor,
         example_data_type_t type, int32_t ndims, const int64_t *dims,
-        int64_t layout_id);
+        size_t layout_id);
 
 void example_tensor_destroy_all();
 

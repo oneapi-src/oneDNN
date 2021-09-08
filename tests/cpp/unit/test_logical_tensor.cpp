@@ -171,7 +171,7 @@ TEST(logical_tensor_test, implicit_equal_layout) {
             0, {1, 2, 3, 4}, impl::data_type::f32, impl::layout_type::any);
     // set opaque layout id
     lt1.layout_type = impl::layout_type::opaque;
-    lt1.layout.layout_id = static_cast<int64_t>(id);
+    lt1.layout.layout_id = id;
 
     // public layout
     impl::logical_tensor_t lt2 = utils::logical_tensor_init(

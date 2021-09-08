@@ -217,7 +217,7 @@ int logical_tensor2layout_str(char *str, size_t str_len,
         }
         PUTS(DFMT, strides[ndim - 1]);
     } else if (lt.layout_type() == impl::layout_type::opaque) {
-        PUTS(DFMT, lt.layout_id());
+        PUTS(DFMT, static_cast<int64_t>(lt.layout_id()));
     } else if (lt.layout_type() == impl::layout_type::any) {
         PUTS("%s", "any");
     } else {
