@@ -48,7 +48,6 @@ public:
     virtual void post_visit(const object_impl_t &obj) {}
 
     // To catch missing _visit() handlers in ir_visitor_t.
-    virtual void _visit(const object_impl_t *obj) = delete;
     virtual void _visit(const object_impl_t &obj) {
         ir_error_not_expected() << "Can't handle type: " << object_t(obj);
     }
@@ -211,7 +210,6 @@ public:
     }
 
     // To catch missing _mutate() handlers ir ir_mutator_t.
-    object_t _mutate(const object_impl_t *obj) = delete;
     object_t _mutate(const object_impl_t &obj) {
         ir_error_not_expected() << "Can't handle type: " << object_t(obj);
         return {};
