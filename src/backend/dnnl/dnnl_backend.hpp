@@ -394,7 +394,25 @@ public:
             impl::partition_policy_t policy
             = impl::partition_policy::fusion) override {
         impl::pass::pass_manager pm(get_pass_registry());
+#ifdef DNNL_GRAPH_ENABLE_DUMP
+        std::string pass_config_json = "dnnl_graph_passes.json";
+        std::ifstream fs(pass_config_json.c_str());
+        if (fs) {
+            printf("dnnl_graph_verbose,info,pattern,load,%s\n",
+                    pass_config_json.c_str());
+            fflush(stdout);
+        } else {
+            if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
+                printf("dnnl_graph_verbose,info,pattern,dump,%s\n",
+                        pass_config_json.c_str());
+                fflush(stdout);
+                pm.print_passes(pass_config_json);
+            }
+        }
+        pm.run_passes(agraph, &fs, policy);
+#else
         pm.run_passes(agraph, "", policy);
+#endif
         return status::success;
     }
 

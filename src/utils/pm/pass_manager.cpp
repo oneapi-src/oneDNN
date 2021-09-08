@@ -56,6 +56,12 @@ void pass_manager::print_passes(std::ostream *os) {
     auto passes = get_passes();
     json::json_writer write(os);
     write.begin_object();
+    std::string hash = dnnl_graph_version()->hash;
+    std::string version = std::to_string(dnnl_graph_version()->major) + "."
+            + std::to_string(dnnl_graph_version()->minor) + "."
+            + std::to_string(dnnl_graph_version()->patch);
+    write.write_keyvalue("version", version);
+    write.write_keyvalue("hash", hash);
     write.write_keyvalue("passes", passes);
     write.end_object();
 }
@@ -67,24 +73,43 @@ void pass_manager::run_passes(
         std::list<pass_base_ptr> new_passes;
         json::json_reader read(fs);
         json::read_helper helper;
+        std::string hash;
+        std::string version;
+        helper.declare_field("hash", &hash);
+        helper.declare_field("version", &version);
         std::list<pass_base_ptr> passes;
         helper.declare_field("passes", &passes);
-        helper.read_fields(&read);
-        for (auto &pass : passes) {
-            if (pass->get_enable()) {
-                auto &new_pass = get_pass_ptr(pass->get_pass_name());
-                if (typeid(new_pass) == typeid(pass)) {
-                    new_pass->set_priority(pass->get_priority());
-                    new_passes.push_back(new_pass);
+        bool read_json = helper.read_fields(&read);
+        if (read_json && hash == dnnl_graph_version()->hash) {
+            for (auto &pass : passes) {
+                if (pass->get_enable()) {
+                    auto &new_pass = get_pass_ptr(pass->get_pass_name());
+                    if (typeid(new_pass) == typeid(pass)) {
+                        new_pass->set_priority(pass->get_priority());
+                        new_passes.push_back(new_pass);
+                    }
                 }
             }
-        }
-        new_passes.sort(
-                [](const pass_base_ptr &first, const pass_base_ptr &second) {
-                    return first->get_priority() > second->get_priority();
-                });
-        for (auto &pass : new_passes) {
-            pass->run(agraph);
+            new_passes.sort([](const pass_base_ptr &first,
+                                    const pass_base_ptr &second) {
+                return first->get_priority() > second->get_priority();
+            });
+            for (auto &pass : new_passes) {
+                pass->run(agraph);
+            }
+        } else {
+            if (read_json) {
+                printf("dnnl_graph_verbose,warn,pattern,ignore config file "
+                       "for incompatible hash id\n");
+            } else {
+                printf("dnnl_graph_verbose,warn,pattern,ignore config file "
+                       "for missing json filed\n");
+            }
+            fflush(stdout);
+            const std::list<pass_base_ptr> &passes = get_passes();
+            for (auto &pass : passes) {
+                pass->run(agraph);
+            }
         }
     } else {
         const std::list<pass_base_ptr> &passes = get_passes();

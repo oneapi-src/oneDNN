@@ -18,7 +18,6 @@
 #define UTILS_JSON_HPP
 
 #include <algorithm>
-#include <cassert>
 #include <cctype>
 #include <fstream>
 #include <iostream>
@@ -185,7 +184,7 @@ public:
     /*!
    * \brief read all fields according to declare.
    */
-    inline void read_fields(json_reader *reader);
+    inline bool read_fields(json_reader *reader);
 
 private:
     /*!
@@ -461,6 +460,7 @@ inline void json_reader::begin_array() {
 
 inline bool json_reader::next_object_item(std::string *out_key) {
     bool next = true;
+    if (scope_count_.empty()) { return false; }
     if (scope_count_.back() != 0) {
         int ch = next_nonspace();
         if (ch == EOF) {
@@ -468,7 +468,7 @@ inline bool json_reader::next_object_item(std::string *out_key) {
         } else if (ch == '}') {
             next = false;
         } else {
-            assert(ch == ',');
+            if (ch != ',') { return false; }
         }
     } else {
         int ch = peeknext_nonspace();
@@ -490,6 +490,7 @@ inline bool json_reader::next_object_item(std::string *out_key) {
 
 inline bool json_reader::next_array_item() {
     bool next = true;
+    if (scope_count_.empty()) { return false; }
     if (scope_count_.back() != 0) {
         int ch = next_nonspace();
         if (ch == EOF) {
@@ -497,7 +498,7 @@ inline bool json_reader::next_array_item() {
         } else if (ch == ']') {
             next = false;
         } else {
-            assert(ch == ',');
+            if (ch != ',') { return false; }
         }
     } else {
         int ch = peeknext_nonspace();
@@ -520,7 +521,7 @@ inline void json_reader::read(valuetype *out_value) {
     json::json_handler<valuetype>::read(this, out_value);
 }
 
-inline void read_helper::read_fields(json_reader *reader) {
+inline bool read_helper::read_fields(json_reader *reader) {
     reader->begin_object();
     std::map<std::string, int> visited;
     std::string key;
@@ -534,10 +535,10 @@ inline void read_helper::read_fields(json_reader *reader) {
     if (visited.size() != map_.size()) {
         for (std::map<std::string, entry>::iterator it = map_.begin();
                 it != map_.end(); ++it) {
-            assert(visited.count(it->first) == 1
-                    && "json reader: missing field");
+            if (visited.count(it->first) != 1) { return false; }
         }
     }
+    return true;
 }
 
 template <typename T>

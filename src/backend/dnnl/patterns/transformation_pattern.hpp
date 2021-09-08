@@ -79,7 +79,9 @@ public:
                     // temporary solution here for showing which pattern matched
                     char *val = std::getenv("DNNL_GRAPH_DUMP");
                     if (val != nullptr && std::strcmp(val, "1") == 0) {
-                        std::cout << "hit pass " << get_pass_name() << "\n";
+                        printf("dnnl_graph_verbose,info,pattern,hit,%s\n",
+                                get_pass_name().c_str());
+                        fflush(stdout);
                     }
 
                     // Only fuse not rewrite. Will remove the fuse once dnnl
@@ -111,7 +113,9 @@ public:
                     // temporary solution here for showing which pattern matched
                     char *val = std::getenv("DNNL_GRAPH_DUMP");
                     if (val != nullptr && std::strcmp(val, "1") == 0) {
-                        std::cout << "hit pass " << get_pass_name() << "\n";
+                        printf("dnnl_graph_verbose,info,pattern,hit,%s\n",
+                                get_pass_name().c_str());
+                        fflush(stdout);
                     }
 
                     // Only fuse not rewrite. Will remove the fuse once dnnl

@@ -66,7 +66,9 @@ public:
         if (!matched_op_list.empty()) {
             // temporary solution here for showing which pattern matched
             if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
-                std::cout << "hit pass " << get_pass_name() << "\n";
+                printf("dnnl_graph_verbose,info,pattern,hit,%s\n",
+                        get_pass_name().c_str());
+                fflush(stdout);
             }
 
             // Only fuse not rewrite. Will remove the fuse once dnnl

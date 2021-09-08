@@ -4081,6 +4081,225 @@ TEST(pass_test, save_load_json) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 8);
 }
 
+TEST(pass_test, valid_json) {
+    /*   \   /
+          conv
+           |
+          relu
+    */
+    graph_t agraph;
+    op_t conv1 {0, Convolution, "conv"};
+    set_conv_common_attr(conv1);
+    op_t relu {1, ReLU, "relu"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    conv1.add_input(lt_vec[0]);
+    conv1.add_input(lt_vec[1]);
+    conv1.add_output(lt_vec[2]);
+    relu.add_input(lt_vec[2]);
+    relu.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&conv1), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager(
+            backend_ptr.get_pass_registry());
+
+    std::ostringstream valid_stream;
+    std::string version = std::to_string(dnnl_graph_version()->major) + "."
+            + std::to_string(dnnl_graph_version()->minor) + "."
+            + std::to_string(dnnl_graph_version()->patch);
+    valid_stream << "{\n"
+                 << "\"version\": \"" << version << "\",\n"
+                 << "\"hash\": \"" << dnnl_graph_version()->hash << "\",\n"
+                 << "\"passes\": [\n"
+                 << "  {\n"
+                 << "  \"pass_name\": \"conv_pass\",\n"
+                 << "  \"pass_type\": \"Transformation\",\n"
+                 << "  \"pass_backend\": \"dnnl\",\n"
+                 << "  \"priority\": 8,\n"
+                 << "  \"enable\": 1\n"
+                 << "  },\n"
+                 << "  {\n"
+                 << "  \"pass_name\": \"relu_pass\",\n"
+                 << "  \"pass_type\": \"Transformation\",\n"
+                 << "  \"pass_backend\": \"dnnl\",\n"
+                 << "  \"priority\": 8,\n"
+                 << "  \"enable\": 1\n"
+                 << "  }\n"
+                 << "]\n"
+                 << "}\n";
+    std::string valid_str = valid_stream.str();
+    std::istringstream valid_is(valid_str);
+    pm.run_passes(agraph, &valid_is);
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
+}
+
+TEST(pass_test, invalid_json_for_incompatible_hash) {
+    /*   \   /
+          conv
+           |
+          relu
+    */
+    graph_t agraph;
+    op_t conv1 {0, Convolution, "conv"};
+    set_conv_common_attr(conv1);
+    op_t relu {1, ReLU, "relu"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    conv1.add_input(lt_vec[0]);
+    conv1.add_input(lt_vec[1]);
+    conv1.add_output(lt_vec[2]);
+    relu.add_input(lt_vec[2]);
+    relu.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&conv1), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager(
+            backend_ptr.get_pass_registry());
+
+    std::ostringstream invalid_stream;
+    std::string version = std::to_string(dnnl_graph_version()->major) + "."
+            + std::to_string(dnnl_graph_version()->minor) + "."
+            + std::to_string(dnnl_graph_version()->patch);
+    invalid_stream << "{\n"
+                   << "\"version\": \"" << version << "\",\n"
+                   << "\"hash\": \""
+                   << "aninvalidcommitid"
+                   << "\",\n"
+                   << "\"passes\": [\n"
+                   << "  {\n"
+                   << "  \"pass_name\": \"conv_pass\",\n"
+                   << "  \"pass_type\": \"Transformation\",\n"
+                   << "  \"pass_backend\": \"dnnl\",\n"
+                   << "  \"priority\": 8,\n"
+                   << "  \"enable\": 1\n"
+                   << "  },\n"
+                   << "  {\n"
+                   << "  \"pass_name\": \"relu_pass\",\n"
+                   << "  \"pass_type\": \"Transformation\",\n"
+                   << "  \"pass_backend\": \"dnnl\",\n"
+                   << "  \"priority\": 8,\n"
+                   << "  \"enable\": 1\n"
+                   << "  }\n"
+                   << "]\n"
+                   << "}\n";
+    std::string invalid_str = invalid_stream.str();
+    std::istringstream invalid_is(invalid_str);
+    pm.run_passes(agraph, &invalid_is);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+}
+
+TEST(pass_test, invalid_json_for_missing_field) {
+    /*   \   /
+          conv
+           |
+          relu
+    */
+    graph_t agraph;
+    op_t conv1 {0, Convolution, "conv"};
+    set_conv_common_attr(conv1);
+    op_t relu {1, ReLU, "relu"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    conv1.add_input(lt_vec[0]);
+    conv1.add_input(lt_vec[1]);
+    conv1.add_output(lt_vec[2]);
+    relu.add_input(lt_vec[2]);
+    relu.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&conv1), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager(
+            backend_ptr.get_pass_registry());
+
+    std::ostringstream invalid_stream;
+    invalid_stream << "{\n"
+                   << "\"passes\": [\n"
+                   << "  {\n"
+                   << "  \"pass_name\": \"conv_pass\",\n"
+                   << "  \"pass_type\": \"Transformation\",\n"
+                   << "  \"pass_backend\": \"dnnl\",\n"
+                   << "  \"priority\": 8,\n"
+                   << "  \"enable\": 1\n"
+                   << "  },\n"
+                   << "  {\n"
+                   << "  \"pass_name\": \"relu_pass\",\n"
+                   << "  \"pass_type\": \"Transformation\",\n"
+                   << "  \"pass_backend\": \"dnnl\",\n"
+                   << "  \"priority\": 8,\n"
+                   << "  \"enable\": 1\n"
+                   << "  }\n"
+                   << "]\n"
+                   << "}\n";
+    std::string invalid_str = invalid_stream.str();
+    std::istringstream invalid_is(invalid_str);
+    pm.run_passes(agraph, &invalid_is);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+}
+
+TEST(pass_test, invalid_json_for_wrong_format) {
+    /*   \   /
+          conv
+           |
+          relu
+    */
+    graph_t agraph;
+    op_t conv1 {0, Convolution, "conv"};
+    set_conv_common_attr(conv1);
+    op_t relu {1, ReLU, "relu"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    conv1.add_input(lt_vec[0]);
+    conv1.add_input(lt_vec[1]);
+    conv1.add_output(lt_vec[2]);
+    relu.add_input(lt_vec[2]);
+    relu.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&conv1), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager(
+            backend_ptr.get_pass_registry());
+
+    std::ostringstream invalid_stream;
+    std::string version = std::to_string(dnnl_graph_version()->major) + "."
+            + std::to_string(dnnl_graph_version()->minor) + "."
+            + std::to_string(dnnl_graph_version()->patch);
+    invalid_stream << "\"version\": \"" << version << "\",\n"
+                   << "\"hash\": \"" << dnnl_graph_version()->hash << "\",\n"
+                   << "\"passes\": [\n"
+                   << "  {\n"
+                   << "  \"pass_name\": \"conv_pass\",\n"
+                   << "  \"pass_type\": \"Transformation\",\n"
+                   << "  \"pass_backend\": \"dnnl\",\n"
+                   << "  \"priority\": 8,\n"
+                   << "  \"enable\": 1\n"
+                   << "  },\n";
+    std::string invalid_str = invalid_stream.str();
+    std::istringstream invalid_is(invalid_str);
+    pm.run_passes(agraph, &invalid_is);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+}
+
 TEST(pass_test, two_conv_with_shared_weight) {
     /*    \   /\    /
           conv  conv

@@ -343,10 +343,12 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
 
 status_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
         graph_t *graph, const int ignore_env_var) {
+#ifdef DNNL_GRAPH_ENABLE_DUMP
     if (ignore_env_var || utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
         std::ofstream out;
         auto filename = "graph-" + std::to_string(graph->id()) + ".dot";
-        std::cout << "visualize graph to a dot file: " << filename << std::endl;
+        printf("dnnl_graph_verbose,info,visualize graph to a dot file %s\n",
+                filename.c_str());
         out.open(filename);
         out << "digraph G {\n";
         topo_order_visit(graph->get_output_ops(), [&](op_t *op) {
@@ -388,5 +390,10 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
         out << "}\n";
         out.close();
     }
+#else
+    UNUSED(graph);
+    UNUSED(ignore_env_var);
+#endif
+
     return status::success;
 }
