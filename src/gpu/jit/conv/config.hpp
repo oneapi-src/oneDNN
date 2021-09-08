@@ -423,9 +423,6 @@ public:
     status_t init_bwd_d(convolution_pd_t *conv_pd) {
         using namespace ir_utils;
 
-        // First convolution is not supported.
-        if (ic < 16) return status::unimplemented;
-
         // Set dispatch and kernel parameters.
         mb_thr_blk = (mb < 16 ? 1 : 32);
         ic_thr_blk = 32;
