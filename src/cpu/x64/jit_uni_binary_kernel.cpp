@@ -167,6 +167,26 @@ void jit_uni_binary_kernel_t<isa>::apply_postops(int unroll, bool tail) {
         }
         if (tail) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
     }
+
+    const auto sum_injector = [&]() {
+        for (int i = 0; i < unroll; i++) {
+            const int offt = simd_w_ * i;
+            const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
+            const Vmm vreg_tmp = conf_.is_src_different_layouts
+                    ? vmm_gathered_src_
+                    : Vmm(unroll + i + vmm_start_idx_);
+            io_.at(conf_.dst_type)
+                    ->load(dst_ptr(offt
+                                   * types::data_type_size(conf_.dst_type)),
+                            vreg_tmp, tail);
+            uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp, vreg_sum_scale_);
+        }
+    };
+
+    if (conf_.do_sum)
+        postops_injector_->set_lambda_injector(
+                primitive_kind::sum, sum_injector);
+
     postops_injector_->compute_vector_range(
             1, unroll + vmm_start_idx_, rhs_arg_params);
 }
@@ -343,13 +363,6 @@ void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
             uni_vmovups(vreg_tmp, vreg_tmp_src1);
         perform_op(
                 vreg_tmp_src0, vreg_tmp, vreg_scales_src0_, vreg_scales_src1_);
-        if (conf_.do_sum) {
-            io_.at(conf_.dst_type)
-                    ->load(dst_ptr(offt
-                                   * types::data_type_size(conf_.dst_type)),
-                            vreg_tmp, tail);
-            uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp, vreg_sum_scale_);
-        }
     }
 
     if (postops_injector_) apply_postops(unroll, tail);

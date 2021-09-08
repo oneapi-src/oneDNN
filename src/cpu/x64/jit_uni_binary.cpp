@@ -152,12 +152,12 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
             || !attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values();
     conf_.do_scale_src1 = !attr()->scales_.get(DNNL_ARG_SRC_1).defined()
             || !attr()->scales_.get(DNNL_ARG_SRC_1).has_default_values();
-    conf_.do_sum = po.contain(primitive_kind::sum, 0)
-            && po.entry_[0].sum.scale != 0.f;
+    const auto sum_idx = po.find(primitive_kind::sum);
+    conf_.do_sum = sum_idx != -1 && po.entry_[sum_idx].sum.scale != 0.f;
     conf_.with_eltwise = po.find(primitive_kind::eltwise) != -1;
     const bool with_binary = po.find(primitive_kind::binary) != -1;
-    conf_.with_postops = with_binary || conf_.with_eltwise;
-    conf_.sum_scale = conf_.do_sum ? po.entry_[0].sum.scale : 0.f;
+    conf_.with_postops = with_binary || conf_.with_eltwise || conf_.do_sum;
+    conf_.sum_scale = conf_.do_sum ? po.entry_[sum_idx].sum.scale : 0.f;
     const auto &bcast_dims = broadcast_dims();
     conf_.bcast_type = is_tensor_op() ? bcast_t::none
                                       : get_bcast_type(src1_md_, bcast_dims);
@@ -435,7 +435,6 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
     for (int i = 0; i < p.len(); i++) {
         if (p.contain(primitive_kind::sum, i)) {
             if (p.entry_[i].sum.zero_point != 0) return false;
-            if (i > 0) return false;
             if (src0_d.data_type() != dst_d.data_type()) return false;
         } else if (!(is_eltwise(i) || is_binary(i))
                 || ((is_i8 || !is_avx512_core) && is_binary_bf16(i)))
