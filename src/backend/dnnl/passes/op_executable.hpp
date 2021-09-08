@@ -27,6 +27,7 @@
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/utils.hpp"
 
 #define DNNL_GRAPH_ARG_POST_SRC -1
 
@@ -37,7 +38,13 @@ namespace dnnl_impl {
 
 inline dnnl::convolution_forward::primitive_desc create_conv_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr &prm_attr_mgr) {
+        primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return static_cast<dnnl::convolution_forward::primitive_desc &>(
+                pd_cache.at(op.get()));
+    }
+
     // prepare the operator attributes
     auto strides = op->get_attr<dims>("strides");
     auto dilates = op->get_attr<dims>("dilations");
@@ -81,12 +88,20 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
                 prm_attr, p_engine);
     }
 
+    pd_cache.insert({op.get(), pd});
+
     return pd;
 }
 
 inline dnnl::matmul::primitive_desc create_matmul_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr &prm_attr_mgr) {
+        primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return static_cast<dnnl::matmul::primitive_desc &>(
+                pd_cache.at(op.get()));
+    }
+
     dnnl::primitive_attr prm_attr;
     if (op->has_attr("primitive_attr_key")) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
@@ -110,12 +125,21 @@ inline dnnl::matmul::primitive_desc create_matmul_pd(
     } else {
         pd = dnnl::matmul::primitive_desc({src, wei, dst}, prm_attr, p_engine);
     }
+
+    pd_cache.insert({op.get(), pd});
+
     return pd;
 }
 
 inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr &prm_attr_mgr) {
+        primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return static_cast<dnnl::pooling_v2_forward::primitive_desc &>(
+                pd_cache.at(op.get()));
+    }
+
     dims strides = op->get_attr<dims>("strides");
     dims kernel = op->get_attr<dims>("kernel");
     dims pads_begin = op->get_attr<dims>("pads_begin");
@@ -163,12 +187,21 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
             {prop_kind::forward_inference, algo, src, dst, strides, kernel,
                     dilations, pads_begin, pads_end},
             prm_attr, p_engine);
+
+    pd_cache.insert({op.get(), pd});
+
     return pd;
 }
 
 inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr &prm_attr_mgr) {
+        primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return static_cast<dnnl::convolution_backward_data::primitive_desc &>(
+                pd_cache.at(op.get()));
+    }
+
     // prepare the operator attributes
     auto strides = op->get_attr<dims>("strides");
     auto dilates = op->get_attr<dims>("dilations");
@@ -206,6 +239,8 @@ inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
                     strides, dilates, pads_begin, pads_end},
             p_engine, fwd_hints);
 
+    pd_cache.insert({op.get(), pd});
+
     return pd;
 }
 
@@ -227,8 +262,9 @@ struct memory_reparser : public op_executable {
 
 struct conv_fwd_executable : public op_executable {
     conv_fwd_executable(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
-        pd_ = create_conv_pd(op, p_engine, prm_attr_mgr);
+            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_conv_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::convolution_forward(pd_);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
@@ -271,8 +307,9 @@ private:
 
 struct matmul_executable : public op_executable {
     matmul_executable(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
-        pd_ = create_matmul_pd(op, p_engine, prm_attr_mgr);
+            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_matmul_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::matmul(pd_);
 
         // The scratchpad size of pd created by using any format tag may be
@@ -317,8 +354,9 @@ private:
 
 struct pool_executable : public op_executable {
     pool_executable(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
-        pd_ = create_pool_pd(op, p_engine, prm_attr_mgr);
+            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_pool_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::pooling_v2_forward(pd_);
         if (op->has_attr("output_format")
                 && op->get_attr<std::string>("output_format") == "NXC")
@@ -613,8 +651,9 @@ private:
 
 struct conv_bwd_data_executable : public op_executable {
     conv_bwd_data_executable(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
-        pd_ = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr);
+            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::convolution_backward_data(pd_);
         if (op->has_attr("output_format")
                 && op->get_attr<std::string>("output_format") == "NXC")

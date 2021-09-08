@@ -74,6 +74,8 @@ protected:
     std::vector<bool> is_constant_;
     std::vector<bool> is_skip_;
 
+    pd_cache_t pd_cache_;
+
 public:
     virtual ~conv_base() {
         thread_local_cache_t<subgraph_resource_t> res_cache;
@@ -224,8 +226,8 @@ public:
 
         vis.run(subgraph, "after_infer_shape_infer_type", true);
 
-        BACKEND_DNNL_CHECK(
-                layout_propagation(subgraph, p_engine_, prm_attr_mgr_));
+        BACKEND_DNNL_CHECK(layout_propagation(
+                subgraph, p_engine_, prm_attr_mgr_, pd_cache_));
 
         vis.run(subgraph, "after_layout_propagation", true);
 
@@ -267,8 +269,8 @@ public:
         BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
                 exec_arg_mgr_, prm_attr_mgr_));
 
-        BACKEND_DNNL_CHECK(
-                compile_ops(subgraph, p_engine_, prm_attr_mgr_, exec_mgr_));
+        BACKEND_DNNL_CHECK(compile_ops(
+                subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
 
         // topologically sort the executables
         impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),
@@ -392,8 +394,8 @@ public:
 
         vis.run(subgraph, "after_infer_shape_infer_type", true);
 
-        BACKEND_DNNL_CHECK(
-                layout_propagation(subgraph, p_engine_, prm_attr_mgr_));
+        BACKEND_DNNL_CHECK(layout_propagation(
+                subgraph, p_engine_, prm_attr_mgr_, pd_cache_));
 
         vis.run(subgraph, "after_layout_propagation", true);
 
@@ -418,8 +420,8 @@ public:
         BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
                 exec_arg_mgr_, prm_attr_mgr_));
 
-        BACKEND_DNNL_CHECK(
-                compile_ops(subgraph, p_engine_, prm_attr_mgr_, exec_mgr_));
+        BACKEND_DNNL_CHECK(compile_ops(
+                subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
 
         // topologically sort the executables
         impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),

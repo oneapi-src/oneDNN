@@ -57,7 +57,7 @@ private:
 
 impl::status_t compile_ops(std::vector<std::shared_ptr<impl::op_t>> &subgraph,
         const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
-        executable_mgr &exec_mgr);
+        executable_mgr &exec_mgr, pd_cache_t &pd_cache);
 
 } // namespace dnnl_impl
 } // namespace impl

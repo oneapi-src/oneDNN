@@ -6210,10 +6210,10 @@ TEST(operator_compile, conv_add_eltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param> params = {
-            {"conv_sum_elu_fusion", {0.0},
+            eltwise_param {"conv_sum_elu_fusion", {0.0},
                     {static_cast<float>(exp(-3.0) - 1), 3.5, 4.0, 1.5},
                     impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
-            {"conv_sum_relu6_fusion", {0.0}, {0.0, 3.5, 4.f, 1.5},
+            eltwise_param {"conv_sum_relu6_fusion", {0.0}, {0.0, 3.5, 4.f, 1.5},
                     impl::op_kind::HardTanh, "ReLU6",
                     {{"min", 0.f}, {"max", 6.f}}},
     };

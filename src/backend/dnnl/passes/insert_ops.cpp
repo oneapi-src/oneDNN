@@ -33,7 +33,7 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 
 // TODO(xxx): extend to support other ops
 static bool need_insert_reorder(op_kind_t kind) {
-    std::set<op_kind_t> ops {op_kind::dnnl_convolution,
+    static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
             impl::op_kind::Convolution, impl::op_kind::MatMul,
             impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool,
             op_kind::dnnl_conv_bwd_data};
@@ -43,7 +43,7 @@ static bool need_insert_reorder(op_kind_t kind) {
 // TODO(xxx): extend to support other ops
 // for those ops with data_format/filter_format attributes
 static bool need_insert_permute(op_kind_t kind) {
-    std::set<op_kind_t> ops {op_kind::dnnl_convolution,
+    static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
             impl::op_kind::Convolution, impl::op_kind::MaxPool,
             impl::op_kind::AvgPool, op_kind::dnnl_pool};
     return ops.count(kind) != 0;
@@ -52,7 +52,7 @@ static bool need_insert_permute(op_kind_t kind) {
 // TODO(xxx): extend to support other ops
 // for those ops whose input's format must be defined, such as pool, eltwise,...
 static bool require_input_format(op_kind_t kind) {
-    std::set<op_kind_t> ops {
+    static const std::set<op_kind_t> ops {
             impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool};
     return ops.count(kind) != 0;
 }

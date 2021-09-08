@@ -21,6 +21,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "interface/c_types_map.hpp"
 #include "interface/graph.hpp"
@@ -82,7 +83,10 @@ private:
     bool enabled_;
     size_t index_;
 };
+
 void replace_op(std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op);
+
+using pd_cache_t = std::unordered_map<op_t *, dnnl::primitive_desc>;
 
 } // namespace dnnl_impl
 } // namespace impl

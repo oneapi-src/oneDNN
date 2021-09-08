@@ -52,7 +52,8 @@ static value_ptr insert_workspace(op_ptr &op) {
 }
 
 static bool layout_propagation_for_conv(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
     std::shared_ptr<impl::value_t> src, wei, bias, dst;
     src = op->get_input_value(0);
     wei = op->get_input_value(1);
@@ -66,7 +67,7 @@ static bool layout_propagation_for_conv(op_ptr &op,
                     && ltw(dst->get_logical_tensor()).is_any(),
             "conv's src, weight, dst should be any layout_type");
 
-    auto pd = create_conv_pd(op, p_engine, prm_attr_mgr);
+    auto pd = create_conv_pd(op, p_engine, prm_attr_mgr, pd_cache);
 
     fill_layout_info(src, pd.src_desc());
     fill_layout_info(wei, pd.weights_desc());
@@ -118,7 +119,8 @@ static void get_expected_input_layout(
 }
 
 static bool layout_propagation_for_matmul(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
     std::shared_ptr<impl::value_t> src, wei, bias, dst;
     src = op->get_input_value(0);
     // get reorder's input value as matmul's input value if not constant
@@ -132,7 +134,7 @@ static bool layout_propagation_for_matmul(op_ptr &op,
         get_expected_input_layout(bias);
     }
 
-    auto pd = create_matmul_pd(op, p_engine, prm_attr_mgr);
+    auto pd = create_matmul_pd(op, p_engine, prm_attr_mgr, pd_cache);
 
     fill_layout_info(src, pd.src_desc());
     fill_layout_info(wei, pd.weights_desc());
@@ -155,7 +157,8 @@ static bool layout_propagation_for_matmul(op_ptr &op,
 }
 
 static bool layout_propagation_for_pool(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
     bool changed = true;
     value_ptr src = op->get_input_value(0);
     value_ptr dst = op->get_output_value(0);
@@ -165,7 +168,7 @@ static bool layout_propagation_for_pool(op_ptr &op,
     if ((ltw(src->get_logical_tensor()).is_strided()
                 || ltw(src->get_logical_tensor()).is_opaque())
             && ltw(dst->get_logical_tensor()).is_any()) {
-        auto pd = create_pool_pd(op, p_engine, prm_attr_mgr);
+        auto pd = create_pool_pd(op, p_engine, prm_attr_mgr, pd_cache);
 
         fill_layout_info(src, pd.src_desc());
         if (op->has_attr("output_format")
@@ -346,7 +349,8 @@ static bool layout_propagation_for_bn_folding(
 }
 
 static bool layout_propagation_for_conv_bwd_data(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
     std::shared_ptr<impl::value_t> diff_dst, wei, bias, diff_src;
     diff_dst = op->get_input_value(0);
     wei = op->get_input_value(1);
@@ -358,7 +362,7 @@ static bool layout_propagation_for_conv_bwd_data(op_ptr &op,
             "conv_bwd_data's diff_dst, weight, diff_src should be any "
             "layout_type");
 
-    auto pd = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr);
+    auto pd = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache);
 
     fill_layout_info(diff_dst, pd.diff_dst_desc());
     fill_layout_info(wei, pd.weights_desc());
@@ -435,7 +439,8 @@ static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
 /// support propagating layout both from inputs to outputs and from outputs to
 /// inputs. See the following figure for example:
 impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
     auto need_prop = [&](op_t *op) {
         for (const auto &in : op->get_input_values()) {
             if (ltw(in->get_logical_tensor()).layout_type()
@@ -474,7 +479,7 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
                     || cur_op->get_kind() == impl::op_kind::AvgPool
                     || cur_op->get_kind() == op_kind::dnnl_pool) {
                 changed = layout_propagation_for_pool(
-                                  cur_op, p_engine, prm_attr_mgr)
+                                  cur_op, p_engine, prm_attr_mgr, pd_cache)
                         || changed;
             } else if (cur_op->get_kind() == op_kind::permute) {
                 changed = layout_propagation_for_permute(cur_op) || changed;
@@ -503,10 +508,11 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
 
         if (cur_op->get_kind() == impl::op_kind::Convolution
                 || cur_op->get_kind() == op_kind::dnnl_convolution) {
-            layout_propagation_for_conv(cur_op, p_engine, prm_attr_mgr);
+            layout_propagation_for_conv(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
             layout_propagation_for_conv_bwd_data(
-                    cur_op, p_engine, prm_attr_mgr);
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else {
             // do nothing
         }
@@ -526,7 +532,7 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
             if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
             if (!need_prop(cur_op.get())) continue;
             changed = layout_propagation_for_matmul(
-                              cur_op, p_engine, prm_attr_mgr)
+                              cur_op, p_engine, prm_attr_mgr, pd_cache)
                     || changed;
         }
         // layout propagation for layout reorder op

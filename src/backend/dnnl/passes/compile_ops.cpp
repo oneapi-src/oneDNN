@@ -38,7 +38,7 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 /// ops.
 impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
         const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
-        executable_mgr &exec_mgr) {
+        executable_mgr &exec_mgr, pd_cache_t &pd_cache) {
     for (auto &cur_op : subgraph) {
         if (cur_op->has_attr("executable_key")) continue; // already compiled
 
@@ -49,15 +49,15 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
         if (cur_op->get_kind() == impl::op_kind::Convolution
                 || cur_op->get_kind() == op_kind::dnnl_convolution) {
             prm = std::make_shared<conv_fwd_executable>(
-                    cur_op, p_engine, prm_attr_mgr);
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
             prm = std::make_shared<matmul_executable>(
-                    cur_op, p_engine, prm_attr_mgr);
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::MaxPool
                 || cur_op->get_kind() == impl::op_kind::AvgPool
                 || cur_op->get_kind() == op_kind::dnnl_pool) {
             prm = std::make_shared<pool_executable>(
-                    cur_op, p_engine, prm_attr_mgr);
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::mul_scales
                 || cur_op->get_kind() == impl::op_kind::Reorder
                 || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
@@ -73,7 +73,7 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
             prm = std::make_shared<bn_folding>(cur_op, p_engine);
         } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
             prm = std::make_shared<conv_bwd_data_executable>(
-                    cur_op, p_engine, prm_attr_mgr);
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else {
             assertm(false, "unimplemented op, can't compile it");
             return impl::status::compile_fail;

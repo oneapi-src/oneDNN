@@ -542,7 +542,10 @@ TEST(pass_test, subgraph_passes) {
     impl::graph_t agraph(subgraph);
     ASSERT_EQ(agraph.infer_shape(), impl::status::success);
     ASSERT_EQ(dnnl_impl::infer_type(agraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph, p_eng, prm_attr_mgr),
+
+    dnnl_impl::pd_cache_t pd_cache;
+    ASSERT_EQ(dnnl_impl::layout_propagation(
+                      subgraph, p_eng, prm_attr_mgr, pd_cache),
             impl::status::success);
 
     for (auto &cur_op : subgraph) {
@@ -737,7 +740,10 @@ TEST_P(int8_matmul_pass_test, int8_matmul_layout_propagation) {
         dnnl_impl::set_weight_bias_constant(subgraph);
         dnnl_impl::constant_propagation(subgraph);
     }
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph, p_eng, prm_attr_mgr),
+
+    dnnl_impl::pd_cache_t pd_cache;
+    ASSERT_EQ(dnnl_impl::layout_propagation(
+                      subgraph, p_eng, prm_attr_mgr, pd_cache),
             impl::status::success);
     ASSERT_EQ(subgraph.size(), params.final_subgraph_size);
 }

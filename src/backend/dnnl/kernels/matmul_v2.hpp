@@ -71,6 +71,8 @@ private:
     std::vector<bool> is_constant_;
     std::vector<bool> is_skip_;
 
+    pd_cache_t pd_cache_;
+
 public:
     virtual ~matmul() {
         thread_local_cache_t<subgraph_resource_t> res_cache;
@@ -144,8 +146,8 @@ public:
 
         vis.run(subgraph, "after_infer_shape_infer_type", true);
 
-        BACKEND_DNNL_CHECK(
-                layout_propagation(subgraph, p_engine_, prm_attr_mgr_));
+        BACKEND_DNNL_CHECK(layout_propagation(
+                subgraph, p_engine_, prm_attr_mgr_, pd_cache_));
 
         vis.run(subgraph, "after_layout_propagation", true);
 
@@ -170,8 +172,8 @@ public:
         // insert/delete operators
         if (enable_constant_cache_) { constant_propagation(subgraph); }
 
-        BACKEND_DNNL_CHECK(
-                compile_ops(subgraph, p_engine_, prm_attr_mgr_, exec_mgr_));
+        BACKEND_DNNL_CHECK(compile_ops(
+                subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
 
         // bind the memory for each op
         BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
