@@ -69,9 +69,17 @@ macro(platform_gnu_x64_arch_ccxx_flags var)
     set(${var} "-msse4.1")
 endmacro()
 
-macro(platform_gnu_nowarn_ccxx_flags var)
+macro(platform_gnu_nowarn_ccxx_flags var gnu_version)
     # suppress warning on assumptions made regarding overflow (#146)
     append(${var} "-Wno-strict-overflow")
+    # suppress false positive warnings about uninitialized variables
+    append(${var} "-Wno-maybe-uninitialized")
+    # suppress false positive warnings with 10.x: GCC Bugzilla – Bug 96963
+    # assume 0.0 is unknown version - always suppress the warning
+    if(${gnu_version} VERSION_EQUAL 0.0 OR
+        (${gnu_version} VERSION_GREATER 10.0 AND ${gnu_version} VERSION_LESS 11.0))
+        append(CMAKE_CCXX_FLAGS "-Wno-stringop-overflow")
+    endif()
 endmacro()
 
 if(DNNL_WITH_SYCL)
@@ -288,7 +296,7 @@ elseif(UNIX OR MINGW)
         elseif(DNNL_TARGET_ARCH STREQUAL "X64")
              platform_gnu_x64_arch_ccxx_flags(DEF_ARCH_OPT_FLAGS)
         endif()
-        platform_gnu_nowarn_ccxx_flags(CMAKE_CCXX_NOWARN_FLAGS)
+        platform_gnu_nowarn_ccxx_flags(CMAKE_CCXX_NOWARN_FLAGS ${CMAKE_CXX_COMPILER_VERSION})
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         set(DEF_ARCH_OPT_FLAGS "-xSSE4.1")
         # workaround for Intel Compiler that produces error caused

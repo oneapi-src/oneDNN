@@ -39,7 +39,7 @@ if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
 
     platform_unix_and_mingw_common_ccxx_flags(DPCPP_HOST_COMPILER_OPTS)
     platform_unix_and_mingw_common_cxx_flags(DPCPP_HOST_COMPILER_OPTS)
-    platform_gnu_nowarn_ccxx_flags(DPCPP_CXX_NOWARN_FLAGS)
+    platform_gnu_nowarn_ccxx_flags(DPCPP_CXX_NOWARN_FLAGS, 0.0)
 
     sdl_unix_common_ccxx_flags(DPCPP_HOST_COMPILER_OPTS)
     sdl_gnu_common_ccxx_flags(DPCPP_HOST_COMPILER_OPTS)
