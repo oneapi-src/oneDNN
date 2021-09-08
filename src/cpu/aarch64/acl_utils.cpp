@@ -106,13 +106,10 @@ void acl_thread_bind() {
     // The threads in Compute Library are bound for the cores 0..max_threads-1
     // dnnl_get_max_threads() returns OMP_NUM_THREADS
     const int max_threads = dnnl_get_max_threads();
-    arm_compute::IScheduler::BindFunc linear
-            = [](int i, int max_cores) { return i % max_cores; };
     // arm_compute::Scheduler does not support concurrent access thus a
     // workaround here restricts it to only one call
     std::call_once(flag_once, [&]() {
-        arm_compute::Scheduler::get().set_num_threads_with_affinity(
-                max_threads, linear);
+        arm_compute::Scheduler::get().set_num_threads(max_threads);
     });
 }
 
