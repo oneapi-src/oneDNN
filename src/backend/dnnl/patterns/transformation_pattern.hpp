@@ -77,8 +77,7 @@ public:
                 pu.match(agraph, pstarter, fusion_ops);
                 if (!fusion_ops.empty()) {
                     // temporary solution here for showing which pattern matched
-                    char *val = std::getenv("DNNL_GRAPH_DUMP");
-                    if (val != nullptr && std::strcmp(val, "1") == 0) {
+                    if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
                         printf("dnnl_graph_verbose,info,pattern,hit,%s\n",
                                 get_pass_name().c_str());
                         fflush(stdout);
@@ -111,8 +110,7 @@ public:
                 pu.match(agraph, pgraph, matched_pairs_list);
                 if (!matched_pairs_list.empty()) {
                     // temporary solution here for showing which pattern matched
-                    char *val = std::getenv("DNNL_GRAPH_DUMP");
-                    if (val != nullptr && std::strcmp(val, "1") == 0) {
+                    if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
                         printf("dnnl_graph_verbose,info,pattern,hit,%s\n",
                                 get_pass_name().c_str());
                         fflush(stdout);
