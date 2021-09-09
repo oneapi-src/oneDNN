@@ -8009,10 +8009,18 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
         r0_info = GRF {state.r0_info.getBase()};
     }
 
-    auto kLoopBarrier = [&](bool withSLMFence) {
-        auto temp = state.ra.alloc();
-        withSLMFence ? slmBarrier(temp, r0_info) : barrier(temp, r0_info);
-        state.ra.safeRelease(temp);
+    enum class KBarrierType { Normal, Signal, Wait };
+    auto kLoopBarrier = [&](bool withSLMFence, KBarrierType type) {
+        if (type != KBarrierType::Wait) {
+            auto temp = state.ra.alloc();
+            if (withSLMFence && hw >= HW::Gen11) {
+                slmfence(temp, r0_info);
+                if (hw < HW::Gen12LP) mov<uint32_t>(8, null, temp);
+            }
+            barriersignal(temp, r0_info);
+            state.ra.safeRelease(temp);
+        }
+        if (type != KBarrierType::Signal) barrierwait();
     };
 
     // Double-buffered SLM copy support.
@@ -8367,7 +8375,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
             add(1 | le | state.flagAP, state.K, state.K, int16_t(-unrollK));
             doSLMStores();
 
-            kLoopBarrier(true);
+            kLoopBarrier(true, KBarrierType::Normal);
 
             needCooldown = peeledKLoop = true;
             break;
@@ -8383,7 +8391,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
             add(1 | le | state.flagAP, state.K, state.K, int16_t(-unrollK));
             doSLMStores();
 
-            kLoopBarrier(true);
+            kLoopBarrier(true, KBarrierType::Normal);
 
             needCooldown = peeledKLoop = true;
             break;
@@ -8728,10 +8736,10 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
                                 if (strategy.slmB && B_copies > 1)
                                     wrdepRanges(state.B_regs);
                             }
-                            kLoopBarrier(false);
+                            kLoopBarrier(false, KBarrierType::Normal);
                             doSLMStores();
                             if (strategy.slmBuffers == 1)
-                                kLoopBarrier(true);
+                                kLoopBarrier(true, KBarrierType::Normal);
                             else if (hw >= HW::Gen11) {
                                 auto temp = state.ra.alloc();
                                 slmfence(temp, r0_info);
@@ -8787,7 +8795,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
             add(1 | sat, outerK.ud(), outerK.ud(),
                     int16_t(-strategy.barrierFreq));
 
-            kLoopBarrier(false);
+            kLoopBarrier(false, KBarrierType::Normal);
 
             jmpi(1 | state.flagAP, lKLoopBegin);
 
@@ -8846,7 +8854,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
                 state.ra.safeRelease(temp);
             }
 
-            kLoopBarrier(false);
+            kLoopBarrier(false, KBarrierType::Normal);
 
             kLoopBody(state.A_layout, state.B_layout, state.A_addrs,
                     state.B_addrs, unrollK, strategy.ka_load, strategy.kb_load,
@@ -9152,9 +9160,11 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
                 }
             }
 
-            kLoopBarrier(false); // TODO: split this barrier around loads.
+            kLoopBarrier(false,
+                    KBarrierType::
+                            Normal); // TODO: split this barrier around loads.
             doSLMStores(repacked);
-            kLoopBarrier(true);
+            kLoopBarrier(true, KBarrierType::Normal);
 
             if (restoreState) state = savedState;
 
