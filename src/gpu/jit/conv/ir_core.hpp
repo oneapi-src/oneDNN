@@ -692,7 +692,7 @@ class ir_mutator_t {
 public:
     virtual ~ir_mutator_t() = default;
 
-    virtual object_t mutate(const object_t &obj) {
+    object_t mutate(const object_t &obj) {
         auto impl = obj.impl();
         if (!impl) return impl;
         return impl->_mutate(*this);

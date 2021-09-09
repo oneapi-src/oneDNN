@@ -18,6 +18,7 @@
 
 #include "common/math_utils.hpp"
 #include "gpu/jit/conv/ir.hpp"
+#include "gpu/jit/conv/ir_core.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -233,23 +234,19 @@ public:
 
     int substitutions() const { return substitutions_; }
 
-    object_t mutate(const object_t &obj) override {
-        auto impl = obj.impl();
-        if (!impl) return impl;
-        return mutate_object(this, *impl);
-    }
+#define HANDLE_IR_OBJECT(type) \
+    object_t _mutate(const type &obj) override { \
+        auto *this_mutator = (substitute_mutator_t *)this; \
+        if (this_mutator->from_.impl() == (const object_impl_t *)&obj) { \
+            this_mutator->substitutions_++; \
+            return this_mutator->to_; \
+        } \
+        return ir_mutator_t::_mutate(obj); \
+    };
 
-    static object_t mutate_object(
-            ir_mutator_t *mutator, const object_impl_t &obj) {
-        auto *this_mutator = (substitute_mutator_t *)mutator;
+    HANDLE_MUTATE_TARGETS()
 
-        if (this_mutator->from_.is_same(obj)) {
-            this_mutator->substitutions_++;
-            return this_mutator->to_;
-        }
-
-        return obj._mutate(*mutator);
-    }
+#undef HANDLE_IR_OBJECT
 
 private:
     object_t from_;
