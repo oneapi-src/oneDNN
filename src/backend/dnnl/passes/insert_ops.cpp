@@ -275,9 +275,10 @@ void insert_expand_for_matmul(std::vector<op_ptr> &subgraph) {
                 }
             } else { // bias
                 // expand bias to dst ndims if they are mis-matched
+                int64_t tgt_ndims = std::max(new_src_ndims, new_wei_ndims);
                 if (cur_op->get_input_value(i)->get_logical_tensor().ndims
-                        != dst_ndims)
-                    expand_op->set_attr<int64_t>("expand_to", dst_ndims);
+                        != tgt_ndims)
+                    expand_op->set_attr<int64_t>("expand_to", tgt_ndims);
             }
             expand_ops.emplace_back(expand_op);
         }
