@@ -284,6 +284,9 @@ lru_primitive_cache_t::~lru_primitive_cache_t() {
     auto f = reinterpret_cast<BOOLEAN (*)(void)>(
             GetProcAddress(handle, "RtlDllShutdownInProgress"));
     if (!f) {
+        auto ret = FreeLibrary(handle);
+        assert(ret);
+        MAYBE_UNUSED(ret);
         cache_mapper_.release();
         return;
     }
