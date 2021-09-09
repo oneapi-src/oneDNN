@@ -822,7 +822,7 @@ public:
             return;
         }
 
-        uint32_t m, p;
+        uint32_t m = 0, p = 0;
         eidiv_magicgu(y, m, p);
 
         auto _x = ra_.alloc().ud();
@@ -1879,7 +1879,7 @@ private:
         }
 
         int idx; // Identifier of the edge.
-        int a, b; // Specify tile (a x b).
+        int a = 0, b = 0; // Specify tile (a x b).
     };
 
     // Represents GRF layout between edges-reorders.
