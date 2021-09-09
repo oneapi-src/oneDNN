@@ -20,133 +20,11 @@
 
 namespace conv {
 
-template <typename get_args_func>
-void exec_conv(get_args_func get_args, const prb_t *prb,
-        dnnl_primitive_t prim_ref, dnn_mem_t &src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
-    const_dnnl_primitive_desc_t pd_ref;
-    dnnl_engine_t engine_ref;
-
-    DNN_SAFE_V(dnnl_primitive_get_primitive_desc(prim_ref, &pd_ref));
-    DNN_SAFE_V(dnnl_primitive_desc_query(
-            pd_ref, dnnl_query_engine, 0, &engine_ref));
-    const auto &scratchpad_md = *dnnl_primitive_desc_query_md(
-            pd_ref, dnnl_query_exec_arg_md, DNNL_ARG_SCRATCHPAD);
-
-    auto src_ref = dnn_mem_t::create_from_host_ptr(
-            src_m.md_, engine_ref, (void *)src_m);
-    auto wei_ref = dnn_mem_t::create_from_host_ptr(
-            wei_m.md_, engine_ref, (void *)wei_m);
-    dnn_mem_t bia_ref;
-    if (prb->dir & FLAG_BIA)
-        bia_ref = dnn_mem_t::create_from_host_ptr(
-                bia_m.md_, engine_ref, (void *)bia_m);
-    auto dst_ref = dnn_mem_t::create_from_host_ptr(
-            dst_m.md_, engine_ref, (void *)dst_m);
-    dnn_mem_t scratchpad(scratchpad_md, engine_ref);
-
-    args_t args = get_args(prb, src_ref, wei_ref, bia_ref, dst_ref);
-    args.set(DNNL_ARG_SCRATCHPAD, scratchpad);
-    SAFE_V(execute_and_wait(prim_ref, args));
-}
-
-args_t get_args_conv_fwd(const prb_t *prb, dnn_mem_t &src_ref,
-        dnn_mem_t &wei_ref, dnn_mem_t &bia_ref, dnn_mem_t &dst_ref) {
-
-    args_t args;
-    args.set(DNNL_ARG_SRC, src_ref);
-    args.set(DNNL_ARG_WEIGHTS, wei_ref);
-    if (prb->dir & FLAG_BIA) args.set(DNNL_ARG_BIAS, bia_ref);
-    args.set(DNNL_ARG_DST, dst_ref);
-    return args;
-}
-
-args_t get_args_conv_bwd_d(const prb_t *prb, dnn_mem_t &src_ref,
-        dnn_mem_t &wei_ref, dnn_mem_t &bia_ref, dnn_mem_t &dst_ref) {
-
-    args_t args;
-    args.set(DNNL_ARG_DIFF_SRC, src_ref);
-    args.set(DNNL_ARG_WEIGHTS, wei_ref);
-    args.set(DNNL_ARG_DIFF_DST, dst_ref);
-    return args;
-}
-
-args_t get_args_conv_bwd_w(const prb_t *prb, dnn_mem_t &src_ref,
-        dnn_mem_t &wei_ref, dnn_mem_t &bia_ref, dnn_mem_t &dst_ref) {
-
-    args_t args;
-    args.set(DNNL_ARG_SRC, src_ref);
-    args.set(DNNL_ARG_DIFF_WEIGHTS, wei_ref);
-    if (prb->dir & FLAG_BIA) args.set(DNNL_ARG_DIFF_BIAS, bia_ref);
-    args.set(DNNL_ARG_DIFF_DST, dst_ref);
-    return args;
-}
-
-void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t prim_ref,
-        dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po,
-        const std::vector<dnn_mem_t> &prelu_po, dnn_mem_t &dst_m) {
-    if (prim_ref) {
-        exec_conv(get_args_conv_fwd, prb, prim_ref, src_m, wei_m, bia_m, dst_m);
-        return;
-    }
-    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
-        compute_wino_ref_fwd(prb, src_m, wei_m, bia_m, binary_po, dst_m);
-    } else {
-        compute_ref_direct_fwd(
-                prb, src_m, wei_m, bia_m, binary_po, prelu_po, dst_m);
-    }
-}
-
-void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t prim_ref,
-        dnn_mem_t &diff_src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m) {
-    if (prim_ref) {
-        exec_conv(get_args_conv_bwd_d, prb, prim_ref, diff_src_m, wei_m, bia_m,
-                diff_dst_m);
-        return;
-    }
-    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
-        compute_wino_ref_bwd_d(prb, diff_src_m, wei_m, bia_m, diff_dst_m);
-    } else {
-        compute_ref_direct_bwd_d(
-                prb, diff_src_m, wei_m, bia_m, binary_po, diff_dst_m);
-    }
-}
-
-void compute_ref_bwd_w(const prb_t *prb, dnnl_primitive_t prim_ref,
-        dnn_mem_t &src_m, dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m,
-        dnn_mem_t &diff_dst_m) {
-    if (prim_ref) {
-        exec_conv(get_args_conv_bwd_w, prb, prim_ref, src_m, diff_wei_m,
-                diff_bia_m, diff_dst_m);
-        return;
-    }
-    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
-        compute_wino_ref_bwd_w(prb, src_m, diff_wei_m, diff_bia_m, diff_dst_m);
-    } else {
-        compute_ref_direct_bwd_w(
-                prb, src_m, diff_wei_m, diff_bia_m, diff_dst_m);
-    }
-}
-
-static std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m,
-        const std::vector<dnn_mem_t> &po, const std::vector<int> &v_po_mask,
-        const size_t dst_off) {
-    std::vector<float> v_vals(v_po_mask.size());
-
-    for (size_t d = 0; d < v_po_mask.size(); ++d) {
-        const auto po_offset = dst_m.get_scale_idx(dst_off, v_po_mask[d]);
-        const float val = po[d].get_elem(po_offset);
-        v_vals[d] = val;
-    }
-    return v_vals;
-}
-
-void compute_ref_direct_fwd(const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po,
-        const std::vector<dnn_mem_t> &prelu_po, dnn_mem_t &dst_m) {
+void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &bia_m = args.find(DNNL_ARG_BIAS);
+    const dnn_mem_t &dst_m = args.find(DNNL_ARG_DST);
     /* help compiler optimize the code */
     const int64_t MB = prb->mb, G = prb->g, OC = prb->oc, IC = prb->ic;
     const int64_t OCG = OC / G, ICG = IC / G;
@@ -189,8 +67,7 @@ void compute_ref_direct_fwd(const prb_t *prb, dnn_mem_t &src_m,
         }
     };
 
-    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
-    std::vector<int> v_prelu_po_mask = prb->attr.post_ops.get_prelu_po_masks();
+    auto v_po_masks = prb->attr.post_ops.get_po_masks();
     dnnl::impl::parallel_nd(G, MB, OCG, OD, OH, OW,
             [&](int64_t g, int64_t mb, int64_t oc, int64_t od, int64_t oh,
                     int64_t ow) {
@@ -207,13 +84,10 @@ void compute_ref_direct_fwd(const prb_t *prb, dnn_mem_t &src_m,
 
                 maybe_oscale(prb->attr, conv_res, prb->scales, g * OCG + oc);
 
-                const auto v_binary_vals = prepare_po_vals(
-                        dst_m, binary_po, v_bin_po_mask, dst_off);
-                const auto v_prelu_vals = prepare_po_vals(
-                        dst_m, prelu_po, v_prelu_po_mask, dst_off);
+                const auto v_po_vals
+                        = prepare_po_vals(dst_m, args, v_po_masks, dst_off);
 
-                maybe_post_ops(
-                        prb->attr, conv_res, dst, v_binary_vals, v_prelu_vals);
+                maybe_post_ops(prb->attr, conv_res, dst, v_po_vals);
 
                 maybe_zero_point(prb->attr, conv_res, prb->dst_zp, g * OCG + oc,
                         DNNL_ARG_DST, true);
@@ -222,10 +96,11 @@ void compute_ref_direct_fwd(const prb_t *prb, dnn_mem_t &src_m,
             });
 }
 
-void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m) {
-
+void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &diff_src_m = args.find(DNNL_ARG_DIFF_SRC);
+    const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &bia_m = args.find(DNNL_ARG_BIAS);
+    const dnn_mem_t &diff_dst_m = args.find(DNNL_ARG_DIFF_DST);
     /* help compiler optimize the code */
     const int64_t MB = prb->mb, G = prb->g, OC = prb->oc, IC = prb->ic;
     const int64_t OCG = OC / G, ICG = IC / G;
@@ -336,7 +211,7 @@ void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
         }
     };
 
-    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
+    auto v_po_masks = prb->attr.post_ops.get_po_masks();
     dnnl::impl::parallel_nd(G, MB, ICG, ID, IH, IW,
             [&](int64_t g, int64_t mb, int64_t ic, int64_t id, int64_t ih,
                     int64_t iw) {
@@ -354,15 +229,10 @@ void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
                 }
                 maybe_oscale(prb->attr, conv_res, prb->scales, g * ICG + ic);
 
-                std::vector<float> v_binary_vals(v_bin_po_mask.size());
-                for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-                    const auto bin_po_offset = diff_src_m.get_scale_idx(
-                            src_off, v_bin_po_mask[d]);
-                    const float binary_val
-                            = binary_po[d].get_elem(bin_po_offset);
-                    v_binary_vals[d] = binary_val;
-                }
-                maybe_post_ops(prb->attr, conv_res, ds, v_binary_vals);
+                const auto v_po_vals = prepare_po_vals(
+                        diff_src_m, args, v_po_masks, src_off);
+
+                maybe_post_ops(prb->attr, conv_res, ds, v_po_vals);
                 maybe_zero_point(prb->attr, conv_res, prb->dst_zp, g * ICG + ic,
                         map_arg_to_zp_arg(DNNL_ARG_DIFF_SRC), true);
 
@@ -370,8 +240,10 @@ void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
             });
 }
 
-void compute_ref_bwd_weights(const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_dst_m) {
+void compute_ref_bwd_weights(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &diff_wei_m = args.find(DNNL_ARG_DIFF_WEIGHTS);
+    const dnn_mem_t &diff_dst_m = args.find(DNNL_ARG_DIFF_DST);
     /* help compiler optimize the code */
     const int64_t MB = prb->mb, G = prb->g, OC = prb->oc, IC = prb->ic;
     const int64_t OCG = OC / G, ICG = IC / G;
@@ -432,8 +304,9 @@ void compute_ref_bwd_weights(const prb_t *prb, dnn_mem_t &src_m,
             });
 }
 
-void compute_ref_bwd_bias(
-        const prb_t *prb, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m) {
+void compute_ref_bwd_bias(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &diff_bia_m = args.find(DNNL_ARG_DIFF_BIAS);
+    const dnn_mem_t &diff_dst_m = args.find(DNNL_ARG_DIFF_DST);
     /* help compiler optimize the code */
     const int64_t MB = prb->mb, G = prb->g, OC = prb->oc;
     const int64_t OCG = OC / G;
@@ -454,11 +327,52 @@ void compute_ref_bwd_bias(
     });
 }
 
-void compute_ref_direct_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m) {
-    compute_ref_bwd_weights(prb, src_m, diff_wei_m, diff_dst_m);
+void compute_ref_direct_bwd_w(const prb_t *prb, const args_t &args) {
+    compute_ref_bwd_weights(prb, args);
     if (!(prb->dir & FLAG_BIA)) return;
-    compute_ref_bwd_bias(prb, diff_bia_m, diff_dst_m);
+    compute_ref_bwd_bias(prb, args);
+}
+
+void compute_ref_fwd(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+    if (prim_ref) {
+        SAFE_V(execute_and_wait(prim_ref, args));
+        return;
+    }
+
+    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
+        compute_wino_ref_fwd(prb, args);
+    } else {
+        compute_ref_direct_fwd(prb, args);
+    }
+}
+
+void compute_ref_bwd_d(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+    if (prim_ref) {
+        SAFE_V(execute_and_wait(prim_ref, args));
+        return;
+    }
+
+    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
+        compute_wino_ref_bwd_d(prb, args);
+    } else {
+        compute_ref_direct_bwd_d(prb, args);
+    }
+}
+
+void compute_ref_bwd_w(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+    if (prim_ref) {
+        SAFE_V(execute_and_wait(prim_ref, args));
+        return;
+    }
+
+    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
+        compute_wino_ref_bwd_w(prb, args);
+    } else {
+        compute_ref_direct_bwd_w(prb, args);
+    }
 }
 
 } // namespace conv

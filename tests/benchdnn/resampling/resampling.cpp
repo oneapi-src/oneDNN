@@ -255,7 +255,7 @@ int doit(const prb_t *prb, res_t *res) {
     // between the expected value and the gotten value with this algorithm.
     const bool only_positive_values = prb->alg == linear;
     SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
-                 binary_po_fp, only_positive_values),
+                 binary_po_fp, test_engine, only_positive_values),
             WARN);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
