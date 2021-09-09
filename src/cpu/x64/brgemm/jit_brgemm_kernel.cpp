@@ -234,6 +234,14 @@ private:
             const Xbyak::Operand &op, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask);
 
+    void advance_ldb_post_op_regs();
+    void restore_ldb_post_op_regs(int ld_block2);
+    void advance_bdb_post_op_regs(int adj_bd_block);
+    void restore_bdb_post_op_regs(int bd_block2);
+    void ldb_regs_shift(int ld_block2, bool is_tail = false);
+    void advance_bd_block2_post_op_regs(int bd_block2);
+
+    void copy_post_ops_stack_values_to_aux(bool is_reg_tail);
     void read_params();
     void zero_accumulators(int bd_block2, bool is_bdb_tail, int ld_block,
             bool is_ld_tail, bool skip_accumulation);
@@ -428,6 +436,244 @@ void jit_brgemm_kernel_t::cvt2ps(data_type_t type_in, const Xbyak::Zmm zmm_in,
     }
     if (!one_of(type_in, data_type::f32, data_type::bf16))
         vcvtdq2ps(zmm_in, zmm_in);
+}
+
+void jit_brgemm_kernel_t::advance_ldb_post_op_regs() {
+    if (brg.with_bias) {
+        mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]);
+        add(reg_aux_bias, bias_offset(1));
+        mov(ptr[rsp + reg_aux_bias_offs_], reg_aux_bias);
+    }
+    if (brg.with_scales) {
+        mov(reg_aux_scales, ptr[rsp + reg_aux_scales_offs_]);
+        add(reg_aux_scales, scales_offset(1));
+        mov(ptr[rsp + reg_aux_scales_offs_], reg_aux_scales);
+    }
+    if (with_binary_per_oc_bcast_) {
+        mov(reg_aux_binary_postops_oc_l,
+                ptr[rsp + reg_aux_binary_postops_oc_l_offs_]);
+        add(reg_aux_binary_postops_oc_l, oc_logical_offset(1));
+        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
+                reg_aux_binary_postops_oc_l);
+    }
+    if (brg.zp_type_a != brgemm_broadcast_t::none) {
+        mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
+        add(reg_aux_zp_comp_a, zp_comp_a_offset(1));
+        mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_aux_zp_comp_a);
+    }
+    if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
+        mov(reg_aux_zp_c_values, ptr[rsp + reg_aux_zp_c_values_offs_]);
+        add(reg_aux_zp_c_values, zp_c_values_offset(1));
+        mov(ptr[rsp + reg_aux_zp_c_values_offs_], reg_aux_zp_c_values);
+    }
+}
+
+void jit_brgemm_kernel_t::restore_ldb_post_op_regs(int ld_block2) {
+    if (brg.with_bias) {
+        mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]);
+        sub(reg_aux_bias, bias_offset(ld_block2 - 1));
+        mov(ptr[rsp + reg_aux_bias_offs_], reg_aux_bias);
+    }
+    if (brg.with_scales) {
+        mov(reg_aux_scales, ptr[rsp + reg_aux_scales_offs_]);
+        sub(reg_aux_scales, scales_offset(ld_block2 - 1));
+        mov(ptr[rsp + reg_aux_scales_offs_], reg_aux_scales);
+    }
+    if (with_binary_per_oc_bcast_) {
+        mov(reg_aux_binary_postops_oc_l,
+                ptr[rsp + reg_aux_binary_postops_oc_l_offs_]);
+        sub(reg_aux_binary_postops_oc_l, oc_logical_offset(ld_block2 - 1));
+        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
+                reg_aux_binary_postops_oc_l);
+    }
+    if (brg.zp_type_a != brgemm_broadcast_t::none) {
+        mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
+        sub(reg_aux_zp_comp_a, zp_comp_a_offset(ld_block2 - 1));
+        mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_aux_zp_comp_a);
+    }
+    if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
+        mov(reg_aux_zp_c_values, ptr[rsp + reg_aux_zp_c_values_offs_]);
+        sub(reg_aux_zp_c_values, zp_c_values_offset(ld_block2 - 1));
+        mov(ptr[rsp + reg_aux_zp_c_values_offs_], reg_aux_zp_c_values);
+    }
+}
+
+void jit_brgemm_kernel_t::advance_bdb_post_op_regs(int adj_bd_block) {
+    if (brg.zp_type_b != brgemm_broadcast_t::none) {
+        mov(reg_aux_zp_comp_b, ptr[rsp + reg_aux_zp_comp_b_offs_]);
+        add(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(1));
+        mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_aux_zp_comp_b);
+    }
+    if (with_binary_per_oc_sp_bcast_) {
+        const injector_utils::register_preserve_guard_t register_guard(
+                this, {reg_aux_binary_postops_oc_l});
+        mov(reg_aux_binary_postops_oc_l,
+                ptr[rsp + reg_aux_binary_postops_oc_l_offs_
+                        + register_guard.stack_space_occupied()]);
+        add(reg_aux_binary_postops_oc_l, adj_bd_block);
+        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_
+                    + register_guard.stack_space_occupied()],
+                reg_aux_binary_postops_oc_l);
+    }
+}
+
+void jit_brgemm_kernel_t::restore_bdb_post_op_regs(int bd_block2) {
+    bool post_processed = false;
+    if (bd_block2 > 1) {
+        if (brg.zp_type_b != brgemm_broadcast_t::none) {
+            post_processed = true;
+            mov(reg_aux_zp_comp_b, ptr[rsp + reg_aux_zp_comp_b_offs_]);
+            sub(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(bd_block2 - 1));
+            mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_aux_zp_comp_b);
+        }
+        if (with_binary_per_oc_sp_bcast_) {
+            post_processed = true;
+            const injector_utils::register_preserve_guard_t register_guard(
+                    this, {reg_aux_binary_postops_oc_l});
+            mov(reg_aux_binary_postops_oc_l,
+                    ptr[rsp + reg_aux_binary_postops_oc_l_offs_
+                            + register_guard.stack_space_occupied()]);
+            sub(reg_aux_binary_postops_oc_l, (bd_block2 - 1) * brg.bd_block);
+            mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_
+                        + register_guard.stack_space_occupied()],
+                    reg_aux_binary_postops_oc_l);
+        }
+    }
+    if (post_processed) mov(reg_buf, ptr[rsp + reg_buf_offs_]);
+}
+
+void jit_brgemm_kernel_t::ldb_regs_shift(int ld_block2, bool is_tail) {
+    int C_offset = (is_tail) ? ldb_C_offset(1, true) : ldb_C_offset(ld_block2);
+    int D_offset = (is_tail) ? ldb_D_offset(1, true) : ldb_D_offset(ld_block2);
+    add(reg_aux_C, C_offset);
+    add(reg_aux_D, D_offset);
+
+    add(reg_b_offset,
+            (is_tail) ? ldb_B_offset(1, true) : ldb_B_offset(ld_block2));
+
+    if (brg.with_bias) {
+        mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]);
+        add(reg_aux_bias,
+                (is_tail) ? bias_offset(1, true) : bias_offset(ld_block2));
+        mov(ptr[rsp + reg_aux_bias_offs_], reg_aux_bias);
+    }
+    if (brg.req_s8s8_compensation) {
+        mov(reg_aux_compensation, ptr[rsp + reg_aux_comp_offs_]);
+        add(reg_aux_compensation,
+                (is_tail) ? compensations_offset(1, true)
+                          : compensations_offset(ld_block2));
+        mov(ptr[rsp + reg_aux_comp_offs_], reg_aux_compensation);
+    }
+    if (brg.with_scales) {
+        mov(reg_aux_scales, ptr[rsp + reg_aux_scales_offs_]);
+        add(reg_aux_scales,
+                (is_tail) ? scales_offset(1, true) : scales_offset(ld_block2));
+        mov(ptr[rsp + reg_aux_scales_offs_], reg_aux_scales);
+    }
+    if (with_binary_channel_bcast_) {
+        const int po_offset
+                = (is_tail) ? ldb_po_offset(1, true) : ldb_po_offset(ld_block2);
+        mov(reg_aux_binary_postops_sp,
+                ptr[rsp + reg_aux_binary_postops_sp_offs_]);
+        add(reg_aux_binary_postops_sp, po_offset);
+        mov(ptr[rsp + reg_aux_binary_postops_sp_offs_],
+                reg_aux_binary_postops_sp);
+    }
+    if (with_binary_per_oc_bcast_) {
+        mov(reg_aux_binary_postops_oc_l,
+                ptr[rsp + reg_aux_binary_postops_oc_l_offs_]);
+        add(reg_aux_binary_postops_oc_l,
+                (is_tail) ? oc_logical_offset(1, true)
+                          : oc_logical_offset(ld_block2));
+        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
+                reg_aux_binary_postops_oc_l);
+    }
+    if (brg.zp_type_a != brgemm_broadcast_t::none) {
+        mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
+        add(reg_aux_zp_comp_a,
+                (is_tail) ? zp_comp_a_offset(1, true)
+                          : zp_comp_a_offset(ld_block2));
+        mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_aux_zp_comp_a);
+    }
+    if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
+        mov(reg_aux_zp_c_values, ptr[rsp + reg_aux_zp_c_values_offs_]);
+        add(reg_aux_zp_c_values,
+                (is_tail) ? zp_c_values_offset(1, true)
+                          : zp_c_values_offset(ld_block2));
+        mov(ptr[rsp + reg_aux_zp_c_values_offs_], reg_aux_zp_c_values);
+    }
+}
+
+void jit_brgemm_kernel_t::advance_bd_block2_post_op_regs(int bd_block2) {
+    if (with_binary_per_oc_sp_bcast_) {
+        mov(reg_aux_binary_postops_oc_l,
+                ptr[rsp + reg_binary_postops_oc_l_offs_]);
+        add(reg_binary_postops_oc_l, bd_block2 * brg.bd_block);
+        mov(ptr[rsp + reg_binary_postops_oc_l_offs_],
+                reg_aux_binary_postops_oc_l);
+    }
+    if (with_binary_channel_bcast_) {
+        mov(reg_aux_binary_postops_sp, ptr[rsp + reg_binary_postops_sp_offs_]);
+        add(reg_aux_binary_postops_sp, bdb_po_offset(bd_block2));
+        mov(ptr[rsp + reg_binary_postops_sp_offs_], reg_aux_binary_postops_sp);
+    }
+    if (brg.zp_type_b != brgemm_broadcast_t::none) {
+        mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
+        add(reg_zp_comp_b, bdb_zp_comp_b_offset(bd_block2));
+        mov(ptr[rsp + reg_zp_comp_b_offs_], reg_zp_comp_b);
+    }
+}
+
+void jit_brgemm_kernel_t::copy_post_ops_stack_values_to_aux(bool is_reg_tail) {
+    if (!is_reg_tail) {
+        mov(reg_aux_C, reg_C);
+        mov(reg_aux_D, reg_D);
+        xor_(reg_b_offset, reg_b_offset);
+        if (brg.with_bias) {
+            mov(reg_bias, ptr[rsp + reg_bias_offs_]);
+            mov(ptr[rsp + reg_aux_bias_offs_], reg_bias);
+        }
+        if (brg.req_s8s8_compensation) {
+            mov(reg_compensation, ptr[rsp + reg_comp_offs_]);
+            mov(ptr[rsp + reg_aux_comp_offs_], reg_compensation);
+        }
+        if (brg.with_scales) {
+            mov(reg_scales, ptr[rsp + reg_scales_offs_]);
+            mov(ptr[rsp + reg_aux_scales_offs_], reg_scales);
+        }
+        if (with_binary_channel_bcast_) {
+            mov(reg_aux_binary_postops_sp,
+                    ptr[rsp + reg_binary_postops_sp_offs_]);
+            mov(ptr[rsp + reg_aux_binary_postops_sp_offs_],
+                    reg_aux_binary_postops_sp);
+        }
+        if (with_binary_per_oc_bcast_) {
+            mov(reg_binary_postops_oc_l,
+                    ptr[rsp + reg_binary_postops_oc_l_offs_]);
+            mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
+                    reg_binary_postops_oc_l);
+        }
+
+        if (brg.zp_type_a != brgemm_broadcast_t::none) {
+            mov(reg_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
+            mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_zp_comp_a);
+        }
+
+        if (brg.zp_type_c != brgemm_broadcast_t::none) {
+            mov(reg_zp_c_values, ptr[rsp + reg_zp_c_values_offs_]);
+            mov(ptr[rsp + reg_aux_zp_c_values_offs_], reg_zp_c_values);
+        }
+    }
+    if (brg.zp_type_b != brgemm_broadcast_t::none) {
+        mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
+        mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_zp_comp_b);
+    }
+    if (with_binary_per_oc_sp_bcast_) {
+        mov(reg_aux_binary_postops_oc_l,
+                ptr[rsp + reg_binary_postops_oc_l_offs_]);
+        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
+                reg_binary_postops_oc_l);
+    }
 }
 
 void jit_brgemm_kernel_t::read_params() {
@@ -934,46 +1180,7 @@ void jit_brgemm_kernel_t::store_accumulators(int bd_block2, bool is_bdb_tail,
                                     = ldb_po_offset(ldb) + bdb_po_offset(bdb);
                             store_accumulators_apply_post_ops(adj_bd_block, 1,
                                     ldb_and_bdb_offset, is_ld_tail);
-                            if (ldb < ld_block2 - 1) {
-                                if (brg.with_bias) {
-                                    mov(reg_aux_bias,
-                                            ptr[rsp + reg_aux_bias_offs_]);
-                                    add(reg_aux_bias, bias_offset(1));
-                                    mov(ptr[rsp + reg_aux_bias_offs_],
-                                            reg_aux_bias);
-                                }
-                                if (brg.with_scales) {
-                                    mov(reg_aux_scales,
-                                            ptr[rsp + reg_aux_scales_offs_]);
-                                    add(reg_aux_scales, scales_offset(1));
-                                    mov(ptr[rsp + reg_aux_scales_offs_],
-                                            reg_aux_scales);
-                                }
-                                if (with_binary_per_oc_bcast_) {
-                                    mov(reg_aux_binary_postops_oc_l,
-                                            ptr[rsp + reg_aux_binary_postops_oc_l_offs_]);
-                                    add(reg_aux_binary_postops_oc_l,
-                                            oc_logical_offset(1));
-                                    mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
-                                            reg_aux_binary_postops_oc_l);
-                                }
-                                if (brg.zp_type_a != brgemm_broadcast_t::none) {
-                                    mov(reg_aux_zp_comp_a,
-                                            ptr[rsp + reg_aux_zp_comp_a_offs_]);
-                                    add(reg_aux_zp_comp_a, zp_comp_a_offset(1));
-                                    mov(ptr[rsp + reg_aux_zp_comp_a_offs_],
-                                            reg_aux_zp_comp_a);
-                                }
-                                if (brg.zp_type_c
-                                        == brgemm_broadcast_t::per_n) {
-                                    mov(reg_aux_zp_c_values,
-                                            ptr[rsp + reg_aux_zp_c_values_offs_]);
-                                    add(reg_aux_zp_c_values,
-                                            zp_c_values_offset(1));
-                                    mov(ptr[rsp + reg_aux_zp_c_values_offs_],
-                                            reg_aux_zp_c_values);
-                                }
-                            }
+                            if (ldb < ld_block2 - 1) advance_ldb_post_op_regs();
                             add(reg_aux_D, ldb_D_offset(1));
                         } else {
                             store_accumulators_without_post_ops(
@@ -994,70 +1201,17 @@ void jit_brgemm_kernel_t::store_accumulators(int bd_block2, bool is_bdb_tail,
 
                     bool post_processed = false;
                     if (ld_block2 > 1) {
-                        if (brg.with_bias) {
-                            post_processed = true;
-                            mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]);
-                            sub(reg_aux_bias, bias_offset(ld_block2 - 1));
-                            mov(ptr[rsp + reg_aux_bias_offs_], reg_aux_bias);
-                        }
-                        if (brg.with_scales) {
-                            post_processed = true;
-                            mov(reg_aux_scales,
-                                    ptr[rsp + reg_aux_scales_offs_]);
-                            sub(reg_aux_scales, scales_offset(ld_block2 - 1));
-                            mov(ptr[rsp + reg_aux_scales_offs_],
-                                    reg_aux_scales);
-                        }
-                        if (with_binary_per_oc_bcast_) {
-                            post_processed = true;
-                            mov(reg_aux_binary_postops_oc_l,
-                                    ptr[rsp + reg_aux_binary_postops_oc_l_offs_]);
-                            sub(reg_aux_binary_postops_oc_l,
-                                    oc_logical_offset(ld_block2 - 1));
-                            mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
-                                    reg_aux_binary_postops_oc_l);
-                        }
-                        if (brg.zp_type_a != brgemm_broadcast_t::none) {
-                            post_processed = true;
-                            mov(reg_aux_zp_comp_a,
-                                    ptr[rsp + reg_aux_zp_comp_a_offs_]);
-                            sub(reg_aux_zp_comp_a,
-                                    zp_comp_a_offset(ld_block2 - 1));
-                            mov(ptr[rsp + reg_aux_zp_comp_a_offs_],
-                                    reg_aux_zp_comp_a);
-                        }
-                        if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
-                            post_processed = true;
-                            mov(reg_aux_zp_c_values,
-                                    ptr[rsp + reg_aux_zp_c_values_offs_]);
-                            sub(reg_aux_zp_c_values,
-                                    zp_c_values_offset(ld_block2 - 1));
-                            mov(ptr[rsp + reg_aux_zp_c_values_offs_],
-                                    reg_aux_zp_c_values);
-                        }
+                        restore_ldb_post_op_regs(ld_block2);
+                        post_processed |= utils::one_of(true, brg.with_bias,
+                                brg.with_scales, with_binary_per_oc_bcast_,
+                                brg.zp_type_a != brgemm_broadcast_t::none,
+                                brg.zp_type_c == brgemm_broadcast_t::per_n);
                     }
-                    if (bdb < bd_block2 - 1
-                            && brg.zp_type_b != brgemm_broadcast_t::none) {
-                        post_processed = true;
-                        mov(reg_aux_zp_comp_b,
-                                ptr[rsp + reg_aux_zp_comp_b_offs_]);
-                        add(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(1));
-                        mov(ptr[rsp + reg_aux_zp_comp_b_offs_],
-                                reg_aux_zp_comp_b);
-                    }
-                    if (bdb < bd_block2 - 1 && with_binary_per_oc_sp_bcast_) {
-                        post_processed = true;
-                        const injector_utils::register_preserve_guard_t
-                                register_guard(
-                                        this, {reg_aux_binary_postops_oc_l});
-                        mov(reg_aux_binary_postops_oc_l,
-                                ptr[rsp + reg_aux_binary_postops_oc_l_offs_
-                                        + register_guard
-                                                  .stack_space_occupied()]);
-                        add(reg_aux_binary_postops_oc_l, adj_bd_block);
-                        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_
-                                    + register_guard.stack_space_occupied()],
-                                reg_aux_binary_postops_oc_l);
+                    if (bdb < bd_block2 - 1) {
+                        advance_bdb_post_op_regs(adj_bd_block);
+                        post_processed |= utils::one_of(true,
+                                brg.zp_type_b != brgemm_broadcast_t::none,
+                                with_binary_per_oc_sp_bcast_);
                     }
                     if (post_processed) mov(reg_buf, ptr[rsp + reg_buf_offs_]);
                 }
@@ -1065,29 +1219,7 @@ void jit_brgemm_kernel_t::store_accumulators(int bd_block2, bool is_bdb_tail,
             sub(reg_aux_C, bdb_C_offset(bd_block2));
             if (apply_post_ops) {
                 sub(reg_aux_D, bdb_D_offset(bd_block2));
-
-                bool post_processed = false;
-                if (bd_block2 > 1
-                        && brg.zp_type_b != brgemm_broadcast_t::none) {
-                    post_processed = true;
-                    mov(reg_aux_zp_comp_b, ptr[rsp + reg_aux_zp_comp_b_offs_]);
-                    sub(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(bd_block2 - 1));
-                    mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_aux_zp_comp_b);
-                }
-                if (bd_block2 > 1 && with_binary_per_oc_sp_bcast_) {
-                    post_processed = true;
-                    const injector_utils::register_preserve_guard_t
-                            register_guard(this, {reg_aux_binary_postops_oc_l});
-                    mov(reg_aux_binary_postops_oc_l,
-                            ptr[rsp + reg_aux_binary_postops_oc_l_offs_
-                                    + register_guard.stack_space_occupied()]);
-                    sub(reg_aux_binary_postops_oc_l,
-                            (bd_block2 - 1) * brg.bd_block);
-                    mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_
-                                + register_guard.stack_space_occupied()],
-                            reg_aux_binary_postops_oc_l);
-                }
-                if (post_processed) mov(reg_buf, ptr[rsp + reg_buf_offs_]);
+                restore_bdb_post_op_regs(bd_block2);
             }
         };
 
@@ -1384,123 +1516,10 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
         bool check_top_vpad, bool check_bottom_vpad, int rows_for_rd_tail,
         bool skip_accumulation) {
 
-    auto ldb_shift = [&](int ld_block2, bool is_tail = false) {
-        int C_offset
-                = (is_tail) ? ldb_C_offset(1, true) : ldb_C_offset(ld_block2);
-        int D_offset
-                = (is_tail) ? ldb_D_offset(1, true) : ldb_D_offset(ld_block2);
-        add(reg_aux_C, C_offset);
-        add(reg_aux_D, D_offset);
-
-        add(reg_b_offset,
-                (is_tail) ? ldb_B_offset(1, true) : ldb_B_offset(ld_block2));
-
-        if (brg.with_bias) {
-            mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]);
-            add(reg_aux_bias,
-                    (is_tail) ? bias_offset(1, true) : bias_offset(ld_block2));
-            mov(ptr[rsp + reg_aux_bias_offs_], reg_aux_bias);
-        }
-        if (brg.req_s8s8_compensation) {
-            mov(reg_aux_compensation, ptr[rsp + reg_aux_comp_offs_]);
-            add(reg_aux_compensation,
-                    (is_tail) ? compensations_offset(1, true)
-                              : compensations_offset(ld_block2));
-            mov(ptr[rsp + reg_aux_comp_offs_], reg_aux_compensation);
-        }
-        if (brg.with_scales) {
-            mov(reg_aux_scales, ptr[rsp + reg_aux_scales_offs_]);
-            add(reg_aux_scales,
-                    (is_tail) ? scales_offset(1, true)
-                              : scales_offset(ld_block2));
-            mov(ptr[rsp + reg_aux_scales_offs_], reg_aux_scales);
-        }
-        if (with_binary_channel_bcast_) {
-            const int po_offset = (is_tail) ? ldb_po_offset(1, true)
-                                            : ldb_po_offset(ld_block2);
-            mov(reg_aux_binary_postops_sp,
-                    ptr[rsp + reg_aux_binary_postops_sp_offs_]);
-            add(reg_aux_binary_postops_sp, po_offset);
-            mov(ptr[rsp + reg_aux_binary_postops_sp_offs_],
-                    reg_aux_binary_postops_sp);
-        }
-        if (with_binary_per_oc_bcast_) {
-            mov(reg_aux_binary_postops_oc_l,
-                    ptr[rsp + reg_aux_binary_postops_oc_l_offs_]);
-            add(reg_aux_binary_postops_oc_l,
-                    (is_tail) ? oc_logical_offset(1, true)
-                              : oc_logical_offset(ld_block2));
-            mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
-                    reg_aux_binary_postops_oc_l);
-        }
-        if (brg.zp_type_a != brgemm_broadcast_t::none) {
-            mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
-            add(reg_aux_zp_comp_a,
-                    (is_tail) ? zp_comp_a_offset(1, true)
-                              : zp_comp_a_offset(ld_block2));
-            mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_aux_zp_comp_a);
-        }
-        if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
-            mov(reg_aux_zp_c_values, ptr[rsp + reg_aux_zp_c_values_offs_]);
-            add(reg_aux_zp_c_values,
-                    (is_tail) ? zp_c_values_offset(1, true)
-                              : zp_c_values_offset(ld_block2));
-            mov(ptr[rsp + reg_aux_zp_c_values_offs_], reg_aux_zp_c_values);
-        }
-    };
-
     Label ldb_loop_label;
     Label BS_loop_label;
 
-    if (!is_reg_tail) {
-        mov(reg_aux_C, reg_C);
-        mov(reg_aux_D, reg_D);
-        xor_(reg_b_offset, reg_b_offset);
-        if (brg.with_bias) {
-            mov(reg_bias, ptr[rsp + reg_bias_offs_]);
-            mov(ptr[rsp + reg_aux_bias_offs_], reg_bias);
-        }
-        if (brg.req_s8s8_compensation) {
-            mov(reg_compensation, ptr[rsp + reg_comp_offs_]);
-            mov(ptr[rsp + reg_aux_comp_offs_], reg_compensation);
-        }
-        if (brg.with_scales) {
-            mov(reg_scales, ptr[rsp + reg_scales_offs_]);
-            mov(ptr[rsp + reg_aux_scales_offs_], reg_scales);
-        }
-        if (with_binary_channel_bcast_) {
-            mov(reg_aux_binary_postops_sp,
-                    ptr[rsp + reg_binary_postops_sp_offs_]);
-            mov(ptr[rsp + reg_aux_binary_postops_sp_offs_],
-                    reg_aux_binary_postops_sp);
-        }
-        if (with_binary_per_oc_bcast_) {
-            mov(reg_binary_postops_oc_l,
-                    ptr[rsp + reg_binary_postops_oc_l_offs_]);
-            mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
-                    reg_binary_postops_oc_l);
-        }
-
-        if (brg.zp_type_a != brgemm_broadcast_t::none) {
-            mov(reg_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
-            mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_zp_comp_a);
-        }
-
-        if (brg.zp_type_c != brgemm_broadcast_t::none) {
-            mov(reg_zp_c_values, ptr[rsp + reg_zp_c_values_offs_]);
-            mov(ptr[rsp + reg_aux_zp_c_values_offs_], reg_zp_c_values);
-        }
-    }
-    if (brg.zp_type_b != brgemm_broadcast_t::none) {
-        mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
-        mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_zp_comp_b);
-    }
-    if (with_binary_per_oc_sp_bcast_) {
-        mov(reg_aux_binary_postops_oc_l,
-                ptr[rsp + reg_binary_postops_oc_l_offs_]);
-        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
-                reg_binary_postops_oc_l);
-    }
+    copy_post_ops_stack_values_to_aux(is_reg_tail);
 
     auto ld_loop_body = [=](int vpad) {
         set_A_B_matrices();
@@ -1652,9 +1671,9 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
         if (is_ldb_loop) {
             if (brg.is_amx) mov(reg_ldb_loop, ptr[rsp + reg_ldb_loop_offs_]);
             if (!is_ld_tail)
-                ldb_shift(ld_block2);
+                ldb_regs_shift(ld_block2);
             else
-                ldb_shift(1, true);
+                ldb_regs_shift(1, true);
             dec(reg_ldb_loop);
             cmp(reg_ldb_loop, 0);
             if (brg.is_amx) mov(ptr[rsp + reg_ldb_loop_offs_], reg_ldb_loop);
@@ -1700,25 +1719,8 @@ void jit_brgemm_kernel_t::bdb_loop() {
         add(reg_C, bdb_C_offset(bd_block2));
         add(reg_D, bdb_D_offset(bd_block2));
         add(reg_a_offset, bdb_A_offset(bd_block2));
-        if (with_binary_per_oc_sp_bcast_) {
-            mov(reg_aux_binary_postops_oc_l,
-                    ptr[rsp + reg_binary_postops_oc_l_offs_]);
-            add(reg_binary_postops_oc_l, bd_block2 * brg.bd_block);
-            mov(ptr[rsp + reg_binary_postops_oc_l_offs_],
-                    reg_aux_binary_postops_oc_l);
-        }
-        if (with_binary_channel_bcast_) {
-            mov(reg_aux_binary_postops_sp,
-                    ptr[rsp + reg_binary_postops_sp_offs_]);
-            add(reg_aux_binary_postops_sp, bdb_po_offset(bd_block2));
-            mov(ptr[rsp + reg_binary_postops_sp_offs_],
-                    reg_aux_binary_postops_sp);
-        }
-        if (brg.zp_type_b != brgemm_broadcast_t::none) {
-            mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
-            add(reg_zp_comp_b, bdb_zp_comp_b_offset(bd_block2));
-            mov(ptr[rsp + reg_zp_comp_b_offs_], reg_zp_comp_b);
-        }
+
+        advance_bd_block2_post_op_regs(bd_block2);
     };
 
     int rows_for_rd_tail, bd_blocks_for_rd_tail;
