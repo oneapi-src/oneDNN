@@ -358,10 +358,9 @@ pthread_t pthread_self(void) __attribute__((weak));
  * implicitly declared symbol. To avoid the issue strdup is implemented
  * manually.
  */
-#define ITT_STRDUP_MAX_STRING_SIZE 4096
 #define __itt_fstrdup(s, new_s) do {                                        \
     if (s == NULL) return NULL;                                             \
-    size_t s_len = __itt_fstrnlen(s, ITT_STRDUP_MAX_STRING_SIZE);           \
+    size_t s_len = __itt_fstrnlen(s, sizeof(s));                            \
     new_s = (char *)malloc(s_len + 1);                                      \
     __itt_fstrcpyn(new_s, s_len + 1, s, s_len);                             \
 } while(0)
