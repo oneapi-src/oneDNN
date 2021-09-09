@@ -189,6 +189,7 @@ public:
         if (!quantized) { insert_bn_folding(subgraph); }
 
         check_with_bias(subgraph);
+        fuse_mul_sigmoid_to_swish(subgraph);
 
         // Because we use binary post-ops for broadcast add and sum post-ops for
         // non-broadcast add. So we have to know concret shape before fuse

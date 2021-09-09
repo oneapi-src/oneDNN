@@ -256,6 +256,7 @@ public:
                         dnnl_bn_folding, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         dnnl_conv_bwd_data, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(dnnl_swish, 1)>());
     }
 };
 

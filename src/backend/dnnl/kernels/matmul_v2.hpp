@@ -105,6 +105,7 @@ public:
         fuse_bias_add(subgraph);
         // check if bias exists
         check_with_bias(subgraph);
+        fuse_mul_sigmoid_to_swish(subgraph);
 
         BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
 

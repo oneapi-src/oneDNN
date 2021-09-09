@@ -541,12 +541,13 @@ status_t fuse_post_ops(
     const std::set<op_kind_t> post_ops_kinds {impl::op_kind::ReLU,
             impl::op_kind::GELU, impl::op_kind::Sigmoid, impl::op_kind::Elu,
             impl::op_kind::HardTanh, impl::op_kind::Abs, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Add};
+            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Add,
+            op_kind::dnnl_swish};
 
     const std::set<op_kind_t> eltwise_kinds {impl::op_kind::ReLU,
             impl::op_kind::GELU, impl::op_kind::Sigmoid, impl::op_kind::Elu,
             impl::op_kind::HardTanh, impl::op_kind::Abs, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh};
+            impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_swish};
 
     const std::map<op_kind_t, dnnl::algorithm> eltwise_alg_map {
             {impl::op_kind::ReLU, dnnl::algorithm::eltwise_relu},
@@ -557,7 +558,8 @@ status_t fuse_post_ops(
             {impl::op_kind::Abs, dnnl::algorithm::eltwise_abs},
             {impl::op_kind::Sqrt, dnnl::algorithm::eltwise_sqrt},
             {impl::op_kind::Square, dnnl::algorithm::eltwise_square},
-            {impl::op_kind::Tanh, dnnl::algorithm::eltwise_tanh}};
+            {impl::op_kind::Tanh, dnnl::algorithm::eltwise_tanh},
+            {op_kind::dnnl_swish, dnnl::algorithm::eltwise_swish}};
 
     // lambda function to fuse one post op into base primitive
     auto fuse_post_ops_func = [&](std::vector<op_ptr> &subgraph,
@@ -1065,6 +1067,80 @@ void conv_bwd_data_canonicalization(std::vector<op_ptr> &subgraph) {
     for (const auto &op : to_be_removed_ops) {
         auto pos = std::find_if(subgraph.begin(), subgraph.end(),
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+}
+
+void fuse_mul_sigmoid_to_swish(std::vector<op_ptr> &subgraph) {
+    std::vector<std::vector<op_t *>> swish_patterns;
+    std::vector<size_t> mul_other_offsets;
+
+    // find all swish pattern in subgraph
+    std::set<op_t *> visited;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::Sigmoid
+                || visited.count(cur_op.get()) != 0)
+            continue;
+        visited.insert(cur_op.get());
+
+        // check if the sigmoid op belongs to a swish pattern.
+        // A swish pattern is composed by a sigmoid op and a multiply op:
+        //        any
+        //       /   \
+        //  sigmoid   |
+        //       \   /
+        //      multiply
+        //         |
+        //        any
+        auto sigmoid_out = cur_op->get_output_value(0);
+        auto sigmoid_csm = sigmoid_out->get_consumers();
+        if (sigmoid_csm.size() != 1) continue;
+
+        auto &csm_op = sigmoid_csm[0].get_op();
+        if (csm_op.get_kind() != impl::op_kind::Multiply) continue;
+
+        size_t offset = sigmoid_csm[0].get_offset(); // offset should be 0 or 1
+        size_t mul_other_offset = 1 - offset;
+        auto mul_other_in = csm_op.get_input_value(mul_other_offset);
+        auto sigmoid_in = cur_op->get_input_value(0);
+        if (mul_other_in.get() != sigmoid_in.get()) continue;
+
+        // all checks passed, found a swish pattern
+        std::vector<op_t *> pattern {cur_op.get(), &csm_op};
+        swish_patterns.emplace_back(pattern);
+        mul_other_offsets.emplace_back(mul_other_offset);
+    }
+
+    if (swish_patterns.empty()) return;
+
+    // fuse swish pattern to a swish op
+    for (size_t i = 0; i < swish_patterns.size(); i++) {
+        op_t *sigmoid_op = swish_patterns[i][0];
+        op_t *mul_op = swish_patterns[i][1];
+        size_t mul_other_offset = mul_other_offsets[i];
+
+        op_ptr swish_op = std::make_shared<op_t>(op_kind::dnnl_swish);
+        swish_op->set_attr<float>("alpha", (float)1.0);
+
+        auto in_val = sigmoid_op->get_input_value(0);
+        in_val->remove_consumer(*sigmoid_op, 0);
+        in_val->remove_consumer(*mul_op, mul_other_offset);
+        swish_op->connect_input(0, in_val);
+
+        auto out_val = mul_op->get_output_value(0);
+        swish_op->add_output(out_val);
+        out_val->set_producer(*swish_op);
+
+        subgraph.emplace_back(swish_op);
+
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [sigmoid_op](const op_ptr &f_op) {
+                    return sigmoid_op == f_op.get();
+                });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+
+        pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [mul_op](const op_ptr &f_op) { return mul_op == f_op.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
 }

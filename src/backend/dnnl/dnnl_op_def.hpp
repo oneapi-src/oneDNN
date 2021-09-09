@@ -2790,6 +2790,18 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
                 .set_shape_inference_function(
                         infer_dnnl_conv_bwd_data_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_swish, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_shape_inference_function(infer_identity_output_shape))
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

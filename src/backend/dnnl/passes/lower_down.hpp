@@ -81,6 +81,8 @@ void insert_bn_folding(std::vector<std::shared_ptr<op_t>> &subgraph);
 void conv_bwd_data_canonicalization(
         std::vector<std::shared_ptr<op_t>> &subgraph);
 
+void fuse_mul_sigmoid_to_swish(std::vector<std::shared_ptr<op_t>> &subgraph);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

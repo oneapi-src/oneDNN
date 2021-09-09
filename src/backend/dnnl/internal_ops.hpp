@@ -177,7 +177,8 @@ namespace op_kind {
     X(dnnl_pool, Dnnl_pool) \
     X(dnnl_u8_to_s8, Dnnl_u8_to_s8) \
     X(dnnl_bn_folding, Dnnl_bn_folding) \
-    X(dnnl_conv_bwd_data, Dnnl_conv_bwd_data)
+    X(dnnl_conv_bwd_data, Dnnl_conv_bwd_data) \
+    X(dnnl_swish, Dnnl_swish)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,
