@@ -385,7 +385,7 @@ int doit(const prb_t *prb, res_t *res) {
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
     SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
-                 binary_po_fp, false, true),
+                 binary_po_fp, test_engine, false, true),
             WARN);
 
     args_t args;

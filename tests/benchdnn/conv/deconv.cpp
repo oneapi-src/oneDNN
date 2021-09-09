@@ -320,7 +320,7 @@ int doit(const prb_t *prb, res_t *res) {
     }
     if (need_bia_init(prb)) SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
 
-    args_t args;
+    args_t args, ref_args;
 
     if (prb->dir & FLAG_FWD) {
         maybe_prepare_runtime_zero_points(src_zero_points_m, prb->attr,
@@ -340,8 +340,13 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_bwd_d(&p_tr, nullptr, dst_fp, wei_tr_fp, bia_fp,
-                    binary_po_fp, src_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, dst_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_tr_fp);
+            ref_args.set(DNNL_ARG_BIAS, bia_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, src_fp);
+            ref_args.set(binary_po_args, binary_po_fp);
+
+            compute_ref_bwd_d(&p_tr, nullptr, ref_args);
             dnn_mem_t dst(dst_dt, fp, src_tag, test_engine);
             SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
         }
@@ -354,9 +359,11 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            dnn_mem_t zero_fp;
-            compute_ref_fwd(&p_tr, nullptr, dst_fp, wei_tr_fp, zero_fp,
-                    std::vector<dnn_mem_t>(), std::vector<dnn_mem_t>(), src_fp);
+            ref_args.set(DNNL_ARG_SRC, dst_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_tr_fp);
+            ref_args.set(DNNL_ARG_DST, src_fp);
+
+            compute_ref_fwd(&p_tr, nullptr, ref_args);
             dnn_mem_t src(src_dt, fp, src_tag, test_engine);
             SAFE(compare_src(prb, src, src_fp, res, true), WARN);
         }
@@ -370,12 +377,20 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_bwd_weights(&p_tr, dst_fp, wei_tr_fp, src_fp);
+            ref_args.set(DNNL_ARG_SRC, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, src_fp);
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp);
+
+            compute_ref_bwd_weights(&p_tr, ref_args);
             transpose_data_wei(&p_tr, wei_tr_fp, wei_fp);
             dnn_mem_t wei(wei_dt, fp, wei_tag, test_engine);
             SAFE(compare_wei(&p_tr, wei, wei_fp, res, true), WARN);
             if (prb->dir & FLAG_BIA) {
-                compute_ref_bwd_bias(prb, bia_fp, dst_fp);
+                ref_args.clear();
+                ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
+                ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
+                compute_ref_bwd_bias(prb, ref_args);
+
                 dnn_mem_t bia(bia_dt, fp, tag::x, test_engine);
                 SAFE(compare_bia(prb, bia, bia_fp, res, true), WARN);
             }
