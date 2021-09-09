@@ -451,7 +451,6 @@ struct align_req_t {
     int a, b, c;
 
     constexpr align_req_t() : a(1), b(1), c(1) {}
-    constexpr align_req_t(int a_, int b_, int c_) : a(a_), b(b_), c(c_) {}
 };
 
 struct kernel_table_t {
