@@ -69,6 +69,8 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
             // For preprocess ops. The memory_reparser will not do
             // computation, it only re-parses the existing buffer.
             prm = std::make_shared<memory_reparser>();
+        } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
+            prm = std::make_shared<bn_folding>(cur_op, p_engine);
         } else {
             assertm(false, "unimplemented op, can't compile it");
             return impl::status::compile_fail;

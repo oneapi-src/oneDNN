@@ -85,8 +85,9 @@ static void bind_memory_for_conv_and_matmul(op_ptr &op,
         args.insert({DNNL_ARG_BIAS, mem});
     }
 
-    dnnl::primitive_attr prm_attr = prm_attr_mgr.get_attr(
-            op->get_attr<int64_t>("primitive_attr_key"));
+    dnnl::primitive_attr prm_attr = op->has_attr("primitive_attr_key")
+            ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
+            : dnnl::primitive_attr();
     dnnl::post_ops pops = prm_attr.get_post_ops();
     for (int i = 0; i < pops.len(); i++) {
         if (pops.kind(i) == dnnl::primitive::kind::sum) {
@@ -144,6 +145,40 @@ static void bind_memory_for_siso_op(op_ptr &op, const dnnl::engine &p_engine,
     }
 }
 
+static void bind_memory_for_bn_folding(op_ptr &op, const dnnl::engine &p_engine,
+        execution_args_mgr &exec_arg_mgr) {
+    int64_t key = exec_arg_mgr.init_args();
+    op->set_attr<int64_t>("execution_args_key", key);
+    auto &args = exec_arg_mgr.get_args(key);
+
+    bool with_bias = op->get_attr<bool>("with_bias");
+
+#define INSERT_ARGS(key, val_offset, direction) \
+    args.insert({key, \
+            bind_memory_for_value( \
+                    op->get_##direction##_value(val_offset).get(), p_engine, \
+                    exec_arg_mgr)});
+
+    // bind input memory
+    size_t in_idx = 0;
+    INSERT_ARGS(DNNL_ARG_WEIGHTS, in_idx++, input); // weight
+    if (with_bias) {
+        INSERT_ARGS(DNNL_ARG_BIAS, in_idx++, input); // bias
+    }
+    INSERT_ARGS(DNNL_ARG_WEIGHTS_1, in_idx++, input); // scale
+    INSERT_ARGS(DNNL_ARG_WEIGHTS_2, in_idx++, input); // shift
+    INSERT_ARGS(DNNL_ARG_MEAN, in_idx++, input); // mean
+    INSERT_ARGS(DNNL_ARG_VARIANCE, in_idx++, input); // variance
+
+    // bind output memory
+    size_t out_idx = 0;
+    INSERT_ARGS(DNNL_ARG_DST_0, out_idx++, output); // updated weight
+    INSERT_ARGS(DNNL_ARG_DST_1, out_idx++, output); // updated bias
+    INSERT_ARGS(DNNL_ARG_SCRATCHPAD, out_idx++, output); // scratchpad
+
+#undef INSERT_ARGS
+}
+
 /// After doing infer shape, infer type and layout propagation passes, the
 /// information of all logical tensors in the subgraph should be complete. We
 /// can create dnnl::memory objects by using these logical tensors and nullptr
@@ -184,8 +219,10 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
 
     // bind external memory
     for (size_t i = 0; i < inputs.size(); i++) {
-        auto mem = make_dnnl_memory(
-                make_dnnl_memory_desc(inputs[i]), p_engine, nullptr);
+        auto md = !(ltw(inputs[i]).is_any() && ltw(inputs[i]).ndims() > 0)
+                ? make_dnnl_memory_desc(inputs[i])
+                : dnnl::memory::desc();
+        auto mem = make_dnnl_memory(md, p_engine, nullptr);
         exec_arg_mgr.add_external_input_mem(mem);
         for (auto in_val : in_vals) {
             if (in_val->get_logical_tensor().id == inputs[i].id)
@@ -193,8 +230,10 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
         }
     }
     for (size_t i = 0; i < outputs.size(); i++) {
-        auto mem = make_dnnl_memory(
-                make_dnnl_memory_desc(outputs[i]), p_engine, nullptr);
+        auto md = !(ltw(outputs[i]).is_any() && ltw(outputs[i]).ndims() > 0)
+                ? make_dnnl_memory_desc(outputs[i])
+                : dnnl::memory::desc();
+        auto mem = make_dnnl_memory(md, p_engine, nullptr);
         exec_arg_mgr.add_external_output_mem(mem);
         for (auto out_val : out_vals) {
             if (out_val->get_logical_tensor().id == outputs[i].id)
@@ -223,6 +262,8 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
                 || cur_op->get_kind() == op_kind::expand
                 || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
             bind_memory_for_siso_op(cur_op, p_engine, exec_arg_mgr);
+        } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
+            bind_memory_for_bn_folding(cur_op, p_engine, exec_arg_mgr);
         } else {
             assertm(false, "memory binding: unsupported op");
             return impl::status::compile_fail;

@@ -2713,6 +2713,46 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_u8_to_s8, 1,
                 .set_output(0, "y", "output tensor", impl::data_type::s8)
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_bn_folding, 1,
+        op_schema()
+                .set_inputs_option(op_schema::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({5, 6}))
+                .set_num_outputs(2)
+                .set_input(0, "weight", "weight tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_input(1, "bias", "bias tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_input(2, "gamma", "gamma scaling for normalized value",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_input(3, "beta",
+                        "beta added to the scaled normalized value",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_input(4, "mean", "value for mean normalization",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_input(5, "variance", "value for variance normalization",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_output(0, "updated_weight", "updated weight tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_output(1, "updated_bias", "updated bias tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_shape_inference_function(infer_bn_folding_output_shape)
+                .set_attr("epsilon",
+                        "the number to be added to the variance to avoid "
+                        "division by zero",
+                        true, attribute_kind::f)
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC"))
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

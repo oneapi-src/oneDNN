@@ -61,7 +61,6 @@ public:
                     [&](const std::pair<value_t *, memory> &val_mem) {
                         return val_mem.second.get() == mem.get();
                     });
-            assertm(pos != other.value_mem_map_.end(), "can't find such mem");
             if (pos != other.value_mem_map_.end())
                 return pos->first;
             else
@@ -70,12 +69,21 @@ public:
 
         // copy alias
         for (auto &mem : other.external_input_mems_) {
-            external_input_mems_.emplace_back(value_mem_map_.at(find_val(mem)));
+            auto key = find_val(mem);
+            if (key) {
+                external_input_mems_.emplace_back(value_mem_map_.at(key));
+            } else {
+                external_input_mems_.emplace_back(mem);
+            }
         }
 
         for (auto &mem : other.external_output_mems_) {
-            external_output_mems_.emplace_back(
-                    value_mem_map_.at(find_val(mem)));
+            auto key = find_val(mem);
+            if (key) {
+                external_output_mems_.emplace_back(value_mem_map_.at(key));
+            } else {
+                external_output_mems_.emplace_back(mem);
+            }
         }
 
         for (auto &mem : other.internal_variable_mems_) {

@@ -175,7 +175,8 @@ namespace op_kind {
             X8S8F32_Quant_wei_Conv_bias_add_relu) \
     X(int8_avgpool, INT8_AvgPool) \
     X(dnnl_pool, Dnnl_pool) \
-    X(dnnl_u8_to_s8, Dnnl_u8_to_s8)
+    X(dnnl_u8_to_s8, Dnnl_u8_to_s8) \
+    X(dnnl_bn_folding, Dnnl_bn_folding)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

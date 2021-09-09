@@ -33,7 +33,8 @@
 #include "resampling.hpp"
 #include "softmax.hpp"
 
-#include "int8_conv.hpp"
+// kernel based on subgraph
+#include "conv_v2.hpp"
 #include "int8_matmul.hpp"
 #include "int8_pool.hpp"
 

@@ -114,6 +114,10 @@ void fuse_op_to_predecessor(
 //     |               |
 //  base_op         base_op
 void insert_op_before(op_ptr &inserted_op, op_ptr &base_op, size_t offset) {
+    return insert_op_before(inserted_op.get(), base_op.get(), offset);
+}
+
+void insert_op_before(op_t *inserted_op, op_t *base_op, size_t offset) {
     value_ptr in_val = base_op->get_input_value(offset);
     in_val->remove_consumer(*base_op, offset);
     in_val->add_consumer(*inserted_op, inserted_op->num_inputs());
@@ -424,6 +428,21 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
 #endif
 
     return status::success;
+}
+
+void replace_op(op_ptr &org_op, op_ptr &new_op) {
+    new_op->merge_attributes(org_op->get_attributes());
+
+    for (size_t i = 0; i < org_op->num_inputs(); i++) {
+        auto in_val = org_op->get_input_value(i);
+        in_val->remove_consumer(*org_op, i);
+        in_val->add_consumer(*new_op, new_op->num_inputs());
+        new_op->add_input(in_val);
+    }
+    for (size_t i = 0; i < org_op->num_outputs(); i++) {
+        auto out_val = org_op->get_output_value(i);
+        new_op->add_output(out_val);
+    }
 }
 
 } // namespace dnnl_impl

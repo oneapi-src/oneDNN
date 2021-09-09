@@ -49,6 +49,10 @@ status_t infer_expand_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
+status_t infer_bn_folding_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

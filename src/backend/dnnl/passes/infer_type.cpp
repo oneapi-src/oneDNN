@@ -92,6 +92,16 @@ impl::status_t infer_type(impl::graph_t &subgraph) {
                     != impl::data_type::s8) {
                 return impl::status::invalid_type;
             }
+        } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
+            for (size_t i = 0; i < op->num_outputs(); i++) {
+                auto in_lt = op->get_input_value(i)->get_logical_tensor();
+                auto out_lt = op->get_output_value(i)->get_logical_tensor();
+                if (out_lt.data_type == impl::data_type::undef) {
+                    op->get_output_value(i)->set_data_type(in_lt.data_type);
+                } else {
+                    op->get_input_value(i)->set_data_type(out_lt.data_type);
+                }
+            }
         } else {
         }
         return impl::status::success;

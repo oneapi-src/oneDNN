@@ -313,6 +313,15 @@ void fill_layout_info(
     impl::logical_tensor_t lt = val->get_logical_tensor();
     const impl::logical_tensor_wrapper ltw(lt);
     if (ltw.is_any()) { // we only reset any format
+#ifdef DNNL_GRAPH_LAYOUT_DEBUG
+        const int ndims = td.data.ndims;
+        if (ndims <= 1) { // scratchpads mem
+            val->set_dims(td.dims());
+            val->set_data_type(
+                    static_cast<impl::data_type_t>(td.data.data_type));
+        }
+#endif // DNNL_GRAPH_LAYOUT_DEBUG
+
         val->set_layout_id(static_cast<int64_t>(
                 dnnl_backend::get_singleton().set_mem_desc(td).value()));
     }

@@ -91,11 +91,6 @@ public:
 
         set_all_layout_to_any(subgraph);
 
-        fuse_bias_add(subgraph);
-
-        // check if bias exists
-        check_with_bias(subgraph);
-
         // have to set the given inputs and outputs before infer shape and
         // compile
         //
@@ -104,6 +99,11 @@ public:
         // PyTorch doesn't have ndims info when adding op to graph, so here
         // directly used the input logical tensors passed from compilation stage
         BACKEND_DNNL_CHECK(set_given_inputs_outputs(subgraph, inputs, outputs));
+
+        fuse_bias_add(subgraph);
+
+        // check if bias exists
+        check_with_bias(subgraph);
 
         // split quant/dequant to pairs of mul_scales and add_zps
         split_quant_dequant(subgraph);
@@ -154,6 +154,8 @@ public:
                     lt->ndims = compiled_lt.ndims;
                     impl::utils::array_copy(
                             lt->dims, compiled_lt.dims, DNNL_GRAPH_MAX_NDIMS);
+                    impl::utils::array_copy(lt->layout.strides,
+                            compiled_lt.layout.strides, DNNL_GRAPH_MAX_NDIMS);
                     fill_layout_info(lt, md);
                 }
             }

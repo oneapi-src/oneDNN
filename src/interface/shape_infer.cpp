@@ -107,7 +107,7 @@ inline dims make_filter_dims(const std::string &format, const dim_t i,
 }
 
 /// validate the inferred shape with the expected one.
-inline bool validate(const dims &inferred, const dims &expected) {
+bool validate(const dims &inferred, const dims &expected) {
     if (inferred.size() != expected.size()) { return false; }
 
     for (size_t i = 0; i < inferred.size(); ++i) {

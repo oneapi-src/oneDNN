@@ -94,20 +94,26 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
 
 void insert_permute(std::vector<op_ptr> &subgraph) {
     std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
     for (auto &cur_op : subgraph) {
         if (!need_insert_permute(cur_op->get_kind())) continue;
 
-        bool need_permute_0 = cur_op->has_attr("data_format")
+        const bool need_permute_0 = cur_op->has_attr("data_format")
                 ? (cur_op->get_attr<std::string>("data_format") == "NXC")
                 : false;
-        bool need_permute_1 = cur_op->has_attr("filter_format")
+        const bool need_permute_1 = cur_op->has_attr("filter_format")
                 ? (cur_op->get_attr<std::string>("filter_format") == "XIO")
                 : false;
-        bool need_permute_sum_1 = cur_op->has_attr("with_sum")
+        const bool need_permute_sum_1 = cur_op->has_attr("with_sum")
                 ? (cur_op->get_attr<bool>("with_sum") && need_permute_0)
                 : false;
+        const bool need_permute_binary_src_1 = cur_op->has_attr("with_binary")
+                ? (cur_op->get_attr<bool>("with_binary") && need_permute_0)
+                : false;
 
-        if (!(need_permute_0 || need_permute_1 || need_permute_sum_1)) continue;
+        if (!(need_permute_0 || need_permute_1 || need_permute_sum_1
+                    || need_permute_binary_src_1))
+            continue;
 
         for (size_t i = 0; i < cur_op->num_inputs(); i++) {
             op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
@@ -119,6 +125,10 @@ void insert_permute(std::vector<op_ptr> &subgraph) {
                 perm_op->set_attr<std::string>("from_format", "XIO");
                 perm_op->set_attr<std::string>("to_format", "OIX");
             } else if (i == cur_op->num_inputs() - 1 && need_permute_sum_1) {
+                perm_op->set_attr<std::string>("from_format", "NXC");
+                perm_op->set_attr<std::string>("to_format", "NCX");
+            } else if (i == cur_op->num_inputs() - 1
+                    && need_permute_binary_src_1) {
                 perm_op->set_attr<std::string>("from_format", "NXC");
                 perm_op->set_attr<std::string>("to_format", "NCX");
             } else {
@@ -135,15 +145,40 @@ void insert_permute(std::vector<op_ptr> &subgraph) {
 
         if (need_permute_0)
             cur_op->set_attr<std::string>("output_format", "NXC");
+
+        if (cur_op->get_kind() == impl::op_kind::Convolution) {
+            // replace impl::op_kind::Convolution to be
+            // op_kind::dnnl_convolution
+            op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_convolution);
+            replace_op(cur_op, new_op);
+            to_be_inserted_ops.emplace_back(new_op);
+            to_be_removed_ops.emplace_back(cur_op);
+        }
+
+        if (cur_op->get_kind() == impl::op_kind::MaxPool
+                || cur_op->get_kind() == impl::op_kind::AvgPool) {
+            op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_pool);
+            replace_op(cur_op, new_op);
+            to_be_inserted_ops.emplace_back(new_op);
+            to_be_removed_ops.emplace_back(cur_op);
+        }
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(std::move(op));
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
 }
 
 void insert_to_group_for_conv(std::vector<op_ptr> &subgraph) {
     std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::dnnl_convolution) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_convolution
+                && cur_op->get_kind() != impl::op_kind::Convolution)
+            continue;
 
         auto groups = cur_op->get_attr<int64_t>("groups");
         if (groups <= 1) continue;
@@ -153,9 +188,23 @@ void insert_to_group_for_conv(std::vector<op_ptr> &subgraph) {
 
         insert_op_before(to_group_op, cur_op, 1);
         to_be_inserted_ops.emplace_back(to_group_op);
+
+        if (cur_op->get_kind() == impl::op_kind::Convolution) {
+            // replace impl::op_kind::Convolution to be
+            // op_kind::dnnl_convolution
+            op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_convolution);
+            replace_op(cur_op, new_op);
+            to_be_inserted_ops.emplace_back(new_op);
+            to_be_removed_ops.emplace_back(cur_op);
+        }
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(std::move(op));
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
 }
 
 void insert_transpose_for_matmul(std::vector<op_ptr> &subgraph) {

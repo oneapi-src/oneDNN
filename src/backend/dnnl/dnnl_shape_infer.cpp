@@ -55,6 +55,10 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
         outputs[0]->dims[ndims - 1] = channel;
     }
 
+    // set strides
+    set_shape_and_strides(
+            *outputs[0], logical_tensor_wrapper(outputs[0]).vdims());
+
     return status::success;
 }
 
@@ -75,6 +79,10 @@ status_t infer_dnnl_pool_output_shape(op_t *n,
         }
         outputs[0]->dims[ndims - 1] = channel;
     }
+
+    // set strides
+    set_shape_and_strides(
+            *outputs[0], logical_tensor_wrapper(outputs[0]).vdims());
     return status::success;
 }
 
@@ -158,6 +166,38 @@ status_t infer_expand_output_shape(op_t *n,
         }
     }
     set_shape_and_strides(*outputs[0], in_dims);
+    return status::success;
+}
+
+status_t infer_bn_folding_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto out1 = logical_tensor_wrapper(outputs[1]);
+    auto in0 = logical_tensor_wrapper(inputs[0]);
+    auto in1 = logical_tensor_wrapper(inputs[1]);
+
+    if (!out0.is_shape_unknown() && !out1.is_shape_unknown())
+        return status::success;
+
+    // check if partial set shape aligns with infered shape
+    if (out0.ndims() != -1) {
+        if (!impl::validate(in0.vdims(), out0.vdims())) {
+            return impl::status::invalid_shape;
+        }
+    }
+
+    if (out1.ndims() != -1) {
+        if (!impl::validate(in1.vdims(), out1.vdims())) {
+            return impl::status::invalid_shape;
+        }
+    }
+
+    // We should compute output dense strides instead of
+    // directly copying input strides to it
+    set_shape_and_strides(*outputs[0], in0.vdims());
+    set_shape_and_strides(*outputs[1], in1.vdims());
+    UNUSED(n);
     return status::success;
 }
 

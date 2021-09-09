@@ -53,7 +53,8 @@ static bool has_int8_support(op_kind_t kind) {
 
 // TODO(xxx): extend to support other ops
 static bool has_post_ops(op_kind_t kind) {
-    std::set<op_kind_t> ops {op_kind::dnnl_convolution, impl::op_kind::MatMul};
+    std::set<op_kind_t> ops {impl::op_kind::Convolution,
+            op_kind::dnnl_convolution, impl::op_kind::MatMul};
     return ops.count(kind) != 0;
 }
 
@@ -560,7 +561,8 @@ status_t fuse_post_ops(
 
     // lambda function to fuse one post op into base primitive
     auto fuse_post_ops_func = [&](std::vector<op_ptr> &subgraph,
-                                      primitive_attr_mgr &prm_attr_mgr) {
+                                      primitive_attr_mgr &prm_attr_mgr,
+                                      bool &changed) -> impl::status_t {
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
         std::set<op_t *> visited;
@@ -584,7 +586,10 @@ status_t fuse_post_ops(
             visited.insert(&next_op);
         }
 
-        if (fuse_groups.empty()) return false;
+        if (fuse_groups.empty()) {
+            changed = false;
+            return impl::status::success;
+        }
 
         for (auto &fuse_group : fuse_groups) {
             auto base_op = fuse_group.first;
@@ -686,13 +691,60 @@ status_t fuse_post_ops(
                         }
                     }
                     pops.append_sum(scales[0], static_cast<int32_t>(-zps[0]));
+                    base_op->set_attr<bool>("with_sum", true);
                 } else {
-                    // for fp32 cases, the another input of sum op have no
-                    // producer
-                    pops.append_sum(1.f);
+                    // for fp32 cases:
+                    // - the add op's src1 have no producer
+                    // - the add operation may need broadcast
+                    auto fused_in = post_op->get_input_value(
+                            fuse_op_predecessor_offset);
+                    auto other_in = post_op->get_input_value(
+                            1 - fuse_op_predecessor_offset);
+                    auto dst = post_op->get_output_value(0);
+
+                    if (ltw(fused_in->get_logical_tensor()).vdims()
+                            == ltw(other_in->get_logical_tensor()).vdims()) {
+                        // use sum post-ops for no-broadcast add
+                        pops.append_sum(1.f);
+                        base_op->set_attr<bool>("with_sum", true);
+                    } else {
+                        // use binary post-ops for broadcast add
+                        auto dst_lt = dst->get_logical_tensor();
+                        const logical_tensor_wrapper dst_ltw(dst_lt);
+                        int dst_ndims = dst_ltw.ndims();
+                        memory::desc post_src = make_dnnl_memory_desc(
+                                other_in->get_logical_tensor());
+                        post_src = expand(post_src, dst_ndims);
+
+                        // insert a expand op to preprocess the post src
+                        op_ptr expand_op
+                                = std::make_shared<op_t>(op_kind::expand);
+                        insert_op_before(expand_op.get(), post_op,
+                                1 - fuse_op_predecessor_offset);
+                        subgraph.emplace_back(expand_op);
+
+                        // post binary only supports per tensor and per channel
+                        // broadcast, which means the expand shape of post src
+                        // should be all one or the
+                        // post_src_dim[c_axis]==dst_dim[c_axis]
+                        std::string data_fmt = base_op->has_attr("data_format")
+                                ? base_op->get_attr<std::string>("data_format")
+                                : "NCX";
+                        int c_axis = (data_fmt == "NXC") ? (dst_ndims - 1) : 1;
+                        for (int i = dst_ndims - 1; i >= 0; i--) {
+                            if (post_src.dims()[i] == 1) continue;
+
+                            if (i != c_axis
+                                    || dst_ltw.dims()[i]
+                                            != post_src.dims()[i]) {
+                                return impl::status::compile_fail;
+                            }
+                        }
+                        pops.append_binary(algorithm::binary_add, post_src);
+                        base_op->set_attr<bool>("with_binary", true);
+                    }
                 }
 
-                base_op->set_attr<bool>("with_sum", true);
             } else {
                 // unsupported post ops
                 continue;
@@ -705,7 +757,8 @@ status_t fuse_post_ops(
                     post_op, subgraph, fuse_op_predecessor_offset);
         }
 
-        return true;
+        changed = true;
+        return impl::status::success;
     };
 
     int cnt = 0;
@@ -713,7 +766,8 @@ status_t fuse_post_ops(
 
     bool changed = true;
     do {
-        changed = fuse_post_ops_func(subgraph, prm_attr_mgr);
+        auto ret = fuse_post_ops_func(subgraph, prm_attr_mgr, changed);
+        if (ret != impl::status::success) return ret;
         cnt++;
     } while (changed && cnt <= max_num_limit);
 
@@ -885,6 +939,68 @@ void fuse_mul_scales_add_zps(std::vector<op_ptr> &subgraph) {
         pos = std::find_if(subgraph.begin(), subgraph.end(),
                 [op2](const op_ptr &f_op) { return op2 == f_op.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+}
+
+void insert_bn_folding(std::vector<op_ptr> &subgraph) {
+    std::vector<op_t *> bn_ops;
+
+    std::set<op_t *> visited;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::BatchNormInference
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        bn_ops.emplace_back(cur_op.get());
+        visited.insert(cur_op.get());
+    }
+
+    for (auto &bn_op : bn_ops) {
+        auto &prv_op = bn_op->get_input_value(0)->get_producer();
+        if (prv_op.get_kind() != impl::op_kind::Convolution) continue;
+
+        op_ptr bn_folding_op = std::make_shared<op_t>(op_kind::dnnl_bn_folding);
+        bn_folding_op->merge_attributes(bn_op->get_attributes());
+        bn_folding_op->set_attr<std::string>(
+                "filter_format", prv_op.get_attr<std::string>("filter_format"));
+        bn_folding_op->set_attr<bool>("with_bias", prv_op.num_inputs() == 3);
+
+        // add conv's weight and bias (if exist) to bn folder op
+        for (size_t i = 1; i < prv_op.num_inputs(); i++) {
+            auto tmp = prv_op.get_input_value(i);
+            tmp->remove_consumer(prv_op, i);
+            tmp->add_consumer(*bn_folding_op, bn_folding_op->num_inputs());
+            bn_folding_op->add_input(tmp);
+        }
+
+        // add bn's scale, shift, mean and variance to bn folder op
+        for (size_t i = 1; i < bn_op->num_inputs(); i++) {
+            auto tmp = bn_op->get_input_value(i);
+            tmp->remove_consumer(*bn_op, i);
+            tmp->add_consumer(*bn_folding_op, bn_folding_op->num_inputs());
+            bn_folding_op->add_input(tmp);
+        }
+
+        auto updated_conv_wei = std::make_shared<value_t>(*bn_folding_op, 0,
+                impl::empty_logical_tensor_with_default_id(), true);
+        bn_folding_op->add_output(updated_conv_wei);
+        updated_conv_wei->add_consumer(prv_op, 1);
+        prv_op.connect_input(1, updated_conv_wei);
+
+        auto updated_conv_bias = std::make_shared<value_t>(*bn_folding_op, 1,
+                impl::empty_logical_tensor_with_default_id(), true);
+        bn_folding_op->add_output(updated_conv_bias);
+        updated_conv_bias->add_consumer(prv_op, 2);
+        prv_op.connect_input(2, updated_conv_bias);
+
+        auto bn_out_val = bn_op->get_output_value(0);
+        prv_op.connect_output(0, bn_out_val);
+
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [bn_op](const op_ptr &op) { return *bn_op == *op; });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+
+        subgraph.emplace_back(bn_folding_op);
     }
 }
 

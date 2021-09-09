@@ -27,6 +27,7 @@
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/kernels/batchnorm.hpp"
+#include "backend/dnnl/kernels/binary.hpp"
 #include "backend/dnnl/kernels/concat.hpp"
 #include "backend/dnnl/kernels/conv.hpp"
 #include "backend/dnnl/kernels/eltwise.hpp"
@@ -34,6 +35,7 @@
 #include "backend/dnnl/kernels/layernorm.hpp"
 #include "backend/dnnl/kernels/matmul.hpp"
 #include "backend/dnnl/kernels/pool.hpp"
+#include "backend/dnnl/kernels/quantize.hpp"
 #include "backend/dnnl/kernels/reorder.hpp"
 #include "backend/dnnl/kernels/softmax.hpp"
 
@@ -50,6 +52,21 @@ static dnnl_impl::kernel_registry &get_dnnl_kernel_registry() {
     return dnnl_impl::dnnl_backend::get_singleton().get_kernel_registry();
 }
 
+namespace {
+dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager(
+            backend_ptr.get_pass_registry());
+    auto &passes = pm.get_passes();
+    auto find = std::find_if(passes.begin(), passes.end(),
+            [&pass_name](const dnnl::graph::impl::pass::pass_base_ptr &p)
+                    -> bool { return p->get_pass_name() == pass_name; });
+
+    return *find;
+}
+} // namespace
+
 TEST(operator_compile, convolution_compile_fp32) {
     using dims = impl::dnnl_impl::dims;
 
@@ -60,7 +77,7 @@ TEST(operator_compile, convolution_compile_fp32) {
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -72,17 +89,33 @@ TEST(operator_compile, convolution_compile_fp32) {
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             2, {8, 16, 222, 222}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    conv_op.add_input(src);
+    conv_op.add_input(weight);
+    conv_op.add_output(dst);
 
-    size_t operator_num = get_dnnl_kernel_registry().get_register_kernels_num();
-    ASSERT_NE(operator_num, 0);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    auto kernel = get_dnnl_kernel_registry().create_kernel(conv_op);
-    ASSERT_TRUE(kernel);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
 
-    kernel->compile(&conv_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 }
 
 TEST(operator_compile, convolution_backward_data_compile_fp32) {
@@ -3153,7 +3186,7 @@ TEST(operator_compile, Convolution_NCX_OIX) {
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -3165,21 +3198,40 @@ TEST(operator_compile, Convolution_NCX_OIX) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -3378,7 +3430,7 @@ TEST(operator_compile, Convolution3D_NCX_OIX) {
     conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -3390,21 +3442,40 @@ TEST(operator_compile, Convolution3D_NCX_OIX) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             2, {1, 1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -3426,7 +3497,7 @@ TEST(operator_compile, Convolution_NCX_XIO) {
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "XIO");
 
@@ -3438,21 +3509,40 @@ TEST(operator_compile, Convolution_NCX_XIO) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -3474,7 +3564,7 @@ TEST(operator_compile, Convolution3D_NCX_XIO) {
     conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "XIO");
 
@@ -3486,21 +3576,40 @@ TEST(operator_compile, Convolution3D_NCX_XIO) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             2, {1, 1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -3523,7 +3632,7 @@ TEST(operator_compile, Convolution_NXC_XIO) {
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NXC");
     conv_op.set_attr<std::string>("filter_format", "XIO");
 
@@ -3535,21 +3644,40 @@ TEST(operator_compile, Convolution_NXC_XIO) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 1, 1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -3572,7 +3700,7 @@ TEST(operator_compile, Convolution3D_NXC_XIO) {
     conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NXC");
     conv_op.set_attr<std::string>("filter_format", "XIO");
 
@@ -3584,21 +3712,40 @@ TEST(operator_compile, Convolution3D_NXC_XIO) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             2, {1, 1, 1, 1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -3620,7 +3767,7 @@ TEST(operator_compile, Convolution_NXC_OIX) {
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NXC");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -3632,21 +3779,40 @@ TEST(operator_compile, Convolution_NXC_OIX) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 2, 2, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -3668,7 +3834,7 @@ TEST(operator_compile, Convolution3D_NXC_OIX) {
     conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NXC");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -3680,21 +3846,40 @@ TEST(operator_compile, Convolution3D_NXC_OIX) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             2, {1, 1, 2, 2, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -3717,7 +3902,7 @@ TEST(operator_compile, ConvolutionF16F16F16) {
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -3729,22 +3914,44 @@ TEST(operator_compile, ConvolutionF16F16F16) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f16);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
 }
 
 TEST(operator_compile, ConvolutionBF16BF16BF16) {
@@ -3767,7 +3974,7 @@ TEST(operator_compile, ConvolutionBF16BF16BF16) {
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -3779,21 +3986,40 @@ TEST(operator_compile, ConvolutionBF16BF16BF16) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             2, {1, 1, 2, 2}, impl::data_type::bf16);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
 }
 
@@ -3816,7 +4042,7 @@ TEST(operator_compile, ConvolutionBF16BF16F32) {
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -3828,21 +4054,40 @@ TEST(operator_compile, ConvolutionBF16BF16F32) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
 }
 
@@ -3862,42 +4107,54 @@ TEST(operator_kernel, group_convolution) {
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
     // prepare logical tensor
-    impl::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
+    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
             0, {8, 32, 16, 16}, impl::data_type::f32);
-    impl::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
+    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
             1, {32, 8, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             2, {8, 32, 16, 16}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> conv_inputs {
-            conv_src_lt, conv_weight_lt};
-    std::vector<impl::logical_tensor_t> conv_outputs {conv_dst_lt};
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.build_graph();
 
-    conv_kernel->compile(&conv_op, &eng, conv_inputs, conv_outputs);
-    ASSERT_EQ(conv_outputs[0].layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
 
-    test::vector<float> conv_src(8 * 32 * 16 * 16, 1);
-    test::vector<float> conv_weight(32 * 8 * 1 * 1, 1);
-    test::vector<float> relu_dst(8 * 32 * 16 * 16, 1);
-    size_t conv_dst_size
-            = impl::dnnl_impl::dnnl_backend::get_singleton().get_mem_size(
-                    conv_outputs[0]);
-    test::vector<float> conv_dst(conv_dst_size / sizeof(float), 1);
+    // compile
+    impl::partition_t p;
+    p.init(part);
 
-    impl::tensor_t conv_src_ts(conv_src_lt, conv_src.data());
-    impl::tensor_t conv_weight_ts(conv_weight_lt, conv_weight.data());
-    impl::tensor_t conv_dst_ts(conv_outputs[0], conv_dst.data());
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+    test::vector<float> src(8 * 32 * 16 * 16, 1);
+    test::vector<float> weight(32 * 8 * 1 * 1, 1);
+    test::vector<float> dst(8 * 32 * 16 * 16, 1);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t weight_ts(weight_lt, weight.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_kernel->execute(
-            &conv_op, &strm, {conv_src_ts, conv_weight_ts}, {conv_dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
-
-    for (size_t i = 0; i < relu_dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(conv_dst[i], 8);
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], 8);
     }
 }
 
@@ -4038,8 +4295,8 @@ TEST(operator_compile, conv_relu_unfused) {
             conv_src_lt, conv_weight_lt};
     std::vector<impl::logical_tensor_t> conv_outputs {conv_dst_lt};
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    std::shared_ptr<dnnl_impl::kernel_base> conv_kernel
+            = std::make_shared<dnnl_impl::convolution_forward>();
 
     conv_kernel->compile(&conv_op, &eng, conv_inputs, conv_outputs);
     ASSERT_EQ(conv_outputs[0].layout_type, impl::layout_type::opaque);
@@ -4050,7 +4307,8 @@ TEST(operator_compile, conv_relu_unfused) {
     std::vector<impl::logical_tensor_t> relu_inputs {conv_outputs[0]};
     std::vector<impl::logical_tensor_t> relu_outputs {relu_dst_lt};
 
-    auto relu_kernel = op_factory.create_kernel(relu_op);
+    std::shared_ptr<dnnl_impl::kernel_base> relu_kernel
+            = std::make_shared<dnnl_impl::eltwise_forward>();
 
     relu_kernel->compile(&relu_op, &eng, relu_inputs, relu_outputs);
     ASSERT_EQ(relu_outputs[0].layout_type, impl::layout_type::strided);
@@ -4088,16 +4346,16 @@ TEST(operator_compile, convolution_bn_fp32) {
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
 
-    impl::op_t conv_op(impl::op_kind::Convolution);
+    impl::op_t conv_op(0, impl::op_kind::Convolution, "conv");
     conv_op.set_attr<dims>("strides", dims {1, 1});
     conv_op.set_attr<dims>("dilations", dims {1, 1});
     conv_op.set_attr<dims>("pads_begin", dims {0, 0});
     conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
 
-    impl::op_t bn_op(impl::op_kind::BatchNormInference);
+    impl::op_t bn_op(1, impl::op_kind::BatchNormInference, "bn");
     bn_op.set_attr<std::string>("data_format", "NCX");
     bn_op.set_attr("epsilon", 1e-6f);
 
@@ -4112,8 +4370,8 @@ TEST(operator_compile, convolution_bn_fp32) {
             conv_src_lt, conv_weight_lt};
     std::vector<impl::logical_tensor_t> conv_outputs {conv_dst_lt};
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_kernel = op_factory.create_kernel(conv_op);
+    std::shared_ptr<dnnl_impl::kernel_base> conv_kernel
+            = std::make_shared<dnnl_impl::convolution_forward>();
     conv_kernel->compile(&conv_op, &eng, conv_inputs, conv_outputs);
 
     impl::logical_tensor_t gamma
@@ -4130,7 +4388,8 @@ TEST(operator_compile, convolution_bn_fp32) {
             conv_outputs[0], gamma, beta, scale, shift};
     std::vector<impl::logical_tensor_t> bn_outputs {bn_dst_lt};
 
-    auto bn_kernel = op_factory.create_kernel(bn_op);
+    std::shared_ptr<dnnl_impl::kernel_base> bn_kernel = std::make_shared<
+            dnnl_impl::batch_normalization_forward_inference>();
     bn_kernel->compile(&bn_op, &eng, bn_inputs, bn_outputs);
 
     test::vector<float> conv_src(8 * 32 * 16 * 16);
@@ -4182,28 +4441,42 @@ TEST(operator_compile, convolution_bn_fp32) {
             {bn_src_ts, bn_gamma_ts, bn_beta_ts, bn_scale_ts, bn_shift_ts},
             {bn_dst_ts});
 
-    impl::op_t convbn_op(impl::dnnl_impl::op_kind::conv_bn);
-    convbn_op.set_attr<dims>("strides", dims {1, 1});
-    convbn_op.set_attr<dims>("dilations", dims {1, 1});
-    convbn_op.set_attr<dims>("pads_begin", dims {0, 0});
-    convbn_op.set_attr<dims>("pads_end", dims {0, 0});
-    convbn_op.set_attr<int64_t>("groups", 0);
-    convbn_op.set_attr<std::string>("data_format", "NCX");
-    convbn_op.set_attr<std::string>("filter_format", "OIX");
-    convbn_op.set_attr("epsilon", 1e-6f);
-    impl::logical_tensor_t conv_bn_dst_lt = utils::logical_tensor_init(
-            8, {8, 32, 16, 16}, impl::data_type::f32);
-    std::vector<impl::logical_tensor_t> convbn_inputs {
-            conv_src_lt, conv_weight_lt, gamma, beta, scale, shift};
-    std::vector<impl::logical_tensor_t> convbn_outputs {conv_bn_dst_lt};
-    auto convbn_kernel = op_factory.create_kernel(convbn_op);
-    convbn_kernel->compile(&convbn_op, &eng, convbn_inputs, convbn_outputs);
+    conv_op.add_input(conv_src_lt);
+    conv_op.add_input(conv_weight_lt);
+    conv_op.add_output(conv_dst_lt);
+    bn_op.add_input(conv_dst_lt);
+    bn_op.add_input(gamma);
+    bn_op.add_input(beta);
+    bn_op.add_input(scale);
+    bn_op.add_input(shift);
+    bn_op.add_output(bn_dst_lt);
 
-    size_t convbn_dst_size = dnnl_backend.get_mem_size(convbn_outputs[0]);
-    test::vector<float> convbn_dst(convbn_dst_size / sizeof(float), 0.0);
-    impl::tensor_t convbn_dst_ts(convbn_outputs[0], convbn_dst.data());
+    impl::graph_t g;
+    g.add_op(&conv_op);
+    g.add_op(&bn_op);
+    g.build_graph();
 
-    convbn_kernel->execute(&convbn_op, &strm,
+    impl::pass::pass_base_ptr apass = get_pass("conv_bn_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &conv_src_lt, &conv_weight_lt, &gamma, &beta, &scale, &shift};
+    std::vector<const impl::logical_tensor_t *> outputs {&bn_dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    test::vector<float> convbn_dst(8 * 32 * 16 * 16, 0.0);
+    impl::tensor_t convbn_dst_ts(bn_dst_lt, convbn_dst.data());
+
+    cp.execute(&strm,
             {conv_src_ts, conv_weight_ts, bn_gamma_ts, bn_beta_ts, bn_scale_ts,
                     bn_shift_ts},
             {convbn_dst_ts});
@@ -4227,14 +4500,15 @@ TEST(operator_kernel, conv_add) {
     test::vector<float> post_src {1.0, 2.0, 3.0, 4.0};
     test::vector<float> ref_dst {0.0, 4.5, 8.0, 5.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
-    conv_add_op.set_attr<dims>("strides", dims {1, 1});
-    conv_add_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_add_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_add_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_add_op.set_attr<int64_t>("groups", 1);
-    conv_add_op.set_attr<std::string>("data_format", "NCX");
-    conv_add_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>("strides", dims {1, 1});
+    conv_op.set_attr<dims>("dilations", dims {1, 1});
+    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
+    conv_op.set_attr<dims>("pads_end", dims {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4245,24 +4519,53 @@ TEST(operator_kernel, conv_add) {
             = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_add_kernel = op_factory.create_kernel(conv_add_op);
+    in_op.add_output(post_src_lt);
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
+    add_op.add_input(dst_lt);
+    add_op.add_input(post_src_lt);
+    add_op.add_output(add_dst_lt);
 
-    conv_add_kernel->compile(&conv_add_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::graph_t g;
+    g.add_op(&in_op);
+    g.add_op(&conv_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &weight_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(add_dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
     impl::tensor_t post_src_ts(post_src_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t add_dst_ts(add_dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_add_kernel->execute(
-            &conv_add_op, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {add_dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -4280,14 +4583,15 @@ TEST(operator_kernel, conv_per_tensor_broadcast_add) {
     test::vector<float> post_src {3.0};
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
-    conv_add_op.set_attr<dims>("strides", {1, 1});
-    conv_add_op.set_attr<dims>("dilations", {1, 1});
-    conv_add_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_add_op.set_attr<dims>("pads_end", {0, 0});
-    conv_add_op.set_attr<int64_t>("groups", 1);
-    conv_add_op.set_attr<std::string>("data_format", "NCX");
-    conv_add_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>("strides", {1, 1});
+    conv_op.set_attr<dims>("dilations", {1, 1});
+    conv_op.set_attr<dims>("pads_begin", {0, 0});
+    conv_op.set_attr<dims>("pads_end", {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4300,15 +4604,44 @@ TEST(operator_kernel, conv_per_tensor_broadcast_add) {
             = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_add_kernel = op_factory.create_kernel(conv_add_op);
+    in_op.add_output(post_src_lt);
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
+    add_op.add_input(dst_lt);
+    add_op.add_input(post_src_lt);
+    add_op.add_output(add_dst_lt);
 
-    conv_add_kernel->compile(&conv_add_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::graph_t g;
+    g.add_op(&in_op);
+    g.add_op(&conv_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &weight_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(add_dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
@@ -4316,8 +4649,7 @@ TEST(operator_kernel, conv_per_tensor_broadcast_add) {
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_add_kernel->execute(
-            &conv_add_op, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -4335,14 +4667,15 @@ TEST(operator_kernel, conv_expanded_per_tensor_broadcast_add) {
     test::vector<float> post_src {3.0};
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
-    conv_add_op.set_attr<dims>("strides", {1, 1});
-    conv_add_op.set_attr<dims>("dilations", {1, 1});
-    conv_add_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_add_op.set_attr<dims>("pads_end", {0, 0});
-    conv_add_op.set_attr<int64_t>("groups", 1);
-    conv_add_op.set_attr<std::string>("data_format", "NCX");
-    conv_add_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>("strides", {1, 1});
+    conv_op.set_attr<dims>("dilations", {1, 1});
+    conv_op.set_attr<dims>("pads_begin", {0, 0});
+    conv_op.set_attr<dims>("pads_end", {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4353,15 +4686,44 @@ TEST(operator_kernel, conv_expanded_per_tensor_broadcast_add) {
             = utils::logical_tensor_init(2, {1, 1, 1, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_add_kernel = op_factory.create_kernel(conv_add_op);
+    in_op.add_output(post_src_lt);
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
+    add_op.add_input(dst_lt);
+    add_op.add_input(post_src_lt);
+    add_op.add_output(add_dst_lt);
 
-    conv_add_kernel->compile(&conv_add_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::graph_t g;
+    g.add_op(&in_op);
+    g.add_op(&conv_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &weight_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(add_dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
@@ -4369,8 +4731,7 @@ TEST(operator_kernel, conv_expanded_per_tensor_broadcast_add) {
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_add_kernel->execute(
-            &conv_add_op, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -4389,14 +4750,15 @@ TEST(operator_kernel, conv_per_channel_broadcast_add) {
     test::vector<float> post_src {3.0, 3.0};
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5, 2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
-    conv_add_op.set_attr<dims>("strides", {1, 1});
-    conv_add_op.set_attr<dims>("dilations", {1, 1});
-    conv_add_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_add_op.set_attr<dims>("pads_end", {0, 0});
-    conv_add_op.set_attr<int64_t>("groups", 1);
-    conv_add_op.set_attr<std::string>("data_format", "NCX");
-    conv_add_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>("strides", {1, 1});
+    conv_op.set_attr<dims>("dilations", {1, 1});
+    conv_op.set_attr<dims>("pads_begin", {0, 0});
+    conv_op.set_attr<dims>("pads_end", {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4407,15 +4769,44 @@ TEST(operator_kernel, conv_per_channel_broadcast_add) {
             = utils::logical_tensor_init(2, {1, 2, 1, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(3, {1, 2, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(4, {1, 2, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_add_kernel = op_factory.create_kernel(conv_add_op);
+    in_op.add_output(post_src_lt);
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
+    add_op.add_input(dst_lt);
+    add_op.add_input(post_src_lt);
+    add_op.add_output(add_dst_lt);
 
-    conv_add_kernel->compile(&conv_add_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::graph_t g;
+    g.add_op(&in_op);
+    g.add_op(&conv_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &weight_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(add_dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
@@ -4423,8 +4814,7 @@ TEST(operator_kernel, conv_per_channel_broadcast_add) {
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_add_kernel->execute(
-            &conv_add_op, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -4443,14 +4833,15 @@ TEST(operator_kernel, conv_nxc_per_channel_broadcast_add) {
     test::vector<float> post_src {3.0, 3.0};
     test::vector<float> ref_dst {2.0, 2.0, 5.5, 5.5, 8.0, 8.0, 4.5, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
-    conv_add_op.set_attr<dims>("strides", {1, 1});
-    conv_add_op.set_attr<dims>("dilations", {1, 1});
-    conv_add_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_add_op.set_attr<dims>("pads_end", {0, 0});
-    conv_add_op.set_attr<int64_t>("groups", 1);
-    conv_add_op.set_attr<std::string>("data_format", "NXC");
-    conv_add_op.set_attr<std::string>("filter_format", "XIO");
+    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>("strides", {1, 1});
+    conv_op.set_attr<dims>("dilations", {1, 1});
+    conv_op.set_attr<dims>("pads_begin", {0, 0});
+    conv_op.set_attr<dims>("pads_end", {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<std::string>("data_format", "NXC");
+    conv_op.set_attr<std::string>("filter_format", "XIO");
+    impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4461,15 +4852,44 @@ TEST(operator_kernel, conv_nxc_per_channel_broadcast_add) {
             = utils::logical_tensor_init(2, {1, 1, 1, 2}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(3, {1, 2, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(4, {1, 2, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_add_kernel = op_factory.create_kernel(conv_add_op);
+    in_op.add_output(post_src_lt);
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
+    add_op.add_input(dst_lt);
+    add_op.add_input(post_src_lt);
+    add_op.add_output(add_dst_lt);
 
-    conv_add_kernel->compile(&conv_add_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::graph_t g;
+    g.add_op(&in_op);
+    g.add_op(&conv_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &weight_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(add_dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
@@ -4477,8 +4897,7 @@ TEST(operator_kernel, conv_nxc_per_channel_broadcast_add) {
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_add_kernel->execute(
-            &conv_add_op, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -4494,14 +4913,15 @@ TEST(operator_kernel, conv_unsupported_broadcast_add) {
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> post_src {3.0, 3.0};
-    impl::op_t conv_add_op(impl::dnnl_impl::op_kind::conv_add);
-    conv_add_op.set_attr<dims>("strides", {1, 1});
-    conv_add_op.set_attr<dims>("dilations", {1, 1});
-    conv_add_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_add_op.set_attr<dims>("pads_end", {0, 0});
-    conv_add_op.set_attr<int64_t>("groups", 1);
-    conv_add_op.set_attr<std::string>("data_format", "NCX");
-    conv_add_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>("strides", {1, 1});
+    conv_op.set_attr<dims>("dilations", {1, 1});
+    conv_op.set_attr<dims>("pads_begin", {0, 0});
+    conv_op.set_attr<dims>("pads_end", {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4512,15 +4932,41 @@ TEST(operator_kernel, conv_unsupported_broadcast_add) {
             = utils::logical_tensor_init(2, {2}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_add_kernel = op_factory.create_kernel(conv_add_op);
+    in_op.add_output(post_src_lt);
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
+    add_op.add_input(dst_lt);
+    add_op.add_input(post_src_lt);
+    add_op.add_output(add_dst_lt);
 
-    ASSERT_EQ(conv_add_kernel->compile(&conv_add_op, &eng, inputs, outputs),
-            impl::status::compile_fail);
+    impl::graph_t g;
+    g.add_op(&in_op);
+    g.add_op(&conv_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &weight_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+    ASSERT_NE(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 }
 
 TEST(operator_kernel, conv_add_relu) {
@@ -4534,14 +4980,19 @@ TEST(operator_kernel, conv_add_relu) {
     test::vector<float> post_src {-1.0, -2.0, -3.0, -4.0};
     test::vector<float> ref_dst {0.0, 0.5, 2.0, 0.0};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_add_relu_op(impl::dnnl_impl::op_kind::conv_add_relu);
-    conv_add_relu_op.set_attr<dims>("strides", dims {1, 1});
-    conv_add_relu_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_add_relu_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_add_relu_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_add_relu_op.set_attr<int64_t>("groups", 1);
-    conv_add_relu_op.set_attr<std::string>("data_format", "NCX");
-    conv_add_relu_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+
+    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+
+    conv_op.set_attr<dims>("strides", {1, 1});
+    conv_op.set_attr<dims>("dilations", {1, 1});
+    conv_op.set_attr<dims>("pads_begin", {0, 0});
+    conv_op.set_attr<dims>("pads_end", {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+    impl::op_t add_op(2, impl::op_kind::Add, "Add");
+    impl::op_t relu_op(3, impl::op_kind::ReLU, "ReLU");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4552,24 +5003,56 @@ TEST(operator_kernel, conv_add_relu) {
             = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t relu_dst_lt
+            = utils::logical_tensor_init(5, {1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    in_op.add_output(post_lt);
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(dst_lt);
+    add_op.add_input(dst_lt);
+    add_op.add_input(post_lt);
+    add_op.add_output(add_dst_lt);
+    relu_op.add_input(add_dst_lt);
+    relu_op.add_output(relu_dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_add_relu_kernel = op_factory.create_kernel(conv_add_relu_op);
+    impl::graph_t g;
+    g.add_op(&in_op);
+    g.add_op(&conv_op);
+    g.add_op(&add_op);
+    g.add_op(&relu_op);
+    g.build_graph();
 
-    conv_add_relu_kernel->compile(&conv_add_relu_op, &eng, inputs, outputs);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    impl::pass::pass_base_ptr apass = get_pass("conv_sum_relu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &weight_lt, &post_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&relu_dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(relu_dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t post_src_ts(dst_lt, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t post_src_ts(post_lt, post_src.data());
+    impl::tensor_t relu_dst_ts(relu_dst_lt, dst.data());
 
     impl::stream_t &strm = get_stream();
-    conv_add_relu_kernel->execute(&conv_add_relu_op, &strm,
-            {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {relu_dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -4952,376 +5435,41 @@ TEST(operator_kernel, tanh) {
     }
 }
 
-TEST(operator_compile, conv_bias_abs) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
+struct eltwise_param {
+    std::string pass_name;
+    test::vector<float> bias;
+    test::vector<float> ref_dst;
+    impl::op_kind_t op_kind;
+    std::string op_name;
+    std::vector<std::pair<std::string, float>> attrs;
+};
 
-    // default engine kind is cpu.
-    impl::engine_t &eng = get_engine();
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> bias {-1.0};
-    test::vector<float> ref_dst {2.0, 1.5, 4.0, 0.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_abs);
-
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, bias_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(operator_compile, conv_bias_elu) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-
-    // default engine kind is cpu.
-    impl::engine_t &eng = get_engine();
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> bias {-1.0};
-    test::vector<float> ref_dst {-2.0, 1.5, 4.0, 0.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    ref_dst[0] = static_cast<float>(exp(-2) - 1);
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_elu);
-
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
-    op.set_attr<float>("alpha", 1.f);
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, bias_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(operator_compile, conv_bias_hardtanh) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-
-    // default engine kind is cpu.
-    impl::engine_t &eng = get_engine();
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> bias {-1.0};
-    test::vector<float> ref_dst {0.0, 1.5, 3.0, 0.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_hardtanh);
-
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
-    op.set_attr<float>("min", 0.f);
-    op.set_attr<float>("max", 3.f);
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, bias_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(operator_compile, conv_bias_relu6) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-
-    // default engine kind is cpu.
-    impl::engine_t &eng = get_engine();
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> bias {2.0};
-    test::vector<float> ref_dst {1.0, 4.5, 6.0, 3.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_relu6);
-
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
-    op.set_attr<float>("min", 0.f);
-    op.set_attr<float>("max", 6.f);
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, bias_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(operator_compile, conv_bias_sigmoid) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-
-    // default engine kind is cpu.
-    impl::engine_t &eng = get_engine();
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> bias {-1.0};
-    test::vector<float> ref_dst {-2.0, 1.5, 4.0, 0.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+test::vector<float> sigmoid_func(const test::vector<float> &ref_dst) {
+    test::vector<float> out;
     for (auto &rdst : ref_dst) {
-        rdst = static_cast<float>(1 / (exp(-rdst) + 1));
+        out.emplace_back(static_cast<float>(1 / (exp(-rdst) + 1)));
     }
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_sigmoid);
-
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, bias_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
+    return out;
 }
 
-TEST(operator_compile, conv_bias_swish) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-
-    // default engine kind is cpu.
-    impl::engine_t &eng = get_engine();
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> bias {-1.0};
-    test::vector<float> ref_dst {-2.0, 1.5, 4.0, 0.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+test::vector<float> tanh_func(const test::vector<float> &ref_dst) {
+    test::vector<float> out;
     for (auto &rdst : ref_dst) {
-        rdst = static_cast<float>(rdst / (exp(-rdst) + 1));
+        out.emplace_back(static_cast<float>(
+                (exp(rdst) - exp(-rdst)) / (exp(rdst) + exp(-rdst))));
     }
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_swish);
-
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
-    op.set_attr<float>("alpha", 1.f);
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, bias_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
+    return out;
 }
 
-TEST(operator_compile, conv_bias_sqrt) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-
-    // default engine kind is cpu.
-    impl::engine_t &eng = get_engine();
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> bias {1.0};
-    test::vector<float> ref_dst {0.0, 3.5, 6.0, 2.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+test::vector<float> sqrt_func(const test::vector<float> &ref_dst) {
+    test::vector<float> out;
     for (auto &rdst : ref_dst) {
-        rdst = static_cast<float>(sqrt(rdst));
+        out.emplace_back(static_cast<float>(sqrt(rdst)));
     }
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_sqrt);
-
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
-
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
-
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, bias_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
+    return out;
 }
 
-TEST(operator_compile, conv_bias_square) {
+TEST(operator_compile, conv_bias_eltwise) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -5329,108 +5477,105 @@ TEST(operator_compile, conv_bias_square) {
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> bias {-1.0};
-    test::vector<float> ref_dst {4.0, 2.25, 16.0, 0.25};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_square);
+    std::vector<eltwise_param> params1 = {
+            eltwise_param {"conv_bias_abs_fusion", {-1.0}, {2.0, 1.5, 4.0, 0.5},
+                    impl::op_kind::Abs, "Abs", {}},
+            eltwise_param {"conv_bias_elu_fusion", {-1.0},
+                    {static_cast<float>(exp(-2) - 1), 1.5, 4.0, 0.5},
+                    impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
+            eltwise_param {"conv_bias_hardtanh_fusion", {-1.0},
+                    {0.0, 1.5, 3.0, 0.5}, impl::op_kind::HardTanh, "HardTanh",
+                    {{"min", 0.f}, {"max", 3.f}}},
+            eltwise_param {"conv_bias_sigmoid_fusion", {-1.0},
+                    sigmoid_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Sigmoid,
+                    "Sigmoid", {}},
+            eltwise_param {"conv_bias_square_fusion", {-1.0},
+                    {4.0, 2.25, 16.0, 0.25}, impl::op_kind::Square, "Square",
+                    {}},
+            eltwise_param {"conv_bias_tanh_fusion", {-1.0},
+                    tanh_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Tanh,
+                    "Tanh", {}},
+            eltwise_param {"conv_bias_sqrt_fusion", {1.0},
+                    sqrt_func({0.0, 3.5, 6.0, 2.5}), impl::op_kind::Sqrt,
+                    "Sqrt", {}},
+    };
 
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
+    for (auto &param : params1) {
+        impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+        conv_op.set_attr<dims>("strides", {1, 1});
+        conv_op.set_attr<dims>("dilations", {1, 1});
+        conv_op.set_attr<dims>("pads_begin", {0, 0});
+        conv_op.set_attr<dims>("pads_end", {0, 0});
+        conv_op.set_attr<int64_t>("groups", 1);
+        conv_op.set_attr<std::string>("data_format", "NCX");
+        conv_op.set_attr<std::string>("filter_format", "OIX");
+        impl::op_t eltwise_op(2, param.op_kind, param.op_name);
+        for (auto &attr : param.attrs) {
+            eltwise_op.set_attr<float>(attr.first, attr.second);
+        }
 
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
+        // prepare logical tensor
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 1, 4, 4}, impl::data_type::f32);
+        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {1, 1, 3, 3}, impl::data_type::f32);
+        impl::logical_tensor_t bias_lt
+                = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                4, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
+                5, {1, 1, 2, 2}, impl::data_type::f32);
 
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
+        conv_op.add_input(src_lt);
+        conv_op.add_input(weight_lt);
+        conv_op.add_input(bias_lt);
+        conv_op.add_output(dst_lt);
+        eltwise_op.add_input(dst_lt);
+        eltwise_op.add_output(eltwise_dst_lt);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, bias_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+        impl::graph_t g;
+        g.add_op(&conv_op);
+        g.add_op(&eltwise_op);
+        g.build_graph();
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
+        impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &weight_lt, &bias_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&eltwise_dst_lt};
+
+        p.compile(&cp, inputs, outputs, &eng);
+
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+        impl::tensor_t src_ts(src_lt, src.data());
+        impl::tensor_t weight_ts(weight_lt, weight.data());
+        impl::tensor_t bias_ts(bias_lt, param.bias.data());
+        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, dst.data());
+
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {eltwise_dst_ts});
+        strm.wait();
+        for (size_t i = 0; i < dst.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst[i], param.ref_dst[i]);
+        }
     }
 }
 
-TEST(operator_compile, conv_bias_tanh) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-
-    // default engine kind is cpu.
-    impl::engine_t &eng = get_engine();
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> bias {-1.0};
-    test::vector<float> ref_dst {-2.0, 1.5, 4.0, 0.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    for (auto &rdst : ref_dst) {
-        rdst = static_cast<float>(
-                (exp(rdst) - exp(-rdst)) / (exp(rdst) + exp(-rdst)));
-    }
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_tanh);
-
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
-
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
-
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, bias_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(operator_compile, conv_bias_add_elu) {
+TEST(operator_compile, conv_bias_add_eltwise) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -5439,119 +5584,108 @@ TEST(operator_compile, conv_bias_add_elu) {
             2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> post_src {-2.0, 1.0, -1.0, 0.0};
-    test::vector<float> bias {-1.0};
-    test::vector<float> ref_dst {-4.0, 2.5, 3.0, 0.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    ref_dst[0] = static_cast<float>(exp(-4) - 1);
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_add_elu);
 
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
+    std::vector<eltwise_param> params2 = {
+            eltwise_param {"conv_bias_sum_elu_fusion", {-1.0},
+                    {static_cast<float>(exp(-4.0) - 1), 2.5, 3.0, 0.5},
+                    impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
+            eltwise_param {"conv_bias_sum_relu6_fusion", {3.0},
+                    {0.0, 6.f, 6.f, 4.5}, impl::op_kind::HardTanh, "ReLU6",
+                    {{"min", 0.f}, {"max", 6.f}}},
+    };
 
-    op.set_attr<float>("alpha", 1.f);
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
+    for (auto &param : params2) {
+        impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
 
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t post_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
 
-    std::vector<impl::logical_tensor_t> inputs {
-            src_lt, weight_lt, bias_lt, post_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+        conv_op.set_attr<dims>("strides", {1, 1});
+        conv_op.set_attr<dims>("dilations", {1, 1});
+        conv_op.set_attr<dims>("pads_begin", {0, 0});
+        conv_op.set_attr<dims>("pads_end", {0, 0});
+        conv_op.set_attr<int64_t>("groups", 1);
+        conv_op.set_attr<std::string>("data_format", "NCX");
+        conv_op.set_attr<std::string>("filter_format", "OIX");
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
+        impl::op_t add_op(2, impl::op_kind::Add, "Add");
+        impl::op_t eltwise_op(3, param.op_kind, param.op_name);
+        for (auto &attr : param.attrs) {
+            eltwise_op.set_attr<float>(attr.first, attr.second);
+        }
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t post_src_ts(outputs[0], post_src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(
-            &op, &strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        // prepare logical tensor
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 1, 4, 4}, impl::data_type::f32);
+        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {1, 1, 3, 3}, impl::data_type::f32);
+        impl::logical_tensor_t bias_lt
+                = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
+        impl::logical_tensor_t post_lt = utils::logical_tensor_init(
+                3, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                4, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+                5, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
+                6, {1, 1, 2, 2}, impl::data_type::f32);
+
+        in_op.add_output(post_lt);
+        conv_op.add_input(src_lt);
+        conv_op.add_input(weight_lt);
+        conv_op.add_input(bias_lt);
+        conv_op.add_output(dst_lt);
+        add_op.add_input(dst_lt);
+        add_op.add_input(post_lt);
+        add_op.add_output(add_dst_lt);
+        eltwise_op.add_input(add_dst_lt);
+        eltwise_op.add_output(eltwise_dst_lt);
+
+        impl::graph_t g;
+        g.add_op(&in_op);
+        g.add_op(&conv_op);
+        g.add_op(&add_op);
+        g.add_op(&eltwise_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &weight_lt, &bias_lt, &post_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&eltwise_dst_lt};
+
+        p.compile(&cp, inputs, outputs, &eng);
+
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+        impl::tensor_t src_ts(src_lt, src.data());
+        impl::tensor_t weight_ts(weight_lt, weight.data());
+        impl::tensor_t bias_ts(bias_lt, param.bias.data());
+        impl::tensor_t post_src_ts(post_lt, post_src.data());
+        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, dst.data());
+
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {src_ts, weight_ts, bias_ts, post_src_ts},
+                {eltwise_dst_ts});
+        strm.wait();
+        for (size_t i = 0; i < dst.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst[i], param.ref_dst[i]);
+        }
     }
 }
 
-TEST(operator_compile, conv_bias_add_relu6) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-
-    // default engine kind is cpu.
-    impl::engine_t &eng = get_engine();
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> post_src {-2.0, 1.0, -1.0, 0.0};
-    test::vector<float> bias {3.0};
-    test::vector<float> ref_dst {0.0, 6.f, 6.f, 4.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_bias_add_relu6);
-
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
-
-    op.set_attr<float>("min", 0.f);
-    op.set_attr<float>("max", 6.f);
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
-
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t post_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {
-            src_lt, weight_lt, bias_lt, post_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t bias_ts(bias_lt, bias.data());
-    impl::tensor_t post_src_ts(outputs[0], post_src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(
-            &op, &strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(operator_compile, conv_add_elu) {
+TEST(operator_compile, conv_add_eltwise) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -5562,104 +5696,95 @@ TEST(operator_compile, conv_add_elu) {
     test::vector<float> post_src {-2.0, 1.0, -1.0, 0.0};
     test::vector<float> ref_dst {-3.0, 3.5, 4.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    for (auto &rdst : ref_dst) {
-        rdst = rdst > 0 ? rdst : static_cast<float>((exp(rdst) - 1));
-    }
 
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_add_elu);
+    std::vector<eltwise_param> params = {
+            {"conv_sum_elu_fusion", {0.0},
+                    {static_cast<float>(exp(-3.0) - 1), 3.5, 4.0, 1.5},
+                    impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
+            {"conv_sum_relu6_fusion", {0.0}, {0.0, 3.5, 4.f, 1.5},
+                    impl::op_kind::HardTanh, "ReLU6",
+                    {{"min", 0.f}, {"max", 6.f}}},
+    };
 
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
+    for (auto &param : params) {
+        impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+        impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+        conv_op.set_attr<dims>("strides", {1, 1});
+        conv_op.set_attr<dims>("dilations", {1, 1});
+        conv_op.set_attr<dims>("pads_begin", {0, 0});
+        conv_op.set_attr<dims>("pads_end", {0, 0});
+        conv_op.set_attr<int64_t>("groups", 1);
+        conv_op.set_attr<std::string>("data_format", "NCX");
+        conv_op.set_attr<std::string>("filter_format", "OIX");
+        impl::op_t add_op(2, impl::op_kind::Add, "Add");
+        impl::op_t eltwise_op(3, param.op_kind, param.op_name);
+        for (auto &attr : param.attrs) {
+            eltwise_op.set_attr<float>(attr.first, attr.second);
+        }
 
-    op.set_attr<float>("alpha", 1.f);
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
+        // prepare logical tensor
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 1, 4, 4}, impl::data_type::f32);
+        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {1, 1, 3, 3}, impl::data_type::f32);
+        impl::logical_tensor_t post_lt = utils::logical_tensor_init(
+                2, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                3, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+                4, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
+                5, {1, 1, 2, 2}, impl::data_type::f32);
 
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t post_lt
-            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
+        in_op.add_output(post_lt);
+        conv_op.add_input(src_lt);
+        conv_op.add_input(weight_lt);
+        conv_op.add_output(dst_lt);
+        add_op.add_input(dst_lt);
+        add_op.add_input(post_lt);
+        add_op.add_output(add_dst_lt);
+        eltwise_op.add_input(add_dst_lt);
+        eltwise_op.add_output(eltwise_dst_lt);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+        impl::graph_t g;
+        g.add_op(&in_op);
+        g.add_op(&conv_op);
+        g.add_op(&add_op);
+        g.add_op(&eltwise_op);
+        g.build_graph();
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
+        impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
 
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t post_src_ts(outputs[0], post_src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
+        // compile
+        impl::partition_t p;
+        p.init(part);
 
-TEST(operator_compile, conv_add_relu6) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
+        impl::compiled_partition_t cp(p);
 
-    // default engine kind is cpu.
-    impl::engine_t &eng = get_engine();
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> post_src {-2.0, 1.0, -1.0, 0.0};
-    test::vector<float> ref_dst {0.0, 3.5, 4.f, 1.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &weight_lt, &post_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&eltwise_dst_lt};
 
-    impl::op_t op(impl::dnnl_impl::op_kind::conv_add_relu6);
+        p.compile(&cp, inputs, outputs, &eng);
 
-    op.set_attr<dims>("strides", {1, 1});
-    op.set_attr<dims>("dilations", {1, 1});
-    op.set_attr<dims>("pads_begin", {0, 0});
-    op.set_attr<dims>("pads_end", {0, 0});
-    op.set_attr<int64_t>("groups", 1);
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
-    op.set_attr<float>("min", 0.f);
-    op.set_attr<float>("max", 6.f);
-    op.set_attr<std::string>("data_format", "NCX");
-    op.set_attr<std::string>("filter_format", "OIX");
+        impl::tensor_t src_ts(src_lt, src.data());
+        impl::tensor_t weight_ts(weight_lt, weight.data());
+        impl::tensor_t post_src_ts(post_lt, post_src.data());
+        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, dst.data());
 
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t post_lt
-            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, src.data());
-    impl::tensor_t weight_ts(weight_lt, weight.data());
-    impl::tensor_t post_src_ts(outputs[0], post_src.data());
-    impl::tensor_t dst_ts(outputs[0], dst.data());
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {eltwise_dst_ts});
+        strm.wait();
+        for (size_t i = 0; i < dst.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst[i], param.ref_dst[i]);
+        }
     }
 }
 
@@ -6515,21 +6640,6 @@ static bool allclose(const test::vector<T> &a, const test::vector<T> &b,
     return flag;
 }
 
-namespace {
-dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
-    auto &backend_ptr
-            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager(
-            backend_ptr.get_pass_registry());
-    auto &passes = pm.get_passes();
-    auto find = std::find_if(passes.begin(), passes.end(),
-            [&pass_name](const dnnl::graph::impl::pass::pass_base_ptr &p)
-                    -> bool { return p->get_pass_name() == pass_name; });
-
-    return *find;
-}
-} // namespace
-
 // FIXME(qun) If the atol and rtol in the following cases are too small, then
 // these cases may can't pass when using AVX2 or AVX512, because of the issue
 // described in: https://oneapi-src.github.io/oneDNN/dev_guide_int8_computations.html
@@ -6656,16 +6766,18 @@ TEST(int8_subgraph_mode, int8_conv1d_conv2d_conv3d) {
         SET_Q_DQ_OUT_ATTR(qout_node)
 
         // create kernels
-        auto kernel_qdata
-                = get_dnnl_kernel_registry().create_kernel(qdata_node);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_node);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_node);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_node);
-        auto kernel_conv = get_dnnl_kernel_registry().create_kernel(conv_node);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_node);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_conv
+                = std::make_shared<dnnl_impl::convolution_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -6885,17 +6997,20 @@ TEST(int8_subgraph_mode, int8_conv2d_relu) {
         SET_Q_DQ_OUT_ATTR(qout_node)
 
         // create kernels
-        auto kernel_qdata
-                = get_dnnl_kernel_registry().create_kernel(qdata_node);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_node);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_node);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_node);
-        auto kernel_conv = get_dnnl_kernel_registry().create_kernel(conv_node);
-        auto kernel_relu = get_dnnl_kernel_registry().create_kernel(relu_node);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_node);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_conv
+                = std::make_shared<dnnl_impl::convolution_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_relu
+                = std::make_shared<dnnl_impl::eltwise_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -7156,22 +7271,26 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
         // create kernels
-        auto kernel_qdata
-                = get_dnnl_kernel_registry().create_kernel(qdata_node);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_node);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_node);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_node);
-        auto kernel_conv = get_dnnl_kernel_registry().create_kernel(conv_node);
-        auto kernel_relu = get_dnnl_kernel_registry().create_kernel(relu_node);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_node);
-        auto kernel_qother
-                = get_dnnl_kernel_registry().create_kernel(qother_node);
-        auto kernel_dqother
-                = get_dnnl_kernel_registry().create_kernel(dqother_node);
-        auto kernel_add = get_dnnl_kernel_registry().create_kernel(add_node);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_conv
+                = std::make_shared<dnnl_impl::convolution_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_relu
+                = std::make_shared<dnnl_impl::eltwise_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_add
+                = std::make_shared<dnnl_impl::binary>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -7509,22 +7628,26 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_NXC) {
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
         // create kernels
-        auto kernel_qdata
-                = get_dnnl_kernel_registry().create_kernel(qdata_node);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_node);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_node);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_node);
-        auto kernel_conv = get_dnnl_kernel_registry().create_kernel(conv_node);
-        auto kernel_relu = get_dnnl_kernel_registry().create_kernel(relu_node);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_node);
-        auto kernel_qother
-                = get_dnnl_kernel_registry().create_kernel(qother_node);
-        auto kernel_dqother
-                = get_dnnl_kernel_registry().create_kernel(dqother_node);
-        auto kernel_add = get_dnnl_kernel_registry().create_kernel(add_node);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_conv
+                = std::make_shared<dnnl_impl::convolution_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_relu
+                = std::make_shared<dnnl_impl::eltwise_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_add
+                = std::make_shared<dnnl_impl::binary>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -7820,15 +7943,16 @@ TEST(int8_subgraph_mode, x8s8f32_conv1d_conv2d_conv3d) {
         SET_CONV_ATTR(conv_node, nd)
 
         // create kernels
-        auto kernel_qdata
-                = get_dnnl_kernel_registry().create_kernel(qdata_node);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_node);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_node);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_node);
-        auto kernel_conv = get_dnnl_kernel_registry().create_kernel(conv_node);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_conv
+                = std::make_shared<dnnl_impl::convolution_forward>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -8037,16 +8161,18 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_relu) {
         impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
 
         // create kernels
-        auto kernel_qdata
-                = get_dnnl_kernel_registry().create_kernel(qdata_node);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_node);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_node);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_node);
-        auto kernel_conv = get_dnnl_kernel_registry().create_kernel(conv_node);
-        auto kernel_relu = get_dnnl_kernel_registry().create_kernel(relu_node);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_conv
+                = std::make_shared<dnnl_impl::convolution_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_relu
+                = std::make_shared<dnnl_impl::eltwise_forward>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -8291,21 +8417,26 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu) {
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
         // create kernels
-        auto kernel_qdata
-                = get_dnnl_kernel_registry().create_kernel(qdata_node);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_node);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_node);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_node);
-        auto kernel_conv = get_dnnl_kernel_registry().create_kernel(conv_node);
-        auto kernel_relu = get_dnnl_kernel_registry().create_kernel(relu_node);
-        auto kernel_qother
-                = get_dnnl_kernel_registry().create_kernel(qother_node);
-        auto kernel_dqother
-                = get_dnnl_kernel_registry().create_kernel(dqother_node);
-        auto kernel_add = get_dnnl_kernel_registry().create_kernel(add_node);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_conv
+                = std::make_shared<dnnl_impl::convolution_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_relu
+                = std::make_shared<dnnl_impl::eltwise_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_add
+                = std::make_shared<dnnl_impl::binary>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -8603,21 +8734,26 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu_NXC) {
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
         // create kernels
-        auto kernel_qdata
-                = get_dnnl_kernel_registry().create_kernel(qdata_node);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_node);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_node);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_node);
-        auto kernel_conv = get_dnnl_kernel_registry().create_kernel(conv_node);
-        auto kernel_relu = get_dnnl_kernel_registry().create_kernel(relu_node);
-        auto kernel_qother
-                = get_dnnl_kernel_registry().create_kernel(qother_node);
-        auto kernel_dqother
-                = get_dnnl_kernel_registry().create_kernel(dqother_node);
-        auto kernel_add = get_dnnl_kernel_registry().create_kernel(add_node);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_conv
+                = std::make_shared<dnnl_impl::convolution_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_relu
+                = std::make_shared<dnnl_impl::eltwise_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_add
+                = std::make_shared<dnnl_impl::binary>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
@@ -11913,22 +12049,26 @@ TEST(int8_subgraph_mode, int8_quant_wei_conv2d_sum_relu) {
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
         // create kernels
-        auto kernel_qdata
-                = get_dnnl_kernel_registry().create_kernel(qdata_node);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_node);
-        auto kernel_qweight
-                = get_dnnl_kernel_registry().create_kernel(qweight_node);
-        auto kernel_dqweight
-                = get_dnnl_kernel_registry().create_kernel(dqweight_node);
-        auto kernel_conv = get_dnnl_kernel_registry().create_kernel(conv_node);
-        auto kernel_relu = get_dnnl_kernel_registry().create_kernel(relu_node);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_node);
-        auto kernel_qother
-                = get_dnnl_kernel_registry().create_kernel(qother_node);
-        auto kernel_dqother
-                = get_dnnl_kernel_registry().create_kernel(dqother_node);
-        auto kernel_add = get_dnnl_kernel_registry().create_kernel(add_node);
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqdata
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqweight
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_conv
+                = std::make_shared<dnnl_impl::convolution_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_relu
+                = std::make_shared<dnnl_impl::eltwise_forward>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qout
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_qother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_dqother
+                = std::make_shared<dnnl_impl::quantize_dequantize>();
+        std::shared_ptr<dnnl_impl::kernel_base> kernel_add
+                = std::make_shared<dnnl_impl::binary>();
 
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(

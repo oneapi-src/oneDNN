@@ -320,6 +320,31 @@ static bool layout_propagation_for_mul_scales(op_ptr &op) {
     return layout_propagation_for_reorder(op);
 }
 
+static bool layout_propagation_for_bn_folding(
+        op_ptr &op, const dnnl::engine &p_engine) {
+    bool changed = false;
+
+    for (size_t i = 0; i < op->num_outputs(); i++) {
+        auto in_lt = op->get_input_value(i)->get_logical_tensor();
+        auto out_lt = op->get_output_value(i)->get_logical_tensor();
+        if ((ltw(in_lt).is_strided() || ltw(in_lt).is_opaque())
+                && (!ltw(out_lt).is_strided() && !ltw(out_lt).is_opaque())) {
+            dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
+            auto dst = op->get_output_value(i);
+            fill_layout_info(dst, in_md);
+            changed = true;
+        }
+    }
+
+    auto prm = std::make_shared<bn_folding>(op, p_engine);
+    // make scratchpad as bn_folding's last inputs
+    auto val = insert_scratchpad(op);
+    fill_layout_info(
+            val, dynamic_cast<bn_folding *>(prm.get())->scratchpad_desc());
+
+    return changed;
+}
+
 static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
     std::vector<op_t *> fuse_to_precursor;
     std::vector<op_t *> fuse_to_successor;
@@ -372,12 +397,29 @@ static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
 /// inputs. See the following figure for example:
 impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
         const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+    auto need_prop = [&](op_t *op) {
+        for (const auto &in : op->get_input_values()) {
+            if (ltw(in->get_logical_tensor()).layout_type()
+                    == layout_type::any) {
+                return true;
+            }
+        }
+        for (const auto &out : op->get_output_values()) {
+            if (ltw(out->get_logical_tensor()).layout_type()
+                    == layout_type::any) {
+                return true;
+            }
+        }
+        return false;
+    };
     // lambda function to do layout propagation for non-computation-intensive
     // and non-layout-reorder ops. If no layout is changed, this function will
     // return false.
     auto layout_propagation_func = [&](std::vector<op_ptr> &subgraph) -> bool {
         bool changed = false;
         for (auto &cur_op : subgraph) {
+            if (!need_prop(cur_op.get())) continue;
+
             if (cur_op->get_kind() == impl::op_kind::Convolution
                     || cur_op->get_kind() == op_kind::dnnl_convolution
                     || cur_op->get_kind() == impl::op_kind::MatMul)
@@ -405,6 +447,8 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
             } else if (cur_op->get_kind() == impl::op_kind::Reorder
                     || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
                 changed = layout_propagation_for_reorder(cur_op) || changed;
+            } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
+                changed |= layout_propagation_for_bn_folding(cur_op, p_engine);
             } else {
                 assertm(false,
                         "none layout propagation function for current op");
@@ -417,6 +461,8 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() == impl::op_kind::Convolution
                 || cur_op->get_kind() == op_kind::dnnl_convolution) {
+            if (!need_prop(cur_op.get())) continue;
+
             layout_propagation_for_conv(cur_op, p_engine, prm_attr_mgr);
         }
     }
@@ -433,6 +479,7 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
         // layout propagation for matmul
         for (auto &cur_op : subgraph) {
             if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
+            if (!need_prop(cur_op.get())) continue;
             changed = layout_propagation_for_matmul(
                               cur_op, p_engine, prm_attr_mgr)
                     || changed;
@@ -443,6 +490,7 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
                     || (cur_op->has_attr("change_layout")
                             && !cur_op->get_attr<bool>("change_layout")))
                 continue;
+            if (!need_prop(cur_op.get())) continue;
             changed = layout_propagation_for_reorder(cur_op) || changed;
         }
         cnt++;

@@ -76,6 +76,8 @@ void fuse_zero_points(std::vector<std::shared_ptr<op_t>> &subgraph,
 
 void fuse_mul_scales_add_zps(std::vector<std::shared_ptr<op_t>> &subgraph);
 
+void insert_bn_folding(std::vector<std::shared_ptr<op_t>> &subgraph);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

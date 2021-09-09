@@ -45,7 +45,7 @@ static inline dims make_filter_dims(
         const std::string &format, const dim_t i, const dim_t o, const dims &x);
 
 /// validate the inferred shape with the expected one.
-static inline bool validate(const dims &inferred, const dims &expected);
+bool validate(const dims &inferred, const dims &expected);
 
 /// get the dense strides of a given shape
 /// eg. (3, 4, 5) -> (20, 5, 1)

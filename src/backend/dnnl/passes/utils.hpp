@@ -41,6 +41,8 @@ namespace dnnl_impl {
 void insert_op_before(std::shared_ptr<impl::op_t> &inserted_op,
         std::shared_ptr<impl::op_t> &base_op, size_t offset);
 
+void insert_op_before(op_t *inserted_op, op_t *base_op, size_t offset);
+
 void insert_op_after(std::shared_ptr<impl::op_t> &inserted_op,
         std::shared_ptr<impl::op_t> &base_op, size_t offset);
 
@@ -80,6 +82,7 @@ private:
     bool enabled_;
     size_t index_;
 };
+void replace_op(std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op);
 
 } // namespace dnnl_impl
 } // namespace impl

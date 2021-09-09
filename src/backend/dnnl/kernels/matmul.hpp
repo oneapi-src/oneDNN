@@ -150,6 +150,13 @@ public:
     virtual ~matmul_forward() {
         thread_local_cache_t<f32_kernel_resource_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+
+        if (enable_constant_cache_) {
+            constant_cache_t::key_t cache_key
+                    = reinterpret_cast<constant_cache_t::key_t>(this);
+            constant_cache_t constant_cache;
+            constant_cache.remove_if_exist(cache_key);
+        }
     }
 
     impl::status_t compile_impl(const impl::op_t *op,

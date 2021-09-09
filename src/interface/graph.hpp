@@ -277,8 +277,7 @@ public:
                 return impl::status::invalid_shape;
 
             for (size_t i = 0; i < op->num_outputs(); i++) {
-                op->get_output_value(i)->set_dims(
-                        logical_tensor_wrapper(tmp_outputs[i]).vdims());
+                op->get_output_value(i)->set_logical_tensor(tmp_outputs[i]);
             }
 
             return impl::status::success;

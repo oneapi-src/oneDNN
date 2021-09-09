@@ -82,6 +82,10 @@ public:
 
         set_all_layout_to_any(subgraph);
 
+        // have to set the given inputs and outputs before infer shape and
+        // compile
+        set_given_inputs_outputs(subgraph, inputs, outputs);
+
         // for those primitive ops like pooling, it requires the scales and zps
         // between input tensor and output tensor are the same. So here, we
         // don't need to split Dequant and Quant ops firstly, it should be okay
@@ -94,9 +98,6 @@ public:
         subgraph_visualizer_t vis(part->id());
         vis.run(subgraph, "after_lower_down", false);
 
-        // have to set the given inputs and outputs before infer shape and
-        // compile
-        BACKEND_DNNL_CHECK(set_given_inputs_outputs(subgraph, inputs, outputs));
         impl::graph_t agraph(subgraph);
         BACKEND_DNNL_CHECK(agraph.infer_shape());
         BACKEND_DNNL_CHECK(infer_type(agraph));
@@ -118,6 +119,8 @@ public:
                     lt->ndims = compiled_lt.ndims;
                     impl::utils::array_copy(
                             lt->dims, compiled_lt.dims, DNNL_GRAPH_MAX_NDIMS);
+                    impl::utils::array_copy(lt->layout.strides,
+                            compiled_lt.layout.strides, DNNL_GRAPH_MAX_NDIMS);
                     fill_layout_info(lt, md);
                 }
             }

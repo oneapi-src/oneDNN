@@ -23,8 +23,9 @@
 
 #include "dnnl.hpp"
 
-#include "backend/dnnl/common.hpp"
+#include <utils/utils.hpp>
 
+#include "backend/dnnl/common.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
 
 #define DNNL_GRAPH_ARG_POST_SRC -1
@@ -68,13 +69,15 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
         auto bias = make_dnnl_memory_desc(
                 op->get_input_value(2)->get_logical_tensor());
         pd = dnnl::convolution_forward::primitive_desc(
-                {prop_kind::forward, algorithm::convolution_direct, src, weight,
-                        bias, dst, strides, dilates, pads_begin, pads_end},
+                {prop_kind::forward_inference, algorithm::convolution_direct,
+                        src, weight, bias, dst, strides, dilates, pads_begin,
+                        pads_end},
                 prm_attr, p_engine);
     } else {
         pd = dnnl::convolution_forward::primitive_desc(
-                {prop_kind::forward, algorithm::convolution_direct, src, weight,
-                        dst, strides, dilates, pads_begin, pads_end},
+                {prop_kind::forward_inference, algorithm::convolution_direct,
+                        src, weight, dst, strides, dilates, pads_begin,
+                        pads_end},
                 prm_attr, p_engine);
     }
 
@@ -352,6 +355,217 @@ struct reorder_executable : public op_executable {
 private:
     dnnl::reorder::primitive_desc pd_;
     dnnl::reorder prim_;
+};
+
+struct bn_folding : public op_executable {
+    bn_folding(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine) {
+        epsilon_ = op->get_attr<float>("epsilon");
+        data_format_ = op->get_attr<std::string>("data_format");
+        filter_format_ = op->get_attr<std::string>("filter_format");
+        with_bias_ = op->get_attr<bool>("with_bias");
+
+        size_t in_idx = 0;
+        auto weights = make_dnnl_memory_desc(
+                op->get_input_value(in_idx++)->get_logical_tensor());
+        auto bias = with_bias_ ? make_dnnl_memory_desc(
+                            op->get_input_value(in_idx++)->get_logical_tensor())
+                               : memory::desc();
+        auto scale = make_dnnl_memory_desc(
+                op->get_input_value(in_idx++)->get_logical_tensor());
+        auto shift = make_dnnl_memory_desc(
+                op->get_input_value(in_idx++)->get_logical_tensor());
+        auto mean = make_dnnl_memory_desc(
+                op->get_input_value(in_idx++)->get_logical_tensor());
+        auto variance = make_dnnl_memory_desc(
+                op->get_input_value(in_idx++)->get_logical_tensor());
+
+        // 1. sqrt_variance = sqrt(variance + epsilon)
+
+        // temp = variance + epsilon
+        memory::dims epsilon_dims(variance.data.ndims, 1);
+        epsilon_desc_ = memory::desc(
+                epsilon_dims, memory::data_type::f32, memory::format_tag::a);
+        dnnl::binary::desc add_d(
+                algorithm::binary_add, variance, epsilon_desc_, variance);
+
+        post_ops add_post_ops;
+        // sqrt_variance = sqrt(temp)
+        add_post_ops.append_eltwise(1.0f, algorithm::eltwise_sqrt, 0.0f, 0.0f);
+
+        primitive_attr add_attr;
+        add_attr.set_post_ops(add_post_ops);
+        dnnl::binary::primitive_desc add_pd(add_d, add_attr, p_engine);
+        add_prim_ = dnnl::binary(add_pd);
+
+        // 2. updated_weight = weights * scale / sqrt_variance
+
+        // expand 1D scale and variance to same ndims with weights
+        new_scale_desc_ = expand(scale, weights.data.ndims);
+        new_variance_desc_ = expand(variance, weights.data.ndims);
+
+        // after expand, the c channel is on the last dimension, which
+        // meet the requirement of NXC format. But for NCX format, we
+        // need permute c channel to the second dimension
+        if (filter_format_ == "NCX") { // matmul case
+            new_scale_desc_ = permute_NXC2NCX(new_scale_desc_);
+            new_variance_desc_ = permute_NXC2NCX(new_variance_desc_);
+        }
+
+        // after expand, the c channel is on the last dimension, which
+        // meet the requirement of XIO format. But for OIX format, we
+        // need permute c channel to the first dimension
+        if (filter_format_ == "OIX") { // conv case
+            new_scale_desc_ = permute_XIO2OIX(new_scale_desc_);
+            new_variance_desc_ = permute_XIO2OIX(new_variance_desc_);
+        }
+
+        // temp = weights * scale
+        dnnl::binary::desc mul_d(
+                algorithm::binary_mul, weights, new_scale_desc_, weights);
+
+        post_ops mul_post_ops;
+        // updated_weight = temp / sqrt_variance
+        mul_post_ops.append_binary(algorithm::binary_div, new_variance_desc_);
+
+        primitive_attr mul_attr;
+        mul_attr.set_post_ops(mul_post_ops);
+        dnnl::binary::primitive_desc mul_pd(mul_d, mul_attr, p_engine);
+        mul_prim_ = dnnl::binary(mul_pd);
+
+        // 3. updated_bias = (bias - mean) * scale / sqrt_variance + shift
+
+        // temp = bias - mean
+        memory::desc valid_bias = bias.is_zero() ? mean : bias;
+        dnnl::binary::desc sub_d(
+                algorithm::binary_sub, valid_bias, mean, valid_bias);
+
+        post_ops sub_post_ops;
+        // temp = temp * scale
+        sub_post_ops.append_binary(algorithm::binary_mul, scale);
+        // temp = temp / sqrt_variance
+        sub_post_ops.append_binary(algorithm::binary_div, variance);
+        // temp = temp + shift
+        sub_post_ops.append_binary(algorithm::binary_add, shift);
+
+        primitive_attr sub_attr;
+        sub_attr.set_post_ops(sub_post_ops);
+        dnnl::binary::primitive_desc sub_pd(sub_d, sub_attr, p_engine);
+        sub_prim_ = dnnl::binary(sub_pd);
+
+        memory::dims scratchpad_dims = variance.dims();
+        // sqrt_variance, zero_bias and others (like epslion),
+        // or no need to alloc bias
+        size_t factor = bias.is_zero() ? 3 : 2;
+        scratchpad_dims[0] *= factor;
+        scratchpad_desc_ = memory::desc(
+                scratchpad_dims, variance.data_type(), memory::format_tag::a);
+    }
+
+    const memory::desc &scratchpad_desc() const { return scratchpad_desc_; }
+
+    virtual void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        UNUSED(args);
+
+        auto weights = args.find(DNNL_ARG_WEIGHTS)->second;
+        auto bias = with_bias_ ? args.find(DNNL_ARG_BIAS)->second : memory();
+        auto scale = args.find(DNNL_ARG_WEIGHTS_1)->second;
+        auto shift = args.find(DNNL_ARG_WEIGHTS_2)->second;
+        auto mean = args.find(DNNL_ARG_MEAN)->second;
+        auto variance = args.find(DNNL_ARG_VARIANCE)->second;
+        auto scratchpad = args.find(DNNL_ARG_SCRATCHPAD)->second;
+
+        auto updated_weights = args.find(DNNL_ARG_DST_0)->second;
+        auto updated_bias = args.find(DNNL_ARG_DST_1)->second;
+
+        // 0. split scratchpad buffer to specific intermediate memory
+        // sqrt_variance
+        char *buf_start = (char *)scratchpad.get_data_handle();
+        memory sqrt_variance = make_dnnl_memory(variance.get_desc(),
+                scratchpad.get_engine(), (void *)buf_start);
+        buf_start += variance.get_desc().get_size();
+        // zero_bias
+        memory valid_bias = bias;
+        if (bias.get(true) == nullptr || bias.get_data_handle() == nullptr) {
+            valid_bias = make_dnnl_memory(variance.get_desc(),
+                    scratchpad.get_engine(), (void *)buf_start);
+            buf_start += valid_bias.get_desc().get_size();
+        }
+        // epslion
+        memory epsilon_mem = make_dnnl_memory(
+                epsilon_desc_, scratchpad.get_engine(), (void *)buf_start);
+
+        // 1. sqrt_variance = sqrt(variance + epsilon)
+        if (variance.get_engine().get_kind() == engine::kind::cpu) {
+            float *ptr = (float *)epsilon_mem.get_data_handle();
+            *ptr = epsilon_;
+        } else {
+            engine cpu_eng(engine::kind::cpu, 0);
+            memory cpu_mem = make_dnnl_memory(
+                    epsilon_desc_, cpu_eng, (void *)&epsilon_);
+            dnnl::reorder(cpu_mem, epsilon_mem)
+                    .execute(stream, cpu_mem, epsilon_mem);
+        }
+
+        add_prim_.execute(stream,
+                {{DNNL_ARG_SRC_0, variance}, {DNNL_ARG_SRC_1, epsilon_mem},
+                        {DNNL_ARG_DST, sqrt_variance}});
+
+        // 2. updated_weight = weights * scale / sqrt_variance
+        memory new_scale(
+                new_scale_desc_, scale.get_engine(), scale.get_data_handle());
+        memory new_sqrt_variance(new_variance_desc_, sqrt_variance.get_engine(),
+                sqrt_variance.get_data_handle());
+        mul_prim_.execute(stream,
+                {{DNNL_ARG_SRC_0, weights}, {DNNL_ARG_SRC_1, new_scale},
+                        {DNNL_ARG_DST, updated_weights},
+                        {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
+                                new_sqrt_variance}});
+
+        // 3. updated_bias = (bias - mean) * scale / sqrt_variance + shift
+        if (bias.get(true) == nullptr || bias.get_data_handle() == nullptr) {
+            // initialize the bias with zero value
+            std::vector<float> zero(
+                    impl::utils::prod(variance.get_desc().dims()), 0.0f);
+            if (mean.get_engine().get_kind() == engine::kind::cpu) {
+                std::memcpy(valid_bias.get_data_handle(), zero.data(),
+                        valid_bias.get_desc().get_size());
+            } else {
+                engine cpu_eng(engine::kind::cpu, 0);
+                memory cpu_mem = make_dnnl_memory(
+                        variance.get_desc(), cpu_eng, zero.data());
+                dnnl::reorder(cpu_mem, valid_bias)
+                        .execute(stream, cpu_mem, valid_bias);
+            }
+        }
+
+        sub_prim_.execute(stream,
+                {{DNNL_ARG_SRC_0, valid_bias}, {DNNL_ARG_SRC_1, mean},
+                        {DNNL_ARG_DST, updated_bias},
+                        {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
+                                scale},
+                        {DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1,
+                                sqrt_variance},
+                        {DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1,
+                                shift}});
+    }
+
+private:
+    memory::desc scratchpad_desc_;
+
+    dnnl::binary add_prim_;
+    dnnl::binary mul_prim_;
+    dnnl::binary sub_prim_;
+
+    float epsilon_;
+    std::string data_format_;
+    std::string filter_format_;
+
+    memory::desc epsilon_desc_;
+    memory::desc new_scale_desc_;
+    memory::desc new_variance_desc_;
+
+    bool with_bias_ {false};
 };
 
 } // namespace dnnl_impl
