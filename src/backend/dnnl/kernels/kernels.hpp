@@ -35,6 +35,5 @@
 
 // kernel based on subgraph
 #include "int8_pool.hpp"
-#include "matmul_v2.hpp"
 
 #endif
