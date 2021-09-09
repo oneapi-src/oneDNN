@@ -73,12 +73,40 @@
 
 #if IS_FWD
 
+void gen9_reduce_common(__global float *reduce_temp, __local float *local_sum,
+        __global float *dst) {
+    const int ic_sub_group = get_global_id(0) / 16;
+    const int group_c = get_global_id(1);
+    const int simd_id = get_sub_group_local_id();
+    const int c = group_c * 16 + simd_id;
+    float sum = 0.0f;
+
+    reduce_temp
+            += REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS * 16 * ic_sub_group
+            + REDUCE_STAT_NBLOCKS * 16 * group_c + simd_id;
+    for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
+        sum += reduce_temp[i * 16];
+    }
+
+    if (ic_sub_group > 0) { local_sum[ic_sub_group * 16 + simd_id] = sum; }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (ic_sub_group == 0) {
+        for (int i = 1; i < REDUCE_IC_SUB_GROUPS; i++) {
+            sum += local_sum[i * 16 + simd_id];
+        }
+        dst[c] = sum / (MB * ID * IH * IW);
+    }
+}
+
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calc_mean(
         __global DATA_T *src, __global float *reduce_temp) {
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
+    const int mb_sp_idx = mb * STAT_SP_NBLOCKS + sp_block_idx;
+    const int group_c_offset = REDUCE_STAT_NBLOCKS * 16 * (int)(c / 16);
+    const int simd_id = get_sub_group_local_id();
 
 #if USE_NHWC
     src += c + sp_block_idx * STAT_SP_BLOCK * IC;
@@ -86,8 +114,6 @@ __kernel void gen9_calc_mean(
     src += (c & 15) + sp_block_idx * STAT_SP_BLOCK * 16 + (c & ~15) * SP
             + mb * SP * IC;
 #endif
-
-    const int mb_sp_idx = mb * STAT_SP_NBLOCKS + sp_block_idx;
 
     float8 res0 = 0.0f, res1 = 0.0f;
     float v_mean = 0.0f;
@@ -142,19 +168,15 @@ __kernel void gen9_calc_mean(
         v_mean += res0[i] + res1[i];
     }
 
-    STORE_FLOAT_1x16(&reduce_temp[mb_sp_idx * IC + c], v_mean);
+    STORE_FLOAT_1x16(
+            &reduce_temp[group_c_offset + mb_sp_idx * 16 + simd_id], v_mean);
 }
 
 NAMED_KERNEL_ATTR(REDUCE)
 __kernel void gen9_reduce_mean(
         __global float *reduce_temp, __global float *mean) {
-    const int c = GWS_GET_REDUCE_STAT_IC();
-    reduce_temp += c;
-    float sum = 0.0f;
-    for (int i = 0; i < REDUCE_STAT_NBLOCKS; i++)
-        sum += reduce_temp[i * IC];
-
-    mean[c] = sum / (MB * ID * IH * IW);
+    __local float local_sum[16 * REDUCE_IC_SUB_GROUPS];
+    gen9_reduce_common(reduce_temp, local_sum, mean);
 }
 
 NAMED_KERNEL_ATTR(CALC)
@@ -163,6 +185,10 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
+    const int mb_sp_idx = mb * STAT_SP_NBLOCKS + sp_block_idx;
+    const int group_c_offset = REDUCE_STAT_NBLOCKS * 16 * (int)(c / 16);
+    const int simd_id = get_sub_group_local_id();
+    reduce_temp += REDUCE_STAT_NBLOCKS * IC;
 
 #if USE_NHWC
     src += c + sp_block_idx * STAT_SP_BLOCK * IC;
@@ -170,8 +196,6 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
     src += (c & 15) + sp_block_idx * STAT_SP_BLOCK * 16 + (c & ~15) * SP
             + mb * SP * IC;
 #endif
-
-    const int mb_sp_idx = mb * STAT_SP_NBLOCKS + sp_block_idx;
 
     float8 res0 = 0.0f, res1 = 0.0f;
     float v_var = 0.0f;
@@ -234,21 +258,16 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
     for (int i = 0; i < 8; i++) {
         v_var += res0[i] + res1[i];
     }
-
     STORE_FLOAT_1x16(
-            &reduce_temp[REDUCE_STAT_NBLOCKS * IC + mb_sp_idx * IC + c], v_var);
+            &reduce_temp[group_c_offset + mb_sp_idx * 16 + simd_id], v_var);
 }
 
 NAMED_KERNEL_ATTR(REDUCE)
 __kernel void gen9_reduce_variance(
         __global float *reduce_temp, __global float *variance) {
-    const int c = GWS_GET_REDUCE_STAT_IC();
-    reduce_temp += REDUCE_STAT_NBLOCKS * IC + c;
-    float sum = 0.0f;
-    for (int i = 0; i < REDUCE_STAT_NBLOCKS; i++)
-        sum += reduce_temp[i * IC];
-
-    variance[c] = sum / (MB * ID * IH * IW);
+    __local float local_sum[16 * REDUCE_IC_SUB_GROUPS];
+    gen9_reduce_common(
+            reduce_temp + REDUCE_STAT_NBLOCKS * IC, local_sum, variance);
 }
 
 KERNEL_ATTR
@@ -413,6 +432,9 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
     const int mb_sp_idx = mb * STAT_SP_NBLOCKS + sp_block_idx;
+    const int group_c_offset = REDUCE_STAT_NBLOCKS * 16 * (int)(c / 16);
+    const int simd_id = get_sub_group_local_id();
+    diff_scaleshift += group_c_offset;
 
 #if USE_NHWC
     const int offset = c + sp_block_idx * STAT_SP_BLOCK * IC;
@@ -505,9 +527,9 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
         diff_beta[0] += diff_beta[i];
     }
 
-    STORE_FLOAT_1x16(&diff_scaleshift[mb_sp_idx * IC + c], diff_gamma[0]);
-    STORE_FLOAT_1x16(
-            &diff_scaleshift[REDUCE_STAT_NBLOCKS * IC + mb_sp_idx * IC + c],
+    STORE_FLOAT_1x16(&diff_scaleshift[mb_sp_idx * 16 + simd_id], diff_gamma[0]);
+    STORE_FLOAT_1x16(&diff_scaleshift[REDUCE_STAT_NBLOCKS * IC + mb_sp_idx * 16
+                             + simd_id],
             diff_beta[0]);
 }
 
@@ -515,24 +537,48 @@ NAMED_KERNEL_ATTR(REDUCE)
 __kernel void gen9_reduce_stats(__global float *reduce_temp,
         __global float *diff_scaleshift, __global float *diff_shift,
         __global float *variance, float eps) {
-    const int c = GWS_GET_REDUCE_STAT_IC();
+    __local float local_gamma[16 * REDUCE_IC_SUB_GROUPS];
+    __local float local_beta[16 * REDUCE_IC_SUB_GROUPS];
+    const int ic_sub_group = get_global_id(0) / 16;
+    const int group_c = get_global_id(1);
+    const int simd_id = get_sub_group_local_id();
+    const int c = group_c * 16 + simd_id;
     float diff_gamma = 0.0f;
     float diff_beta = 0.0f;
 
-    for (int i = 0; i < REDUCE_STAT_NBLOCKS; i++) {
-        diff_gamma += reduce_temp[c + i * IC];
-        diff_beta += reduce_temp[IC * REDUCE_STAT_NBLOCKS + c + i * IC];
+    reduce_temp += REDUCE_STAT_NBLOCKS * 16 * group_c
+            + REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS * 16 * ic_sub_group
+            + simd_id;
+    for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
+        diff_gamma += reduce_temp[i * 16];
     }
-    float sqrt_variance = 1.0f / sqrt(variance[c] + eps);
+    reduce_temp += IC * REDUCE_STAT_NBLOCKS;
+    for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
+        diff_beta += reduce_temp[i * 16];
+    }
 
-    diff_scaleshift[c] = diff_gamma * sqrt_variance;
+    if (ic_sub_group > 0) {
+        local_gamma[ic_sub_group * 16 + simd_id] = diff_gamma;
+        local_beta[ic_sub_group * 16 + simd_id] = diff_beta;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (ic_sub_group == 0) {
+        for (int i = 1; i < REDUCE_IC_SUB_GROUPS; i++) {
+            diff_gamma += local_gamma[i * 16 + simd_id];
+            diff_beta += local_beta[i * 16 + simd_id];
+        }
+
+        float sqrt_variance = 1.0f / sqrt(variance[c] + eps);
+
+        diff_scaleshift[c] = diff_gamma * sqrt_variance;
 #if DIFF_SCALESHIFT == 1
-    diff_scaleshift[IC + c] = diff_beta;
+        diff_scaleshift[IC + c] = diff_beta;
 #elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
-    diff_shift[c] = diff_beta;
+        diff_shift[c] = diff_beta;
 #else
-    diff_scaleshift[IC * REDUCE_STAT_NBLOCKS + c] = diff_beta;
+        diff_scaleshift[IC * REDUCE_STAT_NBLOCKS + c] = diff_beta;
 #endif // #if DIFF_SCALESHIFT == 1
+    }
 }
 
 KERNEL_ATTR

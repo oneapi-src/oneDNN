@@ -45,7 +45,7 @@ int get_block_size(bool is_backward, int hw_threads, int nn, int ic,
             thread_efficiency = curr_thread_efficiency;
             block_size = curr_block_size;
         }
-        if (curr_thread_efficiency == 1.0 || curr_block_size <= 128) { break; }
+        if (curr_thread_efficiency == 1.0 || curr_block_size <= 256) { break; }
         hw_thread_mult += hw_threads;
     }
     return block_size;
@@ -150,7 +150,15 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch_calc_stat.generate();
 
     conf.dispatch_reduce_stat = compute_engine->create_dispatch();
-    conf.dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", conf.ic);
+    int reduce_sub_group_count = 1;
+    while (conf.reduce_stat_nblocks % (2 * reduce_sub_group_count) == 0
+            && 2 * reduce_sub_group_count * 16 <= 256) {
+        reduce_sub_group_count = reduce_sub_group_count * 2;
+    }
+    conf.stat_ic = reduce_sub_group_count * 16;
+    conf.dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", 0, conf.stat_ic);
+    conf.dispatch_reduce_stat.define_dim("REDUCE_IC_GROUP", 1, conf.ic / 16);
+    CHECK(conf.dispatch_reduce_stat.vectorize_dim("REDUCE_STAT_IC", 16));
     conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
     conf.dispatch_reduce_stat.generate();
 
@@ -217,6 +225,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("DIFF_SCALESHIFT", conf.diff_scaleshift);
     kernel_ctx.define_int("DIFF_SCALE", conf.diff_scale);
     kernel_ctx.define_int("DIFF_SHIFT", conf.diff_shift);
+    kernel_ctx.define_int("REDUCE_IC_SUB_GROUPS", conf.stat_ic / 16);
 
     if (conf.data_type == data_type::s8)
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
