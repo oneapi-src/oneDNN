@@ -59,7 +59,7 @@ TEST(layout_id_test, opaque_md_layout_id_mapping) {
     auto id3_asym = mgr.set_mem_desc(md3);
     auto recovered_md3_asym = mgr.get_mem_desc(id3_asym.value());
     ASSERT_TRUE(recovered_md3_asym.has_value());
-    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<tensor::desc>(
+    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<memory::desc>(
                       recovered_md3_asym.value()),
             md3);
 #else
