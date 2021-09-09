@@ -28,6 +28,7 @@
 
 #include "interface/c_types_map.hpp"
 
+#include "backend/dnnl/constant_cache.hpp"
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/utils.hpp"

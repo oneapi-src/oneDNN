@@ -18,742 +18,469 @@
 #define BACKEND_DNNL_KERNELS_CONV_HPP
 
 #include <algorithm>
-#include <future>
+#include <functional>
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
-#include <unordered_map>
 
-#include "utils/utils.hpp"
+#include "interface/backend.hpp"
+#include "interface/graph.hpp"
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/constant_cache.hpp"
-#include "backend/dnnl/f32_kernel_resource.hpp"
-#include "backend/dnnl/internal_ops.hpp"
+#include "backend/dnnl/dnnl_partition_impl.hpp"
+#include "backend/dnnl/passes/compile_ops.hpp"
+#include "backend/dnnl/passes/constant_propagation.hpp"
+#include "backend/dnnl/passes/infer_type.hpp"
+#include "backend/dnnl/passes/insert_ops.hpp"
+#include "backend/dnnl/passes/layout_propagation.hpp"
+#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/memory_binding.hpp"
+#include "backend/dnnl/passes/op_executable.hpp"
 #include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
-
-#include "backend/dnnl/kernels/bn_fusion.hpp"
+#include "backend/dnnl/utils.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-namespace conv {
-enum conv_inputs { kSrc, kWeight, kBias };
-enum fused_bn_inputs { kScale, kShift, kMean, kVariance };
-enum conv_outputs { kDst };
-enum mem_keys {
-    kUpdated_weights,
-    kUpdated_bias,
-    kOpt_src,
-    kOpt_weights,
-    kOpt_dst,
-    kOpt_bias,
-    kScratchpad
+struct conv_base : public kernel_base {
+protected:
+    dnnl::engine p_engine_;
+    impl::allocator_t *g_alloc_;
+
+    std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
+
+    primitive_attr_mgr prm_attr_mgr_;
+    executable_mgr exec_mgr_;
+    execution_args_mgr exec_arg_mgr_;
+
+    std::vector<op_executable *> execs_;
+
+    registry_t registry_;
+    registry_t c_registry_;
+    std::function<std::shared_ptr<subgraph_resource_t>()> resource_ctor_;
+
+    // FIXME(qun) improve the cache key
+    constant_cache_t::key_t constant_key_
+            = reinterpret_cast<constant_cache_t::key_t>(this);
+
+    bool enable_constant_cache_ = utils::is_enable_constant_cache();
+
+    std::vector<bool> is_constant_;
+    std::vector<bool> is_skip_;
+
+    pd_cache_t pd_cache_;
+
+public:
+    virtual ~conv_base() {
+        thread_local_cache_t<subgraph_resource_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+
+        if (enable_constant_cache_) {
+            constant_cache_t constant_cache;
+            constant_cache.remove_if_exist(constant_key_);
+        }
+    }
+
+    virtual impl::status_t execute_impl(const dnnl_partition_impl_t *part,
+            const impl::stream_t *g_stream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override {
+        UNUSED(part);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
+
+        // each thread's own local resource
+        thread_local_cache_t<subgraph_resource_t> res_cache;
+        subgraph_resource_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
+
+        // update the data of partition in/outputs args
+        for (size_t i = 0; i < inputs.size(); i++) {
+            res->get_exec_args_mgr().get_external_input_mem(i).set_data_handle(
+                    inputs[i].get_data_handle());
+        }
+        for (size_t i = 0; i < outputs.size(); i++) {
+            res->get_exec_args_mgr().get_external_output_mem(i).set_data_handle(
+                    outputs[i].get_data_handle());
+        }
+
+        temporary_scratchpad_t scratchpad(
+                registry_.size(), p_engine_, *g_alloc_);
+        assertm(scratchpad.size() >= registry_.size(),
+                "no enough scratchpad memory");
+        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
+
+        registry_t::key_t key = 0;
+        for (auto &mem :
+                res->get_exec_args_mgr().get_internal_variable_mems()) {
+            mem.set_data_handle(grantor.get(key++));
+        }
+
+        if (enable_constant_cache_) {
+            std::promise<constant_cache_t::cached_t> c_promise;
+            constant_cache_t global_constant_cache;
+            constant_cache_t::value_t cached_value
+                    = global_constant_cache.get_or_add(
+                            constant_key_, c_promise.get_future());
+            bool is_from_cache = cached_value.valid();
+            if (is_from_cache) {
+                constant_cache_t::cached_t c_buffer = cached_value.get();
+                grantor_t c_grantor
+                        = c_registry_.grantor(c_buffer->data<char>());
+                registry_t::key_t key = 0;
+                for (auto &mem :
+                        res->get_exec_args_mgr().get_internal_constant_mems()) {
+                    mem.set_data_handle(c_grantor.get(key++));
+                }
+            } else {
+                constant_cache_t::cached_t c_buffer
+                        = std::make_shared<constant_buffer_t>(
+                                c_registry_.size(), p_engine_, g_alloc_);
+                grantor_t c_grantor
+                        = c_registry_.grantor(c_buffer->data<char>());
+                registry_t::key_t key = 0;
+                for (auto &mem :
+                        res->get_exec_args_mgr().get_internal_constant_mems()) {
+                    mem.set_data_handle(c_grantor.get(key++));
+                }
+
+                for (size_t i = 0; i < execs_.size(); i++) {
+                    if (!is_constant_[i]) continue;
+                    execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+                }
+
+                c_promise.set_value(c_buffer);
+            }
+        }
+
+        for (size_t i = 0; i < execs_.size(); i++) {
+            if (is_skip_[i]) continue;
+            execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+        }
+
+        return impl::status::success;
+    }
 };
-} // namespace conv
+
+template <bool quantized>
+struct conv_fwd : public conv_base {
+public:
+    virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+            const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
+
+        // get subgraph from the deep copied partition
+        std::vector<std::shared_ptr<impl::op_t>> subgraph = part->get_ops();
+
+        set_all_layout_to_any(subgraph);
+
+        // have to set the given inputs and outputs fusion because some fusions
+        // can't be performed if shape unknown
+        set_given_inputs_outputs(subgraph, inputs, outputs);
+
+        fuse_bias_add(subgraph);
+
+        if (!quantized) { insert_bn_folding(subgraph); }
+
+        check_with_bias(subgraph);
+        fuse_mul_sigmoid_to_swish(subgraph);
+
+        // Because we use binary post-ops for broadcast add and sum post-ops for
+        // non-broadcast add. So we have to know concret shape before fuse
+        // post-ops
+        BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
+
+        if (quantized) {
+            split_quant_dequant(subgraph);
+            fuse_to_int8_conv(subgraph);
+            folding_mul_scales(subgraph);
+            fuse_output_scales(subgraph, prm_attr_mgr_);
+        }
+
+        BACKEND_DNNL_CHECK(fuse_post_ops(subgraph, prm_attr_mgr_));
+
+        if (quantized) {
+            fuse_zero_points(subgraph, prm_attr_mgr_);
+            // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
+            fuse_mul_scales_add_zps(subgraph);
+        }
+
+        insert_permute(subgraph);
+        insert_to_group_for_conv(subgraph);
+        insert_reorder(subgraph);
+
+        subgraph_visualizer_t vis(part->id());
+        vis.run(subgraph, "after_lower_down", false);
+
+        impl::graph_t agraph(subgraph);
+        BACKEND_DNNL_CHECK(agraph.infer_shape());
+        BACKEND_DNNL_CHECK(infer_type(agraph));
+
+        vis.run(subgraph, "after_infer_shape_infer_type", true);
+
+        BACKEND_DNNL_CHECK(layout_propagation(
+                subgraph, p_engine_, prm_attr_mgr_, pd_cache_));
+
+        vis.run(subgraph, "after_layout_propagation", true);
+
+        // fill layout information for inputs logical tensors
+        // FIXME(qun) for not breaking conversion example and some C API.
+        // We should not need to set layout id for inputs in the further
+        for (size_t i = 0; i < inputs.size(); i++) {
+            for (auto in_val : impl::graph_t(subgraph).get_input_values()) {
+                auto compiled_lt = in_val->get_logical_tensor();
+                if (compiled_lt.id == inputs[i].id) {
+                    auto lt = const_cast<impl::logical_tensor_t *>(&inputs[i]);
+                    auto md = make_dnnl_memory_desc(compiled_lt);
+                    fill_layout_info(lt, md);
+                }
+            }
+        }
+
+        // fill layout information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            for (auto out_val : impl::graph_t(subgraph).get_output_values()) {
+                auto compiled_lt = out_val->get_logical_tensor();
+                if (compiled_lt.id == outputs[i].id) {
+                    auto lt = const_cast<impl::logical_tensor_t *>(&outputs[i]);
+                    auto md = make_dnnl_memory_desc(compiled_lt);
+                    lt->ndims = compiled_lt.ndims;
+                    impl::utils::array_copy(
+                            lt->dims, compiled_lt.dims, DNNL_GRAPH_MAX_NDIMS);
+                    impl::utils::array_copy(lt->layout.strides,
+                            compiled_lt.layout.strides, DNNL_GRAPH_MAX_NDIMS);
+                    fill_layout_info(lt, md);
+                }
+            }
+        }
+
+        // constant propagation
+        if (enable_constant_cache_) {
+#if 1
+            // TODO(qun): because fwk doesn't set constant from API level at
+            // this momnet, so we hardcode conv op's weight and bias to be
+            // constant
+            set_weight_bias_constant(subgraph);
+#endif
+            constant_propagation(subgraph);
+        }
+
+        // bind the memory for each op
+        BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
+                exec_arg_mgr_, prm_attr_mgr_));
+
+        BACKEND_DNNL_CHECK(compile_ops(
+                subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
+
+        // topologically sort the executables
+        impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),
+                [this](impl::op_t *op) {
+                    auto exec_key = op->get_attr<int64_t>("executable_key");
+                    auto &exec = exec_mgr_.get_executable(exec_key);
+                    execs_.emplace_back(exec.get());
+
+                    auto arg_key = op->get_attr<int64_t>("execution_args_key");
+                    exec_arg_mgr_.add_topo_ordered_key(arg_key);
+
+                    is_constant_.push_back(op->has_attr("is_constant")
+                            && op->get_attr<bool>("is_constant"));
+
+                    is_skip_.push_back(op->has_attr("is_skip")
+                            && op->get_attr<bool>("is_skip"));
+                    return impl::status::success;
+                });
+
+        opt_subgraph_ = subgraph;
+
+        // book buffer (only count total size and calculate offset)
+        // for each internal memory
+        registry_t::key_t key = 0;
+        registrar_t registrar = registry_.registrar();
+        for (const auto &mem : exec_arg_mgr_.get_internal_variable_mems()) {
+            registrar.book(key++, mem.get_desc().get_size());
+        }
+
+        if (enable_constant_cache_) {
+            registry_t::key_t constant_key = 0;
+            registrar_t constant_registrar = c_registry_.registrar();
+            for (auto &mem : exec_arg_mgr_.get_internal_constant_mems()) {
+                constant_registrar.book(
+                        constant_key++, mem.get_desc().get_size());
+            }
+        }
+
+        resource_ctor_ = [this]() {
+            return std::make_shared<subgraph_resource_t>(this->exec_arg_mgr_);
+        };
+
+        return impl::status::success;
+    }
+
+    virtual impl::status_t prepare_inplace_pairs_impl(
+            const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        UNUSED(g_engine);
+
+        op_t *conv_op = nullptr;
+        for (auto &op : opt_subgraph_) {
+            if (op->get_kind() == impl::op_kind::Convolution
+                    || op->get_kind() == op_kind::dnnl_convolution) {
+                conv_op = op.get();
+                break;
+            }
+        }
+
+        bool with_sum = conv_op->has_attr("with_sum")
+                ? conv_op->get_attr<bool>("with_sum")
+                : false;
+
+        if (with_sum) {
+            // post_src should always be the last one input of conv op
+            auto val = conv_op->get_input_value(conv_op->num_inputs() - 1);
+            if (val->has_producer()
+                    && val->get_producer().get_kind() == op_kind::permute) {
+                val = val->get_producer().get_input_value(0);
+            }
+            size_t post_src_id = val->get_logical_tensor().id;
+
+            // find the given post src index
+            size_t idx = 0;
+            for (size_t i = 0; i < inputs.size(); i++) {
+                if (inputs[i].id == post_src_id) {
+                    idx = i;
+                    break;
+                }
+            }
+
+            const logical_tensor_wrapper post_src_lt(inputs[idx]);
+            const logical_tensor_wrapper dst_lt(outputs[0]);
+            if (post_src_lt.is_opaque() && dst_lt.is_opaque()
+                    && post_src_lt.is_similar(dst_lt))
+                inplace_pairs_.push_back({post_src_id, outputs[0].id});
+        }
+        return impl::status::success;
+    }
+};
+
+struct conv_bwd_data : public conv_base {
+public:
+    virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+            const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
+
+        // get subgraph from the deep copied partition
+        std::vector<std::shared_ptr<impl::op_t>> subgraph = part->get_ops();
+
+        set_all_layout_to_any(subgraph);
+
+        // have to set the given inputs and outputs fusion because some fusions
+        // can't be performed if shape unknown
+        set_given_inputs_outputs(subgraph, inputs, outputs);
+
+        conv_bwd_data_canonicalization(subgraph);
+
+        insert_reorder(subgraph);
+
+        subgraph_visualizer_t vis(part->id());
+        vis.run(subgraph, "after_lower_down", false);
+
+        impl::graph_t agraph(subgraph);
+        BACKEND_DNNL_CHECK(agraph.infer_shape());
+        BACKEND_DNNL_CHECK(infer_type(agraph));
+
+        vis.run(subgraph, "after_infer_shape_infer_type", true);
+
+        BACKEND_DNNL_CHECK(layout_propagation(
+                subgraph, p_engine_, prm_attr_mgr_, pd_cache_));
+
+        vis.run(subgraph, "after_layout_propagation", true);
+
+        // fill layout information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            for (auto out_val : impl::graph_t(subgraph).get_output_values()) {
+                auto compiled_lt = out_val->get_logical_tensor();
+                if (compiled_lt.id == outputs[i].id) {
+                    auto lt = const_cast<impl::logical_tensor_t *>(&outputs[i]);
+                    auto md = make_dnnl_memory_desc(compiled_lt);
+                    lt->ndims = compiled_lt.ndims;
+                    impl::utils::array_copy(
+                            lt->dims, compiled_lt.dims, DNNL_GRAPH_MAX_NDIMS);
+                    impl::utils::array_copy(lt->layout.strides,
+                            compiled_lt.layout.strides, DNNL_GRAPH_MAX_NDIMS);
+                    fill_layout_info(lt, md);
+                }
+            }
+        }
+
+        // bind the memory for each op
+        BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
+                exec_arg_mgr_, prm_attr_mgr_));
+
+        BACKEND_DNNL_CHECK(compile_ops(
+                subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
+
+        // topologically sort the executables
+        impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),
+                [this](impl::op_t *op) {
+                    auto exec_key = op->get_attr<int64_t>("executable_key");
+                    auto &exec = exec_mgr_.get_executable(exec_key);
+                    execs_.emplace_back(exec.get());
+
+                    auto arg_key = op->get_attr<int64_t>("execution_args_key");
+                    exec_arg_mgr_.add_topo_ordered_key(arg_key);
+
+                    is_constant_.push_back(op->has_attr("is_constant")
+                            && op->get_attr<bool>("is_constant"));
+
+                    is_skip_.push_back(op->has_attr("is_skip")
+                            && op->get_attr<bool>("is_skip"));
+                    return impl::status::success;
+                });
+
+        opt_subgraph_ = subgraph;
+
+        // book buffer (only count total size and calculate offset)
+        // for each internal memory
+        registry_t::key_t key = 0;
+        registrar_t registrar = registry_.registrar();
+        for (const auto &mem : exec_arg_mgr_.get_internal_variable_mems()) {
+            registrar.book(key++, mem.get_desc().get_size());
+        }
+
+        if (enable_constant_cache_) {
+            registry_t::key_t constant_key = 0;
+            registrar_t constant_registrar = c_registry_.registrar();
+            for (auto &mem : exec_arg_mgr_.get_internal_constant_mems()) {
+                constant_registrar.book(
+                        constant_key++, mem.get_desc().get_size());
+            }
+        }
+
+        resource_ctor_ = [this]() {
+            return std::make_shared<subgraph_resource_t>(this->exec_arg_mgr_);
+        };
+
+        return impl::status::success;
+    }
+};
 
 namespace conv_bwd_filter {
 enum conv_bwd_inputs { kSrc, kDiffdst };
 enum conv_bwd_outputs { kDiffweight, kDiffbias };
 } // namespace conv_bwd_filter
 
-/**
- * Convolution operators' set for checking some feature, fusion support for a
- * specific convolutional op_kind_t.
- */
-struct convolution_op_set {
-    /**
-     * Check if convolution operator has bias add.
-     *
-     * @param kind operator kind
-     * @return whether the operator has bias add
-     */
-    static bool with_bias(op_kind_t kind) {
-        static const std::set<op_kind_t> with_bias_set {op_kind::conv_bias,
-                op_kind::conv_bias_add, op_kind::conv_bias_add_elu,
-                op_kind::conv_bias_add_relu, op_kind::conv_bias_add_relu6,
-                op_kind::conv_bias_bn, op_kind::conv_bias_elu,
-                op_kind::conv_bias_relu, op_kind::conv_bias_sigmoid,
-                op_kind::conv_bias_hardtanh, op_kind::conv_bias_relu6,
-                op_kind::conv_bias_square, op_kind::conv_bias_tanh,
-                op_kind::conv_bias_abs, op_kind::conv_bias_sqrt,
-                op_kind::conv_bias_bn_relu, op_kind::conv_bias_bn_add,
-                op_kind::conv_bias_bn_add_relu, op_kind::conv_bias_swish,
-                op_kind::conv_bwd_f_biasadd_bwd};
-        return with_bias_set.count(kind);
-    }
-
-    /**
-     * Check if convolution operator fuses batchnorm
-     *
-     * @param kind operator kind
-     * @return whether the operator fuses batchnorm
-     */
-    static bool fuse_batchnorm(op_kind_t kind) {
-        static const std::set<op_kind_t> with_batchnorm_set {
-                op_kind::conv_bias_bn, op_kind::conv_bias_bn_add,
-                op_kind::conv_bias_bn_add_relu, op_kind::conv_bias_bn_relu,
-                op_kind::conv_bn, op_kind::conv_bn_add,
-                op_kind::conv_bn_add_relu, op_kind::conv_bn_relu};
-        return with_batchnorm_set.count(kind);
-    }
-
-    /**
-     * Check if convolution operator fuses add
-     *
-     * @param kind operator kind
-     * @return whether the operator fused add
-     */
-    static bool fuse_add(op_kind_t kind) {
-        static const std::set<op_kind_t> with_add_set {op_kind::conv_add,
-                op_kind::conv_add_elu, op_kind::conv_add_relu,
-                op_kind::conv_add_relu6, op_kind::conv_bias_add,
-                op_kind::conv_bias_add_elu, op_kind::conv_bias_add_relu,
-                op_kind::conv_bias_add_relu6, op_kind::conv_bias_bn_add,
-                op_kind::conv_bias_bn_add_relu, op_kind::conv_bn_add,
-                op_kind::conv_bn_add_relu};
-        return with_add_set.count(kind);
-    }
-
-    /**
-     * Check if convolution operator fuses activation relu
-     *
-     * @param kind operator kind
-     * @return whether the operator fused activation relu
-     */
-    static bool fuse_eltwise(op_kind_t kind) {
-        static const std::set<op_kind_t> with_eltwise_set {
-                op_kind::conv_add_elu,
-                op_kind::conv_add_relu,
-                op_kind::conv_add_relu6,
-                op_kind::conv_bias_add_elu,
-                op_kind::conv_bias_add_relu,
-                op_kind::conv_bias_add_relu6,
-                op_kind::conv_bias_bn_add_relu,
-                op_kind::conv_bias_bn_relu,
-
-                op_kind::conv_bias_abs,
-                op_kind::conv_bias_elu,
-                op_kind::conv_bias_hardtanh,
-                op_kind::conv_bias_relu6,
-                op_kind::conv_bias_sigmoid,
-                op_kind::conv_bias_swish,
-                op_kind::conv_bias_sqrt,
-                op_kind::conv_bias_square,
-                op_kind::conv_bias_tanh,
-
-                op_kind::conv_bn_add_relu,
-                op_kind::conv_bn_relu,
-                op_kind::conv_bias_relu,
-                op_kind::conv_relu,
-        };
-        return with_eltwise_set.count(kind);
-    }
-};
-
-struct convolution_forward : public dnnl::convolution_forward,
-                             public kernel_base {
-    using super = dnnl::convolution_forward;
-    using dims_t = std::vector<dnnl::graph::impl::dim_t>;
-
-private:
-    primitive_desc pd_;
-    dnnl::convolution_forward prim_;
-
-    dims strides_;
-    dims dilates_;
-    dims pads_begin_;
-    dims pads_end_;
-    int64_t groups_;
-    std::string data_format_, filter_format_;
-
-    dnnl::engine p_engine_;
-    impl::allocator_t *alc_ {nullptr};
-
-    attr_t attr_;
-
-    bool with_bias_;
-    bool with_add_;
-    bool with_post_sum_;
-    bool with_post_binary_add_;
-    bool with_eltwise_;
-    bool with_bn_;
-
-    float alpha_ = 0.f;
-    float beta_ = 0.f;
-
-    size_t bn_input_offset_;
-
-    float epsilon_; // bn epsilon
-
-    dnnl::reorder::primitive_desc src_reorder_pd_;
-    dnnl::reorder::primitive_desc weight_reorder_pd_;
-    dnnl::reorder::primitive_desc dst_reorder_pd_;
-    dnnl::reorder::primitive_desc bias_reorder_pd_;
-
-    registry_t registry_;
-    registry_t c_registry_;
-    std::function<std::shared_ptr<f32_kernel_resource_t>()> resource_ctor_;
-
-    f32_kernel_resource_t::desc_t res_desc_;
-
-    bool enable_constant_cache_ = utils::is_enable_constant_cache();
-
-public:
-    virtual ~convolution_forward() {
-        thread_local_cache_t<f32_kernel_resource_t> res_cache;
-        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
-
-        if (enable_constant_cache_) {
-            constant_cache_t::key_t cache_key
-                    = reinterpret_cast<constant_cache_t::key_t>(this);
-            constant_cache_t constant_cache;
-            constant_cache.remove_if_exist(cache_key);
-        }
-    }
-
-    impl::status_t compile_impl(const impl::op_t *op,
-            const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        const op_kind_t conv_kind = op->get_kind();
-        // prepare the operator attributes
-        strides_ = op->get_attr<dims>("strides");
-        dilates_ = op->get_attr<dims>("dilations");
-        pads_begin_ = op->get_attr<dims>("pads_begin");
-        pads_end_ = op->get_attr<dims>("pads_end");
-        groups_ = op->get_attr<int64_t>("groups");
-        data_format_ = op->get_attr<std::string>("data_format");
-        filter_format_ = op->get_attr<std::string>("filter_format");
-
-        // Check fused post_ops
-        with_add_ = convolution_op_set::fuse_add(conv_kind);
-        with_eltwise_ = convolution_op_set::fuse_eltwise(conv_kind);
-        with_bn_ = convolution_op_set::fuse_batchnorm(conv_kind);
-        // A convolution operator has bias if
-        // - Op name has bias
-        // - W/O fused batchnorm and post-op add, there are 3 inputs:
-        //  conv_src, conv_wei, *conv_bias*
-        // - W/ fused batchnorm and W/O post-op add, there are 7 inputs:
-        //  conv_src, conv_wei, *conv_bias*, bn_scale, bn_shift, bn_mean, bn_var
-        // - W/O fused batachnorm and W/ post-op add, there are 4 inputs:
-        //  conv_src, conv_wei, *conv_bias*, post-src
-        // - W/ fused batchnorm and W/ post-op add, there are 8 inputs:
-        //  conv_src, conv_wei, *conv_bias*, bn_scale, bn_shift, bn_mean, bn_var
-        //  , post-src
-        with_bias_ = convolution_op_set::with_bias(conv_kind)
-                || (!with_bn_ && !with_add_ && inputs.size() == 3)
-                || (with_bn_ && !with_add_ && inputs.size() == 7)
-                || (!with_bn_ && with_add_ && inputs.size() == 4)
-                || (with_bn_ && with_add_ && inputs.size() == 8);
-
-        // set attrs of eltwise
-        if (op->has_attr("alpha")) {
-            alpha_ = op->get_attr<float>("alpha");
-        } else if (op->has_attr("min")) {
-            alpha_ = op->get_attr<float>("min");
-        }
-        // special handle for swish, spec doesn't support setting attr of alpha
-        // in sigmoid op (swish op is formed by sigmoid and multiply ops)
-        if (conv_kind == op_kind::conv_bias_swish) { alpha_ = 1.f; }
-
-        if (op->has_attr("beta")) {
-            beta_ = op->get_attr<float>("beta");
-        } else if (op->has_attr("max")) {
-            beta_ = op->get_attr<float>("max");
-        }
-
-        // the bn inputs offset (if exist)
-        if (with_bn_) {
-            bn_input_offset_ = with_bias_ ? 3 : 2;
-            epsilon_ = op->get_attr<float>("epsilon");
-        }
-
-        // append post_ops to attrs
-        if (with_add_) {
-            impl::logical_tensor_t post_src_lt = inputs.back();
-            impl::logical_tensor_t dst_lt = outputs.at(conv::kDst);
-            if (impl::logical_tensor_wrapper(post_src_lt)
-                            .has_same_shape_as(dst_lt)) {
-                // if post src has the same shape of dst
-                // set post sum attribute
-                attr_ = attr_t::fuse_sum();
-                if (with_eltwise_) {
-                    attr_ = attr_t::residual(get_eltwise_algo(conv_kind), 1.f,
-                            1.f, alpha_, beta_);
-                }
-                with_post_sum_ = true;
-            } else {
-                const logical_tensor_wrapper dst_lt_wrapper(dst_lt);
-                int dst_lt_ndims = dst_lt_wrapper.ndims();
-                memory::desc post_src = make_dnnl_memory_desc(post_src_lt);
-                post_src = expand(post_src, dst_lt_ndims);
-                // post binary only supports per tensor and per channel
-                // broadcast, which means the expand shape of post src should
-                // be all one or the post_src_dim[c_axis]==dst_dim[c_axis]
-                int c_axis = (data_format_ == "NXC") ? (dst_lt_ndims - 1) : 1;
-                for (int i = dst_lt_ndims - 1; i >= 0; i--) {
-                    if (post_src.dims()[i] == 1) continue;
-
-                    if (i != c_axis
-                            || dst_lt_wrapper.dims()[i] != post_src.dims()[i]) {
-                        return impl::status::compile_fail;
-                    }
-                }
-                attr_ = attr_t::fuse_binary(post_src, algorithm::binary_add);
-                with_post_binary_add_ = true;
-            }
-        } else if (with_eltwise_) {
-            attr_ = attr_t::fuse_eltwise(
-                    get_eltwise_algo(conv_kind), 1.f, alpha_, beta_);
-        }
-
-        memory::desc src = make_dnnl_memory_desc(inputs.at(conv::kSrc));
-        memory::desc weight = make_dnnl_memory_desc(inputs.at(conv::kWeight));
-        memory::desc dst = make_dnnl_memory_desc(outputs.at(conv::kDst));
-
-        res_desc_.upd_wei_ = weight;
-
-        // "NXC"
-        if (data_format_ == "NXC") {
-            src = permute_NXC2NCX(src);
-            dst = permute_NXC2NCX(dst);
-        }
-
-        // "XIO"
-        if (filter_format_ == "XIO") { weight = permute_XIO2OIX(weight); }
-
-        res_desc_.cvt_src_ = src;
-        res_desc_.cvt_wei_ = weight;
-        res_desc_.cvt_dst_ = dst;
-
-        if (with_add_) {
-            res_desc_.cvt_post_src_ = make_dnnl_memory_desc(inputs.back());
-            if (data_format_ == "NXC") {
-                res_desc_.cvt_post_src_
-                        = permute_NXC2NCX(res_desc_.cvt_post_src_);
-            }
-            if (with_post_binary_add_) {
-                res_desc_.cvt_post_src_ = expand(
-                        res_desc_.cvt_post_src_, res_desc_.cvt_dst_.data.ndims);
-            }
-        }
-
-        // if with_bias, we use the bias_desc directly, otherwise
-        // if with_bn, we use bn's shift_desc as the bias_desc
-        memory::desc bias = with_bias_
-                ? make_dnnl_memory_desc(inputs.at(conv::kBias))
-                : (with_bn_ ? make_dnnl_memory_desc(
-                           inputs.at(bn_input_offset_ + conv::kShift))
-                            : memory::desc {});
-
-        res_desc_.cvt_bias_ = bias;
-        res_desc_.upd_bias_ = bias;
-
-        p_engine_ = make_dnnl_engine(*g_engine);
-        alc_ = g_engine->get_allocator();
-
-#define CONV_GET_CONFIG(with_bias, p_engine) \
-    get_config<with_bias>(src, weight, bias, dst, strides_, dilates_, \
-            pads_begin_, pads_end_, groups_, p_engine, attr_, \
-            algorithm::convolution_direct, prop_kind::forward_inference)
-
-        // if with_bn, we also need to create ptimitive with bias,
-        // because bn's shift will act as bias in execution
-        pd_ = (with_bias_ || with_bn_) ? CONV_GET_CONFIG(true, p_engine_)
-                                       : CONV_GET_CONFIG(false, p_engine_);
-        prim_ = super(pd_);
-#undef CONV_GET_CONFIG
-
-        res_desc_.opt_src_ = pd_.src_desc();
-        res_desc_.opt_wei_ = pd_.weights_desc();
-        res_desc_.opt_dst_ = pd_.dst_desc();
-        if (with_bias_ || with_bn_) { res_desc_.opt_bias_ = pd_.bias_desc(); }
-        res_desc_.scratchpad_ = pd_.scratchpad_desc();
-
-        if (groups_ > 1)
-            res_desc_.cvt_wei_ = to_grouped(res_desc_.cvt_wei_, groups_);
-
-        if (impl::logical_tensor_wrapper(inputs.at(conv::kSrc)).is_any())
-            res_desc_.cvt_src_ = pd_.src_desc();
-        if (impl::logical_tensor_wrapper(inputs.at(conv::kWeight)).is_any())
-            res_desc_.cvt_wei_ = pd_.weights_desc();
-        if (impl::logical_tensor_wrapper(outputs.at(conv::kDst)).is_any()) {
-            res_desc_.cvt_dst_ = pd_.dst_desc();
-        }
-        if ((with_bias_ || with_bn_)
-                && impl::logical_tensor_wrapper(inputs.at(conv::kBias))
-                           .is_any()) {
-            res_desc_.cvt_bias_ = pd_.bias_desc();
-        }
-
-        if (!with_bn_) {
-            res_desc_.upd_wei_ = res_desc_.cvt_wei_;
-            res_desc_.upd_bias_ = res_desc_.cvt_bias_;
-        }
-
-        // fill_layout_info for not-copied input/outputs
-        impl::logical_tensor_t *ori_dst_lt
-                = const_cast<impl::logical_tensor_t *>(&outputs.at(conv::kDst));
-        if (data_format_ == "NXC") {
-            memory::desc tmp = permute_NCX2NXC(pd_.dst_desc());
-            fill_layout_info(ori_dst_lt, tmp);
-        } else {
-            fill_layout_info(ori_dst_lt, pd_.dst_desc());
-        }
-
-        // TODO(wuxun): for prepacking, temporarily skip when `with_bn_` is True
-        // need to think about how to implement bn folding outside, maybe then
-        // we can also remove `with_bn_` flag.
-        if (!with_bn_) {
-            impl::logical_tensor_t *ori_weight_lt
-                    = const_cast<impl::logical_tensor_t *>(
-                            &inputs.at(conv::kWeight));
-            if (filter_format_ == "XIO") {
-                memory::desc tmp = permute_OIX2XIO(pd_.weights_desc());
-                fill_layout_info(ori_weight_lt, tmp);
-            } else {
-                fill_layout_info(ori_weight_lt, pd_.weights_desc());
-            }
-            if (with_bias_) {
-                impl::logical_tensor_t *ori_bias_lt
-                        = const_cast<impl::logical_tensor_t *>(
-                                &inputs.at(conv::kBias));
-                fill_layout_info(ori_bias_lt, pd_.bias_desc());
-            }
-        }
-
-        registrar_t registrar = registry_.registrar();
-        registrar_t constant_registrar = c_registry_.registrar();
-        registrar_t &wei_bias_registrar
-                = enable_constant_cache_ ? constant_registrar : registrar;
-
-        if (with_bn_) {
-            wei_bias_registrar.book(conv::kUpdated_weights, weight.get_size());
-            wei_bias_registrar.book(conv::kUpdated_bias, bias.get_size());
-        }
-        if (res_desc_.cvt_wei_ != res_desc_.opt_wei_) {
-            wei_bias_registrar.book(
-                    conv::kOpt_weights, res_desc_.opt_wei_.get_size());
-            weight_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.cvt_wei_, p_engine_, res_desc_.opt_wei_);
-        }
-        if ((with_bias_ || with_bn_)
-                && (res_desc_.cvt_bias_ != res_desc_.opt_bias_)) {
-            wei_bias_registrar.book(
-                    conv::kOpt_bias, res_desc_.opt_bias_.get_size());
-            bias_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.cvt_bias_, p_engine_, res_desc_.opt_bias_);
-        }
-
-        if (res_desc_.opt_src_ != res_desc_.cvt_src_) {
-            registrar.book(conv::kOpt_src, res_desc_.opt_src_.get_size());
-            src_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.cvt_src_, p_engine_, res_desc_.opt_src_);
-        }
-        if (res_desc_.opt_dst_ != res_desc_.cvt_dst_) {
-            registrar.book(conv::kOpt_dst, res_desc_.opt_dst_.get_size());
-            dst_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.opt_dst_, p_engine_, res_desc_.cvt_dst_);
-        }
-        registrar.book(conv::kScratchpad, res_desc_.scratchpad_.get_size());
-
-        resource_ctor_ = [this]() {
-            return std::make_shared<f32_kernel_resource_t>(
-                    this->res_desc_, this->p_engine_);
-        };
-
-        return impl::status::success;
-    }
-
-    impl::status_t execute_impl(const impl::op_t *op,
-            const impl::stream_t *g_stream,
-            const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(op);
-        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-
-        // each thread's own local resource
-        thread_local_cache_t<f32_kernel_resource_t> res_cache;
-        f32_kernel_resource_t *res = res_cache.get_or_add(
-                reinterpret_cast<size_t>(this), resource_ctor_);
-
-        temporary_scratchpad_t scratchpad(registry_.size(), p_engine_, *alc_);
-        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
-
-        ///////////// weight/bias process start ///////////////////////////
-        // lookup constant buffer
-        constant_cache_t::key_t cache_key
-                = reinterpret_cast<constant_cache_t::key_t>(this);
-        constant_cache_t global_constant_cache;
-
-        std::promise<constant_cache_t::cached_t> c_promise;
-
-        bool is_from_cache;
-        constant_cache_t::value_t cached_value;
-        constant_cache_t::cached_t c_buffer;
-        if (enable_constant_cache_) {
-            cached_value = global_constant_cache.get_or_add(
-                    cache_key, c_promise.get_future());
-            is_from_cache = cached_value.valid();
-            if (is_from_cache) {
-                // get from cache or wait for other thread
-                c_buffer = cached_value.get();
-            } else {
-                c_buffer = std::make_shared<constant_buffer_t>(
-                        c_registry_.size(), p_engine_, alc_);
-            }
-        }
-
-        grantor_t c_grantor = c_registry_.grantor(
-                enable_constant_cache_ ? c_buffer->data<char>() : nullptr);
-        grantor_t &wei_bias_grantor
-                = enable_constant_cache_ ? c_grantor : grantor;
-
-        // bn folding
-        if (with_bn_) {
-            res->upd_wei_.set_data_handle(
-                    wei_bias_grantor.get(conv::kUpdated_weights));
-            res->upd_bias_.set_data_handle(
-                    wei_bias_grantor.get(conv::kUpdated_bias));
-
-            if (!enable_constant_cache_ || !is_from_cache) {
-                const memory weight
-                        = make_dnnl_memory(inputs.at(conv::kWeight), p_engine_);
-                const memory bias = with_bias_
-                        ? make_dnnl_memory(inputs.at(conv::kBias), p_engine_)
-                        : memory();
-                const memory bn_scale = make_dnnl_memory(
-                        inputs.at(bn_input_offset_ + conv::kScale), p_engine_);
-                const memory bn_shift = make_dnnl_memory(
-                        inputs.at(bn_input_offset_ + conv::kShift), p_engine_);
-                const memory bn_mean = make_dnnl_memory(
-                        inputs.at(bn_input_offset_ + conv::kMean), p_engine_);
-                const memory bn_var = make_dnnl_memory(
-                        inputs.at(bn_input_offset_ + conv::kVariance),
-                        p_engine_);
-
-                bn_fusion::folding(&res->upd_wei_, &res->upd_bias_, weight,
-                        bias, bn_mean, bn_var, bn_scale, bn_shift, epsilon_,
-                        *g_stream);
-            }
-        }
-
-        if (with_bn_) {
-            res->cvt_wei_.set_data_handle(res->upd_wei_.get_data_handle());
-            res->cvt_bias_.set_data_handle(res->upd_bias_.get_data_handle());
-        } else {
-            res->cvt_wei_.set_data_handle(
-                    inputs.at(conv::kWeight).get_data_handle());
-            if (with_bias_) {
-                res->cvt_bias_.set_data_handle(
-                        inputs.at(conv::kBias).get_data_handle());
-            }
-        }
-
-        if (res_desc_.cvt_wei_ != res_desc_.opt_wei_) {
-            res->opt_wei_.set_data_handle(
-                    wei_bias_grantor.get(conv::kOpt_weights));
-            if (!enable_constant_cache_ || !is_from_cache) {
-                dnnl::reorder(weight_reorder_pd_)
-                        .execute(p_stream, res->cvt_wei_, res->opt_wei_);
-            }
-        } else {
-            res->opt_wei_.set_data_handle(res->cvt_wei_.get_data_handle());
-        }
-
-        if (with_bias_ || with_bn_) {
-            if (res_desc_.cvt_bias_ != res_desc_.opt_bias_) {
-                res->opt_bias_.set_data_handle(
-                        wei_bias_grantor.get(conv::kOpt_bias));
-                if (!enable_constant_cache_ || !is_from_cache) {
-                    dnnl::reorder(bias_reorder_pd_)
-                            .execute(p_stream, res->cvt_bias_, res->opt_bias_);
-                }
-            } else {
-                res->opt_bias_.set_data_handle(
-                        res->cvt_bias_.get_data_handle());
-            }
-        }
-
-        if (enable_constant_cache_ && !is_from_cache) {
-            c_promise.set_value(c_buffer);
-        }
-        ///////////// weight/bias process end ///////////////////////////
-
-        res->cvt_src_.set_data_handle(inputs.at(conv::kSrc).get_data_handle());
-        res->cvt_dst_.set_data_handle(outputs.at(conv::kDst).get_data_handle());
-        if (with_add_) {
-            res->cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
-        }
-
-        if (res_desc_.cvt_src_ != res_desc_.opt_src_) {
-            res->opt_src_.set_data_handle(grantor.get(conv::kOpt_src));
-            dnnl::reorder(src_reorder_pd_)
-                    .execute(p_stream, res->cvt_src_, res->opt_src_);
-        } else {
-            res->opt_src_.set_data_handle(res->cvt_src_.get_data_handle());
-        }
-
-        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
-            res->opt_dst_.set_data_handle(grantor.get(conv::kOpt_dst));
-        } else {
-            res->opt_dst_.set_data_handle(res->cvt_dst_.get_data_handle());
-        }
-
-        // reorder the post_src to optimal output if they are not inplaced
-        if (with_post_sum_
-                && res->cvt_post_src_.get_data_handle()
-                        != res->opt_dst_.get_data_handle()) {
-            dnnl::reorder(res->cvt_post_src_, res->opt_dst_)
-                    .execute(p_stream, res->cvt_post_src_, res->opt_dst_);
-        }
-
-        res->scratchpad_.set_data_handle(grantor.get(conv::kScratchpad));
-
-        prim_.execute(p_stream, res->exec_args_);
-
-        // reorder optimal output to given output buffer
-        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
-            dnnl::reorder(dst_reorder_pd_)
-                    .execute(p_stream, res->opt_dst_, res->cvt_dst_);
-        }
-
-        return impl::status::success;
-    }
-
-    template <bool with_bias>
-    static primitive_desc get_primitive_desc(const tensor::desc &src_desc,
-            const tensor::desc &weights_desc, const tensor::desc &bias_desc,
-            const tensor::desc &dst_desc, const dims &strides,
-            const dims &dilates, const dims &pads_begin, const dims &pads_end,
-            const dnnl::engine &p_engine, const attr_t &attr = attr_t(),
-            algorithm aalgorithm = algorithm::convolution_direct,
-            prop_kind aprop_kind = prop_kind::forward) {
-        auto src_desc_any = src_desc.to_format_any();
-        auto weights_desc_any = weights_desc.to_format_any();
-        auto bias_desc_any
-                = with_bias ? bias_desc.to_format_any() : tensor::desc();
-        auto dst_desc_any = dst_desc.to_format_any();
-
-        if (with_bias) {
-            return primitive_desc(
-                    {aprop_kind, aalgorithm, src_desc_any, weights_desc_any,
-                            bias_desc_any, dst_desc_any, strides, dilates,
-                            pads_begin, pads_end},
-                    attr, p_engine);
-        } else {
-            return primitive_desc(
-                    {aprop_kind, aalgorithm, src_desc_any, weights_desc_any,
-                            dst_desc_any, strides, dilates, pads_begin,
-                            pads_end},
-                    attr, p_engine);
-        }
-    }
-
-private:
-    static algorithm get_eltwise_algo(op_kind_t kind) {
-        switch (static_cast<int>(kind)) {
-            case op_kind::conv_add_relu:
-            case op_kind::conv_bias_add_relu:
-            case op_kind::conv_bias_bn_add_relu:
-            case op_kind::conv_bias_bn_relu:
-            case op_kind::conv_bn_add_relu:
-            case op_kind::conv_bn_relu:
-            case op_kind::conv_bias_relu:
-            case op_kind::conv_relu: return (algorithm::eltwise_relu);
-
-            case op_kind::conv_add_elu:
-            case op_kind::conv_bias_add_elu:
-            case op_kind::conv_bias_elu: return (algorithm::eltwise_elu);
-
-            case op_kind::conv_add_relu6:
-            case op_kind::conv_bias_add_relu6:
-            case op_kind::conv_bias_relu6:
-            case op_kind::conv_bias_hardtanh: return (algorithm::eltwise_clip);
-
-            case op_kind::conv_bias_abs: return (algorithm::eltwise_abs);
-            case op_kind::conv_bias_sigmoid:
-                return (algorithm::eltwise_logistic);
-            case op_kind::conv_bias_sqrt: return (algorithm::eltwise_sqrt);
-            case op_kind::conv_bias_square: return (algorithm::eltwise_square);
-            case op_kind::conv_bias_tanh: return (algorithm::eltwise_tanh);
-            case op_kind::conv_bias_swish: return (algorithm::eltwise_swish);
-
-            default: BACKEND_DNNL_ENFORCE(0, "Unsupported fused_eltwise op.");
-        }
-        return algorithm::undef;
-    }
-
-    template <bool with_bias>
-    static primitive_desc get_config(const memory::desc &src,
-            const memory::desc &weights, const memory::desc &bias,
-            const memory::desc &dst, const dims &strides, const dims &dilates,
-            const dims &pads_begin, const dims &pads_end, const int64_t groups,
-            const dnnl::engine &p_engine, const attr_t &attr = attr_t(),
-            const algorithm aalgorithm = algorithm::convolution_direct,
-            const prop_kind aprop_kind = prop_kind::forward) {
-        // make weights and dilates compatible with oneDNN
-        const memory::desc group_weights
-                = groups <= 1 ? weights : to_grouped(weights, groups);
-        auto com_dilates = get_compatible_dilates(dilates);
-
-        BACKEND_DNNL_ENFORCE(
-                impl::utils::one_of(weights.data_type(), data_type::f32,
-                        data_type::f16, data_type::bf16),
-                "Incorrect data type in weights");
-
-        memory::desc src_desc = to_format_any(src);
-        memory::desc weights_desc = to_format_any(group_weights);
-        memory::desc dst_desc = to_format_any(dst);
-
-        attr_t op_attr = attr;
-        op_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
-
-        primitive_desc pd;
-        if (with_bias) {
-            memory::desc bias_desc = bias;
-            BACKEND_DNNL_ENFORCE(
-                    impl::utils::one_of(bias.data_type(), data_type::f32,
-                            data_type::f16, data_type::bf16),
-                    "Incorrect data type in bias");
-            pd = primitive_desc({aprop_kind, aalgorithm, src_desc, weights_desc,
-                                        bias_desc, dst_desc, strides,
-                                        com_dilates, pads_begin, pads_end},
-                    op_attr, p_engine);
-        } else {
-            pd = primitive_desc(
-                    {aprop_kind, aalgorithm, src_desc, weights_desc, dst_desc,
-                            strides, com_dilates, pads_begin, pads_end},
-                    op_attr, p_engine);
-        }
-
-        return pd;
-    }
-
-    impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        UNUSED(g_engine);
-        if (with_post_sum_) {
-            size_t input_idx = with_bias_ ? conv::kBias + 1 : conv::kWeight + 1;
-            if (with_bn_) input_idx = bn_input_offset_ + conv::kVariance + 1;
-            constexpr size_t output_idx = 0;
-
-            const logical_tensor_wrapper post_src_lt(inputs[input_idx]);
-            const logical_tensor_wrapper dst_lt(outputs[output_idx]);
-            if (post_src_lt.is_opaque() && dst_lt.is_opaque()
-                    && post_src_lt.is_similar(dst_lt))
-                inplace_pairs_.push_back(
-                        {inputs[input_idx].id, outputs[output_idx].id});
-        }
-        return impl::status::success;
-    }
-};
 struct convolution_backward_weights : public dnnl::convolution_backward_weights,
                                       public kernel_base {
     using super = dnnl::convolution_backward_weights;
@@ -811,7 +538,7 @@ public:
         const desc diff_dst_desc {diff_dst_lt};
         const desc diff_weights_desc {diff_weight_lt};
 
-        with_diff_bias_ = convolution_op_set::with_bias(conv_kind);
+        with_diff_bias_ = op_kind::conv_bwd_f_biasadd_bwd == conv_kind;
 
         impl::logical_tensor_t *diff_bias_lt = nullptr;
         if (with_diff_bias_) {
@@ -851,7 +578,7 @@ public:
                 {diff_dst_desc.get_dim(1)}, diff_weight_type_in, tag::any);
 
         if (with_diff_bias_) {
-            auto forward_hints = convolution_forward::get_primitive_desc<
+            auto forward_hints = get_fwd_primitive_desc<
                     /*with_diff_bias=*/true>(src_desc_any, weights_desc,
                     diff_bias_desc, diff_dst_desc_any, strides_, dilates_,
                     pads_begin_, pads_end_, p_engine_, attr_t(),
@@ -863,7 +590,7 @@ public:
                                          pads_begin_, pads_end_},
                     p_engine_, forward_hints);
         } else {
-            auto forward_hints = convolution_forward::get_primitive_desc<
+            auto forward_hints = get_fwd_primitive_desc<
                     /*with_diff_bias=*/false>(src_desc_any, weights_desc,
                     diff_bias_desc, diff_dst_desc_any, strides_, dilates_,
                     pads_begin_, pads_end_, p_engine_, attr_t(),
@@ -996,7 +723,40 @@ private:
                     .execute(p_stream, expected_diff_bias, diff_bias);
         }
     }
+
+    template <bool with_bias>
+    static dnnl::convolution_forward::primitive_desc get_fwd_primitive_desc(
+            const tensor::desc &src_desc, const tensor::desc &weights_desc,
+            const tensor::desc &bias_desc, const tensor::desc &dst_desc,
+            const dims &strides, const dims &dilates, const dims &pads_begin,
+            const dims &pads_end, const dnnl::engine &p_engine,
+            const attr_t &attr = attr_t(),
+            algorithm aalgorithm = algorithm::convolution_direct,
+            prop_kind aprop_kind = prop_kind::forward) {
+        auto src_desc_any = src_desc.to_format_any();
+        auto weights_desc_any = weights_desc.to_format_any();
+        auto bias_desc_any
+                = with_bias ? bias_desc.to_format_any() : tensor::desc();
+        auto dst_desc_any = dst_desc.to_format_any();
+
+        if (with_bias) {
+            return dnnl::convolution_forward::primitive_desc(
+                    {aprop_kind, aalgorithm, src_desc_any, weights_desc_any,
+                            bias_desc_any, dst_desc_any, strides, dilates,
+                            pads_begin, pads_end},
+                    attr, p_engine);
+        } else {
+            return dnnl::convolution_forward::primitive_desc(
+                    {aprop_kind, aalgorithm, src_desc_any, weights_desc_any,
+                            dst_desc_any, strides, dilates, pads_begin,
+                            pads_end},
+                    attr, p_engine);
+        }
+    }
 };
+
+using float_conv_fwd = conv_fwd</* quantized */ false>;
+using quantized_conv = conv_fwd</* quantized */ true>;
 
 } // namespace dnnl_impl
 } // namespace impl
