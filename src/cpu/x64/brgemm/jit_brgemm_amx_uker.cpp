@@ -81,19 +81,6 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                     || with_binary_channel_bcast_ || with_binary_no_bcast_;
         }
         use_ils = brg.brgattr.use_interleave_stores;
-        ils_store_ops = 0;
-        ils_vecs_per_store = 0;
-        ils_bd_block2 = 0;
-        ils_ld_block2 = 0;
-        ils_l_step = 0;
-        ils_bd_ind = 0;
-        ils_ldb_ind = 0;
-        ils_apply_post_ops = false;
-        ils_is_ld_tail = false;
-        ils_vec = 0;
-        ils_bdb = 0;
-        ils_ldb = 0;
-        ils_buffer_ready = false;
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_amx_uker_base_t)
@@ -164,21 +151,21 @@ private:
     bool with_binary_channel_bcast_ = false;
     bool with_binary_no_bcast_ = false;
 
-    size_t reg_b_offset_;
+    size_t reg_b_offset_ = 0;
 
-    char *bd_mask_buffer_ptr;
+    char *bd_mask_buffer_ptr = nullptr;
     std::vector<size_t> adj_bd_mask_buffer;
-    size_t *adj_bd_mask_buffer_ptr;
+    size_t *adj_bd_mask_buffer_ptr = nullptr;
 
     // interleave stores
-    bool use_ils;
-    int ils_store_ops, ils_vecs_per_store;
-    bool ils_buffer_ready;
+    bool use_ils = false;
+    int ils_store_ops = 0, ils_vecs_per_store = 0;
+    bool ils_buffer_ready = false;
     // saved parameters for storing
-    int ils_bd_block2, ils_ld_block2, ils_l_step, ils_bd_ind, ils_ldb_ind,
-            ils_apply_post_ops, ils_is_ld_tail;
+    int ils_bd_block2 = 0, ils_ld_block2 = 0, ils_l_step = 0, ils_bd_ind = 0,
+        ils_ldb_ind = 0, ils_apply_post_ops = 0, ils_is_ld_tail = 0;
     // current storing coordinates
-    int ils_vec, ils_bdb, ils_ldb;
+    int ils_vec = 0, ils_bdb = 0, ils_ldb = 0;
 
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
