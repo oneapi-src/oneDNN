@@ -241,6 +241,7 @@ typedef pthread_mutex_t   mutex_t;
 #define __itt_fstrcmp(s1, s2)     lstrcmpA(s1, s2)
 #define __itt_fstrnlen(s, l)      strnlen_s(s, l)
 #define __itt_fstrcpyn(s1, b, s2, l) strncpy_s(s1, b, s2, l)
+#define __itt_fstrdup(s)          _strdup(s)
 #define __itt_thread_id()         GetCurrentThreadId()
 #define __itt_thread_yield()      SwitchToThread()
 #ifndef ITT_SIMPLE_INIT
@@ -305,6 +306,7 @@ ITT_INLINE long __itt_interlocked_increment(volatile long* ptr)
 }
 #endif /* SDL_STRNCPY_S */
 
+#define __itt_fstrdup(s)          strdup(s)
 #define __itt_thread_id()         pthread_self()
 #define __itt_thread_yield()      sched_yield()
 #if ITT_ARCH==ITT_ARCH_IA64
@@ -353,17 +355,6 @@ pthread_t pthread_self(void) __attribute__((weak));
 #define PTHREAD_SYMBOLS (pthread_mutex_init && pthread_mutex_lock && pthread_mutex_unlock && pthread_mutex_destroy && pthread_mutexattr_init && pthread_mutexattr_settype && pthread_mutexattr_destroy && pthread_self)
 
 #endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
-
-/* strdup() is not included into C99 which results in a compiler warning about
- * implicitly declared symbol. To avoid the issue strdup is implemented
- * manually.
- */
-#define __itt_fstrdup(s, new_s) do {                                        \
-    if (s == NULL) return NULL;                                             \
-    size_t s_len = __itt_fstrnlen(s, sizeof(s));                            \
-    new_s = (char *)malloc(s_len + 1);                                      \
-    __itt_fstrcpyn(new_s, s_len + 1, s, s_len);                             \
-} while(0)
 
 typedef enum {
     __itt_collection_normal = 0,
@@ -484,9 +475,7 @@ typedef struct ___itt_global
     h = (__itt_thread_info*)malloc(sizeof(__itt_thread_info)); \
     if (h != NULL) { \
         h->tid    = t; \
-        char *n_copy = NULL; \
-        __itt_fstrdup(n, n_copy); \
-        h->nameA  = n_copy; \
+        h->nameA  = n ? __itt_fstrdup(n) : NULL; \
         h->nameW  = NULL; \
         h->state  = s; \
         h->extra1 = 0;    /* reserved */ \
@@ -519,9 +508,7 @@ typedef struct ___itt_global
     h = (__itt_domain*)malloc(sizeof(__itt_domain)); \
     if (h != NULL) { \
         h->flags  = 1;    /* domain is enabled by default */ \
-        char *name_copy = NULL; \
-        __itt_fstrdup(name, name_copy); \
-        h->nameA  = name_copy; \
+        h->nameA  = name ? __itt_fstrdup(name) : NULL; \
         h->nameW  = NULL; \
         h->extra1 = 0;    /* reserved */ \
         h->extra2 = NULL; /* reserved */ \
@@ -551,9 +538,7 @@ typedef struct ___itt_global
 #define NEW_STRING_HANDLE_A(gptr,h,h_tail,name) { \
     h = (__itt_string_handle*)malloc(sizeof(__itt_string_handle)); \
     if (h != NULL) { \
-        char *name_copy = NULL; \
-        __itt_fstrdup(name, name_copy); \
-        h->strA  = name_copy; \
+        h->strA   = name ? __itt_fstrdup(name) : NULL; \
         h->strW   = NULL; \
         h->extra1 = 0;    /* reserved */ \
         h->extra2 = NULL; /* reserved */ \
@@ -585,13 +570,9 @@ typedef struct ___itt_global
 #define NEW_COUNTER_A(gptr,h,h_tail,name,domain,type) { \
     h = (__itt_counter_info_t*)malloc(sizeof(__itt_counter_info_t)); \
     if (h != NULL) { \
-        char *name_copy = NULL; \
-        __itt_fstrdup(name, name_copy); \
-        h->nameA  = name_copy; \
+        h->nameA   = name ? __itt_fstrdup(name) : NULL; \
         h->nameW   = NULL; \
-        char *domain_copy = NULL; \
-        __itt_fstrdup(domain, domain_copy); \
-        h->domainA  = domain_copy; \
+        h->domainA   = domain ? __itt_fstrdup(domain) : NULL; \
         h->domainW   = NULL; \
         h->type = type; \
         h->index = 0; \
@@ -624,9 +605,7 @@ typedef struct ___itt_global
     h = (__itt_histogram*)malloc(sizeof(__itt_histogram)); \
     if (h != NULL) { \
         h->domain = domain; \
-        char *name_copy = NULL; \
-        __itt_fstrdup(name, name_copy); \
-        h->nameA  = name_copy; \
+        h->nameA  = name ? __itt_fstrdup(name) : NULL; \
         h->nameW  = NULL; \
         h->x_type = x_type; \
         h->y_type = y_type; \
