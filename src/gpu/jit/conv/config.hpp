@@ -483,7 +483,8 @@ public:
 
         // Do not perform full unrolling when there are too many inner
         // iterations.
-        if (kd * kh * kw > 9) do_loop_unroll = false;
+        int kernel_limit = is_f32_conv() ? 4 : 9;
+        if (kd * kh * kw > kernel_limit) do_loop_unroll = false;
 
         // Do not perform full unrolling with non-unit stride. These cases have
         // non-trivial post-increment updates which result in unrolling all
@@ -794,6 +795,9 @@ public:
     }
 
     bool is_s32_accumulator() const { return acc_data_type == data_type::s32; }
+    bool is_f32_conv() const {
+        return utils::everyone_is(src_data_type, wei_data_type, data_type::f32);
+    }
     bool is_int8_dst() const {
         return utils::one_of(dst_data_type, data_type::s8, data_type::u8);
     }
@@ -1082,8 +1086,7 @@ private:
         // Disable using mad instruction backend until performance parity is
         // reached with OpenCL kernels.
         if (fma_kind == fma_kind_t::mad
-                && ((is_bwd_d && !(a_data_type == data_type::f32))
-                        || hw < ngen::HW::XeHP))
+                && ((is_bwd_d && !is_f32_conv()) || hw < ngen::HW::XeHP))
             return status::unimplemented;
 
         return status::success;
