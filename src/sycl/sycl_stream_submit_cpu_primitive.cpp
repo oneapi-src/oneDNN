@@ -67,9 +67,8 @@ status_t submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
     // Trick the compiler by capturing scalar values in the kernel
     // instead of pointers what is not allowed.
     uintptr_t submit_ctx_ptr = reinterpret_cast<uintptr_t>(submit_ctx);
-    using tag_type = make_kernel_tag<param_types...>;
 
-    host_task<tag_type>(cgh, [=]() {
+    host_task(cgh, [=]() {
         thunk_params_t thunk_params;
         thunk_params.submit_ctx_ptr = submit_ctx_ptr;
 
