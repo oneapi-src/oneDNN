@@ -159,6 +159,7 @@ static isa_info_t get_isa_info_t(void) {
     HANDLE_CASE(avx512_mic_4ops);
     HANDLE_CASE(avx512_mic);
     HANDLE_CASE(avx512_common);
+    HANDLE_CASE(avx2_vnni);
     HANDLE_CASE(avx2);
     HANDLE_CASE(avx);
     HANDLE_CASE(sse41);
