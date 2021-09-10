@@ -7,23 +7,23 @@ graph executor which drives the overall execution. That means, oneDNN Graph
 supports constructing a graph by users, but has limited support for users'
 program to directly compile and execute the returned partitions.
 
-Now, oneDNN Graph features the support of minimum programming model.
-Users can easily construct a self-defined graph and generate the corresponding
-partitions. After that, users can compile and execute those partitions.
+Now, oneDNN Graph features the support of minimum programming model. Users can
+easily construct a self-defined graph and generate the corresponding partitions.
+After that, users can compile and execute those partitions.
 
 Here, an example will be provided to show the programming model. The full
 example code can be found at
-[cpu_programming.cpp](../examples/cpp/src/cpu_programming.cpp).
+[cpu_programming.cpp](../../examples/cpp/src/cpu_programming.cpp).
 
 ## cpu_programming_tutorial() function
 
 ### Create tensor mapping
 
-In order to provide a running context, a new
-class named [tensor_map](../examples/cpp/include/common/execution_context.hpp#L36)
-is being introduced in this example. A tensor map will be responsible for
-holding all the tensors that will be used in the users' program. it contains the
-mapping from an unique logical tensor id to the corresponding tensor.
+In order to provide a running context, a new class named
+[tensor_map](../../examples/cpp/include/common/execution_context.hpp#L36) is
+being introduced in this example. A tensor map will be responsible for holding
+all the tensors that will be used in the users' program. it contains the mapping
+from an unique logical tensor id to the corresponding tensor.
 
 - `std::unordered_map<size_t, tensor> data_`
 
@@ -62,7 +62,7 @@ In this example, the below graph will be used. It contains `Convolution`,
 ~~~
 
 In oneDNN Graph, the id of
-[dnnl::graph::logical_tensor](../include/oneapi/dnnl/dnnl_graph.hpp#L290) is
+[dnnl::graph::logical_tensor](../../include/oneapi/dnnl/dnnl_graph.hpp#L290) is
 used to express the connection relationship between different ops. So for the
 first `Convolution` op, users can construct all input and output logical tensors
 like below.
@@ -74,9 +74,9 @@ logical_tensor conv_bias_lt {id_mgr["conv_bias"], data_type::f32, bias_dims, lay
 logical_tensor conv_dst_lt {id_mgr["dst_dims"], data_type::f32, dst_dims, layout_type::strided};
 ~~~
 
-Here [`id_mgr`](../examples/cpp/include/common/utils.hpp#135) is a utility class
-to generate unique id according to the given name. It requires the 1:1 mapping
-between id and the given name.
+Here [`id_mgr`](../../examples/cpp/include/common/utils.hpp#135) is a utility
+class to generate unique id according to the given name. It requires the 1:1
+mapping between id and the given name.
 
 **Note**: These examples create logical tensors with complete shape information
 and use them in the partition compilation. Currently, the library also supports
@@ -144,7 +144,7 @@ std::vector<partition> partitions = g.get_partitions();
 
 In the real workload, users need to provide the device information to compile a
 partition. Typically, a
-[dnnl::graph::engine](../include/oneapi/dnnl/dnnl_graph.hpp#L97) should be
+[dnnl::graph::engine](../../include/oneapi/dnnl/dnnl_graph.hpp#L97) should be
 created with an engine kind and a device id. The engine kind should be the same
 as the one used to create the graph.
 
@@ -154,8 +154,9 @@ engine e {engine_kind, device_id};
 ~~~
 
 In oneDNN Graph, a
-[dnnl::graph::stream](../include/oneapi/dnnl/dnnl_graph.hpp#L239) is the logical
-abstraction for execution units. It is created on top of oneDNN Graph engine.
+[dnnl::graph::stream](../../include/oneapi/dnnl/dnnl_graph.hpp#L239) is the
+logical abstraction for execution units. It is created on top of oneDNN Graph
+engine.
 
 ~~~cpp
 stream s {e};
@@ -166,7 +167,7 @@ flag is True, that partition is supported by oneDNN Graph backend. Otherwise,
 that partition is not supported by oneDNN Graph backend and users need to handle
 the computation by themselves.
 
-- [`is_supported()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1138)
+- [`is_supported()`](../../include/oneapi/dnnl/dnnl_graph.hpp#L1138)
 
 ~~~cpp
 // create the vector to store all compiled partitions
@@ -230,7 +231,8 @@ In order to simplify the support of framework imperative execution mode, oneDNN
 Graph API supports single op partition. As the name suggests, it's a partition
 which only contains one operator. There is no need to use graph for imperative
 execution mode. The demo code is like below. The full example code can be found
-at [cpu_single_op_partition_matmul.cpp](../examples/cpp/src/cpu_single_op_partition_matmul.cpp).
+at
+[cpu_single_op_partition_matmul.cpp](../../examples/cpp/src/cpu_single_op_partition_matmul.cpp).
 
 ~~~cpp
 // define input and output logical tensor
@@ -271,12 +273,12 @@ easily convert tensors to public layout.
 
 For inference mode, weights are usually constant during iterations. In order to
 improve inference performance, users may want to convert the weight from public
-layout to opaque layout and use this converted weight every iteration. This
-will significantly reduce the overhead of converting weight every iteration.
-With the combination of single operator partition and `reorder` operation, users
-are able to implement this optimization on their side. The weight's opaque
-layout can be only queried out from compiled partition, which requires the
-tensor shapes must be known at the compilation time.
+layout to opaque layout and use this converted weight every iteration. This will
+significantly reduce the overhead of converting weight every iteration. With the
+combination of single operator partition and `reorder` operation, users are able
+to implement this optimization on their side. The weight's opaque layout can be
+only queried out from compiled partition, which requires the tensor shapes must
+be known at the compilation time.
 
 ## Additional Ease-of-Use Features
 
