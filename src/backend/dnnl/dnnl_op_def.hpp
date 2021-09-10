@@ -1983,13 +1983,14 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_gelu, 1,
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
-DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul, 1,
+DNNL_GRAPH_OP_SCHEMA(x8x8f32_matmul, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
                         {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
+                .set_input(1, "filter", "filter tensor",
+                        {impl::data_type::s8, impl::data_type::u8})
                 .set_output(0, "output", "output tensor",
                         {impl::data_type::s8, impl::data_type::u8})
                 .set_attr("qtype",
@@ -2703,6 +2704,14 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
                 .set_attr("kind", "pooling kind, maxpool or avgpool", true,
                         attribute_kind::s)
                 .set_shape_inference_function(infer_dnnl_pool_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_u8_to_s8, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor", impl::data_type::u8)
+                .set_output(0, "y", "output tensor", impl::data_type::s8)
+                .set_shape_inference_function(infer_identity_output_shape))
 
 } // namespace dnnl_impl
 } // namespace impl

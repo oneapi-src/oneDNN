@@ -138,7 +138,7 @@ namespace op_kind {
     X(maximum_sigmoid, Maximum_sigmoid) \
     X(minimum_relu, Minimum_relu) \
     X(minimum_sigmoid, Minimum_sigmoid) \
-    X(x8s8f32_matmul, X8S8F32_MatMul) \
+    X(x8x8f32_matmul, X8X8F32_MatMul) \
     X(x8s8f32_matmul_bias, X8S8F32_MatMul_bias) \
     X(x8s8f32_matmul_relu, X8S8F32_MatMul_relu) \
     X(x8s8f32_matmul_bias_relu, X8S8F32_MatMul_bias_relu) \
@@ -174,7 +174,8 @@ namespace op_kind {
     X(x8s8f32_quant_wei_conv_bias_add_relu, \
             X8S8F32_Quant_wei_Conv_bias_add_relu) \
     X(int8_avgpool, INT8_AvgPool) \
-    X(dnnl_pool, Dnnl_pool)
+    X(dnnl_pool, Dnnl_pool) \
+    X(dnnl_u8_to_s8, Dnnl_u8_to_s8)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

@@ -79,6 +79,19 @@ impl::status_t infer_type(impl::graph_t &subgraph) {
             } else if (in_lt.data_type == impl::data_type::undef) {
                 op->get_input_value(0)->set_data_type(out_lt.data_type);
             }
+        } else if (op->get_kind() == op_kind::dnnl_u8_to_s8) {
+            auto in_lt = op->get_input_value(0)->get_logical_tensor();
+            auto out_lt = op->get_output_value(0)->get_logical_tensor();
+            if (in_lt.data_type != impl::data_type::u8) {
+                return impl::status::invalid_type;
+            }
+            if (out_lt.data_type == impl::data_type::undef) {
+                op->get_output_value(0)->set_data_type(impl::data_type::s8);
+            }
+            if (op->get_output_value(0)->get_logical_tensor().data_type
+                    != impl::data_type::s8) {
+                return impl::status::invalid_type;
+            }
         } else {
         }
         return impl::status::success;

@@ -21,6 +21,7 @@
 
 #include "interface/c_types_map.hpp"
 
+#include "lower_down.hpp"
 #include "utils.hpp"
 
 namespace dnnl {
@@ -50,6 +51,13 @@ void insert_transpose_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 ///     expand
 /// (3) bias dimensions are not matched with dst, need to expand
 void insert_expand_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
+
+/// Insert an dnnl_u8_to_s8 op for matmul's weight tensor
+///
+/// Only valid for below scenarios:
+/// src and weight's dtype are both uint8
+void insert_u8_to_s8_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph,
+        primitive_attr_mgr &prm_attr_mgr);
 
 } // namespace dnnl_impl
 } // namespace impl

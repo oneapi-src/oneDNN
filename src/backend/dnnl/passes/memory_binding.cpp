@@ -220,7 +220,8 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
                 || cur_op->get_kind() == op_kind::mul_scales
                 || cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group
-                || cur_op->get_kind() == op_kind::expand) {
+                || cur_op->get_kind() == op_kind::expand
+                || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
             bind_memory_for_siso_op(cur_op, p_engine, exec_arg_mgr);
         } else {
             assertm(false, "memory binding: unsupported op");

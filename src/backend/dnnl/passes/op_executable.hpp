@@ -332,7 +332,8 @@ struct reorder_executable : public op_executable {
                 std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(zps,
                         [](int64_t zp) { return static_cast<int32_t>(zp); });
                 initial_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
-            } else {
+            } else if (op->get_kind() == op_kind::dnnl_u8_to_s8) {
+                initial_attr.set_zero_points(DNNL_ARG_TO, mask, {-128});
             }
 
             prm_attr = initial_attr;

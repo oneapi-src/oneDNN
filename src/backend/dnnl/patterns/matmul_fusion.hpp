@@ -934,7 +934,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8f32_matmul_fusion)
         .set_priority(9.5f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -942,8 +942,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_fusion)
                             = apattern->create_op(impl::op_kind::Dequantize);
                     op_t *dequant_weight
                             = apattern->create_op(impl::op_kind::Dequantize);
-                    // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
                     op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
                     matmul->fill_and_connect_input(0, *dequant_data, 0);
@@ -952,7 +950,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_fusion)
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::x8s8f32_matmul);
+                            op_kind::x8x8f32_matmul);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 

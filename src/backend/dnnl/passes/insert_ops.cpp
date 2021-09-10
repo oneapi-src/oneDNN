@@ -247,6 +247,45 @@ void insert_expand_for_matmul(std::vector<op_ptr> &subgraph) {
         subgraph.emplace_back(std::move(op));
 }
 
+void insert_u8_to_s8_for_matmul(
+        std::vector<op_ptr> &subgraph, primitive_attr_mgr &prm_attr_mgr) {
+    std::vector<op_ptr> to_be_inserted_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
+        if (cur_op->num_inputs() != 2) continue;
+
+        int32_t new_src0_dtype
+                = cur_op->get_input_value(0)->get_logical_tensor().data_type;
+        int32_t new_src1_dtype
+                = cur_op->get_input_value(1)->get_logical_tensor().data_type;
+        if (!impl::utils::one_of(
+                    new_src0_dtype, impl::data_type::u8, impl::data_type::s8)
+                || new_src1_dtype != impl::data_type::u8)
+            continue;
+
+        int64_t key = -1;
+        if (cur_op->has_attr("primitive_attr_key")) {
+            key = cur_op->get_attr<int64_t>("primitive_attr_key");
+        } else {
+            key = prm_attr_mgr.init_attr();
+            cur_op->set_attr<int64_t>("primitive_attr_key", key);
+        }
+        dnnl::primitive_attr &prm_attr = prm_attr_mgr.get_attr(key);
+        std::vector<int32_t> current_zp;
+        int mask = 0;
+        prm_attr.get_zero_points(DNNL_ARG_WEIGHTS, mask, current_zp);
+        if (current_zp.size() != 1) continue;
+        std::vector<int32_t> adjusted_zp {current_zp[0] - 128};
+        prm_attr.set_zero_points(DNNL_ARG_WEIGHTS, mask, adjusted_zp);
+
+        op_ptr u8_to_s8_op = std::make_shared<op_t>(op_kind::dnnl_u8_to_s8);
+        insert_op_before(u8_to_s8_op, cur_op, 1);
+        to_be_inserted_ops.emplace_back(u8_to_s8_op);
+    }
+    for (const auto &op : to_be_inserted_ops)
+        subgraph.emplace_back(std::move(op));
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

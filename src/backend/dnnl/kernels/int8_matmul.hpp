@@ -118,6 +118,8 @@ public:
         // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
         fuse_mul_scales_add_zps(subgraph);
 
+        insert_u8_to_s8_for_matmul(subgraph, prm_attr_mgr_);
+
         BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
 
         insert_transpose_for_matmul(subgraph);

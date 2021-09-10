@@ -59,7 +59,8 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
             prm = std::make_shared<pool_executable>(
                     cur_op, p_engine, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::mul_scales
-                || cur_op->get_kind() == impl::op_kind::Reorder) {
+                || cur_op->get_kind() == impl::op_kind::Reorder
+                || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
             prm = std::make_shared<reorder_executable>(
                     cur_op, p_engine, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::permute

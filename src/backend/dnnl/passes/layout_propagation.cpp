@@ -402,7 +402,8 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
                 changed = layout_propagation_for_to_group(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::expand) {
                 changed = layout_propagation_for_expand(cur_op) || changed;
-            } else if (cur_op->get_kind() == impl::op_kind::Reorder) {
+            } else if (cur_op->get_kind() == impl::op_kind::Reorder
+                    || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
                 changed = layout_propagation_for_reorder(cur_op) || changed;
             } else {
                 assertm(false,
