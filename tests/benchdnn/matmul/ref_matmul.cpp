@@ -20,9 +20,9 @@
 
 namespace matmul {
 
-void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m) {
+void compute_ref(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
+        dnn_mem_t &bia_m, const std::vector<dnn_mem_t> &binary_po,
+        dnn_mem_t &dst_m) {
     const int64_t M = prb->m;
     const int64_t N = prb->n;
     const int64_t K = prb->k;
@@ -31,7 +31,7 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
 
     const int wei_zero_point = prb->attr.zero_points[DNNL_ARG_WEIGHTS];
 
-    dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, tag::undef, engine_tgt);
+    dnn_mem_t dst_tmp(dst_m, dnnl_f32, tag::undef, dst_m.engine());
 
     const auto src_broadcast_mask = prb->src_broadcast_mask();
     const auto wei_broadcast_mask = prb->weights_broadcast_mask();
