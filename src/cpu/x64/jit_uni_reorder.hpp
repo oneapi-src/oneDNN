@@ -142,12 +142,21 @@ struct call_param_t {
     const void *in = nullptr;
     void *out = nullptr;
     const float *scale = nullptr;
-    int src_zp = 0;
-    int dst_zp = 0;
+    int32_t src_zp = 0;
+    int32_t dst_zp = 0;
+    int32_t *compensation_scratch = nullptr;
+};
+
+// The additional structure is needed because
+// using a data structure with tail processing
+// data for non-tail cases reduces kernel
+// performance. This is because there is too
+// much data that has to be transferred to the kernel.
+struct tail_call_param_t {
+    call_param_t base_params;
     int64_t curr_data_chunks[DNNL_MAX_NDIMS] = {-1};
     int64_t zeroing_data = static_cast<int64_t>(false);
     int64_t skip_kernel_execution = static_cast<int64_t>(false);
-    int32_t *compensation_scratch = nullptr;
 };
 
 struct kernel_t {
@@ -161,6 +170,7 @@ struct kernel_t {
         , compensation_needed_(
                   desc.prb.req_s8s8_comp || desc.prb.req_asymmetric_comp) {}
     virtual void operator()(const call_param_t *c) const = 0;
+    virtual void operator()(const tail_call_param_t *c) const = 0;
     virtual status_t create_kernel() = 0;
     virtual ~kernel_t() {}
 
@@ -238,7 +248,7 @@ private:
 
     void fill_curr_data_chunks(const tr::prb_t &prb, const int off,
             const ptrdiff_t *omp_data_chunks, const int omp_ndims,
-            tr::call_param_t &c) const;
+            tr::tail_call_param_t &c) const;
 
     void reduce_compensation(char *out,
             const int32_t *compensation_reduce_scratch, const int nthr,

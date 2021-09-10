@@ -87,6 +87,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     void operator()(const call_param_t *c) const override {
         jit_generator::operator()(c);
     }
+    void operator()(const tail_call_param_t *c) const override {
+        jit_generator::operator()(c);
+    }
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
@@ -101,6 +104,16 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         int tail_len_unroll = 0;
         int len_unroll = 0;
     };
+
+#define PARAM(x) \
+    prb_.is_tail_present \
+            ? ptr[abi_param1 + offsetof(tail_call_param_t, base_params) \
+                    + offsetof(call_param_t, x)] \
+            : ptr[abi_param1 + offsetof(call_param_t, x)]
+#define TAIL_PARAM(x) ptr[abi_param1 + offsetof(tail_call_param_t, x)]
+#define CURR_DATA_CHUNK(node_id) \
+    ptr[abi_param1 + offsetof(tail_call_param_t, curr_data_chunks) \
+            + sizeof(int64_t) * (node_id)]
 
     static bool simple_impl_desc_init(
             const prb_t &prb, simple_impl_desc_t *desc) {
@@ -446,7 +459,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 && prb_.scale_type == scale_type_t::NONE && prb_.beta == 0.f;
         if (!can_do) return false;
 
-#define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
         static constexpr int vmm_zp_last_idx = 15;
         const auto vmm_src_zp
                 = Vmm(do_dst_zp ? vmm_zp_last_idx - 1 : vmm_zp_last_idx);
@@ -459,7 +471,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             uni_vpbroadcastd(vmm_dst_zp, PARAM(dst_zp));
             uni_vcvtdq2ps(vmm_dst_zp, vmm_dst_zp);
         }
-#undef PARAM
 
         const auto apply_zp_ps = [&](const Vmm vmm) {
             if (do_src_zp) uni_vsubps(vmm, vmm, vmm_src_zp);
@@ -751,7 +762,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         }
 
         /* src zero point application */
-#define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
         if (prb_.req_src_zp) {
             for (int ur = 0; ur < reg_unroll; ur += ur_step) {
                 const auto xmm = Xmm(ur);
@@ -876,7 +886,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     uni_vpaddd(xmm, xmm, xmm_dst_zp_);
             }
         }
-#undef PARAM
 
         /* adjust scale application */
         if (prb_.scale_adjust != 1.f) {
@@ -1053,7 +1062,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         int curr = 0; // will switch between 0 and 1
 
-#define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
         const bool interim_f32 = interim_f32_needed();
 
         if (prb_.req_src_zp) {
@@ -1064,7 +1072,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             uni_vbroadcastss(xmm_dst_zp_, PARAM(dst_zp));
             if (interim_f32) uni_vcvtdq2ps(xmm_dst_zp_, xmm_dst_zp_);
         }
-#undef PARAM
 
         for (int off = 0; off < len; off += blk) {
             const int reg_unroll = nstl::min(off + blk, len) - off;
@@ -1151,10 +1158,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
     void finalize_tail_loop(int i_step, int o_step, int s_step, int c_step,
             const int curr_node_id) {
-#define CURR_DATA_CHUNK(node_id) \
-    ptr[abi_param1 + offsetof(call_param_t, curr_data_chunks) \
-            + sizeof(int64_t) * (node_id)]
-
         static constexpr int empty_chunk_info = -1;
 
         mov(reg_tmp_, empty_chunk_info);
@@ -1187,8 +1190,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             add(reg_off_scale_, padded_area * s_step * stype_sz_);
         if (compensation_needed_)
             add(reg_off_comp_, padded_area * c_step * sizeof(int32_t));
-
-#undef CURR_DATA_CHUNK
     }
 
     void loop_end(Label &l, const Reg64 &reg_cnt, int len, int i_step,
@@ -1226,10 +1227,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     void compute_blk_ker(const simple_impl_desc_t &desc) {
-#define CURR_DATA_CHUNK(node_id) \
-    ptr[abi_param1 + offsetof(call_param_t, curr_data_chunks) \
-            + sizeof(int64_t) * (node_id)]
-
         static constexpr bool with_tail_processing = true;
         Label no_last_chunk, end_label;
         int omp_ndims = prb_.full_ndims - prb_.ndims;
@@ -1252,16 +1249,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         L(no_last_chunk);
         compute_ker(omp_ndims, desc.len_unroll, !with_tail_processing);
         L(end_label);
-
-#undef CURR_DATA_CHUNK
     }
 
     void create_loops(const simple_impl_desc_t &desc,
             const std::array<const Reg64, 3> &reg_cnt, int jit_loop) {
-#define CURR_DATA_CHUNK(node_id) \
-    ptr[abi_param1 + offsetof(call_param_t, curr_data_chunks) \
-            + sizeof(int64_t) * (node_id)]
-
         assert(jit_loop <= ndims_jit_loop_max);
 
         if (jit_loop > 0) {
@@ -1328,8 +1319,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         } else {
             compute_blk_ker(desc);
         }
-
-#undef CURR_DATA_CHUNK
     }
 
     bool simple_impl() {
@@ -1374,7 +1363,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         if (bf16_emu_) bf16_emu_->init_vcvtneps2bf16();
 
-#define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
         if (prb_.scale_type == scale_type_t::COMMON) {
             auto reg_ptr_scale__tmp = reg_ptr_in_;
             mov(reg_ptr_scale__tmp, PARAM(scale));
@@ -1398,11 +1386,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         if (is_tail_in_drv_dims) {
             Label reorder_kernel;
 
-            mov(reg_tmp_, PARAM(skip_kernel_execution));
+            mov(reg_tmp_, TAIL_PARAM(skip_kernel_execution));
             cmp(reg_tmp_, static_cast<int64_t>(true));
             je(end_of_kernel, T_NEAR);
 
-            mov(reg_tmp_, PARAM(zeroing_data));
+            mov(reg_tmp_, TAIL_PARAM(zeroing_data));
             cmp(reg_tmp_, static_cast<int64_t>(false));
             je(reorder_kernel, T_NEAR);
             // If zeroing data is set then all dst memory
@@ -1416,7 +1404,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             jmp(end_of_kernel, T_NEAR);
             L(reorder_kernel);
         }
-#undef PARAM
 
         mov(reg_last_loop_cnt_, 1);
         if (can_do_tr8x8()) {
@@ -1442,6 +1429,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     ~jit_uni_reorder_kernel_f32_t() override = default;
+
+#undef CURR_DATA_CHUNK
+#undef TAIL_PARAM
+#undef PARAM
 
 private:
     static constexpr int64_t with_tail_info_ = static_cast<int64_t>(true);
@@ -2138,20 +2129,25 @@ void jit_uni_reorder_t::omp_driver_0d(int off, const char *in, char *out,
         int32_t *compensation_scratch) const {
     const tr::prb_t &prb = pd()->prb_;
 
-    auto c = tr::call_param_t();
-    c.in = in;
-    c.out = out;
-    c.scale = scale;
+    tr::call_param_t base_params;
+    base_params.in = in;
+    base_params.out = out;
+    base_params.scale = scale;
+    base_params.src_zp = src_zp;
+    base_params.dst_zp = dst_zp;
+    base_params.compensation_scratch = compensation_scratch;
 
     if (prb.is_tail_present) {
-        static constexpr int omp_ndims = 0;
-        fill_curr_data_chunks(prb, off, nullptr, omp_ndims, c);
-    }
+        tr::tail_call_param_t tail_params;
+        tail_params.base_params = base_params;
 
-    c.src_zp = src_zp;
-    c.dst_zp = dst_zp;
-    c.compensation_scratch = compensation_scratch;
-    (*kernel_)(&c);
+        static constexpr int omp_ndims = 0;
+        fill_curr_data_chunks(prb, off, nullptr, omp_ndims, tail_params);
+
+        (*kernel_)(&tail_params);
+    } else {
+        (*kernel_)(&base_params);
+    }
 }
 
 void jit_uni_reorder_t::omp_driver_1d(int ithr, int nthr, int off,
@@ -2160,21 +2156,27 @@ void jit_uni_reorder_t::omp_driver_1d(int ithr, int nthr, int off,
     const tr::prb_t &prb = pd()->prb_;
     const tr::node_t *ns = prb.nodes + off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[0].n, [&](ptrdiff_t d0) {
-        auto c = tr::call_param_t();
-        c.in = in + d0 * ns[0].is * data_type_size(pd()->prb_.itype);
-        c.out = out + d0 * ns[0].os * data_type_size(pd()->prb_.otype);
-        c.scale = scale + d0 * ns[0].ss;
+        tr::call_param_t base_params;
+        base_params.in = in + d0 * ns[0].is * data_type_size(prb.itype);
+        base_params.out = out + d0 * ns[0].os * data_type_size(prb.otype);
+        base_params.scale = scale + d0 * ns[0].ss;
+        base_params.src_zp = src_zp;
+        base_params.dst_zp = dst_zp;
+        base_params.compensation_scratch = compensation_scratch + d0 * ns[0].cs;
 
         if (prb.is_tail_present) {
+            tr::tail_call_param_t tail_params;
+            tail_params.base_params = base_params;
+
             static constexpr int omp_ndims = 1;
             const ptrdiff_t omp_data_chunks[omp_ndims] = {d0};
-            fill_curr_data_chunks(prb, off, omp_data_chunks, omp_ndims, c);
-        }
+            fill_curr_data_chunks(
+                    prb, off, omp_data_chunks, omp_ndims, tail_params);
 
-        c.compensation_scratch = compensation_scratch + d0 * ns[0].cs;
-        c.src_zp = src_zp;
-        c.dst_zp = dst_zp;
-        (*kernel_)(&c);
+            (*kernel_)(&tail_params);
+        } else {
+            (*kernel_)(&base_params);
+        }
     });
 }
 
@@ -2185,27 +2187,32 @@ void jit_uni_reorder_t::omp_driver_2d(int ithr, int nthr, int off,
     const tr::node_t *ns = prb.nodes + off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
             [&](ptrdiff_t d1, ptrdiff_t d0) {
-                auto c = tr::call_param_t();
-                c.in = in
+                tr::call_param_t base_params;
+                base_params.in = in
                         + (d0 * ns[0].is + d1 * ns[1].is)
-                                * data_type_size(pd()->prb_.itype);
-                c.out = out
+                                * data_type_size(prb.itype);
+                base_params.out = out
                         + (d0 * ns[0].os + d1 * ns[1].os)
-                                * data_type_size(pd()->prb_.otype);
-                c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss;
+                                * data_type_size(prb.otype);
+                base_params.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss;
+                base_params.src_zp = src_zp;
+                base_params.dst_zp = dst_zp;
+                base_params.compensation_scratch
+                        = compensation_scratch + d0 * ns[0].cs + d1 * ns[1].cs;
 
                 if (prb.is_tail_present) {
+                    tr::tail_call_param_t tail_params;
+                    tail_params.base_params = base_params;
+
                     static constexpr int omp_ndims = 2;
                     const ptrdiff_t omp_data_chunks[omp_ndims] = {d0, d1};
                     fill_curr_data_chunks(
-                            prb, off, omp_data_chunks, omp_ndims, c);
-                }
+                            prb, off, omp_data_chunks, omp_ndims, tail_params);
 
-                c.compensation_scratch
-                        = compensation_scratch + d0 * ns[0].cs + d1 * ns[1].cs;
-                c.src_zp = src_zp;
-                c.dst_zp = dst_zp;
-                (*kernel_)(&c);
+                    (*kernel_)(&tail_params);
+                } else {
+                    (*kernel_)(&base_params);
+                }
             });
 }
 
@@ -2216,27 +2223,33 @@ void jit_uni_reorder_t::omp_driver_3d(int ithr, int nthr, int off,
     const tr::node_t *ns = prb.nodes + off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[2].n, (ptrdiff_t)ns[1].n,
             (ptrdiff_t)ns[0].n, [&](ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
-                auto c = tr::call_param_t();
-                c.in = in
+                tr::call_param_t base_params;
+                base_params.in = in
                         + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is)
-                                * data_type_size(pd()->prb_.itype);
-                c.out = out
+                                * data_type_size(prb.itype);
+                base_params.out = out
                         + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os)
-                                * data_type_size(pd()->prb_.otype);
-                c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss;
+                                * data_type_size(prb.otype);
+                base_params.scale
+                        = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss;
+                base_params.src_zp = src_zp;
+                base_params.dst_zp = dst_zp;
+                base_params.compensation_scratch = compensation_scratch
+                        + d0 * ns[0].cs + d1 * ns[1].cs + d2 * ns[2].cs;
 
                 if (prb.is_tail_present) {
+                    tr::tail_call_param_t tail_params;
+                    tail_params.base_params = base_params;
+
                     static constexpr int omp_ndims = 3;
                     const ptrdiff_t omp_data_chunks[omp_ndims] = {d0, d1, d2};
                     fill_curr_data_chunks(
-                            prb, off, omp_data_chunks, omp_ndims, c);
-                }
+                            prb, off, omp_data_chunks, omp_ndims, tail_params);
 
-                c.compensation_scratch = compensation_scratch + d0 * ns[0].cs
-                        + d1 * ns[1].cs + d2 * ns[2].cs;
-                c.src_zp = src_zp;
-                c.dst_zp = dst_zp;
-                (*kernel_)(&c);
+                    (*kernel_)(&tail_params);
+                } else {
+                    (*kernel_)(&base_params);
+                }
             });
 }
 
@@ -2248,31 +2261,37 @@ void jit_uni_reorder_t::omp_driver_4d(int ithr, int nthr, int off,
     for_nd(ithr, nthr, (ptrdiff_t)ns[3].n, (ptrdiff_t)ns[2].n,
             (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
             [&](ptrdiff_t d3, ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
-                auto c = tr::call_param_t();
-                c.in = in
+                tr::call_param_t base_params;
+                base_params.in = in
                         + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is
                                   + d3 * ns[3].is)
-                                * data_type_size(pd()->prb_.itype);
-                c.out = out
+                                * data_type_size(prb.itype);
+                base_params.out = out
                         + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os
                                   + d3 * ns[3].os)
-                                * data_type_size(pd()->prb_.otype);
-                c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss
-                        + d3 * ns[3].ss;
+                                * data_type_size(prb.otype);
+                base_params.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss
+                        + d2 * ns[2].ss + d3 * ns[3].ss;
+                base_params.src_zp = src_zp;
+                base_params.dst_zp = dst_zp;
+                base_params.compensation_scratch = compensation_scratch
+                        + d0 * ns[0].cs + d1 * ns[1].cs + d2 * ns[2].cs
+                        + d3 * ns[3].cs;
 
                 if (prb.is_tail_present) {
+                    tr::tail_call_param_t tail_params;
+                    tail_params.base_params = base_params;
+
                     static constexpr int omp_ndims = 4;
                     const ptrdiff_t omp_data_chunks[omp_ndims]
                             = {d0, d1, d2, d3};
                     fill_curr_data_chunks(
-                            prb, off, omp_data_chunks, omp_ndims, c);
-                }
+                            prb, off, omp_data_chunks, omp_ndims, tail_params);
 
-                c.compensation_scratch = compensation_scratch + d0 * ns[0].cs
-                        + d1 * ns[1].cs + d2 * ns[2].cs + d3 * ns[3].cs;
-                c.src_zp = src_zp;
-                c.dst_zp = dst_zp;
-                (*kernel_)(&c);
+                    (*kernel_)(&tail_params);
+                } else {
+                    (*kernel_)(&base_params);
+                }
             });
 }
 
@@ -2405,7 +2424,7 @@ void jit_uni_reorder_t::reduce_compensation(char *out,
 
 void jit_uni_reorder_t::fill_curr_data_chunks(const tr::prb_t &prb,
         const int off, const ptrdiff_t *omp_data_chunks, const int omp_ndims,
-        tr::call_param_t &c) const {
+        tr::tail_call_param_t &c) const {
     // Chunks are backwards numered i.e:
     // [0] -> [node_size]
     // [1] -> [node_size - 1]
