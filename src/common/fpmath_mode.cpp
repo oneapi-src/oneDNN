@@ -27,7 +27,7 @@ void init_fpmath_mode() {
     if (!default_fpmath.initialized()) {
         const int len = 10;
         char val[len];
-        if (getenv("DNNL_FPMATH_MODE", val, len) > 0) {
+        if (getenv("DNNL_DEFAULT_FPMATH_MODE", val, len) > 0) {
             if (std::strcmp(val, "STRICT") == 0)
                 default_fpmath.set(fpmath_mode::strict);
             if (std::strcmp(val, "BF16") == 0)
