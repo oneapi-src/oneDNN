@@ -27,9 +27,9 @@
 using namespace dnnl::impl;
 using namespace dnnl::impl::sycl;
 
-extern "C" void dnnl_impl_sycl_cpu_thunk(const thunk_params_t *params) {
+void dnnl_impl_sycl_cpu_thunk(const thunk_params_t *params) {
 
-    auto *submit_ctx = reinterpret_cast<submit_ctx_t *>(params->submit_ctx_ptr);
+    auto *submit_ctx = params->submit_ctx_ptr;
     auto *prim_iface = submit_ctx->prim_iface;
 
     assert(params->size == submit_ctx->sycl_mem_storages.size());
