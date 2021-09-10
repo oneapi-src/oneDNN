@@ -50,12 +50,12 @@ inline cl::sycl::nd_range<3> to_sycl_nd_range(
     return cl::sycl::nd_range<3>(sycl_global_range, sycl_local_range);
 }
 
-// Automatically use codeplay_host_task if it is supported by compiler,
+// Automatically use host_task if it is supported by compiler,
 // otherwise fall back to single_task.
 template <typename K, typename H, typename F>
 inline auto host_task_impl(H &cgh, F f, int)
-        -> decltype(cgh.codeplay_host_task(f)) {
-    cgh.codeplay_host_task(f);
+        -> decltype(cgh.host_task(f)) {
+    cgh.host_task(f);
 }
 
 template <typename K, typename H, typename F>
@@ -66,7 +66,7 @@ inline void host_task_impl(H &cgh, F f, long) {
 template <typename K, typename H, typename F>
 inline void host_task(H &cgh, F f) {
     // Third argument is 0 (int) which prefers the
-    // run_on_host_intel option if both are available.
+    // host_task option if both are available.
     host_task_impl<K>(cgh, f, 0);
 }
 
