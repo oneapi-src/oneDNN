@@ -42,16 +42,14 @@ struct thunk_params_t {
 
     size_t size;
     uintptr_t native_pointers[max_size];
-    uintptr_t submit_ctx_ptr;
+    submit_ctx_t *submit_ctx_ptr;
 };
 
 } // namespace sycl
 } // namespace impl
 } // namespace dnnl
 
-// OpenCL for CPU cannot find mangled functions so use
-// C linkage for the thunk
-extern "C" void DNNL_API dnnl_impl_sycl_cpu_thunk(
+void DNNL_API dnnl_impl_sycl_cpu_thunk(
         const dnnl::impl::sycl::thunk_params_t *params);
 
 #endif // SYCL_STREAM_CPU_THUNK_HPP

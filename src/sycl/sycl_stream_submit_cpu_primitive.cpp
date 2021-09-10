@@ -64,20 +64,16 @@ using make_kernel_tag
 template <typename... param_types>
 status_t submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
         cl::sycl::handler &cgh, param_types... params) {
-    // Trick the compiler by capturing scalar values in the kernel
-    // instead of pointers what is not allowed.
-    uintptr_t submit_ctx_ptr = reinterpret_cast<uintptr_t>(submit_ctx);
 
     host_task(cgh, [=]() {
         thunk_params_t thunk_params;
-        thunk_params.submit_ctx_ptr = submit_ctx_ptr;
+        thunk_params.submit_ctx_ptr = submit_ctx;
 
         constexpr size_t nparams = sizeof...(param_types);
 
         // Extract pointers from params
         init_thunk_params<nparams>(&thunk_params, params...);
 
-        // Call C-linkage thunk which executes CPU primitive natively
         dnnl_impl_sycl_cpu_thunk(&thunk_params);
     });
     return status::success;
