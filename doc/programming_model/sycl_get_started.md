@@ -1,4 +1,4 @@
-# Getting started on both CPU and GPU with SYCL extensions API {#get_started_with_sycl}
+# Getting started on both CPU and GPU with SYCL extensions API {#dev_guide_sycl_programming}
 
 @warning This tutorial is deprecated due to the programming model changes and
 will be removed soon, please refer to

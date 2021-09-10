@@ -1,4 +1,4 @@
-# Getting started with programming model {#get_started_with_programming}
+# Getting Started with Programming Model {#dev_guide_cpu_programming}
 
 ## Description
 
