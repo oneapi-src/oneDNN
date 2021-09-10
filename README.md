@@ -28,8 +28,8 @@ of oneDNN Graph API.
 
 In the doc folder of this branch, [an overview introduction](doc/README.md) to
 oneDNN Graph API is provided along with two tutorials on how to use the API:
-[CPU version](doc/cpu_get_started.md) and [SYCL
-version](doc/sycl_get_started.md).
+[CPU version](doc/programming_model/cpu_programming.md) and [SYCL
+version](doc/programming_model/sycl_get_started.md).
 
 Developer guide and API reference of this branch can be generated from source
 code. Public webpages are still under construction.
