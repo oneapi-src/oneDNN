@@ -101,9 +101,11 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status = dnnl_success;
-    init_status = dnnl_primitive_desc_create(
+    dnnl_status_t init_status = dnnl_primitive_desc_create(
             &mpd, &op_d, dnnl_attr, engine, nullptr);
+
+    if (!res) return OK;
+
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
     else
@@ -121,6 +123,39 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     SAFE(check_pd_w_and_wo_attr(res, prb->attr, op_d), WARN);
 
+    return OK;
+}
+
+int init_prim_ref(
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref, const prb_t *prb) {
+    if (!(is_bench_mode(CORR) && is_gpu() && fast_ref_gpu)) return OK;
+
+    // Create a new copy of prb to avoid potentially corrupting the test by
+    // modifying prb in place.
+    const auto cpu_bia_dt = prb->bia_dt == dnnl_data_type_undef
+            ? dnnl_data_type_undef
+            : dnnl_f32;
+    const auto cpu_bia_mask
+            = prb->bia_dt == dnnl_data_type_undef ? 0 : prb->bia_mask;
+    auto cpu_attr = prb->attr;
+    update_cpu_ref_attrs(cpu_attr);
+    prb_t prb_cpu {*prb, conf_f32, tag::abx, tag::abx, tag::abx,
+            {strides_t(STRIDES_SIZE)}, false, false, false, false, cpu_bia_dt,
+            cpu_bia_mask, {0, 0, 0}, cpu_attr};
+
+    dnnl_primitive_desc_t pd_ref_ {};
+    SAFE(init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, FLAG_FWD,
+                 nullptr),
+            WARN);
+    auto pd_ref = make_benchdnn_dnnl_wrapper(pd_ref_);
+
+    dnnl_primitive_t prim_ref_ {};
+    if (pd_ref) {
+        DNN_SAFE(dnnl_primitive_create(&prim_ref_, pd_ref), WARN);
+        BENCHDNN_PRINT(
+                5, "%s\n", "benchdnn: use CPU primitive as the reference");
+    }
+    prim_ref.reset(prim_ref_);
     return OK;
 }
 
@@ -342,7 +377,12 @@ int doit(const prb_t *prb, res_t *res) {
 
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
+    // Use CPU prim as the reference in GPU testing to reduce testing time.
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim_ref;
+    SAFE(init_prim_ref(prim_ref, prb), WARN);
+
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = prim_ref ? get_cpu_engine() : get_test_engine();
 
     dnn_mem_t src_dt(src_md, test_engine);
     dnn_mem_t wei_dt(wei_md, test_engine);
@@ -353,12 +393,13 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     const auto fp = dnnl_f32;
-    dnn_mem_t src_fp(prb->ndims, src_md.dims, fp, nullptr, test_engine);
-    dnn_mem_t wei_fp(prb->ndims, wei_md.dims, fp, nullptr, test_engine);
-    dnn_mem_t dst_fp(prb->ndims, dst_md.dims, fp, nullptr, test_engine);
+    dnn_mem_t src_fp(src_md, fp, tag::abx, ref_engine);
+    dnn_mem_t wei_fp(wei_md, fp, tag::abx, ref_engine);
+    dnn_mem_t dst_fp(dst_md, fp, tag::abx, ref_engine);
     dnn_mem_t bia_fp;
     if (prb->bia_dt != dnnl_data_type_undef)
-        bia_fp = dnn_mem_t(prb->ndims, bia_md.dims, fp, nullptr, test_engine);
+        bia_fp = dnn_mem_t(bia_md, fp, tag::abx, ref_engine);
+    dnn_mem_t scratchpad_fp(scratchpad_md, ref_engine);
 
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);
@@ -385,10 +426,10 @@ int doit(const prb_t *prb, res_t *res) {
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
     SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
-                 binary_po_fp, test_engine, false, true),
+                 binary_po_fp, ref_engine, false, true),
             WARN);
 
-    args_t args;
+    args_t args, ref_args;
 
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_WEIGHTS, wei_dt);
@@ -404,7 +445,15 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args), WARN);
 
     if (is_bench_mode(CORR)) {
-        compute_ref(prb, src_fp, wei_fp, bia_fp, binary_po_fp, dst_fp);
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+        if (prb->bia_dt != dnnl_data_type_undef)
+            ref_args.set(DNNL_ARG_BIAS, bia_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
+        ref_args.set(binary_po_args, binary_po_fp);
+
+        compute_ref(prb, prim_ref, ref_args);
         compare::compare_t cmp;
         cmp.set_threshold(prb->cfg[DST].eps);
         cmp.set_data_kind(DST);
