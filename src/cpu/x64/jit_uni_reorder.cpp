@@ -1405,7 +1405,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             L(reorder_kernel);
         }
 
-        mov(reg_last_loop_cnt_, 1);
         if (can_do_tr8x8()) {
             vxorps(ymm_zero_, ymm_zero_, ymm_zero_);
 
@@ -1452,8 +1451,6 @@ private:
     const Reg64 &reg_off_out_ = r9;
     const Reg64 &reg_off_scale_ = r10;
     const Reg64 &reg_off_comp_ = r11;
-
-    const Reg64 &reg_last_loop_cnt_ = r15;
 
     const Reg64 &reg_tmp_ = rax;
 
