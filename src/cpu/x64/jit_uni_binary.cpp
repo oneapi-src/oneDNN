@@ -384,11 +384,11 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
                         is_src_different_layouts, different_layouts_allowed)))
         return false;
 
-    if (!conf_.is_i8) {
-        // only nspc and ncsp formats are supported for bcast
-        if (src0_d.is_plain() && src1_d.is_plain())
-            return is_ncsp_or_nspc(src0_d);
+    // only nspc and ncsp formats are supported for bcast
+    if (src0_d.is_plain() && src1_d.is_plain()) return is_ncsp_or_nspc(src0_d);
 
+    // blocked formats
+    if (!conf_.is_i8) {
         // check blocking_desc consistency
         const auto valid_bd = [&](const memory_desc_wrapper &mdw) {
             int blksize = 8;
