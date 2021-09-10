@@ -33,6 +33,6 @@ integral.
 
 The default floating-point mode is `strict`, which means no implicit
 down-conversion is allowed.  However, this default behavior can be
-changed with the `DNNL_DEFAULT_FP_MATH_MODE` environment variable, the
+changed with the `DNNL_DEFAULT_FPMATH_MODE` environment variable, the
 @ref dnnl_set_default_fpmath_mode (C API) or the @ref
 dnnl::set_default_fpmath_mode (C++ API) functions.
