@@ -58,6 +58,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops)
             && set_default_formats()
+            && attr_.set_default_formats(dst_md(0)) == status::success
             && gemm_based::check_gemm_compatible_formats(*this);
     if (!ok) return status::unimplemented;
 
@@ -137,7 +138,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
     params_.has_pp_kernel_ = !params_.dst_is_acc_ || with_bias()
             || !params_.pp_attr_.has_default_values();
 
-    return attr_.set_default_formats(dst_md(0));
+    return status::success;
 }
 
 template <impl::data_type_t dst_type>
