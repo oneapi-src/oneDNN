@@ -11,7 +11,13 @@
 --batch=shapes_1d
 --batch=shapes_1x1
 --batch=shapes_2d
+--attr-post-ops=sum:0.2
+g1ic16iw5oc3ow5kw3pw1n
 
+
+--reset
+--skip-impl=ref
+--mb=2
 --dir=FWD_D
 --stag=any,axb
 --attr-zero-points=src:common:31

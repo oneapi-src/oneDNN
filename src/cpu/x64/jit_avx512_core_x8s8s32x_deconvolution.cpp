@@ -915,13 +915,6 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::store_output(
         mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
     }
 
-    const auto &p = attr_.post_ops_;
-    const int sum_idx = p.find(primitive_kind::sum);
-    const float *p_sum_scale
-            = (sum_idx != -1) ? &p.entry_[sum_idx].sum.scale : nullptr;
-    if (p_sum_scale && *p_sum_scale != 1.f)
-        mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
-
     if (jcp.with_bias && jcp.signed_input && jcp.ver != ver_vnni) {
         mov(reg_bias_alpha, float2int(jcp.wei_adj_scale));
         vmovq(xmm_bias_alpha(), reg_bias_alpha);
@@ -983,6 +976,13 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::store_output(
     }
     /* Do post-ops */
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
+        const auto &p = attr_.post_ops_;
+        const int sum_idx = p.find(primitive_kind::sum);
+        const float *p_sum_scale
+                = (sum_idx != -1) ? &p.entry_[sum_idx].sum.scale : nullptr;
+        if (p_sum_scale && *p_sum_scale != 1.f)
+            mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+
         const auto sum_injector = [&]() {
             if (p_sum_scale) { // post_op: sum
                 for (int k = 0; k < jcp.nb_oc_blocking; k++) {
