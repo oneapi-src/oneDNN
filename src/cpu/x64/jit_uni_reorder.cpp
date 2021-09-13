@@ -111,9 +111,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     + offsetof(call_param_t, x)] \
             : ptr[abi_param1 + offsetof(call_param_t, x)]
 #define TAIL_PARAM(x) ptr[abi_param1 + offsetof(tail_call_param_t, x)]
-#define CURR_DATA_CHUNK(node_id) \
-    ptr[abi_param1 + offsetof(tail_call_param_t, curr_data_chunks) \
-            + sizeof(int64_t) * (node_id)]
 
     static bool simple_impl_desc_init(
             const prb_t &prb, simple_impl_desc_t *desc) {
@@ -201,6 +198,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
     Address c_addr(int c_off) {
         return ptr[reg_ptr_comp_ + reg_off_comp_ + c_off * sizeof(int32_t)];
+    }
+
+    Address data_chunk_addr(int node_id) {
+        return ptr[abi_param1 + offsetof(tail_call_param_t, curr_data_chunks)
+                + sizeof(int64_t) * (node_id)];
     }
 
     void step(int off, int prev_i_off, int prev_o_off, int prev_s_off,
@@ -1161,7 +1163,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         static constexpr int empty_chunk_info = -1;
 
         mov(reg_tmp_, empty_chunk_info);
-        mov(CURR_DATA_CHUNK(curr_node_id), reg_tmp_);
+        mov(data_chunk_addr(curr_node_id), reg_tmp_);
 
         const int padded_area = prb_.nodes[curr_node_id].n
                 - prb_.nodes[curr_node_id].tail_size;
@@ -1234,7 +1236,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         if (prb_.nodes[0].tail_size > 0) {
             if (!prb_.nodes[0].is_parent_empty()) {
                 const int parent_node_id = prb_.nodes[0].parent_node_id;
-                mov(reg_tmp_, CURR_DATA_CHUNK(parent_node_id));
+                mov(reg_tmp_, data_chunk_addr(parent_node_id));
                 check_if_this_is_last_chunk(reg_tmp_, parent_node_id);
                 jne(no_last_chunk, T_NEAR);
             }
@@ -1274,7 +1276,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     mov(reg_tmp_, with_tail_info_);
                     push(reg_tmp_);
                 } else {
-                    mov(reg_tmp_, CURR_DATA_CHUNK(parent_node_id));
+                    mov(reg_tmp_, data_chunk_addr(parent_node_id));
                     check_if_this_is_last_chunk(reg_tmp_, parent_node_id);
                     jne(if_no_tail, T_NEAR);
                     mov(reg_loop_cnt, tail_size);
@@ -1299,13 +1301,13 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             if (prb_.is_tail_in_one_of_child_nodes(curr_node_id)) {
                 if (!prb_.nodes[curr_node_id].is_parent_empty()) {
                     Label if_no_tail_in_child_node;
-                    mov(reg_tmp_, CURR_DATA_CHUNK(parent_node_id));
+                    mov(reg_tmp_, data_chunk_addr(parent_node_id));
                     check_if_this_is_last_chunk(reg_tmp_, parent_node_id);
                     jne(if_no_tail_in_child_node, T_NEAR);
-                    mov(CURR_DATA_CHUNK(curr_node_id), reg_loop_cnt);
+                    mov(data_chunk_addr(curr_node_id), reg_loop_cnt);
                     L(if_no_tail_in_child_node);
                 } else {
-                    mov(CURR_DATA_CHUNK(curr_node_id), reg_loop_cnt);
+                    mov(data_chunk_addr(curr_node_id), reg_loop_cnt);
                 }
             }
 
@@ -1429,7 +1431,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
     ~jit_uni_reorder_kernel_f32_t() override = default;
 
-#undef CURR_DATA_CHUNK
 #undef TAIL_PARAM
 #undef PARAM
 
