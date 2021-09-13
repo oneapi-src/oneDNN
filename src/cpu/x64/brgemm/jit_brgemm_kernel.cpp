@@ -41,8 +41,11 @@ struct jit_brgemm_kernel_t : public jit_generator {
     jit_brgemm_kernel_t(const brgemm_t &abrg)
         : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_common)
         , brg(abrg)
-        , postops_injector_(nullptr)
-        , is_ldb_loop(false) {
+        , postops_injector_(nullptr) {
+
+        const int is_ldb2_tail = brg.ldb2_tail ? 1 : 0;
+        const int is_ldb_tail = brg.ldb_tail ? 1 : 0;
+        is_ldb_loop_ = brg.ldb2 + is_ldb2_tail + is_ldb_tail > 1;
 
         if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 
@@ -187,7 +190,7 @@ private:
     constexpr static int reg_skip_accm_offs_ = 192;
     constexpr static int stack_space_needed_ = 200;
 
-    bool is_ldb_loop;
+    bool is_ldb_loop_ = false;
     bool handle_binary_po_offset_ = false;
     bool with_binary_per_oc_bcast_ = false;
     bool with_binary_per_oc_sp_bcast_ = false;
@@ -1563,7 +1566,7 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
             }
         }
     };
-    if (is_ldb_loop) {
+    if (is_ldb_loop_) {
         mov(reg_ldb_loop, ldb_loop_length);
         if (brg.is_amx) mov(ptr[rsp + reg_ldb_loop_offs_], reg_ldb_loop);
     }
@@ -1573,7 +1576,7 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
         zero_accumulators(bd_block2, is_bdb_tail, ld_block2, is_ld_tail,
                 skip_accumulation);
 
-        if (is_ldb_loop)
+        if (is_ldb_loop_)
             mov(ptr[rsp + reg_D_offs_], reg_D);
         else {
             mov(reg_ldb_loop, reg_D);
@@ -1658,7 +1661,7 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
             }
         }
 
-        if (is_ldb_loop)
+        if (is_ldb_loop_)
             mov(reg_D, ptr[rsp + reg_D_offs_]);
         else {
             if (brg.is_amx) mov(reg_ldb_loop, ptr[rsp + reg_ldb_loop_offs_]);
@@ -1668,7 +1671,7 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
 
         store_accumulators(bd_block2, is_bdb_tail, ld_block2, is_ld_tail,
                 skip_accumulation);
-        if (is_ldb_loop) {
+        if (is_ldb_loop_) {
             if (brg.is_amx) mov(reg_ldb_loop, ptr[rsp + reg_ldb_loop_offs_]);
             if (!is_ld_tail)
                 ldb_regs_shift(ld_block2);
@@ -1900,9 +1903,6 @@ void jit_brgemm_kernel_t::generate() {
     const auto full_mask = size_t {0xffffffffffffffff};
     const auto tail_mask = size_t((1 << brg.ldb_tail) - 1);
 
-    int is_ldb2_tail = brg.ldb2_tail ? 1 : 0;
-    int is_ldb_tail = brg.ldb_tail ? 1 : 0;
-    is_ldb_loop = (brg.ldb2 + is_ldb2_tail + is_ldb_tail) > 1 ? true : false;
     vpad_exist
             = (brg.brgattr.max_top_vpad > 0 || brg.brgattr.max_bottom_vpad > 0)
             ? true
