@@ -919,6 +919,9 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
     ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(bn, "epsilon",
                            dnnl_graph_attribute_kind_f, &epsilon, 1),
             dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(bn, "data_format",
+                           dnnl_graph_attribute_kind_s, "NCX", 1),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
 
     ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, conv0), dnnl_graph_result_success,
             COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);

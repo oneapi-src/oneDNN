@@ -263,15 +263,7 @@ public:
         }
 
         // constant propagation
-        if (enable_constant_cache_) {
-#if 1
-            // TODO(qun): because fwk doesn't set constant from API level at
-            // this momnet, so we hardcode conv op's weight and bias to be
-            // constant
-            set_weight_bias_constant(subgraph);
-#endif
-            constant_propagation(subgraph);
-        }
+        if (enable_constant_cache_) { constant_propagation(subgraph); }
 
         // bind the memory for each op
         BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,

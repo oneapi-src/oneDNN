@@ -81,7 +81,16 @@ impl::status_t run_graph(impl::graph_t &agraph,
     impl::graph_t copied(agraph);
     auto ops = copied.get_ops();
 
-    dnnl_impl::set_all_layout_to_any(ops);
+    // force each tensor to be strided
+    for (auto &op : ops) {
+        for (auto val : op->get_input_values()) {
+            val->set_layout_type(impl::layout_type::strided);
+        }
+
+        for (auto val : op->get_output_values()) {
+            val->set_layout_type(impl::layout_type::strided);
+        }
+    }
 
     // set the given in/outputs to the graph
     std::vector<impl::logical_tensor_t> g_in_lts, g_out_lts;
@@ -8062,9 +8071,9 @@ TEST(int8_subgraph_mode, x8s8f32_conv1d_conv2d_conv3d) {
 
     if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
-    SKIP_IF(isa < dnnl_cpu_isa_avx512_core
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
                     && engine.kind() == impl::engine_kind::cpu,
-            "Skip the test for systems that do not support avx512_core.");
+            "Skip the test for systems that do not support svx512_core_vnni.");
 
     for_(const auto &nd : nds)
     for_(const auto &g : groups)
@@ -8529,8 +8538,8 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu) {
             bias_f32 = utils::logical_tensor_init(
                     6, bias_shape, impl::data_type::f32);
         }
-        dst_add_f32 = utils::logical_tensor_init(
-                13, dst_shape, impl::data_type::f32);
+        dst_relu_f32 = utils::logical_tensor_init(
+                8, dst_shape, impl::data_type::f32);
 
         impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, weight_s8_data.data());
@@ -8738,8 +8747,8 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu_NXC) {
             bias_f32 = utils::logical_tensor_init(
                     6, bias_shape, impl::data_type::f32);
         }
-        dst_add_f32 = utils::logical_tensor_init(
-                13, dst_shape, impl::data_type::f32);
+        dst_relu_f32 = utils::logical_tensor_init(
+                8, dst_shape, impl::data_type::f32);
 
         impl::tensor_t src_u8_ts(src_u8, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, weight_s8_data.data());
