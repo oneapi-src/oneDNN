@@ -151,15 +151,15 @@ N/A.
 Convolution primitive supports the following combination of data types for
 source, destination, and weights memory objects:
 
-| Propagation        | Source    | Weights   | Destination       | Bias             |
-| :--                | :--       | :--       | :--               | :--              |
-| forward            | f32       | f32       | f32, s8           | f32              |
-| forward            | f16       | f16       | f16, f32, s8      | f16, f32         |
-| forward            | u8, s8    | s8        | u8, s8, s32, f32  | u8, s8, s32, f32 |
-| forward            | bf16      | bf16      | f32, bf16         | f32, bf16        |
-| backward           | f32, bf16 | bf16      | bf16              |                  |
-| backward           | f32       | f32       | f32               | f32              |
-| weights update     | bf16      | f32, bf16 | bf16              | f32, bf16        |
+| Propagation        | Source    | Weights   | Destination                  | Bias                        |
+| :--                | :--       | :--       | :--                          | :--                         |
+| forward            | f32       | f32       | f32, s8                      | f32                         |
+| forward            | f16       | f16       | f16, f32, u8, s8             | f16, f32                    |
+| forward            | u8, s8    | s8        | u8, s8, s32, f32, f16, bf16  | u8, s8, s32, f32, f16, bf16 |
+| forward            | bf16      | bf16      | f32, bf16                    | f32, bf16                   |
+| backward           | f32, bf16 | bf16      | bf16                         |                             |
+| backward           | f32       | f32       | f32                          | f32                         |
+| weights update     | bf16      | f32, bf16 | bf16, s8, u8                 | f32, bf16                   |
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -459,6 +459,7 @@ the convolution.)
      Intel DL Boost instruction sets
    - Run-time output scales are not supported
    - Integer \dst is not supported for floating point \src and \weights
+   - f16/bf16 \dst is not supported for integer \src and \weights
    - backward convolution with bias is not supported
 
 ## Performance Tips

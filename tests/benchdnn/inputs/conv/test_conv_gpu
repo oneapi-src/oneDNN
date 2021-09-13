@@ -60,7 +60,7 @@ mb2ic16ih31oc16kh1sh1ph2
 --mb=2,16
 --dir=FWD_B,BWD_D --batch=set_gpu
 
---reset --cfg=u8s8s32,u8s8f32
+--reset --cfg=u8s8s32,u8s8f32,u8s8f16,u8s8bf16
 --mb=2,16
 --stag=any,axb
 --dir=FWD_B --batch=set_gpu
@@ -119,7 +119,7 @@ mb32ic32ih1oc129oh1kh1ph0
 mb128ic3ih230oc64oh112kh7sh2ph0
 #int8dst
 --reset
---cfg=f16f16s8,f32f32s8
+--cfg=f16f16s8,f16f16u8,bf16bf16s8,bf16bf16u8,f32f32s8
 --mb=2,16
 --dir=FWD_B --stag=any
 --batch=set_gpu

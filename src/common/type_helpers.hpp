@@ -255,8 +255,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     if (everyone_is(f32, src_dt, wei_dt)) return f32;
 
     if (one_of(prop_kind, forward_training, forward_inference)) {
-        if ((src_dt == u8 || src_dt == s8) && wei_dt == s8
-                && one_of(dst_dt, f32, s32, s8, u8, bf16))
+        if ((src_dt == u8 || src_dt == s8) && wei_dt == s8)
             return s32;
     } else if (prop_kind == backward_data) {
         if (one_of(src_dt, f32, s32, s8, u8) && wei_dt == s8
