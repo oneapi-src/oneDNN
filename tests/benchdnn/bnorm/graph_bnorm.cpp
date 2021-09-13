@@ -55,6 +55,9 @@ void check_known_skipped_case_graph(
         const ::bnorm::prb_t *prb, res_t *res) noexcept {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
     if (res->state == SKIPPED) return;
+    check_known_skipped_case_graph_common(
+            {prb->dt}, normalize_tag(prb->tag, prb->ndims), prb->dir, res);
+    if (res->state == SKIPPED) return;
 
     for (const auto &po : prb->attr.post_ops.entry) {
         if (po.kind == attr_t::post_ops_t::RELU) {
@@ -68,6 +71,7 @@ void check_known_skipped_case_graph(
 
 fill_status_t bnorm_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
+    using graph_dt = dnnl::graph::logical_tensor::data_type;
 
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
@@ -80,10 +84,10 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
     const std::string DST {TENSOR_ID + "_DST"};
 
     tensor_descs_.emplace(SRC, spec_.bnorm_dt, spec_.dims, lt::strided);
-    tensor_descs_.emplace(SCALE, spec_.bnorm_dt, spec_.s_dims, lt::strided);
-    tensor_descs_.emplace(SHIFT, spec_.bnorm_dt, spec_.s_dims, lt::strided);
-    tensor_descs_.emplace(MEAN, spec_.bnorm_dt, spec_.s_dims, lt::strided);
-    tensor_descs_.emplace(VAR, spec_.bnorm_dt, spec_.s_dims, lt::strided);
+    tensor_descs_.emplace(SCALE, graph_dt::f32, spec_.s_dims, lt::strided);
+    tensor_descs_.emplace(SHIFT, graph_dt::f32, spec_.s_dims, lt::strided);
+    tensor_descs_.emplace(MEAN, graph_dt::f32, spec_.s_dims, lt::strided);
+    tensor_descs_.emplace(VAR, graph_dt::f32, spec_.s_dims, lt::strided);
     tensor_descs_.emplace(DST, spec_.bnorm_dt, spec_.dims, lt::strided);
 
     op bnorm_op(new_op_id, dnnl::graph::op::kind::BatchNormInference,

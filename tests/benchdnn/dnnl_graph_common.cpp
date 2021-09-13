@@ -43,7 +43,8 @@ void check_known_skipped_case_graph_common(
     for (const auto &i_dt : v_dt) {
         if (i_dt == dnnl_bf16 || i_dt == dnnl_f16) {
             if (strcmp("lnorm", driver_name) != 0
-                    && strcmp("softmax", driver_name) != 0) {
+                    && strcmp("softmax", driver_name) != 0
+                    && strcmp("bnorm", driver_name) != 0) {
                 res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
                 break;
             }
