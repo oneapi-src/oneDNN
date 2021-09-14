@@ -432,20 +432,29 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
     const bool is_avx512_core = mayiuse(avx512_core);
     const bool is_i8 = utils::one_of(dst_d.data_type(), s8, u8);
 
+    const auto supported_strategies = get_supported_postops_bcast_strategies();
     for (int i = 0; i < p.len(); i++) {
         if (p.contain(primitive_kind::sum, i)) {
             if (p.entry_[i].sum.zero_point != 0) return false;
             if (src0_d.data_type() != dst_d.data_type()) return false;
         } else if (!(is_eltwise(i) || is_binary(i))
-                || ((is_i8 || !is_avx512_core) && is_binary_bf16(i)))
+                || ((is_i8 || !is_avx512_core) && is_binary_bf16(i))) {
             return false;
+        } else if (is_binary(i)) {
+            const auto &post_ops_mem = p.entry_[i].binary.src1_desc;
+            if (get_rhs_arg_broadcasting_strategy(
+                        post_ops_mem, dst_d, supported_strategies)
+                    == broadcasting_strategy_t::no_broadcast) {
+                const memory_desc_wrapper post_op_mem_d(post_ops_mem);
+                if (!post_op_mem_d.similar_to(dst_d, true, false)) return false;
+            }
+        }
     }
 
     const int vlen = is_avx512_core ? cpu_isa_traits<avx512_core>::vlen
                                     : is_i8 && mayiuse(avx512_common)
                     ? cpu_isa_traits<avx512_common>::vlen
                     : cpu_isa_traits<avx2>::vlen;
-    const auto supported_strategies = get_supported_postops_bcast_strategies();
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
                     p, src0_d, supported_strategies);
