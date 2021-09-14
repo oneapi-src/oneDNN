@@ -776,11 +776,7 @@ public:
         if (is_bf16 && hw <= ngen::HW::XeLP) return false;
 
         if (is_fwd) return true;
-        if (is_bwd_d) {
-            if (utils::one_of(data_type::f32, dst_data_type, wei_data_type))
-                return false;
-            return true;
-        }
+        if (is_bwd_d) return true;
         if (is_bwd_w) {
             bool ok = true;
             ok &= (src_data_type == data_type::bf16
@@ -1085,7 +1081,9 @@ private:
 
         // Disable using mad instruction backend until performance parity is
         // reached with OpenCL kernels.
-        if (fma_kind == fma_kind_t::mad && (is_bwd_d || hw < ngen::HW::XeHP))
+        if (fma_kind == fma_kind_t::mad
+                && ((is_bwd_d && !(a_data_type == data_type::f32))
+                        || hw < ngen::HW::XeHP))
             return status::unimplemented;
 
         return status::success;
