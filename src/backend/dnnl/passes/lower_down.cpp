@@ -542,7 +542,7 @@ status_t fuse_post_ops(
             impl::op_kind::GELU, impl::op_kind::Sigmoid, impl::op_kind::Elu,
             impl::op_kind::HardTanh, impl::op_kind::Abs, impl::op_kind::Sqrt,
             impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Add,
-            op_kind::dnnl_swish};
+            impl::op_kind::Divide, op_kind::dnnl_swish};
 
     const std::set<op_kind_t> eltwise_kinds {impl::op_kind::ReLU,
             impl::op_kind::GELU, impl::op_kind::Sigmoid, impl::op_kind::Elu,
@@ -746,7 +746,10 @@ status_t fuse_post_ops(
                         base_op->set_attr<bool>("with_binary", true);
                     }
                 }
-
+            } else if (post_op->get_kind() == impl::op_kind::Divide) {
+                const auto &post_src = make_dnnl_memory_desc(
+                        post_op->get_input_value(1)->get_logical_tensor());
+                pops.append_binary(dnnl::algorithm::binary_div, post_src);
             } else {
                 // unsupported post ops
                 continue;

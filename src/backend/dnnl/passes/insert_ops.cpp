@@ -304,7 +304,6 @@ void insert_u8_to_s8_for_matmul(
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
-        if (cur_op->num_inputs() != 2) continue;
 
         int32_t new_src0_dtype
                 = cur_op->get_input_value(0)->get_logical_tensor().data_type;
