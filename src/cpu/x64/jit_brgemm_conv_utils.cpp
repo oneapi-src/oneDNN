@@ -406,8 +406,8 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     void get_from_jcp(const jit_brgemm_conv_conf_t &jcp) { *this = jcp; }
     void save_to_jcp(jit_brgemm_conv_conf_t &jcp) const { jcp = *this; }
 
-    int estimate_brgemm_ur(int spb);
-    int get_brgemm_ur(
+    status_t estimate_brgemm_ur(int spb);
+    status_t get_brgemm_ur(
             const primitive_attr_t *attr, const memory_desc_t &dst_md);
 
     float io_k(dim_t src, dim_t wei, dim_t dst, float n, float pk,
@@ -569,9 +569,9 @@ void brg_blocking_t::select_ic_block() {
     nb_ic = utils::div_up(ic, ic_block);
 }
 
-int brg_blocking_t::estimate_brgemm_ur(int spb) {
+status_t brg_blocking_t::estimate_brgemm_ur(int spb) {
     // Simple simulation of brgemm_desc init
-    if (sp_block <= 0) return 0;
+    if (sp_block <= 0) return status::invalid_arguments;
     LDA = is_rtus
             ? (ic_block)
             : (kh_sets > 1 ? kh_sets : 1) * (kw_sets > 1 ? kw_sets : stride_w)
@@ -625,31 +625,28 @@ int brg_blocking_t::estimate_brgemm_ur(int spb) {
     const float alpha = 1.0;
     const float beta = 0.0;
     brgemm_t brg;
-    const auto status = brgemm_desc_init(&brg, isa, brgemm_addr, src_dt, wei_dt,
-            false, false, brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN,
-            vK);
+    CHECK(brgemm_desc_init(&brg, isa, brgemm_addr, src_dt, wei_dt, false, false,
+            brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN, vK));
+    ur = brg.bd_block * (is_amx(isa) ? brg.bd_block2 : 1);
     ur_block = brg.bd_block;
-    if (M > 0 && M_tail > 0) {
+    if (is_1x1 && is_amx(isa) && M > 0 && M_tail > 0) {
         brgemm_t brg_sp_tail;
-        const auto status = brgemm_desc_init(&brg_sp_tail, isa, brgemm_addr,
-                src_dt, wei_dt, false, false, brgemm_row_major, alpha, beta,
-                LDA, LDB, LDC, M_tail, vN, vK);
-        ur_block_tail = status == success ? brg_sp_tail.bd_block : 0;
-    } else
+        CHECK(brgemm_desc_init(&brg_sp_tail, isa, brgemm_addr, src_dt, wei_dt,
+                false, false, brgemm_row_major, alpha, beta, LDA, LDB, LDC,
+                M_tail, vN, vK));
+        ur_block_tail = brg_sp_tail.bd_block;
+    } else {
         ur_block_tail = 0;
-    return status == success
-            ? (is_amx(isa) ? brg.bd_block * brg.bd_block2 : brg.bd_block)
-            : 0;
+    }
+    return status::success;
 }
 
-int brg_blocking_t::get_brgemm_ur(
+status_t brg_blocking_t::get_brgemm_ur(
         const primitive_attr_t *attr, const memory_desc_t &dst_md) {
     // Detailed simulation of brgemm convolution init
     if (sp_block <= 0 || ic_block <= 0 || sp_block <= 0 || oc_block <= 0)
-        return 0;
-    brgemm_t brg;
-    status_t status = success;
-    int res_ur = estimate_brgemm_ur(is_os_blocking ? os_block : ow_block);
+        return status::invalid_arguments;
+    CHECK(estimate_brgemm_ur(is_os_blocking ? os_block : ow_block));
 
     LDD = oc_without_padding;
 
@@ -670,6 +667,7 @@ int brg_blocking_t::get_brgemm_ur(
                     auto vN = (i_N) ? N_tail : N;
                     auto vK = (i_K) ? K_tail : K;
                     if (vN == 0 || vK == 0) continue;
+                    brgemm_t brg;
                     brgemm_strides_t brg_strides;
                     brg_strides.stride_a = ngroups * ic_without_padding
                             * (dilate_w + 1) * src_dsz;
@@ -679,10 +677,9 @@ int brg_blocking_t::get_brgemm_ur(
                     const auto strides_ptr = (brg_type == brgemm_strd)
                             ? &brg_strides
                             : nullptr;
-                    status = brgemm_desc_init(&brg, isa, brg_type, src_dt,
-                            wei_dt, false, false, brgemm_row_major, alpha,
-                            vbeta, LDA, LDB, LDC, vM, vN, vK, strides_ptr);
-                    if (status != success) break;
+                    CHECK(brgemm_desc_init(&brg, isa, brg_type, src_dt, wei_dt,
+                            false, false, brgemm_row_major, alpha, vbeta, LDA,
+                            LDB, LDC, vM, vN, vK, strides_ptr));
 
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = max_batch;
@@ -691,22 +688,17 @@ int brg_blocking_t::get_brgemm_ur(
                             : 0;
                     brgattr.max_top_vpad = max_vpad;
                     brgattr.max_bottom_vpad = max_vpad;
-                    status = brgemm_desc_set_attr(&brg, brgattr);
-                    if (status != success) break;
+                    CHECK(brgemm_desc_set_attr(&brg, brgattr));
 
                     brg.with_sum = with_sum;
-                    status = brgemm_desc_set_postops(
-                            &brg, attr, &dst_md, LDD, bia_dt);
-                    if (status != success) break;
+                    CHECK(brgemm_desc_set_postops(
+                            &brg, attr, &dst_md, LDD, bia_dt));
                 }
-                if (status != success) break;
             }
-            if (status != success) break;
         }
-        if (status != success) break;
     }
 
-    return status == success ? res_ur : 0;
+    return status::success;
 }
 
 void brg_blocking_t::update_blocks() {
@@ -1107,8 +1099,8 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
             use_buffer = use_buffer || (maybe_use_buffer && iwp != iw);
         if (is_amx(isa)) use_buffer = use_buffer || (use_M_mask > 0);
 
-        ur = estimate_brgemm_ur(ow_block);
-        if (ur == 0) continue;
+        const status_t st = estimate_brgemm_ur(ow_block);
+        if (st != status::success) continue;
         os_block = sp_block = ow_block;
         update_blocks();
 
@@ -1200,8 +1192,9 @@ float brg_blocking_t::est_eff_1x1() {
     const auto ocb_ave = calc_ave_blk(oc_block, 16, use_ocb_ave);
     const bool use_spb_ave = false;
     const auto spb_ave = calc_ave_blk(sp_block, ur_block, use_spb_ave);
-    const auto M_n_sp_blks = M > 0 ? M / ur_block : 0;
-    const auto M_tail_n_sp_blks = M_tail > 0 ? M_tail / ur_block_tail : 0;
+    const auto M_n_sp_blks = ur_block > 0 ? nstl::max(M, M_tail) / ur_block : 0;
+    const auto M_tail_n_sp_blks
+            = ur_block_tail > 0 ? M_tail / ur_block_tail : 0;
     const auto amx_fac
             = div_up(M + M_tail, 16) / (M_n_sp_blks + M_tail_n_sp_blks);
 
@@ -1538,8 +1531,8 @@ void brg_blocking_t::calc_blocks_1x1() {
         prev_spb = spb;
         os_block = ow_block = sp_block = spb;
         select_ic_block();
-        ur = estimate_brgemm_ur(spb);
-        if (ur == 0) continue;
+        const status_t st = estimate_brgemm_ur(spb);
+        if (st != status::success) continue;
         update_blocks();
 
         use_buffer = (dst_dt != acc_dt || with_sum)
@@ -1772,9 +1765,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             if (!cur_brgb.fast_check_oc_block()) continue;
 
             cur_brgb.calc_blocks();
-            const auto ur = cur_brgb.get_brgemm_ur(&attr, dst_md);
-            if (ur == 0) continue;
-            cur_brgb.ur = ur;
+            const status_t st = cur_brgb.get_brgemm_ur(&attr, dst_md);
+            if (st != status::success) continue;
             cur_brgb.eff = cur_brgb.est_eff();
             if (cur_brgb.eff > best_brgb.eff) best_brgb = cur_brgb;
         }
@@ -1994,9 +1986,8 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         if (!cur_brgb.fast_check_oc_block_1x1()) continue;
 
         cur_brgb.calc_blocks_1x1();
-        const auto ur = cur_brgb.get_brgemm_ur(&attr, dst_md);
-        if (ur == 0) continue;
-        cur_brgb.ur = ur;
+        const status_t st = cur_brgb.get_brgemm_ur(&attr, dst_md);
+        if (st != status::success) continue;
         cur_brgb.eff = cur_brgb.est_eff_1x1();
         if (cur_brgb.eff > best_brgb.eff) best_brgb = cur_brgb;
     }
