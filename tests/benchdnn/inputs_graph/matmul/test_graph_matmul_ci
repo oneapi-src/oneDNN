@@ -44,3 +44,9 @@
 --attr-oscale=per_oc
 128x512:512x256:128x256
 
+# int8 asym matmul 
+--reset
+--cfg=u8s8u8
+--attr-oscale=per_oc:2.25
+--attr-zero-points=dst:common:3+src:common:2
+10x10x15x30:10x10x30x15:10x10x15x15

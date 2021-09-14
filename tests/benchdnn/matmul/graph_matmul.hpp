@@ -96,6 +96,9 @@ private:
 
     spec_t spec_;
     std::vector<float> oscales_;
+    std::vector<int64_t> src_zero_points;
+    std::vector<int64_t> wei_zero_points;
+    std::vector<int64_t> dst_zero_points;
 
     po_handlers_t po_handler;
 

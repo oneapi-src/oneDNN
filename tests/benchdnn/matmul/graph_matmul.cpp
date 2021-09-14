@@ -158,7 +158,7 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
     tensor_descs_.emplace(
             QDST, spec_.dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
 
-    const std::string qtype = prb_->attr.oscale.policy == policy_t::COMMON
+    const std::string wei_qtype = prb_->attr.oscale.policy == policy_t::COMMON
             ? "per_tensor"
             : "per_channel";
     const int64_t count
@@ -169,10 +169,44 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
         oscales_[c] = prb_->scales[c];
     }
 
+    // currently, only policy_t::COMMON is supported for asymmetric quant
+    // for src and dst, other policy is not suppoted by oneDNN Graph.
+    // zps for src
+    const int64_t common_zp_count = 1;
+    const int64_t dflt_zp_val = 0;
+    src_zero_points.resize(common_zp_count, dflt_zp_val);
+    // if zp is not default, copy values and pass it to oneDNN Graph
+    if (!prb_->attr.zero_points.is_def(DNNL_ARG_SRC)) {
+        const auto &src_zp_e = prb_->attr.zero_points.get(DNNL_ARG_SRC);
+        if (src_zp_e.policy != policy_t::COMMON)
+            return fill_status::UNSUPPORTED_CONFIG;
+        src_zero_points[0] = prb_->src_zp[0];
+    }
+
+    // zps for wei
+    wei_zero_points.resize(common_zp_count, dflt_zp_val);
+    // if zp is not default, copy values and pass it to oneDNN Graph
+    if (!prb_->attr.zero_points.is_def(DNNL_ARG_WEIGHTS)) {
+        const auto &wei_zp_e = prb_->attr.zero_points.get(DNNL_ARG_WEIGHTS);
+        if (wei_zp_e.policy != policy_t::COMMON)
+            return fill_status::UNSUPPORTED_CONFIG;
+        wei_zero_points[0] = wei_zp_e.value;
+    }
+
+    // zps for dst
+    dst_zero_points.resize(common_zp_count, dflt_zp_val);
+    // if zp is not default, copy values and pass it to oneDNN Graph
+    if (!prb_->attr.zero_points.is_def(DNNL_ARG_DST)) {
+        const auto &dst_zp_e = prb_->attr.zero_points.get(DNNL_ARG_DST);
+        if (dst_zp_e.policy != policy_t::COMMON)
+            return fill_status::UNSUPPORTED_CONFIG;
+        dst_zero_points[0] = prb_->dst_zp[0];
+    }
+
     op dequant_src(ops_.size(), op::kind::Dequantize, {tensor_descs_[QSRC]},
             {tensor_descs_[SRC]}, "dequant_src");
     dequant_src.set_attr("scales", std::vector<float> {1.f})
-            .set_attr("zps", std::vector<int64_t> {0})
+            .set_attr("zps", src_zero_points)
             .set_attr("qtype", std::string("per_tensor"))
             .set_attr("in_type", qsrc_type)
             .set_attr("axis", static_cast<int64_t>(0));
@@ -181,8 +215,8 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
     op dequant_wei(ops_.size(), op::kind::Dequantize, {tensor_descs_[QWEI]},
             {tensor_descs_[WEI]}, "dequant_wei");
     dequant_wei.set_attr("scales", oscales_)
-            .set_attr("zps", std::vector<int64_t>(count, 0))
-            .set_attr("qtype", qtype)
+            .set_attr("zps", wei_zero_points)
+            .set_attr("qtype", wei_qtype)
             .set_attr("in_type", qwei_type)
             .set_attr("axis", static_cast<int64_t>(0));
     ops_.emplace_back(dequant_wei);
@@ -190,7 +224,7 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
     op quant_dst(ops_.size(), op::kind::Quantize, {tensor_descs_[DST]},
             {tensor_descs_[QDST]}, "quant");
     quant_dst.set_attr("scales", std::vector<float> {1.f})
-            .set_attr("zps", std::vector<int64_t> {0})
+            .set_attr("zps", dst_zero_points)
             .set_attr("qtype", std::string("per_tensor"))
             .set_attr("out_type", qdst_type)
             .set_attr("axis", static_cast<int64_t>(0));
