@@ -31,7 +31,7 @@ jobs:
           .github/automation/clang-format.sh
         displayName: 'ClangFormat_Check'
         failOnStderr: true 
-  - job: 'Ubuntu20.04'
+  - job: 'Ubuntu20'
     pool:
       vmImage: 'ubuntu-20.04'
     strategy:
