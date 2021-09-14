@@ -93,7 +93,14 @@ function(register_benchdnn_test engine driver test_file)
     endif()
 endfunction()
 
+
+set(stack_checker_pattern "^(bnorm|concat|conv|eltwise|ip|lrn|matmul|pool|reorder|softmax|sum)$")
+
 function(register_all_tests engine driver test_files)
+    if(DNNL_ENABLE_STACK_CHECKER AND NOT ${driver} MATCHES ${stack_checker_pattern})
+        return()
+    endif()
+
     foreach(test_file ${test_files})
         register_benchdnn_test(${engine} ${driver} ${test_file})
     endforeach()

@@ -26,6 +26,7 @@
 #include "primitive_exec_types.hpp"
 #include "reorder_pd.hpp"
 #include "scratchpad_debug.hpp"
+#include "stack_checker.hpp"
 #include "stream.hpp"
 #include "utils.hpp"
 
@@ -150,6 +151,17 @@ status_t dnnl_primitive_create(primitive_iface_t **primitive_iface,
         const primitive_desc_iface_t *primitive_desc_iface) {
     if (utils::any_null(primitive_iface, primitive_desc_iface))
         return invalid_arguments;
+
+#ifdef DNNL_ENABLE_STACK_CHECKER
+    stack_checker::stack_checker_t sc("dnnl_primitive_create");
+    bool is_wino = std::string(primitive_desc_iface->info()).find("wino")
+            != std::string::npos;
+
+    if (!is_wino) {
+        return sc.check(dnnl::impl::primitive_create, primitive_iface,
+                primitive_desc_iface);
+    }
+#endif
     return dnnl::impl::primitive_create(primitive_iface, primitive_desc_iface);
 }
 
@@ -166,9 +178,17 @@ status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
     if (status != status::success) return status;
 
     exec_ctx_t ctx(stream, std::move(args));
-    status = dnnl::impl::primitive_execute(primitive_iface, ctx);
-
-    return status;
+#ifdef DNNL_ENABLE_STACK_CHECKER
+    stack_checker::stack_checker_t sc("dnnl_primitive_execute");
+    const auto *pd_iface = primitive_iface->pd();
+    bool is_wino
+            = std::string(pd_iface->info()).find("wino") != std::string::npos;
+    if (!is_wino) {
+        return sc.check(
+                dnnl::impl::primitive_execute, primitive_iface, std::ref(ctx));
+    }
+#endif
+    return dnnl::impl::primitive_execute(primitive_iface, ctx);
 }
 
 status_t dnnl_primitive_get_primitive_desc(

@@ -27,6 +27,7 @@
 
 #include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
+#include "common/stack_checker.hpp"
 
 using namespace dnnl::impl;
 
@@ -42,12 +43,20 @@ const char *c2f_offsetC(const char *offC) {
 } // namespace
 #endif
 
+#ifdef DNNL_ENABLE_STACK_CHECKER
+#define MAYBE_RUN_STACK_CHECKER(api_name, ...) \
+    stack_checker::stack_checker_t(#api_name).check(__VA_ARGS__)
+#else
+#define MAYBE_RUN_STACK_CHECKER(_, func, ...) func(__VA_ARGS__)
+#endif
+
 dnnl_status_t dnnl_sgemm(char transa, char transb, dim_t M, dim_t N, dim_t K,
         float alpha, const float *A, dim_t lda, const float *B, const dim_t ldb,
         float beta, float *C, dim_t ldc) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    return cpu::extended_sgemm(&transb, &transa, &N, &M, &K, &alpha, B, &ldb, A,
-            &lda, &beta, C, &ldc);
+    return MAYBE_RUN_STACK_CHECKER(dnnl_sgemm, cpu::extended_sgemm, &transb,
+            &transa, &N, &M, &K, &alpha, B, &ldb, A, &lda, &beta, C, &ldc,
+            nullptr, false);
 #else
     return dnnl::impl::status::unimplemented;
 #endif
@@ -58,8 +67,9 @@ dnnl_status_t dnnl_gemm_u8s8s32(char transa, char transb, char offsetc, dim_t M,
         const int8_t *B, dim_t ldb, int8_t bo, float beta, int32_t *C,
         dim_t ldc, const int32_t *co) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    return cpu::gemm_s8x8s32(&transb, &transa, c2f_offsetC(&offsetc), &N, &M,
-            &K, &alpha, B, &ldb, &bo, A, &lda, &ao, &beta, C, &ldc, co);
+    return MAYBE_RUN_STACK_CHECKER(dnnl_gemm_u8s8s32,
+            cpu::gemm_s8x8s32<uint8_t>, &transb, &transa, c2f_offsetC(&offsetc),
+            &N, &M, &K, &alpha, B, &ldb, &bo, A, &lda, &ao, &beta, C, &ldc, co);
 #else
     return dnnl::impl::status::unimplemented;
 #endif
@@ -70,8 +80,9 @@ dnnl_status_t dnnl_gemm_s8s8s32(char transa, char transb, char offsetc, dim_t M,
         const int8_t *B, dim_t ldb, int8_t bo, float beta, int32_t *C,
         dim_t ldc, const int32_t *co) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    return cpu::gemm_s8x8s32<int8_t>(&transb, &transa, c2f_offsetC(&offsetc),
-            &N, &M, &K, &alpha, B, &ldb, &bo, A, &lda, &ao, &beta, C, &ldc, co);
+    return MAYBE_RUN_STACK_CHECKER(dnnl_gemm_s8s8s32, cpu::gemm_s8x8s32<int8_t>,
+            &transb, &transa, c2f_offsetC(&offsetc), &N, &M, &K, &alpha, B,
+            &ldb, &bo, A, &lda, &ao, &beta, C, &ldc, co);
 #else
     return dnnl::impl::status::unimplemented;
 #endif
@@ -82,8 +93,9 @@ extern "C" dnnl_status_t DNNL_API dnnl_gemm_bf16bf16f32(char transa,
         const bfloat16_t *A, dim_t lda, const bfloat16_t *B, dim_t ldb,
         float beta, float *C, dim_t ldc) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    return cpu::gemm_bf16bf16f32(&transb, &transa, &N, &M, &K, &alpha, B, &ldb,
-            A, &lda, &beta, C, &ldc);
+    return MAYBE_RUN_STACK_CHECKER(dnnl_gemm_bf16bf16f32, cpu::gemm_bf16bf16f32,
+            &transb, &transa, &N, &M, &K, &alpha, B, &ldb, A, &lda, &beta, C,
+            &ldc);
 #else
     return dnnl::impl::status::unimplemented;
 #endif
@@ -96,8 +108,9 @@ dnnl_status_t dnnl_threadpool_interop_sgemm(char transa, char transb, dim_t M,
         void *th) {
     threadpool_utils::activate_threadpool(
             (dnnl::threadpool_interop::threadpool_iface *)th);
-    status_t status = cpu::extended_sgemm(&transb, &transa, &N, &M, &K, &alpha,
-            B, &ldb, A, &lda, &beta, C, &ldc, nullptr, false);
+    status_t status = MAYBE_RUN_STACK_CHECKER(dnnl_threadpool_interop_sgemm,
+            cpu::extended_sgemm, &transb, &transa, &N, &M, &K, &alpha, B, &ldb,
+            A, &lda, &beta, C, &ldc, nullptr, false);
     threadpool_utils::deactivate_threadpool();
     return status;
 }
@@ -108,8 +121,10 @@ dnnl_status_t dnnl_threadpool_interop_gemm_u8s8s32(char transa, char transb,
         float beta, int32_t *C, dim_t ldc, const int32_t *co, void *th) {
     threadpool_utils::activate_threadpool(
             (dnnl::threadpool_interop::threadpool_iface *)th);
-    status_t status = cpu::gemm_s8x8s32(&transb, &transa, c2f_offsetC(&offsetc),
-            &N, &M, &K, &alpha, B, &ldb, &bo, A, &lda, &ao, &beta, C, &ldc, co);
+    status_t status = MAYBE_RUN_STACK_CHECKER(
+            dnnl_threadpool_interop_gemm_u8s8s32, cpu::gemm_s8x8s32<uint8_t>,
+            &transb, &transa, c2f_offsetC(&offsetc), &N, &M, &K, &alpha, B,
+            &ldb, &bo, A, &lda, &ao, &beta, C, &ldc, co);
     threadpool_utils::deactivate_threadpool();
     return status;
 }
@@ -120,9 +135,10 @@ dnnl_status_t dnnl_threadpool_interop_gemm_s8s8s32(char transa, char transb,
         int32_t *C, dim_t ldc, const int32_t *co, void *th) {
     threadpool_utils::activate_threadpool(
             (dnnl::threadpool_interop::threadpool_iface *)th);
-    status_t status = cpu::gemm_s8x8s32<int8_t>(&transb, &transa,
-            c2f_offsetC(&offsetc), &N, &M, &K, &alpha, B, &ldb, &bo, A, &lda,
-            &ao, &beta, C, &ldc, co);
+    status_t status = MAYBE_RUN_STACK_CHECKER(
+            dnnl_threadpool_interop_gemm_s8s8s32, cpu::gemm_s8x8s32<int8_t>,
+            &transb, &transa, c2f_offsetC(&offsetc), &N, &M, &K, &alpha, B,
+            &ldb, &bo, A, &lda, &ao, &beta, C, &ldc, co);
     threadpool_utils::deactivate_threadpool();
     return status;
 }
@@ -133,8 +149,10 @@ extern "C" dnnl_status_t DNNL_API dnnl_threadpool_interop_gemm_bf16bf16f32(
         float beta, float *C, dim_t ldc, void *th) {
     threadpool_utils::activate_threadpool(
             (dnnl::threadpool_interop::threadpool_iface *)th);
-    status_t status = cpu::gemm_bf16bf16f32(&transb, &transa, &N, &M, &K,
-            &alpha, B, &ldb, A, &lda, &beta, C, &ldc);
+    status_t status
+            = MAYBE_RUN_STACK_CHECKER(dnnl_threadpool_interop_gemm_bf16bf16f32,
+                    cpu::gemm_bf16bf16f32, &transb, &transa, &N, &M, &K, &alpha,
+                    B, &ldb, A, &lda, &beta, C, &ldc);
     threadpool_utils::deactivate_threadpool();
     return status;
 }

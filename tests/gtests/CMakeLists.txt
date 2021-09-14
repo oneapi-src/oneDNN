@@ -174,6 +174,10 @@ set_source_files_properties(
             PROPERTIES NO_ENGINE_PARAM true)
 
 function(register_gtest exe src)
+    if(DNNL_ENABLE_STACK_CHECKER AND NOT exe MATCHES "test_gemm_")
+        return()
+    endif()
+
     add_executable(${exe} ${MAIN_SRC_GTEST} ${src})
     add_definitions_with_host_compiler(-DNOMINMAX) # to allow std::max on Windows with parentheses
     target_link_libraries(${exe} ${DNNL_LIBRARY_NAME} dnnl_gtest ${EXTRA_SHARED_LIBS})
@@ -244,19 +248,20 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     endif()
 endforeach()
 
-add_subdirectory(api)
-add_subdirectory(internals)
+if(NOT DNNL_ENABLE_STACK_CHECKER)
+    add_subdirectory(api)
+    add_subdirectory(internals)
 
-if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
-    add_subdirectory(regression)
+    if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+        add_subdirectory(regression)
+    endif()
+
+    if(DNNL_GPU_RUNTIME STREQUAL "OCL")
+        add_subdirectory(ocl)
+    endif()
+
+    if(DNNL_WITH_SYCL)
+        add_subdirectory(sycl)
+    endif()
 endif()
-
-if(DNNL_GPU_RUNTIME STREQUAL "OCL")
-    add_subdirectory(ocl)
-endif()
-
-if(DNNL_WITH_SYCL)
-    add_subdirectory(sycl)
-endif()
-
 # vim: et ts=4 sw=4

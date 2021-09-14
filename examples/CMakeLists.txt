@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-if (NOT DNNL_BUILD_EXAMPLES)
+if (NOT DNNL_BUILD_EXAMPLES OR DNNL_ENABLE_STACK_CHECKER)
     return()
 endif()
 
