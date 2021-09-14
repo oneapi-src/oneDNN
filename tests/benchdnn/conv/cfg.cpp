@@ -204,7 +204,8 @@ const _dt_conf_t conf_u8s8f16 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -2, 2, -2, 1, 1.0, 0.},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, 1, 1.0,
                 0.},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25, 0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
+                0.},
         {dnnl_s32},
 };
 

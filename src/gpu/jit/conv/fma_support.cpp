@@ -149,7 +149,7 @@ bool mad_t::matches_types(
         if (a.is_bf16() && c.is_f32()) return true;
         if (a.is_f32() && c.is_bf16()) return true;
     }
-    if (a.is_x8() && c.is_x16()) return true;
+    if (a.is_x8() && (c.is_x16() || c.is_x32())) return true;
     if ((a.is_x16() || a.is_x32()) && (c.is_x16() || c.is_x32())) return true;
 
     return false;
