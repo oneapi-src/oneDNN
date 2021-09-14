@@ -31,9 +31,9 @@ jobs:
           .github/automation/clang-format.sh
         displayName: 'ClangFormat_Check'
         failOnStderr: true 
-  - job: 'Ubuntu16'
+  - job: 'Ubuntu20.04'
     pool:
-      vmImage: 'ubuntu-16.04'
+      vmImage: 'ubuntu-20.04'
     strategy:
       matrix: 
         clang:
@@ -101,7 +101,7 @@ jobs:
          .github\automation\test.bat /TESTKIND gtest /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
         displayName: 'test'
         failOnStderr: true 
-  - job: 'Windows_Server_2012'
+  - job: 'Windows_Server_2016'
     pool:
       vmImage: 'vs2017-win2016'
     steps:
