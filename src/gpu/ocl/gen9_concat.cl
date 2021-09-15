@@ -54,11 +54,13 @@ __kernel void gen9_concat(__global DST_DATA_T *dst,
     src_dims[4] = dst_dims[4] = GWS_GET_D4();
     src_dims[5] = dst_dims[5] = GWS_GET_D5();
 
-    const int iter_dim_end = dst_dims[ITER_DIM] + ITER_DIM_CHUNK;
+    const int iter_dim_end = min(
+            dst_dims[ITER_DIM_IDX] + ITER_DIM_CHUNK, ITER_DIM_PADDED_SIZE);
 
     if (NEEDS_PADDING(dst_dims[0], dst_dims[1], dst_dims[2], dst_dims[3],
                 dst_dims[4], dst_dims[5])) {
-        for (; dst_dims[ITER_DIM] < iter_dim_end; dst_dims[ITER_DIM]++) {
+        for (; dst_dims[ITER_DIM_IDX] < iter_dim_end;
+                dst_dims[ITER_DIM_IDX]++) {
             const int dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1],
                     dst_dims[2], dst_dims[3], dst_dims[4], dst_dims[5]);
 #if SUB_GROUP_SIZE > 1
@@ -69,8 +71,8 @@ __kernel void gen9_concat(__global DST_DATA_T *dst,
         }
         return;
     }
-    for (; dst_dims[ITER_DIM] < min(DD(ITER_DIM), iter_dim_end);
-            dst_dims[ITER_DIM]++, src_dims[ITER_DIM]++) {
+    for (; dst_dims[ITER_DIM_IDX] < min(DD(ITER_DIM_IDX), iter_dim_end);
+            dst_dims[ITER_DIM_IDX]++, src_dims[ITER_DIM_IDX]++) {
         int part;
         int src_off;
         __global SRC_DATA_T *src;
@@ -158,7 +160,7 @@ __kernel void gen9_concat(__global DST_DATA_T *dst,
         dst[dst_off] = TO_DST(src_val);
 #endif // SUB_GROUP_SIZE > 1
     }
-    for (; dst_dims[ITER_DIM] < iter_dim_end; dst_dims[ITER_DIM]++) {
+    for (; dst_dims[ITER_DIM_IDX] < iter_dim_end; dst_dims[ITER_DIM_IDX]++) {
         const int dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1], dst_dims[2],
                 dst_dims[3], dst_dims[4], dst_dims[5]);
 #if SUB_GROUP_SIZE > 1

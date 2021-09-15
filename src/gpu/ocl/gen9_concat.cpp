@@ -80,15 +80,15 @@ status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
     }
 
     conf.sub_group_size = 1;
-    conf.iter_dim = conf.ndims - 1;
+    conf.iter_dim_idx = conf.ndims - 1;
     if (conf.concat_axis == c_idx && is_concat_axis_aligned
             && layouts_compatible) {
         conf.sub_group_size = desired_sub_group_size;
         // we don't want to iterate over concat axis as it's going to be vectorized dim
-        if (conf.ndims == 2) conf.iter_dim = 0;
+        if (conf.ndims == 2) conf.iter_dim_idx = 0;
     }
     conf.iter_dim_chunk = conf.ndims > 2 ? 128 : 1;
-    while (dst_dims[conf.iter_dim] % conf.iter_dim_chunk != 0)
+    while (dst_dims[conf.iter_dim_idx] % conf.iter_dim_chunk != 0)
         conf.iter_dim_chunk /= 2;
 
     // currently ref_concat works faster for such cases, but it's going to be improved
@@ -99,7 +99,7 @@ status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
 
     for (int dim_idx = 0; dim_idx < MAX_NDIMS; dim_idx++) {
         const int dim_block
-                = conf.iter_dim == dim_idx ? conf.iter_dim_chunk : 1;
+                = conf.iter_dim_idx == dim_idx ? conf.iter_dim_chunk : 1;
         const int dim_size = conf.ndims > dim_idx ? dst_dims[dim_idx] : 1;
         conf.dispatch.define_dim(
                 utils::format("D%d", dim_idx), 0, dim_size, dim_block);
@@ -128,7 +128,9 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("NUM_INPUTS", conf.n);
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
     kernel_ctx.define_int("VECT_DT_N", 1);
-    kernel_ctx.define_int("ITER_DIM", conf.iter_dim);
+    kernel_ctx.define_int("ITER_DIM_PADDED_SIZE",
+            conf.dst_md_info.padded_dims[conf.iter_dim_idx]);
+    kernel_ctx.define_int("ITER_DIM_IDX", conf.iter_dim_idx);
     kernel_ctx.define_int("ITER_DIM_CHUNK", conf.iter_dim_chunk);
 
     def_dispatch(kernel_ctx, conf.dispatch);

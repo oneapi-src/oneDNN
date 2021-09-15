@@ -701,7 +701,7 @@ struct concat_conf_t {
     memory_desc_info_t dst_md_info;
     int concat_axis;
     int sub_group_size;
-    int iter_dim, iter_dim_chunk;
+    int iter_dim_idx, iter_dim_chunk;
 };
 
 // Elementwise
