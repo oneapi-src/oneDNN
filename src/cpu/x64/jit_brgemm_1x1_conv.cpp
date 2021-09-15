@@ -197,8 +197,25 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
             CHECK(brgemm_kernel_create(&brg_kernel, brg));
             CHECK(safe_ptr_assign(brg_kernels_[brg_idx], brg_kernel));
             if (is_amx) {
-                CHECK(brgemm_init_tiles(
-                        brg, &brg_kernel_palettes_[brg_idx][0]));
+                amx_palette_t tmp;
+                int &palette_idx = brg_kernel_palette_idx_[brg_idx];
+                palette_idx = -1;
+                CHECK(brgemm_init_tiles(brg, tmp.p));
+                // check if it's in set of tile configs
+                for (size_t i = 0; i < brg_kernel_palette_.size(); i++) {
+                    const bool is_match = 0
+                            == std::memcmp(brg_kernel_palette_[i].p, tmp.p,
+                                    AMX_PALETTE_SIZE);
+                    if (is_match) {
+                        palette_idx = i;
+                        break;
+                    }
+                }
+                // add to set of tile configs if needed
+                if (palette_idx == -1) {
+                    palette_idx = brg_kernel_palette_.size();
+                    brg_kernel_palette_.push_back(tmp);
+                }
             }
         }
     }
@@ -279,7 +296,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
         const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
         brgemm_batch_element_t *const __restrict brg_batch,
         char *const c_buffer, const char *inp_buffer, int g, int n, int ocb,
-        int od, int oh, int ow, int icc, int *last_brg_idx) const {
+        int od, int oh, int ow, int icc, int *last_palette_idx) const {
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md());
@@ -358,11 +375,14 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
         }
 
         // NOTE: avoid some costly tile reconfigurations here by keeping track
-        //       of the previous index of brg kernel tile configuration
+        //       of the previous brg kernel tile configuration palette
         // TODO: adjust harness to avoid even more tile reconfigurations
-        if (is_amx && brg_idx != *last_brg_idx) {
-            amx_tile_configure(&brg_kernel_palettes_[brg_idx][0]);
-            *last_brg_idx = brg_idx;
+        if (is_amx) {
+            const int curr_palette_idx = brg_kernel_palette_idx_[brg_idx];
+            if (curr_palette_idx != *last_palette_idx) {
+                amx_tile_configure(brg_kernel_palette_[curr_palette_idx].p);
+                *last_palette_idx = curr_palette_idx;
+            }
         }
 
         const brgemm_kernel_t *brg_ker = brg_kernels_[brg_idx].get();
@@ -445,7 +465,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
                 : nullptr; \
         int last_n = -1; \
         int last_g = -1; \
-        int last_brg_idx = -1; \
+        int last_palette_idx = -1; \
         int start {0}, end {0}; \
         balance211(work_amount, nthr, ithr, start, end); \
         int n {0}, g {0}, ocb {0}, oss {0}; \
@@ -470,7 +490,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
                                 inp_buffer_mask, g, n, icc, od, oh, ow); \
                     exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, \
                             inp_buffer_sp, g, n, ocb, od, oh, ow, icc, \
-                            &last_brg_idx); \
+                            &last_palette_idx); \
                 } \
             } \
             last_n = n; \
@@ -501,7 +521,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
         char *const c_buffer = (jcp.use_buffer) \
                 ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M \
                 : nullptr; \
-        int last_brg_idx = -1; \
+        int last_palette_idx = -1; \
         int start {0}, end {0}; \
         balance211(work_amount, nthr, ithr, start, end); \
         int n {0}, g {0}, ocb {0}, od {0}, oh {0}, owb {0}; \
@@ -510,7 +530,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
             for (int icc = 0; icc < ic_chunks; icc++) { \
                 const int ow = owb * jcp.ow_block; \
                 exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, nullptr, g, n, \
-                        ocb, od, oh, ow, icc, &last_brg_idx); \
+                        ocb, od, oh, ow, icc, &last_palette_idx); \
             } \
             nd_iterator_step(__VA_ARGS__); \
         } \

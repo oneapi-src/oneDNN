@@ -26,6 +26,7 @@
 #include "cpu/cpu_convolution_pd.hpp"
 #include "cpu/platform.hpp"
 
+#include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
@@ -119,7 +120,11 @@ private:
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[16];
     std::unique_ptr<jit_brgemm_kernel_post_ops> kernels_po_[4];
-    char brg_kernel_palettes_[16][64];
+    struct amx_palette_t {
+        char p[AMX_PALETTE_SIZE];
+    };
+    std::vector<amx_palette_t> brg_kernel_palette_;
+    int brg_kernel_palette_idx_[16];
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_rtus_kernel_t>
             rtus_kernel_;
