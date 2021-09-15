@@ -26,8 +26,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-std::pair<int, int> get_iter_dim_idx_size(
-        const concat_conf_t &conf, int num_threads) {
+std::pair<int, int> gen9_concat_t::pd_t::calculate_iter_dim_idx_chunk(
+        int num_threads) {
     if (conf.ndims == 1) return std::make_pair(0, 1);
     const auto &dst_dims = conf.dst_md_info.padded_dims;
     int max_dim_idx = -1;
@@ -53,6 +53,55 @@ std::pair<int, int> get_iter_dim_idx_size(
     return std::make_pair(iter_dim_idx, iter_dim_chunk);
 }
 
+bool gen9_concat_t::pd_t::can_use_sub_group_size(
+        const compute::compute_engine_t *compute_engine, int sub_group_size) {
+    auto is_dim_dense = [](const memory_desc_wrapper &mdw, int dim_idx) {
+        return mdw.blocking_desc().strides[dim_idx] == 1;
+    };
+    auto get_dim_block = [](const memory_desc_wrapper &mdw, int dim_idx) {
+        const auto &blk = mdw.blocking_desc();
+        if (blk.inner_nblks == 0
+                || blk.inner_idxs[blk.inner_nblks - 1] != dim_idx)
+            return static_cast<dnnl_dim_t>(1);
+        return blk.inner_blks[blk.inner_nblks - 1];
+    };
+
+    const concat_pd_t *pd = this;
+    const int c_idx = 1;
+    const memory_desc_wrapper dst_mdw(pd->dst_md());
+    const bool is_dst_blocked = dst_mdw.blocking_desc().inner_nblks > 0;
+    bool is_concat_axis_aligned = true;
+    bool layouts_compatible = is_dst_blocked
+            ? get_dim_block(dst_mdw, c_idx) % sub_group_size == 0
+            : is_dim_dense(dst_mdw, c_idx);
+    for (int i = 0; i < conf.n; ++i) {
+        const memory_desc_wrapper src_mdw(pd->src_md(i));
+        is_concat_axis_aligned = is_concat_axis_aligned
+                && src_mdw.md_->dims[conf.concat_axis] % sub_group_size == 0;
+        if (is_dst_blocked) {
+            layouts_compatible = layouts_compatible
+                    && get_dim_block(src_mdw, c_idx) % sub_group_size == 0;
+        } else {
+            layouts_compatible
+                    = layouts_compatible && is_dim_dense(src_mdw, c_idx);
+        }
+    }
+    return is_concat_axis_aligned && layouts_compatible
+            && compute_engine->mayiuse_sub_group(sub_group_size);
+}
+
+int gen9_concat_t::pd_t::calculate_sub_group_size(
+        const compute::compute_engine_t *compute_engine) {
+    // Subgroups are used only for concatenation over C dimension
+    if (conf.concat_axis != 1) return 1;
+    for (int sub_group_size : {16, 8}) {
+        if (can_use_sub_group_size(compute_engine, sub_group_size)) {
+            return sub_group_size;
+        }
+    }
+    return 1;
+}
+
 status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
     const concat_pd_t *pd = this;
 
@@ -69,53 +118,20 @@ status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
     conf.n = pd->n_inputs();
     conf.concat_axis = pd->concat_dim();
 
-    const int c_idx = 1;
-    auto is_dim_dense = [](const memory_desc_wrapper &mdw, int dim_idx) {
-        return mdw.blocking_desc().strides[dim_idx] == 1;
-    };
-    auto get_dim_block = [](const memory_desc_wrapper &mdw, int dim_idx) {
-        const auto &blk = mdw.blocking_desc();
-        if (blk.inner_nblks == 0
-                || blk.inner_idxs[blk.inner_nblks - 1] != dim_idx)
-            return static_cast<dnnl_dim_t>(1);
-        return blk.inner_blks[blk.inner_nblks - 1];
-    };
-
     int concat_axis_end = 0;
-    bool is_concat_axis_aligned = true;
-    const int desired_sub_group_size = 16;
-    const bool is_dst_blocked = dst_mdw.blocking_desc().inner_nblks > 0;
-    bool layouts_compatible = is_dst_blocked
-            ? get_dim_block(dst_mdw, c_idx) % desired_sub_group_size == 0
-            : is_dim_dense(dst_mdw, c_idx);
     for (int i = 0; i < conf.n; ++i) {
         const memory_desc_wrapper src_mdw(pd->src_md(i));
         concat_axis_end += src_mdw.md_->dims[conf.concat_axis];
         conf.offset[i] = concat_axis_end;
         conf.src_md_infos[i] = memory_desc_info_t::create(pd->src_md(i));
-        is_concat_axis_aligned = is_concat_axis_aligned
-                && src_mdw.md_->dims[conf.concat_axis] % desired_sub_group_size
-                        == 0;
-        if (is_dst_blocked) {
-            layouts_compatible = layouts_compatible
-                    && get_dim_block(src_mdw, c_idx) % desired_sub_group_size
-                            == 0;
-        } else {
-            layouts_compatible
-                    = layouts_compatible && is_dim_dense(src_mdw, c_idx);
-        }
     }
 
-    conf.sub_group_size = 1;
-    if (conf.concat_axis == c_idx && is_concat_axis_aligned
-            && layouts_compatible) {
-        conf.sub_group_size = desired_sub_group_size;
-    }
-    std::tie(conf.iter_dim_idx, conf.iter_dim_chunk) = get_iter_dim_idx_size(
-            conf, compute_engine->device_info()->hw_threads());
+    conf.sub_group_size = calculate_sub_group_size(compute_engine);
+    std::tie(conf.iter_dim_idx, conf.iter_dim_chunk)
+            = calculate_iter_dim_idx_chunk(
+                    compute_engine->device_info()->hw_threads());
 
-    // currently ref_concat works faster for such cases, but it's going to be improved
-    if (!is_dst_blocked
+    if (dst_mdw.blocking_desc().inner_nblks == 0
             && (conf.sub_group_size == 1
                     || (conf.ndims > 2 && conf.iter_dim_chunk == 1))) {
         return status::unimplemented;
