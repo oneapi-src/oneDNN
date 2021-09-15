@@ -26,6 +26,33 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+std::pair<int, int> get_iter_dim_idx_size(
+        const concat_conf_t &conf, int num_threads) {
+    if (conf.ndims == 1) return std::make_pair(0, 1);
+    const auto &dst_dims = conf.dst_md_info.padded_dims;
+    int max_dim_idx = -1;
+    int max_dim = -1;
+    for (int dim_idx = conf.ndims - 1; dim_idx >= 0; dim_idx--) {
+        if (dst_dims[dim_idx] > max_dim && dim_idx != conf.concat_axis) {
+            max_dim = dst_dims[dim_idx];
+            max_dim_idx = dim_idx;
+        }
+    }
+    const int iter_dim_idx = max_dim_idx;
+    const int all_elems = utils::array_product(dst_dims, conf.ndims);
+    const int max_iter_dim_chunk = 1024;
+    const int min_threads = num_threads * 4;
+    int iter_dim_chunk = std::min(dst_dims[iter_dim_idx], max_iter_dim_chunk);
+    const auto get_num_threads = [&]() {
+        return ceil(static_cast<float>(all_elems)
+                / (iter_dim_chunk * conf.sub_group_size));
+    };
+    while (get_num_threads() < min_threads && iter_dim_chunk > 1) {
+        iter_dim_chunk = ceil(iter_dim_chunk / 2.0f);
+    }
+    return std::make_pair(iter_dim_idx, iter_dim_chunk);
+}
+
 status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
     const concat_pd_t *pd = this;
 
@@ -80,20 +107,17 @@ status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
     }
 
     conf.sub_group_size = 1;
-    conf.iter_dim_idx = conf.ndims - 1;
     if (conf.concat_axis == c_idx && is_concat_axis_aligned
             && layouts_compatible) {
         conf.sub_group_size = desired_sub_group_size;
-        // we don't want to iterate over concat axis as it's going to be vectorized dim
-        if (conf.ndims == 2) conf.iter_dim_idx = 0;
     }
-    conf.iter_dim_chunk = conf.ndims > 2 ? 128 : 1;
-    while (dst_dims[conf.iter_dim_idx] % conf.iter_dim_chunk != 0)
-        conf.iter_dim_chunk /= 2;
+    std::tie(conf.iter_dim_idx, conf.iter_dim_chunk) = get_iter_dim_idx_size(
+            conf, compute_engine->device_info()->hw_threads());
 
     // currently ref_concat works faster for such cases, but it's going to be improved
-    if (conf.sub_group_size == 1
-            || (conf.ndims > 2 && conf.iter_dim_chunk == 1)) {
+    if (!is_dst_blocked
+            && (conf.sub_group_size == 1
+                    || (conf.ndims > 2 && conf.iter_dim_chunk == 1))) {
         return status::unimplemented;
     }
 
