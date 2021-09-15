@@ -624,6 +624,12 @@ public:
             orig_bia_md.data_type = data_type::f32;
         }
 
+        // XXX: disable f32 bwd_w due to hang
+        if (hw == ngen::HW::XeHP || hw == ngen::HW::XeHPG)
+            if (src_data_type == data_type::f32
+                    && dst_data_type == data_type::f32)
+                return status::unimplemented;
+
         return status::success;
     }
 
