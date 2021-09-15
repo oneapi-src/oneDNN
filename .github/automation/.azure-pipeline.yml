@@ -89,7 +89,29 @@ jobs:
       - script: |
           .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
-        failOnStderr: true 
+        failOnStderr: true
+  - job: 'OSX_11'
+    pool:
+      vmImage: 'macOS-11'
+    steps:
+      - script: |
+          .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
+        displayName: 'build'
+      - script: |
+          .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
+        displayName: 'test'
+        failOnStderr: true
+  - job: 'Windows_Server_2022'
+    pool:
+      vmImage: 'windows-2022'
+    steps:
+      - script: |
+          .github\automation\build.bat /THREADING omp /MODE Release /VSVERSION vs2022 /SOURCEDIR %CD% /BUILDDIR %CD%\build
+        displayName: 'build'
+      - script: |
+          .github\automation\test.bat /TESTKIND gtest /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
+        displayName: 'test'
+        failOnStderr: true
   - job: 'Windows_Server_2019'
     pool:
       vmImage: 'windows-2019'
