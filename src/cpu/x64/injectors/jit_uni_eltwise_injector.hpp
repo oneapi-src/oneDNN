@@ -151,7 +151,8 @@ private:
     };
 
     static constexpr bool has_avx512() {
-        return utils::one_of(isa, avx512_common, avx512_core);
+        return (isa & cpu_isa_bit_t::avx512_common_bit)
+                == cpu_isa_bit_t::avx512_common_bit;
     }
 
     static constexpr size_t vlen = injector_utils::vmm_size_t<Vmm>::bytes;
