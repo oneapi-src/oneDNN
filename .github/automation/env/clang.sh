@@ -18,6 +18,10 @@
 
 UBUNTU_DISTRO="$(cat /etc/lsb-release | grep CODENAME | sed 's/.*=//g')"
 
+sudo add-apt-repository ppa:nilarimogard/webupd8
+sudo apt-get update
+sudo apt-get install launchpad-getkeys
+
 sudo add-apt-repository "deb http://apt.llvm.org/${UBUNTU_DISTRO}/ llvm-toolchain-${UBUNTU_DISTRO}-9 main"
 sudo add-apt-repository "deb-src http://apt.llvm.org/${UBUNTU_DISTRO}/ llvm-toolchain-${UBUNTU_DISTRO}-9 main"
 sudo apt update && sudo apt install -y clang-9 lldb-9 lld-9 clang-format-9
