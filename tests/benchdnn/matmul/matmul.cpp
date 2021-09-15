@@ -227,7 +227,8 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(
-            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, FWD_D, res);
+            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->bia_dt, prb->cfg[DST].dt},
+            FWD_D, res);
     if (res->state == SKIPPED) return;
 
     check_sum_post_ops(prb->attr, res, prb->cfg[DST].dt);
@@ -294,10 +295,13 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         }
 
         const bool oscale_ok = prb->attr.oscale.policy == policy_t::COMMON;
-
         const bool zp_ok = prb->attr.zero_points.is_def();
+        const bool dims_ok = prb->ndims <= 3;
+        const bool batch_bcast_ok = IMPLICATION(
+                prb->ndims == 3, prb->src_dims()[0] == prb->weights_dims()[0]);
 
-        if (!post_ops_ok || !oscale_ok || !zp_ok) {
+        if (!post_ops_ok || !oscale_ok || !zp_ok || !dims_ok
+                || !batch_bcast_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }

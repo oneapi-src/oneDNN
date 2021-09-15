@@ -195,7 +195,15 @@ struct cudnn_matmul_impl_t {
             const memory_desc_wrapper dst_d) {
         const auto &dst_bd = dst_d.blocking_desc();
 
-        if (isbatched_) { batch_count_ = dst_d.dims()[0]; }
+        if (isbatched_) {
+            // Check that user didn't provide broadcast case. See pd_t::init()
+            // for details.
+            const auto src_batch = src_d.dims()[0];
+            const auto wei_batch = weights_d.dims()[0];
+            if (src_batch != wei_batch) return status::runtime_error;
+
+            batch_count_ = dst_d.dims()[0];
+        }
 
         const dim_t M = dst_d.dims()[isbatched_ + 1];
         const dim_t N = dst_d.dims()[isbatched_ + 0];
@@ -243,7 +251,7 @@ struct cudnn_matmul_impl_t {
             const memory_desc_wrapper dst_d, const memory_desc_wrapper bias_d) {
         // Matmul supports runtime paramters for dimensions and scales.
         // We need to initialize them in the execute function.
-        init_gemm_parameters(src_d, weights_d, dst_d);
+        CHECK(init_gemm_parameters(src_d, weights_d, dst_d));
 
         if (with_bias_ || reorder_required_ || with_eltwise_) {
             // Initialise cuDNN descriptors

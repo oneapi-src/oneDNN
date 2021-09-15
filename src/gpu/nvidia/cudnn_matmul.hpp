@@ -65,8 +65,20 @@ struct cudnn_matmul_t : public primitive_t {
                                             utils::one_of(bia_dt, f16, f32))
                                     && IMPLICATION(s8_case,
                                             utils::one_of(bia_dt, s8, f32))));
-
             if (!ok) return status::unimplemented;
+
+            // Check for uniform batch values across src and wei since
+            // cublasGemmStridedBatchedEx doesn't support broadcast semantic.
+            // It also doesn't support 2+D batch dimensions.
+            if (src_md()->ndims > 3) {
+                return status::unimplemented;
+            } else if (src_md()->ndims > 2) {
+                for (int i = 0; i < src_md()->ndims - 2; i++)
+                    ok = src_md()->dims[i] == weights_md()->dims[i]
+                            && src_md()->dims[i] == dst_md()->dims[i];
+                if (!ok) return status::unimplemented;
+            }
+
             return status::success;
         }
 
