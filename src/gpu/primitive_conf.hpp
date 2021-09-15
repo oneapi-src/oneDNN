@@ -685,8 +685,8 @@ struct reorder_conf_t {
 // Concat
 struct concat_conf_t {
     dim_t dst_extern_dim_size;
-    dim_t src_extern_dim_sizes[16];
-    dim_t offset[16];
+    dim_t src_extern_dim_sizes[30];
+    dim_t offset[30];
     dim_t inner_axis;
     int block;
     int n;
@@ -697,7 +697,7 @@ struct concat_conf_t {
     data_type_t src_type, dst_type;
     compute::dispatch_t dispatch;
     int ndims;
-    memory_desc_info_t src_md_infos[16];
+    memory_desc_info_t src_md_infos[30];
     memory_desc_info_t dst_md_info;
     int concat_axis;
     int sub_group_size;

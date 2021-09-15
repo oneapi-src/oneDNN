@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,69 +63,98 @@
 #if BLOCK != 1
 __attribute__((intel_reqd_sub_group_size(SIMD)))
 #endif
+// clang-format off
 __kernel void
 simple_concat(__global DATA_T *dst, __global const DATA_T *src0
 #if N_INPUTS > 1
-        ,
-        __global const DATA_T *src1
+        , __global const DATA_T *src1
 #endif
 #if N_INPUTS > 2
-        ,
-        __global const DATA_T *src2
+        , __global const DATA_T *src2
 #endif
 #if N_INPUTS > 3
-        ,
-        __global const DATA_T *src3
+        , __global const DATA_T *src3
 #endif
 #if N_INPUTS > 4
-        ,
-        __global const DATA_T *src4
+        , __global const DATA_T *src4
 #endif
 #if N_INPUTS > 5
-        ,
-        __global const DATA_T *src5
+        , __global const DATA_T *src5
 #endif
 #if N_INPUTS > 6
-        ,
-        __global const DATA_T *src6
+        , __global const DATA_T *src6
 #endif
 #if N_INPUTS > 7
-        ,
-        __global const DATA_T *src7
+        , __global const DATA_T *src7
 #endif
 #if N_INPUTS > 8
-        ,
-        __global const DATA_T *src8
+        , __global const DATA_T *src8
 #endif
 #if N_INPUTS > 9
-        ,
-        __global const DATA_T *src9
+        , __global const DATA_T *src9
 #endif
 #if N_INPUTS > 10
-        ,
-        __global const DATA_T *src10
+        , __global const DATA_T *src10
 #endif
 #if N_INPUTS > 11
-        ,
-        __global const DATA_T *src11
+        , __global const DATA_T *src11
 #endif
 #if N_INPUTS > 12
-        ,
-        __global const DATA_T *src12
+        , __global const DATA_T *src12
 #endif
 #if N_INPUTS > 13
-        ,
-        __global const DATA_T *src13
+        , __global const DATA_T *src13
 #endif
 #if N_INPUTS > 14
-        ,
-        __global const DATA_T *src14
+        , __global const DATA_T *src14
 #endif
 #if N_INPUTS > 15
-        ,
-        __global const DATA_T *src15
+        , __global const DATA_T *src15
+#endif
+#if N_INPUTS > 16
+        , __global const DATA_T *src16
+#endif
+#if N_INPUTS > 17
+        , __global const DATA_T *src17
+#endif
+#if N_INPUTS > 18
+        , __global const DATA_T *src18
+#endif
+#if N_INPUTS > 19
+        , __global const DATA_T *src19
+#endif
+#if N_INPUTS > 20
+        , __global const DATA_T *src20
+#endif
+#if N_INPUTS > 21
+        , __global const DATA_T *src21
+#endif
+#if N_INPUTS > 22
+        , __global const DATA_T *src22
+#endif
+#if N_INPUTS > 23
+        , __global const DATA_T *src23
+#endif
+#if N_INPUTS > 24
+        , __global const DATA_T *src24
+#endif
+#if N_INPUTS > 25
+        , __global const DATA_T *src25
+#endif
+#if N_INPUTS > 26
+        , __global const DATA_T *src26
+#endif
+#if N_INPUTS > 27
+        , __global const DATA_T *src27
+#endif
+#if N_INPUTS > 28
+        , __global const DATA_T *src28
+#endif
+#if N_INPUTS > 29
+        , __global const DATA_T *src29
 #endif
 ) {
+    // clang-format on
     DATA8_T A0, A1, A2, A3;
     DATA_T B;
     DATA2_T C;
@@ -179,6 +208,48 @@ simple_concat(__global DATA_T *dst, __global const DATA_T *src0
 #endif
 #if N_INPUTS > 15
     CHECK_AND_GET(15, 16)
+#endif
+#if N_INPUTS > 16
+    CHECK_AND_GET(16, 17)
+#endif
+#if N_INPUTS > 17
+    CHECK_AND_GET(17, 18)
+#endif
+#if N_INPUTS > 18
+    CHECK_AND_GET(18, 19)
+#endif
+#if N_INPUTS > 19
+    CHECK_AND_GET(19, 20)
+#endif
+#if N_INPUTS > 20
+    CHECK_AND_GET(20, 21)
+#endif
+#if N_INPUTS > 21
+    CHECK_AND_GET(21, 22)
+#endif
+#if N_INPUTS > 22
+    CHECK_AND_GET(22, 23)
+#endif
+#if N_INPUTS > 23
+    CHECK_AND_GET(23, 24)
+#endif
+#if N_INPUTS > 24
+    CHECK_AND_GET(24, 25)
+#endif
+#if N_INPUTS > 25
+    CHECK_AND_GET(25, 26)
+#endif
+#if N_INPUTS > 26
+    CHECK_AND_GET(26, 27)
+#endif
+#if N_INPUTS > 27
+    CHECK_AND_GET(27, 28)
+#endif
+#if N_INPUTS > 28
+    CHECK_AND_GET(28, 29)
+#endif
+#if N_INPUTS > 29
+    CHECK_AND_GET(29, 30)
 #endif
 
 #if BLOCK == 1
