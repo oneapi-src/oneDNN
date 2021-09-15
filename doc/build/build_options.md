@@ -9,7 +9,6 @@ oneDNN Graph supports the following build-time options.
 | DNNL_GRAPH_BUILD_EXAMPLES   | ON, **OFF**                         | Controls building the examples
 | DNNL_GRAPH_BUILD_TESTS      | ON, **OFF**                         | Controls building the tests
 | DNNL_GRAPH_VERBOSE          | **ON**, OFF                         | Enables verbose mode
-| DNNL_GRAPH_ENABLE_ASAN      | ON, **OFF**                         | Enables sanitizer check
 | DNNL_GRAPH_SUPPORT_CXX17    | ON, **OFF**                         | Enables features from c++ standard 17 (gcc/clang >= 5)
 | DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE | **ON**, OFF          | Enables compiled partition cache
 | DNNL_GRAPH_ENABLE_DUMP      | ON, **OFF**                         | Enables graphs and pattern file dump
