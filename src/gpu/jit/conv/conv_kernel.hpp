@@ -647,7 +647,14 @@ public:
             if (ngen_is_dw(src1_imm.getType())) {
                 ir_assert(mod.getExecSize() == 1);
                 auto tmp = ra_.alloc_sub<int64_t>();
-                emul(mod, tmp.q(0), src0.reg_data(), src1_imm);
+                if (ngen_is_w(src0.type())) {
+                    auto tmp_src1 = ra_.alloc_sub<int32_t>();
+                    emov(mod, tmp_src1.d(0), src0.reg_data());
+                    emul(mod, tmp.q(0), tmp_src1.d(0), src1_imm);
+                    ra_.safeRelease(tmp_src1);
+                } else {
+                    emul(mod, tmp.q(0), src0.reg_data(), src1_imm);
+                }
                 emov(mod, dst.reg_data(), tmp.reinterpret(0, dst.type()));
                 ra_.safeRelease(tmp);
                 return;
