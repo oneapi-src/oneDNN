@@ -1,7 +1,7 @@
 #! /bin/bash
 
 #===============================================================================
-# Copyright 2019-2020 Intel Corporation
+# Copyright 2019-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,9 +31,9 @@ jobs:
           .github/automation/clang-format.sh
         displayName: 'ClangFormat_Check'
         failOnStderr: true 
-  - job: 'Ubuntu16'
+  - job: 'Ubuntu20'
     pool:
-      vmImage: 'ubuntu-16.04'
+      vmImage: 'ubuntu-20.04'
     strategy:
       matrix: 
         clang:
@@ -89,7 +89,29 @@ jobs:
       - script: |
           .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
-        failOnStderr: true 
+        failOnStderr: true
+  - job: 'OSX_11'
+    pool:
+      vmImage: 'macOS-11'
+    steps:
+      - script: |
+          .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
+        displayName: 'build'
+      - script: |
+          .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
+        displayName: 'test'
+        failOnStderr: true
+  - job: 'Windows_Server_2022'
+    pool:
+      vmImage: 'windows-2022'
+    steps:
+      - script: |
+          .github\automation\build.bat /THREADING omp /MODE Release /VSVERSION vs2022 /SOURCEDIR %CD% /BUILDDIR %CD%\build
+        displayName: 'build'
+      - script: |
+          .github\automation\test.bat /TESTKIND gtest /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
+        displayName: 'test'
+        failOnStderr: true
   - job: 'Windows_Server_2019'
     pool:
       vmImage: 'windows-2019'
@@ -100,8 +122,8 @@ jobs:
       - script: |
          .github\automation\test.bat /TESTKIND gtest /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
         displayName: 'test'
-        failOnStderr: true 
-  - job: 'Windows_Server_2012'
+        failOnStderr: true
+  - job: 'Windows_Server_2016'
     pool:
       vmImage: 'vs2017-win2016'
     steps:
