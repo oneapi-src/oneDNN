@@ -354,7 +354,7 @@ gen9_conv_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
     (DATA_T)(intel_sub_group_shuffle(_block, _col))
 
 #define FMA1(a, b, c) fma((DATA_T)(a), (DATA_T)b, (DATA_T)c)
-#define HAS_PAD_W (PW > 0 || (OW - 1) * SW - PW + (KW - 1) * (1 + DW) >= IW)
+#define HAS_PAD_W (PW > 0 || OW * SW - PW + (KW - 1) * (1 + DW) >= IW)
 
 #define _BLOCK_READ8(ptr) \
     AS_DATA8_T(BLOCK_READ8((const __global BLOCK_DATA_T *)(ptr)))
