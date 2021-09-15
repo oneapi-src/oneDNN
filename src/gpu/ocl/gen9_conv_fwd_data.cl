@@ -77,9 +77,9 @@
 #define IS_3D (OD > 1)
 #define IS_1STCONV (IC == 3)
 
-#define HAS_PAD_D (PD > 0 || (OD - 1) * SD - PD + (KD - 1) * (1 + DD) >= ID)
-#define HAS_PAD_H (PH > 0 || (OH - 1) * SH - PH + (KH - 1) * (1 + DH) >= IH)
-#define HAS_PAD_W (PW > 0 || (OW - 1) * SW - PW + (KW - 1) * (1 + DW) >= IW)
+#define HAS_PAD_D (PD > 0 || OD * SD - PD + (KD - 1) * (1 + DD) >= ID)
+#define HAS_PAD_H (PH > 0 || OH * SH - PH + (KH - 1) * (1 + DH) >= IH)
+#define HAS_PAD_W (PW > 0 || OW * SW - PW + (KW - 1) * (1 + DW) >= IW)
 
 #define ENABLE_SRC_BUF (MB_BLOCK == 1 && KW >= 3)
 

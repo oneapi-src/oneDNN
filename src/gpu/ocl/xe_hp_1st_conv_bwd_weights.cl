@@ -91,7 +91,7 @@ xe_hp_1st_conv_bwd_weights(__global SRC_DATA_T *src,
     MAYBE_SKIP_NON_UNIFORM_WG();
 
 #if VER_8OW16C == 1
-#define HAS_PAD_W (PW > 0 || (OW - 1) * SW - PW + (KW - 1) * (1 + DW) >= IW)
+#define HAS_PAD_W (PW > 0 || OW * SW - PW + (KW - 1) * (1 + DW) >= IW)
     const int sglid = get_sub_group_local_id();
     const int glid_1 = get_global_id(1);
     const int lid_0 = get_local_id(0);

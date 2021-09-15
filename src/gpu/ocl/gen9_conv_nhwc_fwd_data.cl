@@ -46,9 +46,9 @@
 
 #define IS_3D (OD > 1)
 #define KDHW_SIZE (KD * KH * KW)
-#define HAS_PAD_D (PD > 0 || (OD - 1) * SD - PD + (KD - 1) * (1 + DD) >= ID)
-#define HAS_PAD_H (PH > 0 || (OH - 1) * SH - PH + (KH - 1) * (1 + DH) >= IH)
-#define HAS_PAD_W (PW > 0 || (OW - 1) * SW - PW + (KW - 1) * (1 + DW) >= IW)
+#define HAS_PAD_D (PD > 0 || OD * SD - PD + (KD - 1) * (1 + DD) >= ID)
+#define HAS_PAD_H (PH > 0 || OH * SH - PH + (KH - 1) * (1 + DH) >= IH)
+#define HAS_PAD_W (PW > 0 || OW * SW - PW + (KW - 1) * (1 + DW) >= IW)
 #define OC_PAD_BLOCK (OC % OC_BLOCK ? (OC / OC_BLOCK + 1) * OC_BLOCK : OC)
 
 #if DT_F32

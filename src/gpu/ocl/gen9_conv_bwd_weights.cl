@@ -278,7 +278,7 @@ gen9_conv_bwd_weights(__global SRC_DATA_T *src,
 
 #endif
 #if VER_8OW16C == 1
-#define HAS_PAD_W (PW > 0 || (OW - 1) * SW - PW + (KW - 1) * (1 + DW) >= IW)
+#define HAS_PAD_W (PW > 0 || OW * SW - PW + (KW - 1) * (1 + DW) >= IW)
     const int sglid = get_sub_group_local_id();
 #if IC == 3
     const int ksp = get_global_id(1) * 16 + sglid;
