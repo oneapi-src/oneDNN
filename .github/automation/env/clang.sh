@@ -18,9 +18,8 @@
 
 UBUNTU_DISTRO="$(cat /etc/lsb-release | grep CODENAME | sed 's/.*=//g')"
 
-sudo add-apt-repository ppa:nilarimogard/webupd8
-sudo apt-get update
-sudo apt-get install launchpad-getkeys
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421
+wget -q -O - https://apt.llvm.org/focal/dists/llvm-toolchain-focal-9/Release.gpg | sudo apt-key add -
 
 sudo add-apt-repository "deb http://apt.llvm.org/${UBUNTU_DISTRO}/ llvm-toolchain-${UBUNTU_DISTRO}-9 main"
 sudo add-apt-repository "deb-src http://apt.llvm.org/${UBUNTU_DISTRO}/ llvm-toolchain-${UBUNTU_DISTRO}-9 main"
