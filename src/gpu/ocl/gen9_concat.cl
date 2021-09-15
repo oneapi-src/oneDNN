@@ -158,7 +158,7 @@ __kernel void gen9_concat(__global DST_DATA_T *dst,
         dst[dst_off] = TO_DST(src_val);
 #endif // SUB_GROUP_SIZE > 1
     }
-    for (; dst_dims[ITER_DIM] < iter_dim_end; dst_dims[3]++) {
+    for (; dst_dims[ITER_DIM] < iter_dim_end; dst_dims[ITER_DIM]++) {
         const int dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1], dst_dims[2],
                 dst_dims[3], dst_dims[4], dst_dims[5]);
 #if SUB_GROUP_SIZE > 1
