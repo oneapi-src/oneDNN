@@ -1853,7 +1853,8 @@ static void prb_block_for_cache(tr::prb_t &prb) {
     static constexpr int num_elems_thr = 16;
     const bool cache_blocking_needed
             = ((prb.nodes[0].is % 64 == 0 && prb.nodes[0].n > num_elems_thr)
-                      || (prb.ndims > 1 && prb.nodes[1].n > num_elems_thr))
+                      || (prb.ndims > 1 && prb.nodes[1].is % num_elems_thr == 0
+                              && prb.nodes[1].n > num_elems_thr))
             && !prb.is_tail_present;
     if (!cache_blocking_needed) return;
 
