@@ -52,3 +52,14 @@
 # additional tests for gen9 concat kernel
 --reset
 --batch=option_set_gen9_gpu
+
+# multiple arguments tests
+--reset
+--axis=1
+--stag=ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab
+--dtag=ab
+512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128:512x128
+
+--stag=aBx16b:aBx16b:aBx16b:aBx16b:aBx16b:aBx16b:aBx16b:aBx16b:aBx16b:aBx16b:aBx16b:aBx16b
+--dtag=aBx16b
+10x32x16:10x1x16:10x64x16:10x9x16:10x11x16:10x128x16:10x7x16:10x32x16:10x32x16:10x32x16:10x32x16:10x32x16
