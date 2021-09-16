@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,6 +86,11 @@ TEST(pd_next_impl, TestEltwiseImpl) {
         ASSERT_NE(impl0, impl1);
         impl0 = impl1;
     }
+
+    // When the last implementation is reached all subsequent `next_impl()`
+    // calls should return `false`.
+    ASSERT_EQ(epd.next_impl(), false);
+    ASSERT_EQ(epd.next_impl(), false);
 }
 
 } // namespace dnnl
