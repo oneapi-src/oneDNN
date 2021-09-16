@@ -77,8 +77,9 @@ if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
     execute_process(COMMAND ${GNU_COMPILER} --version OUTPUT_VARIABLE host_compiler_ver ERROR_QUIET)
     string(REGEX REPLACE ".*g\\+\\+.* ([0-9]+\\.[0-9]+)\\.[0-9]+.*" "\\1" host_compiler_ver "${host_compiler_ver}")
 
-    string(SUBSTRING ${host_compiler_ver} 0 1 host_compiler_major_ver)
-    string(SUBSTRING ${host_compiler_ver} 2 1 host_compiler_minor_ver)
+    string(REPLACE "." ";" host_compiler_ver_list ${host_compiler_ver})
+    list(GET host_compiler_ver_list 0 host_compiler_major_ver)
+    list(GET host_compiler_ver_list 1 host_compiler_minor_ver)
 
     if((host_compiler_major_ver LESS 7) OR (host_compiler_major_ver EQUAL 7 AND host_compiler_minor_ver LESS 4))
         message(FATAL_ERROR "The minimum GNU host compiler version is 7.4")
