@@ -131,23 +131,23 @@ void ref_pp_kernel_t::operator()(float *dst, const float *bias, const int len,co
                 need_bias = false;
             } else if (post_op.is_quantization()) {
                 auto quant = post_op.quantization;
-                auto pcl = quant.crop_low_data->shifts_;
-                auto pch = quant.crop_high_data->shifts_;
-                auto pisc = quant.input_scale_data->scales_;
-                auto pish = quant.input_shift_data->shifts_;
-                auto posc = quant.output_scale_data->scales_;
-                auto posh = quant.output_shift_data->shifts_;
+                auto pcl = quant.data[quant.crop_low];
+                auto pch = quant.data[quant.crop_high];
+                auto pisc = quant.data[quant.inp_scale];
+                auto pish = quant.data[quant.inp_shift];
+                auto posc = quant.data[quant.output_scale];
+                auto posh = quant.data[quant.output_shift];
 
                 parallel_nd(oc_work, [&](const int oc) {
                     float b = need_bias ? bias[oc_start + oc] : 0;
                     float *d_ = dst + oc * oc_stride;
 
-                    int cl_idx = quant.crop_low_data->count_ == 1 ? 0 : oc_start + oc;
-                    int ch_idx = quant.crop_high_data->count_ == 1 ? 0 : oc_start + oc;
-                    int isc_idx = quant.input_scale_data->count_ == 1 ? 0 : oc_start + oc;
-                    int ish_idx = quant.input_shift_data->count_ == 1 ? 0 : oc_start + oc;
-                    int osc_idx = quant.output_scale_data->count_ == 1 ? 0 : oc_start + oc;
-                    int osh_idx = quant.output_shift_data->count_ == 1 ? 0 : oc_start + oc;
+                    int cl_idx = !quant.per_channel[quant.crop_low] ? 0 : oc_start + oc;
+                    int ch_idx = !quant.per_channel[quant.crop_high] ? 0 : oc_start + oc;
+                    int isc_idx = !quant.per_channel[quant.inp_scale] ? 0 : oc_start + oc;
+                    int ish_idx = !quant.per_channel[quant.inp_shift] ? 0 : oc_start + oc;
+                    int osc_idx = !quant.per_channel[quant.output_scale] ? 0 : oc_start + oc;
+                    int osh_idx = !quant.per_channel[quant.output_shift] ? 0 : oc_start + oc;
 
                     PRAGMA_OMP_SIMD()
                     for (int oS = 0; oS < len; ++oS) {

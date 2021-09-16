@@ -179,7 +179,7 @@ void jit_avx512_common_1x1_conv_kernel::apply_postops(
 
     depthwise_injector::dynamic_params_t ddp {zmm_d_weights.getIdx(), zmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
                                               reg_oc_off, vmm_idx_off};
-    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off};
+    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off, jcp.dst_dt};
 
     injector_utils::vmm_index_set_t vmm_idxs;
     if (jcp.with_binary) {
