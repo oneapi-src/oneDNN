@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,5 +30,15 @@
 namespace deconv {
 int doit(const conv::prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
+
+int transpose_data_wei(
+        const conv::prb_t *prb, const dnn_mem_t &wei, const dnn_mem_t &wei_tr);
+void compute_ref_fwd(
+        const conv::prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+void compute_ref_bwd_d(
+        const conv::prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+void compute_ref_bwd_w(
+        const conv::prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+
 } // namespace deconv
 #endif

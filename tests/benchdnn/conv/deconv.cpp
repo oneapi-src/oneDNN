@@ -40,18 +40,15 @@ inline static void swap(int64_t &a, int64_t &b) {
     b = temp;
 }
 
-inline int transpose_data_wei(
-        const prb_t *prb, dnn_mem_t &wei, dnn_mem_t &wei_tr) {
+int transpose_data_wei(
+        const prb_t *prb, const dnn_mem_t &wei, const dnn_mem_t &wei_tr) {
     dnnl::impl::parallel_nd(prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
             prb->kh, prb->kw,
             [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh,
                     int64_t kw) {
-                size_t idx = (((((size_t)g * prb->ic / prb->g + ic) * prb->oc
-                                               / prb->g
-                                       + oc) * prb->kd
-                                      + kd) * prb->kh
-                                     + kh)
-                                * prb->kw
+                int64_t ch_idx
+                        = (g * prb->ic / prb->g + ic) * prb->oc / prb->g + oc;
+                int64_t idx = ((ch_idx * prb->kd + kd) * prb->kh + kh) * prb->kw
                         + kw;
                 ((float *)wei_tr)[idx]
                         = ((float *)wei)[wei_off_f(prb, g, oc, ic, kd, kh, kw)];
@@ -159,6 +156,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&dpd, &cd, dnnl_attr, engine, nullptr);
 
+    if (!res) return OK;
+
     if (init_status == dnnl_unimplemented) {
         return res->state = UNIMPLEMENTED, OK;
     }
@@ -176,6 +175,34 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     SAFE(check_pd_w_and_wo_attr(res, prb->attr, cd), WARN);
 
+    return OK;
+}
+
+int init_prim_ref(
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref, const prb_t *prb) {
+    if (!(is_bench_mode(CORR) && is_gpu() && fast_ref_gpu)) return OK;
+
+    // Create a new copy of prb to avoid potentially corrupting the test by
+    // modifying prb in place.
+    // DIRECT algorithm is used to prevent fallback  to the slow benchdnn
+    // reference implementation.
+    auto cpu_attr = prb->attr;
+    update_cpu_ref_attrs(cpu_attr);
+    prb_t prb_cpu {*prb, prb->dir, conf_f32, tag::abx, tag::abx, tag::abx,
+            DIRECT, cpu_attr, prb->mb, prb->is_deconv};
+    dnnl_primitive_desc_t pd_ref_ {};
+    SAFE(init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, prb->dir,
+                 nullptr),
+            WARN);
+    auto pd_ref = make_benchdnn_dnnl_wrapper(pd_ref_);
+
+    dnnl_primitive_t prim_ref_ {};
+    if (pd_ref) {
+        DNN_SAFE(dnnl_primitive_create(&prim_ref_, pd_ref), WARN);
+        BENCHDNN_PRINT(
+                5, "%s\n", "benchdnn: use CPU primitive as the reference");
+    }
+    prim_ref.reset(prim_ref_);
     return OK;
 }
 
@@ -249,13 +276,6 @@ int doit(const prb_t *prb, res_t *res) {
     check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return OK;
 
-    prb_t p_tr((desc_t)*prb, prb->dir, prb->cfg, prb->stag, prb->wtag,
-            prb->dtag, prb->alg, prb->attr, prb->mb, true);
-    swap(p_tr.ic, p_tr.oc);
-    swap(p_tr.ih, p_tr.oh);
-    swap(p_tr.id, p_tr.od);
-    swap(p_tr.iw, p_tr.ow);
-
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
@@ -290,7 +310,12 @@ int doit(const prb_t *prb, res_t *res) {
     const auto src_tag = tag::abx;
     const auto wei_tag = tag::abx;
 
+    // Use CPU prim as the reference in GPU testing to reduce testing time.
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim_ref;
+    SAFE(init_prim_ref(prim_ref, prb), WARN);
+
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = prim_ref ? get_cpu_engine() : get_test_engine();
 
     dnn_mem_t src_dt(src_md, test_engine);
     dnn_mem_t wei_dt(wei_md, test_engine);
@@ -299,15 +324,16 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
-    SAFE(binary::setup_binary_po(
-                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+    SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
+                 binary_po_fp, ref_engine),
             WARN);
 
-    dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
-    dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
-    dnn_mem_t dst_fp(dst_md, fp, src_tag, test_engine);
-    dnn_mem_t wei_tr_fp(wei_tr_md, fp, wei_tag, test_engine);
-    dnn_mem_t bia_fp(bia_md, fp, tag::x, test_engine);
+    dnn_mem_t src_fp(src_md, fp, src_tag, ref_engine);
+    dnn_mem_t wei_fp(wei_md, fp, wei_tag, ref_engine);
+    dnn_mem_t dst_fp(dst_md, fp, src_tag, ref_engine);
+    dnn_mem_t wei_tr_fp(wei_tr_md, fp, wei_tag, ref_engine);
+    dnn_mem_t bia_fp(bia_md, fp, tag::x, ref_engine);
+    dnn_mem_t scratchpad_fp(scratchpad_md, ref_engine);
     dnn_mem_t src_zero_points_m;
     dnn_mem_t dst_zero_points_m;
 
@@ -321,6 +347,14 @@ int doit(const prb_t *prb, res_t *res) {
     if (need_bia_init(prb)) SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
 
     args_t args, ref_args;
+
+    // Update prb descriptor to re-use convolution reference.
+    prb_t p_tr((desc_t)*prb, prb->dir, prb->cfg, prb->stag, prb->wtag,
+            prb->dtag, prb->alg, prb->attr, prb->mb, true);
+    swap(p_tr.ic, p_tr.oc);
+    swap(p_tr.ih, p_tr.oh);
+    swap(p_tr.id, p_tr.od);
+    swap(p_tr.iw, p_tr.ow);
 
     if (prb->dir & FLAG_FWD) {
         maybe_prepare_runtime_zero_points(src_zero_points_m, prb->attr,
@@ -340,13 +374,15 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_DIFF_SRC, dst_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS, wei_tr_fp);
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_BIAS, bia_fp);
-            ref_args.set(DNNL_ARG_DIFF_DST, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
+            ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
             ref_args.set(binary_po_args, binary_po_fp);
 
-            compute_ref_bwd_d(&p_tr, nullptr, ref_args);
+            deconv::compute_ref_fwd(&p_tr, prim_ref, ref_args);
             dnn_mem_t dst(dst_dt, fp, src_tag, test_engine);
             SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
         }
@@ -359,11 +395,13 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_SRC, dst_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS, wei_tr_fp);
-            ref_args.set(DNNL_ARG_DST, src_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
+            ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            compute_ref_fwd(&p_tr, nullptr, ref_args);
+            deconv::compute_ref_bwd_d(&p_tr, prim_ref, ref_args);
             dnn_mem_t src(src_dt, fp, src_tag, test_engine);
             SAFE(compare_src(prb, src, src_fp, res, true), WARN);
         }
@@ -377,20 +415,17 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_SRC, dst_fp);
-            ref_args.set(DNNL_ARG_DIFF_DST, src_fp);
-            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp);
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_tr_fp); // Hack. See ref.
+            ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_fp);
+            ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
+            ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            compute_ref_bwd_weights(&p_tr, ref_args);
-            transpose_data_wei(&p_tr, wei_tr_fp, wei_fp);
+            deconv::compute_ref_bwd_w(&p_tr, prim_ref, ref_args);
             dnn_mem_t wei(wei_dt, fp, wei_tag, test_engine);
             SAFE(compare_wei(&p_tr, wei, wei_fp, res, true), WARN);
             if (prb->dir & FLAG_BIA) {
-                ref_args.clear();
-                ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
-                ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
-                compute_ref_bwd_bias(prb, ref_args);
-
                 dnn_mem_t bia(bia_dt, fp, tag::x, test_engine);
                 SAFE(compare_bia(prb, bia, bia_fp, res, true), WARN);
             }
