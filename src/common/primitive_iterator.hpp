@@ -61,6 +61,10 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
     }
 
     dnnl::impl::primitive_desc_iterator_t &operator++() {
+        // Quick return to preserve state of the iterator that reached the end.
+        // The state is equal to the state of the iterator that end() returns.
+        if (idx_ == last_idx_) return *this;
+
         offset_++;
         pd_.reset();
 
