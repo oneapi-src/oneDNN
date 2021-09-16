@@ -4,7 +4,7 @@ oneAPI Deep Neural Network Library (oneDNN)
 oneAPI Deep Neural Network Library (oneDNN) is an
 open-source performance library for deep learning applications. The library
 includes basic building blocks for neural networks optimized
-for Intel Architecture Processors, Intel Processor Graphics, and 
+for Intel(R) Architecture Processors, Intel Processor Graphics, and 
 Xe Architecture graphics.
 
 This package contains oneDNN v@PROJECT_VERSION@ (@DNNL_VERSION_HASH@).
@@ -27,11 +27,11 @@ System Requirements
 oneDNN supports systems based on Intel 64 or AMD64 architectures.
 
 The library is optimized for the following CPUs:
-* Intel Atom processor with Intel SSE4.1 support
-* 4th, 5th, 6th, 7th, and 8th generation Intel(R) Core(TM) processor
-* Intel(R) Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
+* Intel Atom processors (at least Intel SSE4.1 support is required)
+* Intel Core(TM) processors (at least Intel SSE4.1 support is required)
+* Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
-* Intel(R) Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
+* Intel Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
 * Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, and Cooper
   Lake)
 * future Intel Xeon Scalable processor (code name Sapphire Rapids)
@@ -44,10 +44,9 @@ them. See CPU dispatcher control (https://oneapi-src.github.io/oneDNN/dev_guide_
 for more details.
 
 The library is optimized for the following GPUs:
-* Intel HD Graphics
-* Intel UHD Graphics
-* Intel Iris Plus Graphics
-* Xe Architecture graphics (code named DG1 and Tiger Lake)
+* Intel Processor Graphics based on Gen9, Gen9.5 and Gen11, and Gen12 architectures
+* Intel Iris(R) Xe graphics (formerly DG1)
+* future Intel Arc(TM) graphics (code name Alchemist and DG2)
 
 ## Linux
 

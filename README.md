@@ -10,10 +10,10 @@ oneAPI Deep Neural Network Library (oneDNN)
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
 oneDNN is part of [oneAPI](https://oneapi.io).
-The library is optimized for Intel Architecture Processors, Intel Processor
+The library is optimized for Intel(R) Architecture Processors, Intel Processor
 Graphics and Xe Architecture graphics. oneDNN has experimental support
 for the following architectures: Arm\* 64-bit Architecture (AArch64),
-NVIDIA\* GPU, OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x). 
+NVIDIA\* GPU, OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x), and RISC-V.
 
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance
@@ -70,11 +70,11 @@ oneDNN supports platforms based on the following architectures:
 > is **experimental** with limited testing validation.
 
 The library is optimized for the following CPUs:
-* Intel Atom processor with Intel SSE4.1 support
-* 4th, 5th, 6th, 7th, and 8th generation Intel(R) Core(TM) processor
-* Intel(R) Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
+* Intel Atom(R) processors (at least Intel SSE4.1 support is required)
+* Intel Core(TM) processors (at least Intel SSE4.1 support is required)
+* Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
-* Intel(R) Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
+* Intel Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
 * Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, and Cooper
   Lake)
 * future Intel Xeon Scalable processor (code name Sapphire Rapids)
@@ -101,9 +101,10 @@ compatible with Compute Library versions 21.08 or later.
 > [linking guide](https://oneapi-src.github.io/oneDNN/dev_guide_link.html)
 > for more details.
 
-The library is optimized for the following GPU architectures:
-* Intel Processor Graphics Gen9, Gen9.5 and Gen11 architectures
-* Xe architecture
+The library is optimized for the following GPUs:
+* Intel Processor Graphics based on Gen9, Gen9.5 and Gen11, and Gen12 architectures
+* Intel Iris(R) Xe graphics (formerly DG1)
+* future Intel Arc(TM) graphics (code name Alchemist and DG2)
 
 ## Requirements for Building from Source
 

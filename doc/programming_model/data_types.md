@@ -131,16 +131,18 @@ types that oneDNN recognizes.
   zero.
 
 ### Intel(R) Processor Graphics and Xe Architecture graphics
+oneDNN performance optimizations for Intel Processor graphics and
+Xe Architecture graphics are specialized based on device microarchitecture (uArch).
+The following uArchs have specialized optimizations in the library:
+* GEN9 (also covers GEN11)
+* Xe-LP (previoulsy known as GEN12LP)
+* Xe-HP
 
-Intel Processor Graphics provides hardware acceleration for fp32 and fp16
-arithmetic. Xe Architecture graphics additionally provides
-acceleration for int8 arithmetic (both signed and unsigned). Implementations
-for the bf16 data type are functional only and do not currently provide
-performance benefits.
-
-| Data type | Support level
+The following table indicates the minimal supported uArch for each of the data
+types that oneDNN recognizes.
+| Data type | Minimal supported uArch
 | :---      | :---
-| f32       | optimized
-| bf16      | functional only
-| f16       | optimized
-| s8, u8    | optimized for Xe Architecture graphics (code named DG1 and Tiger Lake)
+| f32       | GEN9
+| s8, u8    | Xe-LP
+| bf16      | Xe-HP
+| f16       | GEN9
