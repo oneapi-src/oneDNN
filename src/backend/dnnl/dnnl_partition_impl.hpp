@@ -348,7 +348,7 @@ public:
                 op_kind::x8s8f32_quant_wei_matmul_bias_sigmoid,
                 op_kind::x8s8f32_quant_wei_matmul_gelu,
                 op_kind::x8s8f32_quant_wei_matmul_bias_gelu,
-                op_kind::x8x8f32_matmul_div,
+                op_kind::x8x8float_matmul_div,
                 // f32 conv pattern
                 impl::op_kind::Convolution, op_kind::conv_relu,
                 op_kind::conv_add, op_kind::conv_add_relu,

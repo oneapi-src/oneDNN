@@ -83,6 +83,18 @@ void conv_bwd_data_canonicalization(
 
 void fuse_mul_sigmoid_to_swish(std::vector<std::shared_ptr<op_t>> &subgraph);
 
+/// translate mixed int8/bf16 matmul subgraph to x8x8bf16 subgraph
+///
+///     | (u8/s8)  | (u8/s8)               | (u8/s8)  | (u8/s8)
+///  dequant    dequant                 dequant    dequant
+///     | (f32)    | (f32)                 | (f32)    | (f32)
+///  typecast  typecast         -->         \        /
+/// (bf16) \     / (bf16)                     matmul
+///        matmul                               | (bf16)
+///          | (bf16)
+///
+void fuse_typecast_to_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

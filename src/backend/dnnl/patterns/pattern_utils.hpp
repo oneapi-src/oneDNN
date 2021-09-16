@@ -178,7 +178,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
     //if a op have been visited
     std::unordered_set<hashtype> visited;
     std::set<std::string> excepted {
-            "num_inputs", "s8_check", "broadcast_check"};
+            "num_inputs", "s8_check", "broadcast_check", "out_bf16_check"};
     bool pattern_is_graph = graph_op == pattern_op;
     hashtype pattern_starter_hash = hash_func(pattern_op);
     pattern_queue.push_back(std::make_pair(pattern_op,
@@ -215,6 +215,15 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
                 logical_tensor_t inport
                         = nfront->get_input_value(i)->get_logical_tensor();
                 if (inport.data_type != impl::data_type::s8) return false;
+            }
+        }
+
+        if (!pattern_is_graph && pfront.first->has_attr("out_bf16_check")
+                && pfront.first->get_attr<bool>("out_bf16_check") == true) {
+            for (size_t i = 0; i < out_degree(nfront); ++i) {
+                logical_tensor_t outport
+                        = nfront->get_output_value(i)->get_logical_tensor();
+                if (outport.data_type != impl::data_type::bf16) return false;
             }
         }
 

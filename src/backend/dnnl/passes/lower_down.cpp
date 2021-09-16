@@ -1148,6 +1148,67 @@ void fuse_mul_sigmoid_to_swish(std::vector<op_ptr> &subgraph) {
     }
 }
 
+void fuse_typecast_to_matmul(std::vector<op_ptr> &subgraph) {
+    std::vector<std::vector<op_t *>> fusion_groups;
+    for (const auto &cur_op : subgraph) {
+        // currently, only support bmm
+        if (cur_op->get_kind() != impl::op_kind::MatMul
+                || cur_op->num_inputs() != 2)
+            continue;
+        auto &in0 = cur_op->get_input_value(0)->get_producer();
+        auto &in1 = cur_op->get_input_value(1)->get_producer();
+        if (in0.get_kind() == impl::op_kind::TypeCast
+                && in1.get_kind() == impl::op_kind::TypeCast
+                && cur_op->get_input_value(0)->get_logical_tensor().data_type
+                        == impl::data_type::bf16
+                && cur_op->get_input_value(1)->get_logical_tensor().data_type
+                        == impl::data_type::bf16
+                && in0.get_input_value(0)->has_producer()
+                && in1.get_input_value(0)->has_producer()
+                && in0.get_input_value(0)->get_producer().get_kind()
+                        == impl::op_kind::Dequantize
+                && in1.get_input_value(0)->get_producer().get_kind()
+                        == impl::op_kind::Dequantize)
+            fusion_groups.emplace_back(
+                    std::vector<op_t *> {cur_op.get(), &in0, &in1});
+    }
+
+    if (fusion_groups.empty()) return;
+
+    for (auto &fusion_group : fusion_groups) {
+        op_t *matmul_op = fusion_group[0];
+        op_t *in0 = fusion_group[1];
+        op_t *in1 = fusion_group[2];
+
+        op_ptr q_matmul_op = std::make_shared<op_t>(impl::op_kind::MatMul);
+        q_matmul_op->merge_attributes(matmul_op->get_attributes());
+
+        // update the connection relationship between matmul and typecast ops
+        auto in0_value = in0->get_input_value(0);
+        auto in1_value = in1->get_input_value(0);
+        q_matmul_op->connect_input(0, in0_value);
+        q_matmul_op->connect_input(1, in1_value);
+        in0_value->remove_consumer(*in0, 0);
+        in1_value->remove_consumer(*in1, 0);
+
+        auto out_val = matmul_op->get_output_value(0);
+        q_matmul_op->add_output(out_val);
+        out_val->set_producer(*q_matmul_op);
+        out_val->set_data_type(impl::data_type::bf16);
+
+        // delete original matmul and typecast ops
+        for (auto &del_op : fusion_group) {
+            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                    [del_op](const op_ptr &f_op) {
+                        return del_op == f_op.get();
+                    });
+            if (pos != subgraph.end()) subgraph.erase(pos);
+        }
+
+        subgraph.emplace_back(q_matmul_op);
+    }
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

@@ -258,7 +258,7 @@ public:
                         dnnl_conv_bwd_data, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(dnnl_swish, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        x8x8f32_matmul_div, 1)>());
+                        x8x8float_matmul_div, 1)>());
     }
 };
 

@@ -92,7 +92,7 @@ public:
         g_alloc_ = g_engine->get_allocator();
 
         std::vector<std::shared_ptr<op_t>> subgraph = part->get_ops();
-
+        if (quantized) { fuse_typecast_to_matmul(subgraph); }
         set_all_layout_to_any(subgraph);
 
         // have to set the given inputs and outputs before infer shape and
