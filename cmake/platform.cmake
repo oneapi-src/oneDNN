@@ -78,7 +78,7 @@ macro(platform_gnu_nowarn_ccxx_flags var gnu_version)
     # assume 0.0 is unknown version - always suppress the warning
     if(${gnu_version} VERSION_EQUAL 0.0 OR
         (${gnu_version} VERSION_GREATER 10.0 AND ${gnu_version} VERSION_LESS 11.0))
-        append(CMAKE_CCXX_FLAGS "-Wno-stringop-overflow")
+        append(${var} "-Wno-stringop-overflow")
     endif()
 endmacro()
 
