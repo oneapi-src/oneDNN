@@ -351,6 +351,8 @@ void compute_ref_bwd_d(
 void compute_ref_bwd_w(
         const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
 
+void compute_ref_direct_fwd(const prb_t *prb, const args_t &args);
+void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args);
 void compute_ref_bwd_weights(const prb_t *prb, const args_t &args);
 void compute_ref_bwd_bias(const prb_t *prb, const args_t &args);
 void compute_wino_ref_fwd(const prb_t *prb, const args_t &args);
