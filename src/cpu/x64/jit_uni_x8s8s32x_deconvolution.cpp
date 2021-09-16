@@ -1519,8 +1519,9 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_1d(
             p.oc_l_off = g_oc;
             p.zp_compensation
                     = jcp.src_zero_point ? zp_compensation + g_oc : nullptr;
-            p.zp_src_pad_str_compensation
-                    = jcp.src_zero_point ? zp_src_comp_scratch + g_oc : nullptr;
+            p.zp_src_pad_str_compensation = zp_src_comp_scratch
+                    ? zp_src_comp_scratch + g_oc
+                    : nullptr;
             p.src_zero_point = zp_src;
             p.dst_zero_point = zp_dst;
 
