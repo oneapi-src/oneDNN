@@ -1032,7 +1032,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
                     vmm_idx_off.insert({reg_dst_f32.getIdx(), (ll * vlen_size_elem + jj * vlen_size_elem) * sizeof(float)});
                     depthwise_injector::dynamic_params_t ddp {vmm_d_weights.getIdx(), vmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
                                                               reg_oc_off, vmm_idx_off};
-                    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off};
+                    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off, jpp.dst_dt};
 
                     injector_utils::vmm_index_set_t vmm_idxs;
                     vmm_idxs.emplace(reg_dst_f32.getIdx());

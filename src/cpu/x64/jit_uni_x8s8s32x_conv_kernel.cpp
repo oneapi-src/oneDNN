@@ -185,7 +185,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(
                 });
         depthwise_injector::dynamic_params_t ddp {vmm_d_weights.getIdx(), vmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
                                                   ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
-        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
+        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt};
 
         if (jcp.with_sum && *p_sum_zp != 0) push(reg_ptr_sum_zp);
         apply_sum(nb_oc_block, ur_w, last_oc_block_flag, oc_block, p_sum_scale,

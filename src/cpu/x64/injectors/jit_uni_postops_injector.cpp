@@ -246,6 +246,28 @@ void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
 
             depthwise_inj_idx++;
         } else if (post_op.is_quantization()) {
+            std::vector<std::pair<int, std::set<size_t>>> vecOfVmmIdxsSets;
+
+            std::multimap<int, size_t> offsetVmmIdxMap;
+            for (auto vmm_idx : vmm_idxs) {
+                offsetVmmIdxMap.insert({qdp.vmm_idx_off.at(vmm_idx), vmm_idx});
+            }
+
+            auto externalIt = offsetVmmIdxMap.begin();
+            while (externalIt != offsetVmmIdxMap.end()) {
+                auto internalIt = externalIt;
+                auto endInternalIt = offsetVmmIdxMap.upper_bound(externalIt->first);
+
+                std::set<size_t> vmmIndexesToProcess;
+                while (internalIt != endInternalIt) {
+                    vmmIndexesToProcess.insert(internalIt->second);
+                    internalIt++;
+                }
+                vecOfVmmIdxsSets.push_back({externalIt->first, vmmIndexesToProcess});
+
+                externalIt = endInternalIt;
+            }
+
             bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
             bool do_rounding = do_dequantization || qdp.dst_dt == dnnl_f32 || i != post_ops_.len() - 1;
 
@@ -253,25 +275,28 @@ void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
                 quantization_injectors[quantization_inj_idx]->init_crop_ptrs(qdp.reg_oc_off_addr);
             else
                 quantization_injectors[quantization_inj_idx]->init_crop_ptrs(qdp.reg_oc_off);
-            for (auto vmm_idx : vmm_idxs) {
-                quantization_injectors[quantization_inj_idx]->compute_crop(vmm_idx, vmm_idx + 1, qdp.vmm_idx_off.at(vmm_idx), false, is_broadcast);
+
+            for (auto &IdxSetPair : vecOfVmmIdxsSets) {
+                quantization_injectors[quantization_inj_idx]->compute_crop(IdxSetPair.second, IdxSetPair.first, false, is_broadcast);
             }
 
             if (qdp.useAddr)
                 quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(qdp.reg_oc_off_addr);
             else
                 quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(qdp.reg_oc_off);
-            for (auto vmm_idx : vmm_idxs) {
-                quantization_injectors[quantization_inj_idx]->compute_input_scale_shift(vmm_idx, vmm_idx + 1, qdp.vmm_idx_off.at(vmm_idx), do_rounding,
-                        false, is_broadcast);
+
+            for (auto &IdxSetPair : vecOfVmmIdxsSets) {
+                quantization_injectors[quantization_inj_idx]->compute_input_scale_shift(IdxSetPair.second, IdxSetPair.first, do_rounding,
+                                                                                        false, is_broadcast);
             }
 
             if (qdp.useAddr)
                 quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(qdp.reg_oc_off_addr);
             else
                 quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(qdp.reg_oc_off);
-            for (auto vmm_idx : vmm_idxs) {
-                quantization_injectors[quantization_inj_idx]->compute_output_scale_shift(vmm_idx, vmm_idx + 1, qdp.vmm_idx_off.at(vmm_idx), false, is_broadcast);
+
+            for (auto &IdxSetPair : vecOfVmmIdxsSets) {
+                quantization_injectors[quantization_inj_idx]->compute_output_scale_shift(IdxSetPair.second, IdxSetPair.first, false, is_broadcast);
             }
 
             quantization_inj_idx++;

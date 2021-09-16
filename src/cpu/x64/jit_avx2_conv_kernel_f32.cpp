@@ -214,7 +214,7 @@ void jit_avx2_conv_fwd_kernel_f32::apply_postops(
         });
         depthwise_injector::dynamic_params_t ddp {ymm_d_weights.getIdx(), ymm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
                                                   ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
-        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
+        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt};
 
         injector_utils::vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {

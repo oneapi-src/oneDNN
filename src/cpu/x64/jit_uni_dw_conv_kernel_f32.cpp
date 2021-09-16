@@ -288,7 +288,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
 
         depthwise_injector::dynamic_params_t ddp {vmm_d_weights.getIdx(), vmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
                                                   aux_reg_blocks_offset, vmm_idx_off};
-        quantization_injector::dynamic_params_t qdp {aux_reg_blocks_offset, vmm_idx_off};
+        quantization_injector::dynamic_params_t qdp {aux_reg_blocks_offset, vmm_idx_off, jcp.dst_dt};
 
         injector_utils::vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {

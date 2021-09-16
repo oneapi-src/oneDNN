@@ -23,6 +23,7 @@
 #include "common/primitive_attr.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include <set>
 
 #include "cpu/x64/jit_generator.hpp"
 
@@ -45,13 +46,16 @@ struct static_params_t {
 };
 
 struct dynamic_params_t {
-    dynamic_params_t(Xbyak::Reg64 reg_oc_off = Xbyak::Reg64(0), const std::map<size_t, int>& vmm_idx_off = {}, data_type_t dst_dt = dnnl_f32) :
-            reg_oc_off(reg_oc_off), reg_oc_off_addr(0), vmm_idx_off(vmm_idx_off), dst_dt(dnnl_f32), useAddr(false) {
-
+    dynamic_params_t() :
+            reg_oc_off(Xbyak::Reg64(0)), reg_oc_off_addr(0), vmm_idx_off({}), dst_dt(dnnl_f32), useAddr(false) {
     }
 
-    dynamic_params_t(Xbyak::Address reg_oc_off, const std::map<size_t, int>& vmm_idx_off, data_type_t dst_dt = dnnl_f32) :
-            reg_oc_off(0), reg_oc_off_addr(reg_oc_off), vmm_idx_off(vmm_idx_off), dst_dt(dnnl_f32), useAddr(true) {
+    dynamic_params_t(Xbyak::Reg64 reg_oc_off, const std::map<size_t, int>& vmm_idx_off, data_type_t dst_dt) :
+            reg_oc_off(reg_oc_off), reg_oc_off_addr(0), vmm_idx_off(vmm_idx_off), dst_dt(dst_dt), useAddr(false) {
+    }
+
+    dynamic_params_t(Xbyak::Address reg_oc_off, const std::map<size_t, int>& vmm_idx_off, data_type_t dst_dt) :
+            reg_oc_off(0), reg_oc_off_addr(reg_oc_off), vmm_idx_off(vmm_idx_off), dst_dt(dst_dt), useAddr(true) {
     }
 
     Xbyak::Reg64 reg_oc_off;
@@ -84,6 +88,10 @@ struct jit_uni_quantization_injector_f32 {
     void compute_crop(int start_idx, int end_idx, int offset, bool is_scalar = false, bool is_broadcast = false);
     void compute_input_scale_shift(int start_idx, int end_idx, int offset, bool do_rounding, bool is_scalar = false, bool is_broadcast = false);
     void compute_output_scale_shift(int start_idx, int end_idx, int offset, bool is_scalar = false, bool is_broadcast = false);
+
+    void compute_crop(const std::set<size_t>& vmmIdxs, int offset, bool is_scalar, bool is_broadcast);
+    void compute_input_scale_shift(const std::set<size_t>& vmmIdxs, int offset, bool do_rounding, bool is_scalar = false, bool is_broadcast = false);
+    void compute_output_scale_shift(const std::set<size_t>& vmmIdxs, int offset, bool is_scalar = false, bool is_broadcast = false);
 
 private:
     jit_generator* h;
