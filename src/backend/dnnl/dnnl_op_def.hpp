@@ -2277,7 +2277,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_add, 1,
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
-DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_add, 1,
+DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_add, 1,
         op_schema()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
@@ -2286,7 +2286,8 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_add, 1,
                 .set_input(1, "filter", "filter tensor", impl::data_type::s8)
                 .set_input(2, "other", "add src1 tensor",
                         {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_output(0, "output", "output tensor",
+                        {impl::data_type::f32, impl::data_type::bf16})
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2327,7 +2328,7 @@ DNNL_GRAPH_OP_SCHEMA(x8x8float_matmul_div, 1,
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
-DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_add, 1,
+DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_bias_add, 1,
         op_schema()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
@@ -2337,7 +2338,8 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_add, 1,
                 .set_input(2, "bias", "bias tensor", impl::data_type::f32)
                 .set_input(3, "other", "add src1 tensor",
                         {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_output(0, "output", "output tensor",
+                        {impl::data_type::f32, impl::data_type::bf16})
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")

@@ -6813,7 +6813,7 @@ TEST(pass_test, x8s8f32_matmul_bias_add_fusion) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8s8f32_matmul_bias_add);
+            dnnl_impl::op_kind::x8s8float_matmul_bias_add);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);

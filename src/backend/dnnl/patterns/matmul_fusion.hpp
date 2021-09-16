@@ -1685,7 +1685,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_add_fusion)
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::x8s8f32_matmul_add);
+                            op_kind::x8s8float_matmul_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
@@ -1762,7 +1762,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_bias_add_fusion)
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::x8s8f32_matmul_bias_add);
+                            op_kind::x8s8float_matmul_bias_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 

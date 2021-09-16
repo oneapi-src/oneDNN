@@ -164,9 +164,9 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         int8_quant_wei_matmul_bias_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        x8s8f32_matmul_add, 1)>());
+                        x8s8float_matmul_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        x8s8f32_matmul_bias_add, 1)>());
+                        x8s8float_matmul_bias_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(mul_scales, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(add_zps, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(permute, 1)>());
