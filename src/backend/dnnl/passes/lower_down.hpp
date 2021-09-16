@@ -95,6 +95,18 @@ void fuse_mul_sigmoid_to_swish(std::vector<std::shared_ptr<op_t>> &subgraph);
 ///
 void fuse_typecast_to_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 
+/// translate mixed int8/bf16 matmul+add subgraph to x8x8bf16 subgraph
+///
+///     | (u8/s8)  | (u8/s8)               | (u8/s8)          | (u8/s8)
+///  dequant    dequant    | (u8/s8)            dequant    dequant    | (u8/s8)
+/// (f32) \     / (f32) dequant                (f32) \     / (f32) dequant
+///        matmul      / (fp32)                       matmul      / (fp32)
+///           \     typecast                            \ (fp32) /
+///     (bf16) \   / (bf16)                                 add
+///             add                                          | (bf16)
+///              | (bf16)
+void fuse_typecast_to_add(std::vector<std::shared_ptr<op_t>> &subgraph);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
