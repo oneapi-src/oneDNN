@@ -225,10 +225,14 @@ int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp) {
 
     int oc_block = get_oc_block(jbgp, true);
     if (ip_fwd_adjust_thread_balance(jbgp)) {
-        return (oc_block > 16) ? oc_block / 2 : oc_block;
-    } else {
-        return oc_block;
+        oc_block = (oc_block > 16) ? oc_block / 2 : oc_block;
     }
+
+    constexpr int amx_bf16_half_row = 32;
+    // ensure that oc_tail <= amx_bf16_half_row (requirement for brgemm kernel)
+    while (jbgp.oc % oc_block > amx_bf16_half_row)
+        oc_block /= 2;
+    return oc_block;
 }
 
 format_tag_t get_brgemm_ip_weights_tag(cpu_isa_t isa,
