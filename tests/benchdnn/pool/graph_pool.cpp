@@ -43,7 +43,7 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) noexcept {
     switch (prb->ndims) {
         case 5: {
             src_dims.assign(src_3d_dims, end(src_3d_dims));
-            dst_dims.assign(dst_3d_dims, end(src_3d_dims));
+            dst_dims.assign(dst_3d_dims, end(dst_3d_dims));
         } break;
 
         case 4: {
