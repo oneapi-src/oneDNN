@@ -31,13 +31,46 @@ namespace matmul {
 constexpr int max_batch_ndims = DNNL_MAX_NDIMS - 2;
 
 struct brgemm_matmul_bcast_desc_t {
+
+    brgemm_matmul_bcast_desc_t()
+        : bcast_mask(0)
+        , first_bcast_dim(-1)
+        , last_bcast_dim(-1)
+        , first_bcast_dim_to_last_batch_dim_prod(1)
+        , bcast_dims_prod(1)
+        , batch_dims {0}
+        , gb_off {0} {}
+
+    void set_params(const dims_t &inp_dims, const dims_t &dst_d_dims,
+            int batch_ndims, dim_t batch) {
+        const int ndims = batch_ndims;
+        const int mask = 1 << (ndims - 1);
+        first_bcast_dim_to_last_batch_dim_prod = batch;
+        for (int d = 0; d < ndims; ++d) {
+            batch_dims[d] = dst_d_dims[d];
+            gb_off[d] = (d == 0 ? batch : gb_off[d - 1]) / dst_d_dims[d];
+            if (dst_d_dims[d] != 1 && inp_dims[d] == 1) { // broadcast
+                bcast_mask |= (mask >> d);
+                if (first_bcast_dim == -1) {
+                    first_bcast_dim = d;
+                    if (d == 0) // broadcast_dim == B0
+                        first_bcast_dim_to_last_batch_dim_prod = batch;
+                }
+                last_bcast_dim = d;
+                bcast_dims_prod *= dst_d_dims[d];
+            }
+            if (first_bcast_dim == -1) // broadcast_dim > B0
+                first_bcast_dim_to_last_batch_dim_prod /= dst_d_dims[d];
+        }
+    }
+
     int bcast_mask; // sets bcast_dim = 1, non_bcast_dim = 0
 
-    int first_bcast_dim {-1};
-    int last_bcast_dim {-1};
+    int first_bcast_dim;
+    int last_bcast_dim;
 
-    dim_t first_bcast_dim_to_last_batch_dim_prod {1};
-    dim_t bcast_dims_prod {1};
+    dim_t first_bcast_dim_to_last_batch_dim_prod;
+    dim_t bcast_dims_prod;
 
     dim_t batch_dims[max_batch_ndims];
     dim_t gb_off[max_batch_ndims]; // generalized batch offset

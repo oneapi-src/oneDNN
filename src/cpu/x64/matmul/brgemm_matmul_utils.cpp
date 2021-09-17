@@ -338,31 +338,6 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     matmul_helper_t helper(src_d, weights_d, dst_d);
 
     bgmmc.batch_ndims = bgmmc.ndims - 2;
-
-    auto init_bcast_desc = [&](brgemm_matmul_bcast_desc_t &bd,
-                                   const dims_t &inp_dims) {
-        const int ndims = bgmmc.batch_ndims;
-        const int mask = 1 << (ndims - 1);
-        bd.first_bcast_dim_to_last_batch_dim_prod = bgmmc.batch;
-        for (int d = 0; d < ndims; ++d) {
-            bd.batch_dims[d] = dst_d.dims()[d];
-            bd.gb_off[d] = (d == 0 ? bgmmc.batch : bd.gb_off[d - 1])
-                    / dst_d.dims()[d];
-            if (dst_d.dims()[d] != 1 && inp_dims[d] == 1) { // broadcast
-                bd.bcast_mask |= (mask >> d);
-                if (bd.first_bcast_dim == -1) {
-                    bd.first_bcast_dim = d;
-                    if (d == 0) // broadcast_dim == B0
-                        bd.first_bcast_dim_to_last_batch_dim_prod = bgmmc.batch;
-                }
-                bd.last_bcast_dim = d;
-                bd.bcast_dims_prod *= dst_d.dims()[d];
-            }
-            if (bd.first_bcast_dim == -1) // broadcast_dim > B0
-                bd.first_bcast_dim_to_last_batch_dim_prod /= dst_d.dims()[d];
-        }
-    };
-
     bgmmc.M = helper.M();
     bgmmc.N = helper.N();
     bgmmc.K = helper.K();
@@ -370,8 +345,10 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.batch_without_first_dim
             = bgmmc.batch_ndims > 1 ? helper.batch() / dst_d.dims()[0] : 0;
 
-    init_bcast_desc(bgmmc.bcast_A_desc, src_d.dims());
-    init_bcast_desc(bgmmc.bcast_B_desc, weights_d.dims());
+    bgmmc.bcast_A_desc.set_params(
+            src_d.dims(), dst_d.dims(), bgmmc.batch_ndims, bgmmc.batch);
+    bgmmc.bcast_B_desc.set_params(
+            weights_d.dims(), dst_d.dims(), bgmmc.batch_ndims, bgmmc.batch);
 
     // required granularity for k dimension
     bgmmc.required_k_granularity
