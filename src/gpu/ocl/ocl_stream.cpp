@@ -119,7 +119,7 @@ status_t ocl_stream_t::copy(
             const auto *ocl_usm_src
                     = utils::downcast<const ocl_usm_memory_storage_t *>(
                             ocl_src);
-            CHECK(usm::memcpy(this, ocl_usm_src->usm_ptr(), dst_ptr, size));
+            CHECK(usm::memcpy(this, dst_ptr, ocl_usm_src->usm_ptr(), size));
         } else {
             const auto *ocl_buffer_src
                     = utils::downcast<const ocl_buffer_memory_storage_t *>(
