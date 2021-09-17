@@ -104,6 +104,10 @@ protected:
             inner_product_shapes.emplace_back(
                     inner_product_shape_t {sz, sz, sz});
 
+        // inner product zero dimensional regression shapes
+        inner_product_shapes.emplace_back(
+                inner_product_shape_t {2, 1024, 30522});
+
         // inner product shapes of higher dimensions
         // dims format: either of {mb, ic, oc, kw}, {mb, ic, oc, kw, kh},
         // or {mb, ic, oc, kw, kh, kd}
