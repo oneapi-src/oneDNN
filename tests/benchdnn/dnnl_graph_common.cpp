@@ -84,6 +84,14 @@ dnnl_data_type_t convert_dt(
     }
 }
 
+dnnl::graph::logical_tensor::data_type get_sum_src_dt(
+        const std::vector<attr_t::post_ops_t::entry_t> &post_ops) noexcept {
+    for (const auto &po : post_ops) {
+        if (po.is_sum_kind()) return convert_dt(po.sum.dt);
+    }
+    return dnnl::graph::logical_tensor::data_type::undef;
+}
+
 dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept {
     using graph_op = dnnl::graph::op::kind;
     // all options could be easily added later

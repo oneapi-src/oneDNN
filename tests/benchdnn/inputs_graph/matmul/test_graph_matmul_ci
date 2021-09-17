@@ -50,3 +50,14 @@
 --attr-oscale=per_oc:2.25
 --attr-zero-points=dst:common:3+src:common:2
 10x10x15x30:10x10x30x15:10x10x15x15
+
+# x8s8f32 cases
+--reset
+--cfg=u8s8f32
+--bia_dt=undef,f32
+--attr-oscale=per_oc:2.25
+# sum:1:0:s8 case will not work in --api=P due to sum_src_dt == dst_dt restriction
+# oneDNN graph is not limited by it, because of additional reorder
+# gelu_erf needs to be enabled below when the correctness issue will be addressed
+--attr-post-ops=,relu,logistic,sum:1:0:s8
+--batch=shapes_int8_2d

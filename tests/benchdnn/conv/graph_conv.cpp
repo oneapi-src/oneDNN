@@ -107,10 +107,15 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
     const std::string qwei_type = spec_.wei_dt == dt::u8 ? "uint8" : "int8";
     const std::string qdst_type = spec_.dst_dt == dt::u8 ? "uint8" : "int8";
 
+    // `with_qdst == false` means that we are dealing
+    // with x8s8f32 pattern
+    const bool with_qdst = dt::f32 != spec_.dst_dt;
+
     // oscale for wei
     const std::string wei_qtype = prb->attr.oscale.policy == policy_t::COMMON
             ? "per_tensor"
             : "per_channel";
+
     const int64_t oscale_count
             = prb->attr.oscale.policy == policy_t::COMMON ? 1 : prb->oc;
     oscales.resize(oscale_count, 1.f);
@@ -151,7 +156,8 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
 
     tensor_descs_.emplace(QSRC, spec_.src_dt, spec_.src_dims, prb->stag);
     tensor_descs_.emplace(QWEI, spec_.wei_dt, wei_dims, prb->wtag);
-    tensor_descs_.emplace(QDST, spec_.dst_dt, spec_.dst_dims, prb->dtag);
+    if (with_qdst)
+        tensor_descs_.emplace(QDST, spec_.dst_dt, spec_.dst_dims, prb->dtag);
 
     graph::op dequant_src(ops_.size(), graph::op::kind::Dequantize,
             {tensor_descs_[QSRC]}, {tensor_descs_[SRC]}, "dequant_src");
@@ -171,20 +177,23 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
             .set_attr("axis", static_cast<int64_t>(0));
     ops_.emplace_back(dequant_wei);
 
-    graph::op quant_dst(ops_.size(), graph::op::kind::Quantize,
-            {tensor_descs_[DST]}, {tensor_descs_[QDST]}, "quant");
-    quant_dst.set_attr("scales", std::vector<float> {1.f})
-            .set_attr("zps", dst_zero_points)
-            .set_attr<std::string>("qtype", "per_tensor")
-            .set_attr("out_type", qdst_type)
-            .set_attr("axis", static_cast<int64_t>(0));
-    ops_.emplace_back(quant_dst);
+    if (with_qdst) {
+        graph::op quant_dst(ops_.size(), graph::op::kind::Quantize,
+                {tensor_descs_[DST]}, {tensor_descs_[QDST]}, "quant");
+        quant_dst.set_attr("scales", std::vector<float> {1.f})
+                .set_attr("zps", dst_zero_points)
+                .set_attr<std::string>("qtype", "per_tensor")
+                .set_attr("out_type", qdst_type)
+                .set_attr("axis", static_cast<int64_t>(0));
+        ops_.emplace_back(quant_dst);
+    }
 
     if (has_post_sum()) {
         const std::string QPSUM_SRC {TENSOR_ID + "_SUM_SRC1"};
         const std::string POST_SUM_SRC = tensor_id["sum"].back() + "_SRC";
-        tensor_descs_.emplace(
-                QPSUM_SRC, spec_.dst_dt, spec_.dst_dims, prb->stag);
+        auto sum_src_dt = get_sum_src_dt(prb->attr.post_ops.entry);
+        if (dt::undef == sum_src_dt) sum_src_dt = spec_.dst_dt;
+        tensor_descs_.emplace(QPSUM_SRC, sum_src_dt, spec_.dst_dims, prb->dtag);
         graph::op dequant_sum(ops_.size(), graph::op::kind::Dequantize,
                 {tensor_descs_[QPSUM_SRC]}, {tensor_descs_[POST_SUM_SRC]},
                 "dequant_sum");

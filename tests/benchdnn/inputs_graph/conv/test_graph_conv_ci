@@ -34,3 +34,13 @@ mb50ic64ih56oc64oh56kh1ph0
 # int8, asym quant
 --reset
 --cfg=u8s8u8 --attr-oscale=per_oc:2.25 --attr-zero-points=src:common:2+dst:common:3 --stag=acdb --wtag=any  --dtag=acdb ic3ih224oc64oh112kh7sh2ph3
+
+# x8s8f32 cases
+--reset
+--cfg=u8s8f32
+--dir=FWD_I,FWD_B
+--attr-oscale=per_oc:2.25
+# sum:1:0:s8+relu case will not work in --api=P due to sum_src_dt == dst_dt restriction
+# oneDNN graph is not limited by it, because of additional reorder
+--attr-post-ops=,relu,sum:1:0:s8+relu
+mb50ic64ih56oc64oh56kh1ph0

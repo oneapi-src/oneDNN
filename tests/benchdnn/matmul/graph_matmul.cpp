@@ -151,12 +151,17 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
     const std::string qwei_type = spec_.wei_dt == dt::u8 ? "uint8" : "int8";
     const std::string qdst_type = spec_.dst_dt == dt::u8 ? "uint8" : "int8";
 
+    // `with_qdst == false` means that we are dealing
+    // with x8s8f32 pattern
+    const bool with_qdst = dt::f32 != spec_.dst_dt;
+
     tensor_descs_.emplace(
             QSRC, spec_.src_dt, spec_.src_dims, spec_.raw_src_tag);
     tensor_descs_.emplace(
             QWEI, spec_.wei_dt, spec_.wei_dims, spec_.raw_wei_tag);
-    tensor_descs_.emplace(
-            QDST, spec_.dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
+    if (with_qdst)
+        tensor_descs_.emplace(
+                QDST, spec_.dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
 
     const std::string wei_qtype = prb_->attr.oscale.policy == policy_t::COMMON
             ? "per_tensor"
@@ -221,20 +226,24 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
             .set_attr("axis", static_cast<int64_t>(0));
     ops_.emplace_back(dequant_wei);
 
-    op quant_dst(ops_.size(), op::kind::Quantize, {tensor_descs_[DST]},
-            {tensor_descs_[QDST]}, "quant");
-    quant_dst.set_attr("scales", std::vector<float> {1.f})
-            .set_attr("zps", dst_zero_points)
-            .set_attr("qtype", std::string("per_tensor"))
-            .set_attr("out_type", qdst_type)
-            .set_attr("axis", static_cast<int64_t>(0));
-    ops_.emplace_back(quant_dst);
+    if (with_qdst) {
+        op quant_dst(ops_.size(), op::kind::Quantize, {tensor_descs_[DST]},
+                {tensor_descs_[QDST]}, "quant");
+        quant_dst.set_attr("scales", std::vector<float> {1.f})
+                .set_attr("zps", dst_zero_points)
+                .set_attr("qtype", std::string("per_tensor"))
+                .set_attr("out_type", qdst_type)
+                .set_attr("axis", static_cast<int64_t>(0));
+        ops_.emplace_back(quant_dst);
+    }
 
     if (has_post_sum()) {
         const std::string QPSUM_SRC {TENSOR_ID + "_SUM_SRC1"};
         const std::string POST_SUM_SRC = tensor_id["sum"].back() + "_SRC";
+        auto sum_src_dt = get_sum_src_dt(prb_->attr.post_ops.entry);
+        if (dt::undef == sum_src_dt) sum_src_dt = spec_.dst_dt;
         tensor_descs_.emplace(
-                QPSUM_SRC, spec_.dst_dt, spec_.dst_dims, lt::strided);
+                QPSUM_SRC, sum_src_dt, spec_.dst_dims, prb_->dtag);
         op dequant_sum(ops_.size(), op::kind::Dequantize,
                 {tensor_descs_[QPSUM_SRC]}, {tensor_descs_[POST_SUM_SRC]},
                 "dequant_sum");

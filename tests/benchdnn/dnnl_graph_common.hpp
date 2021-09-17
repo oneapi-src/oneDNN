@@ -53,6 +53,8 @@ void check_known_skipped_case_graph_common(
         const dir_t &dir, res_t *res);
 dnnl::graph::logical_tensor::data_type convert_dt(
         const dnnl_data_type_t dt) noexcept;
+dnnl::graph::logical_tensor::data_type get_sum_src_dt(
+        const std::vector<attr_t::post_ops_t::entry_t> &post_ops) noexcept;
 dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept;
 std::string convert_tag(
         const std::string &tag, bool activation_tag = true) noexcept;
