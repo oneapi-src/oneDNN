@@ -357,7 +357,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     const int um = this->um;
 
     static std::once_flag initialized;
-    static dnnl_status_t st = dnnl_success;
+    static std::atomic<dnnl_status_t> st(dnnl_success);
     std::call_once(initialized, [&, um] {
         const bool b_is_s8 = data_traits<b_t>::data_type == data_type::s8;
         constexpr bool is_int8 = utils::one_of(
