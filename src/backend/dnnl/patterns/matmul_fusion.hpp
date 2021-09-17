@@ -987,7 +987,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_bias_fusion)
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::x8s8f32_matmul_bias);
+                            op_kind::x8s8float_matmul_bias);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
@@ -2040,6 +2040,41 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_div_fusion)
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::x8x8float_matmul_div);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_bias_fusion)
+        .set_priority(10.4f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *typecast_data
+                            = apattern->create_op(impl::op_kind::TypeCast);
+                    op_t *typecast_weight
+                            = apattern->create_op(impl::op_kind::TypeCast);
+
+                    typecast_data->set_attr<bool>("out_bf16_check", true);
+                    typecast_weight->set_attr<bool>("out_bf16_check", true);
+
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+
+                    op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+
+                    typecast_data->fill_and_connect_input(0, *dequant_data, 0);
+                    typecast_weight->fill_and_connect_input(
+                            0, *dequant_weight, 0);
+                    matmul->fill_and_connect_input(0, *typecast_data, 0);
+                    matmul->fill_and_connect_input(1, *typecast_weight, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8float_matmul_bias);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 

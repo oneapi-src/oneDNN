@@ -269,7 +269,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_add, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_bias_add, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::x8x8f32_matmul, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_bias, quantized_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::x8s8float_matmul_bias, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_relu, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_bias_relu, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_sigmoid, quantized_matmul);

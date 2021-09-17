@@ -2007,7 +2007,7 @@ DNNL_GRAPH_OP_SCHEMA(x8x8f32_matmul, 1,
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
-DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias, 1,
+DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_bias, 1,
         op_schema()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
@@ -2016,7 +2016,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias, 1,
                 .set_input(1, "filter", "filter tensor", impl::data_type::s8)
                 .set_input(2, "bias", "bias tensor", impl::data_type::f32)
                 .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                        {impl::data_type::f32, impl::data_type::bf16})
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")

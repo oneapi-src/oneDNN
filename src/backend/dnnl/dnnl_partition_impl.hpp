@@ -307,7 +307,7 @@ public:
                 op_kind::int8_matmul_bias_gelu, op_kind::int8_matmul_add,
                 op_kind::int8_matmul_bias_add, op_kind::x8s8f32_matmul_add,
                 op_kind::x8s8f32_matmul_bias_add, op_kind::x8x8f32_matmul,
-                op_kind::x8s8f32_matmul_bias, op_kind::x8s8f32_matmul_relu,
+                op_kind::x8s8float_matmul_bias, op_kind::x8s8f32_matmul_relu,
                 op_kind::x8s8f32_matmul_bias_relu,
                 op_kind::x8s8f32_matmul_sigmoid,
                 op_kind::x8s8f32_matmul_bias_sigmoid,

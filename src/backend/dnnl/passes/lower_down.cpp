@@ -1160,10 +1160,7 @@ void fuse_mul_sigmoid_to_swish(std::vector<op_ptr> &subgraph) {
 void fuse_typecast_to_matmul(std::vector<op_ptr> &subgraph) {
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : subgraph) {
-        // currently, only support bmm
-        if (cur_op->get_kind() != impl::op_kind::MatMul
-                || cur_op->num_inputs() != 2)
-            continue;
+        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
         auto &in0 = cur_op->get_input_value(0)->get_producer();
         auto &in1 = cur_op->get_input_value(1)->get_producer();
         if (in0.get_kind() == impl::op_kind::TypeCast
@@ -1199,6 +1196,13 @@ void fuse_typecast_to_matmul(std::vector<op_ptr> &subgraph) {
         q_matmul_op->connect_input(1, in1_value);
         in0_value->remove_consumer(*in0, 0);
         in1_value->remove_consumer(*in1, 0);
+
+        // handle bias
+        if (matmul_op->num_inputs() == 3) {
+            auto bias_value = matmul_op->get_input_value(2);
+            bias_value->remove_consumer(*matmul_op, 2);
+            q_matmul_op->connect_input(2, bias_value);
+        }
 
         auto out_val = matmul_op->get_output_value(0);
         q_matmul_op->add_output(out_val);
