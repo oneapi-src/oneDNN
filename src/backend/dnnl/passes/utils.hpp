@@ -67,6 +67,14 @@ inline bool is_preprocess_op(impl::op_t &op) {
     return preprocess_ops.count(op.get_kind()) != 0;
 }
 
+inline bool is_inplace(op_t &op) {
+    if (is_preprocess_op(op)) return true;
+
+    const static std::set<impl::op_kind_t> ops {
+            op_kind::mul_scales, op_kind::add_zps};
+    return ops.count(op.get_kind()) != 0;
+}
+
 class subgraph_visualizer_t {
 public:
     subgraph_visualizer_t(size_t partition_id)
@@ -76,7 +84,9 @@ public:
     }
 
     status_t run(const std::vector<std::shared_ptr<op_t>> &subgraph,
-            const std::string &name_suffix, bool is_layout_sensitive);
+            const std::string &name_suffix, bool is_layout_sensitive,
+            bool is_memory_sensitive = false,
+            std::function<std::string(const value_t *)> mem_info_func = {});
 
 private:
     size_t partition_id_;

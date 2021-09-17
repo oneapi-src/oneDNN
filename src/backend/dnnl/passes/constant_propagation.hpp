@@ -35,6 +35,9 @@ namespace dnnl_impl {
 void constant_propagation(std::vector<std::shared_ptr<impl::op_t>> &subgraph,
         bool with_scratchpad = true);
 
+std::vector<value_t *> get_constant_block_output_values(
+        const std::vector<std::shared_ptr<impl::op_t>> &subgraph);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

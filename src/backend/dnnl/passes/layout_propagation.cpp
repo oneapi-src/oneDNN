@@ -75,12 +75,7 @@ static bool layout_propagation_for_conv(op_ptr &op,
         fill_layout_info(bias, pd.bias_desc());
     }
 
-    if (op->has_attr("output_format")
-            && op->get_attr<std::string>("output_format") == "NXC") {
-        fill_layout_info(dst, permute_NCX2NXC(pd.dst_desc()));
-    } else {
-        fill_layout_info(dst, pd.dst_desc());
-    }
+    fill_layout_info(dst, pd.dst_desc());
 
     // fill scratchpads dimensions and data type to scratchpad value_t
     auto scratchpad_val = insert_scratchpad(op);
@@ -165,18 +160,12 @@ static bool layout_propagation_for_pool(op_ptr &op,
 
     // for pooling primitive, src's format must be defined. dst's format should
     // be any to obtain better performance
-    if ((ltw(src->get_logical_tensor()).is_strided()
-                || ltw(src->get_logical_tensor()).is_opaque())
+    if (!ltw(src->get_logical_tensor()).is_any()
             && ltw(dst->get_logical_tensor()).is_any()) {
         auto pd = create_pool_pd(op, p_engine, prm_attr_mgr, pd_cache);
 
         fill_layout_info(src, pd.src_desc());
-        if (op->has_attr("output_format")
-                && op->get_attr<std::string>("output_format") == "NXC") {
-            fill_layout_info(dst, permute_NCX2NXC(pd.dst_desc()));
-        } else {
-            fill_layout_info(dst, pd.dst_desc());
-        }
+        fill_layout_info(dst, pd.dst_desc());
 
         // make scratchpad as pool's last output
         value_ptr scratchpad_val = insert_scratchpad(op);
@@ -203,8 +192,7 @@ static bool layout_propagation_for_permute(op_ptr &op) {
     auto in_lt = src->get_logical_tensor();
     auto out_lt = dst->get_logical_tensor();
 
-    if ((ltw(in_lt).is_strided() || ltw(in_lt).is_opaque())
-            && (!ltw(out_lt).is_strided() && !ltw(out_lt).is_opaque())) {
+    if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         dnnl::memory::desc out_md;
 
@@ -222,11 +210,32 @@ static bool layout_propagation_for_permute(op_ptr &op) {
             } else if (from_format == "XIO" && to_format == "OIX") {
                 out_md = permute_XIO2OIX(in_md);
             } else {
-                throw std::runtime_error("not supported permutation");
+                assertm(false, "not a supported permutation");
             }
         }
 
         fill_layout_info(dst, out_md);
+    } else if (!ltw(out_lt).is_any() && ltw(in_lt).is_any()) {
+        dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
+        dnnl::memory::desc in_md;
+
+        auto permute_kind = op->get_attr<std::string>("permute_kind");
+        if (permute_kind == "transpose") {
+            // transpose the right-most two dims
+            in_md = permute_last_two_dims(out_md);
+        } else {
+            auto from_format = op->get_attr<std::string>("from_format");
+            auto to_format = op->get_attr<std::string>("to_format");
+            if (from_format == "NCX" && to_format == "NXC") {
+                in_md = permute_NXC2NCX(out_md);
+            } else if (from_format == "NXC" && to_format == "NCX") {
+                in_md = permute_NCX2NXC(out_md);
+            } else {
+                assertm(false, "not a supported permutation");
+            }
+        }
+
+        fill_layout_info(src, in_md);
     } else {
         changed = false;
     }
@@ -242,8 +251,7 @@ static bool layout_propagation_for_to_group(op_ptr &op) {
     auto in_lt = src->get_logical_tensor();
     auto out_lt = dst->get_logical_tensor();
 
-    if ((ltw(in_lt).is_strided() || ltw(in_lt).is_opaque())
-            && (!ltw(out_lt).is_strided() && !ltw(out_lt).is_opaque())) {
+    if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         auto groups = op->get_attr<int64_t>("groups");
         dnnl::memory::desc out_md = to_grouped(in_md, groups);
@@ -263,8 +271,7 @@ static bool layout_propagation_for_expand(op_ptr &op) {
     auto in_lt = src->get_logical_tensor();
     auto out_lt = dst->get_logical_tensor();
 
-    if ((ltw(in_lt).is_strided() || ltw(in_lt).is_opaque())
-            && (!ltw(out_lt).is_strided() && !ltw(out_lt).is_opaque())) {
+    if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         dnnl::memory::desc out_md = in_md;
 
@@ -301,14 +308,12 @@ static bool layout_propagation_for_reorder(op_ptr &op) {
     auto in_lt = src->get_logical_tensor();
     auto out_lt = dst->get_logical_tensor();
 
-    if ((ltw(in_lt).is_strided() || ltw(in_lt).is_opaque())
-            && (!ltw(out_lt).is_strided() && !ltw(out_lt).is_opaque())) {
+    if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
         auto out_md = make_dnnl_memory_desc(in_lt);
         out_md.data.data_type
                 = static_cast<dnnl_data_type_t>(ltw(out_lt).data_type());
         fill_layout_info(dst, out_md);
-    } else if ((ltw(out_lt).is_strided() || ltw(out_lt).is_opaque())
-            && (!ltw(in_lt).is_strided() && !ltw(in_lt).is_opaque())) {
+    } else if (!ltw(out_lt).is_any() && ltw(in_lt).is_any()) {
         auto in_md = make_dnnl_memory_desc(out_lt);
         in_md.data.data_type
                 = static_cast<dnnl_data_type_t>(ltw(in_lt).data_type());
@@ -330,8 +335,7 @@ static bool layout_propagation_for_bn_folding(
     for (size_t i = 0; i < op->num_outputs(); i++) {
         auto in_lt = op->get_input_value(i)->get_logical_tensor();
         auto out_lt = op->get_output_value(i)->get_logical_tensor();
-        if ((ltw(in_lt).is_strided() || ltw(in_lt).is_opaque())
-                && (!ltw(out_lt).is_strided() && !ltw(out_lt).is_opaque())) {
+        if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
             dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
             auto dst = op->get_output_value(i);
             fill_layout_info(dst, in_md);
@@ -366,13 +370,7 @@ static bool layout_propagation_for_conv_bwd_data(op_ptr &op,
 
     fill_layout_info(diff_dst, pd.diff_dst_desc());
     fill_layout_info(wei, pd.weights_desc());
-
-    if (op->has_attr("output_format")
-            && op->get_attr<std::string>("output_format") == "NXC") {
-        fill_layout_info(diff_src, permute_NCX2NXC(pd.diff_src_desc()));
-    } else {
-        fill_layout_info(diff_src, pd.diff_src_desc());
-    }
+    fill_layout_info(diff_src, pd.diff_src_desc());
 
     // fill scratchpads dimensions and data type to scratchpad value_t
     auto scratchpad_val = insert_scratchpad(op);

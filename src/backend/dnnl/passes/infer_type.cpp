@@ -62,50 +62,65 @@ impl::status_t infer_type(impl::graph_t &subgraph) {
             return impl::status::invalid_type;
     }
 
-    impl::topo_order_visit(subgraph.get_output_ops(), [](impl::op_t *op) {
-        if (op->get_kind() == op_kind::mul_scales) {
-            op->get_output_value(0)->set_data_type(impl::data_type::f32);
-        } else if (op->get_kind() == op_kind::add_zps) {
-            //This op should be fused, can't infer type for it
-            return impl::status::invalid_graph;
-        } else if (op->get_kind() == op_kind::permute
-                || op->get_kind() == impl::op_kind::Reorder
-                || op->get_kind() == op_kind::to_group
-                || op->get_kind() == op_kind::expand) {
-            auto in_lt = op->get_input_value(0)->get_logical_tensor();
-            auto out_lt = op->get_output_value(0)->get_logical_tensor();
-            if (out_lt.data_type == impl::data_type::undef) {
-                op->get_output_value(0)->set_data_type(in_lt.data_type);
-            } else if (in_lt.data_type == impl::data_type::undef) {
-                op->get_input_value(0)->set_data_type(out_lt.data_type);
-            }
-        } else if (op->get_kind() == op_kind::dnnl_u8_to_s8) {
-            auto in_lt = op->get_input_value(0)->get_logical_tensor();
-            auto out_lt = op->get_output_value(0)->get_logical_tensor();
-            if (in_lt.data_type != impl::data_type::u8) {
-                return impl::status::invalid_type;
-            }
-            if (out_lt.data_type == impl::data_type::undef) {
-                op->get_output_value(0)->set_data_type(impl::data_type::s8);
-            }
-            if (op->get_output_value(0)->get_logical_tensor().data_type
-                    != impl::data_type::s8) {
-                return impl::status::invalid_type;
-            }
-        } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
-            for (size_t i = 0; i < op->num_outputs(); i++) {
-                auto in_lt = op->get_input_value(i)->get_logical_tensor();
-                auto out_lt = op->get_output_value(i)->get_logical_tensor();
+    bool changed;
+    do {
+        changed = false;
+        impl::topo_order_visit(subgraph.get_output_ops(), [&](impl::op_t *op) {
+            if (op->get_kind() == op_kind::mul_scales) {
+                auto out_lt = op->get_output_value(0)->get_logical_tensor();
                 if (out_lt.data_type == impl::data_type::undef) {
-                    op->get_output_value(i)->set_data_type(in_lt.data_type);
-                } else {
-                    op->get_input_value(i)->set_data_type(out_lt.data_type);
+                    op->get_output_value(0)->set_data_type(
+                            impl::data_type::f32);
+                    changed = changed || true;
                 }
+            } else if (op->get_kind() == op_kind::add_zps) {
+                //This op should be fused, can't infer type for it
+                return impl::status::invalid_graph;
+            } else if (op->get_kind() == op_kind::permute
+                    || op->get_kind() == impl::op_kind::Reorder
+                    || op->get_kind() == op_kind::to_group
+                    || op->get_kind() == op_kind::expand) {
+                auto in_lt = op->get_input_value(0)->get_logical_tensor();
+                auto out_lt = op->get_output_value(0)->get_logical_tensor();
+                if (out_lt.data_type == impl::data_type::undef) {
+                    op->get_output_value(0)->set_data_type(in_lt.data_type);
+                    changed = changed || true;
+                } else if (in_lt.data_type == impl::data_type::undef) {
+                    op->get_input_value(0)->set_data_type(out_lt.data_type);
+                    changed = changed || true;
+                }
+            } else if (op->get_kind() == op_kind::dnnl_u8_to_s8) {
+                auto in_lt = op->get_input_value(0)->get_logical_tensor();
+                auto out_lt = op->get_output_value(0)->get_logical_tensor();
+                if (in_lt.data_type != impl::data_type::u8) {
+                    return impl::status::invalid_type;
+                }
+                if (out_lt.data_type == impl::data_type::undef) {
+                    op->get_output_value(0)->set_data_type(impl::data_type::s8);
+                }
+                if (op->get_output_value(0)->get_logical_tensor().data_type
+                        != impl::data_type::s8) {
+                    return impl::status::invalid_type;
+                }
+            } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
+                for (size_t i = 0; i < op->num_outputs(); i++) {
+                    auto in_lt = op->get_input_value(i)->get_logical_tensor();
+                    auto out_lt = op->get_output_value(i)->get_logical_tensor();
+                    if (out_lt.data_type == impl::data_type::undef) {
+                        op->get_output_value(i)->set_data_type(in_lt.data_type);
+                    } else {
+                        op->get_input_value(i)->set_data_type(out_lt.data_type);
+                    }
+                }
+            } else {
+                // some ops output type can't be inferred, it only can be
+                // specified. so skip these ops (such as, dnnl_convolution,
+                // dnnl_pool)
             }
-        } else {
-        }
-        return impl::status::success;
-    });
+            return impl::status::success;
+        });
+    } while (changed);
+
     return impl::status::success;
 }
 

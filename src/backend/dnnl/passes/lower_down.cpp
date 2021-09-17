@@ -1026,14 +1026,23 @@ void conv_bwd_data_canonicalization(std::vector<op_ptr> &subgraph) {
                 : false;
 
         if (need_permute_0) {
-            op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
-            perm_op->set_attr<std::string>("permute_kind", "permute");
-            perm_op->set_attr<std::string>("from_format", "NXC");
-            perm_op->set_attr<std::string>("to_format", "NCX");
-            insert_op_before(perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(perm_op);
+            // input permute
+            op_ptr in_perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            in_perm_op->set_attr<std::string>("permute_kind", "permute");
+            in_perm_op->set_attr<std::string>("from_format", "NXC");
+            in_perm_op->set_attr<std::string>("to_format", "NCX");
+            insert_op_before(in_perm_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(in_perm_op);
+
+            // output permute
+            op_ptr out_perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            out_perm_op->set_attr<std::string>("permute_kind", "permute");
+            out_perm_op->set_attr<std::string>("from_format", "NCX");
+            out_perm_op->set_attr<std::string>("to_format", "NXC");
+            insert_op_after(out_perm_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(out_perm_op);
+
             cur_op->set_attr<std::string>("data_format", "NCX");
-            cur_op->set_attr<std::string>("output_format", "NXC");
         }
 
         if (need_permute_1) {

@@ -79,11 +79,8 @@ void constant_propagation(std::vector<op_ptr> &subgraph, bool with_scratchpad) {
 
             if (all_inputs_are_constant || all_outputs_are_constant) {
                 op->set_attr<bool>("is_constant", true);
-                if (is_preprocess_op(*op)) {
-                    op->set_attr<bool>("is_skip", false);
-                } else {
-                    op->set_attr<bool>("is_skip", true);
-                }
+            } else {
+                op->set_attr<bool>("is_constant", false);
             }
 
             if (all_inputs_are_constant && !all_outputs_are_constant) {
@@ -104,6 +101,29 @@ void constant_propagation(std::vector<op_ptr> &subgraph, bool with_scratchpad) {
             return status::success;
         });
     } while (changed);
+}
+
+std::vector<value_t *> get_constant_block_output_values(
+        const std::vector<op_ptr> &subgraph) {
+    using ltw = impl::logical_tensor_wrapper;
+    std::vector<value_t *> ret;
+    for (auto &cur_op : subgraph) {
+        auto out_vals = cur_op->get_output_values();
+        for (auto &val : out_vals) {
+            if (!ltw(val->get_logical_tensor()).is_constant()) continue;
+            // if a constant value feed into a consumer whose output is not
+            // constant, then the value is the final output of a constant block
+            auto consumers = val->get_consumers();
+            for (auto &csm : consumers) {
+                // A consumer is not constant
+                if (!csm.get_op().get_attr<bool>("is_constant")) {
+                    ret.emplace_back(val.get());
+                    break;
+                }
+            }
+        }
+    }
+    return ret;
 }
 
 } // namespace dnnl_impl

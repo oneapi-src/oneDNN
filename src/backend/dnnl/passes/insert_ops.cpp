@@ -100,6 +100,7 @@ void insert_permute(std::vector<op_ptr> &subgraph) {
     for (auto &cur_op : subgraph) {
         if (!need_insert_permute(cur_op->get_kind())) continue;
 
+        // TODO(xx) how to support multiple binary post-ops?
         const bool need_permute_0 = cur_op->has_attr("data_format")
                 ? (cur_op->get_attr<std::string>("data_format") == "NXC")
                 : false;
@@ -141,12 +142,19 @@ void insert_permute(std::vector<op_ptr> &subgraph) {
             to_be_inserted_ops.emplace_back(perm_op);
         }
 
+        // permute output back to NXC
+        if (need_permute_0) {
+            op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            perm_op->set_attr<std::string>("permute_kind", "permute");
+            perm_op->set_attr<std::string>("from_format", "NCX");
+            perm_op->set_attr<std::string>("to_format", "NXC");
+            insert_op_after(perm_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(perm_op);
+        }
+
         // remove the attrs in cur_op to avoid re-permute
         cur_op->set_attr<std::string>("data_format", "NCX");
         cur_op->set_attr<std::string>("filter_format", "OIX");
-
-        if (need_permute_0)
-            cur_op->set_attr<std::string>("output_format", "NXC");
 
         if (cur_op->get_kind() == impl::op_kind::Convolution) {
             // replace impl::op_kind::Convolution to be

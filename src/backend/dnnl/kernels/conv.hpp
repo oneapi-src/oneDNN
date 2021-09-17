@@ -37,7 +37,7 @@
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
-#include "backend/dnnl/passes/memory_binding.hpp"
+#include "backend/dnnl/passes/memory_planning.hpp"
 #include "backend/dnnl/passes/op_executable.hpp"
 #include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
@@ -57,13 +57,11 @@ protected:
 
     primitive_attr_mgr prm_attr_mgr_;
     executable_mgr exec_mgr_;
-    execution_args_mgr exec_arg_mgr_;
+    memory_planner_t memory_planner_;
 
     std::vector<op_executable *> execs_;
 
-    registry_t registry_;
-    registry_t c_registry_;
-    std::function<std::shared_ptr<subgraph_resource_t>()> resource_ctor_;
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
     // FIXME(qun) improve the cache key
     constant_cache_t::key_t constant_key_
@@ -72,13 +70,12 @@ protected:
     bool enable_constant_cache_ = utils::is_enable_constant_cache();
 
     std::vector<bool> is_constant_;
-    std::vector<bool> is_skip_;
 
     pd_cache_t pd_cache_;
 
 public:
     virtual ~conv_base() {
-        thread_local_cache_t<subgraph_resource_t> res_cache;
+        thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
         if (enable_constant_cache_) {
@@ -95,30 +92,33 @@ public:
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         // each thread's own local resource
-        thread_local_cache_t<subgraph_resource_t> res_cache;
-        subgraph_resource_t *res = res_cache.get_or_add(
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
                 reinterpret_cast<size_t>(this), resource_ctor_);
 
         // update the data of partition in/outputs args
-        for (size_t i = 0; i < inputs.size(); i++) {
-            res->get_exec_args_mgr().get_external_input_mem(i).set_data_handle(
-                    inputs[i].get_data_handle());
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
         }
-        for (size_t i = 0; i < outputs.size(); i++) {
-            res->get_exec_args_mgr().get_external_output_mem(i).set_data_handle(
-                    outputs[i].get_data_handle());
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
         }
 
         temporary_scratchpad_t scratchpad(
-                registry_.size(), p_engine_, *g_alloc_);
-        assertm(scratchpad.size() >= registry_.size(),
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
                 "no enough scratchpad memory");
-        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
 
         registry_t::key_t key = 0;
-        for (auto &mem :
-                res->get_exec_args_mgr().get_internal_variable_mems()) {
-            mem.set_data_handle(grantor.get(key++));
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
         }
 
         if (enable_constant_cache_) {
@@ -131,22 +131,28 @@ public:
             if (is_from_cache) {
                 constant_cache_t::cached_t c_buffer = cached_value.get();
                 grantor_t c_grantor
-                        = c_registry_.grantor(c_buffer->data<char>());
+                        = memory_planner_.internal_persistent_grantor(
+                                c_buffer->data<char>());
                 registry_t::key_t key = 0;
-                for (auto &mem :
-                        res->get_exec_args_mgr().get_internal_constant_mems()) {
-                    mem.set_data_handle(c_grantor.get(key++));
+                for (auto &mem_offkey :
+                        res->get_mems_use_internal_persistent()) {
+                    mem_offkey.first.set_data_handle(
+                            c_grantor.get(mem_offkey.second));
                 }
             } else {
                 constant_cache_t::cached_t c_buffer
                         = std::make_shared<constant_buffer_t>(
-                                c_registry_.size(), p_engine_, g_alloc_);
+                                memory_planner_
+                                        .total_internal_persistent_size(),
+                                p_engine_, g_alloc_);
                 grantor_t c_grantor
-                        = c_registry_.grantor(c_buffer->data<char>());
+                        = memory_planner_.internal_persistent_grantor(
+                                c_buffer->data<char>());
                 registry_t::key_t key = 0;
-                for (auto &mem :
-                        res->get_exec_args_mgr().get_internal_constant_mems()) {
-                    mem.set_data_handle(c_grantor.get(key++));
+                for (auto &mem_offkey :
+                        res->get_mems_use_internal_persistent()) {
+                    mem_offkey.first.set_data_handle(
+                            c_grantor.get(mem_offkey.second));
                 }
 
                 for (size_t i = 0; i < execs_.size(); i++) {
@@ -159,7 +165,7 @@ public:
         }
 
         for (size_t i = 0; i < execs_.size(); i++) {
-            if (is_skip_[i]) continue;
+            if (is_constant_[i]) continue;
             execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
@@ -265,9 +271,13 @@ public:
         // constant propagation
         if (enable_constant_cache_) { constant_propagation(subgraph); }
 
-        // bind the memory for each op
-        BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
-                exec_arg_mgr_, prm_attr_mgr_));
+        BACKEND_DNNL_CHECK(memory_planner_.run(
+                subgraph, inputs, outputs, p_engine_, prm_attr_mgr_));
+
+        vis.run(subgraph, "after_memory_planning", true, true,
+                [this](const value_t *val) {
+                    return this->memory_planner_.get_memory_info(val);
+                });
 
         BACKEND_DNNL_CHECK(compile_ops(
                 subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
@@ -279,38 +289,15 @@ public:
                     auto &exec = exec_mgr_.get_executable(exec_key);
                     execs_.emplace_back(exec.get());
 
-                    auto arg_key = op->get_attr<int64_t>("execution_args_key");
-                    exec_arg_mgr_.add_topo_ordered_key(arg_key);
-
                     is_constant_.push_back(op->has_attr("is_constant")
                             && op->get_attr<bool>("is_constant"));
-
-                    is_skip_.push_back(op->has_attr("is_skip")
-                            && op->get_attr<bool>("is_skip"));
                     return impl::status::success;
                 });
 
         opt_subgraph_ = subgraph;
 
-        // book buffer (only count total size and calculate offset)
-        // for each internal memory
-        registry_t::key_t key = 0;
-        registrar_t registrar = registry_.registrar();
-        for (const auto &mem : exec_arg_mgr_.get_internal_variable_mems()) {
-            registrar.book(key++, mem.get_desc().get_size());
-        }
-
-        if (enable_constant_cache_) {
-            registry_t::key_t constant_key = 0;
-            registrar_t constant_registrar = c_registry_.registrar();
-            for (auto &mem : exec_arg_mgr_.get_internal_constant_mems()) {
-                constant_registrar.book(
-                        constant_key++, mem.get_desc().get_size());
-            }
-        }
-
         resource_ctor_ = [this]() {
-            return std::make_shared<subgraph_resource_t>(this->exec_arg_mgr_);
+            return this->memory_planner_.get_exec_args_set().clone();
         };
 
         return impl::status::success;
@@ -417,8 +404,13 @@ public:
         }
 
         // bind the memory for each op
-        BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
-                exec_arg_mgr_, prm_attr_mgr_));
+        BACKEND_DNNL_CHECK(memory_planner_.run(
+                subgraph, inputs, outputs, p_engine_, prm_attr_mgr_));
+
+        vis.run(subgraph, "after_memory_planning", true, true,
+                [this](const value_t *val) {
+                    return this->memory_planner_.get_memory_info(val);
+                });
 
         BACKEND_DNNL_CHECK(compile_ops(
                 subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
@@ -430,38 +422,16 @@ public:
                     auto &exec = exec_mgr_.get_executable(exec_key);
                     execs_.emplace_back(exec.get());
 
-                    auto arg_key = op->get_attr<int64_t>("execution_args_key");
-                    exec_arg_mgr_.add_topo_ordered_key(arg_key);
-
                     is_constant_.push_back(op->has_attr("is_constant")
                             && op->get_attr<bool>("is_constant"));
 
-                    is_skip_.push_back(op->has_attr("is_skip")
-                            && op->get_attr<bool>("is_skip"));
                     return impl::status::success;
                 });
 
         opt_subgraph_ = subgraph;
 
-        // book buffer (only count total size and calculate offset)
-        // for each internal memory
-        registry_t::key_t key = 0;
-        registrar_t registrar = registry_.registrar();
-        for (const auto &mem : exec_arg_mgr_.get_internal_variable_mems()) {
-            registrar.book(key++, mem.get_desc().get_size());
-        }
-
-        if (enable_constant_cache_) {
-            registry_t::key_t constant_key = 0;
-            registrar_t constant_registrar = c_registry_.registrar();
-            for (auto &mem : exec_arg_mgr_.get_internal_constant_mems()) {
-                constant_registrar.book(
-                        constant_key++, mem.get_desc().get_size());
-            }
-        }
-
         resource_ctor_ = [this]() {
-            return std::make_shared<subgraph_resource_t>(this->exec_arg_mgr_);
+            return this->memory_planner_.get_exec_args_set().clone();
         };
 
         return impl::status::success;

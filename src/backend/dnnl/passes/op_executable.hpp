@@ -66,11 +66,6 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
-    if (op->has_attr("output_format")
-            && op->get_attr<std::string>("output_format") == "NXC") {
-        dst = permute_NXC2NCX(dst);
-    }
-
     dnnl::convolution_forward::primitive_desc pd;
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
         auto bias = make_dnnl_memory_desc(
@@ -163,10 +158,6 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
             op->get_output_value(0)->get_logical_tensor());
 
     dilations = get_compatible_dilates(dilations, src.dims().size());
-    if (op->has_attr("output_format")
-            && op->get_attr<std::string>("output_format") == "NXC") {
-        dst = permute_NXC2NCX(dst);
-    }
     algorithm algo = algorithm::undef;
     if (op->get_kind() == impl::op_kind::MaxPool
             || (op->get_kind() == op_kind::dnnl_pool
@@ -223,11 +214,6 @@ inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
     auto diff_src = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
-    if (op->has_attr("output_format")
-            && op->get_attr<std::string>("output_format") == "NXC") {
-        diff_src = permute_NXC2NCX(diff_src);
-    }
-
     auto fwd_hints = dnnl::convolution_forward::primitive_desc(
             {dnnl::prop_kind::forward_training,
                     dnnl::algorithm::convolution_direct, diff_src, weight,
@@ -254,9 +240,9 @@ struct memory_reparser : public op_executable {
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         UNUSED(stream);
-        const memory &in_mem = args.find(DNNL_ARG_FROM)->second;
-        memory &out_mem = const_cast<memory &>(args.find(DNNL_ARG_TO)->second);
-        out_mem.set_data_handle(in_mem.get_data_handle());
+        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
+                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
+                "memory_parser must be inplaced");
     }
 };
 
@@ -268,41 +254,29 @@ struct conv_fwd_executable : public op_executable {
         prim_ = dnnl::convolution_forward(pd_);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
-        if (op->has_attr("output_format")
-                && op->get_attr<std::string>("output_format") == "NXC")
-            perm_dst_ = true;
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
 
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        std::unordered_map<int, memory> cached_args = args;
-
-        if (perm_dst_) {
-            memory dst_mem = make_dnnl_memory(pd_.dst_desc(), pd_.get_engine(),
-                    args.find(DNNL_ARG_DST)->second.get_data_handle());
-            cached_args[DNNL_ARG_DST] = dst_mem;
-        }
-
         if (with_sum_) {
-            memory &psrc_mem
-                    = cached_args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
-            memory &dst_mem = cached_args.find(DNNL_ARG_DST)->second;
+            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
             if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
                 dnnl::reorder(psrc_mem, dst_mem)
-                        .execute(stream, psrc_mem, dst_mem);
+                        .execute(stream, const_cast<memory &>(psrc_mem),
+                                const_cast<memory &>(dst_mem));
             }
         }
 
-        prim_.execute(stream, cached_args);
+        prim_.execute(stream, args);
     }
 
 private:
     dnnl::convolution_forward::primitive_desc pd_;
     dnnl::convolution_forward prim_;
     bool with_sum_ {false};
-    bool perm_dst_ {false};
 };
 
 struct matmul_executable : public op_executable {
@@ -358,26 +332,16 @@ struct pool_executable : public op_executable {
             pd_cache_t &pd_cache) {
         pd_ = create_pool_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::pooling_v2_forward(pd_);
-        if (op->has_attr("output_format")
-                && op->get_attr<std::string>("output_format") == "NXC")
-            perm_dst_ = true;
     }
 
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        std::unordered_map<int, memory> cached_args_ = args;
-        if (perm_dst_) {
-            memory dst_mem = make_dnnl_memory(pd_.dst_desc(), pd_.get_engine(),
-                    args.find(DNNL_ARG_DST)->second.get_data_handle());
-            cached_args_[DNNL_ARG_DST] = dst_mem;
-        }
-        prim_.execute(stream, cached_args_);
+        prim_.execute(stream, args);
     }
 
 private:
     dnnl::pooling_v2_forward::primitive_desc pd_;
     dnnl::pooling_v2_forward prim_;
-    bool perm_dst_ {false};
 };
 
 struct reorder_executable : public op_executable {
@@ -655,24 +619,13 @@ struct conv_bwd_data_executable : public op_executable {
             pd_cache_t &pd_cache) {
         pd_ = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::convolution_backward_data(pd_);
-        if (op->has_attr("output_format")
-                && op->get_attr<std::string>("output_format") == "NXC")
-            perm_dst_ = true;
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
 
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        std::unordered_map<int, memory> cached_args = args;
-
-        if (perm_dst_) {
-            memory dst_mem = make_dnnl_memory(pd_.dst_desc(), pd_.get_engine(),
-                    args.find(DNNL_ARG_DST)->second.get_data_handle());
-            cached_args[DNNL_ARG_DST] = dst_mem;
-        }
-
-        prim_.execute(stream, cached_args);
+        prim_.execute(stream, args);
     }
 
 private:

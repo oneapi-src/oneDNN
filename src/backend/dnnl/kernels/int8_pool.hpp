@@ -31,7 +31,7 @@
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
-#include "backend/dnnl/passes/memory_binding.hpp"
+#include "backend/dnnl/passes/memory_planning.hpp"
 #include "backend/dnnl/passes/op_executable.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
 
@@ -46,7 +46,7 @@ private:
     impl::allocator_t *g_alloc_;
 
     primitive_attr_mgr prm_attr_mgr_;
-    execution_args_mgr exec_arg_mgr_;
+    memory_planner_t memory_planner_;
     executable_mgr exec_mgr_;
 
     std::vector<op_executable *> execs_;
@@ -54,14 +54,13 @@ private:
 
     std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
 
-    registry_t registry_;
-    std::function<std::shared_ptr<subgraph_resource_t>()> resource_ctor_;
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
     pd_cache_t pd_cache_;
 
 public:
     virtual ~quantized_pooling() {
-        thread_local_cache_t<subgraph_resource_t> res_cache;
+        thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
 
@@ -129,8 +128,13 @@ public:
         }
 
         // bind the memory for each op
-        BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
-                exec_arg_mgr_, prm_attr_mgr_));
+        BACKEND_DNNL_CHECK(memory_planner_.run(
+                subgraph, inputs, outputs, p_engine_, prm_attr_mgr_));
+
+        vis.run(subgraph, "after_memory_planning", true, true,
+                [this](const value_t *val) {
+                    return this->memory_planner_.get_memory_info(val);
+                });
 
         BACKEND_DNNL_CHECK(compile_ops(
                 subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
@@ -142,24 +146,14 @@ public:
                     auto &exec = exec_mgr_.get_executable(exec_key);
                     execs_.emplace_back(exec.get());
 
-                    auto arg_key = op->get_attr<int64_t>("execution_args_key");
-                    exec_arg_mgr_.add_topo_ordered_key(arg_key);
                     return impl::status::success;
                 });
 
         opt_subgraph_ = subgraph;
 
-        // book buffer (only count total size and calculate offset)
-        // for each internal memory
-        registry_t::key_t key = 0;
-        registrar_t registrar = registry_.registrar();
-        for (const auto &mem : exec_arg_mgr_.get_internal_variable_mems()) {
-            registrar.book(key++, mem.get_desc().get_size());
-        }
-
         // generate a hash key for exec_args_mgr
         resource_ctor_ = [this]() {
-            return std::make_shared<subgraph_resource_t>(this->exec_arg_mgr_);
+            return this->memory_planner_.get_exec_args_set().clone();
         };
 
         return impl::status::success;
@@ -173,30 +167,32 @@ public:
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         // each thread's own local resource
-        thread_local_cache_t<subgraph_resource_t> res_cache;
-        subgraph_resource_t *res = res_cache.get_or_add(
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
                 reinterpret_cast<size_t>(this), resource_ctor_);
 
-        // update the data of partition in/outputs args
-        for (size_t i = 0; i < inputs.size(); i++) {
-            res->get_exec_args_mgr().get_external_input_mem(i).set_data_handle(
-                    inputs[i].get_data_handle());
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
         }
-        for (size_t i = 0; i < outputs.size(); i++) {
-            res->get_exec_args_mgr().get_external_output_mem(i).set_data_handle(
-                    outputs[i].get_data_handle());
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
         }
 
         temporary_scratchpad_t scratchpad(
-                registry_.size(), p_engine_, *g_alloc_);
-        assertm(scratchpad.size() >= registry_.size(),
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
                 "no enough scratchpad memory");
-        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
 
         registry_t::key_t key = 0;
-        for (auto &mem :
-                res->get_exec_args_mgr().get_internal_variable_mems()) {
-            mem.set_data_handle(grantor.get(key++));
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
         }
 
         for (size_t i = 0; i < execs_.size(); i++) {

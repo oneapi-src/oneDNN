@@ -30,7 +30,7 @@
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
-#include "backend/dnnl/passes/memory_binding.hpp"
+#include "backend/dnnl/passes/memory_planning.hpp"
 #include "backend/dnnl/passes/op_executable.hpp"
 
 #include "unit_test_common.hpp"
@@ -337,6 +337,8 @@ TEST(pass_test, int8_matmul_lower_down_pass) {
 
 TEST(pass_test, subgraph_passes) {
     /*
+                   | (f32, constant)
+                 quant
         | (u8/s8)  | (s8)
      dequant    dequant
     (f32) \     / (f32)
@@ -379,6 +381,13 @@ TEST(pass_test, subgraph_passes) {
     dqdata_node.set_attr<std::vector<float>>("scales", {scale_src});
     dqdata_node.set_attr<int64_t>("axis", 0);
 
+    impl::op_t qweight_node(10, impl::op_kind::Quantize, "qweight_node");
+    qweight_node.set_attr<std::string>("qtype", "per_tensor");
+    qweight_node.set_attr<std::string>("out_type", "int8");
+    qweight_node.set_attr<std::vector<int64_t>>("zps", zp_wei);
+    qweight_node.set_attr<std::vector<float>>("scales", scale_wei);
+    qweight_node.set_attr<int64_t>("axis", 0);
+
     impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
     dqweight_node.set_attr<std::string>("qtype", "per_tensor");
     dqweight_node.set_attr<std::string>("out_type", "int8");
@@ -415,6 +424,7 @@ TEST(pass_test, subgraph_passes) {
 
     logical_tensor_t src_u8 = logical_tensor_init(1, impl::data_type::u8);
     logical_tensor_t src_f32_dq = logical_tensor_init(2, impl::data_type::f32);
+    logical_tensor_t weight_f32 = logical_tensor_init(20, impl::data_type::f32);
     logical_tensor_t weight_s8 = logical_tensor_init(4, impl::data_type::s8);
     logical_tensor_t weight_f32_dq
             = logical_tensor_init(5, impl::data_type::f32);
@@ -431,6 +441,9 @@ TEST(pass_test, subgraph_passes) {
 
     dqdata_node.add_input(src_u8);
     dqdata_node.add_output(src_f32_dq);
+
+    qweight_node.add_input(weight_f32);
+    qweight_node.add_output(weight_s8);
 
     dqweight_node.add_input(weight_s8);
     dqweight_node.add_output(weight_f32_dq);
@@ -455,6 +468,7 @@ TEST(pass_test, subgraph_passes) {
 
     impl::graph_t g;
     g.add_op(&dqdata_node);
+    g.add_op(&qweight_node);
     g.add_op(&dqweight_node);
     g.add_op(&conv_node);
     g.add_op(&dqother_node);
@@ -464,21 +478,26 @@ TEST(pass_test, subgraph_passes) {
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
-            = get_pass("int8_conv_bias_add_relu_fusion");
+            = get_pass("int8_quant_wei_conv_bias_add_relu_fusion");
 
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
 
     src_u8 = logical_tensor_init(1, src_shape, impl::data_type::u8);
-    weight_s8 = logical_tensor_init(4, weight_shape, impl::data_type::s8);
+    weight_f32 = logical_tensor_init(20, weight_shape, impl::data_type::f32);
     bias_f32 = logical_tensor_init(6, bias_shape, impl::data_type::f32);
     other_s8 = logical_tensor_init(11, dst_shape, impl::data_type::s8);
     dst_s8 = logical_tensor_init(9, dst_shape, impl::data_type::s8);
 
+    weight_f32.property = impl::property_type::constant;
+    bias_f32.property = impl::property_type::constant;
+
     dnnl_impl::primitive_attr_mgr prm_attr_mgr;
-    dnnl_impl::execution_args_mgr exec_arg_mgr;
+    dnnl_impl::memory_planner_t memory_planner;
     std::vector<std::shared_ptr<impl::op_t>> subgraph = part->get_ops();
+
+    dnnl_impl::set_all_layout_to_any(subgraph);
 
     // run lower down passes
     dnnl_impl::check_with_bias(subgraph);
@@ -488,27 +507,30 @@ TEST(pass_test, subgraph_passes) {
     dnnl_impl::fuse_output_scales(subgraph, prm_attr_mgr);
     dnnl_impl::fuse_post_ops(subgraph, prm_attr_mgr);
     dnnl_impl::fuse_zero_points(subgraph, prm_attr_mgr);
-    ASSERT_EQ(subgraph.size(), 2);
+    dnnl_impl::fuse_mul_scales_add_zps(subgraph);
+    ASSERT_EQ(subgraph.size(), 3);
     if (subgraph[0]->get_kind() == dnnl_impl::op_kind::dnnl_convolution) {
         ASSERT_EQ(subgraph[1]->get_kind(), dnnl_impl::op_kind::mul_scales);
+        ASSERT_EQ(subgraph[2]->get_kind(), op_kind::Reorder);
     } else {
         ASSERT_EQ(subgraph[0]->get_kind(), dnnl_impl::op_kind::mul_scales);
         ASSERT_EQ(
                 subgraph[1]->get_kind(), dnnl_impl::op_kind::dnnl_convolution);
+        ASSERT_EQ(subgraph[2]->get_kind(), op_kind::Reorder);
     }
 
     // insert preprocess and reorder ops
     dnnl_impl::insert_permute(subgraph);
-    ASSERT_EQ(subgraph.size(), 5);
+    ASSERT_EQ(subgraph.size(), 7);
 
     dnnl_impl::insert_to_group_for_conv(subgraph);
-    ASSERT_EQ(subgraph.size(), 6);
+    ASSERT_EQ(subgraph.size(), 8);
 
     dnnl_impl::insert_reorder(subgraph);
-    ASSERT_EQ(subgraph.size(), 10);
+    ASSERT_EQ(subgraph.size(), 12);
 
     std::vector<logical_tensor_t> inputs
-            = {src_u8, weight_s8, bias_f32, other_s8};
+            = {src_u8, weight_f32, bias_f32, other_s8};
     std::vector<logical_tensor_t> outputs = {dst_s8};
 
     std::vector<logical_tensor_t> wrong_inputs = {src_u8, weight_s8, bias_f32};
@@ -577,16 +599,40 @@ TEST(pass_test, subgraph_passes) {
         }
     }
 
-    ASSERT_EQ(dnnl_impl::memory_binding(subgraph, inputs, outputs, p_eng,
-                      exec_arg_mgr, prm_attr_mgr),
+    dnnl_impl::constant_propagation(subgraph);
+
+    ASSERT_EQ(
+            memory_planner.run(subgraph, inputs, outputs, p_eng, prm_attr_mgr),
             impl::status::success);
-    for (auto &cur_op : subgraph) {
-        ASSERT_TRUE(cur_op->has_attr("execution_args_key"));
-        int64_t key = cur_op->get_attr<int64_t>("execution_args_key");
-        std::unordered_map<int, dnnl::memory> exec_arg
-                = exec_arg_mgr.get_args(key);
+
+    ASSERT_GE(memory_planner.total_internal_persistent_size(), 0);
+    ASSERT_GE(memory_planner.total_internal_temporary_size(), 0);
+
+    // only the final weight and bias used by conv are cached
+    auto cached_mem_offkeys = memory_planner.get_exec_args_set()
+                                      .get_mems_use_internal_persistent();
+    std::set<size_t> unique_offkeys;
+    for (auto &mem_offkey : cached_mem_offkeys) {
+        unique_offkeys.insert(mem_offkey.second);
+    }
+    ASSERT_EQ(unique_offkeys.size(), 2);
+
+    std::vector<impl::op_t *> topo_ordered_ops;
+    dnnl::graph::impl::topo_order_visit(
+            impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
+                topo_ordered_ops.emplace_back(op);
+                return status::success;
+            });
+
+    auto topo_ordered_args = memory_planner.get_exec_args_set().get_exec_args();
+
+    ASSERT_EQ(topo_ordered_ops.size(), topo_ordered_args.size());
+
+    for (size_t i = 0; i < topo_ordered_args.size(); i++) {
+        std::unordered_map<int, dnnl::memory> exec_arg = topo_ordered_args[i];
         ASSERT_FALSE(exec_arg.empty());
 
+        auto cur_op = topo_ordered_ops[i];
         if (cur_op->get_kind() == dnnl_impl::op_kind::dnnl_convolution) {
             ASSERT_NE(exec_arg.find(DNNL_ARG_SRC), exec_arg.end());
             ASSERT_NE(exec_arg.find(DNNL_ARG_WEIGHTS), exec_arg.end());
@@ -757,3 +803,253 @@ INSTANTIATE_TEST_SUITE_P(int8_matmul_test_instance, int8_matmul_pass_test,
                         false, true, false, 6},
                 ut_int8_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3},
                         false, true, true, 7}));
+
+TEST(pass_test, subgraph_execution_args_set) {
+    ///////////////////////////
+    // val1    val2
+    //   \     /
+    //    \   /
+    //     op1
+    //      |
+    //     val3   val4
+    //       \    /
+    //        \  /
+    //         op2
+    //          |
+    //         val5
+    ///////////////////////////
+    using value_t = impl::value_t;
+    using dtype = dnnl::memory::data_type;
+    using ftag = dnnl::memory::format_tag;
+    using engine = dnnl::engine;
+    using exec_args = impl::dnnl_impl::exec_args;
+    using execution_args_set = impl::dnnl_impl::execution_args_set_t;
+
+    value_t *val1 = (value_t *)1;
+    value_t *val2 = (value_t *)2;
+    value_t *val3 = (value_t *)3;
+    value_t *val4 = (value_t *)4;
+    value_t *val5 = (value_t *)5;
+
+    engine eng(dnnl::engine::kind::cpu, 0);
+    dnnl::memory mem1({{1, 2, 3, 4}, dtype::f32, ftag::abcd}, eng, nullptr);
+    dnnl::memory mem2({{2, 3, 4, 5}, dtype::f32, ftag::abcd}, eng, nullptr);
+    dnnl::memory mem3({{3, 4, 5, 6}, dtype::f32, ftag::abcd}, eng, nullptr);
+    dnnl::memory mem4({{4, 5, 6, 7}, dtype::f32, ftag::abcd}, eng, nullptr);
+    dnnl::memory mem5({{5, 6, 7, 8}, dtype::f32, ftag::abcd}, eng, nullptr);
+
+    // construct the execution_args_set
+    execution_args_set exec_args_set;
+    exec_args_set.add_value_mem_map({val1, mem1});
+    exec_args_set.add_value_mem_map({val2, mem2});
+    exec_args_set.add_value_mem_map({val3, mem3});
+    exec_args_set.add_value_mem_map({val4, mem4});
+    exec_args_set.add_value_mem_map({val5, mem5});
+
+    exec_args_set.add_mem_use_external_inputs(std::make_pair(mem1, 0));
+    exec_args_set.add_mem_use_external_inputs(std::make_pair(mem2, 1));
+    exec_args_set.add_mem_use_external_inputs(std::make_pair(mem4, 2));
+
+    exec_args_set.add_mem_use_external_outputs(std::make_pair(mem5, 0));
+
+    exec_args_set.add_mem_use_internal_temporary(std::make_pair(mem3, 0));
+
+    exec_args op1_args;
+    op1_args.insert({DNNL_ARG_SRC_0, mem1});
+    op1_args.insert({DNNL_ARG_SRC_1, mem2});
+    op1_args.insert({DNNL_ARG_DST, mem3});
+    exec_args_set.add_exec_args(op1_args);
+
+    exec_args op2_args;
+    op2_args.insert({DNNL_ARG_SRC_0, mem3});
+    op2_args.insert({DNNL_ARG_SRC_1, mem4});
+    op2_args.insert({DNNL_ARG_DST, mem5});
+    exec_args_set.add_exec_args(op2_args);
+
+    // create the subgraph (will deep copy the exec_args_mgr implicitly)
+    auto cloned_exec_args_set_ptr = exec_args_set.clone();
+    const auto &cloned_exec_args_set = *cloned_exec_args_set_ptr;
+
+    dnnl::memory cloned_mem1, cloned_mem2, cloned_mem3, cloned_mem4,
+            cloned_mem5;
+    ASSERT_TRUE(cloned_exec_args_set.find_value_mem_map(val1, cloned_mem1));
+    ASSERT_TRUE(cloned_exec_args_set.find_value_mem_map(val2, cloned_mem2));
+    ASSERT_TRUE(cloned_exec_args_set.find_value_mem_map(val3, cloned_mem3));
+    ASSERT_TRUE(cloned_exec_args_set.find_value_mem_map(val4, cloned_mem4));
+    ASSERT_TRUE(cloned_exec_args_set.find_value_mem_map(val5, cloned_mem5));
+
+    // because of deep copy, the desc should be same but the address should be
+    // different
+    ASSERT_TRUE(cloned_mem1.get_desc() == mem1.get_desc()
+            && cloned_mem1.get() != mem1.get());
+    ASSERT_TRUE(cloned_mem2.get_desc() == mem2.get_desc()
+            && cloned_mem2.get() != mem2.get());
+    ASSERT_TRUE(cloned_mem3.get_desc() == mem3.get_desc()
+            && cloned_mem3.get() != mem3.get());
+    ASSERT_TRUE(cloned_mem4.get_desc() == mem4.get_desc()
+            && cloned_mem4.get() != mem4.get());
+    ASSERT_TRUE(cloned_mem5.get_desc() == mem5.get_desc()
+            && cloned_mem5.get() != mem5.get());
+
+    // the external mems and internal mems are just alias to the mem object in
+    // val-mem map, so both of their desc and address should be same
+    auto mems_use_external_inputs
+            = cloned_exec_args_set.get_mems_use_external_inputs();
+    ASSERT_TRUE(cloned_mem1.get_desc()
+                    == mems_use_external_inputs[0].first.get_desc()
+            && cloned_mem1.get() == mems_use_external_inputs[0].first.get());
+    ASSERT_TRUE(cloned_mem2.get_desc()
+                    == mems_use_external_inputs[1].first.get_desc()
+            && cloned_mem2.get() == mems_use_external_inputs[1].first.get());
+    ASSERT_TRUE(cloned_mem4.get_desc()
+                    == mems_use_external_inputs[2].first.get_desc()
+            && cloned_mem4.get() == mems_use_external_inputs[2].first.get());
+
+    auto mems_use_external_outputs
+            = cloned_exec_args_set.get_mems_use_external_outputs();
+    ASSERT_TRUE(cloned_mem5.get_desc()
+                    == mems_use_external_outputs[0].first.get_desc()
+            && cloned_mem5.get() == mems_use_external_outputs[0].first.get());
+
+    auto mems_use_internal_variables
+            = cloned_exec_args_set.get_mems_use_internal_temporary();
+    ASSERT_TRUE(cloned_mem3.get_desc()
+                    == mems_use_internal_variables[0].first.get_desc()
+            && cloned_mem3.get() == mems_use_internal_variables[0].first.get());
+
+    auto args = cloned_exec_args_set.get_exec_args();
+
+    // the mems in args should also be alias
+    auto cloned_op1_args = args[0];
+    ASSERT_TRUE(
+            cloned_mem1.get_desc() == cloned_op1_args[DNNL_ARG_SRC_0].get_desc()
+            && cloned_mem1.get() == cloned_op1_args[DNNL_ARG_SRC_0].get());
+    ASSERT_TRUE(
+            cloned_mem2.get_desc() == cloned_op1_args[DNNL_ARG_SRC_1].get_desc()
+            && cloned_mem2.get() == cloned_op1_args[DNNL_ARG_SRC_1].get());
+    ASSERT_TRUE(
+            cloned_mem3.get_desc() == cloned_op1_args[DNNL_ARG_DST].get_desc()
+            && cloned_mem3.get() == cloned_op1_args[DNNL_ARG_DST].get());
+
+    auto cloned_op2_args = args[1];
+    ASSERT_TRUE(
+            cloned_mem3.get_desc() == cloned_op2_args[DNNL_ARG_SRC_0].get_desc()
+            && cloned_mem3.get() == cloned_op2_args[DNNL_ARG_SRC_0].get());
+    ASSERT_TRUE(
+            cloned_mem4.get_desc() == cloned_op2_args[DNNL_ARG_SRC_1].get_desc()
+            && cloned_mem4.get() == cloned_op2_args[DNNL_ARG_SRC_1].get());
+    ASSERT_TRUE(
+            cloned_mem5.get_desc() == cloned_op2_args[DNNL_ARG_DST].get_desc()
+            && cloned_mem5.get() == cloned_op2_args[DNNL_ARG_DST].get());
+}
+
+TEST(pass_test, memory_planning) {
+    /*
+                / -> Reorder -> Reorder
+               /
+    mul_scales -> mul_scales -> permute -> mul_scales -> permute -> mul_scales
+    -> mul_scales
+    */
+    using dims = impl::dnnl_impl::dims;
+
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+
+    std::vector<int64_t> shape_NCX {64, 32, 256, 256};
+    std::vector<int64_t> shape_NXC {64, 256, 256, 32};
+
+    impl::op_t op1(1, dnnl_impl::op_kind::mul_scales, "op1");
+    impl::op_t op2(2, dnnl_impl::op_kind::mul_scales, "op2");
+    impl::op_t op3(3, dnnl_impl::op_kind::permute, "op3");
+    impl::op_t op4(4, dnnl_impl::op_kind::mul_scales, "op4");
+    impl::op_t op5(5, dnnl_impl::op_kind::permute, "op5");
+    impl::op_t op6(6, dnnl_impl::op_kind::mul_scales, "op6");
+    impl::op_t op7(7, dnnl_impl::op_kind::mul_scales, "op7");
+    impl::op_t op8(8, impl::op_kind::Reorder, "op8");
+    impl::op_t op9(9, impl::op_kind::Reorder, "op9");
+
+    op1.set_attr<std::vector<float>>("scales", {0.5});
+    op2.set_attr<std::vector<float>>("scales", {0.5});
+    op4.set_attr<std::vector<float>>("scales", {0.5});
+    op6.set_attr<std::vector<float>>("scales", {0.5});
+    op7.set_attr<std::vector<float>>("scales", {0.5});
+
+    logical_tensor_t val0
+            = logical_tensor_init(0, shape_NCX, impl::data_type::f32);
+    logical_tensor_t val1
+            = logical_tensor_init(1, shape_NCX, impl::data_type::f32);
+    logical_tensor_t val2
+            = logical_tensor_init(2, shape_NCX, impl::data_type::f32);
+    logical_tensor_t val3
+            = logical_tensor_init(3, shape_NXC, impl::data_type::f32);
+    logical_tensor_t val4
+            = logical_tensor_init(4, shape_NXC, impl::data_type::f32);
+    logical_tensor_t val5
+            = logical_tensor_init(5, shape_NCX, impl::data_type::f32);
+    logical_tensor_t val6
+            = logical_tensor_init(6, shape_NCX, impl::data_type::f32);
+    logical_tensor_t val7
+            = logical_tensor_init(7, shape_NCX, impl::data_type::f32);
+    logical_tensor_t val8
+            = logical_tensor_init(8, shape_NCX, impl::data_type::f32);
+    logical_tensor_t val9
+            = logical_tensor_init(9, shape_NCX, impl::data_type::f32);
+
+    op1.add_input(val0);
+    op1.add_output(val1);
+    op2.add_input(val1);
+    op2.add_output(val2);
+    op3.add_input(val2);
+    op3.add_output(val3);
+    op4.add_input(val3);
+    op4.add_output(val4);
+    op5.add_input(val4);
+    op5.add_output(val5);
+    op6.add_input(val5);
+    op6.add_output(val6);
+    op7.add_input(val6);
+    op7.add_output(val7);
+    op8.add_input(val1);
+    op8.add_output(val8);
+    op9.add_input(val8);
+    op9.add_output(val9);
+
+    impl::graph_t g;
+    g.add_op(&op1);
+    g.add_op(&op2);
+    g.add_op(&op3);
+    g.add_op(&op4);
+    g.add_op(&op5);
+    g.add_op(&op6);
+    g.add_op(&op7);
+    g.add_op(&op8);
+    g.add_op(&op9);
+    g.build_graph();
+
+    auto subgraph = g.get_ops();
+    ASSERT_EQ(subgraph.size(), 9);
+
+    std::vector<logical_tensor_t> inputs = {val0};
+    std::vector<logical_tensor_t> outputs = {val7, val9};
+
+    // the prm_attr_mgr is dummy here
+    dnnl_impl::primitive_attr_mgr prm_attr_mgr;
+    dnnl_impl::memory_planner_t memory_planner;
+
+    ASSERT_EQ(
+            memory_planner.run(subgraph, inputs, outputs, p_eng, prm_attr_mgr),
+            impl::status::success);
+
+    auto mem_offkeys = memory_planner.get_exec_args_set()
+                               .get_mems_use_internal_temporary();
+    std::set<size_t> unique_offkeys;
+    for (auto &mem_offkey : mem_offkeys) {
+        unique_offkeys.insert(mem_offkey.second);
+    }
+
+    // 2 buffers for val1, (val2 or val8)
+    // - val1, val2 can't share buffer because val2 has two consumer and
+    //   mul_scales will change the buffer content
+    // - if compute reorder first, then val2 can reuse the val8 or val1 buffer.
+    //   otherwise, val8 can reuse the val2 buffer
+    ASSERT_EQ(unique_offkeys.size(), 2);
+}

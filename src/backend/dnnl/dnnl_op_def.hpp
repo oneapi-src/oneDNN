@@ -2692,10 +2692,6 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
                                 impl::data_type::f16, impl::data_type::u8,
                                 impl::data_type::s8})
                 .set_shape_inference_function(infer_dnnl_conv_output_shape)
-                .set_attr("output_format",
-                        "the data format of output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
@@ -2719,10 +2715,6 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
                         "in the filter",
                         false, attribute_kind::is,
                         std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
-                .set_attr("output_format",
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
                 .set_attr("rounding_type", "a type of rounding to be applied",
                         false, attribute_kind::s, "floor")
                 .set_attr("auto_pad", "how the padding is calculated", false,
@@ -2809,10 +2801,6 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
                         true, attribute_kind::is)
                 .set_attr("auto_pad", "how the padding is calculated", false,
                         attribute_kind::s, "None")
-                .set_attr("output_format",
-                        "the data format of output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
                 .set_shape_inference_function(
                         infer_dnnl_conv_bwd_data_output_shape))
 

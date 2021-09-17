@@ -317,7 +317,9 @@ std::string property2str(impl::property_type_t ptype) {
 } // namespace
 
 status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
-        const std::string &name_suffix, bool is_layout_sensitive) {
+        const std::string &name_suffix, bool is_layout_sensitive,
+        bool is_memory_sensitive,
+        std::function<std::string(const value_t *)> mem_info_func) {
 #ifdef DNNL_GRAPH_ENABLE_DUMP
     if (!enabled_) return status::success;
 
@@ -364,9 +366,10 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
         return status::success;
     });
 
-    // lt str: (data_type):(logical tensor id):(layout type):(dims):(layout
-    // desc):(property)
-    auto lt2str = [is_layout_sensitive](const impl::logical_tensor_t &lt) {
+    // value str: (data_type):(logical tensor id):(layout type):(dims):(layout
+    // desc):(property):(mem_info)
+    auto val2str = [is_layout_sensitive, is_memory_sensitive, mem_info_func](
+                           const value_t *val) {
         auto dims2str = [](const impl::dims &dims) {
             if (dims.size() < 1) return std::string("");
 
@@ -377,6 +380,7 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
             return str;
         };
 
+        auto lt = val->get_logical_tensor();
         auto ltw = impl::logical_tensor_wrapper(lt);
         std::string str
                 = std::string(impl::utils::data_type2str(ltw.data_type())) + ":"
@@ -391,7 +395,8 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
                 + ":"
                 + (is_layout_sensitive ? layout2str(make_dnnl_memory_desc(lt))
                                        : "")
-                + ":" + property2str(ltw.property_type());
+                + ":" + property2str(ltw.property_type()) + ":"
+                + (is_memory_sensitive ? mem_info_func(val) : "");
         return str;
     };
 
@@ -404,15 +409,15 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
             << "_" << op_id;
 
         for (size_t i = 0; i < op->num_inputs(); i++) {
-            auto lt = op->get_input_value(i)->get_logical_tensor();
             out << "\\n"
-                << "in" << std::to_string(i) << "_" << lt2str(lt);
+                << "in" << std::to_string(i) << "_"
+                << val2str(op->get_input_value(i).get());
         }
 
         for (size_t i = 0; i < op->num_outputs(); i++) {
-            auto lt = op->get_output_value(i)->get_logical_tensor();
             out << "\\n"
-                << "out" << std::to_string(i) << "_" << lt2str(lt);
+                << "out" << std::to_string(i) << "_"
+                << val2str(op->get_output_value(i).get());
         }
 
         out << "\"];\n";
@@ -425,6 +430,8 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
     UNUSED(subgraph);
     UNUSED(name_suffix);
     UNUSED(is_layout_sensitive);
+    UNUSED(is_memory_sensitive);
+    UNUSED(mem_info_func);
 #endif
 
     return status::success;

@@ -125,6 +125,12 @@ public:
     // create a grantor from this registry
     grantor_t grantor(char *base_ptr) const;
 
+    void clear() {
+        offset_map_.clear();
+        size_ = 0;
+        lcm_alignment_ = 1;
+    }
+
 private:
     std::unordered_map<key_t, offset_t> offset_map_;
     size_t size_ {0}; // registered buffers' total size

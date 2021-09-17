@@ -44,21 +44,6 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
     infer_conv_output_shape(n, inputs, outputs);
     *inputs[1] = backup;
 
-    // permute output from NCX to NXC
-    if (out_shape_unknown && n->has_attr("output_format")
-            && n->get_attr<std::string>("output_format") == "NXC") {
-        auto ndims = outputs[0]->ndims;
-        auto channel = outputs[0]->dims[1];
-        for (size_t i = 1; i < ndims - 1; i++) {
-            outputs[0]->dims[i] = outputs[0]->dims[i + 1];
-        }
-        outputs[0]->dims[ndims - 1] = channel;
-    }
-
-    // set strides
-    set_shape_and_strides(
-            *outputs[0], logical_tensor_wrapper(outputs[0]).vdims());
-
     return status::success;
 }
 
@@ -68,21 +53,6 @@ status_t infer_dnnl_pool_output_shape(op_t *n,
     bool out_shape_unknown
             = logical_tensor_wrapper(outputs[0]).is_shape_unknown();
     infer_pool_output_shape(n, inputs, outputs);
-
-    // permute output from NCX to NXC
-    if (out_shape_unknown && n->has_attr("output_format")
-            && n->get_attr<std::string>("output_format") == "NXC") {
-        auto ndims = outputs[0]->ndims;
-        auto channel = outputs[0]->dims[1];
-        for (size_t i = 1; i < ndims - 1; i++) {
-            outputs[0]->dims[i] = outputs[0]->dims[i + 1];
-        }
-        outputs[0]->dims[ndims - 1] = channel;
-    }
-
-    // set strides
-    set_shape_and_strides(
-            *outputs[0], logical_tensor_wrapper(outputs[0]).vdims());
     return status::success;
 }
 
@@ -224,22 +194,6 @@ status_t infer_dnnl_conv_bwd_data_output_shape(op_t *n,
     auto ret = infer_conv_bprop_data_output_shape(n, inputs, outputs);
     if (ret != status::success) return ret;
     *inputs[1] = backup;
-
-    // permute output from NCX to NXC
-    if (out_shape_unknown && n->has_attr("output_format")
-            && n->get_attr<std::string>("output_format") == "NXC") {
-        auto ndims = outputs[0]->ndims;
-        auto channel = outputs[0]->dims[1];
-        for (size_t i = 1; i < ndims - 1; i++) {
-            outputs[0]->dims[i] = outputs[0]->dims[i + 1];
-        }
-        outputs[0]->dims[ndims - 1] = channel;
-    }
-
-    // set strides
-    set_shape_and_strides(
-            *outputs[0], logical_tensor_wrapper(outputs[0]).vdims());
-
     return status::success;
 }
 
