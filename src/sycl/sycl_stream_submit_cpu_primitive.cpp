@@ -34,10 +34,6 @@
 #include <vector>
 #include <CL/sycl.hpp>
 
-// A global scope tag type to use for enqueueing a single task
-template <typename... types>
-class dnnl_submit_primitive_tag_t;
-
 namespace dnnl {
 namespace impl {
 namespace sycl {
@@ -56,10 +52,6 @@ void init_thunk_params(
             = reinterpret_cast<uintptr_t>(&acc[0]);
     init_thunk_params<N>(p, accessors...);
 }
-
-template <typename... accessor_types>
-using make_kernel_tag
-        = dnnl_submit_primitive_tag_t<typename accessor_types::value_type...>;
 
 template <typename... param_types>
 status_t submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
