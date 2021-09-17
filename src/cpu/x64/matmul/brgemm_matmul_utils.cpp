@@ -69,6 +69,18 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
                             broadcasting_strategy_t::no_broadcast}));
 }
 
+int get_default_n_block(format_tag_t matrix_b_tag) {
+    switch (matrix_b_tag) {
+        case BA16a48b2a:
+        case BA16a48b4a: return 48;
+        case BA16a32b2a:
+        case BA16a32b4a: return 32;
+        case BA16a16b2a:
+        case BA16a16b4a: return 16;
+        default: return 64;
+    }
+}
+
 brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
     return attr.zero_points_.has_default_values(arg)
             ? brgemm_broadcast_t::none
@@ -259,18 +271,6 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         }
 
         return format_tag::undef;
-    };
-
-    auto get_default_n_block = [&](format_tag_t matrix_b_tag) -> int {
-        switch (matrix_b_tag) {
-            case BA16a48b2a:
-            case BA16a48b4a: return 48;
-            case BA16a32b2a:
-            case BA16a32b4a: return 32;
-            case BA16a16b2a:
-            case BA16a16b4a: return 16;
-            default: return 64;
-        }
     };
 
     const format_tag_t plain_tensor_layout_tag
