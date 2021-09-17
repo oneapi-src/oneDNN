@@ -69,6 +69,138 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
                             broadcasting_strategy_t::no_broadcast}));
 }
 
+status_t check_isa_with_datatype(
+        const cpu_isa_t isa, const brgemm_matmul_conf_utils_t &bm_conf_utils) {
+    const bool ok = IMPLICATION(bm_conf_utils.is_int8(),
+                            one_of(isa, avx512_core_bf16_amx_int8))
+            && IMPLICATION(bm_conf_utils.is_bf16(),
+                    one_of(isa, avx512_core_bf16_amx_bf16));
+    return ok ? status::success : status::unimplemented;
+}
+
+brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
+        brgemm_matmul_conf_t &bgmmc, bool A_any_layout, bool B_any_layout,
+        bool C_any_layout, bool bias_any_layout)
+    : bgmmc(bgmmc)
+    , bf16_dt(utils::everyone_is(bf16, bgmmc.src_dt, bgmmc.wei_dt)
+              && one_of(bgmmc.dst_dt, bf16, f32))
+    , int8_dt(utils::one_of(bgmmc.src_dt, u8, s8) && bgmmc.wei_dt == s8
+              && one_of(bgmmc.dst_dt, u8, s8, s32, f32, bf16))
+    , A_any_layout(A_any_layout)
+    , B_any_layout(B_any_layout)
+    , C_any_layout(C_any_layout)
+    , bias_any_layout(bias_any_layout)
+    , n_blk_fixed(false) {
+    assert(int8_dt || bf16_dt);
+}
+
+status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
+        memory_desc_t &B_md) const {
+
+    if (B_any_layout) {
+        bgmmc.wei_tag = blocked_B_layouts_allowed
+                ? this->pick_blocked_B_layout(bgmmc.wei_n_blk)
+                : plain_tensor_layout_tag;
+        if (format_tag::undef == bgmmc.wei_tag) return status::unimplemented;
+
+        CHECK(memory_desc_init_by_tag(B_md, bgmmc.wei_tag));
+    } else {
+        bgmmc.wei_tag = blocked_B_layouts_allowed
+                ? memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
+                        transposed_tensor_layout_tag, blocked_64n_B_layout_tag,
+                        blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
+                        blocked_16n_B_layout_tag)
+                : memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
+                        transposed_tensor_layout_tag);
+        if (format_tag::undef == bgmmc.wei_tag) return status::unimplemented;
+    }
+
+    return status::success;
+}
+
+status_t brgemm_matmul_conf_utils_t::update_and_check_B_tag(
+        memory_desc_t &B_md, int n_blk_size) const {
+
+    if (n_blk_fixed && n_blk_size != bgmmc.wei_n_blk)
+        return status::unimplemented;
+
+    if (!(B_any_layout && blocked_B_layouts_allowed)) return status::success;
+
+    return set_or_check_B_tag(B_md);
+}
+
+status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
+        memory_desc_t &C_md, memory_desc_t &bias_md) const {
+    if (A_any_layout) {
+        const format_tag_t desired_A_tag = plain_tensor_layout_tag;
+        CHECK(memory_desc_init_by_tag(A_md, desired_A_tag));
+        bgmmc.src_tag = desired_A_tag;
+    } else {
+        bgmmc.src_tag = this->is_bf16()
+                ? memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag,
+                        transposed_tensor_layout_tag)
+                : memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag);
+    }
+
+    if (C_any_layout) {
+        const format_tag_t desired_C_tag = plain_tensor_layout_tag;
+        CHECK(memory_desc_init_by_tag(C_md, desired_C_tag));
+        bgmmc.dst_tag = desired_C_tag;
+    } else {
+        bgmmc.dst_tag
+                = memory_desc_matches_one_of_tag(C_md, plain_tensor_layout_tag);
+    }
+
+    if (one_of(format_tag::undef, bgmmc.src_tag, bgmmc.dst_tag))
+        return status::unimplemented;
+
+    if (bgmmc.with_bias && bias_any_layout)
+        CHECK(memory_desc_init_by_tag(bias_md, plain_tensor_layout_tag));
+
+    return status::success;
+}
+
+status_t brgemm_matmul_conf_utils_t::set_B_flags(memory_desc_t &B_md) const {
+
+    memory_desc_t want_B_md = B_md;
+    if (bgmmc.s8s8_compensation_required && bgmmc.blocked_B) {
+        want_B_md.extra.flags |= memory_extra_flags::compensation_conv_s8s8;
+        want_B_md.extra.compensation_mask = (1 << 1);
+    }
+    if (bgmmc.src_zp_type != brgemm_broadcast_t::none && bgmmc.blocked_B) {
+        want_B_md.extra.flags
+                |= memory_extra_flags::compensation_conv_asymmetric_src;
+        want_B_md.extra.asymm_compensation_mask = (1 << 1);
+    }
+
+    if (B_any_layout) {
+        B_md = want_B_md;
+        return status::success;
+    }
+
+    return B_md == want_B_md ? status::success : status::unimplemented;
+}
+
+format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
+        int n_blk) const {
+    if (bgmmc.ndims > 2) return format_tag::undef;
+    if (this->is_int8()) switch (n_blk) {
+            case 64: return BA16a64b4a;
+            case 48: return BA16a48b4a;
+            case 32: return BA16a32b4a;
+            case 16: return BA16a16b4a;
+            default: return format_tag::undef;
+        }
+    if (this->is_bf16()) switch (n_blk) {
+            case 64: return BA16a64b2a;
+            case 48: return BA16a48b2a;
+            case 32: return BA16a32b2a;
+            case 16: return BA16a16b2a;
+            default: return format_tag::undef;
+        }
+    return format_tag::undef;
+}
+
 int get_default_n_block(format_tag_t matrix_b_tag) {
     switch (matrix_b_tag) {
         case BA16a48b2a:
@@ -158,15 +290,21 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             = isa == avx512_core_vnni && bgmmc.src_dt == s8;
     bgmmc.ndims = dst_d.ndims();
 
-    const bool is_int8 = one_of(bgmmc.src_dt, u8, s8) && bgmmc.wei_dt == s8
-            && one_of(bgmmc.dst_dt, u8, s8, s32, f32, bf16);
-    const bool is_bf16 = everyone_is(bf16, bgmmc.src_dt, bgmmc.wei_dt)
-            && one_of(bgmmc.dst_dt, bf16, f32);
+    brgemm_matmul_conf_utils_t bm_conf_utils(bgmmc,
+            src_d.format_kind() == format_kind::any,
+            weights_d.format_kind() == format_kind::any,
+            dst_d.format_kind() == format_kind::any,
+            bias_md.format_kind == format_kind::any);
+
+    bm_conf_utils.init_layout_params();
+
+    CHECK(check_isa_with_datatype(isa, bm_conf_utils));
+
     const bool is_amx_int8 = isa == avx512_core_bf16_amx_int8;
     const bool is_amx_bf16 = isa == avx512_core_bf16_amx_bf16;
     bgmmc.is_amx = is_amx_int8 || is_amx_bf16;
 
-    bgmmc.acc_dt = is_int8 ? s32 : f32;
+    bgmmc.acc_dt = bm_conf_utils.is_int8() ? s32 : f32;
 
     bgmmc.a_dt_sz = types::data_type_size(bgmmc.src_dt);
     bgmmc.b_dt_sz = types::data_type_size(bgmmc.wei_dt);
@@ -196,13 +334,6 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.src_zp_type = get_zp_type(attr, DNNL_ARG_SRC);
     bgmmc.wei_zp_type = get_zp_type(attr, DNNL_ARG_WEIGHTS);
     bgmmc.dst_zp_type = get_zp_type(attr, DNNL_ARG_DST);
-
-    if (!IMPLICATION(is_int8,
-                one_of(isa, avx512_core_vnni, avx512_core_bf16_amx_int8)))
-        return status::unimplemented;
-
-    if (!IMPLICATION(is_bf16, isa == avx512_core_bf16_amx_bf16))
-        return status::unimplemented;
 
     matmul_helper_t helper(src_d, weights_d, dst_d);
 
@@ -243,149 +374,18 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     init_bcast_desc(bgmmc.bcast_B_desc, weights_d.dims());
 
     // required granularity for k dimension
-    bgmmc.required_k_granularity = is_amx_int8 ? 4 : (is_amx_bf16 ? 2 : 1);
-    const int required_k_block_granularity
-            = is_amx_int8 ? 64 : (is_amx_bf16 ? 32 : 16);
+    bgmmc.required_k_granularity
+            = bgmmc.is_amx ? data_type_vnni_granularity(bgmmc.wei_dt) : 1;
+    bgmmc.wei_k_blk = data_type_vnni_simd_elems<avx512_core>(bgmmc.wei_dt);
 
-    auto pick_blocked_B_layout = [&](int n_blk) -> format_tag_t {
-        if (bgmmc.ndims > 2) return format_tag::undef;
+    bgmmc.wei_n_blk = get_default_n_block(format_tag::undef);
 
-        if (isa == avx512_core_bf16_amx_int8) {
-            switch (n_blk) {
-                case 64: return BA16a64b4a;
-                case 48: return BA16a48b4a;
-                case 32: return BA16a32b4a;
-                case 16: return BA16a16b4a;
-                default: return format_tag::undef;
-            }
-        }
-
-        if (isa == avx512_core_bf16_amx_bf16) {
-            switch (n_blk) {
-                case 64: return BA16a64b2a;
-                case 48: return BA16a48b2a;
-                case 32: return BA16a32b2a;
-                case 16: return BA16a16b2a;
-                default: return format_tag::undef;
-            }
-        }
-
-        return format_tag::undef;
-    };
-
-    const format_tag_t plain_tensor_layout_tag
-            = pick(bgmmc.batch_ndims, ab, abc, abcd, abcde, abcdef, abcdefg,
-                    abcdefgh, abcdefghi, abcdefghij, abcdefghijk, abcdefghijkl);
-    const format_tag_t transposed_tensor_layout_tag
-            = pick(bgmmc.batch_ndims, ba, acb, abdc, abced, abcdfe, abcdegf,
-                    abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
-    const format_tag_t blocked_64n_B_layout_tag = pick_blocked_B_layout(64);
-    const format_tag_t blocked_48n_B_layout_tag = pick_blocked_B_layout(48);
-    const format_tag_t blocked_32n_B_layout_tag = pick_blocked_B_layout(32);
-    const format_tag_t blocked_16n_B_layout_tag = pick_blocked_B_layout(16);
-    const bool blocked_B_layouts_allowed = !one_of(format_tag::undef,
-            blocked_64n_B_layout_tag, blocked_48n_B_layout_tag,
-            blocked_32n_B_layout_tag, blocked_16n_B_layout_tag);
-
-    auto b_layout_blocked_by_n = [&](format_tag_t matrix_b_tag) -> bool {
-        return blocked_B_layouts_allowed
-                && one_of(matrix_b_tag, blocked_64n_B_layout_tag,
-                        blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
-                        blocked_16n_B_layout_tag);
-    };
-
-    bool n_blk_fixed = false;
-    const bool any_B_layout = weights_d.format_kind() == format_kind::any;
-
-    auto set_or_check_B_tag = [&](bool init, int n_blk_size = -1) -> status_t {
-        if (n_blk_fixed && n_blk_size != bgmmc.wei_n_blk)
-            return status::unimplemented;
-
-        bgmmc.wei_k_blk = required_k_block_granularity;
-        bgmmc.wei_n_blk
-                = init ? get_default_n_block(format_tag::undef) : n_blk_size;
-
-        if (!IMPLICATION(!init, any_B_layout && blocked_B_layouts_allowed))
-            return status::success;
-
-        if (any_B_layout) {
-            bgmmc.wei_tag = blocked_B_layouts_allowed
-                    ? pick_blocked_B_layout(bgmmc.wei_n_blk)
-                    : plain_tensor_layout_tag;
-            if (format_tag::undef == bgmmc.wei_tag)
-                return status::unimplemented;
-
-            CHECK(memory_desc_init_by_tag(weights_md, bgmmc.wei_tag));
-        } else {
-            bgmmc.wei_tag = blocked_B_layouts_allowed
-                    ? memory_desc_matches_one_of_tag(weights_md,
-                            plain_tensor_layout_tag,
-                            transposed_tensor_layout_tag,
-                            blocked_64n_B_layout_tag, blocked_48n_B_layout_tag,
-                            blocked_32n_B_layout_tag, blocked_16n_B_layout_tag)
-                    : memory_desc_matches_one_of_tag(weights_md,
-                            plain_tensor_layout_tag,
-                            transposed_tensor_layout_tag);
-            if (format_tag::undef == bgmmc.wei_tag)
-                return status::unimplemented;
-
-            n_blk_fixed = blocked_B_layouts_allowed
-                    && b_layout_blocked_by_n(bgmmc.wei_tag);
-        }
-
-        bgmmc.blocked_B = blocked_B_layouts_allowed
-                && b_layout_blocked_by_n(bgmmc.wei_tag);
-        bgmmc.use_buffer_b = !bgmmc.blocked_B;
-
-        memory_desc_t want_wei_md = weights_md;
-        if (bgmmc.src_zp_type != brgemm_broadcast_t::none && bgmmc.blocked_B) {
-            want_wei_md.extra.flags
-                    |= memory_extra_flags::compensation_conv_asymmetric_src;
-            want_wei_md.extra.asymm_compensation_mask = (1 << 1);
-        }
-
-        if (any_B_layout) {
-            weights_md = want_wei_md;
-            return status::success;
-        }
-
-        return weights_md == want_wei_md ? status::success
-                                         : status::unimplemented;
-    };
-
-    auto set_or_check_tags = [&]() -> status_t {
-        if (src_d.format_kind() == format_kind::any) {
-            const format_tag_t desired_src_tag = plain_tensor_layout_tag;
-            CHECK(memory_desc_init_by_tag(src_md, desired_src_tag));
-            bgmmc.src_tag = desired_src_tag;
-        } else {
-            bgmmc.src_tag = is_amx_bf16 ? memory_desc_matches_one_of_tag(src_md,
-                                    plain_tensor_layout_tag,
-                                    transposed_tensor_layout_tag)
-                                        : memory_desc_matches_one_of_tag(src_md,
-                                                plain_tensor_layout_tag);
-        }
-
-        if (dst_d.format_kind() == format_kind::any) {
-            const format_tag_t desired_dst_tag = plain_tensor_layout_tag;
-            CHECK(memory_desc_init_by_tag(dst_md, desired_dst_tag));
-            bgmmc.dst_tag = desired_dst_tag;
-        } else {
-            bgmmc.dst_tag = memory_desc_matches_one_of_tag(
-                    dst_md, plain_tensor_layout_tag);
-        }
-
-        if (one_of(format_tag::undef, bgmmc.src_tag, bgmmc.dst_tag))
-            return status::unimplemented;
-
-        if (bgmmc.with_bias && bias_md.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(bias_md, plain_tensor_layout_tag));
-
-        return set_or_check_B_tag(true);
-    };
-
-    CHECK(set_or_check_tags());
+    CHECK(bm_conf_utils.set_or_check_tags(src_md, dst_md, bias_md));
+    CHECK(bm_conf_utils.set_or_check_B_tag(weights_md));
     CHECK(attr.set_default_formats(&dst_md));
+
+    bgmmc.blocked_B = bm_conf_utils.get_blocked_B();
+    bgmmc.use_buffer_b = !bgmmc.blocked_B;
 
     // Configure matrix sizes
     const dim_t max_M = 64, min_M = 32;
@@ -414,8 +414,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.brgemm_batch_size
             = nstl::max(bgmmc.K / bgmmc.K_blk, static_cast<dim_t>(1));
 
-    bgmmc.transposed_A = bgmmc.src_tag == transposed_tensor_layout_tag;
-    const bool lda_is_big_2pow = is_bf16 && !bgmmc.transposed_A
+    bgmmc.transposed_A = bm_conf_utils.check_is_transposed(bgmmc.src_tag);
+    const bool lda_is_big_2pow = bm_conf_utils.is_bf16() && !bgmmc.transposed_A
             && math::is_pow2(bgmmc.K) && bgmmc.K >= 4096 && bgmmc.M >= 1024;
     const bool is_copy_a_required = bgmmc.K % bgmmc.required_k_granularity != 0
             || bgmmc.wei_zp_type != brgemm_broadcast_t::none
@@ -450,7 +450,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         const int min_M_blk = low_parallelism && bgmmc.M_blk > 32
                 ? div_up(bgmmc.M_blk, 2)
                 : bgmmc.M_blk;
-        const int min_N_blk = low_parallelism && is_amx_bf16 && !n_blk_fixed
+        const int min_N_blk = low_parallelism && is_amx_bf16
+                        && !bm_conf_utils.check_n_blk_fixed()
                         && bgmmc.N_blk > 32
                 ? 32
                 : bgmmc.N_blk;
@@ -495,8 +496,11 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     best_blocking.update_configuration(bgmmc);
     if (bgmmc.wei_n_blk > bgmmc.N_blk && bgmmc.N >= bgmmc.wei_n_blk) {
         bgmmc.wei_n_blk = bgmmc.N_blk;
-        CHECK(set_or_check_B_tag(false, bgmmc.wei_n_blk));
+        CHECK(bm_conf_utils.update_and_check_B_tag(
+                weights_md, bgmmc.wei_n_blk));
     }
+
+    CHECK(bm_conf_utils.set_B_flags(weights_md));
 
     bgmmc.M_tail = bgmmc.M % bgmmc.M_blk;
     bgmmc.N_tail = bgmmc.N % bgmmc.N_blk;
