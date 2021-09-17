@@ -43,8 +43,7 @@ private:
         std::vector<float> inv_scales;
         inv_scales.reserve(scales.size());
         for (auto &s : scales) {
-            // add epsilon to avoid divide zero
-            inv_scales.emplace_back(1.f / (s + 1e-9f));
+            inv_scales.emplace_back(1.f / s);
         }
         return inv_scales;
     };
@@ -95,6 +94,9 @@ public:
 
         primitive_attr attr;
         if (op->get_kind() == impl::op_kind::Quantize) {
+            assertm(std::all_of(scales.begin(), scales.end(),
+                            [](float i) { return i != 0.f; }),
+                    "scales can't be zero");
             // inverse the scales, since dnnl multiply the scales to dst
             attr.set_output_scales(mask, inverse_scales(scales));
         } else {

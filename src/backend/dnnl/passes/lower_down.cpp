@@ -23,6 +23,7 @@
 
 #include "interface/c_types_map.hpp"
 #include "interface/op_schema.hpp"
+#include "utils/utils.hpp"
 
 #include "lower_down.hpp"
 #include "utils.hpp"
@@ -35,10 +36,6 @@ using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper;
-
-// define epsilon to avoid divide-by-zero when computing the inverse of scales
-// note that it may affect the model's accuracy
-const float scale_eps = 1e-9f;
 
 static bool has_optional_bias(op_kind_t kind) {
     std::set<op_kind_t> ops {impl::op_kind::Convolution, impl::op_kind::MatMul};
@@ -127,8 +124,12 @@ void split_quant_dequant(std::vector<op_ptr> &subgraph) {
             op1 = std::make_shared<op_t>(op_kind::mul_scales);
             op2 = std::make_shared<op_t>(op_kind::add_zps);
 
+            assertm(std::all_of(scales.begin(), scales.end(),
+                            [](float i) { return i != 0.f; }),
+                    "scales can't be zero");
+
             std::vector<float> inv_scales = dnnl_impl::utils::fmap(
-                    scales, [](float s) { return 1.f / (s + scale_eps); });
+                    scales, [](float s) { return 1.f / s; });
             op1->set_attr<std::vector<float>>("scales", inv_scales);
             op2->set_attr<std::vector<int64_t>>("zps", zps);
         }
@@ -332,10 +333,13 @@ void fuse_to_int8_conv(std::vector<op_ptr> &subgraph) {
         if (conv_op->num_inputs() == 3) { //with bias
             op_ptr mul_op1 = std::make_shared<op_t>(op_kind::mul_scales);
 
+            assertm(std::all_of(fused_scale.begin(), fused_scale.end(),
+                            [](float i) { return i != 0.f; }),
+                    "scales can't be zero");
+
             std::vector<float> inv_scales(fused_scale.size());
             for (int i = 0; i < fused_scale.size(); i++)
-                // add epsilon to avoid divide zero
-                inv_scales[i] = 1.f / (fused_scale[i] + scale_eps);
+                inv_scales[i] = 1.f / fused_scale[i];
 
             // FIXME(xxx) add other attrs
             mul_op1->set_attr<std::vector<float>>("scales", inv_scales);
@@ -442,9 +446,14 @@ void fuse_to_int8_matmul(std::vector<op_ptr> &subgraph) {
         // with bias
         if (matmul_op->num_inputs() == 3) {
             op_ptr bias_mul_op = std::make_shared<op_t>(op_kind::mul_scales);
+
+            assertm(std::all_of(fused_scales.begin(), fused_scales.end(),
+                            [](float i) { return i != 0.f; }),
+                    "scales can't be zero");
+
             std::vector<float> inv_scales(fused_scales.size(), 1.f);
             for (size_t i = 0; i < inv_scales.size(); ++i)
-                inv_scales[i] = 1.f / (fused_scales[i] + scale_eps);
+                inv_scales[i] = 1.f / fused_scales[i];
             bias_mul_op->set_attr<std::vector<float>>("scales", inv_scales);
             bias_mul_op->set_attr<int64_t>("axis", 0);
 
