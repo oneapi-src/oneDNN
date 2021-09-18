@@ -114,5 +114,6 @@ timer_t &timer_map_t::perf_timer() {
 
 // Initializing timers with fixed names.
 const std::string timer_t::perf_timer = "perf_timer";
+const std::string timer_t::ref_timer = "compute_ref_timer";
 
 } // namespace timer

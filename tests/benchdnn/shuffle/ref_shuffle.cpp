@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 namespace shuffle {
 
-void compute_shuffle(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
+void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
     const int axis = prb->axis;
     const int64_t group_size = prb->group;
     const int64_t axis_size = prb->dims[axis];

@@ -28,6 +28,9 @@
         t.stop(); \
     } while (0)
 
+// Designated timer to calculate time spent on reference computations
+#define TIME_REF(func) TIME_FUNC(func, res, timer::timer_t::ref_timer)
+
 namespace timer {
 
 struct timer_t {
@@ -66,6 +69,7 @@ struct timer_t {
 
     // Section with timer fixed timer names for ease of use
     static const std::string perf_timer;
+    static const std::string ref_timer;
 };
 
 struct timer_map_t {

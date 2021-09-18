@@ -512,7 +512,8 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp, dst_fp);
+            TIME_REF(compute_ref_fwd(
+                    prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp, dst_fp));
 
             compare::compare_t cmp_data;
             const int digits_f32 = 24;
@@ -579,8 +580,8 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_bwd(prb, src_fp, mean_fp, var_fp, d_dst_fp, ss_fp,
-                    d_src_fp, d_ss_fp, d_sh_fp);
+            TIME_REF(compute_ref_bwd(prb, src_fp, mean_fp, var_fp, d_dst_fp,
+                    ss_fp, d_src_fp, d_ss_fp, d_sh_fp));
 
             compare::compare_t cmp_data;
             const int digits_f32 = 24;

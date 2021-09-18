@@ -240,7 +240,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_fwd(prb, src_fp, weights_fp, dst_fp);
+            TIME_REF(compute_ref_fwd(prb, src_fp, weights_fp, dst_fp));
             compare::compare_t cmp;
             cmp.set_threshold(2 * epsilon_dt(prb->sdt[0]));
             cmp.set_zero_trust_percent(50.f); // Due to filling
@@ -267,8 +267,8 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_bwd(
-                    prb, src_fp, weights_fp, d_src_fp, d_dst_fp, d_weights_fp);
+            TIME_REF(compute_ref_bwd(
+                    prb, src_fp, weights_fp, d_src_fp, d_dst_fp, d_weights_fp));
 
             compare::compare_t cmp_src;
             cmp_src.set_threshold(2 * epsilon_dt(prb->sdt[0]));

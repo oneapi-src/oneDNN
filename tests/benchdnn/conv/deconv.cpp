@@ -382,7 +382,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
             ref_args.set(binary_po_args, binary_po_fp);
 
-            deconv::compute_ref_fwd(&p_tr, prim_ref, ref_args);
+            TIME_REF(deconv::compute_ref_fwd(&p_tr, prim_ref, ref_args));
             dnn_mem_t dst(dst_dt, fp, src_tag, test_engine);
             SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
         }
@@ -401,7 +401,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            deconv::compute_ref_bwd_d(&p_tr, prim_ref, ref_args);
+            TIME_REF(deconv::compute_ref_bwd_d(&p_tr, prim_ref, ref_args));
             dnn_mem_t src(src_dt, fp, src_tag, test_engine);
             SAFE(compare_src(prb, src, src_fp, res, true), WARN);
         }
@@ -422,7 +422,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            deconv::compute_ref_bwd_w(&p_tr, prim_ref, ref_args);
+            TIME_REF(deconv::compute_ref_bwd_w(&p_tr, prim_ref, ref_args));
             dnn_mem_t wei(wei_dt, fp, wei_tag, test_engine);
             SAFE(compare_wei(&p_tr, wei, wei_fp, res, true), WARN);
             if (prb->dir & FLAG_BIA) {

@@ -153,6 +153,12 @@ void parse_result(
         for (int mode = 0; mode < (int)bt::n_modes; ++mode)
             bs.ms[mode] += t.ms((bt::mode_t)mode);
     }
+
+    if (is_bench_mode(CORR)) {
+        using bt = timer::timer_t;
+        const auto &t = res.timer_map.get_timer(timer::timer_t::ref_timer);
+        bs.ms[bt::mode_t::sum] += t.sec(bt::mode_t::sum);
+    }
 }
 
 /* misc */

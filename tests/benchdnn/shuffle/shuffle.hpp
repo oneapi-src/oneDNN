@@ -111,7 +111,7 @@ inline size_t data_off(const prb_t *prb, int64_t mb, int64_t c, int64_t d,
     return (((mb * dims[1] + c) * dims[2] + d) * dims[3] + h) * dims[4] + w;
 }
 
-void compute_shuffle(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst);
+void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst);
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 } // namespace shuffle

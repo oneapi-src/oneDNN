@@ -394,7 +394,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp);
+            TIME_REF(compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp));
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
     } else {
@@ -418,7 +418,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (prb->use_dst()) {
             if (is_bench_mode(CORR))
-                compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp);
+                TIME_REF(compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp));
             SAFE(dst_dt.reorder(dst_fp), WARN);
             // make dst_fp of same values as for bf16, otherwise there are high
             // relative and absolute errors due to initial difference in source
@@ -431,7 +431,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_bwd(prb, arg_fp, d_dst_fp, d_src_fp);
+            TIME_REF(compute_ref_bwd(prb, arg_fp, d_dst_fp, d_src_fp));
             SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
         }
     }

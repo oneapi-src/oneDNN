@@ -140,6 +140,10 @@ int main(int argc, char **argv) {
                 benchdnn_stat.ms[timer::timer_t::min],
                 benchdnn_stat.ms[timer::timer_t::avg]);
     }
+    if (is_bench_mode(CORR)) {
+        const auto compute_ref_time_s = benchdnn_stat.ms[timer::timer_t::sum];
+        printf("total compute_ref: sum(s):%.2f\n", compute_ref_time_s);
+    }
 
     return !!benchdnn_stat.failed;
 }
