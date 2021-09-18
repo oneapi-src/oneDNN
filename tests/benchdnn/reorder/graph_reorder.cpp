@@ -91,11 +91,9 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
 
     auto cp = compile_partition(::reorder::init_pd, prb, res, par, ins, outs);
 
-    auto src_fp
-            = make_dnn_mem(ins[0], spec.src_dt, (prb->reorder.tag_in).c_str());
+    auto src_fp = make_dnn_mem(ins[0], spec.src_dt, "abx");
     // we need src_fp for proper comparison, => no in-place reference
-    auto dst_fp = make_dnn_mem(
-            outs[0], spec.dst_dt, (prb->reorder.tag_out).c_str());
+    auto dst_fp = make_dnn_mem(outs[0], spec.dst_dt, "abx");
 
     auto src_dt = make_dnn_mem(ins[0], (prb->reorder.tag_in).c_str());
     auto dst_dt = make_dnn_mem(outs[0], (prb->reorder.tag_out).c_str());
