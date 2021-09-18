@@ -6984,18 +6984,90 @@ TEST(operator_compile, reorder_negative_test) {
     impl::logical_tensor_t src_lt = utils::logical_tensor_init(
             0, {2, 3}, {3, 1}, impl::data_type::f32);
 
-    // failure case 1: different data type
-    impl::logical_tensor_t dst_lt_1 = utils::logical_tensor_init(
-            1, {2, 3}, {1, 2}, impl::data_type::s8);
-
-    ASSERT_EQ(kernel->compile(&reorder_op, &engine, {src_lt}, {dst_lt_1}),
-            impl::status::compile_fail);
-
-    // failure case 2: different shape (dims)
-    impl::logical_tensor_t dst_lt_2 = utils::logical_tensor_init(
+    // failure case: different shape (dims)
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             1, {1, 2, 3}, {1, 1, 2}, impl::data_type::f32);
 
-    ASSERT_EQ(kernel->compile(&reorder_op, &engine, {src_lt}, {dst_lt_2}),
+    ASSERT_EQ(kernel->compile(&reorder_op, &engine, {src_lt}, {dst_lt}),
+            impl::status::compile_fail);
+}
+
+TEST(operator_kernel, typecast) {
+    impl::engine_t &engine = get_engine();
+
+    test::vector<float> f32_val {
+            12.5234537, 0, -32.6735142, -1, -2.8765223, 66.66};
+    test::vector<float> ref_val {12.5, 0, -32.75, -1, -2.875, 66.5};
+    test::vector<uint16_t> bf16_val(f32_val.size(), 10);
+
+    impl::op_t typecast_op(impl::op_kind::TypeCast);
+
+    // prepare input/output logical tensor
+    // shape (2, 3), stride (3, 1), plain format
+    impl::logical_tensor_t f32_lt = utils::logical_tensor_init(
+            0, {2, 3}, {3, 1}, impl::data_type::f32);
+    impl::logical_tensor_t bf16_lt = utils::logical_tensor_init(
+            1, {2, 3}, {3, 1}, impl::data_type::bf16);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto kernel = op_factory.create_kernel(typecast_op);
+
+    // f32 --> bf16
+    kernel->compile(&typecast_op, &engine, {f32_lt}, {bf16_lt});
+
+    impl::stream_t &stream = get_stream();
+    impl::tensor_t f32_ts(f32_lt, &engine, f32_val.data());
+    impl::tensor_t bf16_ts(bf16_lt, &engine, bf16_val.data());
+
+    kernel->execute(&typecast_op, &stream, {f32_ts}, {bf16_ts});
+
+    // bf16 --> f32
+    kernel->compile(&typecast_op, &engine, {bf16_lt}, {f32_lt});
+    kernel->execute(&typecast_op, &stream, {bf16_ts}, {f32_ts});
+
+    stream.wait();
+    for (size_t i = 0; i < f32_val.size(); ++i) {
+        ASSERT_EQ(f32_val[i], ref_val[i]);
+    }
+}
+
+TEST(operator_compile, typecast_negative_test) {
+    impl::engine_t &engine = get_engine();
+
+    impl::op_t typecast_op(impl::op_kind::TypeCast);
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto kernel = op_factory.create_kernel(typecast_op);
+
+    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {2, 3}, {3, 1}, impl::data_type::f32);
+
+    // failure case : different shape (dims)
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, {1, 2, 3}, {1, 1, 2}, impl::data_type::f32);
+
+    ASSERT_EQ(kernel->compile(&typecast_op, &engine, {src_lt}, {dst_lt}),
+            impl::status::compile_fail);
+
+    impl::logical_tensor_t src_bf16_lt = utils::logical_tensor_init(
+            0, {2, 3}, {3, 1}, impl::data_type::bf16);
+
+    // failure case : unsupported type bf16->f16
+    impl::logical_tensor_t dst_f16_lt = utils::logical_tensor_init(
+            1, {1, 2, 3}, {1, 1, 2}, impl::data_type::f16);
+
+    ASSERT_EQ(
+            kernel->compile(&typecast_op, &engine, {src_bf16_lt}, {dst_f16_lt}),
+            impl::status::compile_fail);
+
+    impl::logical_tensor_t src_f16_lt = utils::logical_tensor_init(
+            0, {2, 3}, {3, 1}, impl::data_type::f16);
+
+    // failure case : unsupported type f16->bf16
+    impl::logical_tensor_t dst_bf16_lt = utils::logical_tensor_init(
+            1, {1, 2, 3}, {1, 1, 2}, impl::data_type::bf16);
+
+    ASSERT_EQ(
+            kernel->compile(&typecast_op, &engine, {src_f16_lt}, {dst_bf16_lt}),
             impl::status::compile_fail);
 }
 

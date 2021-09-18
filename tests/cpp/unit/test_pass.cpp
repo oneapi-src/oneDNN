@@ -7110,3 +7110,49 @@ TEST(pass_test, x8s8bf16_matmul_bias_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
+
+TEST(pass_test, single_typecast_pass) {
+    /*
+        | (f32)
+     typecast
+        | (bf16) 
+    */
+    graph_t agraph;
+    op_t typecast {0, TypeCast, "typecast"};
+
+    logical_tensor_t f32_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t bf16_out = logical_tensor_init(1, data_type::bf16);
+    typecast.add_input(f32_data);
+    typecast.add_output(bf16_out);
+
+    ASSERT_EQ(agraph.add_op(&typecast), status::success);
+
+    ASSERT_EQ(agraph.build_graph(), status::success);
+
+    pass::pass_base_ptr apass = get_pass("typecast_pass");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+}
+
+TEST(pass_test, single_typecast_fail) {
+    /*
+        | (f16)
+     typecast
+        | (bf16) 
+    */
+    graph_t agraph;
+    op_t typecast {0, TypeCast, "typecast"};
+
+    logical_tensor_t f16_data = logical_tensor_init(0, data_type::f16);
+    logical_tensor_t bf16_out = logical_tensor_init(1, data_type::bf16);
+    typecast.add_input(f16_data);
+    typecast.add_output(bf16_out);
+
+    ASSERT_EQ(agraph.add_op(&typecast), status::success);
+
+    ASSERT_EQ(agraph.build_graph(), status::success);
+
+    pass::pass_base_ptr apass = get_pass("typecast_pass");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
+}

@@ -52,68 +52,62 @@ public:
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using ltw = logical_tensor_wrapper;
-        // check data types between input and output
-        // TODO(wuxun): in the future there will be fused with TypeCast op,
-        // then we can make this check more general
-        if (op->get_kind() == impl::op_kind::Reorder
-                && ltw(inputs[reorder_input::kSrc]).data_type()
-                        != ltw(outputs[reorder_output::kDst]).data_type())
-            return status::compile_fail;
 
         // check same shape between input and output
         const dims &src_lt_dims = ltw(inputs[reorder_input::kSrc]).vdims();
         const dims &dst_lt_dims = ltw(outputs[reorder_output::kDst]).vdims();
-        if (!std::equal(src_lt_dims.begin(), src_lt_dims.end(),
-                    dst_lt_dims.begin()))
-            return status::compile_fail;
+        if (src_lt_dims != dst_lt_dims) return status::compile_fail;
 
         memory::desc src
                 = make_dnnl_memory_desc(inputs.at(reorder_input::kSrc));
         memory::desc dst
                 = make_dnnl_memory_desc(outputs.at(reorder_output::kDst));
 
-        const bool src_has_group = src.data.ndims == dst.data.ndims + 1;
-        const bool dst_has_group = src.data.ndims + 1 == dst.data.ndims;
+        if (op->get_kind() == impl::op_kind::Reorder) {
+            const bool src_has_group = src.data.ndims == dst.data.ndims + 1;
+            const bool dst_has_group = src.data.ndims + 1 == dst.data.ndims;
 
-        const bool has_group = src_has_group || dst_has_group;
-        if (!(check_same_shape(src, dst) || has_group))
-            return status::compile_fail;
+            const bool has_group = src_has_group || dst_has_group;
+            if (!(check_same_shape(src, dst) || has_group))
+                return status::compile_fail;
 
-        // check if the dims is in (g, O, I, H, W) format
-        bool consistency = true;
-        if (src_has_group) {
-            int group = src.data.dims[0];
-            consistency = group * src.data.dims[1] == dst.data.dims[0];
-        } else if (dst_has_group) {
-            int group = dst.data.dims[0];
-            consistency = group * dst.data.dims[1] == src.data.dims[0];
-        }
-        if (!consistency) return status::compile_fail;
-
-        // has group
-        if (has_group) {
-            need_reshape_ = true;
-            // Case 1: if src is blocked format with group while dst has plain
-            // format, perhaps for backward path.
-            // No such case for now, so just disable
+            // check if the dims is in (g, O, I, H, W) format
+            bool consistency = true;
             if (src_has_group) {
-                return status::unsupported;
-            } else {
-                // Case 2: if src has plain format while dst has blocked format
-                // with group, typically for weight prepacking
-                reshape_first_ = true;
-                reshaped_desc_ = src.reshape(dst.dims());
+                int group = src.data.dims[0];
+                consistency = group * src.data.dims[1] == dst.data.dims[0];
+            } else if (dst_has_group) {
+                int group = dst.data.dims[0];
+                consistency = group * dst.data.dims[1] == src.data.dims[0];
+            }
+            if (!consistency) return status::compile_fail;
+
+            // has group
+            if (has_group) {
+                need_reshape_ = true;
+                // Case 1: if src is blocked format with group while dst has
+                // plain format, perhaps for backward path.
+                // No such case for now, so just disable
+                if (src_has_group) {
+                    return status::unsupported;
+                } else {
+                    // Case 2: if src has plain format while dst has blocked
+                    // format with group, typically for weight prepacking
+                    reshape_first_ = true;
+                    reshaped_desc_ = src.reshape(dst.dims());
+                }
+            }
+
+            if (need_reshape_) {
+                if (reshape_first_)
+                    src = reshaped_desc_;
+                else
+                    dst = reshaped_desc_;
             }
         }
 
         p_engine_ = make_dnnl_engine(*g_engine);
 
-        if (need_reshape_) {
-            if (reshape_first_)
-                src = reshaped_desc_;
-            else
-                dst = reshaped_desc_;
-        }
         pd_ = primitive_desc(
                 /*src_engine=*/p_engine_, src, /*dst_engine=*/p_engine_, dst);
         prim_ = super(pd_);
@@ -132,7 +126,7 @@ public:
         memory dst
                 = make_dnnl_memory(outputs.at(reorder_output::kDst), p_engine_);
 
-        if (need_reshape_) {
+        if (op->get_kind() == impl::op_kind::Reorder && need_reshape_) {
             if (reshape_first_) {
                 src = make_dnnl_memory(reshaped_desc_, p_engine_,
                         inputs[reorder_input::kSrc].get_data_handle());

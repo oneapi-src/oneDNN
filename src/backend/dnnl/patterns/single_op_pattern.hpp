@@ -102,6 +102,40 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, dnnl, Reorder, 8.f)
 
 #undef DNNL_BACKEND_SINGLE_OP_TRANSFORM
 
+// if op is typecast, need to filter out bf16-in-f16-out and
+// f16-in-bf16-out and same dtype in/out.
+#define SET_BF16_F16_CHECK() \
+    append_decision_function([](op_t *graph_op) -> bool { \
+        logical_tensor_t inport \
+                = graph_op->get_input_value(0)->get_logical_tensor(); \
+        logical_tensor_t outport \
+                = graph_op->get_output_value(0)->get_logical_tensor(); \
+        if (inport.data_type == impl::data_type::bf16 \
+                && outport.data_type == impl::data_type::f16) \
+            return false; \
+        if (inport.data_type == impl::data_type::f16 \
+                && outport.data_type == impl::data_type::bf16) \
+            return false; \
+        if (inport.data_type == outport.data_type) return false; \
+        return true; \
+    })
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, typecast_pass)
+        .set_priority(8.f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    impl::utils::pm::pb_op *p_tc = pgraph->append_op(
+                            impl::op_kind::TypeCast, "p-typecast");
+                    p_tc->SET_BF16_F16_CHECK();
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(impl::op_kind::TypeCast);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass

@@ -220,6 +220,7 @@ bool dnnl_backend::register_kernels() {
 
     // reorder kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::Reorder, reorder)
+    DNNL_REGISTER_KERNEL(impl::op_kind::TypeCast, reorder)
 
     // quantize and dequantize kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::Quantize, quantize_dequantize)
