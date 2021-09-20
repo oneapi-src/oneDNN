@@ -28,12 +28,14 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-void ref_inner_product_int8_fwd_t::execute_forward(
+status_t ref_inner_product_int8_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -100,6 +102,8 @@ void ref_inner_product_int8_fwd_t::execute_forward(
 
         io::store_float_value(dst_d.data_type(), d, dst, dst_off);
     });
+
+    return status::success;
 }
 
 } // namespace cpu
