@@ -46,6 +46,8 @@ struct ref_inner_product_fwd_t : public primitive_t {
             const auto bia_type = weights_md(1)->data_type;
             const auto dst_type = dst_md(0)->data_type;
 
+            const bool allow_all_tags = true; // ref should support all tags
+
             bool ok = is_fwd() && platform::has_data_type_support(src_type)
                     && platform::has_data_type_support(wei_type)
                     && platform::has_data_type_support(bia_type)
@@ -59,7 +61,7 @@ struct ref_inner_product_fwd_t : public primitive_t {
                             utils::one_of(bia_type, f32, bf16)
                                     && IMPLICATION(
                                             src_type == f32, bia_type == f32))
-                    && set_default_params() == status::success
+                    && set_default_params(allow_all_tags) == status::success
                     && attr()->has_default_values(smask_t::post_ops)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
@@ -97,6 +99,8 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
             const auto wei_type = weights_md(0)->data_type;
             const auto diff_dst_type = diff_dst_md(0)->data_type;
 
+            const bool allow_all_tags = true; // ref should support all tags
+
             bool ok = desc()->prop_kind == prop_kind::backward_data
                     && platform::has_data_type_support(diff_src_type)
                     && platform::has_data_type_support(wei_type)
@@ -107,7 +111,7 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
                     && diff_dst_type == wei_type
                     && IMPLICATION(diff_dst_type == f32, diff_src_type == f32)
                     && attr()->has_default_values()
-                    && set_default_params() == status::success;
+                    && set_default_params(allow_all_tags) == status::success;
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -137,6 +141,8 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
             const auto diff_bia_type = diff_weights_md(1)->data_type;
             const auto diff_dst_type = diff_dst_md(0)->data_type;
 
+            const bool allow_all_tags = true; // ref should support all tags
+
             bool ok = desc()->prop_kind == prop_kind::backward_weights
                     && platform::has_data_type_support(src_type)
                     && platform::has_data_type_support(diff_wei_type)
@@ -152,7 +158,7 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
                     && diff_dst_type == src_type
                     && IMPLICATION(diff_dst_type == f32, diff_wei_type == f32)
                     && attr()->has_default_values()
-                    && set_default_params() == status::success;
+                    && set_default_params(allow_all_tags) == status::success;
             return ok ? status::success : status::unimplemented;
         }
     };

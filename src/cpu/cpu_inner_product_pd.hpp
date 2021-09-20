@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -159,7 +159,7 @@ struct cpu_inner_product_fwd_pd_t : public inner_product_fwd_pd_t {
     using inner_product_fwd_pd_t::inner_product_fwd_pd_t;
 
 protected:
-    status_t set_default_params() {
+    status_t set_default_params(bool allow_all_tags = false) {
         using namespace format_tag;
 
         auto set_default_src = [&]() {
@@ -167,7 +167,13 @@ protected:
                 INIT_MEM_BY_TAG(utils::pick(ndims() - 2, ab, abc, abcd, abcde),
                         src_md_);
             } else {
-                INIT_MEM_BY_TAG(get_tag(weights_md_), src_md_);
+                format_tag_t weights_tag = get_tag(weights_md_);
+                if (allow_all_tags && weights_tag == undef)
+                    INIT_MEM_BY_TAG(
+                            utils::pick(ndims() - 2, ab, abc, abcd, abcde),
+                            src_md_);
+                else
+                    INIT_MEM_BY_TAG(weights_tag, src_md_);
                 // transpose weights to improve efficiency of non-copy kernels
                 if (src_md_.format_desc.blocking.strides[0] == 1)
                     transpose_md(src_md_);
@@ -176,7 +182,12 @@ protected:
         };
 
         auto set_default_weights = [&]() {
-            INIT_MEM_BY_TAG(get_tag(src_md_), weights_md_);
+            format_tag_t src_tag = get_tag(src_md_);
+            if (allow_all_tags && src_tag == undef)
+                INIT_MEM_BY_TAG(utils::pick(ndims() - 2, ab, abc, abcd, abcde),
+                        weights_md_);
+            else
+                INIT_MEM_BY_TAG(src_tag, weights_md_);
             /* with batch = 1, no transpose to use the faster gemv kernels */
             /* otherwise, we transpose the weights to improve efficiency of
              * no-copy kernels */
@@ -200,7 +211,7 @@ struct cpu_inner_product_bwd_data_pd_t : public inner_product_bwd_data_pd_t {
     using inner_product_bwd_data_pd_t::inner_product_bwd_data_pd_t;
 
 protected:
-    status_t set_default_params() {
+    status_t set_default_params(bool allow_all_tags = false) {
         using namespace format_tag;
 
         auto set_default_diff_src = [&]() {
@@ -208,7 +219,13 @@ protected:
                 INIT_MEM_BY_TAG(utils::pick(ndims() - 2, ab, abc, abcd, abcde),
                         diff_src_md_);
             } else {
-                INIT_MEM_BY_TAG(get_tag(weights_md_), diff_src_md_);
+                format_tag_t weights_tag = get_tag(weights_md_);
+                if (allow_all_tags && weights_tag == undef)
+                    INIT_MEM_BY_TAG(
+                            utils::pick(ndims() - 2, ab, abc, abcd, abcde),
+                            diff_src_md_);
+                else
+                    INIT_MEM_BY_TAG(weights_tag, diff_src_md_);
                 if (diff_src_md_.format_desc.blocking.strides[0] == 1)
                     transpose_md(diff_src_md_);
             }
@@ -216,7 +233,12 @@ protected:
         };
 
         auto set_default_weights = [&]() {
-            INIT_MEM_BY_TAG(get_tag(diff_src_md_), weights_md_);
+            format_tag_t diff_src_tag = get_tag(diff_src_md_);
+            if (allow_all_tags && diff_src_tag == undef)
+                INIT_MEM_BY_TAG(utils::pick(ndims() - 2, ab, abc, abcd, abcde),
+                        weights_md_);
+            else
+                INIT_MEM_BY_TAG(diff_src_tag, weights_md_);
             /* with batch = 1, no transpose to use the faster gemv kernels */
             /* otherwise, we transpose the weights to improve efficiency of
              * no-copy kernels */
@@ -240,7 +262,7 @@ struct cpu_inner_product_bwd_weights_pd_t
     using inner_product_bwd_weights_pd_t::inner_product_bwd_weights_pd_t;
 
 protected:
-    status_t set_default_params() {
+    status_t set_default_params(bool allow_all_tags = false) {
         using namespace format_tag;
 
         auto set_default_src = [&]() {
@@ -248,7 +270,13 @@ protected:
                 INIT_MEM_BY_TAG(utils::pick(ndims() - 2, ab, abc, abcd, abcde),
                         src_md_);
             } else {
-                INIT_MEM_BY_TAG(get_tag(diff_weights_md_), src_md_);
+                format_tag_t diff_weights_tag = get_tag(diff_weights_md_);
+                if (allow_all_tags && diff_weights_tag == undef)
+                    INIT_MEM_BY_TAG(
+                            utils::pick(ndims() - 2, ab, abc, abcd, abcde),
+                            src_md_);
+                else
+                    INIT_MEM_BY_TAG(diff_weights_tag, src_md_);
                 if (src_md_.format_desc.blocking.strides[0] == 1)
                     transpose_md(src_md_);
             }
@@ -256,7 +284,12 @@ protected:
         };
 
         auto set_default_diff_weights = [&]() {
-            INIT_MEM_BY_TAG(get_tag(src_md_), diff_weights_md_);
+            format_tag_t src_tag = get_tag(src_md_);
+            if (allow_all_tags && src_tag == undef)
+                INIT_MEM_BY_TAG(utils::pick(ndims() - 2, ab, abc, abcd, abcde),
+                        diff_weights_md_);
+            else
+                INIT_MEM_BY_TAG(src_tag, diff_weights_md_);
             // Here, we want diff_weights layout to match the fwd weights layout
             if (MB() > 1 && transpose_leading_dim(OC(), MB()))
                 transpose_md(diff_weights_md_);

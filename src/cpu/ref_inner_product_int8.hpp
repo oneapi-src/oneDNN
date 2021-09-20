@@ -45,6 +45,8 @@ struct ref_inner_product_int8_fwd_t : public primitive_t {
             const auto bia_type = weights_md(1)->data_type;
             const auto dst_type = dst_md(0)->data_type;
 
+            const bool allow_all_tags = true; // ref should support all tags
+
             bool ok = is_fwd() && utils::one_of(src_type, s8, u8)
                     && wei_type == s8
                     && IMPLICATION(with_bias(),
@@ -53,7 +55,7 @@ struct ref_inner_product_int8_fwd_t : public primitive_t {
                     && IMPLICATION(with_bias(),
                             platform::has_data_type_support(bia_type))
                     && platform::has_data_type_support(dst_type)
-                    && set_default_params() == status::success
+                    && set_default_params(allow_all_tags) == status::success
                     && attr()->has_default_values(
                             smask_t::oscale | smask_t::post_ops)
                     && output_scales_mask_ok()
