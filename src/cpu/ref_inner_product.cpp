@@ -27,11 +27,13 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-void ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -88,13 +90,17 @@ void ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
         io::store_float_value(dst_d.data_type(), d, dst, dst_off);
     });
+
+    return status::success;
 }
 
-void ref_inner_product_bwd_data_t::execute_backward_data(
+status_t ref_inner_product_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
-    auto diff_src = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -130,14 +136,20 @@ void ref_inner_product_bwd_data_t::execute_backward_data(
                     diff_src_d.data_type(), ds, diff_src, diff_src_off);
         }
     });
+
+    return status::success;
 }
 
-void ref_inner_product_bwd_weights_t::execute_backward_weights(
+status_t ref_inner_product_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
-    auto diff_weights = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_WEIGHTS);
-    auto diff_bias = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_BIAS);
+    auto diff_weights
+            = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_WEIGHTS, status);
+    CHECK(status);
+    auto diff_bias = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_BIAS, status);
+    CHECK(status);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
@@ -191,6 +203,8 @@ void ref_inner_product_bwd_weights_t::execute_backward_weights(
                     diff_bias_d.data_type(), db, diff_bias, diff_bia_off);
         });
     }
+
+    return status::success;
 }
 
 } // namespace cpu

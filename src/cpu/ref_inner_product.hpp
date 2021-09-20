@@ -76,12 +76,11 @@ struct ref_inner_product_fwd_t : public primitive_t {
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
@@ -116,12 +115,11 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
     ref_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_data(ctx);
-        return status::success;
+        return execute_backward_data(ctx);
     }
 
 private:
-    void execute_backward_data(const exec_ctx_t &ctx) const;
+    status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
@@ -162,12 +160,11 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
     ref_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_weights(ctx);
-        return status::success;
+        return execute_backward_weights(ctx);
     }
 
 private:
-    void execute_backward_weights(const exec_ctx_t &ctx) const;
+    status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
