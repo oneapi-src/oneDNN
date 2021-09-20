@@ -205,11 +205,19 @@ struct brgemm_matmul_conf_utils_t {
                 && check_b_layout_blocked_by_n(bgmmc.wei_tag);
     }
 
+    inline dim_t get_actual_LDB() const {
+        bool use_blocked_LDB = bgmmc.is_amx || bgmmc.use_buffer_b
+                || bgmmc.wei_tag != plain_tensor_layout_tag;
+        return use_blocked_LDB ? bgmmc.wei_n_blk : bgmmc.N;
+    }
+
     inline bool check_n_blk_fixed() const { return n_blk_fixed; }
 
     inline bool check_is_transposed(format_tag_t tag) const {
         return tag == transposed_tensor_layout_tag;
     }
+
+    inline bool is_f32() const { return f32_dt; }
 
     inline bool is_bf16() const { return bf16_dt; }
 
@@ -225,7 +233,7 @@ struct brgemm_matmul_conf_utils_t {
 private:
     brgemm_matmul_conf_t &bgmmc;
 
-    const bool bf16_dt, int8_dt;
+    const bool f32_dt, bf16_dt, int8_dt;
     const bool A_any_layout;
     const bool B_any_layout;
     const bool C_any_layout;

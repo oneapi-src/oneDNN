@@ -46,6 +46,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     const auto wei_dt = weights_md_.data_type;
     const auto dst_dt = dst_md_.data_type;
 
+    const bool is_f32 = everyone_is(f32, src_dt, wei_dt, dst_dt);
     const bool is_int8 = one_of(src_dt, u8, s8) && wei_dt == s8
             && one_of(dst_dt, u8, s8, s32, f32, bf16);
     const bool is_bf16
@@ -56,7 +57,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
                 = (is_int8
                           && one_of(weights_md(1)->data_type, f32, s32, s8, u8,
                                   bf16))
-                || (is_bf16 && one_of(weights_md(1)->data_type, f32, bf16));
+                || (is_bf16 && one_of(weights_md(1)->data_type, f32, bf16))
+                || (is_f32 && weights_md(1)->data_type == f32);
         return IMPLICATION(with_bias(), is_bia_dt_correct && is_bias_1xN());
     };
 
@@ -69,8 +71,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     auto check_attr_zero_points
             = [&]() -> bool { return attr()->zero_points_.common(); };
 
-    const bool problem_dt_correct = is_int8 || is_bf16;
-    bool ok = true && mayiuse(isa) && problem_dt_correct
+    const bool problem_dt_correct = is_int8 || is_bf16 || is_f32;
+    bool ok = mayiuse(isa) && problem_dt_correct
             && !has_runtime_dims_or_strides()
             && attr()->has_default_values(primitive_attr_t::skip_mask_t::oscale
                             | primitive_attr_t::skip_mask_t::zero_points_runtime
@@ -110,7 +112,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, bgmmc_.bia_dt));
 
-        if (one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16)) {
+        constexpr bool is_amx = one_of(
+                isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
+        if (is_amx) {
             brgemm_attr_t brgattr;
             brgattr.max_bs = bgmmc_.brgemm_batch_size;
             brgattr.wary_tail_read = false;
@@ -1014,6 +1018,7 @@ private:
 
 template struct brgemm_matmul_t<avx512_core_bf16_amx_int8>;
 template struct brgemm_matmul_t<avx512_core_bf16_amx_bf16>;
+template struct brgemm_matmul_t<avx512_core>;
 
 } // namespace matmul
 } // namespace x64
