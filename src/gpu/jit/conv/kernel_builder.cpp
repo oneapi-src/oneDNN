@@ -1730,6 +1730,8 @@ stmt_t update_loops_for_unrolling(const stmt_t &s, const conv_config_t &cfg) {
 
 // Helper structure for for_t.
 struct loop_info_t {
+    loop_info_t() = default;
+
     loop_info_t(const stmt_t &s) {
         ir_assert(s.is<for_t>()) << s;
         auto &loop = s.as<for_t>();
@@ -1783,14 +1785,25 @@ public:
         return 0;
     }
 
-    void advance() {
+    void advance(int n = 1) {
         if (loops_.empty()) return;
-        for (size_t i = 0; i < loops_.size(); i++) {
-            auto &l = loops_[i];
-            if (++var_values_[i] < l.bound()) break;
-            var_values_[i] = l.init();
+        for (int i_n = 0; i_n < n; i_n++) {
+            for (size_t i = 0; i < loops_.size(); i++) {
+                auto &l = loops_[i];
+                if (++var_values_[i] < l.bound()) break;
+                var_values_[i] = l.init();
+            }
+            ir_assert(var_values_.back() < loops_.back().bound());
         }
-        ir_assert(var_values_.back() < loops_.back().bound());
+    }
+
+    bool is_outer_loop_end() const {
+        if (loops_.empty()) return true;
+        for (size_t i = 0; i < loops_.size() - 1; i++) {
+            auto &l = loops_[i];
+            if (var_values_[i] != l.bound() - 1) return false;
+        }
+        return true;
     }
 
     std::string str() const {
@@ -2128,10 +2141,53 @@ private:
     object_set_t<stmt_t> mul_lets_;
 };
 
+class outer_loop_info_t : public loop_info_t {
+public:
+    outer_loop_info_t() = default;
+
+    outer_loop_info_t(const stmt_t &s, ir_context_t &ir_ctx) : loop_info_t(s) {
+        // Outer loop may not be used for unrolling hence loop iterations must
+        // not use its index. If this doesn't hold, introduce a GRF buffer to
+        // represent that variable and apply post-increment updates after each
+        // outer loop iteration.
+        if (count_object(s.as<for_t>().body, var) != 0) {
+            has_var_refs_ = true;
+            var_buf_ = ir_ctx.create_tmp_var(
+                    type_t::byte_ptr(), var.as<var_t>().name + "_buf");
+            alloc_stmt_ = alloc_t::make(
+                    var_buf_, var.type().size(), alloc_kind_t::grf);
+            init_stmt_ = store_t::make(var_buf_, 0, init());
+            post_inc_stmt_ = store_t::make(var_buf_, 0, var_load() + 1);
+        }
+    }
+
+    bool has_var_refs() const { return has_var_refs_; }
+
+    expr_t var_load() const { return load_t::make(var.type(), var_buf_, 0); }
+
+    const stmt_t &alloc_stmt() const { return alloc_stmt_; }
+
+    const stmt_t &init_stmt() const { return init_stmt_; }
+
+    const stmt_t &post_inc_stmt() const { return post_inc_stmt_; }
+
+private:
+    bool has_var_refs_ = false;
+
+    // Helper expressions/statements to partially unroll the loop.
+    expr_t var_buf_;
+    stmt_t alloc_stmt_;
+    stmt_t init_stmt_;
+    stmt_t post_inc_stmt_;
+};
+
 // Helper class to work with loop nest of the compute loop.
 class compute_loop_nest_t {
 public:
-    compute_loop_nest_t(const stmt_t &root) : root_(root) {
+    compute_loop_nest_t() = default;
+
+    compute_loop_nest_t(const stmt_t &root, ir_context_t &ir_ctx)
+        : root_(root) {
         for (auto &l : find_objects<for_t>(root)) {
             loops_.emplace_back(l);
         }
@@ -2141,16 +2197,8 @@ public:
             return;
         }
 
-        // Outer loop may not be used for unrolling hence loop iterations must
-        // not use its index. If this doesn't hold, assume a dummy outer loop
-        // with single iteration.
-        auto &outer_info = loops_.back();
-        auto &outer_loop = outer_info.stmt.as<for_t>();
-        if (count_object(outer_loop.body, outer_loop.var) == 0) {
-            outer_loop_size_ = outer_info.size();
-        } else {
-            outer_loop_size_ = 1;
-        }
+        outer_loop_ = outer_loop_info_t(loops_.back().stmt, ir_ctx);
+        outer_loop_size_ = outer_loop_.size();
     }
 
     const std::vector<loop_info_t> &loops() const { return loops_; }
@@ -2166,6 +2214,8 @@ public:
     // Number of iterations in the outermost loop (see comments in ctor).
     int outer_loop_size() const { return outer_loop_size_; }
 
+    const outer_loop_info_t &outer_loop_info() const { return outer_loop_; }
+
     template <typename F>
     void for_each_loop_var(const F &f) const {
         for (auto &l : loops_)
@@ -2178,7 +2228,9 @@ public:
 private:
     stmt_t root_;
     std::vector<loop_info_t> loops_;
+
     int outer_loop_size_;
+    outer_loop_info_t outer_loop_;
 };
 
 struct compute_params_t {
@@ -2271,11 +2323,19 @@ public:
     }
 
     void advance(int n) {
+        if (n == 0) return;
+
         ir_assert(n % params.unroll == 0);
         ir_assert(iter + n <= iters);
 
+        if (preload_bufs() > 0) ir_assert(do_preload());
+        ir_assert(do_mul());
+
         iter += n;
         riter -= n;
+
+        if (preload_bufs() > 0) preload_loop_it.advance(n);
+        mul_loop_it.advance(n);
     }
 
     bool do_mul() const {
@@ -2488,7 +2548,7 @@ public:
         , root_(root)
         , alloc_mgr_(root_)
         , step_(root)
-        , loop_nest_(root) {}
+        , loop_nest_(root, ir_ctx) {}
 
     stmt_t inject() {
         ir_assert(cfg_.gmem_bufs == 1) << "GRF buffering is not supported.";
@@ -2682,7 +2742,7 @@ public:
         , root_(root)
         , alloc_mgr_(root_)
         , step_(root)
-        , loop_nest_(root) {
+        , loop_nest_(root, ir_ctx) {
         int inner_iters = loop_nest_.inner_loops_size();
         params_ = compute_params_t(cfg_.slm_bufs, cfg_.gmem_bufs, ab_slm_size,
                 cfg_.prefetch_bufs, inner_iters);
@@ -2700,21 +2760,33 @@ public:
 
         sbid_manager_t sbid_mgr;
 
+        auto &outer_loop_info = loop_nest_.outer_loop_info();
+        auto outer_var_post_inc_stmt = outer_loop_info.post_inc_stmt();
+
         // Ramp-up.
         for (int i = 0; i < it.ramp_up_iters; i++) {
             body = stmt_seq_t::make(body, create_iteration(it, sbid_mgr));
+            if (it.mul_loop_it.is_outer_loop_end()) {
+                body = body.append(outer_var_post_inc_stmt);
+            }
             ++it;
         }
 
         // Body.
         if (it.body_iters > 0) {
+            int extent = it.body_iters / it.unroll();
+            bool has_loop = (extent > 1);
+
             stmt_t loop_body;
             for (int i = 0; i < it.unroll(); i++) {
-                loop_body = loop_body.append(create_iteration(it, sbid_mgr));
+                loop_body = loop_body.append(create_iteration(
+                        it, sbid_mgr, /*in_loop_body=*/has_loop));
+                if (it.mul_loop_it.is_outer_loop_end()) {
+                    loop_body = loop_body.append(outer_var_post_inc_stmt);
+                }
                 ++it;
             }
-            int extent = it.body_iters / it.unroll();
-            if (extent == 1) {
+            if (!has_loop) {
                 body = body.append(loop_body);
             } else {
                 ir_assert(extent > 0);
@@ -2727,7 +2799,17 @@ public:
         // Ramp-down.
         for (int i = 0; i < it.ramp_down_iters; i++) {
             body = body.append(create_iteration(it, sbid_mgr));
+            if (it.mul_loop_it.is_outer_loop_end()) {
+                body = body.append(outer_var_post_inc_stmt);
+            }
             ++it;
+        }
+
+        if (outer_loop_info.has_var_refs()) {
+            body = substitute(
+                    body, outer_loop_info.var, outer_loop_info.var_load());
+            body = outer_loop_info.init_stmt().append(body);
+            body = replace_stmt_body(outer_loop_info.alloc_stmt(), body);
         }
 
         auto ret = substitute(root_, step_.compute_loop(), body, 1);
@@ -2768,8 +2850,8 @@ private:
         int size;
     };
 
-    stmt_t create_iteration(
-            const compute_iterator_t &it, sbid_manager_t &sbid_mgr) const {
+    stmt_t create_iteration(const compute_iterator_t &it,
+            sbid_manager_t &sbid_mgr, bool in_loop_body = false) const {
         auto g2s_load = step_.g2s_load();
         auto g2s_store = step_.g2s_store();
         auto prefetch = step_.prefetch();
@@ -2777,6 +2859,7 @@ private:
         auto s2r_load = step_.s2r_load();
         auto mul = step_.mul();
         auto lets = step_.inner_let_stmts();
+        auto &outer_loop_info = loop_nest_.outer_loop_info();
 
         loop_nest_.for_each_loop_var([&](const expr_t &v) {
             g2s_load = const_fold(substitute(
@@ -2785,13 +2868,24 @@ private:
                     g2s_store, v, expr_t(it.preload_loop_it.var_value(v))));
             prefetch = const_fold(substitute(
                     prefetch, v, expr_t(it.preload_loop_it.var_value(v))));
+            expr_t mul_var_value;
+            expr_t preload_var_value;
+            if (v.is_same(outer_loop_info.var) && in_loop_body
+                    && outer_loop_info.has_var_refs()) {
+                mul_var_value = outer_loop_info.var_load();
+                // XXX: Outer var references are not expected in pre-load
+                // statements. Otherwise we need to introduce extra
+                // buffer/updates for pre-load version of the variable.
+                preload_var_value = expr_t();
+            } else {
+                mul_var_value = it.mul_loop_it.var_value(v);
+                preload_var_value = it.preload_loop_it.var_value(v);
+            }
             for (auto &s : g2r_load) {
-                s = const_fold(
-                        substitute(s, v, expr_t(it.mul_loop_it.var_value(v))));
+                s = const_fold(substitute(s, v, mul_var_value));
             }
             for (auto &s : s2r_load) {
-                s = const_fold(substitute(
-                        s, v, expr_t(it.preload_loop_it.var_value(v))));
+                s = const_fold(substitute(s, v, preload_var_value));
             }
             for (int i = 0; i < int(lets.size()); i++) {
                 auto &let = lets[i];
@@ -2800,9 +2894,9 @@ private:
                 bool is_preload_let = step_.is_preload_let(orig_let);
                 bool is_mul_let = step_.is_mul_let(orig_let);
                 if (is_preload_let && !is_mul_let) {
-                    var_value = it.preload_loop_it.var_value(v);
+                    var_value = preload_var_value;
                 } else if (is_mul_let && !is_preload_let) {
-                    var_value = it.mul_loop_it.var_value(v);
+                    var_value = mul_var_value;
                 } else {
                     ir_assert(count_object(let.as<let_t>().value, v) == 0)
                             << "Unexpected reference to variable " << v
