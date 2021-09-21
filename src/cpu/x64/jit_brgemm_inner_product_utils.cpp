@@ -703,7 +703,9 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
 
     jbgp.oc_block = has_weights_buffer ? get_oc_block(jbgp)
                                        : ip_fwd_get_adjusted_oc_block(jbgp);
-    jbgp.oc_block_ext = ip_fwd_get_adjusted_oc_block(jbgp);
+    jbgp.oc_block_ext = jbgp.is_wei_layout_any
+            ? ip_fwd_get_adjusted_oc_block(jbgp)
+            : get_oc_block(jbgp);
 
     jbgp.os_block = get_os_block(jbgp, false, false);
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
