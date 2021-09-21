@@ -315,7 +315,8 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
     dnn_mem_t scales;
-    maybe_prepare_runtime_scales(scales, prb->attr.oscale, prb->oc, prb->scales);
+    maybe_prepare_runtime_scales(
+            scales, prb->attr.oscale, prb->oc, prb->scales);
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;

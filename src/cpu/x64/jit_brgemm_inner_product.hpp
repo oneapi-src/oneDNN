@@ -58,8 +58,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             auto skip_mask = skip_mask_t::post_ops;
-            if (one_of(src_dt, u8, s8)) skip_mask |= skip_mask_t::oscale
-                | skip_mask_t::oscale_runtime;
+            if (one_of(src_dt, u8, s8))
+                skip_mask |= skip_mask_t::oscale | skip_mask_t::oscale_runtime;
 
             bool ok = is_fwd() && mayiuse(isa)
                     && expect_data_types(src_dt, wei_dt, data_type::undef,
