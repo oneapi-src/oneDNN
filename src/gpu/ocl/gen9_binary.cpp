@@ -71,10 +71,15 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.plain_to_ABcd4a4b = false;
 
     for (int i = 0; i < MAX_NDIMS; ++i) {
-        conf.bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
+        // Kernel doesn't support src0 broadcast
+        if (i < ndims && src0_d.dims()[i] == 1
+                && src0_d.dims()[i] != src1_d.dims()[i]) {
+            return status::unimplemented;
+        }
+        conf.src1_bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
     }
 
-    if (conf.bcast_dims[1] && !conf.bcast_dims[ndims - 1]) {
+    if (conf.src1_bcast_dims[1] && !conf.src1_bcast_dims[ndims - 1]) {
         conf.nvect = 1;
     } else {
         conf.nvect = 8;
@@ -192,14 +197,14 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IS_EQ", conf.is_eq);
     kernel_ctx.define_int("IS_NE", conf.is_ne);
     kernel_ctx.define_int("SAME_SRC_DT", conf.same_src_dt);
-    kernel_ctx.define_int("BCAST_DIM0", conf.bcast_dims[0]);
-    kernel_ctx.define_int("BCAST_DIM1", conf.bcast_dims[1]);
-    kernel_ctx.define_int("BCAST_DIM2", conf.bcast_dims[2]);
-    kernel_ctx.define_int("BCAST_DIM3", conf.bcast_dims[3]);
-    kernel_ctx.define_int("BCAST_DIM4", conf.bcast_dims[4]);
-    kernel_ctx.define_int("BCAST_DIM5", conf.bcast_dims[5]);
+    kernel_ctx.define_int("BCAST_DIM0", conf.src1_bcast_dims[0]);
+    kernel_ctx.define_int("BCAST_DIM1", conf.src1_bcast_dims[1]);
+    kernel_ctx.define_int("BCAST_DIM2", conf.src1_bcast_dims[2]);
+    kernel_ctx.define_int("BCAST_DIM3", conf.src1_bcast_dims[3]);
+    kernel_ctx.define_int("BCAST_DIM4", conf.src1_bcast_dims[4]);
+    kernel_ctx.define_int("BCAST_DIM5", conf.src1_bcast_dims[5]);
     kernel_ctx.define_int(
-            "BCAST_AT_INNERMOST_DIM", conf.bcast_dims[conf.ndims - 1]);
+            "BCAST_AT_INNERMOST_DIM", conf.src1_bcast_dims[conf.ndims - 1]);
     kernel_ctx.define_int("NVECT", conf.nvect);
     kernel_ctx.add_option("-Dcl_intel_subgroups_char");
     kernel_ctx.add_option("-Dcl_intel_subgroups_uchar");

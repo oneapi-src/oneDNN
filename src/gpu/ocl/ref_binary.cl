@@ -98,23 +98,22 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
             = {dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]};
     int d1_init = GWS_GET_D1();
 
-    int src1_off = 0;
-    int src0_off = SRC0_OFF(
-            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
     int dst_off = DST_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
 #if TENSOR_OP
-    src1_off = SRC1_OFF(
+    int src0_off = SRC0_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    int src1_off = SRC1_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
 #else
-    int bcast_dims[] = {BCAST_DIM0, BCAST_DIM1, BCAST_DIM2, BCAST_DIM3,
-            BCAST_DIM4, BCAST_DIM5};
-
-    for (int d = 0; d < NDIMS; ++d) {
-        dims0[d] *= (!bcast_dims[d]);
-    }
-    src1_off = SRC1_OFF(
-            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    int src0_off
+            = SRC0_OFF(dims0[0] * !SRC0_BCAST_DIM0, dims0[1] * !SRC0_BCAST_DIM1,
+                    dims0[2] * !SRC0_BCAST_DIM2, dims0[3] * !SRC0_BCAST_DIM3,
+                    dims0[4] * !SRC0_BCAST_DIM4, dims0[5] * !SRC0_BCAST_DIM5);
+    int src1_off
+            = SRC1_OFF(dims0[0] * !SRC1_BCAST_DIM0, dims0[1] * !SRC1_BCAST_DIM1,
+                    dims0[2] * !SRC1_BCAST_DIM2, dims0[3] * !SRC1_BCAST_DIM3,
+                    dims0[4] * !SRC1_BCAST_DIM4, dims0[5] * !SRC1_BCAST_DIM5);
 #endif
 
     // SRC1_D1 = IC for SRC1, using the dispatch ap

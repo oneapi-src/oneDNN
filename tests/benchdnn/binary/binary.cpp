@@ -162,7 +162,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             break;
         }
 
-    if ((bcast_src0 && (prb->inplace || is_sum || engine_tgt_kind != dnnl_cpu))
+    if ((bcast_src0 && (prb->inplace || is_sum))
             || (prb->inplace && prb->sdt[0] != prb->ddt)) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;

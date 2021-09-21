@@ -36,8 +36,15 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.src1_data_type = src1_d.data_type();
     conf.dst_data_type = dst_d.data_type();
     conf.ndims = ndims;
+    bool is_src0_bcasted = false;
     for (int i = 0; i < MAX_NDIMS; ++i) {
-        conf.bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
+        conf.src0_bcast_dims[i] = i < ndims
+                ? src0_d.dims()[i] == 1 && src0_d.dims()[i] != src1_d.dims()[i]
+                : 0;
+        is_src0_bcasted = is_src0_bcasted || conf.src0_bcast_dims[i];
+        conf.src1_bcast_dims[i] = i < ndims
+                ? src1_d.dims()[i] == 1 && src0_d.dims()[i] != src1_d.dims()[i]
+                : 0;
     }
     conf.is_add = (alg == alg_kind::binary_add);
     conf.is_mul = (alg == alg_kind::binary_mul);
@@ -75,7 +82,7 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
             && (blkd.inner_idxs[blkd.inner_nblks - 1] == 1)
             && (blkd.inner_blks[blkd.inner_nblks - 1] == 16);
 
-    if (is_16b_blkd && !conf.is_tensor_op) {
+    if (is_16b_blkd && !conf.is_tensor_op && !is_src0_bcasted) {
         // If: in case when both are blocked
         // Else: only src0 is blocked
         if (is_16b_blk0 && is_16b_blk1) {
@@ -134,12 +141,21 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IS_SAME_MD", conf.is_same_md);
     kernel_ctx.define_int("WITH_BINARY_POST_OP", conf.with_binary_post_op);
     kernel_ctx.define_int("SAME_SRC_DT", conf.same_src_dt);
-    kernel_ctx.define_int("BCAST_DIM0", conf.bcast_dims[0]);
-    kernel_ctx.define_int("BCAST_DIM1", conf.bcast_dims[1]);
-    kernel_ctx.define_int("BCAST_DIM2", conf.bcast_dims[2]);
-    kernel_ctx.define_int("BCAST_DIM3", conf.bcast_dims[3]);
-    kernel_ctx.define_int("BCAST_DIM4", conf.bcast_dims[4]);
-    kernel_ctx.define_int("BCAST_DIM5", conf.bcast_dims[5]);
+
+    kernel_ctx.define_int("SRC0_BCAST_DIM0", conf.src0_bcast_dims[0]);
+    kernel_ctx.define_int("SRC0_BCAST_DIM1", conf.src0_bcast_dims[1]);
+    kernel_ctx.define_int("SRC0_BCAST_DIM2", conf.src0_bcast_dims[2]);
+    kernel_ctx.define_int("SRC0_BCAST_DIM3", conf.src0_bcast_dims[3]);
+    kernel_ctx.define_int("SRC0_BCAST_DIM4", conf.src0_bcast_dims[4]);
+    kernel_ctx.define_int("SRC0_BCAST_DIM5", conf.src0_bcast_dims[5]);
+
+    kernel_ctx.define_int("SRC1_BCAST_DIM0", conf.src1_bcast_dims[0]);
+    kernel_ctx.define_int("SRC1_BCAST_DIM1", conf.src1_bcast_dims[1]);
+    kernel_ctx.define_int("SRC1_BCAST_DIM2", conf.src1_bcast_dims[2]);
+    kernel_ctx.define_int("SRC1_BCAST_DIM3", conf.src1_bcast_dims[3]);
+    kernel_ctx.define_int("SRC1_BCAST_DIM4", conf.src1_bcast_dims[4]);
+    kernel_ctx.define_int("SRC1_BCAST_DIM5", conf.src1_bcast_dims[5]);
+
     kernel_ctx.define_int("USE_UNROLL_16B", conf.use_unroll_16b);
     kernel_ctx.define_int("SRC0_UNROLL_16B", conf.src0_unroll_16b);
     kernel_ctx.define_int("SUB_GROUP_SIZE", 1);
