@@ -500,6 +500,90 @@ bool modulus_info_t::is_modulus_constraint(const expr_t &e) {
     return true;
 }
 
+int64_t bound_finder_t::find_bound_impl(const expr_t &e, bool is_low) const {
+    int64_t def_bound = unlimited_bound(is_low);
+    if (is_const(e)) return to_cpp<int64_t>(e);
+    if (is_var(e)) {
+        auto it = relations_.find(e);
+        if (it == relations_.end()) return def_bound;
+
+        int64_t ret = def_bound;
+        for (auto &rel : it->second) {
+            bool is_ge = (rel.op_kind() == op_kind_t::_ge);
+            if (is_ge != is_low) continue;
+            if (is_ge) {
+                ret = std::max(to_cpp<int64_t>(rel.rhs()), ret);
+            } else {
+                ret = std::min(to_cpp<int64_t>(rel.rhs()), ret);
+            }
+        }
+        return ret;
+    }
+
+    auto *unary = e.as_ptr<unary_op_t>();
+    if (unary) {
+        ir_assert(unary->op_kind == op_kind_t::_minus) << e;
+        auto a = find_bound_impl(unary->a, !is_low);
+        if (!is_good_bound(a)) return 0;
+        return -a;
+    }
+
+    auto *binary = e.as_ptr<binary_op_t>();
+    if (binary) {
+        switch (binary->op_kind) {
+            case op_kind_t::_add: {
+                auto a = find_bound_impl(binary->a, is_low);
+                auto b = find_bound_impl(binary->b, is_low);
+                if (!is_good_bound(a) || !is_good_bound(b)) return def_bound;
+                return a + b;
+            }
+            case op_kind_t::_sub: {
+                auto a = find_bound_impl(binary->a, is_low);
+                auto b = find_bound_impl(binary->b, !is_low);
+                if (!is_good_bound(a) || !is_good_bound(b)) return def_bound;
+                return a - b;
+            }
+            case op_kind_t::_mul: {
+                auto a = binary->a;
+                auto b = binary->b;
+                if (!is_const(a) && is_const(b)) std::swap(a, b);
+                if (!is_const(a)) return def_bound;
+
+                auto a_const = to_cpp<int64_t>(a);
+
+                auto b_lo = find_low_bound(b);
+                auto b_hi = find_high_bound(b);
+                auto b_lo_ok = is_good_bound(b_lo);
+                auto b_hi_ok = is_good_bound(b_hi);
+
+                bool b_ge_0 = b_lo_ok && (b_lo >= 0);
+                bool b_le_0 = b_hi_ok && (b_hi <= 0);
+                bool b_same_sign = (b_ge_0 || b_le_0);
+
+                if (a_const >= 0 && b_same_sign) {
+                    if (is_low && b_lo_ok) return a_const * b_lo;
+                    if (b_hi_ok) return a_const * b_hi;
+                }
+
+                if (a_const <= 0 && b_same_sign) {
+                    if (is_low && b_hi_ok) return a_const * b_hi;
+                    if (b_lo_ok) return a_const * b_lo;
+                }
+                break;
+            }
+            case op_kind_t::_mod: {
+                if (is_low) return 0;
+                auto max_mod = find_bound_impl(binary->b, /*is_low=*/false);
+                if (!is_good_bound(max_mod)) return def_bound;
+                return max_mod - 1;
+            }
+            default: break;
+        }
+    }
+
+    return def_bound;
+}
+
 bool is_linear_var_transform(const expr_t &e, linear_transform_t &t) {
     if (is_var(e)) {
         t.x = e;
@@ -650,6 +734,9 @@ bool constraint_set_t::can_prove_impl(
 
     if (modulus_info_t::is_modulus_constraint(e)) return can_prove_modulus(e);
     if (relation_t::is_relation_constraint(e)) return can_prove_relation(e);
+
+    // Try to estimate bounds for compound relation.
+    if (try_prove_compound_relation(e)) return true;
 
     // Can't prove.
     return false;

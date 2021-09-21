@@ -654,6 +654,41 @@ inline std::ostream &operator<<(std::ostream &out, const modulus_info_t &mod) {
     return out;
 }
 
+// Helper class to find constant bounds of integer expressions based on known
+// relations.
+class bound_finder_t {
+public:
+    bound_finder_t(
+            const object_map_t<expr_t, std::vector<relation_t>> &relations)
+        : relations_(relations) {}
+
+    int64_t find_low_bound(const expr_t &e) const {
+        return find_bound_impl(e, /*is_low=*/true);
+    }
+
+    int64_t find_high_bound(const expr_t &e) const {
+        return find_bound_impl(e, /*is_low=*/false);
+    }
+
+    static bool is_good_bound(int64_t bound) {
+        if (bound == unlimited_bound(true)) return false;
+        if (bound == unlimited_bound(false)) return false;
+        return true;
+    }
+
+private:
+    // If is_low is true, searches for proven low bound, and high bound
+    // otherwise.
+    int64_t find_bound_impl(const expr_t &e, bool is_low) const;
+
+    static int64_t unlimited_bound(bool is_low) {
+        if (is_low) return std::numeric_limits<int64_t>::min();
+        return std::numeric_limits<int64_t>::max();
+    }
+
+    object_map_t<expr_t, std::vector<relation_t>> relations_;
+};
+
 // TODO: Add integers check (only integers can be constrained).
 class constraint_set_t {
 public:
@@ -690,6 +725,51 @@ private:
 
         for (auto &known : it->second) {
             if (known.implies(unknown)) return true;
+        }
+
+        return false;
+    }
+
+    bool try_prove_compound_relation(const expr_t &e) const {
+        auto *binary = e.as_ptr<binary_op_t>();
+        if (!binary) return false;
+
+        auto op_kind = binary->op_kind;
+        auto &a = binary->a;
+        auto &_b = binary->b;
+
+        if (!is_const(_b)) return false;
+
+        auto b = to_cpp<int64_t>(_b);
+
+        // Normalize operation kind.
+        switch (op_kind) {
+            case op_kind_t::_ge:
+            case op_kind_t::_le: break;
+            case op_kind_t::_gt:
+                op_kind = op_kind_t::_ge;
+                ir_assert(b < std::numeric_limits<int64_t>::max());
+                b += 1;
+                break;
+            case op_kind_t::_lt:
+                op_kind = op_kind_t::_le;
+                ir_assert(b > std::numeric_limits<int64_t>::min());
+                b -= 1;
+                break;
+            default: return false;
+        }
+
+        bound_finder_t finder(relations_);
+        if (op_kind == op_kind_t::_ge) {
+            auto lo = finder.find_low_bound(a);
+            if (!bound_finder_t::is_good_bound(lo)) return false;
+            return lo >= b;
+        }
+
+        if (op_kind == op_kind_t::_le) {
+            auto hi = finder.find_high_bound(a);
+            if (!bound_finder_t::is_good_bound(hi)) return false;
+            return hi <= b;
         }
 
         return false;
