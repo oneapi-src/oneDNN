@@ -22,3 +22,10 @@ mb2ic640iw10oc256
 --stag=abx,aBx16b,aBx8b,aBx4b
 mb2ic640ih10oc256
 mb2ic640id2ih10iw10oc256
+
+# Test reference impl with arbitrary tag combinations
+--reset
+--cfg=f32,u8s8u8 # for float and integral reference impl
+--stag=any --wtag=OIhw16i16o mb1ic1oc1ih1iw1
+--stag=dcab --wtag=any mb1ic1oc1ih1iw1
+
