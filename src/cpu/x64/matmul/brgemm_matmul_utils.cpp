@@ -278,8 +278,6 @@ size_t matmul_blocking_params_t::L2_threshold
 status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         const brgemm_matmul_conf_utils_t &bm_conf_utils) {
 
-    const bool is_amx_bf16 = bgmmc.isa == avx512_core_bf16_amx_bf16;
-
     // Configure matrix sizes
     bgmmc.N_blk = nstl::min(static_cast<dim_t>(bgmmc.wei_n_blk), bgmmc.N);
 
@@ -309,6 +307,7 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
     const int min_k_per_thread = 1024;
     const int max_k_parallel_work
             = div_up(static_cast<int>(bgmmc.K), min_k_per_thread);
+    const bool is_amx_bf16 = bgmmc.isa == avx512_core_bf16_amx_bf16;
     const int max_nthr_k = is_amx_bf16 && bgmmc.batch == 1
             ? nstl::min(saturate(1, 7, bgmmc.nthr / 8), max_k_parallel_work)
             : 1;
