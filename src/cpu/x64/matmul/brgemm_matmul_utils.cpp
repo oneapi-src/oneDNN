@@ -20,6 +20,7 @@
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
 
+#include "cpu/binary_injector_utils.hpp"
 #include "cpu/matmul/matmul_utils.hpp"
 #include "oneapi/dnnl/dnnl_debug.h"
 
@@ -43,22 +44,26 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
     using namespace injector;
 
     const auto &post_ops = attr.post_ops_;
+    const auto ndims = dst_d.ndims();
 
-    const bool is_binary_po_channel_bcast
-            = binary_injector_utils::bcast_strategy_present(
-                    binary_injector_utils::extract_bcast_strategies(
-                            post_ops.entry_, dst_d),
+    bool is_binary_po_per_oc_sp_bcast;
+    bool is_binary_po_channel_bcast;
+    std::tie(is_binary_po_per_oc_sp_bcast, is_binary_po_channel_bcast)
+            = binary_injector_utils::bcast_strategies_present_tup(
+                    post_ops.entry_, dst_d,
+                    broadcasting_strategy_t::per_oc_spatial,
                     broadcasting_strategy_t::per_mb_spatial);
-    const bool supported_channel_bcast
-            = IMPLICATION(is_binary_po_channel_bcast, (dst_d).ndims() == 4);
-
-    return supported_channel_bcast
+    const bool supported_binary_bcast
+            = IMPLICATION(is_binary_po_per_oc_sp_bcast, ndims < 4)
+            && IMPLICATION(is_binary_po_channel_bcast, ndims == 4);
+    return supported_binary_bcast
             && injector::post_ops_ok(post_ops_ok_args_t(get_max_cpu_isa(),
                     {sum, eltwise, binary}, post_ops, &dst_d,
                     false /*sum_at_pos_0_only*/,
                     false /*sum_requires_scale_one*/,
                     false /*sum_requires_zp_zero*/,
                     {broadcasting_strategy_t::per_oc,
+                            broadcasting_strategy_t::per_oc_spatial,
                             broadcasting_strategy_t::scalar,
                             broadcasting_strategy_t::per_mb_spatial,
                             broadcasting_strategy_t::no_broadcast}));

@@ -134,7 +134,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
         bcast = broadcasting_strategy_t::scalar;
     else if (mask.none() && is_enabled(broadcasting_strategy_t::no_broadcast))
         bcast = broadcasting_strategy_t::no_broadcast;
-    else if (is_channel_bcast(mask, rhs_arg_md)
+    else if (is_channel_bcast(mask, dst_d)
             && is_enabled(broadcasting_strategy_t::per_mb_spatial))
         bcast = broadcasting_strategy_t::per_mb_spatial;
     else if (is_per_oc_bcast(mask, rhs_arg_md)
