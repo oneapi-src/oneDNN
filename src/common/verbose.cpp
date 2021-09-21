@@ -75,7 +75,6 @@ int get_verbose() {
         // Assumes that all threads see the same environment
         const int len = 2;
         char val[len] = {0};
-        if (getenv("MKLDNN_VERBOSE", val, len) == 1) verbose.set(atoi(val));
         if (getenv("DNNL_VERBOSE", val, len) == 1) verbose.set(atoi(val));
         if (!verbose.initialized()) verbose.set(0);
     }

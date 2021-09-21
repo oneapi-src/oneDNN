@@ -105,7 +105,6 @@ add_subdirectory(gtests)
 add_subdirectory(benchdnn)
 
 if(NOT DNNL_WITH_SYCL AND NOT DNNL_ENABLE_STACK_CHECKER)
-    add_subdirectory(mkldnn_compat)
     if(UNIX OR MINGW)
         add_subdirectory(noexcept)
     endif()

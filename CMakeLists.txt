@@ -108,8 +108,6 @@ set(CMAKE_TEST_CCXX_FLAGS)      # TESTS specifics
 
 string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
 
-include("cmake/mkldnn_compat.cmake")
-
 include("cmake/utils.cmake")
 include("cmake/options.cmake")
 include("cmake/SYCL.cmake")
