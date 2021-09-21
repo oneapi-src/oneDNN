@@ -521,7 +521,7 @@ int doit(const prb_t *prb, res_t *res) {
             // Used p1 to avoid writing separate compare function. Compare uses
             // prb->cfg which can be u8s8u8 while after fusion it may be u8s8s8,
             // thus, compare() will saturate values which is not correct.
-            SAFE(conv::compare_dst(p1.get(), dst_fused, dst_unfused, res, true),
+            SAFE(conv::compare_data(p1.get(), DST, dst_fused, dst_unfused, res),
                     WARN);
         }
     } else {

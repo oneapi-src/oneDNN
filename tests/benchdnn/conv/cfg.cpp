@@ -294,7 +294,7 @@ const _dt_conf_t conf_u8s8f32_wino = {
         {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -9, 35, 0, 9, .25, 0.},
-        {dnnl_f32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, -16, 128, 0, 1, .25, 2e-5}, // oscale
         {dnnl_s32},
 };
 
