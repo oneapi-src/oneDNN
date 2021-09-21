@@ -841,7 +841,7 @@ public:
         oss << "  GMEM to SLM, GRF buffers:   " << gmem_bufs << std::endl;
         oss << "  Pad SLM:                    " << to_string(pad_slm) << std::endl;
         oss << "  Use prefetch:               " << to_string(use_prefetch) << std::endl;
-        oss << "  Prefetch buffers:           " << to_string(prefetch_bufs) << std::endl;
+        oss << "  Prefetch buffers:           " << prefetch_bufs << std::endl;
         oss << "  Do loop unroll:             " << to_string(do_loop_unroll) << std::endl;
         oss << "  Assign SBIDs:               " << to_string(assign_sbids) << std::endl;
         oss << "  Reduce GRF usage:           " << to_string(reduce_grf_usage) << std::endl;
