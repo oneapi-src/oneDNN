@@ -107,6 +107,7 @@ private:
     }
 
     const Xbyak::Zmm zmm_tail = Xbyak::Zmm(row_loop_unroll);
+    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(row_loop_unroll + 1);
     const Xbyak::Opmask reg_m_row_tail_store = k6;
     const Xbyak::Opmask reg_m_row_tail_load = k7;
 
