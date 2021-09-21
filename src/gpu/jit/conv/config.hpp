@@ -296,7 +296,7 @@ public:
             g_tg_blk = 1;
             mb_thr_blk = is_small_ic() ? 8 : (mb < 16 ? 1 : 32);
             mb_thr_dim = (is_small_ic())
-                    ? std::min(utils::div_up(mb, mb_thr_blk), 4)
+                    ? (mb < 16 ? std::min(utils::div_up(mb, mb_thr_blk), 4) : 4)
                     : 1;
             oc_thr_blk = 32;
             oc_thr_dim = std::min(4, utils::div_up(oc, oc_thr_blk));
@@ -413,7 +413,7 @@ public:
             bool large_batch_ok = false;
             if (is_src_nhwc) large_batch_ok = true;
             // TODO: Fix issues with mb zero padding
-            if (is_small_ic() && mb % 32 == 0) large_batch_ok = true;
+            if (is_small_ic() && mb % 16 == 0) large_batch_ok = true;
             if (!large_batch_ok) return status::unimplemented;
         }
 
