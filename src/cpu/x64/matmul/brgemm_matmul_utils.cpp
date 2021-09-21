@@ -219,10 +219,6 @@ brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
             : brgemm_broadcast_t::per_tensor;
 }
 
-void init_aux_values(brgemm_matmul_conf_t &bgmmc,
-        const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
-        const memory_desc_wrapper &dst_d);
-
 struct matmul_blocking_params_t : public brgemm_matmul_conf_t {
     matmul_blocking_params_t() { init_zero(); }
     matmul_blocking_params_t(const brgemm_matmul_conf_t &bgmmc)

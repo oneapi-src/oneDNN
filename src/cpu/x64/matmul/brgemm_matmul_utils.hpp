@@ -239,6 +239,10 @@ private:
     bool blocked_B_layouts_allowed;
 };
 
+void init_aux_values(brgemm_matmul_conf_t &bgmmc,
+        const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
+        const memory_desc_wrapper &dst_d);
+
 status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         const matmul_desc_t &mmd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
