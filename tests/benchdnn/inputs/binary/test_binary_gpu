@@ -85,6 +85,9 @@
 
 --batch=harness_binary_different_dt
 
+--attr-post-ops=relu:-0.01+add:f32
+--batch=option_set_src0_bcast
+
 # tests for gen9_binary kernel that cares about formats
 --reset
 --inplace=false
@@ -99,6 +102,19 @@
 1x16x16x16:1x16x16x1
 1x16x16x16:1x16x1x16
 1x16x16x16:1x1x16x16
+
+# tests for src0 bcast that normally would be run by gen9 kernel
+--reset
+--inplace=false
+--alg=ADD,SUB
+--ddt=f32
+--sdt=f32:f32
+--dtag=aBx16b
+--stag=aBx16b:aBx16b
+1x32x8:4x32x1
+8x1x8:1x16x8
+8x16x1:1x16x16
+1x1x1:32x32x1
 
 # Test layers of some key GPU DL Frameworks
 --reset
