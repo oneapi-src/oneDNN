@@ -286,7 +286,9 @@ public:
 
     bool need_to_restore_zero_padding() const {
         auto *attr = pd_->attr();
-        //TODO: Add check for bias
+        if (pd_->with_bias() && pd_->is_fwd()
+                && pd_->dst_md()->dims[0] != pd_->dst_md()->padded_dims[0])
+            return true;
         for (int i = 0; i < attr->post_ops_.len(); i++) {
             auto &po = attr->post_ops_.entry_[i];
             if (po.is_eltwise()) {
