@@ -1057,7 +1057,7 @@ private:
                 hw, fma_kind, a_data_type, b_data_type, acc_data_type);
 
         bool use_mad = false;
-        if (is_small_ic()) {
+        if (is_small_ic() && !is_dw) {
             if (is_fwd && (kw != 7 || mb % 8 != 0))
                 use_mad = true;
             else if (is_bwd_d)
