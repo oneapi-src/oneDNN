@@ -37,7 +37,12 @@ namespace ir_utils {
 const int LOG_OFF = 0;
 const int LOG_WARNING = 100;
 const int LOG_TRACE = 200;
+
+#ifdef GEN_CONV_DEBUG
+const int LOG_LEVEL = LOG_WARNING;
+#else
 const int LOG_LEVEL = LOG_OFF;
+#endif
 
 template <typename T>
 size_t get_hash(const T &t);
