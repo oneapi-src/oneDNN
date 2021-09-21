@@ -38,10 +38,6 @@ const impl_list_map_t regular_f32_s8_impl_list_map {
 
         DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
 
-        REG_REORDER_P(REG_SR_BIDIR(f32, any, s8, nChw16c))
-        REG_REORDER_P(REG_SR_BIDIR(f32, any, s8, OIhw4i16o4i))
-        REG_REORDER_P(REG_SR_BIDIR(f32, any, s8, gOIhw4i16o4i))
-
         REG_REORDER_P(REG_SR(f32, any, s8, any, fmt_order::any, spec::reference))
 
         nullptr,

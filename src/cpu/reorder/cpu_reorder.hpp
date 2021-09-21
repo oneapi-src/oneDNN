@@ -89,10 +89,6 @@ extern const impl_list_map_t comp_s8_s8_impl_list_map;
     impl_list_item_t(impl_list_item_t::reorder_type_deduction_helper_t< \
             simple_reorder_t<idt, ifmt, odt, ofmt, __VA_ARGS__>::pd_t>()),
 
-#define REG_SR_BIDIR(idt, ifmt, odt, ofmt) \
-    REG_SR(idt, ifmt, odt, ofmt, fmt_order::keep) \
-    REG_SR(idt, ifmt, odt, ofmt, fmt_order::reverse)
-
 #define REG_SR_DIRECT_COPY(idt, odt) \
     REG_SR(idt, any, odt, any, fmt_order::any, spec::direct_copy) \
     REG_SR(idt, any, odt, any, fmt_order::any, spec::direct_copy_except_dim_0)
