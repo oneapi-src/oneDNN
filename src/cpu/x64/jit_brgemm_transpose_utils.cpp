@@ -720,6 +720,14 @@ void jit_brgemm_copy_to_coarse_t::copy_row_loop() {
 
         copy_row_blk_loop(row_iters);
         if (row_iters_tail != 0) copy_row_tail(/* row_offset = */ row_iters);
+
+        const int rnd_up_row_blk = utils::rnd_up(row_blk, row_step_);
+        const int zero_row_iters = (tr_row_size_ - rnd_up_row_blk) / row_step_;
+        for (int row = 0; row < zero_row_iters; ++row) {
+            const auto offset = addr_offset(rnd_up_row_blk / row_step_ + row);
+            const auto addr_tr = EVEX_compress_addr(reg_tr_data, offset);
+            vmovdqu8(addr_tr, zmm_zero);
+        }
     };
 
     const bool only_row_tail = row_size_ < tr_row_size_;
@@ -789,6 +797,12 @@ void jit_brgemm_copy_to_coarse_t::generate() {
     preamble();
 
     set_tail_mask();
+    const int last_row_size
+            = utils::rnd_up(row_size_ % tr_row_size_, row_step_);
+    const bool zero_iters_needed
+            = last_row_size > 0 && last_row_size < tr_row_size_;
+    if (zero_iters_needed) vpxord(zmm_zero, zmm_zero, zmm_zero);
+
     mov(reg_data, ptr[param1 + GET_OFF(data)]);
     mov(reg_tr_data, ptr[param1 + GET_OFF(tr_data)]);
     mov(reg_os_work, ptr[param1 + GET_OFF(os_work)]);
