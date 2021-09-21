@@ -54,7 +54,6 @@ if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
     # Unconditionally enable OpenMP during compilation to use `#pragma omp simd`
     append(DPCPP_HOST_COMPILER_OPTS "-fopenmp")
 
-    string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
     if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
         append(DPCPP_HOST_COMPILER_OPTS "${CMAKE_CXX_FLAGS_RELEASE}")
     else()
