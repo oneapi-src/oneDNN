@@ -70,9 +70,20 @@ __kernel void ref_prelu_bwd(const __global SRC_DATA_T *src,
             = src_data > 0 ? diff_dst_data : diff_dst_data * wei_data;
     if (data_off != data_off_pd) diff_src_data = 0.f;
 
-    float diff_wei_data = src_data > 0 ? 0 : diff_dst_data * src_data;
+#define COORDINATES_ARE_IN_RANGE(mem_prefix) \
+    ({ \
+        bool is_in_range = d0 < CONCAT2(mem_prefix, _PD0) \
+                && d1 < CONCAT2(mem_prefix, _PD1) \
+                && d2 < CONCAT2(mem_prefix, _PD2) \
+                && d3 < CONCAT2(mem_prefix, _PD3) \
+                && d4 < CONCAT2(mem_prefix, _PD4) \
+                && d5 < CONCAT2(mem_prefix, _PD5); \
+        is_in_range; \
+    })
 
-    diff_src[data_off_pd] = TO_SRC(diff_src_data);
+    if (COORDINATES_ARE_IN_RANGE(SRC))
+        diff_src[data_off_pd] = TO_SRC(diff_src_data);
+    if (!COORDINATES_ARE_IN_RANGE(DIFF_WEI)) return;
 
     const unsigned diff_wei_off = OFF_MD(DIFF_WEI, d0 % DIFF_WEI_D0,
             d1 % DIFF_WEI_D1, d2 % DIFF_WEI_D2, d3 % DIFF_WEI_D3,
@@ -81,6 +92,7 @@ __kernel void ref_prelu_bwd(const __global SRC_DATA_T *src,
             d1 % DIFF_WEI_PD1, d2 % DIFF_WEI_PD2, d3 % DIFF_WEI_PD3,
             d4 % DIFF_WEI_PD4, d5 % DIFF_WEI_PD5);
 
+    float diff_wei_data = src_data > 0 ? 0 : diff_dst_data * src_data;
     if (diff_wei_off != diff_wei_off_pd) diff_wei_data = 0.f;
 
 #if DIFF_WEI_DT_F32
