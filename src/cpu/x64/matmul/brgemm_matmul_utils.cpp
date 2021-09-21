@@ -232,11 +232,42 @@ brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
 }
 
 struct matmul_blocking_params_t : public brgemm_matmul_conf_t {
-    matmul_blocking_params_t() { init_zero(); }
+    matmul_blocking_params_t()
+        : nthr_k_(0)
+        , nthr_mnb_(0)
+        , nthr_(0)
+        , n_blk_(0)
+        , n_chunk_size_(0)
+        , n_chunk_elems_(0)
+        , m_blk_(0)
+        , m_chunk_size_(0)
+        , m_chunk_elems_(0)
+        , k_blk_(0)
+        , k_chunk_size_(0)
+        , k_chunk_elems_(0)
+        , current_lda_(0)
+        , need_buf_c_(false)
+        , blocking_chunk_mem_size_(0)
+        , efficiency_score_(0.0f) {}
+
     matmul_blocking_params_t(const brgemm_matmul_conf_t &bgmmc)
-        : brgemm_matmul_conf_t(bgmmc) {
-        init_from_conf();
-    }
+        : brgemm_matmul_conf_t(bgmmc)
+        , nthr_k_(nstl::max(nthr_k, 1))
+        , nthr_mnb_(nthr / nthr_k_)
+        , nthr_(nthr_mnb_ * nthr_k_)
+        , n_blk_(N_blk)
+        , n_chunk_size_(N_chunk_size)
+        , n_chunk_elems_(n_blk_ * n_chunk_size_)
+        , m_blk_(M_blk)
+        , m_chunk_size_(M_chunk_size)
+        , m_chunk_elems_(m_blk_ * m_chunk_size_)
+        , k_blk_(K_blk)
+        , k_chunk_size_(brgemm_batch_size)
+        , k_chunk_elems_(k_blk_ * k_chunk_size_)
+        , current_lda_(LDA)
+        , need_buf_c_(use_buffer_c)
+        , blocking_chunk_mem_size_(0)
+        , efficiency_score_(0.0f) {}
 
     void set_blocking_parameters(int nthr_k, int n_blk, int n_chunk_size,
             int m_blk, int m_chunk_size);
@@ -251,17 +282,15 @@ private:
     // num threads for parallelism wrt m, n and batch dimensions
     int nthr_mnb_;
     int nthr_;
-    dim_t n_blk_, n_chunk_size_, k_chunk_elems_;
+    dim_t n_blk_, n_chunk_size_, n_chunk_elems_;
     dim_t m_blk_, m_chunk_size_, m_chunk_elems_;
-    dim_t k_blk_, k_chunk_size_, n_chunk_elems_;
+    dim_t k_blk_, k_chunk_size_, k_chunk_elems_;
 
     dim_t current_lda_;
     bool need_buf_c_;
     size_t blocking_chunk_mem_size_;
     float efficiency_score_;
 
-    void init_zero();
-    void init_from_conf();
     void update_k_blocking_dependent_params();
     dim_t get_actual_lda();
     bool is_buffer_c_required();
@@ -645,36 +674,6 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     if (one_of(bgmmc.isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16))
         scratchpad.book(key_conv_amx_tile_buffer,
                 bgmmc.nthr * bgmmc.wsp_tile_per_thr_bytes, default_data_align);
-}
-
-void matmul_blocking_params_t::init_zero() {
-    nthr_k_ = nthr_mnb_ = nthr_ = 0;
-    n_blk_ = n_chunk_size_ = n_chunk_elems_ = 0;
-    m_blk_ = m_chunk_size_ = m_chunk_elems_ = 0;
-    k_blk_ = k_chunk_size_ = k_chunk_elems_ = 0;
-    need_buf_c_ = false;
-    current_lda_ = 0;
-    efficiency_score_ = 0.0f;
-    blocking_chunk_mem_size_ = 0;
-}
-
-void matmul_blocking_params_t::init_from_conf() {
-    nthr_k_ = nstl::max(nthr_k, 1);
-    nthr_mnb_ = nthr / nthr_k_;
-    nthr_ = nthr_mnb_ * nthr_k_;
-    n_blk_ = N_blk;
-    n_chunk_size_ = N_chunk_size;
-    m_blk_ = M_blk;
-    m_chunk_size_ = M_chunk_size;
-    k_blk_ = K_blk;
-    k_chunk_size_ = brgemm_batch_size;
-    n_chunk_elems_ = n_blk_ * n_chunk_size_;
-    m_chunk_elems_ = m_blk_ * m_chunk_size_;
-    k_chunk_elems_ = k_blk_ * k_chunk_size_;
-    need_buf_c_ = use_buffer_c;
-    current_lda_ = LDA;
-    efficiency_score_ = 0.0f;
-    blocking_chunk_mem_size_ = 0;
 }
 
 void matmul_blocking_params_t::update_k_blocking_dependent_params() {
