@@ -54,6 +54,11 @@ struct matmul_graph_prb_t : public graph_prb_t {
             }
         }
 
+        // x8x8bf16 cases
+        if (with_typecast(get_dtypes())) {
+            ctor_status = handle_typecast_(prb);
+            if (stop_work(ctor_status)) return;
+        }
         if (is_low_precision(get_dtypes())) {
             ctor_status = handle_low_precision_(prb);
             if (stop_work(ctor_status)) return;
@@ -104,6 +109,7 @@ private:
 
     fill_status_t handle_main_op_();
     fill_status_t handle_sum_();
+    fill_status_t handle_typecast_(const ::matmul::prb_t *prb_);
     fill_status_t handle_low_precision_(const ::matmul::prb_t *prb_);
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);

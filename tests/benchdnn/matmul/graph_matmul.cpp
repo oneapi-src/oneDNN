@@ -92,9 +92,12 @@ fill_status_t matmul_graph_prb_t::handle_main_op_() {
     const std::string DST {TENSOR_ID + "_DST"};
 
     const auto is_lprec = is_low_precision(get_dtypes());
-    dt src_dt = (is_lprec) ? dt::f32 : spec_.src_dt;
-    dt wei_dt = (is_lprec) ? dt::f32 : spec_.wei_dt;
-    dt dst_dt = (is_lprec) ? dt::f32 : spec_.dst_dt;
+    const auto with_tc = with_typecast(get_dtypes());
+    const auto change_dt = is_lprec || with_tc;
+    const auto default_dt = (with_tc) ? dt::bf16 : dt::f32;
+    dt src_dt = (change_dt) ? default_dt : spec_.src_dt;
+    dt wei_dt = (change_dt) ? default_dt : spec_.wei_dt;
+    dt dst_dt = (change_dt) ? default_dt : spec_.dst_dt;
     tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
     tensor_descs_.emplace(WEI, wei_dt, spec_.wei_dims, spec_.raw_wei_tag);
     tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
@@ -132,12 +135,39 @@ fill_status_t matmul_graph_prb_t::handle_sum_() {
     return po_handler.matmul.sum_handler(*this);
 }
 
-fill_status_t matmul_graph_prb_t::handle_low_precision_(
+fill_status_t matmul_graph_prb_t::handle_typecast_(
         const ::matmul::prb_t *prb_) {
     using op = dnnl::graph::op;
 
     const std::string SRC = tensor_id["main"].back() + "_SRC";
     const std::string WEI = tensor_id["main"].back() + "_WEI";
+
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["typecast"].push_back(TENSOR_ID);
+    const std::string TCSRC {TENSOR_ID + "_SRC"};
+    const std::string TCWEI {TENSOR_ID + "_WEI"};
+
+    tensor_descs_.emplace(TCSRC, dt::f32, spec_.src_dims, spec_.raw_src_tag);
+    tensor_descs_.emplace(TCWEI, dt::f32, spec_.wei_dims, spec_.raw_wei_tag);
+
+    op typecast_src(ops_.size(), op::kind::TypeCast, {tensor_descs_[TCSRC]},
+            {tensor_descs_[SRC]}, "typecast_src");
+    ops_.emplace_back(typecast_src);
+    op typecast_wei(ops_.size(), op::kind::TypeCast, {tensor_descs_[TCWEI]},
+            {tensor_descs_[WEI]}, "typecast_wei");
+    ops_.emplace_back(typecast_wei);
+
+    return fill_status_t::DONE;
+}
+fill_status_t matmul_graph_prb_t::handle_low_precision_(
+        const ::matmul::prb_t *prb_) {
+    using op = dnnl::graph::op;
+
+    const std::string IN_KEY
+            = (with_typecast(get_dtypes())) ? "typecast" : "main";
+    const std::string SRC = tensor_id[IN_KEY].back() + "_SRC";
+    const std::string WEI = tensor_id[IN_KEY].back() + "_WEI";
     const std::string DST = curr_out_map_ids_.back() + "_DST";
 
     const size_t new_op_id = ops_.size();
@@ -152,8 +182,8 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
     const std::string qdst_type = spec_.dst_dt == dt::u8 ? "uint8" : "int8";
 
     // `with_qdst == false` means that we are dealing
-    // with x8s8f32 pattern
-    const bool with_qdst = dt::f32 != spec_.dst_dt;
+    // with Quantized lacking pattern, like x8s8f32 or x8s8bf16
+    const bool with_qdst = dt::u8 == spec_.dst_dt || dt::s8 == spec_.dst_dt;
 
     tensor_descs_.emplace(
             QSRC, spec_.src_dt, spec_.src_dims, spec_.raw_src_tag);
