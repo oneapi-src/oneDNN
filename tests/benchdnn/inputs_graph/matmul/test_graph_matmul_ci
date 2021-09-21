@@ -61,3 +61,18 @@
 # gelu_erf needs to be enabled below when the correctness issue will be addressed
 --attr-post-ops=,relu,logistic,sum:1:0:s8
 --batch=shapes_int8_2d
+
+# x8s8bf16 - matmul + bias
+--reset
+--cfg=u8s8bf16
+--bia_dt=f32
+--attr-oscale=per_oc:2.25
+--batch=shapes_int8_2d
+
+# x8s8bf16 - matmul + div
+--reset
+--cfg=u8s8bf16
+--bia_dt=undef
+--attr-oscale=per_oc:2.25
+--attr-post-ops=div:bf16
+--batch=shapes_int8_2d
