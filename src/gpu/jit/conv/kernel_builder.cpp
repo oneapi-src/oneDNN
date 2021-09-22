@@ -4544,7 +4544,9 @@ layout_t convert_to_fma_friendly_type(const conv_config_t &cfg,
         return layout.retype(type_t::s16()).make_strided(2);
     }
     // f16/bf16 mixed mode mad requires src2 to be f32
-    if (abc_kind == abc_kind_t::b && (a_type.is_f16() || a_type.is_bf16())) {
+    if (a_type.is_bf16() || b_type.is_bf16()
+            || (a_type.is_f32() && b_type.is_f16())
+            || (a_type.is_f16() && b_type.is_f32())) {
         if (changed) *changed = true;
         return layout.retype(type_t::f32());
     }
