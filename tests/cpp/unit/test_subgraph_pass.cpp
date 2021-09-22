@@ -655,6 +655,7 @@ struct ut_int8_matmul_params {
     bool transpose_a;
     bool transpose_b;
     bool constant_weight;
+    size_t subgraph_size_after_insertion;
     size_t final_subgraph_size;
 };
 
@@ -764,9 +765,9 @@ TEST_P(int8_matmul_pass_test, int8_matmul_layout_propagation) {
     impl::graph_t(subgraph).infer_shape();
     dnnl_impl::insert_transpose_for_matmul(subgraph);
     impl::graph_t(subgraph).infer_shape();
-    dnnl_impl::insert_expand_for_matmul(subgraph);
+    dnnl_impl::insert_expand_and_squeeze_for_matmul(subgraph);
     dnnl_impl::insert_reorder(subgraph);
-    ASSERT_EQ(subgraph.size(), 10);
+    ASSERT_EQ(subgraph.size(), params.subgraph_size_after_insertion);
 
     for (auto &val : impl::graph_t(subgraph).get_input_values()) {
         auto lt = val->get_logical_tensor();
@@ -796,13 +797,13 @@ TEST_P(int8_matmul_pass_test, int8_matmul_layout_propagation) {
 
 INSTANTIATE_TEST_SUITE_P(int8_matmul_test_instance, int8_matmul_pass_test,
         testing::Values(ut_int8_matmul_params {{1, 1024}, {1000, 1024}, {1000},
-                                {1, 1000}, false, true, false, 6},
+                                {1, 1000}, false, true, false, 8, 4},
                 ut_int8_matmul_params {{1, 1024}, {1000, 1024}, {1000},
-                        {1, 1000}, false, true, true, 7},
+                        {1, 1000}, false, true, true, 8, 5},
                 ut_int8_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3},
-                        false, true, false, 6},
+                        false, true, false, 9, 5},
                 ut_int8_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3},
-                        false, true, true, 7}));
+                        false, true, true, 9, 6}));
 
 TEST(pass_test, subgraph_execution_args_set) {
     ///////////////////////////

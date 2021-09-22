@@ -2701,6 +2701,22 @@ DNNL_GRAPH_OP_SCHEMA(expand, 1,
                         attribute_kind::i, (int64_t)(-1))
                 .set_shape_inference_function(infer_expand_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(squeeze, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor",
+                        {impl::data_type::s8, impl::data_type::u8,
+                                impl::data_type::f32, impl::data_type::bf16})
+                .set_output(0, "y", "output tensor",
+                        {impl::data_type::s8, impl::data_type::u8,
+                                impl::data_type::f32, impl::data_type::bf16})
+                .set_attr("axes",
+                        "which dims to be squeezed, negative "
+                        "value means counting dimensions from the back",
+                        false, attribute_kind::is)
+                .set_shape_inference_function(infer_squeeze_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
         op_schema()
                 .set_inputs_option(op_schema::param_num_option::optional)

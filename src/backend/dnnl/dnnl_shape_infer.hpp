@@ -57,6 +57,10 @@ status_t infer_dnnl_conv_bwd_data_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
+status_t infer_squeeze_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

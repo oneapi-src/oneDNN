@@ -300,6 +300,48 @@ static bool layout_propagation_for_expand(op_ptr &op) {
     return changed;
 }
 
+static bool layout_propagation_for_squeeze(op_ptr &op) {
+    bool changed = true;
+    std::shared_ptr<impl::value_t> src, dst;
+    src = op->get_input_value(0);
+    dst = op->get_output_value(0);
+    auto in_lt = src->get_logical_tensor();
+    auto out_lt = dst->get_logical_tensor();
+
+    if ((ltw(in_lt).is_strided() || ltw(in_lt).is_opaque())
+            && (!ltw(out_lt).is_strided() && !ltw(out_lt).is_opaque())) {
+        dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
+        dnnl::memory::desc out_md = in_md;
+
+        if (op->has_attr("axes")) {
+            auto axes = op->get_attr<std::vector<int64_t>>("axes");
+            auto in_ndim = in_md.dims().size();
+
+            if (axes.empty() || axes.size() == 2) {
+                // the output is a scalar or no need to squeeze,
+                // just skip for layout propagation
+            } else {
+                assertm(axes.size() == 1,
+                        "the size of axes in squeeze op "
+                        "should be 1.");
+                auto reshaped_dims = in_md.dims();
+                if (axes.back() == -1) {
+                    reshaped_dims.erase(reshaped_dims.begin() + in_ndim - 1);
+                } else if (axes.back() == -2) {
+                    reshaped_dims.erase(reshaped_dims.begin() + in_ndim - 2);
+                }
+                out_md = in_md.reshape(reshaped_dims);
+            }
+        }
+
+        fill_layout_info(dst, out_md);
+    } else {
+        changed = false;
+    }
+
+    return changed;
+}
+
 static bool layout_propagation_for_reorder(op_ptr &op) {
     bool changed = true;
     std::shared_ptr<impl::value_t> src, dst;
@@ -490,6 +532,8 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
             } else if (cur_op->get_kind() == impl::op_kind::Reorder
                     || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
                 changed = layout_propagation_for_reorder(cur_op) || changed;
+            } else if (cur_op->get_kind() == op_kind::squeeze) {
+                changed = layout_propagation_for_squeeze(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
                 changed |= layout_propagation_for_bn_folding(cur_op, p_engine);
             } else {

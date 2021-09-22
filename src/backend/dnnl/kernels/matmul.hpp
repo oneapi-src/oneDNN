@@ -116,6 +116,7 @@ public:
         if (quantized) {
             // split quant/dequant to pairs of mul_scales and add_zps
             split_quant_dequant(subgraph);
+            BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
             fuse_to_int8_matmul(subgraph);
             folding_mul_scales(subgraph);
             fuse_output_scales(subgraph, prm_attr_mgr_);
@@ -133,7 +134,7 @@ public:
         BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
         insert_transpose_for_matmul(subgraph);
         BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
-        insert_expand_for_matmul(subgraph);
+        insert_expand_and_squeeze_for_matmul(subgraph);
         insert_reorder(subgraph);
 
         subgraph_visualizer_t vis(part->id());

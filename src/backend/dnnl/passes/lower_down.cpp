@@ -420,9 +420,17 @@ void fuse_to_int8_matmul(std::vector<op_ptr> &subgraph) {
                                    ->get_consumers()[0]
                                    .get_op();
             }
-            mul_scales_op->set_attr<int64_t>("axis",
-                    begin_op.get_output_value(0)->get_logical_tensor().ndims
-                            - 1);
+            // if one of matmul's inputs is 1D tensor, the real ndims of
+            // matmul's output should be (cur_ndims + 1), so we only need set
+            // axis to cur_ndims
+            int64_t new_axis
+                    = begin_op.get_output_value(0)->get_logical_tensor().ndims
+                    - 1;
+            if (matmul_op->get_input_value(0)->get_logical_tensor().ndims == 1
+                    || matmul_op->get_input_value(1)->get_logical_tensor().ndims
+                            == 1)
+                new_axis += 1;
+            mul_scales_op->set_attr<int64_t>("axis", new_axis);
             mul_scales_op->set_attr<std::string>(
                     "qtype", in1->get_attr<std::string>("qtype"));
         } else {

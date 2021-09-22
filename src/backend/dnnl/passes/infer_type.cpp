@@ -79,7 +79,8 @@ impl::status_t infer_type(impl::graph_t &subgraph) {
             } else if (op->get_kind() == op_kind::permute
                     || op->get_kind() == impl::op_kind::Reorder
                     || op->get_kind() == op_kind::to_group
-                    || op->get_kind() == op_kind::expand) {
+                    || op->get_kind() == op_kind::expand
+                    || op->get_kind() == op_kind::squeeze) {
                 auto in_lt = op->get_input_value(0)->get_logical_tensor();
                 auto out_lt = op->get_output_value(0)->get_logical_tensor();
                 if (out_lt.data_type == impl::data_type::undef) {

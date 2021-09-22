@@ -65,7 +65,8 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
                     cur_op, p_engine, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group
-                || cur_op->get_kind() == op_kind::expand) {
+                || cur_op->get_kind() == op_kind::expand
+                || cur_op->get_kind() == op_kind::squeeze) {
             // For preprocess ops. The memory_reparser will not do
             // computation, it only re-parses the existing buffer.
             prm = std::make_shared<memory_reparser>();

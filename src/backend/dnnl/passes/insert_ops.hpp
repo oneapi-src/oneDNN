@@ -42,15 +42,25 @@ void insert_to_group_for_conv(std::vector<std::shared_ptr<op_t>> &subgraph);
 /// (2) either `transpose_a` or `transpose_b` is true
 void insert_transpose_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 
-/// Insert a expand op for matmul's input tensors
+/// Insert an expand-squeeze pair for matmul
 ///
-/// There maybe three scenarios as below:
-/// (1) one of inputs (src or weight) has only one dimension, DNNL require at
-///     two dimensions, so need to insert dim 1 before/after the current dim
-/// (2) The batch dimensions of src and weight are not matched, need to
+/// The usage of expand op:
+///     There maybe three scenarios as below:
+///     (1) one of inputs (src or weight) has only one dimension, DNNL require
+//      at two dimensions, so need to insert dim 1 before/after the current dim
+///     (2) The batch dimensions of src and weight are not matched, need to
 ///     expand
-/// (3) bias dimensions are not matched with dst, need to expand
-void insert_expand_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
+///     (3) bias dimensions are not matched with dst, need to expand
+///
+/// The usage of squeeze op:
+///     Only will be inserted when previously expand op(s) inserted
+///     For example, considering two inputs [3,4]x[4], the second input will be
+///     expanded into [4,1], hence the output shape should be [3,1]. However,
+///     this is inconsistent with the results derived from the shape inference.
+///     So we use squeeze here to remove the extra 1 dimension to produce output
+///     with [3].
+void insert_expand_and_squeeze_for_matmul(
+        std::vector<std::shared_ptr<op_t>> &subgraph);
 
 /// Insert an dnnl_u8_to_s8 op for matmul's weight tensor
 ///

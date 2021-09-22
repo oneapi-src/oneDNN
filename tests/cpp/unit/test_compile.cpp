@@ -2150,13 +2150,13 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
 
     // prepare logical tensor
     impl::logical_tensor_t src
-            = utils::logical_tensor_init(0, {2}, impl::data_type::f32);
+            = utils::logical_tensor_init(0, {1, 2}, impl::data_type::f32);
     impl::logical_tensor_t weight
             = utils::logical_tensor_init(1, {2}, impl::data_type::f32);
     impl::logical_tensor_t bias
-            = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f32);
+            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
     impl::logical_tensor_t dst
-            = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
+            = utils::logical_tensor_init(3, {1}, impl::data_type::f32);
 
     matmul_op.add_input(src);
     matmul_op.add_input(weight);
@@ -2286,11 +2286,11 @@ TEST(operator_kernel, matmul_compile_fwd_bf16bf16bf16) {
 
     // prepare logical tensor
     impl::logical_tensor_t src
-            = utils::logical_tensor_init(0, {2}, impl::data_type::bf16);
+            = utils::logical_tensor_init(0, {1, 2}, impl::data_type::bf16);
     impl::logical_tensor_t weight
             = utils::logical_tensor_init(1, {2}, impl::data_type::bf16);
     impl::logical_tensor_t dst
-            = utils::logical_tensor_init(2, {1, 1}, impl::data_type::bf16);
+            = utils::logical_tensor_init(2, {1}, impl::data_type::bf16);
 
     matmul_op.add_input(src);
     matmul_op.add_input(weight);
@@ -2332,15 +2332,15 @@ static size_t product(std::vector<int64_t> &in) {
     return static_cast<size_t>(prod);
 }
 
-TEST(operator_kernel, matmul_ndx2d) {
+TEST(operator_kernel, matmul_ndx1d) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
     std::vector<std::vector<int64_t>> weight_shapes {{16}, {16, 1}};
     std::vector<std::vector<int64_t>> src_shapes {
             {4, 2, 16}, {6, 4, 2, 16}, {8, 6, 4, 2, 16}};
-    std::vector<std::vector<int64_t>> dst_shapes {
-            {4, 2, 1}, {6, 4, 2, 1}, {8, 6, 4, 2, 1}};
+    std::vector<std::vector<int64_t>> dst_shapes {{4, 2}, {6, 4, 2},
+            {8, 6, 4, 2}, {4, 2, 1}, {6, 4, 2, 1}, {8, 6, 4, 2, 1}};
 
     // Initialize
     std::default_random_engine generator;
@@ -2349,7 +2349,7 @@ TEST(operator_kernel, matmul_ndx2d) {
     for (size_t w_idx = 0; w_idx < weight_shapes.size(); ++w_idx) {
         for (size_t idx = 0; idx < src_shapes.size(); idx++) {
             auto src_shape = src_shapes[idx];
-            auto dst_shape = dst_shapes[idx];
+            auto dst_shape = dst_shapes[idx + w_idx * src_shapes.size()];
 
             test::vector<float> src_data(product(src_shape));
             test::vector<float> weight_data(product(weight_shapes[w_idx]));
@@ -2414,6 +2414,96 @@ TEST(operator_kernel, matmul_ndx2d) {
                     for (size_t k = 0; k < K; k++)
                         ref_dst_data[m * N + n]
                                 += src_data[m * K + k] * weight_data[k * N + n];
+                }
+            }
+
+            // FIXME(qun) the max error will be bigger than 1e-6
+            for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+                ASSERT_NEAR(dst_data[i], ref_dst_data[i], 3e-6f);
+            }
+        }
+    }
+}
+
+TEST(operator_kernel, matmul_1dxnd) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<std::vector<int64_t>> src_shapes {{16}, {1, 16}};
+    std::vector<std::vector<int64_t>> weight_shapes {
+            {4, 16, 2}, {6, 4, 16, 2}, {8, 6, 4, 16, 2}};
+    std::vector<std::vector<int64_t>> dst_shapes {{4, 2}, {6, 4, 2},
+            {8, 6, 4, 2}, {4, 1, 2}, {6, 4, 1, 2}, {8, 6, 4, 1, 2}};
+
+    // Initialize
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
+
+    for (size_t idx = 0; idx < src_shapes.size(); ++idx) {
+        for (size_t w_idx = 0; w_idx < weight_shapes.size(); w_idx++) {
+            auto src_shape = src_shapes[idx];
+            auto dst_shape = dst_shapes[w_idx + idx * weight_shapes.size()];
+
+            test::vector<float> src_data(product(src_shape));
+            test::vector<float> weight_data(product(weight_shapes[w_idx]));
+            test::vector<float> dst_data(product(dst_shape));
+            test::vector<float> ref_dst_data(product(dst_shape), 0.0);
+
+            std::generate(src_data.begin(), src_data.end(),
+                    [&]() { return distribution(generator); });
+            std::generate(weight_data.begin(), weight_data.end(),
+                    [&]() { return distribution(generator); });
+
+            // prepare logical tensor
+            impl::logical_tensor_t src = utils::logical_tensor_init(
+                    0, src_shape, impl::data_type::f32);
+            impl::logical_tensor_t weight = utils::logical_tensor_init(
+                    1, weight_shapes[w_idx], impl::data_type::f32);
+            impl::logical_tensor_t dst = utils::logical_tensor_init(
+                    2, dst_shape, impl::data_type::f32);
+
+            impl::op_t matmul_op(impl::op_kind::MatMul);
+            matmul_op.add_input(src);
+            matmul_op.add_input(weight);
+            matmul_op.add_output(dst);
+
+            impl::graph_t g;
+            g.add_op(&matmul_op);
+            g.build_graph();
+
+            impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1);
+            auto part = g.get_partitions()[0];
+
+            // compile
+            impl::partition_t p;
+            p.init(part);
+
+            impl::compiled_partition_t cp(p);
+
+            std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
+            std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+            p.compile(&cp, inputs, outputs, &engine);
+
+            impl::tensor_t src_ts(src, &engine, src_data.data());
+            impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+            impl::tensor_t dst_ts(dst, &engine, dst_data.data());
+
+            cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
+            strm.wait();
+
+            // compute the ref results
+            size_t M = product(dst_shape)
+                    / static_cast<size_t>(dst_shape.back());
+            size_t K = static_cast<size_t>(src_shape.back());
+            size_t N = weight_shapes[w_idx].back();
+            for (size_t m = 0; m < M; m++) {
+                for (size_t n = 0; n < N; n++) {
+                    for (size_t k = 0; k < K; k++)
+                        ref_dst_data[m * N + n] += src_data[k]
+                                * weight_data[m * K * N + k * N + n];
                 }
             }
 
@@ -8901,7 +8991,7 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
     for (size_t j = 0; j < weight_shapes.size(); ++j) {
@@ -9051,16 +9141,18 @@ TEST(int8_subgraph_mode, int8_matmul_ndx1d) {
 
     if (engine.kind() == impl::engine_kind::gpu) return;
 
-    std::vector<std::vector<int64_t>> src_shapes {{3, 8, 4}, {8, 4}, {4}};
+    std::vector<std::vector<int64_t>> src_shapes {{3, 8, 4}, {8, 4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 1}, {4}};
-    std::vector<std::vector<int64_t>> dst_shapes {{3, 8, 1}, {8, 1}, {1, 1}};
+    std::vector<std::vector<int64_t>> dst_shapes {
+            {3, 8, 1}, {8, 1}, {3, 8}, {8}};
 
-    for (size_t i = 0; i < src_shapes.size(); ++i) {
-        for (size_t j = 0; j < weight_shapes.size(); ++j) {
+    for (size_t i = 0; i < weight_shapes.size(); ++i) {
+        for (size_t j = 0; j < src_shapes.size(); ++j) {
             // prepare fp32 data
-            std::vector<int64_t> src_shape = src_shapes[i];
-            std::vector<int64_t> weight_shape = weight_shapes[j];
-            std::vector<int64_t> dst_shape = dst_shapes[i];
+            std::vector<int64_t> src_shape = src_shapes[j];
+            std::vector<int64_t> weight_shape = weight_shapes[i];
+            std::vector<int64_t> dst_shape
+                    = dst_shapes[j + i * src_shapes.size()];
 
             test::vector<uint8_t> src_data(product(src_shape));
             test::vector<int8_t> weight_data(product(weight_shape));
@@ -9202,7 +9294,7 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d_with_transpose) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{2, 4}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
 
     for (size_t i = 0; i < src_shapes.size(); ++i) {
         for (size_t j = 0; j < weight_shapes.size(); ++j) {
@@ -9659,7 +9751,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
     for_(const auto &other_qtype : other_qtypes)
@@ -9849,7 +9941,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_sum_ndx2d) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
     for (size_t j = 0; j < weight_shapes.size(); ++j) {
@@ -10023,7 +10115,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_ndx2d) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
     for (size_t j = 0; j < weight_shapes.size(); ++j) {
@@ -10167,7 +10259,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_ndx2d) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
     for (size_t j = 0; j < weight_shapes.size(); ++j) {
@@ -10300,7 +10392,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_gelu_ndx2d) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
     for (size_t j = 0; j < weight_shapes.size(); ++j) {
@@ -11481,7 +11573,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
     for_(const auto &qtype : qtypes)
     for_(const auto &wei_qtype : weight_qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
@@ -11704,7 +11796,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_ndx2d_with_transpose) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{2, 4}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
 
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
@@ -11890,7 +11982,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_relu_ndx2d) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
     for_(const auto with_bias : with_bias_types)
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
@@ -12227,7 +12319,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
     for_(const auto &other_qtype : other_qtypes)

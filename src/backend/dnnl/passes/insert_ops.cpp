@@ -249,7 +249,7 @@ void insert_transpose_for_matmul(std::vector<op_ptr> &subgraph) {
         subgraph.emplace_back(std::move(op));
 }
 
-void insert_expand_for_matmul(std::vector<op_ptr> &subgraph) {
+void insert_expand_and_squeeze_for_matmul(std::vector<op_ptr> &subgraph) {
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
@@ -292,6 +292,7 @@ void insert_expand_for_matmul(std::vector<op_ptr> &subgraph) {
             expand_ops.emplace_back(expand_op);
         }
 
+        std::vector<int64_t> squeeze_dims {};
         for (size_t i = 0; i < expand_ops.size(); ++i) {
             if (i == 0 && new_src_ndims < new_wei_ndims) {
                 expand_ops[i]->set_attr<int64_t>("expand_to", new_wei_ndims);
@@ -299,8 +300,38 @@ void insert_expand_for_matmul(std::vector<op_ptr> &subgraph) {
                 expand_ops[i]->set_attr<int64_t>("expand_to", new_src_ndims);
             }
 
-            insert_op_before(expand_ops[i], cur_op, i);
-            to_be_inserted_ops.emplace_back(expand_ops[i]);
+            // insert expand ops
+            if ((expand_ops[i]->has_attr("insert_1dim")
+                        && expand_ops[i]->get_attr<std::string>("insert_1dim")
+                                != "none")
+                    || (expand_ops[i]->has_attr("expand_to")
+                            && expand_ops[i]->get_attr<int64_t>("expand_to")
+                                    != -1)) {
+                insert_op_before(expand_ops[i], cur_op, i);
+                to_be_inserted_ops.emplace_back(expand_ops[i]);
+            }
+
+            // decide squeeze dims
+            if (expand_ops[i]->has_attr("insert_1dim")
+                    && expand_ops[i]->get_attr<std::string>("insert_1dim")
+                            != "none") {
+                // -2 means the second rightmost dimension, -1 means the
+                // rightmost dimension
+                int64_t dim_to_be_squeezed
+                        = expand_ops[i]->get_attr<std::string>("insert_1dim")
+                                == "before"
+                        ? static_cast<int64_t>(-2)
+                        : static_cast<int64_t>(-1);
+                squeeze_dims.push_back(dim_to_be_squeezed);
+            }
+        }
+
+        // insert squeeze ops
+        if (!squeeze_dims.empty()) {
+            op_ptr squeeze_op = std::make_shared<op_t>(op_kind::squeeze);
+            squeeze_op->set_attr<std::vector<int64_t>>("axes", squeeze_dims);
+            insert_op_after(squeeze_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(squeeze_op);
         }
     }
     for (const auto &op : to_be_inserted_ops)

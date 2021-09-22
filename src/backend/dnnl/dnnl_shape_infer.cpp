@@ -13,6 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include <algorithm>
 #include "dnnl_shape_infer.hpp"
 #include "interface/shape_infer.hpp"
 
@@ -136,6 +137,41 @@ status_t infer_expand_output_shape(op_t *n,
         }
     }
     set_shape_and_strides(*outputs[0], in_dims);
+    return status::success;
+}
+
+status_t infer_squeeze_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    using ltw = logical_tensor_wrapper;
+    if (!ltw(outputs[0]).is_shape_unknown()) return status::success;
+
+    auto in_dims = ltw(inputs[0]).vdims();
+    auto in_ndim = in_dims.size();
+
+    std::vector<int64_t> axes {};
+    axes = n->get_attr<std::vector<int64_t>>("axes");
+    // convert negative axis to positive one
+    std::transform(axes.begin(), axes.end(), axes.begin(),
+            [&in_ndim](int64_t axis) -> int64_t {
+                return axis < 0 ? axis + in_ndim : axis;
+            });
+
+    dims inferred_output_shape {};
+    for (size_t i = 0; i < in_ndim; ++i) {
+        if (axes.empty() && in_dims[i] == 1) {
+            continue;
+        } else if (!axes.empty()
+                && std::find(axes.begin(), axes.end(), i) != axes.end()) {
+            if (in_dims[i] != 1) {
+                // Dimension must be 1
+                return status::invalid_argument;
+            }
+        } else {
+            inferred_output_shape.push_back(in_dims[i]);
+        }
+    }
+    set_shape_and_strides(*outputs[0], inferred_output_shape);
     return status::success;
 }
 

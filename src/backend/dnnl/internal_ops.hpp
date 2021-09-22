@@ -127,6 +127,7 @@ namespace op_kind {
     X(permute, Permute) \
     X(to_group, To_group) \
     X(expand, Expand) \
+    X(squeeze, Squeeze) \
     X(dnnl_convolution, Dnnl_convolution) \
     X(int8_maxpool, INT8_MaxPool) \
     X(relu_add, Relu_add) \
