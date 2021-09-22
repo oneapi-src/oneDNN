@@ -49,16 +49,6 @@ const _dt_conf_t conf_f16 = {
         {dnnl_f16},
 };
 
-const double int_f16_max = max_dt(dnnl_f16);
-const double int_f16_lowest = lowest_dt(dnnl_f16);
-const _dt_conf_t conf_f16_no_limits = {
-        {dnnl_f16, int_f16_lowest, int_f16_max, -4, 4, 0, 1, .25, 0.},
-        {dnnl_f16, int_f16_lowest, int_f16_max, -2, 2, -2, 1, 1.0, 0.},
-        {dnnl_f16, int_f16_lowest, int_f16_max, -8, 8, 0, 1, 1.0, 0.},
-        {dnnl_f16, int_f16_lowest, int_f16_max, -4, 4, 0, 1, .25, 0.},
-        {dnnl_f16},
-};
-
 const int int_max_exact = 1 << 24;
 const _dt_conf_t conf_f16f16f32 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
@@ -75,22 +65,6 @@ const _dt_conf_t conf_f32 = {
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, 1.0, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .25, 0.},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f32_no_limits = {
-        {dnnl_f32, -FLT_MAX, FLT_MAX, -32, 32, 0, 1, .25, 0.},
-        {dnnl_f32, -FLT_MAX, FLT_MAX, -32, 32, 0, 1, 1.0, 0.},
-        {dnnl_f32, -FLT_MAX, FLT_MAX, -512, 512, 0, 1, 1.0, 0.},
-        {dnnl_f32, -FLT_MAX, FLT_MAX, -32, 32, 0, 1, .25, 0.},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f32_full = {
-        {dnnl_f32, -int_max_exact, int_max_exact, -64, 64, 0, 1, 1.0, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, 1.0, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -64, 64, 0, 1, 1.0, 0.},
         {dnnl_f32},
 };
 
@@ -327,10 +301,7 @@ const dt_conf_t *str2cfg(const char *str) {
 #define CASE(cfg) \
     if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_, cfg)
     CASE(f16);
-    CASE(f16_no_limits);
     CASE(f32);
-    CASE(f32_no_limits);
-    CASE(f32_full);
     CASE(f32_wino);
     CASE(u8s8f32);
     CASE(u8s8f16);
@@ -370,10 +341,7 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
 #define CASE(_cfg) \
     if (cfg == CONCAT2(conf_, _cfg)) return s << STRINGIFY(_cfg)
     CASE(f16);
-    CASE(f16_no_limits);
     CASE(f32);
-    CASE(f32_no_limits);
-    CASE(f32_full);
     CASE(f32_wino);
     CASE(u8s8f32);
     CASE(u8s8f16);
