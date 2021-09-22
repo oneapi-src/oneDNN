@@ -1313,7 +1313,7 @@ private:
 
         // TODO: improve estimate register count, it fails to account for tmp
         // values like mask_registers among other things.
-        double reg_factor = (is_bwd_w && mb < 16) ? regs * 0.9375 : 0.95;
+        double reg_factor = is_bwd_w ? 0.875 : 0.95;
         int max_regs = int(regs * reg_factor);
         int regs = estimate_register_count();
         if (regs <= max_regs) return true;
@@ -1358,8 +1358,17 @@ private:
 
     int estimate_register_count() const {
         int reg_bytes = ngen::GRF::bytes(hw);
-        int gmem_msg_bytes = 32; // Assume 1 HWord per GMEM load.
-        int slm_msg_bytes = 256; // Assume 8 HWords per SLM load/store.
+
+        // Assume 8 HWord per GMEM load for double-blocked layouts and 1 HWord
+        // otherwise.
+        int hword_bytes = 32;
+        int a_gmem_msg_bytes
+                = (a_layout().is_n_blocked(2) ? 8 : 1) * hword_bytes;
+        int b_gmem_msg_bytes
+                = (b_layout().is_n_blocked(2) ? 8 : 1) * hword_bytes;
+
+        // Assume 8 HWords per SLM load/store.
+        int slm_msg_bytes = 256;
 
         int nthr = tg_grid_dim[0] * tg_grid_dim[1];
         int m_thr_blk = utils::div_up(m_tg_blk, tg_grid_dim[1]);
@@ -1382,9 +1391,9 @@ private:
         int acc_regs = utils::div_up(acc_bytes, reg_bytes);
 
         int a_headers = utils::div_up(
-                a_bytes, use_a_slm ? slm_msg_bytes : gmem_msg_bytes);
+                a_bytes, use_a_slm ? slm_msg_bytes : a_gmem_msg_bytes);
         int b_headers = utils::div_up(
-                b_bytes, use_b_slm ? slm_msg_bytes : gmem_msg_bytes);
+                b_bytes, use_b_slm ? slm_msg_bytes : b_gmem_msg_bytes);
 
         if (fma_kind == fma_kind_t::dpasw) {
             // dpasw reuses registers between fused threads across tg0. M is
@@ -1406,9 +1415,9 @@ private:
         int b_g2s_regs = utils::div_up(b_g2s_bytes, reg_bytes);
 
         // Two sets of headers for GMEM -> GRF and GRF -> SLM.
-        int a_g2s_headers = utils::div_up(a_g2s_bytes, gmem_msg_bytes)
+        int a_g2s_headers = utils::div_up(a_g2s_bytes, a_gmem_msg_bytes)
                 + utils::div_up(a_g2s_bytes, slm_msg_bytes);
-        int b_g2s_headers = utils::div_up(b_g2s_bytes, gmem_msg_bytes)
+        int b_g2s_headers = utils::div_up(b_g2s_bytes, b_gmem_msg_bytes)
                 + utils::div_up(b_g2s_bytes, slm_msg_bytes);
 
         // Extra registers for GRF <-> GRF reorders.
@@ -1416,20 +1425,26 @@ private:
 
         // Assume A/B need reorders to temporary buffers.
         if (allow_grf_reorder) {
+            if (is_bwd_w) {
+                // Hardcode for now, this is the upper bound for the temporary
+                // buffer size for BWD_W.
+                int bwd_w_reorder_regs = 16;
+                reorder_regs += bwd_w_reorder_regs;
+            }
+
+            int ab_reorder_regs = 0;
+
             if (use_a_slm) {
-                a_g2s_regs *= 2;
+                ab_reorder_regs = std::max(ab_reorder_regs, a_g2s_regs);
             } else {
-                a_regs *= 2;
+                ab_reorder_regs = std::max(ab_reorder_regs, a_regs);
             }
             if (use_b_slm) {
-                b_g2s_regs *= 2;
+                ab_reorder_regs = std::max(ab_reorder_regs, b_g2s_regs);
             } else {
-                b_regs *= 2;
+                ab_reorder_regs = std::max(ab_reorder_regs, b_regs);
             }
-            // Hardcode for now, this is the upper bound for the temporary
-            // buffer size for BWD_W.
-            int bwd_w_reorder_regs = 16;
-            reorder_regs += bwd_w_reorder_regs;
+            reorder_regs += ab_reorder_regs;
         }
 
         int g2s_regs = gmem_bufs * (a_g2s_regs + b_g2s_regs);
@@ -1442,6 +1457,32 @@ private:
         int estimated_regs = data_regs + reorder_regs + header_regs;
 
         return estimated_regs;
+    }
+
+    const layout_t &a_layout() const {
+        const layout_t *ret = nullptr;
+        if (is_fwd) {
+            ret = &src_layout;
+        } else if (is_bwd_d) {
+            ret = &dst_layout;
+        } else if (is_bwd_w) {
+            ret = &src_layout;
+        }
+        ir_assert(ret && !ret->is_empty()) << "Layout is not initialized.";
+        return *ret;
+    }
+
+    const layout_t &b_layout() const {
+        const layout_t *ret = nullptr;
+        if (is_fwd) {
+            ret = &wei_layout;
+        } else if (is_bwd_d) {
+            ret = &wei_layout;
+        } else if (is_bwd_w) {
+            ret = &dst_layout;
+        }
+        ir_assert(ret && !ret->is_empty()) << "Layout is not initialized.";
+        return *ret;
     }
 
     static std::string prepend_groups_to_tag(const std::string &tag) {
