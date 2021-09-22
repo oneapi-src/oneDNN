@@ -230,6 +230,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::int8_conv, quantized_conv)
     DNNL_REGISTER_KERNEL(op_kind::int8_conv_relu, quantized_conv)
     DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias_add, quantized_conv)
     DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias_relu, quantized_conv)
     DNNL_REGISTER_KERNEL(op_kind::int8_conv_add_relu, quantized_conv)
     DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias_add_relu, quantized_conv)

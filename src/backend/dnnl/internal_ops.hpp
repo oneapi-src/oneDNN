@@ -93,6 +93,7 @@ namespace op_kind {
     X(int8_quant_wei_conv_bias, INT8_Quant_wei_Conv_bias) \
     X(int8_conv_relu, INT8_Conv_relu) \
     X(int8_quant_wei_conv_relu, INT8_Quant_wei_Conv_relu) \
+    X(int8_conv_bias_add, INT8_Conv_bias_add) \
     X(int8_conv_bias_relu, INT8_Conv_bias_relu) \
     X(int8_quant_wei_conv_bias_relu, INT8_Quant_wei_Conv_bias_relu) \
     X(int8_conv_add_relu, INT8_Conv_add_relu) \
