@@ -1085,9 +1085,14 @@ private:
 
         // Disable using mad instruction backend until performance parity is
         // reached with OpenCL kernels.
-        if (fma_kind == fma_kind_t::mad
-                && ((is_bwd_d && !is_f32_conv()) || hw < ngen::HW::XeHP))
-            return status::unimplemented;
+        if (fma_kind == fma_kind_t::mad) {
+            if (hw < ngen::HW::XeHP) return status::unimplemented;
+            if (is_bwd_d) {
+                if (!is_f32_conv()) return status::unimplemented;
+                if (is_small_ic()) return status::unimplemented;
+                return status::success;
+            }
+        }
 
         return status::success;
     }
