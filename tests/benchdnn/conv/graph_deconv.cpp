@@ -21,6 +21,7 @@
 
 #include "conv/graph_deconv.hpp"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,10 +35,21 @@ void check_known_skipped_case_graph(
     if (res->state == SKIPPED) return;
 
     const bool with_groups = prb->g > 1;
-    const std::string filter_format = "OIX";
-    // required in order to make strides aligned with oneDNN graph expectations
-    if (with_groups && filter_format != "IOX") {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+    if (with_groups) {
+        const std::string wei_dnnl_fmt_tag_str
+                = get_ou_format(normalize_tag(prb->wtag, prb->ndims));
+        const dnnl_format_tag_t wei_dnnl_fmt_tag
+                = dnnl_fmt_str2tag(wei_dnnl_fmt_tag_str);
+        const std::vector<dnnl_format_tag_t> acceptable_wei_fmt_tags {
+                dnnl_acbd, dnnl_acbde, dnnl_acbdef};
+        const bool valid_wei_fmt_tag = std::any_of(
+                acceptable_wei_fmt_tags.begin(), acceptable_wei_fmt_tags.end(),
+                [wei_dnnl_fmt_tag](const dnnl_format_tag_t tag) {
+                    return tag == wei_dnnl_fmt_tag;
+                });
+        // required in order to make strides aligned with oneDNN graph expectations
+        if (!valid_wei_fmt_tag)
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
     }
 }
 
