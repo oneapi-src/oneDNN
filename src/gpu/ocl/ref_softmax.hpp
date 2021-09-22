@@ -159,6 +159,9 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
         status_t init(engine_t *engine) {
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+
             bool ok = desc()->prop_kind == prop_kind::backward_data
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
@@ -169,6 +172,10 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
             gws[0] = 1;
             gws[1] = 1;
             gws[2] = 1;
+
+            lws[0] = 1;
+            lws[1] = 1;
+            lws[2] = 1;
 
             block[0] = 1;
             block[1] = 1;
@@ -183,11 +190,30 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
                 }
             }
 
+            int nelems = desc()->data_desc.padded_dims[desc()->softmax_axis];
+
+            if (nelems <= 100) {
+                group_size = 16;
+            } else if (nelems <= 1000) {
+                group_size = 32;
+            } else if (nelems <= 2000) {
+                group_size = 64;
+            } else if (nelems <= 5000) {
+                group_size = 128;
+            } else {
+                group_size = 256;
+            }
+
+            lws[0] = group_size;
+            gws[0] *= group_size;
+
             return status::success;
         }
 
+        size_t lws[3] = {};
         size_t gws[3] = {};
         size_t block[3] = {};
+        size_t group_size = 0;
     };
 
     status_t init(engine_t *engine) override {
@@ -199,9 +225,12 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
         const auto *desc = pd()->desc();
         kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
         kernel_ctx.define_int("IS_BWD", 1);
+        kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
+        kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
         kernel_ctx.define_int("SOFTMAX_AXIS",
                 desc->data_desc.padded_dims[desc->softmax_axis]);
         kernel_ctx.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX",
                 desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
 

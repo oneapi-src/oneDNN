@@ -175,48 +175,75 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
 #endif
 
 #if IS_BWD
-__kernel void ref_softmax_bwd_generic(__global DATA_T *dst,
-        __global DATA_T *diff_src, __global DATA_T *diff_dst) {
+
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+
+__kernel void
+ref_softmax_bwd_generic(__global DATA_T *dst, __global DATA_T *diff_src,
+        __global DATA_T *diff_dst) {
+
     const int dim[] = {
-            get_global_id(0) % BLOCK_0,
+            (get_global_id(0) / GROUP_SIZE) % BLOCK_0,
             get_global_id(1) % BLOCK_1,
             get_global_id(2) % BLOCK_2,
-            get_global_id(0) / BLOCK_0,
+            (get_global_id(0) / GROUP_SIZE) / BLOCK_0,
             get_global_id(1) / BLOCK_1,
             get_global_id(2) / BLOCK_2,
     };
 
-    DEF_ACC_DATA_T sbr = 0.f;
-    for (int i = 0; i < SOFTMAX_AXIS; ++i) {
-        size_t idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
+    const int local_id = get_local_id(0);
 
-        if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
-            continue;
-        }
-
-        DEF_ACC_DATA_T g_temp = TO_DEF_ACC_DATA_T(diff_dst[idx]);
-#if LOGSOFTMAX
-        sbr += g_temp;
+    // begin and end indices calculated according to thread's id
+    const int begin = local_id * (SOFTMAX_AXIS / GROUP_SIZE);
+    const int end = (local_id == GROUP_SIZE - 1)
+            ? SOFTMAX_AXIS
+            : (local_id + 1) * (SOFTMAX_AXIS / GROUP_SIZE);
+#if SOFTMAX_AXIS - (GROUP_SIZE - 1) * (SOFTMAX_AXIS / GROUP_SIZE) \
+        > SOFTMAX_AXIS / GROUP_SIZE
+    const int buf_size
+            = SOFTMAX_AXIS - (GROUP_SIZE - 1) * (SOFTMAX_AXIS / GROUP_SIZE);
 #else
-        DEF_ACC_DATA_T y_temp = TO_DEF_ACC_DATA_T(dst[idx]);
-        sbr += g_temp * y_temp;
+    const int buf_size = SOFTMAX_AXIS / GROUP_SIZE;
 #endif
+
+    DEF_ACC_DATA_T diff_d[buf_size];
+    DEF_ACC_DATA_T d[buf_size];
+    DEF_ACC_DATA_T sbr = 0.f;
+
+    if (!(NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], begin))) {
+        for (int i = begin; i < end && i < DD(SOFTMAX_AXIS_IDX); ++i) {
+            size_t idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
+            diff_d[i - begin] = TO_DEF_ACC_DATA_T(diff_dst[idx]);
+            d[i - begin] = TO_DEF_ACC_DATA_T(dst[idx]);
+#if LOGSOFTMAX
+            sbr += diff_d[i - begin];
+#else
+            sbr += diff_d[i - begin] * d[i - begin];
+#endif
+        }
     }
 
-    for (int i = 0; i < SOFTMAX_AXIS; ++i) {
+#if GROUP_SIZE == SUB_GROUP_SIZE
+    sbr = sub_group_reduce_add(sbr);
+#else
+    sbr = work_group_reduce_add(sbr);
+#endif
+
+    for (int i = begin; i < end; ++i) {
         size_t idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
 
         if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
             diff_src[idx] = DATA_ZERO;
-            continue;
-        }
+        } else {
 #if LOGSOFTMAX
-        diff_src[idx] = TO_DATA_T(TO_DEF_ACC_DATA_T(diff_dst[idx])
-                - exp(TO_DEF_ACC_DATA_T(dst[idx])) * sbr);
+            diff_src[idx]
+                    = TO_DATA_T(diff_d[i - begin] - exp(d[i - begin]) * sbr);
 #else
-        DEF_ACC_DATA_T inner_data = TO_DEF_ACC_DATA_T(diff_dst[idx]) - sbr;
-        diff_src[idx] = TO_DATA_T(TO_DEF_ACC_DATA_T(dst[idx]) * inner_data);
+            DEF_ACC_DATA_T inner_data = diff_d[i - begin] - sbr;
+            diff_src[idx] = TO_DATA_T(d[i - begin] * inner_data);
 #endif
+        }
     }
 }
 #endif
