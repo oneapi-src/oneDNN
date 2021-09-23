@@ -36,10 +36,12 @@ namespace cpu {
 namespace matmul {
 
 status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     const auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     const auto weights = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
     const auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     DEFINE_SCALES_BUFFER(scales);
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
