@@ -1298,6 +1298,54 @@ void fuse_typecast_to_add(std::vector<op_ptr> &subgraph) {
     }
 }
 
+void fuse_post_typecast_to_matmul(std::vector<op_ptr> &subgraph) {
+    const std::set<op_kind_t> post_ops_kinds {impl::op_kind::GELU};
+    std::vector<std::vector<op_t *>> fusion_groups;
+    for (const auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
+        auto out = cur_op->get_output_value(0);
+        if (out->get_consumers().size() != 1) continue;
+        auto &next_op = out->get_consumers()[0].get_op();
+        if (post_ops_kinds.count(next_op.get_kind())) {
+            auto post_out = next_op.get_output_value(0);
+            if (post_out->get_consumers().size() != 1) continue;
+            auto &tc_op = post_out->get_consumers()[0].get_op();
+            if (tc_op.get_kind() != impl::op_kind::TypeCast) continue;
+            auto tc_out = tc_op.get_output_value(0);
+            if (tc_out->get_consumers().size() != 1) continue;
+            auto &q_op = tc_out->get_consumers()[0].get_op();
+            if (q_op.get_kind() != impl::op_kind::Quantize) continue;
+            post_out->remove_consumer(tc_op, 0);
+            tc_out->remove_consumer(q_op, 0);
+            q_op.connect_input(0, post_out);
+            out->set_data_type(impl::data_type::f32);
+            post_out->set_data_type(impl::data_type::f32);
+            fusion_groups.emplace_back(std::vector<op_t *> {&tc_op});
+        } else {
+            if (next_op.get_kind() != impl::op_kind::TypeCast) continue;
+            auto tc_out = next_op.get_output_value(0);
+            if (tc_out->get_consumers().size() != 1) continue;
+            auto &q_op = tc_out->get_consumers()[0].get_op();
+            if (q_op.get_kind() != impl::op_kind::Quantize) continue;
+            out->remove_consumer(next_op, 0);
+            tc_out->remove_consumer(q_op, 0);
+            q_op.connect_input(0, out);
+            out->set_data_type(impl::data_type::f32);
+            fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
+        }
+    }
+
+    for (auto &fusion_group : fusion_groups)
+        // delete original typecast ops
+        for (auto &del_op : fusion_group) {
+            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                    [del_op](const op_ptr &f_op) {
+                        return del_op == f_op.get();
+                    });
+            if (pos != subgraph.end()) subgraph.erase(pos);
+        }
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

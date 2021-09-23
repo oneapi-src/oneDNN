@@ -93,6 +93,7 @@ public:
         if (quantized) {
             fuse_typecast_to_matmul(subgraph);
             fuse_typecast_to_add(subgraph);
+            fuse_post_typecast_to_matmul(subgraph);
         }
 
         set_all_layout_to_any(subgraph);

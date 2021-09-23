@@ -107,6 +107,21 @@ void fuse_typecast_to_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 ///              | (bf16)
 void fuse_typecast_to_add(std::vector<std::shared_ptr<op_t>> &subgraph);
 
+/// translate mixed int8/bf16 matmul(+post_ops) subgraph to int8 subgraph
+///
+///     | (u8/s8)  | (u8/s8)               | (u8/s8)  | (u8/s8)
+///  dequant    dequant                 dequant    dequant
+///     \ (fp32)   / (fp32)     -->         \ (fp32)  / (fp32)
+///        matmul                             matmul
+///          | (bf16)                           | (f32)
+///      (post_ops)                         (post_ops)
+///          | (bf16)                           | (f32)
+///       typecast                            quant
+///          | (fp32)                           | (u8/s8)
+///        quant
+///          | (u8/s8)
+void fuse_post_typecast_to_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
