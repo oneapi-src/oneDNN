@@ -192,7 +192,8 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         const bool diff_dt_ok = dt_ok
                 && IMPLICATION(
                         prb->sdt[0] != prb->ddt, prb->attr.scales.is_def());
-        if (!alg_ok || !dt_ok || !diff_dt_ok || !prb->attr.post_ops.is_def()) {
+        if (!alg_ok || !dt_ok || !diff_dt_ok || !prb->attr.post_ops.is_def()
+                || bcast_src0) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }

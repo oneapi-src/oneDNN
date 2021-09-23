@@ -47,6 +47,7 @@ struct cudnn_binary_t : public primitive_t {
 
             bool ok = (set_default_params() == status::success)
                     && check_data_types() && check_no_blocking()
+                    && check_broadcast()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::scales)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
@@ -81,6 +82,17 @@ struct cudnn_binary_t : public primitive_t {
                     + src_md(1)->format_desc.blocking.inner_nblks
                     + dst_md()->format_desc.blocking.inner_nblks
                     == 0;
+        }
+
+        bool check_broadcast() const {
+            // Source 0 broadcast is not supported
+            const int ndims = nstl::min(src_md(0)->ndims, src_md(1)->ndims);
+            for (int dim_idx = 0; dim_idx < ndims; dim_idx++) {
+                if (src_md(0)->dims[dim_idx] == 1
+                        && src_md(0)->dims[dim_idx] != src_md(1)->dims[dim_idx])
+                    return false;
+            }
+            return true;
         }
 
         bool check_data_types() const {
