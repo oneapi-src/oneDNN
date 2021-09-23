@@ -495,6 +495,7 @@ public:
         Quantize = kQuantize,
         Dequantize = kDequantize,
         Reorder = kReorder,
+        TypeCast = kTypeCast,
         LastSymbol = kLastSymbol,
     };
 

@@ -77,4 +77,5 @@ subset of the operation set.
    activation/Tanh_1.rst
    activation/TanhBackprop_1.rst
    movement/Transpose_1.rst
+   lower_precision/TypeCast_1.rst
    misc/Wildcard_1.rst
