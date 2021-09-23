@@ -206,7 +206,7 @@ public:
 
         if (quantized) {
             split_quant_dequant(subgraph);
-            fuse_to_int8_conv(subgraph);
+            fuse_to_int8_conv_or_deconv(subgraph);
             folding_mul_scales(subgraph);
             fuse_output_scales(subgraph, prm_attr_mgr_);
         }
@@ -220,7 +220,7 @@ public:
         }
 
         insert_permute(subgraph);
-        insert_to_group_for_conv(subgraph);
+        insert_to_group_for_conv_or_deconv(subgraph);
         insert_reorder(subgraph);
 
         subgraph_visualizer_t vis(part->id());

@@ -1622,6 +1622,43 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_add_relu, 1,
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(int8_convtranspose, 1,
+        op_schema()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(1, "weight", "weight tensor",
+                        {impl::data_type::s8, impl::data_type::u8})
+                .set_output(0, "output", "output tensor",
+                        {impl::data_type::s8, impl::data_type::u8})
+                .set_attr("output_padding",
+                        "additional amount of paddings to be added to each "
+                        "spatial axis in the output tensor",
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
+                .set_shape_inference_function(infer_convtranspose_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(int8_convtranspose_bias, 1,
+        op_schema()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(1, "weight", "weight tensor",
+                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
+                .set_output(0, "output", "output tensor",
+                        {impl::data_type::s8, impl::data_type::u8})
+                .set_attr("output_padding",
+                        "additional amount of paddings to be added to each "
+                        "spatial axis in the output tensor",
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
+                .set_shape_inference_function(infer_convtranspose_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
 DNNL_GRAPH_OP_SCHEMA(int8_matmul, 1,
         op_schema()
                 .set_num_inputs(2)
@@ -2683,6 +2720,9 @@ DNNL_GRAPH_OP_SCHEMA(to_group, 1,
                                 impl::data_type::f32})
                 .set_attr("groups", "the groups", false, attribute_kind::i,
                         (int64_t)1)
+                .set_attr("is_convtranspose",
+                        "indicate whether this is for convtranspose", false,
+                        attribute_kind::b, false)
                 .set_shape_inference_function(infer_to_group_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(expand, 1,
@@ -2737,6 +2777,34 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
                                 impl::data_type::f16, impl::data_type::u8,
                                 impl::data_type::s8})
                 .set_shape_inference_function(infer_dnnl_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose, 1,
+        op_schema()
+                .set_inputs_option(op_schema::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16, impl::data_type::u8,
+                                impl::data_type::s8})
+                .set_input(1, "weight", "weight tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16, impl::data_type::s8})
+                .set_input(2, "bias", "bias tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16, impl::data_type::s32})
+                .set_output(0, "output", "output tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16, impl::data_type::u8,
+                                impl::data_type::s8})
+                .set_attr("output_padding",
+                        "additional amount of paddings to be added to each "
+                        "spatial axis in the output tensor",
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
+                .set_shape_inference_function(
+                        infer_dnnl_convtranspose_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,

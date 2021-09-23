@@ -37,7 +37,8 @@ static bool need_insert_reorder(op_kind_t kind) {
     static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
             impl::op_kind::Convolution, impl::op_kind::MatMul,
             impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool,
-            op_kind::dnnl_conv_bwd_data};
+            op_kind::dnnl_conv_bwd_data, op_kind::dnnl_convtranspose,
+            impl::op_kind::ConvTranspose};
     return ops.count(kind) != 0;
 }
 
@@ -46,7 +47,8 @@ static bool need_insert_reorder(op_kind_t kind) {
 static bool need_insert_permute(op_kind_t kind) {
     static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
             impl::op_kind::Convolution, impl::op_kind::MaxPool,
-            impl::op_kind::AvgPool, op_kind::dnnl_pool};
+            impl::op_kind::AvgPool, op_kind::dnnl_pool,
+            impl::op_kind::ConvTranspose, op_kind::dnnl_convtranspose};
     return ops.count(kind) != 0;
 }
 
@@ -165,6 +167,15 @@ void insert_permute(std::vector<op_ptr> &subgraph) {
             to_be_removed_ops.emplace_back(cur_op);
         }
 
+        if (cur_op->get_kind() == impl::op_kind::ConvTranspose) {
+            // replace impl::op_kind::ConvTranspose to be
+            // op_kind::dnnl_convtranspose
+            op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_convtranspose);
+            replace_op(cur_op, new_op);
+            to_be_inserted_ops.emplace_back(new_op);
+            to_be_removed_ops.emplace_back(cur_op);
+        }
+
         if (cur_op->get_kind() == impl::op_kind::MaxPool
                 || cur_op->get_kind() == impl::op_kind::AvgPool) {
             op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_pool);
@@ -182,12 +193,14 @@ void insert_permute(std::vector<op_ptr> &subgraph) {
     }
 }
 
-void insert_to_group_for_conv(std::vector<op_ptr> &subgraph) {
+void insert_to_group_for_conv_or_deconv(std::vector<op_ptr> &subgraph) {
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<op_ptr> to_be_removed_ops;
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != op_kind::dnnl_convolution
-                && cur_op->get_kind() != impl::op_kind::Convolution)
+                && cur_op->get_kind() != impl::op_kind::Convolution
+                && cur_op->get_kind() != op_kind::dnnl_convtranspose
+                && cur_op->get_kind() != impl::op_kind::ConvTranspose)
             continue;
 
         auto groups = cur_op->get_attr<int64_t>("groups");
@@ -207,6 +220,19 @@ void insert_to_group_for_conv(std::vector<op_ptr> &subgraph) {
             to_be_inserted_ops.emplace_back(new_op);
             to_be_removed_ops.emplace_back(cur_op);
         }
+
+        if (cur_op->get_kind() == impl::op_kind::ConvTranspose) {
+            // replace impl::op_kind::Convolution to be
+            // op_kind::dnnl_convtranspose
+            op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_convtranspose);
+            replace_op(cur_op, new_op);
+            to_be_inserted_ops.emplace_back(new_op);
+            to_be_removed_ops.emplace_back(cur_op);
+        }
+
+        if (cur_op->get_kind() == impl::op_kind::ConvTranspose
+                || cur_op->get_kind() == op_kind::dnnl_convtranspose)
+            to_group_op->set_attr<bool>("is_convtranspose", true);
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(std::move(op));

@@ -24,6 +24,7 @@
 #include "patterns/binary_fusion.hpp"
 #include "patterns/bn_fusion.hpp"
 #include "patterns/conv_fusion.hpp"
+#include "patterns/convtranspose_fusion.hpp"
 #include "patterns/eltwise_fusion.hpp"
 #include "patterns/gelu_fusion.hpp"
 #include "patterns/matmul_fusion.hpp"
@@ -59,6 +60,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PASSES_CALL(binary_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(bn_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(conv_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(convtranspose_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(gelu_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(matmul_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(single_op_pass, pass_registry_);
@@ -123,7 +125,7 @@ bool dnnl_backend::register_kernels() {
             op_kind::conv_bwd_f_biasadd_bwd, convolution_backward_weights)
 
     // convtranspose related operators
-    DNNL_REGISTER_KERNEL(impl::op_kind::ConvTranspose, convtranspose_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ConvTranspose, float_convtranspose_fwd)
 
     // bn related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormInference,
@@ -256,6 +258,11 @@ bool dnnl_backend::register_kernels() {
             op_kind::x8s8f32_quant_wei_conv_add_relu, quantized_conv)
     DNNL_REGISTER_KERNEL(
             op_kind::x8s8f32_quant_wei_conv_bias_add_relu, quantized_conv)
+
+    // quantized convtranspose
+    DNNL_REGISTER_KERNEL(op_kind::int8_convtranspose, quantized_convtranspose)
+    DNNL_REGISTER_KERNEL(
+            op_kind::int8_convtranspose_bias, quantized_convtranspose)
 
     // quantized matmul
     DNNL_REGISTER_KERNEL(op_kind::int8_matmul, quantized_matmul);

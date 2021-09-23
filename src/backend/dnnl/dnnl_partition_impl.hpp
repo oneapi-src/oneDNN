@@ -301,6 +301,7 @@ public:
                 op_kind::int8_conv, op_kind::int8_conv_bias_relu,
                 op_kind::int8_conv_bias, op_kind::int8_conv_bias_add,
                 op_kind::int8_conv_bias_add_relu, op_kind::int8_conv_add_relu,
+                op_kind::int8_convtranspose, op_kind::int8_convtranspose_bias,
                 op_kind::int8_matmul, op_kind::int8_matmul_bias,
                 op_kind::int8_matmul_relu, op_kind::int8_matmul_bias_relu,
                 op_kind::int8_matmul_sigmoid, op_kind::int8_matmul_bias_sigmoid,
@@ -366,6 +367,8 @@ public:
                 op_kind::conv_bias_bn_relu, op_kind::conv_bn,
                 op_kind::conv_bn_add, op_kind::conv_bn_add_relu,
                 op_kind::conv_bn_relu, impl::op_kind::ConvolutionBackpropData,
+                // fp32 contranspose pattern
+                impl::op_kind::ConvTranspose,
                 // fp32 matmul pattern
                 impl::op_kind::MatMul, op_kind::matmul_relu,
                 op_kind::matmul_elu, op_kind::matmul_sigmoid,

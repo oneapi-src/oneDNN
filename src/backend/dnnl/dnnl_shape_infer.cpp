@@ -48,6 +48,33 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
     return status::success;
 }
 
+status_t infer_dnnl_convtranspose_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    using ltw = impl::logical_tensor_wrapper;
+
+    auto backup = *inputs[1];
+    auto out0 = logical_tensor_wrapper(outputs[0]);
+    bool out_shape_unknown = out0.is_shape_unknown();
+    if (n->get_attr<int64_t>("groups") > 1) {
+        // [g, O/g, I/g, H, W]
+        auto ndims = ltw(inputs[1]).ndims() - 1;
+        auto dims = ltw(inputs[1]).vdims();
+        dims[2] *= dims[0];
+        dims.erase(dims.begin());
+
+        inputs[1]->ndims = ndims;
+        for (size_t i = 0; i < ndims; i++) {
+            inputs[1]->dims[i] = dims[i];
+        }
+    }
+
+    infer_convtranspose_output_shape(n, inputs, outputs);
+    *inputs[1] = backup;
+
+    return status::success;
+}
+
 status_t infer_dnnl_pool_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
@@ -103,7 +130,12 @@ status_t infer_to_group_output_shape(op_t *n,
     auto groups = n->get_attr<int64_t>("groups");
     dims in_dims = in0.vdims();
 
-    in_dims[0] /= groups;
+    if (n->has_attr("is_convtranspose")
+            && n->get_attr<bool>("is_convtranspose")) {
+        in_dims[1] /= groups;
+    } else {
+        in_dims[0] /= groups;
+    }
     in_dims.insert(in_dims.begin(), groups);
 
     // We should compute output dense strides instead of

@@ -88,6 +88,58 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
     return pd;
 }
 
+inline dnnl::deconvolution_forward::primitive_desc create_deconv_pd(
+        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return static_cast<dnnl::deconvolution_forward::primitive_desc &>(
+                pd_cache.at(op.get()));
+    }
+
+    // prepare the operator attributes
+    auto strides = op->get_attr<dims>("strides");
+    auto dilates = op->get_attr<dims>("dilations");
+    auto pads_begin = op->get_attr<dims>("pads_begin");
+    auto pads_end = op->get_attr<dims>("pads_end");
+    dilates = get_compatible_dilates(dilates);
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto weight = make_dnnl_memory_desc(
+            op->get_input_value(1)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+
+    dnnl::deconvolution_forward::primitive_desc pd;
+    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+        auto bias = make_dnnl_memory_desc(
+                op->get_input_value(2)->get_logical_tensor());
+        pd = dnnl::deconvolution_forward::primitive_desc(
+                {prop_kind::forward_inference, algorithm::deconvolution_direct,
+                        src, weight, bias, dst, strides, dilates, pads_begin,
+                        pads_end},
+                prm_attr, p_engine);
+    } else {
+        pd = dnnl::deconvolution_forward::primitive_desc(
+                {prop_kind::forward_inference, algorithm::deconvolution_direct,
+                        src, weight, dst, strides, dilates, pads_begin,
+                        pads_end},
+                prm_attr, p_engine);
+    }
+
+    pd_cache.insert({op.get(), pd});
+
+    return pd;
+}
+
 inline dnnl::matmul::primitive_desc create_matmul_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
@@ -277,6 +329,28 @@ private:
     dnnl::convolution_forward::primitive_desc pd_;
     dnnl::convolution_forward prim_;
     bool with_sum_ {false};
+};
+
+struct deconv_fwd_executable : public op_executable {
+    deconv_fwd_executable(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_deconv_pd(op, p_engine, prm_attr_mgr, pd_cache);
+        prim_ = dnnl::deconvolution_forward(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    virtual void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        std::unordered_map<int, memory> cached_args = args;
+
+        prim_.execute(stream, cached_args);
+    }
+
+private:
+    dnnl::deconvolution_forward::primitive_desc pd_;
+    dnnl::deconvolution_forward prim_;
 };
 
 struct matmul_executable : public op_executable {

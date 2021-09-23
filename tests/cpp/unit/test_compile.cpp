@@ -339,14 +339,14 @@ TEST(operator_compile, convolution_backward_weights_compile_fp32) {
 TEST(operator_compile, convtranspose_compile_fp32) {
     using dims = impl::dnnl_impl::dims;
 
-    impl::engine_t &engine = get_engine();
+    impl::engine_t &eng = get_engine();
 
     impl::op_t convtranspose_op(impl::op_kind::ConvTranspose);
     convtranspose_op.set_attr<dims>("strides", dims {1, 1});
     convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
     convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
     convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
-    convtranspose_op.set_attr<int64_t>("groups", 0);
+    convtranspose_op.set_attr<int64_t>("groups", 1);
     convtranspose_op.set_attr<std::string>("data_format", "NCX");
     convtranspose_op.set_attr<std::string>("filter_format", "OIX");
 
@@ -358,17 +358,31 @@ TEST(operator_compile, convtranspose_compile_fp32) {
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             2, {8, 16, 224, 224}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    convtranspose_op.add_input(src);
+    convtranspose_op.add_input(weight);
+    convtranspose_op.add_output(dst);
 
-    size_t operator_num = get_dnnl_kernel_registry().get_register_kernels_num();
-    ASSERT_NE(operator_num, 0);
+    impl::graph_t g;
+    g.add_op(&convtranspose_op);
+    g.build_graph();
 
-    auto kernel = get_dnnl_kernel_registry().create_kernel(convtranspose_op);
-    ASSERT_TRUE(kernel);
+    impl::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
 
-    kernel->compile(&convtranspose_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 }
 
 void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
@@ -3977,13 +3991,29 @@ TEST(operator_compile, Convtranspose_with_groups) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 8, 1, 1}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    convtranspose_op.add_input(src_lt);
+    convtranspose_op.add_input(weight_lt);
+    convtranspose_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto convtranspose_kernel = op_factory.create_kernel(convtranspose_op);
+    impl::graph_t g;
+    g.add_op(&convtranspose_op);
+    g.build_graph();
 
-    convtranspose_kernel->compile(&convtranspose_op, &eng, inputs, outputs);
+    impl::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
@@ -3991,8 +4021,7 @@ TEST(operator_compile, Convtranspose_with_groups) {
     impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    convtranspose_kernel->execute(
-            &convtranspose_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -4031,7 +4060,7 @@ public:
         convtranspose_op.set_attr<dims>("dilations", params.dilations);
         convtranspose_op.set_attr<dims>("pads_begin", params.pads_begin);
         convtranspose_op.set_attr<dims>("pads_end", params.pads_end);
-        convtranspose_op.set_attr<int64_t>("groups", 0);
+        convtranspose_op.set_attr<int64_t>("groups", 1);
         convtranspose_op.set_attr<std::string>(
                 "data_format", params.data_format);
         convtranspose_op.set_attr<std::string>(
@@ -4045,13 +4074,30 @@ public:
         impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
                 2, params.dst_shape, impl::data_type::f32);
 
-        std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
-        std::vector<impl::logical_tensor_t> outputs {dst_lt};
+        convtranspose_op.add_input(src_lt);
+        convtranspose_op.add_input(weight_lt);
+        convtranspose_op.add_output(dst_lt);
 
-        auto &op_factory = get_dnnl_kernel_registry();
-        auto convtranspose_kernel = op_factory.create_kernel(convtranspose_op);
+        impl::graph_t g;
+        g.add_op(&convtranspose_op);
+        g.build_graph();
 
-        convtranspose_kernel->compile(&convtranspose_op, &eng, inputs, outputs);
+        impl::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &weight_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+        p.compile(&cp, inputs, outputs, &eng);
         ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
 
         impl::tensor_t src_ts(src_lt, &eng, params.src.data());
@@ -4059,8 +4105,7 @@ public:
         impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
         impl::stream_t &strm = get_stream();
-        convtranspose_kernel->execute(
-                &convtranspose_op, &strm, {src_ts, weight_ts}, {dst_ts});
+        cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
         strm.wait();
         for (size_t i = 0; i < dst.size(); ++i) {
             ASSERT_FLOAT_EQ(dst[i], params.ref_dst[i]);
@@ -7582,6 +7627,186 @@ TEST(int8_subgraph_mode, int8_conv1d_conv2d_conv3d) {
         impl::pass::pass_base_ptr apass = with_bias
                 ? get_pass("int8_conv_bias_fusion")
                 : get_pass("int8_conv_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins;
+        if (with_bias)
+            lt_ins = {&src_u8, &weight_s8, &bias_f32};
+        else
+            lt_ins = {&src_u8, &weight_s8};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        if (with_bias)
+            cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
+                    {dst_s8_case2_ts});
+        else
+            cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
+        strm.wait();
+
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
+    }
+}
+
+TEST(int8_subgraph_mode, int8_convtranspose_1d_2d_3d) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<size_t> nds = {1, 2, 3};
+    std::vector<int64_t> groups = {1, 4};
+    std::vector<bool> with_biases = {true, false};
+    std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
+    std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
+
+    if (engine.kind() == impl::engine_kind::gpu) return;
+    static auto isa = dnnl_get_effective_cpu_isa();
+
+    for_(const auto &nd : nds)
+    for_(const auto &g : groups)
+    for_(const auto &with_bias : with_biases)
+    for_(const auto &src_qtype : src_qtypes)
+    for (const auto &wei_qtype : weight_qtypes) {
+        if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
+            continue;
+
+        // prepare data
+        int64_t in_channel = 8, out_channel = 8;
+        int64_t kernel_size = 3;
+        std::vector<int64_t> src_shape = nd == 1
+                ? std::vector<int64_t> {1, in_channel, 12}
+                : nd == 2 ? std::vector<int64_t> {1, in_channel, 12, 12}
+                          : std::vector<int64_t> {1, in_channel, 12, 12, 12};
+        std::vector<int64_t> weight_shape = nd == 1
+                ? std::vector<int64_t> {out_channel / g, in_channel,
+                        kernel_size}
+                : nd == 2 ? std::vector<int64_t> {out_channel / g, in_channel,
+                          kernel_size, kernel_size}
+                          : std::vector<int64_t> {out_channel / g, in_channel,
+                                  kernel_size, kernel_size, kernel_size};
+        std::vector<int64_t> bias_shape {out_channel};
+        std::vector<int64_t> dst_shape = nd == 1
+                ? std::vector<int64_t> {1, out_channel, 14}
+                : nd == 2 ? std::vector<int64_t> {1, out_channel, 14, 14}
+                          : std::vector<int64_t> {1, out_channel, 14, 14, 14};
+
+        test::vector<uint8_t> src_u8_data(product(src_shape));
+        test::vector<int8_t> weight_s8_data(product(weight_shape));
+        size_t bias_size = with_bias ? product(bias_shape) : 0;
+        test::vector<float> bias_data(bias_size);
+        test::vector<int8_t> case1_out_data(product(dst_shape));
+        test::vector<int8_t> case2_out_data(product(dst_shape));
+
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
+            return static_cast<uint8_t>(u8_distribution(generator));
+        });
+        std::generate(weight_s8_data.begin(), weight_s8_data.end(), [&]() {
+            return static_cast<int8_t>(s8_distribution(generator));
+        });
+        if (with_bias) {
+            std::generate(bias_data.begin(), bias_data.end(),
+                    [&]() { return f32_distribution(generator); });
+        }
+
+        float scale_src = 1 / 255.f; // map to 0~255
+        float scale_out = 1;
+        int64_t zp_src = src_qtype == "symmetric" ? 0 : 128;
+        int64_t zp_out = 78;
+
+        size_t scale_size = wei_qtype == "per_tensor" ? 1 : (out_channel / g);
+        std::vector<float> scale_wei(scale_size, 1 / 127.f);
+        std::vector<int64_t> zp_wei(scale_size, 0);
+
+        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        SET_Q_DQ_DATA_ATTR(dqdata_node)
+
+        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+
+        impl::op_t convtranspose_node(
+                4, impl::op_kind::ConvTranspose, "convtranspose_node");
+        SET_CONV_ATTR(convtranspose_node, nd)
+
+        impl::op_t qout_node(5, impl::op_kind::Quantize, "qout_node");
+        SET_Q_DQ_OUT_ATTR(qout_node)
+
+        impl::logical_tensor_t src_u8
+                = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                2, src_shape, impl::data_type::f32);
+        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                4, weight_shape, impl::data_type::s8);
+        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                5, weight_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_s8
+                = utils::logical_tensor_init(8, dst_shape, impl::data_type::s8);
+        impl::logical_tensor_t bias_f32;
+        if (with_bias) {
+            bias_f32 = utils::logical_tensor_init(
+                    6, bias_shape, impl::data_type::f32);
+        }
+
+        dqdata_node.add_input(src_u8);
+        dqdata_node.add_output(src_f32_dq);
+
+        dqweight_node.add_input(weight_s8);
+        dqweight_node.add_output(weight_f32_dq);
+
+        convtranspose_node.add_input(src_f32_dq);
+        convtranspose_node.add_input(weight_f32_dq);
+        if (with_bias) convtranspose_node.add_input(bias_f32);
+        convtranspose_node.add_output(dst_f32);
+
+        qout_node.add_input(dst_f32);
+        qout_node.add_output(dst_s8);
+
+        impl::graph_t g;
+        g.add_op(&dqdata_node);
+        g.add_op(&dqweight_node);
+        g.add_op(&convtranspose_node);
+        g.add_op(&qout_node);
+        g.build_graph();
+
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
+        impl::tensor_t bias_f32_ts;
+        if (with_bias) {
+            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
+        }
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
+
+        // -------------------------case 1----------------------------------
+        ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
+                          {dst_s8_ts}, engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass = with_bias
+                ? get_pass("int8_convtranspose_bias_fusion")
+                : get_pass("int8_convtranspose_fusion");
+        ASSERT_TRUE(apass != nullptr);
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];

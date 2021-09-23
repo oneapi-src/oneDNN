@@ -91,6 +91,46 @@ static bool layout_propagation_for_conv(op_ptr &op,
     return true;
 }
 
+static bool layout_propagation_for_deconv(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    std::shared_ptr<impl::value_t> src, wei, bias, dst;
+    src = op->get_input_value(0);
+    wei = op->get_input_value(1);
+    dst = op->get_output_value(0);
+    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+        bias = op->get_input_value(2);
+    }
+
+    assertm(ltw(src->get_logical_tensor()).is_any()
+                    && ltw(wei->get_logical_tensor()).is_any()
+                    && ltw(dst->get_logical_tensor()).is_any(),
+            "conv's src, weight, dst should be any layout_type");
+
+    auto pd = create_deconv_pd(op, p_engine, prm_attr_mgr, pd_cache);
+
+    fill_layout_info(src, pd.src_desc());
+    fill_layout_info(wei, pd.weights_desc());
+    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+        fill_layout_info(bias, pd.bias_desc());
+    }
+
+    fill_layout_info(dst, pd.dst_desc());
+
+    // fill scratchpads dimensions and data type to scratchpad value_t
+    auto scratchpad_val = insert_scratchpad(op);
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+
+    // make scratchpad as conv's last output
+    fill_layout_info(scratchpad_val, scratchpad_desc);
+
+    return true;
+}
+
 static void get_expected_input_layout(
         std::shared_ptr<impl::value_t> &input_value) {
     if (!ltw(input_value->get_logical_tensor()).is_constant()
@@ -253,8 +293,16 @@ static bool layout_propagation_for_to_group(op_ptr &op) {
 
     if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
+        dnnl::memory::desc out_md;
         auto groups = op->get_attr<int64_t>("groups");
-        dnnl::memory::desc out_md = to_grouped(in_md, groups);
+        if (op->has_attr("is_convtranspose")
+                && op->get_attr<bool>("is_convtranspose")) {
+            auto permuted_weight = transpose(in_md, 0, 1);
+            auto permuted_group_weight = to_grouped(permuted_weight, groups);
+            out_md = transpose(permuted_group_weight, 1, 2);
+        } else {
+            out_md = to_grouped(in_md, groups);
+        }
         fill_layout_info(dst, out_md);
     } else {
         changed = false;
@@ -554,6 +602,10 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
             layout_propagation_for_conv_bwd_data(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose
+                || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
+            layout_propagation_for_deconv(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else {
             // do nothing

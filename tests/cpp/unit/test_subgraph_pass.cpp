@@ -186,7 +186,7 @@ TEST(pass_test, int8_conv_lower_down_pass) {
     ASSERT_EQ(producer1.get_attr<std::vector<float>>("scales")[0], scales[0]);
 
     // 2. merge into int8 conv, change the input's scales to output scale
-    dnnl_impl::fuse_to_int8_conv(subgraph);
+    dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
     dnnl_impl::folding_mul_scales(subgraph);
     auto qconv_op = std::find_if(subgraph.begin(), subgraph.end(),
             [](const std::shared_ptr<op_t> op) {
@@ -502,7 +502,7 @@ TEST(pass_test, subgraph_passes) {
     // run lower down passes
     dnnl_impl::check_with_bias(subgraph);
     dnnl_impl::split_quant_dequant(subgraph);
-    dnnl_impl::fuse_to_int8_conv(subgraph);
+    dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
     dnnl_impl::folding_mul_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph, prm_attr_mgr);
     dnnl_impl::fuse_post_ops(subgraph, prm_attr_mgr);
@@ -523,7 +523,7 @@ TEST(pass_test, subgraph_passes) {
     dnnl_impl::insert_permute(subgraph);
     ASSERT_EQ(subgraph.size(), 7);
 
-    dnnl_impl::insert_to_group_for_conv(subgraph);
+    dnnl_impl::insert_to_group_for_conv_or_deconv(subgraph);
     ASSERT_EQ(subgraph.size(), 8);
 
     dnnl_impl::insert_reorder(subgraph);

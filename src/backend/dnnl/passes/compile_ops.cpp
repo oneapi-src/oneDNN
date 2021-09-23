@@ -50,6 +50,10 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
                 || cur_op->get_kind() == op_kind::dnnl_convolution) {
             prm = std::make_shared<conv_fwd_executable>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose
+                || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
+            prm = std::make_shared<deconv_fwd_executable>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
             prm = std::make_shared<matmul_executable>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);

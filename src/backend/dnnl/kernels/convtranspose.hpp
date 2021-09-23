@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,338 +18,289 @@
 #define BACKEND_DNNL_KERNELS_CONVTRANSPOSE_HPP
 
 #include <algorithm>
-#include <future>
+#include <functional>
 #include <memory>
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
-#include "utils/utils.hpp"
+#include "interface/backend.hpp"
+#include "interface/graph.hpp"
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/constant_cache.hpp"
-#include "backend/dnnl/f32_kernel_resource.hpp"
+#include "backend/dnnl/dnnl_partition_impl.hpp"
+#include "backend/dnnl/passes/compile_ops.hpp"
+#include "backend/dnnl/passes/constant_propagation.hpp"
+#include "backend/dnnl/passes/infer_type.hpp"
+#include "backend/dnnl/passes/insert_ops.hpp"
+#include "backend/dnnl/passes/layout_propagation.hpp"
+#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/passes/op_executable.hpp"
 #include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
+#include "backend/dnnl/utils.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-namespace convtranspose {
-enum convtranspose_inputs { kSrc, kWeight, kBias };
-enum convtranspose_outputs { kDst };
-enum mem_keys { kOpt_src, kOpt_weights, kOpt_dst, kOpt_bias, kScratchpad };
-} // namespace convtranspose
-
-struct convtranspose_forward : public dnnl::deconvolution_forward,
-                               public kernel_base {
-    using super = dnnl::deconvolution_forward;
-    using dims_t = std::vector<dnnl::graph::impl::dim_t>;
-
+template <bool quantized>
+struct convtranspose_fwd : public kernel_base {
 private:
-    primitive_desc pd_;
-    dnnl::deconvolution_forward prim_;
-
-    dims strides_;
-    dims dilations_;
-    dims pads_begin_;
-    dims pads_end_;
-    int64_t groups_;
-    std::string data_format_, filter_format_;
-
-    attr_t attr_;
-    bool with_bias_ {false};
-
     dnnl::engine p_engine_;
-    impl::allocator_t *alc_ {nullptr};
+    impl::allocator_t *g_alloc_;
 
-    dnnl::reorder::primitive_desc src_reorder_pd_;
-    dnnl::reorder::primitive_desc weight_reorder_pd_;
-    dnnl::reorder::primitive_desc dst_reorder_pd_;
-    dnnl::reorder::primitive_desc bias_reorder_pd_;
+    std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
 
-    registry_t registry_;
-    registry_t c_registry_;
-    std::function<std::shared_ptr<f32_kernel_resource_t>()> resource_ctor_;
+    primitive_attr_mgr prm_attr_mgr_;
+    executable_mgr exec_mgr_;
+    memory_planner_t memory_planner_;
 
-    f32_kernel_resource_t::desc_t res_desc_;
+    std::vector<op_executable *> execs_;
+
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
+
+    // FIXME(qun) improve the cache key
+    constant_cache_t::key_t constant_key_
+            = reinterpret_cast<constant_cache_t::key_t>(this);
 
     bool enable_constant_cache_ = utils::is_enable_constant_cache();
 
+    std::vector<bool> is_constant_;
+
+    pd_cache_t pd_cache_;
+
 public:
-    virtual ~convtranspose_forward() {
-        thread_local_cache_t<f32_kernel_resource_t> res_cache;
+    virtual ~convtranspose_fwd() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
         if (enable_constant_cache_) {
-            constant_cache_t::key_t cache_key
-                    = reinterpret_cast<constant_cache_t::key_t>(this);
             constant_cache_t constant_cache;
-            constant_cache.remove_if_exist(cache_key);
+            constant_cache.remove_if_exist(constant_key_);
         }
     }
-    impl::status_t compile_impl(const impl::op_t *op,
+
+    virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        // prepare the operator attributes
-        strides_ = op->get_attr<dims>("strides");
-        dilations_ = op->get_attr<dims>("dilations");
-        pads_begin_ = op->get_attr<dims>("pads_begin");
-        pads_end_ = op->get_attr<dims>("pads_end");
-        groups_ = op->get_attr<int64_t>("groups");
-        data_format_ = op->get_attr<std::string>("data_format");
-        filter_format_ = op->get_attr<std::string>("filter_format");
-        with_bias_ = inputs.size() == convtranspose::kBias + 1;
-
-        auto src = make_dnnl_memory_desc(inputs.at(convtranspose::kSrc));
-        auto weight = make_dnnl_memory_desc(inputs.at(convtranspose::kWeight));
-        auto dst = make_dnnl_memory_desc(outputs.at(convtranspose::kDst));
-
-        if (data_format_ == "NXC") {
-            src = permute_NXC2NCX(src);
-            dst = permute_NXC2NCX(dst);
-        }
-        if (filter_format_ == "XIO") { weight = permute_XIO2OIX(weight); }
-
-        res_desc_.cvt_src_ = src;
-        res_desc_.cvt_wei_ = weight;
-        res_desc_.cvt_dst_ = dst;
-
-        memory::desc bias = with_bias_
-                ? make_dnnl_memory_desc(inputs.at(convtranspose::kBias))
-                : memory::desc {};
-
-        res_desc_.cvt_bias_ = bias;
-
         p_engine_ = make_dnnl_engine(*g_engine);
-        alc_ = g_engine->get_allocator();
+        g_alloc_ = g_engine->get_allocator();
 
-        // make weights and dilations compatible with oneDNN
-        memory::desc group_weight;
-        if (groups_ <= 1)
-            group_weight = weight;
-        else {
-            auto permuted_weight = transpose(weight, 0, 1);
-            auto permuted_group_weight = to_grouped(permuted_weight, groups_);
-            group_weight = transpose(permuted_group_weight, 1, 2);
-        }
-        auto com_dilations = get_compatible_dilates(dilations_);
+        // get subgraph from the deep copied partition
+        std::vector<std::shared_ptr<impl::op_t>> subgraph = part->get_ops();
 
-        memory::desc src_desc = to_format_any(src);
-        memory::desc weight_desc = to_format_any(group_weight);
-        memory::desc dst_desc = to_format_any(dst);
-        memory::desc bias_desc
-                = with_bias_ ? to_format_any(bias) : memory::desc();
+        set_all_layout_to_any(subgraph);
 
-        attr_t op_attr = attr_;
-        op_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+        // have to set the given inputs and outputs fusion because some fusions
+        // can't be performed if shape unknown
+        set_given_inputs_outputs(subgraph, inputs, outputs);
 
-        pd_ = with_bias_
-                ? primitive_desc(
-                        {prop_kind::forward, algorithm::deconvolution_direct,
-                                src_desc, weight_desc, bias_desc, dst_desc,
-                                strides_, com_dilations, pads_begin_,
-                                pads_end_},
-                        attr_, p_engine_)
-                : primitive_desc(
-                        {prop_kind::forward, algorithm::deconvolution_direct,
-                                src_desc, weight_desc, dst_desc, strides_,
-                                com_dilations, pads_begin_, pads_end_},
-                        attr_, p_engine_);
-        prim_ = super(pd_);
+        fuse_bias_add(subgraph);
+        check_with_bias(subgraph);
 
-        res_desc_.opt_src_ = pd_.src_desc();
-        res_desc_.opt_wei_ = pd_.weights_desc();
-        res_desc_.opt_dst_ = pd_.dst_desc();
-        if (with_bias_) { res_desc_.opt_bias_ = pd_.bias_desc(); }
-        res_desc_.scratchpad_ = pd_.scratchpad_desc();
+        // Because we use binary post-ops for broadcast add and sum post-ops for
+        // non-broadcast add. So we have to know concret shape before fuse
+        // post-ops
+        BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
 
-        if (groups_ > 1) res_desc_.cvt_wei_ = group_weight;
-
-        if (impl::logical_tensor_wrapper(inputs.at(convtranspose::kSrc))
-                        .is_any())
-            res_desc_.cvt_src_ = pd_.src_desc();
-        if (impl::logical_tensor_wrapper(inputs.at(convtranspose::kWeight))
-                        .is_any())
-            res_desc_.cvt_wei_ = pd_.weights_desc();
-        if (impl::logical_tensor_wrapper(outputs.at(convtranspose::kDst))
-                        .is_any()) {
-            res_desc_.cvt_dst_ = pd_.dst_desc();
+        if (quantized) {
+            split_quant_dequant(subgraph);
+            fuse_to_int8_conv_or_deconv(subgraph);
+            folding_mul_scales(subgraph);
+            fuse_output_scales(subgraph, prm_attr_mgr_);
         }
 
-        if ((with_bias_)
-                && impl::logical_tensor_wrapper(inputs.at(convtranspose::kBias))
-                           .is_any()) {
-            res_desc_.cvt_bias_ = pd_.bias_desc();
+        BACKEND_DNNL_CHECK(fuse_post_ops(subgraph, prm_attr_mgr_));
+
+        if (quantized) {
+            fuse_zero_points(subgraph, prm_attr_mgr_);
+            // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
+            fuse_mul_scales_add_zps(subgraph);
         }
 
-        impl::logical_tensor_t *ori_dst_lt
-                = const_cast<impl::logical_tensor_t *>(
-                        &outputs.at(convtranspose::kDst));
-        if (data_format_ == "NXC") {
-            memory::desc tmp = permute_NCX2NXC(pd_.dst_desc());
-            fill_layout_info(ori_dst_lt, tmp);
-        } else {
-            fill_layout_info(ori_dst_lt, pd_.dst_desc());
+        insert_permute(subgraph);
+        insert_to_group_for_conv_or_deconv(subgraph);
+        insert_reorder(subgraph);
+
+        subgraph_visualizer_t vis(part->id());
+        vis.run(subgraph, "after_lower_down", false);
+
+        impl::graph_t agraph(subgraph);
+        BACKEND_DNNL_CHECK(agraph.infer_shape());
+        BACKEND_DNNL_CHECK(infer_type(agraph));
+
+        vis.run(subgraph, "after_infer_shape_infer_type", true);
+
+        BACKEND_DNNL_CHECK(layout_propagation(
+                subgraph, p_engine_, prm_attr_mgr_, pd_cache_));
+
+        vis.run(subgraph, "after_layout_propagation", true);
+
+        // fill layout information for inputs logical tensors
+        // FIXME(qun) for not breaking conversion example and some C API.
+        // We should not need to set layout id for inputs in the further
+        for (size_t i = 0; i < inputs.size(); i++) {
+            for (auto in_val : impl::graph_t(subgraph).get_input_values()) {
+                auto compiled_lt = in_val->get_logical_tensor();
+                if (compiled_lt.id == inputs[i].id) {
+                    auto lt = const_cast<impl::logical_tensor_t *>(&inputs[i]);
+                    auto md = make_dnnl_memory_desc(compiled_lt);
+                    fill_layout_info(lt, md);
+                }
+            }
         }
 
-        registrar_t registrar = registry_.registrar();
-        registrar_t constant_registrar = c_registry_.registrar();
-        registrar_t &wei_bias_registrar
-                = enable_constant_cache_ ? constant_registrar : registrar;
-
-        if (res_desc_.cvt_wei_ != res_desc_.opt_wei_) {
-            wei_bias_registrar.book(
-                    convtranspose::kOpt_weights, res_desc_.opt_wei_.get_size());
-            weight_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.cvt_wei_, p_engine_, res_desc_.opt_wei_);
+        // fill layout information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            for (auto out_val : impl::graph_t(subgraph).get_output_values()) {
+                auto compiled_lt = out_val->get_logical_tensor();
+                if (compiled_lt.id == outputs[i].id) {
+                    auto lt = const_cast<impl::logical_tensor_t *>(&outputs[i]);
+                    auto md = make_dnnl_memory_desc(compiled_lt);
+                    lt->ndims = compiled_lt.ndims;
+                    impl::utils::array_copy(
+                            lt->dims, compiled_lt.dims, DNNL_GRAPH_MAX_NDIMS);
+                    impl::utils::array_copy(lt->layout.strides,
+                            compiled_lt.layout.strides, DNNL_GRAPH_MAX_NDIMS);
+                    fill_layout_info(lt, md);
+                }
+            }
         }
 
-        if (with_bias_ && (res_desc_.cvt_bias_ != res_desc_.opt_bias_)) {
-            wei_bias_registrar.book(
-                    convtranspose::kOpt_bias, res_desc_.opt_bias_.get_size());
-            bias_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.cvt_bias_, p_engine_, res_desc_.opt_bias_);
-        }
+        // constant propagation
+        if (enable_constant_cache_) { constant_propagation(subgraph); }
 
-        if (res_desc_.opt_src_ != res_desc_.cvt_src_) {
-            registrar.book(
-                    convtranspose::kOpt_src, res_desc_.opt_src_.get_size());
-            src_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.cvt_src_, p_engine_, res_desc_.opt_src_);
-        }
-        if (res_desc_.opt_dst_ != res_desc_.cvt_dst_) {
-            registrar.book(
-                    convtranspose::kOpt_dst, res_desc_.opt_dst_.get_size());
-            dst_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.opt_dst_, p_engine_, res_desc_.cvt_dst_);
-        }
-        registrar.book(
-                convtranspose::kScratchpad, res_desc_.scratchpad_.get_size());
+        // bind the memory for each op
+        BACKEND_DNNL_CHECK(memory_planner_.run(
+                subgraph, inputs, outputs, p_engine_, prm_attr_mgr_));
+
+        vis.run(subgraph, "after_memory_planning", true, true,
+                [this](const value_t *val) {
+                    return this->memory_planner_.get_memory_info(val);
+                });
+
+        BACKEND_DNNL_CHECK(compile_ops(
+                subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
+
+        // topologically sort the executables
+        impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),
+                [this](impl::op_t *op) {
+                    auto exec_key = op->get_attr<int64_t>("executable_key");
+                    auto &exec = exec_mgr_.get_executable(exec_key);
+                    execs_.emplace_back(exec.get());
+
+                    is_constant_.push_back(op->has_attr("is_constant")
+                            && op->get_attr<bool>("is_constant"));
+
+                    return impl::status::success;
+                });
+
+        opt_subgraph_ = subgraph;
 
         resource_ctor_ = [this]() {
-            return std::make_shared<f32_kernel_resource_t>(
-                    this->res_desc_, this->p_engine_);
+            return this->memory_planner_.get_exec_args_set().clone();
         };
 
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::op_t *op,
+    virtual impl::status_t execute_impl(const dnnl_partition_impl_t *part,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(op);
+        UNUSED(part);
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         // each thread's own local resource
-        thread_local_cache_t<f32_kernel_resource_t> res_cache;
-        f32_kernel_resource_t *res = res_cache.get_or_add(
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
                 reinterpret_cast<size_t>(this), resource_ctor_);
 
-        temporary_scratchpad_t scratchpad(registry_.size(), p_engine_, *alc_);
-        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
+        // update the data of partition in/outputs args
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
+        }
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
+        }
 
-        ///////////// weight/bias process start ///////////////////////////
-        // lookup constant buffer
-        constant_cache_t::key_t cache_key
-                = reinterpret_cast<constant_cache_t::key_t>(this);
-        constant_cache_t global_constant_cache;
+        temporary_scratchpad_t scratchpad(
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
 
-        std::promise<constant_cache_t::cached_t> c_promise;
+        registry_t::key_t key = 0;
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
+        }
 
-        bool is_from_cache;
-        constant_cache_t::value_t cached_value;
-        constant_cache_t::cached_t c_buffer;
         if (enable_constant_cache_) {
-            cached_value = global_constant_cache.get_or_add(
-                    cache_key, c_promise.get_future());
-            is_from_cache = cached_value.valid();
+            std::promise<constant_cache_t::cached_t> c_promise;
+            constant_cache_t global_constant_cache;
+            constant_cache_t::value_t cached_value
+                    = global_constant_cache.get_or_add(
+                            constant_key_, c_promise.get_future());
+            bool is_from_cache = cached_value.valid();
             if (is_from_cache) {
-                // get from cache or wait for other thread
-                c_buffer = cached_value.get();
-            } else {
-                c_buffer = std::make_shared<constant_buffer_t>(
-                        c_registry_.size(), p_engine_, alc_);
-            }
-        }
-
-        grantor_t c_grantor = c_registry_.grantor(
-                enable_constant_cache_ ? c_buffer->data<char>() : nullptr);
-        grantor_t &wei_bias_grantor
-                = enable_constant_cache_ ? c_grantor : grantor;
-
-        res->cvt_wei_.set_data_handle(
-                inputs.at(convtranspose::kWeight).get_data_handle());
-        if (with_bias_) {
-            res->cvt_bias_.set_data_handle(
-                    inputs.at(convtranspose::kBias).get_data_handle());
-        }
-
-        if (res_desc_.cvt_wei_ != res_desc_.opt_wei_) {
-            res->opt_wei_.set_data_handle(
-                    wei_bias_grantor.get(convtranspose::kOpt_weights));
-            if (!(enable_constant_cache_ && is_from_cache)) {
-                dnnl::reorder(weight_reorder_pd_)
-                        .execute(p_stream, res->cvt_wei_, res->opt_wei_);
-            }
-        } else {
-            res->opt_wei_.set_data_handle(res->cvt_wei_.get_data_handle());
-        }
-
-        if (with_bias_) {
-            if (res_desc_.cvt_bias_ != res_desc_.opt_bias_) {
-                res->opt_bias_.set_data_handle(
-                        wei_bias_grantor.get(convtranspose::kOpt_bias));
-                if (!enable_constant_cache_ || !is_from_cache) {
-                    dnnl::reorder(bias_reorder_pd_)
-                            .execute(p_stream, res->cvt_bias_, res->opt_bias_);
+                constant_cache_t::cached_t c_buffer = cached_value.get();
+                grantor_t c_grantor
+                        = memory_planner_.internal_persistent_grantor(
+                                c_buffer->data<char>());
+                registry_t::key_t key = 0;
+                for (auto &mem_offkey :
+                        res->get_mems_use_internal_persistent()) {
+                    mem_offkey.first.set_data_handle(
+                            c_grantor.get(mem_offkey.second));
                 }
             } else {
-                res->opt_bias_.set_data_handle(
-                        res->cvt_bias_.get_data_handle());
+                constant_cache_t::cached_t c_buffer
+                        = std::make_shared<constant_buffer_t>(
+                                memory_planner_
+                                        .total_internal_persistent_size(),
+                                p_engine_, g_alloc_);
+                grantor_t c_grantor
+                        = memory_planner_.internal_persistent_grantor(
+                                c_buffer->data<char>());
+                registry_t::key_t key = 0;
+                for (auto &mem_offkey :
+                        res->get_mems_use_internal_persistent()) {
+                    mem_offkey.first.set_data_handle(
+                            c_grantor.get(mem_offkey.second));
+                }
+
+                for (size_t i = 0; i < execs_.size(); i++) {
+                    if (!is_constant_[i]) continue;
+                    execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+                }
+
+                c_promise.set_value(c_buffer);
             }
         }
 
-        if (enable_constant_cache_ && !is_from_cache) {
-            c_promise.set_value(c_buffer);
-        }
-        ///////////// weight/bias process end ///////////////////////////
-
-        res->cvt_src_.set_data_handle(
-                inputs.at(convtranspose::kSrc).get_data_handle());
-        res->cvt_dst_.set_data_handle(
-                outputs.at(convtranspose::kDst).get_data_handle());
-
-        if (res_desc_.cvt_src_ != res_desc_.opt_src_) {
-            res->opt_src_.set_data_handle(grantor.get(convtranspose::kOpt_src));
-            dnnl::reorder(src_reorder_pd_)
-                    .execute(p_stream, res->cvt_src_, res->opt_src_);
-        } else {
-            res->opt_src_.set_data_handle(res->cvt_src_.get_data_handle());
+        for (size_t i = 0; i < execs_.size(); i++) {
+            if (is_constant_[i]) continue;
+            execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
-        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
-            res->opt_dst_.set_data_handle(grantor.get(convtranspose::kOpt_dst));
-        } else {
-            res->opt_dst_.set_data_handle(res->cvt_dst_.get_data_handle());
-        }
-
-        res->scratchpad_.set_data_handle(
-                grantor.get(convtranspose::kScratchpad));
-
-        prim_.execute(p_stream, res->exec_args_);
-
-        // reorder optimal output to given output buffer
-        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
-            dnnl::reorder(dst_reorder_pd_)
-                    .execute(p_stream, res->opt_dst_, res->cvt_dst_);
-        }
         return impl::status::success;
     }
 };
+
+using float_convtranspose_fwd = convtranspose_fwd</* quantized */ false>;
+using quantized_convtranspose = convtranspose_fwd</* quantized */ true>;
 
 } // namespace dnnl_impl
 } // namespace impl

@@ -59,7 +59,7 @@ void split_quant_dequant(std::vector<std::shared_ptr<op_t>> &subgraph);
 
 void folding_mul_scales(std::vector<std::shared_ptr<op_t>> &subgraph);
 
-void fuse_to_int8_conv(std::vector<std::shared_ptr<op_t>> &subgraph);
+void fuse_to_int8_conv_or_deconv(std::vector<std::shared_ptr<op_t>> &subgraph);
 
 void fuse_to_int8_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 

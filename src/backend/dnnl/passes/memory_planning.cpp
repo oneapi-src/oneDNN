@@ -496,7 +496,9 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
             impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
                 if (op->get_kind() == impl::op_kind::Convolution
                         || op->get_kind() == op_kind::dnnl_convolution
-                        || op->get_kind() == impl::op_kind::MatMul) {
+                        || op->get_kind() == impl::op_kind::MatMul
+                        || op->get_kind() == impl::op_kind::ConvTranspose
+                        || op->get_kind() == op_kind::dnnl_convtranspose) {
                     prepare_args_for_conv_and_matmul(
                             op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == impl::op_kind::MaxPool

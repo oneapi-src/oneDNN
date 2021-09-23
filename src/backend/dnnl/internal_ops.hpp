@@ -100,6 +100,8 @@ namespace op_kind {
     X(int8_quant_wei_conv_add_relu, INT8_Quant_wei_Conv_add_relu) \
     X(int8_conv_bias_add_relu, INT8_Conv_bias_add_relu) \
     X(int8_quant_wei_conv_bias_add_relu, INT8_Quant_wei_Conv_bias_add_relu) \
+    X(int8_convtranspose, INT8_ConvTranspose) \
+    X(int8_convtranspose_bias, INT8_ConvTranspose_bias) \
     X(int8_matmul, INT8_MatMul) \
     X(int8_quant_wei_matmul, INT8_Quant_wei_MatMul) \
     X(int8_matmul_bias, INT8_MatMul_bias) \
@@ -129,6 +131,7 @@ namespace op_kind {
     X(expand, Expand) \
     X(squeeze, Squeeze) \
     X(dnnl_convolution, Dnnl_convolution) \
+    X(dnnl_convtranspose, Dnnl_convtranspose) \
     X(int8_maxpool, INT8_MaxPool) \
     X(relu_add, Relu_add) \
     X(add_relu, Add_relu) \

@@ -44,14 +44,16 @@ static bool has_optional_bias(op_kind_t kind) {
 
 // TODO(xxx): extend to support other ops
 static bool has_int8_support(op_kind_t kind) {
-    std::set<op_kind_t> ops {op_kind::dnnl_convolution, impl::op_kind::MatMul};
+    std::set<op_kind_t> ops {op_kind::dnnl_convolution, impl::op_kind::MatMul,
+            op_kind::dnnl_convtranspose};
     return ops.count(kind) != 0;
 }
 
 // TODO(xxx): extend to support other ops
 static bool has_post_ops(op_kind_t kind) {
     std::set<op_kind_t> ops {impl::op_kind::Convolution,
-            op_kind::dnnl_convolution, impl::op_kind::MatMul};
+            op_kind::dnnl_convolution, impl::op_kind::MatMul,
+            impl::op_kind::ConvTranspose, op_kind::dnnl_convtranspose};
     return ops.count(kind) != 0;
 }
 
@@ -277,10 +279,11 @@ void folding_mul_scales(std::vector<op_ptr> &subgraph) {
     } while (changed);
 }
 
-void fuse_to_int8_conv(std::vector<op_ptr> &subgraph) {
+void fuse_to_int8_conv_or_deconv(std::vector<op_ptr> &subgraph) {
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &op : subgraph) {
-        if (op->get_kind() == impl::op_kind::Convolution) {
+        if (op->get_kind() == impl::op_kind::Convolution
+                || op->get_kind() == impl::op_kind::ConvTranspose) {
             auto &in0 = op->get_input_value(0)->get_producer();
             auto &in1 = op->get_input_value(1)->get_producer();
             if (in0.get_kind() != op_kind::mul_scales
@@ -297,7 +300,12 @@ void fuse_to_int8_conv(std::vector<op_ptr> &subgraph) {
         op_t &in0 = *fusion_group[1];
         op_t &in1 = *fusion_group[2];
 
-        op_ptr qconv_op = std::make_shared<op_t>(op_kind::dnnl_convolution);
+        op_kind_t tgt_op_kind;
+        if (conv_op->get_kind() == impl::op_kind::Convolution)
+            tgt_op_kind = op_kind::dnnl_convolution;
+        else
+            tgt_op_kind = op_kind::dnnl_convtranspose;
+        op_ptr qconv_op = std::make_shared<op_t>(tgt_op_kind);
         op_ptr mul_op = std::make_shared<op_t>(op_kind::mul_scales);
 
         qconv_op->merge_attributes(conv_op->get_attributes());
@@ -306,15 +314,28 @@ void fuse_to_int8_conv(std::vector<op_ptr> &subgraph) {
         auto dq_wei_scales = in1.get_attr<std::vector<float>>("scales");
         std::vector<float> fused_scale(
                 std::max(dq_src_scales.size(), dq_wei_scales.size()), 0);
-        if (dq_src_scales.size() > dq_wei_scales.size()) {
+        if (dq_src_scales.size() >= dq_wei_scales.size()) {
             for (int i = 0; i < dq_src_scales.size(); i++)
                 fused_scale[i] = (dq_src_scales[i] * dq_wei_scales[0]);
             mul_op->set_attr<int64_t>("axis", in0.get_attr<int64_t>("axis"));
             mul_op->set_attr<std::string>(
                     "qtype", in0.get_attr<std::string>("qtype"));
         } else {
-            for (int i = 0; i < dq_wei_scales.size(); i++)
-                fused_scale[i] = (dq_src_scales[0] * dq_wei_scales[i]);
+            // Currently for ConvTranspose, the output channel in weight tensor
+            // (OC/g, IC, H, W) is not equal to the one in output tensor
+            // (N, OC, H, W) if `groups` > 1, so the size of weight's
+            // per-channel scale is not the same as the output channel in output
+            // tensor, here we will broadcast scales from `OC/g` to `OC`.
+            int64_t group = qconv_op->get_attr<int64_t>("groups");
+            if (tgt_op_kind == op_kind::dnnl_convtranspose && group > 1) {
+                fused_scale.resize(group * dq_wei_scales.size(), 0);
+                for (int i = 0; i < fused_scale.size(); ++i)
+                    fused_scale[i] = (dq_src_scales[0]
+                            * dq_wei_scales[i % dq_wei_scales.size()]);
+            } else {
+                for (int i = 0; i < fused_scale.size(); ++i)
+                    fused_scale[i] = (dq_src_scales[0] * dq_wei_scales[i]);
+            }
             // FIXME(qun) the axis of output_scales should be related to data
             // format
             mul_op->set_attr<int64_t>("axis", 1); // hardcode to 1 for pytorch
