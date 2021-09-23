@@ -171,17 +171,20 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
 #if VECT_DT_N == 1
     const int po_mb = mb;
     const int po_oc = c + local_id;
-    POST_OP_DATA_T po_sum0 = DATA_TO_REF(sum0);
-    float po_D0 = USE_FLOATS ? D0 : CONVERT_FLOAT_T(D0);
-    APPLY_POST_OPS_SERIAL_BINARY_2D(
-            po_D0, float, po_sum0, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-    D0 = USE_FLOATS ? po_D0 : CONVERT_DATA_T(po_D0);
+    if (po_oc < C_WO_PADDING) {
+        POST_OP_DATA_T po_sum0 = DATA_TO_REF(sum0);
+        float po_D0 = USE_FLOATS ? D0 : CONVERT_FLOAT_T(D0);
+        APPLY_POST_OPS_SERIAL_BINARY_2D(
+                po_D0, float, po_sum0, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+        D0 = USE_FLOATS ? po_D0 : CONVERT_DATA_T(po_D0);
 
-    POST_OP_DATA_T po_sum1 = DATA_TO_REF(sum1);
-    float po_D1 = USE_FLOATS ? D1 : CONVERT_FLOAT_T(D1);
-    APPLY_POST_OPS_SERIAL_BINARY_2D(
-            po_D1, float, po_sum1, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-    D1 = USE_FLOATS ? po_D1 : CONVERT_DATA_T(po_D1);
+        POST_OP_DATA_T po_sum1 = DATA_TO_REF(sum1);
+        float po_D1 = USE_FLOATS ? D1 : CONVERT_FLOAT_T(D1);
+        APPLY_POST_OPS_SERIAL_BINARY_2D(
+                po_D1, float, po_sum1, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+        D1 = USE_FLOATS ? po_D1 : CONVERT_DATA_T(po_D1);
+    }
+
 #else
     for (int idx = 0; idx < VECT_DT_N; ++idx) {
 #if USE_MB_C_BLOCK
@@ -193,6 +196,8 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         const int po_oc = c + idx * SUB_GROUP_SIZE + local_id;
         int po_mb = mb;
 #endif // USE_MB_C_BLOCK
+
+        if (po_mb >= MB || po_oc >= C_WO_PADDING) continue;
 
         float d0_i = USE_FLOATS ? D0[idx] : CONVERT_FLOAT_T(D0[idx]);
         POST_OP_DATA_T sum0_i = DATA_TO_REF(sum0[idx]);
@@ -330,15 +335,25 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
 #endif
 
 inline DATA_T read_c_block(const __global DATA_T *ptr, int c) {
-#if C_WO_PADDING % SUB_GROUP_SIZE != 0
+#if C_W_PADDING % SUB_GROUP_SIZE != 0
     int local_id = get_sub_group_local_id();
     int tail = C_WO_PADDING - c;
     return (local_id < tail) ? ptr[local_id] : 0;
 #else
-    if (c >= C_WO_PADDING) { return 0; }
     return AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)ptr));
 #endif
 }
+
+#define CALC_VECT_LEN() \
+    ({ \
+        int size; \
+        if (USE_ONLY_C_BLOCK == 1 \
+                && VECT_DT_N > C_WO_PADDING / SUB_GROUP_SIZE + 1) \
+            size = C_WO_PADDING / SUB_GROUP_SIZE + 1; \
+        else \
+            size = VECT_DT_N; \
+        size; \
+    })
 
 inline VECT_DATA_T read_vect_c_block(int idx, const __global DATA_T *ptr, int c,
         int blocks_stride, int chunks_per_block) {
@@ -350,7 +365,7 @@ inline VECT_DATA_T read_vect_c_block(int idx, const __global DATA_T *ptr, int c,
                 + idx * VECT_DT_N * SUB_GROUP_SIZE));
     } else {
         VECT_DATA_T ret;
-        for (int i = 0; i < VECT_DT_N; i++) {
+        for (int i = 0; i < CALC_VECT_LEN(); i++) {
             const int offset_index = (idx * VECT_DT_N + i);
             const int local_c_block_index = offset_index % chunks_per_block;
             const int global_c_block_index = offset_index / chunks_per_block;
@@ -365,17 +380,21 @@ inline VECT_DATA_T read_vect_c_block(int idx, const __global DATA_T *ptr, int c,
             ret[i] = read_c_block(ptr + ptr_offset, c + c_off);
 #endif
         }
+#if VECT_DT_N > 1
+        for (int i = CALC_VECT_LEN(); i < VECT_DT_N; ++i) {
+            ret[i] = 0;
+        }
+#endif
         return ret;
     }
 }
 
 inline int read_c_block_int(const __global int *ptr, int c) {
-#if C_WO_PADDING % SUB_GROUP_SIZE != 0
+#if C_W_PADDING % SUB_GROUP_SIZE != 0
     int local_id = get_sub_group_local_id();
     int tail = C_WO_PADDING - c;
     return (local_id < tail) ? ptr[local_id] : 0;
 #else
-    if (c >= C_WO_PADDING) { return 0; }
     return as_int(intel_sub_group_block_read((const __global uint *)ptr));
 #endif
 }
@@ -410,17 +429,16 @@ inline VECT_INT_T read_vect_c_block_int(int idx, const __global int *ptr, int c,
 }
 
 inline void write_c_block(__global DATA_T *ptr, int c, DATA_T value) {
-#if C_WO_PADDING % SUB_GROUP_SIZE != 0
+#if C_W_PADDING % SUB_GROUP_SIZE != 0
     int local_id = get_sub_group_local_id();
     int tail = C_WO_PADDING - c;
 
-    if (local_id < tail)
-        ptr[local_id] = value;
-    else if (local_id < C_W_PADDING - c) {
-        ptr[local_id] = DATA_ZERO;
-    } else
-        return;
+    if (local_id < tail) ptr[local_id] = value;
 #else
+#if C_WO_PADDING % SUB_GROUP_SIZE != 0
+    int local_id = get_sub_group_local_id();
+    if (local_id >= C_WO_PADDING - c && local_id < C_W_PADDING - c) value = 0;
+#endif
     if (c >= C_WO_PADDING) {
         BLOCK_WRITE((__global BLOCK_DATA_T *)ptr,
                 AS_BLOCK_DATA_T(CONVERT_DATA_T(DATA_ZERO)));
