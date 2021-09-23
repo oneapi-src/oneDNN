@@ -362,8 +362,8 @@ See also: [Security Policy](SECURITY.md)
 
 # Trademark Information
 
-Intel, the Intel logo, Intel Atom, Intel Core, Intel Xeon Phi, Iris, OpenVINO,
-the OpenVINO logo, Pentium, VTune, and Xeon are trademarks
+Intel, the Intel logo, Arc, Intel Atom, Intel Core, Intel Xeon Phi, Iris,
+OpenVINO, the OpenVINO logo, Pentium, VTune, and Xeon are trademarks
 of Intel Corporation or its subsidiaries.
 
 \* Other names and brands may be claimed as the property of others.
@@ -376,3 +376,4 @@ OpenCL and the OpenCL logo are trademarks of Apple Inc. used by permission
 by Khronos.
 
 (C) Intel Corporation
+
