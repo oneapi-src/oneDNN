@@ -34,6 +34,7 @@ int check_primitive_cache(dnnl_primitive_t p);
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_debug.hpp"
+#include "utils/dims.hpp"
 
 #define for_ for
 

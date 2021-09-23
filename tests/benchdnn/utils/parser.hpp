@@ -26,6 +26,7 @@
 
 #include "dnn_types.hpp"
 #include "dnnl_debug.hpp"
+#include "utils/dims.hpp"
 
 namespace parser {
 
