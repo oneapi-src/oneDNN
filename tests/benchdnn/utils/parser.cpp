@@ -215,47 +215,7 @@ bool parse_batch(const bench_f bench, const char *str,
     return false;
 }
 
-// dim_t type
-static bool parse_dims_as_desc(dims_t &dims, const char *str) {
-    dims.clear();
-
-    auto mstrtol = [](const char *nptr, char **endptr) {
-        return strtol(nptr, endptr, 10);
-    };
-
-#define CASE_NN(p, c, cvfunc) \
-    do { \
-        if (!strncmp(p, str, strlen(p))) { \
-            ok = 1; \
-            str += strlen(p); \
-            char *end_s; \
-            int64_t c = cvfunc(str, &end_s); \
-            str += (end_s - str); \
-            if ((c) < 0) return false; \
-            dims.push_back(c); \
-        } \
-    } while (0)
-#define CASE_N(c, cvfunc) CASE_NN(#c, c, cvfunc)
-    while (*str) {
-        int ok = 0;
-        CASE_N(mb, mstrtol);
-        CASE_N(ic, mstrtol);
-        CASE_N(id, mstrtol);
-        CASE_N(ih, mstrtol);
-        CASE_N(iw, mstrtol);
-        if (*str == '_') ++str;
-        if (!ok) return false;
-    }
-#undef CASE_NN
-#undef CASE_N
-
-    return true;
-}
-
 void parse_dims(dims_t &dims, const char *str) {
-    // func below provides fragile compatibility of verbose output for v0
-    // eltwise and softmax. Remove once we stop supporting v0.
-    if (parse_dims_as_desc(dims, str)) return;
     parse_vector_str(dims, dims_t(), atoi, str, 'x');
 }
 
