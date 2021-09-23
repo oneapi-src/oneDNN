@@ -291,23 +291,23 @@ be known at the compilation time.
     tensors are specified by the operator's attributes. For example, the
     Convolution operator has `data_format` and `filter_format`.
 
-     ~~~cpp
-     // for example, tensorflow shapes
-      dims_t ish = {1, 227, 227, 3};
-      dims_t wsh = {11, 11, 3, 96};
-      dims_t osh = {1, 55, 55, 96};
-      // create input/output logical tensors.
-      logical_tensor conv_src {0, dt::f32, ish, layout_type::strided};
-      logical_tensor conv_wei {1, dt::f32, wsh, layout_type::strided};
-      logical_tensor conv_dst {2, dt::f32, osh, layout_type::strided};
-      // create convolution op with inputs and outputs
-      op conv {0, kind::Convolution, {conv_src, conv_wei}, {conv_dst}, “conv0”};
-      // set attributes to conv op
-      conv.set_attr("data_format", std::string("NXC")); // input, nhwc
-      conv.set_attr("filter_format", std::string("XIO")); // weight, hwio
-      // add op to graph.
-      graph.add_op(conv);
-     ~~~
+  ~~~cpp
+  // for example, tensorflow shapes
+  dims_t ish = {1, 227, 227, 3};
+  dims_t wsh = {11, 11, 3, 96};
+  dims_t osh = {1, 55, 55, 96};
+  // create input/output logical tensors.
+  logical_tensor conv_src {0, dt::f32, ish, layout_type::strided};
+  logical_tensor conv_wei {1, dt::f32, wsh, layout_type::strided};
+  logical_tensor conv_dst {2, dt::f32, osh, layout_type::strided};
+  // create convolution op with inputs and outputs
+  op conv {0, kind::Convolution, {conv_src, conv_wei}, {conv_dst}, “conv0”};
+  // set attributes to conv op
+  conv.set_attr("data_format", std::string("NXC")); // input, nhwc
+  conv.set_attr("filter_format", std::string("XIO")); // weight, hwio
+  // add op to graph.
+  graph.add_op(conv);
+  ~~~
 
 - Users are not required to "query and convert" to the opaque layout for input
   tensors at execution time
@@ -316,22 +316,22 @@ be known at the compilation time.
     directly passed to another partition, even though this output tensor has
     opaque layout.
 
-    ~~~cpp
-    // create logical tensors, previous layer also runs oneDNN Graph partition
-    logical_tensor conv_src {0, dt::f32, {1, 3, 227, 227}, layout_type::opaque};
-    logical_tensor conv_wei {1, dt::f32, {96, 3, 11, 11}, layout_type::strided};
-    logical_tensor conv_dst {2, dt::f32, {-1, -1, -1, -1}, layout_type::any};
-    // create convolution op with inputs and outputs
-    op conv {0, kind::Convolution, {conv_src, conv_wei}, {conv_dst}, “conv0”};
-    // add op to graph.
-    graph.add_op(conv);
-    // get partitions with debug policy.
-    std::vector<partition> partitions = graph.get_partitions();
-    // compile the first partition and set blocked format to output tensor
-    compiled_partition cp = partitions[0].compile({conv_src, conv_wei}, {conv_dst}, eng);
-    // execute the compiled partition with input/output tensors
-    tensor src_tensor = tensor_from_last_layer; // with opaque layout id
-    tensor wei_tensor = tensor(conv_wei, eng, buf_wei); // strided weight
-    tensor dst = tensor(cp.query_logical_tensor(2), eng, buf_dst);
-    cp.execute(stream, {src_tensor, wei_tensor}, {dst_tensor});
-    ~~~
+  ~~~cpp
+  // create logical tensors, previous layer also runs oneDNN Graph partition
+  logical_tensor conv_src {0, dt::f32, {1, 3, 227, 227}, layout_type::opaque};
+  logical_tensor conv_wei {1, dt::f32, {96, 3, 11, 11}, layout_type::strided};
+  logical_tensor conv_dst {2, dt::f32, {-1, -1, -1, -1}, layout_type::any};
+  // create convolution op with inputs and outputs
+  op conv {0, kind::Convolution, {conv_src, conv_wei}, {conv_dst}, “conv0”};
+  // add op to graph.
+  graph.add_op(conv);
+  // get partitions with debug policy.
+  std::vector<partition> partitions = graph.get_partitions();
+  // compile the first partition and set blocked format to output tensor
+  compiled_partition cp = partitions[0].compile({conv_src, conv_wei}, {conv_dst}, eng);
+  // execute the compiled partition with input/output tensors
+  tensor src_tensor = tensor_from_last_layer; // with opaque layout id
+  tensor wei_tensor = tensor(conv_wei, eng, buf_wei); // strided weight
+  tensor dst = tensor(cp.query_logical_tensor(2), eng, buf_dst);
+  cp.execute(stream, {src_tensor, wei_tensor}, {dst_tensor});
+  ~~~
