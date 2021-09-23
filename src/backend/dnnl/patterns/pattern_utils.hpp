@@ -427,18 +427,41 @@ inline void pattern_utils::reorder_matched_list(
     std::vector<pattern_pair> reordered_pairs;
     std::deque<pattern_pair> dq;
     std::set<op_t *> visited;
-    //get the start op which is the end of the pattern.
-    for (auto &pair : matched_pairs)
-        if (pair.second->get_outputs().size() == 0) {
+    std::set<op_t *> op_set;
+    std::set<op_t *> added_op;
+    // add matched ops into op_set
+    for (auto &pair : matched_pairs) {
+        op_set.insert(pair.first);
+    }
+
+    // find an end_op to start reorder, find an op whose output isn't in
+    // matched_pairs, can't use pb_op's output == 0, because ops defined
+    // in subgraph also has 0 output but isn't the end of the pattern.
+    for (auto &pair : matched_pairs) {
+        bool is_end = true;
+        for (auto &output : pair.first->get_output_values()) {
+            for (auto &consumer : output->get_consumers()) {
+                if (op_set.count(&(consumer.get_op()))) {
+                    is_end = false;
+                    break;
+                }
+            }
+            if (!is_end) { break; }
+        }
+        if (is_end) {
             dq.push_back(pair);
             break;
         }
+    }
 
     while (!dq.empty()) {
         op_t *op = dq.front().first;
         // if op has been visited, it means all of it's inputs has been resolved
         if (visited.count(op)) {
-            reordered_pairs.push_back(dq.front());
+            if (!added_op.count(op)) {
+                reordered_pairs.push_back(dq.front());
+                added_op.insert(op);
+            }
             dq.pop_front();
             continue;
         }
@@ -676,7 +699,6 @@ inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
         for (auto &op_map : fusion_ops_set) {
             op_t *cur_op = op_map.first;
             impl::utils::pm::pb_op *pattern_op = op_map.second;
-
             // merge the attrs and op ids
             partition_fused_op->merge_attributes(cur_op->get_attributes());
             partition_fused_op->add_op_ids(cur_op->get_op_ids());
@@ -695,9 +717,22 @@ inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
                 }
             }
 
-            // merge the output tensor
-            // TODO(Jihui): intermediate external output is unsupported now
-            if (pattern_op->get_outputs().size() == 0) {
+            // find an end_op to start reorder, find an op whose output isn't in
+            // matched_pairs, can't use pb_op's output == 0, because ops defined
+            // in subgraph also has 0 output but isn't the end of the pattern.
+            bool is_end = true;
+            for (auto &output : cur_op->get_output_values()) {
+                for (auto &consumer : output->get_consumers()) {
+                    if (visit.count(&(consumer.get_op()))) {
+                        is_end = false;
+                        break;
+                    }
+                }
+                if (!is_end) { break; }
+            }
+
+            // merge the output tensor if current op is an end op
+            if (is_end) {
                 // it's the end op of pattern
                 for (size_t k = 0; k < cur_op->num_outputs(); ++k) {
                     std::shared_ptr<value_t> out_value

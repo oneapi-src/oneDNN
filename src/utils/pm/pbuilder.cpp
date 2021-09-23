@@ -162,6 +162,11 @@ void pb_op::allow_internal_input(iport_t p_port) {
     m_internal_inputs.insert(p_port);
 }
 
+void pb_op::allow_internal_inputs(const std::vector<iport_t> &p_ports) {
+    for (auto &port : p_ports)
+        allow_internal_input(port);
+}
+
 vector<shared_ptr<unordered_set<shared_ptr<consumer_t>>>>
 pb_graph::get_inner_consumers() {
     return m_inner_consumers;

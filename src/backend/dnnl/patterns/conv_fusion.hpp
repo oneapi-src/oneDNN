@@ -25,6 +25,7 @@
 #include <unordered_set>
 
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
+#include "utils/pm/pbuilder.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -32,9 +33,11 @@ namespace impl {
 namespace dnnl_impl {
 namespace pass {
 
-using pattern = impl::pass::pattern;
-using FCreatePattern = impl::pass::FCreatePattern;
-using FCreateOptPattern = impl::pass::FCreateOptPattern;
+namespace pm = impl::utils::pm;
+using in_edges_t = pm::in_edges_t;
+using pb_graph = pm::pb_graph;
+using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
+using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 /*!
  * \brief This provides conv-related fusion, i.e.
@@ -47,1846 +50,2078 @@ using FCreateOptPattern = impl::pass::FCreateOptPattern;
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(conv_fusion)
 
 #define SET_NUM_INPUTS_CHECK(n) \
-    set_attr<FRequirement>("FRequirement", [](op_t *graph_op) -> bool { \
-        size_t num_inputs = graph_op->num_inputs(); \
-        return num_inputs == n; \
-    });
+    append_decision_function([](op_t *graph_op) -> bool { \
+        return graph_op->num_inputs() == n; \
+    })
+
+#define SET_S8_CHECK() \
+    append_decision_function([](op_t *graph_op) -> bool { \
+        for (size_t i = 0; i < graph_op->num_inputs(); ++i) { \
+            logical_tensor_t iport \
+                    = graph_op->get_input_value(i)->get_logical_tensor(); \
+            if (iport.data_type != impl::data_type::s8) return false; \
+        } \
+        return true; \
+    })
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu_fusion)
         .set_priority(10.1f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_add_relu);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu6_fusion)
         .set_priority(10.1f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu6 = apattern->create_op(impl::op_kind::HardTanh);
-                    relu6->set_attr<float>("min", 0);
-                    relu6->set_attr<float>("max", 6);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    relu6->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv = pgraph->append_op(
+                            impl::op_kind::Convolution, "p-conv");
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0)}, "p-add");
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pm::pb_op *relu6
+                            = pgraph->append_op(impl::op_kind::HardTanh,
+                                    in_edges_t {in_edge(0, add, 0)}, "p-relu6");
+                    relu6->set_attr<float>("min", 0.f);
+                    relu6->set_attr<float>("max", 6.f);
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_add_relu6);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_add_relu6);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_elu_fusion)
         .set_priority(10.1f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *elu = apattern->create_op(impl::op_kind::Elu);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    elu->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pgraph->append_op(impl::op_kind::Elu,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_add_elu);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_add_elu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_fusion)
         .set_priority(10.0f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op
-                            = optimized_pattern->create_op(op_kind::conv_add);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_relu_fusion)
         .set_priority(10.0f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    bn->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bn = pgraph->append_op(
+                            impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(
+                            impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bn_add_relu);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bn_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
         .set_priority(10.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu6 = apattern->create_op(impl::op_kind::HardTanh);
-                    relu6->set_attr<float>("min", 0);
-                    relu6->set_attr<float>("max", 6);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    relu6->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, bias, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pm::pb_op *relu6
+                            = pgraph->append_op(impl::op_kind::HardTanh,
+                                    in_edges_t {in_edge(0, add, 0)});
+                    relu6->set_attr<float>("min", 0.f);
+                    relu6->set_attr<float>("max", 6.f);
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu6 = apattern->create_op(impl::op_kind::HardTanh);
-                    relu6->set_attr<float>("min", 0);
-                    relu6->set_attr<float>("max", 6);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    relu6->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pm::pb_op *relu6
+                            = pgraph->append_op(impl::op_kind::HardTanh,
+                                    in_edges_t {in_edge(0, add, 0)});
+                    relu6->set_attr<float>("min", 0.f);
+                    relu6->set_attr<float>("max", 6.f);
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::conv_bias_add_relu6);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
         .set_priority(10.0f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    bn->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *bn = pgraph->append_op(
+                            impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, bias, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(
+                            impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    bn->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *bn = pgraph->append_op(
+                            impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(
+                            impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::conv_bias_bn_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_fusion)
         .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    bn->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bn = pgraph->append_op(
+                            impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(
+                            impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bn_add);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bn_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
         .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    bn->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *bn = pgraph->append_op(
+                            impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, bias, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(
+                            impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    bn->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bn, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *bn = pgraph->append_op(
+                            impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(
+                            impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_bn_add);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_bn_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_relu_fusion)
         .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    bn->fill_and_connect_input(0, *conv, 0);
-                    relu->fill_and_connect_input(0, *bn, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bn = pgraph->append_op(
+                            impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, bn, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bn_relu);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bn_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_relu_fusion)
         .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    bn->fill_and_connect_input(0, *bias, 0);
-                    relu->fill_and_connect_input(0, *bn, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *bn = pgraph->append_op(
+                            impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, bias, 0)});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, bn, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    bn->fill_and_connect_input(0, *conv, 0);
-                    relu->fill_and_connect_input(0, *bn, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *bn = pgraph->append_op(
+                            impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, bn, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::conv_bias_bn_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
         .set_priority(10.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *elu = apattern->create_op(impl::op_kind::Elu);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    elu->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, bias, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pgraph->append_op(impl::op_kind::Elu,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *elu = apattern->create_op(impl::op_kind::Elu);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    elu->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pgraph->append_op(impl::op_kind::Elu,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::conv_bias_add_elu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
         .set_priority(10.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, bias, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::conv_bias_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu6_fusion)
         .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *hardtanh
-                            = apattern->create_op(impl::op_kind::HardTanh);
-                    hardtanh->set_attr<float>("min", 0);
-                    hardtanh->set_attr<float>("max", 6);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    hardtanh->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *relu6
+                            = pgraph->append_op(impl::op_kind::HardTanh,
+                                    in_edges_t {in_edge(0, bias, 0)});
+                    relu6->set_attr<float>("min", 0.f);
+                    relu6->set_attr<float>("max", 6.f);
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *hardtanh
-                            = apattern->create_op(impl::op_kind::HardTanh);
-                    hardtanh->set_attr<float>("min", 0);
-                    hardtanh->set_attr<float>("max", 6);
-                    hardtanh->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *relu6
+                            = pgraph->append_op(impl::op_kind::HardTanh,
+                                    in_edges_t {in_edge(0, conv, 0)});
+                    relu6->set_attr<float>("min", 0.f);
+                    relu6->set_attr<float>("max", 6.f);
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_relu6);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_relu6);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_fusion)
         .set_priority(10.5f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    quant->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op
-                            = optimized_pattern->create_op(op_kind::int8_conv);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_conv);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_fusion)
         .set_priority(10.6f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    quant->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+                    pm::pb_op *quant
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_quant_wei_conv);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
         .set_priority(10.5f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    quant->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    quant->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::int8_conv_bias);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_conv_bias);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_relu_fusion)
         .set_priority(10.5f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    relu->fill_and_connect_input(0, *conv, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, relu, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::int8_conv_relu);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_conv_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_relu_fusion)
         .set_priority(10.6f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    relu->fill_and_connect_input(0, *conv, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    pm::pb_op *quant
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_quant_wei_conv_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_fusion)
         .set_priority(10.5f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(2);
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    quant->fill_and_connect_input(0, *add, 0);
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)}, "pbias");
+                    pm::pb_op *dequant_other = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_other");
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, bias, 0),
+                                    in_edge(1, dequant_other, 0)},
+                            "padd");
+                    add->set_commutative_pair({0, 1});
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, add, 0)}, "pquant");
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
-
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    quant->fill_and_connect_input(0, *add, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(3);
+                    pm::pb_op *dequant_other = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_other");
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0),
+                                    in_edge(1, dequant_other, 0)},
+                            "padd");
+                    add->set_commutative_pair({0, 1});
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, add, 0)}, "pquant");
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_conv_bias_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_relu_fusion)
         .set_priority(10.5f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
 
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    relu->fill_and_connect_input(0, *conv, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, bias, 0)});
+
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, relu, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    relu->fill_and_connect_input(0, *bias, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, relu, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_conv_bias_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
         .set_priority(10.5f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
-                })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
+                    pm::pb_op *dequant_other = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_other");
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)}, "pbias");
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, bias, 0),
+                                    in_edge(1, dequant_other, 0)},
+                            "padd");
+                    add->set_commutative_pair({0, 1});
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)}, "prelu");
+
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, relu, 0)}, "pquant");
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
+
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
+
+                    pm::pb_op *dequant_other = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_other");
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0),
+                                    in_edge(1, dequant_other, 0)},
+                            "padd");
+                    add->set_commutative_pair({0, 1});
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)}, "prelu");
+
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, relu, 0)}, "pquant");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_conv_bias_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, int8_quant_wei_conv_bias_add_relu_fusion)
         .set_priority(10.6f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
+                    pm::pb_op *dequant_other
+                            = pgraph->append_op(impl::op_kind::Dequantize);
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
-                })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(3);
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0),
+                                    in_edge(1, dequant_other, 0)});
+                    add->set_commutative_pair({0, 1});
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
+                    pm::pb_op *quant
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
+                    pm::pb_op *dequant_other
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, bias, 0),
+                                    in_edge(1, dequant_other, 0)});
+                    add->set_commutative_pair({0, 1});
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
+                    pm::pb_op *quant
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu, 0)});
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_quant_wei_conv_bias_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, int8_quant_wei_conv_bias_relu_fusion)
         .set_priority(10.6f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
 
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    relu->fill_and_connect_input(0, *conv, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    pm::pb_op *quant
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    relu->fill_and_connect_input(0, *bias, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, bias, 0)});
+                    pm::pb_op *quant
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_quant_wei_conv_bias_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_bias_fusion)
         .set_priority(10.6f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
 
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    quant->fill_and_connect_input(0, *conv, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *quant
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    quant->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    pm::pb_op *quant
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_quant_wei_conv_bias);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_add_relu_fusion)
         .set_priority(10.5f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
+                    pm::pb_op *dequant_other = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_other");
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0),
+                                    in_edge(1, dequant_other, 0)},
+                            "padd");
+                    add->set_commutative_pair({0, 1});
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)}, "prelu");
+                    pm::pb_op *quant
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu, 0)}, "pquant");
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_conv_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, int8_quant_wei_conv_add_relu_fusion)
         .set_priority(10.6f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
+                    pm::pb_op *dequant_other
+                            = pgraph->append_op(impl::op_kind::Dequantize);
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0),
+                                    in_edge(1, dequant_other, 0)});
+                    add->set_commutative_pair({0, 1});
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
+                    pm::pb_op *quant
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_quant_wei_conv_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
 
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(2);
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::x8s8f32_conv);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::x8s8f32_conv);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_fusion)
         .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
 
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(3);
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
 
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)}, "pbias");
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_conv_bias);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_relu_fusion)
         .set_priority(10.0f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
 
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    relu->fill_and_connect_input(0, *conv, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv, 0)}, "prelu");
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_conv_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_relu_fusion)
         .set_priority(10.1f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
 
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(3);
 
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    relu->fill_and_connect_input(0, *conv, 0);
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv, 0)}, "prelu");
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
 
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    relu->fill_and_connect_input(0, *bias, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)}, "pbias");
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, bias, 0)}, "prelu");
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_conv_bias_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_conv_bias_add_relu_fusion)
         .set_priority(10.4f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
 
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+                    pm::pb_op *dequant_other = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_other");
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)}, "pbias");
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, bias, 0),
+                                    in_edge(1, dequant_other, 0)},
+                            "padd");
+                    add->set_commutative_pair({0, 1});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)}, "prelu");
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
 
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+                    pm::pb_op *dequant_other = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_other");
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0),
+                                    in_edge(1, dequant_other, 0)},
+                            "padd");
+                    add->set_commutative_pair({0, 1});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)}, "prelu");
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_conv_bias_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_add_relu_fusion)
         .set_priority(10.3f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
 
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+                    pm::pb_op *dequant_other = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_other");
+
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0),
+                                    in_edge(1, dequant_other, 0)},
+                            "padd");
+                    add->set_commutative_pair({0, 1});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)}, "prelu");
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_conv_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_quant_wei_conv_fusion)
         .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_quant_wei_conv);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_bias_fusion)
         .set_priority(10.0f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(3);
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_quant_wei_conv_bias);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_relu_fusion)
         .set_priority(10.1f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    relu->fill_and_connect_input(0, *conv, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_quant_wei_conv_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_bias_relu_fusion)
         .set_priority(10.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(3);
 
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    relu->fill_and_connect_input(0, *conv, 0);
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    relu->fill_and_connect_input(0, *bias, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_quant_wei_conv_bias_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_bias_add_relu_fusion)
         .set_priority(10.3f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
-
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
+                    pm::pb_op *dequant_other
+                            = pgraph->append_op(impl::op_kind::Dequantize);
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0),
+                                    in_edge(1, dequant_other, 0)});
+                    add->set_commutative_pair({0, 1});
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
-
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
+                    pm::pb_op *dequant_other
+                            = pgraph->append_op(impl::op_kind::Dequantize);
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, bias, 0),
+                                    in_edge(1, dequant_other, 0)});
+                    add->set_commutative_pair({0, 1});
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_quant_wei_conv_bias_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_add_relu_fusion)
         .set_priority(10.4f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *quant_weight
-                            = apattern->create_op(impl::op_kind::Quantize);
-                    op_t *dequant_weight
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
-
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *quant_weight
+                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->set_attr<bool>("s8_check", true);
+                    dequant_weight->SET_S8_CHECK();
+                    pm::pb_op *dequant_other
+                            = pgraph->append_op(impl::op_kind::Dequantize);
 
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    conv->fill_and_connect_input(0, *dequant_data, 0);
-                    conv->fill_and_connect_input(1, *dequant_weight, 0);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    relu->fill_and_connect_input(0, *add, 0);
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0),
+                                    in_edge(1, dequant_other, 0)});
+                    add->set_commutative_pair({0, 1});
+
+                    pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_quant_wei_conv_add_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
         .set_priority(10.1f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(0, *bias, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, bias, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    add->fill_and_connect_input(0, *conv, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_add);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_elu_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *elu = apattern->create_op(impl::op_kind::Elu);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    elu->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::Elu,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *elu = apattern->create_op(impl::op_kind::Elu);
-                    elu->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pgraph->append_op(impl::op_kind::Elu,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_elu);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_elu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sigmoid_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    sigmoid->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::Sigmoid,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
-                    sigmoid->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pgraph->append_op(impl::op_kind::Sigmoid,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::conv_bias_sigmoid);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
-                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    sigmoid->fill_and_connect_input(0, *bias, 0);
-                    mul->fill_and_connect_input(0, *bias, 0);
-                    mul->fill_and_connect_input(1, *sigmoid, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pm::pb_op *sigmoid
+                            = pgraph->append_op(impl::op_kind::Sigmoid,
+                                    in_edges_t {in_edge(0, bias, 0)});
+
+                    pm::pb_op *mul = pgraph->append_op(impl::op_kind::Multiply,
+                            in_edges_t {in_edge(0, bias, 0),
+                                    in_edge(1, sigmoid, 0)});
+                    mul->set_commutative_pair({0, 1});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
-                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
-                    sigmoid->fill_and_connect_input(0, *conv, 0);
-                    mul->fill_and_connect_input(0, *conv, 0);
-                    mul->fill_and_connect_input(1, *sigmoid, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv = pgraph->append_op(
+                            impl::op_kind::Convolution, "p-conv");
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pm::pb_op *sigmoid
+                            = pgraph->append_op(impl::op_kind::Sigmoid,
+                                    in_edges_t {in_edge(0, conv, 0)}, "p-sig");
+
+                    pm::pb_op *mul = pgraph->append_op(impl::op_kind::Multiply,
+                            in_edges_t {in_edge(0, conv, 0),
+                                    in_edge(1, sigmoid, 0)},
+                            "p-mul");
+                    mul->set_commutative_pair({0, 1});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_swish);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_swish);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    bn->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pgraph->append_op(impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op
-                            = optimized_pattern->create_op(op_kind::conv_bn);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bn);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    bn->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *bn = apattern->create_op(
-                            impl::op_kind::BatchNormInference);
-                    bn->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pgraph->append_op(impl::op_kind::BatchNormInference,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_bn);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_bn);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_relu_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    relu->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op
-                            = optimized_pattern->create_op(op_kind::conv_relu);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    relu->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    relu->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_relu);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_hardtanh_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *hardtanh
-                            = apattern->create_op(impl::op_kind::HardTanh);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    hardtanh->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::HardTanh,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *hardtanh
-                            = apattern->create_op(impl::op_kind::HardTanh);
-                    hardtanh->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pgraph->append_op(impl::op_kind::HardTanh,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::conv_bias_hardtanh);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_square_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *square = apattern->create_op(impl::op_kind::Square);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    square->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::Square,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *square = apattern->create_op(impl::op_kind::Square);
-                    square->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pgraph->append_op(impl::op_kind::Square,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_square);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_square);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_tanh_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *tanh = apattern->create_op(impl::op_kind::Tanh);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    tanh->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::Tanh,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *tanh = apattern->create_op(impl::op_kind::Tanh);
-                    tanh->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pgraph->append_op(impl::op_kind::Tanh,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_tanh);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_tanh);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_abs_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *abs = apattern->create_op(impl::op_kind::Abs);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    abs->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::Abs,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *abs = apattern->create_op(impl::op_kind::Abs);
-                    abs->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pgraph->append_op(impl::op_kind::Abs,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_abs);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_abs);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sqrt_fusion)
         .set_priority(9.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    op_t *sqrt = apattern->create_op(impl::op_kind::Sqrt);
-                    bias->fill_and_connect_input(0, *conv, 0);
-                    sqrt->fill_and_connect_input(0, *bias, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
+
+                    pgraph->append_op(impl::op_kind::Sqrt,
+                            in_edges_t {in_edge(0, bias, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 3);
-                    op_t *sqrt = apattern->create_op(impl::op_kind::Sqrt);
-                    sqrt->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    pgraph->append_op(impl::op_kind::Sqrt,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::conv_bias_sqrt);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias_sqrt);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_fusion)
         .set_priority(9.7f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    conv->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
-                    bias->fill_and_connect_input(0, *conv, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+                    pgraph->append_op(impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(0, conv, 0)});
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    UNUSED(conv);
-                    conv->set_attr<int64_t>("num_inputs", 3);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op
-                            = optimized_pattern->create_op(op_kind::conv_bias);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::conv_bias);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_pass)
         .set_priority(9.7f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *conv
-                            = apattern->create_op(impl::op_kind::Convolution);
-                    UNUSED(conv);
-                    conv->set_attr<int64_t>("num_inputs", 2);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pgraph->append_op(impl::op_kind::Convolution);
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *replace_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             impl::op_kind::Convolution);
-                    replace_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bwd_f_biasadd_bwd_fusion)
         .set_priority(9.7f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *convbpf = apattern->create_op(
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                    pm::pb_op *convbpf = pgraph->append_op(
                             impl::op_kind::ConvolutionBackpropFilters);
-                    op_t *biasbp = apattern->create_op(
-                            impl::op_kind::BiasAddBackprop);
-                    biasbp->fill_and_connect_input(0, *convbpf, 0);
+                    pgraph->append_op(impl::op_kind::BiasAddBackprop,
+                            in_edges_t {in_edge(0, convbpf, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::conv_bwd_f_biasadd_bwd);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_END

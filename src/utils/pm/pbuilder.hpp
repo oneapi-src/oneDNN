@@ -134,10 +134,23 @@ public:
     bool append_decision_function(const decision_function &p_fn);
     bool set_commutative_pair(iport_pair p_port_pair);
 
+    // mark pattern node can only match ops with specific attrs
+    template <typename T>
+    void set_attr(std::string attr_name, T value) {
+        this->append_decision_function([=](op_t *op) -> bool {
+            if (op->has_attr(attr_name)) {
+                return op->get_attr<T>(attr_name) == value;
+            }
+            return false;
+        });
+    }
+
     // For overriding default side output control
     void allow_external_output(oport_t);
     // For overriding default unmatched input control
     void allow_internal_input(iport_t);
+    void allow_internal_inputs(const std::vector<iport_t> &p_ports);
+
     unordered_set<oport_t> get_allowed_external_outputs() {
         return m_external_outputs;
     };
