@@ -152,9 +152,10 @@ inline bool verify_shapes_in_range(const std::vector<logical_tensor_t *> &lts,
 void set_shape_and_strides(logical_tensor_t &lt, const dims &shape) {
     utils::array_copy(lt.dims, shape.data(), shape.size());
     lt.ndims = static_cast<int32_t>(shape.size());
-    // We compute default dense strides for strided output. FWK can
-    // overwrite these strides if it has specific strides
-    if (logical_tensor_wrapper(lt).is_strided()) {
+
+    auto ltw = logical_tensor_wrapper(lt);
+    // don't overwrite strides provided by users
+    if (ltw.is_strided() && ltw.is_stride_unknown()) {
         const dims strides = get_dense_strides(shape);
         utils::array_copy(lt.layout.strides, strides.data(), strides.size());
     }

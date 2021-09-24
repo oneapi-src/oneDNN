@@ -180,9 +180,11 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
     val.layout_type = ltype;
     val.property = ptype;
 
-    // initialize the dims
+    // initialize the dims and strides
     std::fill(
             val.dims, val.dims + DNNL_GRAPH_MAX_NDIMS, DNNL_GRAPH_UNKNOWN_DIM);
+    std::fill(val.layout.strides, val.layout.strides + DNNL_GRAPH_MAX_NDIMS,
+            DNNL_GRAPH_UNKNOWN_DIM);
 
     *logical_tensor = val;
 
@@ -219,7 +221,12 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
             for (int s = ndims - 2; s >= 0; --s) {
                 val.layout.strides[s] = dims[s + 1] * val.layout.strides[s + 1];
             }
-        } // else strides are undefined
+        } else {
+            // initialize strides with -1
+            std::fill(val.layout.strides,
+                    val.layout.strides + DNNL_GRAPH_MAX_NDIMS,
+                    DNNL_GRAPH_UNKNOWN_DIM);
+        }
     }
     *logical_tensor = val;
     return status::success;
