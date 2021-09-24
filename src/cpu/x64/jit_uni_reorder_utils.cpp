@@ -114,7 +114,7 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
 }
 
 status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
-        const primitive_attr_t *attr, bool with_groups) {
+        const primitive_attr_t *attr) {
     auto im_d = memory_desc_wrapper(imd);
     auto om_d = memory_desc_wrapper(omd);
 
@@ -196,16 +196,6 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             = om_d.extra().flags & memory_extra_flags::compensation_conv_s8s8;
     p.req_asymmetric_comp = om_d.extra().flags
             & memory_extra_flags::compensation_conv_asymmetric_src;
-    const auto compensation_needed = p.req_s8s8_comp || p.req_asymmetric_comp;
-
-    auto mask_ok = [&](bool check, int mask) {
-        return IMPLICATION(check, mask == (with_groups ? 0x3 : 0x1));
-    };
-
-    if (!mask_ok(p.req_s8s8_comp, om_d.extra().compensation_mask)
-            || !mask_ok(p.req_asymmetric_comp,
-                    om_d.extra().asymm_compensation_mask))
-        return status::unimplemented;
 
     const auto compute_strides
             = [&](ptrdiff_t *strides, const int mask) {
@@ -226,13 +216,19 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     ptrdiff_t cs_[max_ndims] = {0}; // compensation strides
     ptrdiff_t *cs = cs_;
+    const auto compensation_needed = p.req_s8s8_comp || p.req_asymmetric_comp;
     if (compensation_needed) {
-        const int compensation_mask = with_groups ? 0x3 : 0x1;
+        p.compensation_mask = p.req_s8s8_comp
+                ? om_d.extra().compensation_mask
+                : (p.req_asymmetric_comp ? om_d.extra().asymm_compensation_mask
+                                         : tr::prb_t::invalid_comp_mask);
+        assert(p.compensation_mask == tr::prb_t::standard_comp_mask
+                || p.compensation_mask == tr::prb_t::comp_mask_with_groups);
         if (p.scale_type == scale_type_t::MANY
-                && attr->output_scales_.mask_ == compensation_mask)
+                && attr->output_scales_.mask_ == p.compensation_mask)
             cs = ss;
         else {
-            compute_strides(cs_, compensation_mask);
+            compute_strides(cs_, p.compensation_mask);
             cs = cs_;
         }
     }

@@ -53,6 +53,14 @@ struct node_t {
 enum class scale_type_t { NONE, COMMON, MANY };
 
 struct prb_t {
+    /* The compensation mask value indicates how big an additional buffer should be.
+     * Possible values for reorder:
+     *     1) standard compensation = 1 = 0b01
+     *     2) compensation if tensor contains group = 3 = 0b11 */
+    static constexpr int invalid_comp_mask = 0;
+    static constexpr int standard_comp_mask = 0b1;
+    static constexpr int comp_mask_with_groups = standard_comp_mask + (1 << 1);
+
     bool is_tail_in_one_of_child_nodes(int parent_node_id) const {
         for (int i = parent_node_id; i >= 0; i--) {
             if (nodes[i].parent_node_id == parent_node_id) {
@@ -104,6 +112,7 @@ struct prb_t {
     int full_ndims;
     bool is_tail_present = false;
     float scale_adjust = 1.f;
+    int compensation_mask = invalid_comp_mask;
     bool req_s8s8_comp = false;
     bool req_asymmetric_comp = false;
     bool req_src_zp = false;
@@ -111,8 +120,7 @@ struct prb_t {
 };
 
 status_t prb_init(prb_t &prb, const memory_desc_t &imd,
-        const memory_desc_t &omd, const primitive_attr_t *attr,
-        bool with_groups = false);
+        const memory_desc_t &omd, const primitive_attr_t *attr);
 
 /** sorts the problem nodes so that output strides come in ascending order */
 void prb_normalize(prb_t &p);

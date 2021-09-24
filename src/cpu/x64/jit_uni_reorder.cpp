@@ -2025,40 +2025,13 @@ void jit_uni_reorder_t::pd_t::init_scratchpad() {
             compensation_reduce_size);
 }
 
-static bool is_with_groups(
-        const memory_desc_t &src_md, const memory_desc_t &dst_md) {
-    using namespace format_tag;
-    switch (src_md.ndims) {
-        case 4:
-            return memory_desc_matches_one_of_tag(src_md, goiw, wigo)
-                    && memory_desc_matches_one_of_tag(dst_md, gOIw4i16o4i,
-                            gOIw2i8o4i, gOIw4o4i, Goiw16g, Goiw8g, Goiw4g,
-                            gOwi16o, gOwI16o4i, gOIw16i16o4i);
-        case 5:
-            return memory_desc_matches_one_of_tag(src_md, goihw, hwigo)
-                    && memory_desc_matches_one_of_tag(dst_md, gOIhw4i16o4i,
-                            gOIhw2i8o4i, gOIhw4o4i, Goihw16g, Goihw8g, Goihw4g,
-                            gOwhi16o, gOhwI16o4i, gOIhw16i16o4i);
-        case 6:
-            return memory_desc_matches_one_of_tag(src_md, goidhw)
-                    && memory_desc_matches_one_of_tag(dst_md, gOIdhw4i16o4i,
-                            gOIdhw2i8o4i, gOIdhw4o4i, gOdhwI16o4i,
-                            gOIdhw16i16o4i);
-    };
-
-    return false;
-}
-
 status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         engine_t *engine, const primitive_attr_t *attr, engine_t *src_engine,
         const memory_desc_t *src_md, engine_t *dst_engine,
         const memory_desc_t *dst_md) {
     auto prb = tr::prb_t();
 
-    const bool with_groups = is_with_groups(*src_md, *dst_md);
-
-    status_t prb_init_status
-            = prb_init(prb, *src_md, *dst_md, attr, with_groups);
+    status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);
     if (prb_init_status != status::success) return prb_init_status;
 
     DEBUG({
@@ -2112,7 +2085,8 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
 
     _pd->nthr_ = nthr;
     _pd->prb_ = prb;
-    _pd->with_groups_ = with_groups;
+    _pd->with_groups_
+            = prb.compensation_mask == tr::prb_t::comp_mask_with_groups;
     if (_pd->init(engine, src_engine, dst_engine) != status::success) {
         delete _pd;
         return status::unimplemented;
