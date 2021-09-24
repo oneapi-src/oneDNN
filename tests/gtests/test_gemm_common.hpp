@@ -193,7 +193,9 @@ struct dnnl_gemm<float, float, float> {
         auto C = map_memory<float>(c_mem);
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-        static auto *st = dnnl::testing::get_threadpool();
+        static auto *st
+                = impl::testing_threadpool_utils::get_active_threadpool();
+        testing::scoped_tp_deactivation_t std;
         return static_cast<dnnl_status_t>(dnnl::threadpool_interop::sgemm(
                 p.transA, p.transB, p.M, p.N, p.K, p.alpha, A, p.lda, B, p.ldb,
                 p.beta, C, p.ldc, st));
@@ -302,9 +304,20 @@ struct dnnl_gemm<int8_t, int8_t, int32_t> {
         auto oc = map_memory<int32_t>(oc_mem);
         int8_t oa = p.igemm_params.oa();
         int8_t ob = p.igemm_params.ob();
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+        static auto *st
+                = impl::testing_threadpool_utils::get_active_threadpool();
+        testing::scoped_tp_deactivation_t std;
+        return static_cast<dnnl_status_t>(
+                dnnl::threadpool_interop::gemm_s8s8s32(p.transA, p.transB,
+                        p.igemm_params.offsetc, p.M, p.N, p.K, p.alpha, A,
+                        p.lda, oa, B, p.ldb, ob, p.beta, C, p.ldc, oc, st));
+#else
         return dnnl_gemm_s8s8s32(p.transA, p.transB, p.igemm_params.offsetc,
                 p.M, p.N, p.K, p.alpha, A, p.lda, oa, B, p.ldb, ob, p.beta, C,
                 p.ldc, oc);
+#endif
     }
 };
 
@@ -427,9 +440,19 @@ struct dnnl_gemm<uint8_t, int8_t, int32_t> {
         uint8_t oa = (uint8_t)p.igemm_params.oa();
         int8_t ob = p.igemm_params.ob();
 
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+        static auto *st
+                = impl::testing_threadpool_utils::get_active_threadpool();
+        testing::scoped_tp_deactivation_t std;
+        return static_cast<dnnl_status_t>(
+                dnnl::threadpool_interop::gemm_u8s8s32(p.transA, p.transB,
+                        p.igemm_params.offsetc, p.M, p.N, p.K, p.alpha, A,
+                        p.lda, oa, B, p.ldb, ob, p.beta, C, p.ldc, oc, st));
+#else
         return dnnl_gemm_u8s8s32(p.transA, p.transB, p.igemm_params.offsetc,
                 p.M, p.N, p.K, p.alpha, A, p.lda, oa, B, p.ldb, ob, p.beta, C,
                 p.ldc, oc);
+#endif
     }
 };
 

@@ -91,6 +91,16 @@ struct scoped_tp_activation_t {
     }
 };
 
+struct scoped_tp_deactivation_t {
+    scoped_tp_deactivation_t() {
+        impl::threadpool_utils::deactivate_threadpool();
+    }
+    ~scoped_tp_deactivation_t() {
+        // we always use the same threadpool that is returned by `get_threadpool()`
+        impl::threadpool_utils::activate_threadpool(get_threadpool());
+    }
+};
+
 } // namespace testing
 } // namespace dnnl
 #endif
