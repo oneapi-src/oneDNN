@@ -680,17 +680,23 @@ status_t fuse_post_ops(
                 }
                 pops.append_eltwise(scale, alg, alpha, beta);
             } else if (post_op->get_kind() == impl::op_kind::Add) {
-                // get mul_scale op from Add's input
-                // as Add is commutative, mul_scale op can be
+                // As Add is commutative, the base op can be
                 // 0 / 1 input of Add
                 size_t mul_scale_op_offset = 2;
                 for (size_t i = 0; i < 2; ++i) {
                     auto in_val = post_op->get_input_value(i);
                     if (in_val->has_producer()
-                            && in_val->get_producer().get_kind()
-                                    == op_kind::mul_scales) {
-                        mul_scale_op_offset = i;
-                        fuse_op_predecessor_offset = 1 - i;
+                            && (&in_val->get_producer()) == base_op) {
+                        fuse_op_predecessor_offset = i;
+
+                        // If the other in value of Add has mul_scales producer,
+                        // then this pattern is a int8 pattern
+                        auto other_in_val = post_op->get_input_value(1 - i);
+                        if (other_in_val->has_producer()
+                                && other_in_val->get_producer().get_kind()
+                                        == op_kind::mul_scales) {
+                            mul_scale_op_offset = 1 - i;
+                        }
                         break;
                     }
                 }
