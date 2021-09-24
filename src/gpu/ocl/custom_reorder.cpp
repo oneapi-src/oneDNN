@@ -16,7 +16,7 @@
 
 #include <algorithm>
 
-#include "gpu/ocl/simple_reorder.hpp"
+#include "gpu/ocl/custom_reorder.hpp"
 
 #include "common/utils.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
@@ -340,7 +340,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
             = !conf.has_padding && !conf.scale_quant && !type_s8_u8;
 
     if (is_broadcast_by_strides(src_mdw) || is_broadcast_by_strides(dst_mdw)) {
-        return reorder_kernel_t::reorder_reference;
+        return reorder_kernel_t::none;
     }
 
     if (matches_one_NxN_layout(src_mdw, dst_mdw, 16, conf.scale_mask)) {
@@ -469,10 +469,10 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         return reorder_kernel_t::reorder_alt;
     }
 
-    return reorder_kernel_t::reorder_reference;
+    return reorder_kernel_t::none;
 }
 
-void simple_reorder_t::pd_t::alt_defines(
+void custom_reorder_t::pd_t::alt_defines(
         compute::kernel_ctx_t &kernel_ctx) const {
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
@@ -497,7 +497,7 @@ void simple_reorder_t::pd_t::alt_defines(
     kernel_ctx.define_int("BLK", ndims > 3 ? sdim[last - 3] : 1);
 }
 
-void simple_reorder_t::pd_t::alt_gen() {
+void custom_reorder_t::pd_t::alt_gen() {
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
     auto sdim = src_mdw.dims();
@@ -515,7 +515,7 @@ void simple_reorder_t::pd_t::alt_gen() {
     conf.dispatch.generate_override(gws, lws);
 }
 
-status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
+status_t custom_reorder_t::pd_t::init_conf(engine_t *engine) {
     using namespace format_tag;
 
     const memory_desc_wrapper src_mdw(src_md());
@@ -556,15 +556,9 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     int temp_block = 1;
 
     const bool may_use_sg8 = compute_engine->mayiuse_sub_group(8);
-    auto fallback_to_reference = [&]() {
-        conf.implementation = reorder_reference;
-        conf.sub_group_size = 1;
-        vect_size = 1;
-        blocks[2] = blocks[3] = blocks[4] = blocks[5] = 0;
-    };
 
     switch (conf.implementation) {
-        case reorder_reference: fallback_to_reference(); break;
+        case none: return status_t::dnnl_unimplemented;
         case reorder_alt:
             // special handling with dispatcher override
             conf.sub_group_size = 16;
@@ -606,12 +600,11 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             conf.sub_group_size = vect_size;
             break;
         case vectorize_last_dim:
+            vect_dim = last;
             vect_size = (last_dim % 16 == 0) ? 16 : 8;
             if (!may_use_sg8 && vect_size == 8) {
-                fallback_to_reference();
-                break;
+                return status_t::dnnl_unimplemented;
             }
-            vect_dim = last;
             for (int dim = last - 1;
                     dim >= 0 && dim < MAX_NDIMS && temp_block == 1; dim--) {
                 if (padded_dims[dim] % 4 == 0) { temp_block = 4; }
@@ -632,8 +625,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                     = std::max(last_dim_src.size, last_dim_dst.size);
             conf.sub_group_size = max_common_size;
             if (!may_use_sg8 && conf.sub_group_size == 8) {
-                fallback_to_reference();
-                break;
+                return status_t::dnnl_unimplemented;
             }
 
             // Group size bigger than 4 would need too much private mem;
@@ -648,6 +640,10 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             conf.aux_data.vg.src_loop_dim = nextlast_dim_dst.idx;
             conf.aux_data.vg.dst_loop_dim = nextlast_dim_src.idx;
             conf.aux_data.vg.innermost_size = min_common_size;
+
+            if (!may_use_sg8 && conf.sub_group_size == 8) {
+                return status_t::dnnl_unimplemented;
+            }
 
             blocks[conf.aux_data.vg.src_loop_dim] = max_group_size;
             blocks[conf.aux_data.vg.dst_loop_dim] = max_group_size;
@@ -671,11 +667,11 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             int min_common_size
                     = std::min(last_dim_src.size, last_dim_dst.size);
             vect_size = (min_common_size % 16 == 0) ? 16 : 8;
-            if (!may_use_sg8 && vect_size == 8) {
-                fallback_to_reference();
-                break;
-            }
             vect_dim = last_dim_src.idx;
+            if (!may_use_sg8 && vect_size == 8) {
+                return status_t::dnnl_unimplemented;
+            }
+
             assert(last_dim_src.size % vect_size == 0
                     && last_dim_dst.size % vect_size == 0);
             assert(last_dim_src.idx == last_dim_dst.idx);
@@ -735,10 +731,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             break;
         case transpose8x8:
         case local8x8:
-            if (!may_use_sg8) {
-                fallback_to_reference();
-                break;
-            }
+            if (!may_use_sg8) { return status_t::dnnl_unimplemented; }
             conf.sub_group_size = 8;
             blocks[get_Nth_last_dim_or_block(dst_mdw).idx] = 8;
             vect_dim = get_Nth_last_dim_or_block(src_mdw).idx;
@@ -769,6 +762,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             auto dim_str = utils::format("D%d", i);
             if (i < dst_mdw.ndims()) {
                 int dim = padded_dims[i];
+                // if needed to align vectorized dim with vector size, pad that dim again
                 if (i == vect_dim) { dim = utils::rnd_up(dim, vect_size); }
                 conf.dispatch.define_dim(dim_str, i, dim, blocks[i]);
             } else {
@@ -789,7 +783,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     return status;
 }
 
-status_t simple_reorder_t::pd_t::init_kernel_ctx(
+status_t custom_reorder_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     using namespace format_tag;
 
@@ -815,9 +809,9 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
 
     // the 'unaligned_sizes' kernel uses the same implementation in .cl
     // the difference is in sizes of blocks[]
-    kernel_ctx.define_int("REF_REORDER",
-            conf.implementation == reorder_reference
-                    || conf.implementation == unaligned_sizes);
+    if (conf.implementation == unaligned_sizes) {
+        kernel_ctx.define_int("UNALIGNED", 1);
+    }
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
 
     kernel_ctx.define_int("PAD_FILL_ZERO", conf.has_padding);
@@ -889,6 +883,7 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     if (conf.implementation == vectorize_last_dim) {
         kernel_ctx.define_int("VECTORIZE_LAST_DIM", 1);
     }
+
     if (conf.implementation == pad_innermost) {
         kernel_ctx.define_int("PAD_INNERMOST", 1);
         kernel_ctx.define_int(
@@ -951,7 +946,7 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     return status::success;
 }
 
-void simple_reorder_t::pd_t::init_scratchpad() {
+void custom_reorder_t::pd_t::init_scratchpad() {
     if (conf.scales_num > 0) {
         auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_reorder_scales,
@@ -959,7 +954,7 @@ void simple_reorder_t::pd_t::init_scratchpad() {
     }
 }
 
-status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
+status_t custom_reorder_t::execute(const exec_ctx_t &ctx) const {
 
     status_t status = status::success;
 

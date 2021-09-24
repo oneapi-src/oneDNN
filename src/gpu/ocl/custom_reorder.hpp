@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_SIMPLE_REORDER_HPP
-#define GPU_OCL_SIMPLE_REORDER_HPP
+#ifndef GPU_OCL_CUSTOM_REORDER_HPP
+#define GPU_OCL_CUSTOM_REORDER_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
@@ -32,12 +32,14 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct simple_reorder_t : public gpu_primitive_t {
+// Collection of custom reorder implementations that are highly optimized
+// but only applicable to specific scenarios.
+struct custom_reorder_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_reorder_pd_t {
         using gpu_reorder_pd_t::gpu_reorder_pd_t;
 
-        DECLARE_COMMON_PD_T("ocl:simple:any", simple_reorder_t);
+        DECLARE_COMMON_PD_T("ocl:custom:any", custom_reorder_t);
 
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
@@ -112,7 +114,7 @@ struct simple_reorder_t : public gpu_primitive_t {
         const auto &conf = pd()->conf;
         if (conf.nelems == 0) return status::success;
 
-        create_kernel(engine, &kernel_, "simple_reorder", kernel_ctx);
+        create_kernel(engine, &kernel_, "custom_reorder", kernel_ctx);
         if (!kernel_) return status::runtime_error;
         return status::success;
     }

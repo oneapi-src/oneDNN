@@ -17,8 +17,9 @@
 #include "gpu/gpu_impl_list.hpp"
 
 #include "gpu/ocl/cross_engine_reorder.hpp"
+#include "gpu/ocl/custom_reorder.hpp"
+#include "gpu/ocl/ref_reorder.hpp"
 #include "gpu/ocl/rnn/rnn_reorders.hpp"
-#include "gpu/ocl/simple_reorder.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,7 +37,8 @@ using namespace dnnl::impl::data_type;
 const impl_list_item_t reorder_impl_list[] = {
         INSTANCE(ocl::rnn_weights_reorder_t::pd_t),
         INSTANCE(ocl::cross_engine_reorder_t::pd_t),
-        INSTANCE(ocl::simple_reorder_t::pd_t),
+        INSTANCE(ocl::custom_reorder_t::pd_t), // for specific tensor shapes
+        INSTANCE(ocl::ref_reorder_t::pd_t),    // slow but fits every use case
         nullptr,
 };
 // clang-format on

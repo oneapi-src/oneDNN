@@ -621,7 +621,7 @@ struct reduction_conf_t {
 
 // Reorder
 enum reorder_kernel_t {
-    reorder_reference,
+    none,
     dense_vector,
     unroll_16b,
     unroll_16b16c,
@@ -640,6 +640,28 @@ enum reorder_kernel_t {
     vectorize_groups,
     pad_innermost,
     xb_to_xab_xba
+};
+
+struct block_desc_t {
+    int dim_idx;
+    int blk_size;
+    int step_size;
+};
+
+#define LOOP_NEST_LEVEL 4
+struct vectorize_last_dim_t {
+    int vector_dim;
+    int rescale_coeff;
+    // composition of data within 16-item packet
+    block_desc_t src_vct[LOOP_NEST_LEVEL];
+    block_desc_t dst_vct[LOOP_NEST_LEVEL];
+    // dimensions to loop over when accessing packets defined above
+    block_desc_t src_blk[LOOP_NEST_LEVEL];
+    block_desc_t dst_blk[LOOP_NEST_LEVEL];
+    int src_blk_limits[MAX_NDIMS];
+    int dst_blk_limits[MAX_NDIMS];
+    int src_vect_limit;
+    int dst_vect_limit;
 };
 
 struct vectorize_group_t {
@@ -662,6 +684,7 @@ struct xb_to_xab_xba_t {
 union reorder_implementation {
     vectorize_group_t vg;
     xb_to_xab_xba_t ab;
+    vectorize_last_dim_t vld;
 };
 struct reorder_conf_t {
     bool has_padding;
