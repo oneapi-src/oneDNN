@@ -101,6 +101,17 @@ struct logical_tensor_wrapper {
         return false;
     }
 
+    // check if layout type is strided before calling this function.
+    bool is_stride_unknown() const {
+        if (ndims() < 0) return true;
+
+        for (int d = 0; d < ndims(); ++d) {
+            if (strides()[d] < 0) return true;
+        }
+
+        return false;
+    }
+
     // every bit should be same
     bool is_identical(const logical_tensor_wrapper &rhs) const {
         return is_identical(*(this->lt), *(rhs.lt));
