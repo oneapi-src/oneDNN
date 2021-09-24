@@ -43,9 +43,13 @@ status_t gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
 
     const dim_t MB = pd()->MB();
     const dim_t OC = pd()->OC();
+    const dim_t IC = pd()->IC();
 
     const auto &wmd = *pd()->weights_md();
+    const auto &smd = *pd()->src_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
+    // check if MB is the leading dimension
+    bool src_tr = smd.format_desc.blocking.strides[0] == 1 && IC > 1;
 
     const dim_t M = OC;
     const dim_t N = MB;
@@ -62,9 +66,9 @@ status_t gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
                     key_iprod_int_dat_in_acc_dt);
 
     const float onef = 1.0, zerof = 0.0;
-    status_t st = gemm_s8x8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef,
-            weights, wei_tr ? &K : &M, &off_a, src, &K, &off_b, &zerof, acc, &M,
-            &off_c);
+    status_t st = gemm_s8x8s32(wei_tr ? "T" : "N", src_tr ? "T" : "N", "F", &M,
+            &N, &K, &onef, weights, wei_tr ? &K : &M, &off_a, src,
+            src_tr ? &N : &K, &off_b, &zerof, acc, &M, &off_c);
     if (st != status::success) return st;
 
     if (!pd()->attr()->has_default_values() || dst_type != data_type::s32
