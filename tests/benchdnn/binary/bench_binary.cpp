@@ -39,7 +39,7 @@ void check_correctness(const settings_t &s) {
     for (auto i_inplace : s.inplace) {
         // Expect exactly two inputs for problem dimensions.
         static constexpr int n_inputs = 2;
-        if (s.vdims.size() != n_inputs) {
+        if (s.prb_vdims.n_inputs() != n_inputs) {
             fprintf(stderr,
                     "ERROR: binary driver: expect problem dimensions in format "
                     "`A0xA1x...:B0xB1x...`.\n");
@@ -65,22 +65,14 @@ void check_correctness(const settings_t &s) {
             SAFE_V(FAIL);
         }
 
-        // If src1 was provided shortened, fill the rest dimensions with `1` to
-        // match ndims for source 0 and 1, e.g. 8x3x5:8
-        auto vdims = s.vdims;
-        if (s.vdims[0].size() > s.vdims[1].size()) {
-            for (size_t d = s.vdims[1].size(); d < s.vdims[0].size(); ++d)
-                vdims[1].push_back(1);
-        }
-
         attr_t attr;
         attr.insert(i_scales);
         attr.insert(i_post_ops);
         attr.insert(i_scratchpad_mode);
         handle_legacy_attr(attr, s.attr);
 
-        const prb_t prb(
-                vdims, i_sdt, i_ddt, i_stag, i_dtag, i_alg, i_inplace, attr);
+        const prb_t prb(s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_alg,
+                i_inplace, attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -128,7 +120,7 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_multi_dims(s.vdims, argv[0]);
+            parse_prb_vdims(s.prb_vdims, argv[0]);
             check_correctness(s);
         }
     }

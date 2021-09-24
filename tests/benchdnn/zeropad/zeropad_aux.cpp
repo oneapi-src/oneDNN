@@ -27,7 +27,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
 
     if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
     if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
-    s << prb.dims;
+
+    s << static_cast<prb_dims_t>(prb);
 
     return s;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || prb.axis != def.axis[0]) s << "--axis=" << prb.axis << " ";
 
     s << prb.attr;
-    s << prb.dims;
+    s << static_cast<prb_dims_t>(prb);
 
     return s;
 }

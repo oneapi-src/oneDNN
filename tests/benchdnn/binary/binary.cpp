@@ -104,17 +104,17 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
         const dims_t &i_vdims = prb->vdims[i_input];
-        SAFE(init_md(&src_d[i_input], prb->ndims[i_input], i_vdims.data(),
+        SAFE(init_md(&src_d[i_input], prb->ndims, i_vdims.data(),
                      prb->sdt[i_input], prb->stag[i_input]),
                 CRIT);
     }
 
     dnnl_dims_t dst_dims;
-    for (int d = 0; d < prb->ndims[0]; ++d)
+    for (int d = 0; d < prb->ndims; ++d)
         dst_dims[d] = std::max(prb->vdims[0][d], prb->vdims[1][d]);
 
     dnnl_memory_desc_t dst_d;
-    SAFE(init_md(&dst_d, prb->ndims[0], dst_dims, prb->ddt, prb->dtag), WARN);
+    SAFE(init_md(&dst_d, prb->ndims, dst_dims, prb->ddt, prb->dtag), WARN);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 
@@ -122,7 +122,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             WARN);
 
     attr_args_t attr_args;
-    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims[0], dst_dims);
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -156,7 +156,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     const bool is_sum = prb->attr.post_ops.find(alg_t::SUM) >= 0;
     bool bcast_src0 = false;
-    for (int d = 0; d < prb->ndims[0]; ++d)
+    for (int d = 0; d < prb->ndims; ++d)
         if (prb->vdims[0][d] != prb->vdims[1][d] && prb->vdims[0][d] == 1) {
             bcast_src0 = true;
             break;

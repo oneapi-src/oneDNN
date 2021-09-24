@@ -68,8 +68,8 @@ void check_correctness(const settings_t &s) {
         auto &scale = attr.oscale.scale == 0 ? s.def_scale : attr_scale;
 
         for (const auto &i_scale : scale) {
-            const prb_t prb(s.dims, i_stag, i_dtag, iconf, oconf, attr, i_oflag,
-                    i_cross_engine, i_runtime_dim_mask, i_scale);
+            const prb_t prb(s.prb_dims, i_stag, i_dtag, iconf, oconf, attr,
+                    i_oflag, i_cross_engine, i_runtime_dim_mask, i_scale);
             std::stringstream ss;
             ss << prb;
             const std::string cpp_pstr = ss.str();
@@ -124,7 +124,7 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_dims(s.dims, argv[0]);
+            parse_prb_dims(s.prb_dims, argv[0]);
             check_correctness(s);
         }
     }

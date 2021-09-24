@@ -59,7 +59,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    dims_t dims;
+    prb_dims_t prb_dims;
 
     std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
     std::vector<std::string> stag {tag::abx}, dtag {tag::abx};
@@ -84,12 +84,13 @@ struct settings_t {
     void reset() { *this = settings_t(perf_template); }
 };
 
-struct prb_t {
-    prb_t(const dims_t &dims, const std::string &stag, const std::string &dtag,
-            const dt_conf_t &conf_in, const dt_conf_t &conf_out,
-            const attr_t &attr, const std::vector<flag_t> &oflag,
-            cross_engine_t cross_engine, unsigned runtime_dim_mask, float scale)
-        : dims(dims)
+struct prb_t : public prb_dims_t {
+    prb_t(const prb_dims_t &prb_dims, const std::string &stag,
+            const std::string &dtag, const dt_conf_t &conf_in,
+            const dt_conf_t &conf_out, const attr_t &attr,
+            const std::vector<flag_t> &oflag, cross_engine_t cross_engine,
+            unsigned runtime_dim_mask, float scale)
+        : prb_dims_t(prb_dims)
         , stag(stag)
         , dtag(dtag)
         , conf_in(conf_in)
@@ -97,8 +98,7 @@ struct prb_t {
         , attr(attr)
         , oflag(oflag)
         , cross_engine(cross_engine)
-        , runtime_dim_mask(runtime_dim_mask)
-        , ndims((int)dims.size()) {
+        , runtime_dim_mask(runtime_dim_mask) {
         this->attr.oscale.scale = scale;
         scales = generate_oscales();
         src_zp = generate_zero_points(DNNL_ARG_SRC);
@@ -110,7 +110,6 @@ struct prb_t {
         if (dst_zp) zfree(dst_zp);
     }
 
-    dims_t dims;
     std::string stag, dtag;
     dt_conf_t conf_in;
     dt_conf_t conf_out;
@@ -118,7 +117,6 @@ struct prb_t {
     std::vector<flag_t> oflag;
     cross_engine_t cross_engine;
     unsigned runtime_dim_mask;
-    int ndims;
     float *scales;
     int32_t *src_zp, *dst_zp;
 
@@ -140,9 +138,11 @@ struct perf_report_t : public base_perf_report_t {
         , stag_({normalize_tag(p_->stag, p_->ndims)})
         , dtag_(normalize_tag(p_->dtag, p_->ndims)) {}
 
-    void dump_desc(std::ostream &s) const override { s << p_->dims; }
+    void dump_desc(std::ostream &s) const override {
+        s << static_cast<const prb_dims_t &>(*p_);
+    }
 
-    void dump_desc_csv(std::ostream &s) const override { s << p_->dims; }
+    void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
     void dump_engine(std::ostream &s) const override {
         if (p_->cross_engine == CPU2GPU)

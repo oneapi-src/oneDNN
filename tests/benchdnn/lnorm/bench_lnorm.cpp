@@ -42,8 +42,8 @@ void check_correctness(const settings_t &s) {
         attr_t attr;
         attr.insert(i_scratchpad_mode);
 
-        const prb_t prb(s.dims, i_tag, i_stat_tag, i_dir, i_dt, i_flags, attr,
-                i_inplace, s.check_alg);
+        const prb_t prb(s.prb_dims, i_tag, i_stat_tag, i_dir, i_dt, i_flags,
+                attr, i_inplace, s.check_alg);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -91,7 +91,7 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_dims(s.dims, argv[0]);
+            parse_prb_dims(s.prb_dims, argv[0]);
             check_correctness(s);
         }
     }

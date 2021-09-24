@@ -37,7 +37,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || prb.axis != def.axis[0]) s << "--axis=" << prb.axis << " ";
 
     s << prb.attr;
-    s << prb.vdims;
+    s << static_cast<prb_vdims_t>(prb);
 
     return s;
 }

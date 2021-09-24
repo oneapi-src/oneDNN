@@ -30,8 +30,9 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
     if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
     if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
+
     s << prb.attr;
-    s << prb.vdims;
+    s << static_cast<prb_vdims_t>(prb);
 
     return s;
 }

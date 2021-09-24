@@ -87,7 +87,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || prb.eps != def.eps[0]) s << "--eps=" << prb.eps << " ";
 
     s << prb.attr;
-    s << prb.src_dims << ":" << prb.dst_dims;
+    s << static_cast<prb_vdims_t>(prb);
 
     return s;
 }

@@ -41,7 +41,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
         s << "--inplace=" << bool2str(prb.inplace) << " ";
 
     s << prb.attr;
-    s << prb.dims;
+    s << static_cast<prb_dims_t>(prb);
 
     return s;
 }

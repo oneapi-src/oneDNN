@@ -29,9 +29,37 @@ dims_t off2dims_idx(const dims_t &dims, int64_t off) {
     return dims_idx;
 }
 
-std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
-    if (!dims.empty()) s << dims[0];
-    for (size_t d = 1; d < dims.size(); ++d)
-        s << "x" << dims[d];
+std::string dims2str(const dims_t &dims) {
+    std::string s;
+    if (dims.empty()) return s;
+
+    s += std::to_string(dims[0]);
+    for (auto d = dims.begin() + 1; d != dims.end(); d++)
+        s += "x" + std::to_string(*d);
+
+    return s;
+}
+
+std::string vdims2str(const vdims_t &vdims) {
+    std::string s;
+    if (vdims.empty()) return s;
+
+    s += dims2str(vdims[0]);
+    for (auto it = vdims.begin() + 1; it != vdims.end(); it++) {
+        const auto &dims = *it;
+        s += ":" + dims2str(dims);
+    }
+    return s;
+}
+
+std::ostream &operator<<(std::ostream &s, const prb_dims_t &prb_dims) {
+    s << dims2str(prb_dims.dims);
+    if (!prb_dims.name.empty()) s << "_n" << prb_dims.name;
+    return s;
+}
+
+std::ostream &operator<<(std::ostream &s, const prb_vdims_t &prb_vdims) {
+    s << vdims2str(prb_vdims.vdims);
+    if (!prb_vdims.name.empty()) s << "_n" << prb_vdims.name;
     return s;
 }

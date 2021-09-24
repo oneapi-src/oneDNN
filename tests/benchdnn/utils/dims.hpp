@@ -19,26 +19,30 @@
 
 #include <cassert>
 #include <iostream>
+#include <string>
 #include <vector>
 
-#include "oneapi/dnnl/dnnl_types.h"
+using dims_t = std::vector<int64_t>;
+using vdims_t = std::vector<dims_t>;
 
-struct dims_t : public std::vector<int64_t> {
-    //  using vector<int64_t>::vector;
-    //  There is a bug in Intel compiler 19.0 on MacOS which prevents
-    //  using-declaration from being used here. The workaround is to introduce
-    //  constructors explicitly.
-    dims_t() = default;
-    dims_t(size_t size) : vector(size) {}
-    dims_t(size_t size, int64_t value) : vector(size, value) {}
-    dims_t(const dnnl_memory_desc_t &md) : dims_t(md.ndims) {
-        for (int d = 0; d < md.ndims; ++d)
-            this->at(d) = md.dims[d];
-    }
+struct prb_dims_t {
+    dims_t dims;
+    int ndims;
+    std::string name;
+};
+
+// Note: we could use a single type to contain both dims_t and vdims_t versions.
+// Two different types allow to separate features and members availability which
+// don't make much sense for dims_t.
+struct prb_vdims_t {
+    vdims_t vdims;
+    int ndims;
+    std::string name;
+
+    int n_inputs() const { return static_cast<int>(vdims.size()); }
 };
 
 // strides for SRC, WEI, and DST
-using strides_t = std::vector<dims_t>;
 enum {
     STRIDES_SRC = 0,
     STRIDES_WEI = 1,
@@ -47,6 +51,9 @@ enum {
 };
 
 dims_t off2dims_idx(const dims_t &dims, int64_t off);
-std::ostream &operator<<(std::ostream &s, const dims_t &dims);
+std::string dims2str(const dims_t &dims);
+std::string vdims2str(const vdims_t &vdims);
+std::ostream &operator<<(std::ostream &s, const prb_dims_t &prb_dims);
+std::ostream &operator<<(std::ostream &s, const prb_vdims_t &prb_vdims);
 
 #endif

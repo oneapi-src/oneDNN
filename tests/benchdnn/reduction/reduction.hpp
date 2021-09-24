@@ -59,7 +59,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    std::vector<dims_t> vdims;
+    prb_vdims_t prb_vdims;
     std::vector<dnnl_data_type_t> sdt {dnnl_f32};
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::string> stag {tag::abx};
@@ -79,14 +79,14 @@ struct settings_t {
     void reset() { *this = settings_t(perf_template); }
 };
 
-struct prb_t {
-    prb_t(const std::vector<dims_t> &vdims, dnnl_data_type_t sdt,
+struct prb_t : public prb_vdims_t {
+    prb_t(const prb_vdims_t &prb_vdims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::string &stag,
             const std::string &dtag, alg_t alg, float p, float eps,
             const attr_t &attr)
-        : src_dims(vdims[0])
-        , dst_dims(vdims[1])
-        , ndims(static_cast<int>(vdims[0].size()))
+        : prb_vdims_t(prb_vdims)
+        , src_dims(prb_vdims.vdims[0])
+        , dst_dims(prb_vdims.vdims[1])
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
@@ -97,7 +97,6 @@ struct prb_t {
         , attr(attr) {}
 
     dims_t src_dims, dst_dims;
-    int ndims;
     dnnl_data_type_t sdt, ddt;
     std::string stag, dtag;
     alg_t alg;
@@ -118,8 +117,10 @@ struct perf_report_t : public base_perf_report_t {
     void dump_alg(std::ostream &s) const override { s << alg2str(prb_->alg); }
 
     void dump_desc(std::ostream &s) const override {
-        s << prb_->src_dims << ":" << prb_->dst_dims;
+        s << static_cast<const prb_vdims_t &>(*prb_);
     }
+
+    void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
     const attr_t *attr() const override { return &prb_->attr; }
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
         s << "--inplace=" << bool2str(prb.inplace) << " ";
 
     s << prb.attr;
-    s << prb.dims;
+    s << static_cast<prb_dims_t>(prb);
 
     return s;
 }

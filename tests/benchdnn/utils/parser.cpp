@@ -160,12 +160,12 @@ bool parse_skip_nonlinear(std::vector<bool> &skip,
     return parse_vector_option(skip, def_skip, str2bool, str, option_name);
 }
 
-bool parse_strides(std::vector<strides_t> &strides,
-        const std::vector<strides_t> &def_strides, const char *str,
+bool parse_strides(std::vector<vdims_t> &strides,
+        const std::vector<vdims_t> &def_strides, const char *str,
         const std::string &option_name /* = "strides"*/) {
-    auto str2strides = [&](const char *str) -> strides_t {
-        strides_t strides(STRIDES_SIZE);
-        parse_multi_dims(strides, str);
+    auto str2strides = [&](const char *str) -> vdims_t {
+        vdims_t strides(STRIDES_SIZE);
+        parse_multivector_str(strides, vdims_t(), atoi, str, ':', 'x');
         return strides;
     };
     return parse_vector_option(
@@ -215,13 +215,37 @@ bool parse_batch(const bench_f bench, const char *str,
     return false;
 }
 
-void parse_dims(dims_t &dims, const char *str) {
-    parse_vector_str(dims, dims_t(), atoi, str, 'x');
+// prb_dims_t type
+void parse_prb_vdims(prb_vdims_t &prb_vdims, const std::string &str) {
+    size_t start_pos = 0;
+    // `n` is an indicator for a name supplied with dims_t object.
+    std::string vdims_str = get_substr(str, start_pos, 'n');
+    parse_multivector_str(
+            prb_vdims.vdims, {dims_t()}, atoi, vdims_str, ':', 'x');
+
+    prb_vdims.ndims = static_cast<int>(prb_vdims.vdims[0].size());
+    // If second and consecutive inputs are provided with less dimensions
+    // (ndims0 > ndims1), then fill these tensors with ones to match ndims,
+    // e.g., 8x3x5:8 -> 8x3x5:8x1x1
+    // We put this implicit broadcast feature on parser since `ndims` would be
+    // set next and can't be updated by driver, but `ndims` mismatch triggers
+    // the library `invalid_arguments` error.
+    for (int i = 1; i < prb_vdims.n_inputs(); i++)
+        if (prb_vdims.ndims > static_cast<int>(prb_vdims.vdims[i].size()))
+            prb_vdims.vdims[i].resize(prb_vdims.ndims, 1);
+
+    if (start_pos != eol) prb_vdims.name = str.substr(start_pos);
 }
 
-void parse_multi_dims(std::vector<dims_t> &dims, const char *str) {
-    std::vector<dims_t> def {dims_t()};
-    parse_multivector_str(dims, def, atoi, str, ':', 'x');
+void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str) {
+    size_t start_pos = 0;
+    // `n` is an indicator for a name supplied with dims_t object.
+    std::string dims_str = get_substr(str, start_pos, 'n');
+    parse_vector_str(prb_dims.dims, dims_t(), atoi, dims_str, 'x');
+
+    prb_dims.ndims = static_cast<int>(prb_dims.dims.size());
+
+    if (start_pos != eol) prb_dims.name = str.substr(start_pos);
 }
 
 // service functions

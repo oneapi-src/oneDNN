@@ -39,7 +39,7 @@ static inline std::string get_pattern(const std::string &option_name) {
 
 template <typename T, typename F>
 static bool parse_vector_str(T &vec, const T &def, F process_func,
-        const char *str, char delimeter = ',') {
+        const std::string &str, char delimeter = ',') {
     const std::string s = str;
     if (s.empty()) return vec = def, true;
 
@@ -54,7 +54,7 @@ static bool parse_vector_str(T &vec, const T &def, F process_func,
 
 template <typename T, typename F>
 static bool parse_multivector_str(std::vector<T> &vec,
-        const std::vector<T> &def, F process_func, const char *str,
+        const std::vector<T> &def, F process_func, const std::string &str,
         char vector_delim = ',', char element_delim = ':') {
     auto process_subword = [&](const char *word) {
         T v, empty_def_v; // defualt value is not expected to be set here
@@ -186,8 +186,8 @@ bool parse_skip_nonlinear(std::vector<bool> &skip,
         const std::vector<bool> &def_skip, const char *str,
         const std::string &option_name = "skip-nonlinear");
 
-bool parse_strides(std::vector<strides_t> &strides,
-        const std::vector<strides_t> &def_strides, const char *str,
+bool parse_strides(std::vector<vdims_t> &strides,
+        const std::vector<vdims_t> &def_strides, const char *str,
         const std::string &option_name = "strides");
 
 bool parse_trivial_strides(std::vector<bool> &ts,
@@ -206,10 +206,9 @@ bool parse_perf_template(const char *&pt, const char *pt_def,
 bool parse_batch(const bench_f bench, const char *str,
         const std::string &option_name = "batch");
 
-// dim_t type
-void parse_dims(dims_t &dims, const char *str);
-
-void parse_multi_dims(std::vector<dims_t> &dims, const char *str);
+// prb_dims_t type
+void parse_prb_vdims(prb_vdims_t &prb_vdims, const std::string &str);
+void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str);
 
 // service functions
 bool parse_bench_settings(const char *str);

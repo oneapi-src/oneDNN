@@ -133,7 +133,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
         s << "--runtime-dim-mask=" << prb.runtime_dim_mask << " ";
 
     s << prb.attr;
-    s << prb.dims;
+    s << static_cast<prb_dims_t>(prb);
 
     return s;
 }

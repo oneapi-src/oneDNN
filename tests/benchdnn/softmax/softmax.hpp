@@ -42,7 +42,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    dims_t dims;
+    prb_dims_t prb_dims;
 
     std::vector<dir_t> dir {FWD_D};
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
@@ -64,11 +64,11 @@ struct settings_t {
     void reset() { *this = settings_t(perf_template); }
 };
 
-struct prb_t {
-    prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
+struct prb_t : public prb_dims_t {
+    prb_t(const prb_dims_t &prb_dims, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, alg_t alg, int axis, bool inplace,
             const attr_t &attr, int64_t mb = 0)
-        : dims(dims)
+        : prb_dims_t(prb_dims)
         , dir(dir)
         , dt(dt)
         , tag(tag)
@@ -76,13 +76,11 @@ struct prb_t {
         , axis(axis)
         , inplace(inplace)
         , attr(attr)
-        , user_mb(mb)
-        , ndims((int)dims.size()) {
-        if (mb) this->dims[0] = mb;
+        , user_mb(mb) {
+        if (mb) dims[0] = mb;
     }
     ~prb_t() {}
 
-    dims_t dims;
     dir_t dir;
     dnnl_data_type_t dt;
     std::string tag;
@@ -91,7 +89,6 @@ struct prb_t {
     bool inplace;
     attr_t attr;
     int64_t user_mb;
-    int ndims;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
@@ -103,9 +100,11 @@ struct perf_report_t : public base_perf_report_t {
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
 
-    void dump_desc(std::ostream &s) const override { s << p_->dims; }
+    void dump_desc(std::ostream &s) const override {
+        s << static_cast<const prb_dims_t &>(*p_);
+    }
 
-    void dump_desc_csv(std::ostream &s) const override { s << p_->dims; }
+    void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
     const int *axis() const override { return &p_->axis; }
     const dir_t *dir() const override { return &p_->dir; }
