@@ -55,7 +55,10 @@ status_t gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
     const dim_t K = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->weights_md();
+    const auto &smd = *pd()->src_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
+    // check if MB is the leading dimension
+    bool src_tr = smd.format_desc.blocking.strides[0] == 1 && K > 1;
 
     acc_data_t *acc = pd()->dst_is_acc_
             ? (acc_data_t *)dst
@@ -63,8 +66,9 @@ status_t gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
                     key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0;
-    status_t st = gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K, &alpha,
-            weights, wei_tr ? &K : &M, src, &K, &beta_, acc, &M);
+    status_t st = gemm_bf16bf16f32(wei_tr ? "T" : "N", src_tr ? "T" : "N", &M,
+            &N, &K, &alpha, weights, wei_tr ? &K : &M, src, src_tr ? &N : &K,
+            &beta_, acc, &M);
     if (st != status::success) return st;
 
     const float *scales = pd()->attr()->output_scales_.scales_;
@@ -99,7 +103,10 @@ gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::execute_backward_data(
     const dim_t K = pd()->OC();
 
     const auto &wmd = *pd()->weights_md();
+    const auto &smd = *pd()->diff_src_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
+    // check if MB is the leading dimension
+    bool dsrc_tr = smd.format_desc.blocking.strides[0] == 1 && M > 1;
 
     acc_data_t *acc = pd()->diff_src_is_acc_
             ? (acc_data_t *)diff_src
@@ -107,8 +114,13 @@ gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::execute_backward_data(
                     key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0, beta = 0.0;
-    status_t st = gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K, &alpha,
-            weights, wei_tr ? &K : &M, diff_dst, &K, &beta, acc, &M);
+    status_t st = status::success;
+    if (dsrc_tr)
+        st = gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &K, &M, &N, &alpha,
+                diff_dst, &K, weights, wei_tr ? &K : &M, &beta, acc, &N);
+    else
+        st = gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K, &alpha,
+                weights, wei_tr ? &K : &M, diff_dst, &K, &beta, acc, &M);
     if (st != status::success) return st;
 
     if (!pd()->diff_src_is_acc_) {
@@ -140,11 +152,10 @@ status_t gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
     const dim_t IC = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->diff_weights_md();
+    const auto &smd = *pd()->src_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
-
-    const dim_t M = wei_tr ? OC : IC;
-    const dim_t N = wei_tr ? IC : OC;
-    const dim_t K = MB;
+    // check if MB is the leading dimension
+    bool src_tr = smd.format_desc.blocking.strides[0] == 1 && IC > 1;
 
     acc_data_t *acc = pd()->diff_wei_is_acc_
             ? (acc_data_t *)diff_weights
@@ -152,16 +163,21 @@ status_t gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
                     key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0, beta = 0.0;
-    status_t st = gemm_bf16bf16f32("N", "T", &M, &N, &K, &alpha,
-            wei_tr ? diff_dst : src, &M, wei_tr ? src : diff_dst, &N, &beta,
-            acc, &M);
+    status_t st = status::success;
+    if (wei_tr)
+        st = gemm_bf16bf16f32("N", src_tr ? "N" : "T", &OC, &IC, &MB, &alpha,
+                diff_dst, &OC, src, src_tr ? &MB : &IC, &beta, acc, &OC);
+    else
+        st = gemm_bf16bf16f32("N", src_tr ? "N" : "T", &IC, &OC, &MB, &alpha,
+                src, src_tr ? &MB : &IC, diff_dst, &OC, &beta, acc, &IC);
+
     if (st != status::success) return st;
 
     if (!pd()->diff_wei_is_acc_) {
         parallel(0, [&](int ithr, int nthr) {
             constexpr size_t blksize = 64;
             size_t start = 0, end = 0;
-            size_t work_size = M * N;
+            size_t work_size = OC * IC;
             balance211(
                     utils::div_up(work_size, blksize), nthr, ithr, start, end);
             start = std::min(work_size, start * blksize);

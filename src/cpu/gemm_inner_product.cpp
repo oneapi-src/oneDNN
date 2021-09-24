@@ -46,14 +46,18 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
     const dim_t IC = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->weights_md();
+    const auto &smd = *pd()->src_md();
     // check if OC is NOT the leading dimension
     bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
+    // check if MB is the leading dimension
+    bool src_tr = smd.format_desc.blocking.strides[0] == 1 && IC > 1;
 
     const float *scales = pd()->attr()->output_scales_.scales_;
 
     float alpha = 1.;
-    status_t st = extended_sgemm(wei_tr ? "T" : "N", "N", &OC, &MB, &IC, &alpha,
-            weights, wei_tr ? &IC : &OC, src, &IC, &beta_, dst, &OC,
+    status_t st = extended_sgemm(wei_tr ? "T" : "N", src_tr ? "T" : "N", &OC,
+            &MB, &IC, &alpha, weights, wei_tr ? &IC : &OC, src,
+            src_tr ? &MB : &IC, &beta_, dst, &OC,
             postops_in_ip_ ? nullptr : bias);
 
     if (st != status::success) return st;
@@ -87,11 +91,21 @@ status_t gemm_inner_product_bwd_data_t<data_type>::execute_backward_data(
     const dim_t IC = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->weights_md();
+    const auto &smd = *pd()->diff_src_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
+    // check if MB is the leading dimension
+    bool dsrc_tr = smd.format_desc.blocking.strides[0] == 1 && IC > 1;
 
     float alpha = 1.0, beta = 0.0;
-    status_t st = extended_sgemm(wei_tr ? "T" : "N", "N", &IC, &MB, &OC, &alpha,
-            weights, wei_tr ? &OC : &IC, diff_dst, &OC, &beta, diff_src, &IC);
+    status_t st = status::success;
+    if (dsrc_tr)
+        st = extended_sgemm(wei_tr ? "T" : "N", "N", &OC, &IC, &MB, &alpha,
+                diff_dst, &OC, weights, wei_tr ? &OC : &IC, &beta, diff_src,
+                &MB);
+    else
+        st = extended_sgemm(wei_tr ? "T" : "N", "N", &IC, &MB, &OC, &alpha,
+                weights, wei_tr ? &OC : &IC, diff_dst, &OC, &beta, diff_src,
+                &IC);
 
     return st;
 }
@@ -114,16 +128,20 @@ status_t gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     const dim_t IC = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->diff_weights_md();
+    const auto &smd = *pd()->src_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
+    // check if MB is the leading dimension
+    bool src_tr = smd.format_desc.blocking.strides[0] == 1 && IC > 1;
 
     float alpha = 1.0, beta = 0.0;
-    status_t st;
+    status_t st = status::success;
     if (wei_tr)
-        st = extended_sgemm("N", "T", &OC, &IC, &MB, &alpha, diff_dst, &OC, src,
-                &IC, &beta, diff_weights, &OC);
+        st = extended_sgemm("N", src_tr ? "N" : "T", &OC, &IC, &MB, &alpha,
+                diff_dst, &OC, src, src_tr ? &MB : &IC, &beta, diff_weights,
+                &OC);
     else
-        st = extended_sgemm("N", "T", &IC, &OC, &MB, &alpha, src, &IC, diff_dst,
-                &OC, &beta, diff_weights, &IC);
+        st = extended_sgemm("N", src_tr ? "N" : "T", &IC, &OC, &MB, &alpha, src,
+                src_tr ? &MB : &IC, diff_dst, &OC, &beta, diff_weights, &IC);
 
     if (st != status::success) return st;
 
