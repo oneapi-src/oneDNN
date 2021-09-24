@@ -344,34 +344,20 @@ inline void inv_dst_off_f(const prb_t *prb, int64_t off, int64_t &mb,
 
 float oscale(const prb_t *prb, int oc);
 
-void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t prim_ref,
-        dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po,
-        const std::vector<dnn_mem_t> &prelu_po, dnn_mem_t &dst_m);
-void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t prim_ref,
-        dnn_mem_t &diff_src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m);
-void compute_ref_bwd_w(const prb_t *prb, dnnl_primitive_t prim_ref,
-        dnn_mem_t &src_m, dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m,
-        dnn_mem_t &diff_dst_m);
+void compute_ref_fwd(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+void compute_ref_bwd_d(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+void compute_ref_bwd_w(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
 
-void compute_ref_direct_fwd(const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po,
-        const std::vector<dnn_mem_t> &prelu_po, dnn_mem_t &dst_m);
-void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m);
-void compute_ref_direct_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
-
-void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &bia_m, const std::vector<dnn_mem_t> &binary_po,
-        dnn_mem_t &dst_m);
-void compute_wino_ref_bwd_d(const prb_t *prb, dnn_mem_t &idiff_src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m);
-void compute_wino_ref_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
+void compute_ref_direct_fwd(const prb_t *prb, const args_t &args);
+void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args);
+void compute_ref_bwd_weights(const prb_t *prb, const args_t &args);
+void compute_ref_bwd_bias(const prb_t *prb, const args_t &args);
+void compute_wino_ref_fwd(const prb_t *prb, const args_t &args);
+void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args);
+void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args);
 
 int compare_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *res, bool final_compare = false);
@@ -397,12 +383,6 @@ int fill_dst(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
 double get_trust_nz_level(
         const prb_t *prb, data_kind_t kind, bool final_compare);
-
-void compute_ref_bwd_bias(
-        const prb_t *prb, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
-void compute_bias_fwd(const prb_t *prb, dnn_mem_t &bia_m, dnn_mem_t &dst_m);
-void compute_ref_bwd_weights(const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_dst_m);
 
 } // namespace conv
 

@@ -100,9 +100,11 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status = dnnl_success;
-    init_status = dnnl_primitive_desc_create(
+    dnnl_status_t init_status = dnnl_primitive_desc_create(
             &mpd, &op_d, dnnl_attr, engine, nullptr);
+
+    if (!res) return OK;
+
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
     else
@@ -120,6 +122,39 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
 
     SAFE(check_pd_w_and_wo_attr(res, prb->attr, op_d), WARN);
 
+    return OK;
+}
+
+int init_prim_ref(
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref, const prb_t *prb) {
+    if (!(is_bench_mode(CORR) && is_gpu() && fast_ref_gpu)) return OK;
+
+    // Create a new copy of prb to avoid potentially corrupting the test by
+    // modifying prb in place.
+    const auto cpu_bia_dt = prb->bia_dt == dnnl_data_type_undef
+            ? dnnl_data_type_undef
+            : dnnl_f32;
+    const auto cpu_bia_mask
+            = prb->bia_dt == dnnl_data_type_undef ? 0 : prb->bia_mask;
+    auto cpu_attr = prb->attr;
+    update_cpu_ref_attrs(cpu_attr);
+    prb_t prb_cpu {*prb, conf_f32, tag::abx, tag::abx, tag::abx,
+            {strides_t(STRIDES_SIZE)}, false, false, false, false, cpu_bia_dt,
+            cpu_bia_mask, {0, 0, 0}, cpu_attr};
+
+    dnnl_primitive_desc_t pd_ref_ {};
+    SAFE(init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, FLAG_FWD,
+                 nullptr),
+            WARN);
+    auto pd_ref = make_benchdnn_dnnl_wrapper(pd_ref_);
+
+    dnnl_primitive_t prim_ref_ {};
+    if (pd_ref) {
+        DNN_SAFE(dnnl_primitive_create(&prim_ref_, pd_ref), WARN);
+        BENCHDNN_PRINT(
+                5, "%s\n", "benchdnn: use CPU primitive as the reference");
+    }
+    prim_ref.reset(prim_ref_);
     return OK;
 }
 
@@ -190,23 +225,17 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(
-            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, FWD_D, res);
+            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->bia_dt, prb->cfg[DST].dt},
+            FWD_D, res);
+    if (res->state == SKIPPED) return;
+
+    check_sum_post_ops(prb->attr, res, prb->cfg[DST].dt);
     if (res->state == SKIPPED) return;
 
     // zero points for non-integral data type does not make sense
     if (!prb->attr.zero_points.is_def() && prb->cfg[WEI].dt != dnnl_s8) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
-    }
-
-    // skip gpu testing for zero points policy other than COMMON
-    if (is_gpu()) {
-        if (prb->attr.zero_points.get(DNNL_ARG_SRC).policy != policy_t::COMMON
-                || prb->attr.zero_points.get(DNNL_ARG_DST).policy
-                        != policy_t::COMMON) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
     }
 
     auto src_rt_mask = prb->src_runtime_dim_mask();
@@ -264,10 +293,66 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         }
 
         const bool oscale_ok = prb->attr.oscale.policy == policy_t::COMMON;
-
         const bool zp_ok = prb->attr.zero_points.is_def();
+        const bool dims_ok = prb->ndims <= 3;
+        const bool batch_bcast_ok = IMPLICATION(
+                prb->ndims == 3, prb->src_dims()[0] == prb->weights_dims()[0]);
 
-        if (!post_ops_ok || !oscale_ok || !zp_ok) {
+        if (!post_ops_ok || !oscale_ok || !zp_ok || !dims_ok
+                || !batch_bcast_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+
+    // skip gpu testing for zero points policy other than COMMON
+    if (is_gpu()) {
+        if (prb->attr.zero_points.get(DNNL_ARG_SRC).policy != policy_t::COMMON
+                || prb->attr.zero_points.get(DNNL_ARG_DST).policy
+                        != policy_t::COMMON) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+
+    // skip gpu testing for non-default sum_dt
+    if (is_gpu()) {
+        const auto &po = prb->attr.post_ops;
+        const int sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
+        if (sum_idx != -1 && po.entry[sum_idx].sum.dt != dnnl_data_type_undef) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+
+    // skip gpu testing for int8 with bf16 dst_dt with:
+    // * dst zero-point
+    // * any runtime dimensions
+    // * batched problem
+    if (is_gpu()) {
+        const bool is_s8_wei = prb->cfg[WEI].dt == dnnl_s8;
+        const bool is_bf16_dst = prb->cfg[DST].dt == dnnl_bf16;
+        const bool rt_dims_are_none = src_rt_mask.none() && wei_rt_mask.none()
+                && dst_rt_mask.none();
+        if (is_s8_wei && is_bf16_dst
+                && (!prb->attr.zero_points.get(DNNL_ARG_DST).is_def()
+                        || !rt_dims_are_none || prb->ndims > 2)) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+
+    // skip bf16 bias for:
+    // * any batch and non-bf16 config
+    // * 2+D batch and any config
+    if (is_gpu()) {
+        const bool is_bf16 = prb->cfg[SRC].dt == dnnl_bf16
+                && prb->cfg[WEI].dt == dnnl_bf16
+                && (prb->cfg[DST].dt == dnnl_bf16
+                        || prb->cfg[DST].dt == dnnl_f32);
+        if (prb->bia_dt == dnnl_bf16
+                && ((prb->ndims > 2 && !is_bf16)
+                        || (prb->ndims > 3 && is_bf16))) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -278,7 +363,6 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb->attr, res, prb->cfg[DST].dt);
     if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
@@ -340,7 +424,12 @@ int doit(const prb_t *prb, res_t *res) {
 
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
+    // Use CPU prim as the reference in GPU testing to reduce testing time.
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim_ref;
+    SAFE(init_prim_ref(prim_ref, prb), WARN);
+
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = prim_ref ? get_cpu_engine() : get_test_engine();
 
     dnn_mem_t src_dt(src_md, test_engine);
     dnn_mem_t wei_dt(wei_md, test_engine);
@@ -351,12 +440,13 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     const auto fp = dnnl_f32;
-    dnn_mem_t src_fp(prb->ndims, src_md.dims, fp, nullptr, test_engine);
-    dnn_mem_t wei_fp(prb->ndims, wei_md.dims, fp, nullptr, test_engine);
-    dnn_mem_t dst_fp(prb->ndims, dst_md.dims, fp, nullptr, test_engine);
+    dnn_mem_t src_fp(src_md, fp, tag::abx, ref_engine);
+    dnn_mem_t wei_fp(wei_md, fp, tag::abx, ref_engine);
+    dnn_mem_t dst_fp(dst_md, fp, tag::abx, ref_engine);
     dnn_mem_t bia_fp;
     if (prb->bia_dt != dnnl_data_type_undef)
-        bia_fp = dnn_mem_t(prb->ndims, bia_md.dims, fp, nullptr, test_engine);
+        bia_fp = dnn_mem_t(bia_md, fp, tag::abx, ref_engine);
+    dnn_mem_t scratchpad_fp(scratchpad_md, ref_engine);
 
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);
@@ -383,10 +473,10 @@ int doit(const prb_t *prb, res_t *res) {
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
     SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
-                 binary_po_fp, false, true),
+                 binary_po_fp, ref_engine, false, true),
             WARN);
 
-    args_t args;
+    args_t args, ref_args;
 
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_WEIGHTS, wei_dt);
@@ -402,8 +492,15 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args), WARN);
 
     if (is_bench_mode(CORR)) {
-        compute_ref(
-                test_engine, prb, src_fp, wei_fp, bia_fp, binary_po_fp, dst_fp);
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+        if (prb->bia_dt != dnnl_data_type_undef)
+            ref_args.set(DNNL_ARG_BIAS, bia_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
+        ref_args.set(binary_po_args, binary_po_fp);
+
+        compute_ref(prb, prim_ref, ref_args);
         compare::compare_t cmp;
         cmp.set_threshold(prb->cfg[DST].eps);
         cmp.set_data_kind(DST);

@@ -81,15 +81,21 @@ int fill_data(data_kind_t kind, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-int setup_prelu_po(const_dnnl_primitive_desc_t pd,
-        const dnnl_memory_desc_t &dst_md, std::vector<int> &args,
-        std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem) {
+int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
+        std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem,
+        const dnnl_engine_t &ref_engine) {
     const_dnnl_primitive_attr_t const_attr;
     DNN_SAFE(dnnl_primitive_desc_get_attr(pd, &const_attr), WARN);
 
     const_dnnl_post_ops_t const_attr_po;
     DNN_SAFE(
             dnnl_primitive_attr_get_post_ops(const_attr, &const_attr_po), WARN);
+
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(pd, dnnl_query_exec_arg_md, index);
+    };
+
+    const auto &dst_md = q(DNNL_ARG_DST);
 
     const auto po_len = dnnl_post_ops_len(const_attr_po);
     for (int idx = 0; idx < po_len; ++idx) {
@@ -108,8 +114,7 @@ int setup_prelu_po(const_dnnl_primitive_desc_t pd,
 
         // Following call can not be executed if po_md has runtime dimension due
         // to undefined size.
-        ref_mem.emplace_back(
-                ndims, dims, dnnl_f32, tag::abx, get_test_engine());
+        ref_mem.emplace_back(ndims, dims, dnnl_f32, tag::abx, ref_engine);
         prim_mem.emplace_back(
                 ndims, dims, dnnl_f32, tag::axb, get_test_engine());
         args.push_back(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_WEIGHTS);

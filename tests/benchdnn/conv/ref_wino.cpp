@@ -286,9 +286,11 @@ void free_scratchpad(scratchpad_t *sp) {
     if (sp->_m_ptr != nullptr) zfree(sp->_m_ptr);
 }
 
-void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &bia_m, const std::vector<dnn_mem_t> &binary_po,
-        dnn_mem_t &dst_m) {
+void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &bia_m = args.find(DNNL_ARG_BIAS);
+    const dnn_mem_t &dst_m = args.find(DNNL_ARG_DST);
     scratchpad_t sp {};
     SAFE_V(init_scratchpad(prb, sp));
 
@@ -363,7 +365,7 @@ void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                 (float *)&(M(j, k, 0, 0, 0, 0)), p_dim);
     });
 
-    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
+    auto v_po_masks = prb->attr.post_ops.get_po_masks();
     dnnl::impl::parallel_nd(prb->oc, prb->mb, sp.h_tiles, sp.w_tiles,
             [&](int64_t oc, int64_t img, int64_t hfm, int64_t wfm) {
                 float O[4][4] = {};
@@ -391,15 +393,10 @@ void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                         const size_t bia_off = bia_off_f(prb, 0, oc);
                         conv_res += with_bias ? ((float *)bia_m)[bia_off] : 0.f;
 
-                        std::vector<float> v_binary_vals(v_bin_po_mask.size());
-                        for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-                            const auto bin_po_offset = dst_m.get_scale_idx(
-                                    dst_off, v_bin_po_mask[d]);
-                            const float binary_val
-                                    = binary_po[d].get_elem(bin_po_offset);
-                            v_binary_vals[d] = binary_val;
-                        }
-                        maybe_post_ops(prb->attr, conv_res, dst, v_binary_vals);
+                        const auto v_po_vals = prepare_po_vals(
+                                dst_m, args, v_po_masks, dst_off);
+
+                        maybe_post_ops(prb->attr, conv_res, dst, v_po_vals);
 
                         dst = conv_res;
                     }
@@ -408,8 +405,11 @@ void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
     free_scratchpad(&sp);
 }
 
-void compute_wino_ref_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m) {
+void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &diff_src_m = args.find(DNNL_ARG_DIFF_SRC);
+    const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &bia_m = args.find(DNNL_ARG_BIAS);
+    const dnn_mem_t &diff_dst_m = args.find(DNNL_ARG_DIFF_DST);
     scratchpad_t sp {};
     SAFE_V(init_scratchpad(prb, sp));
 
@@ -517,8 +517,10 @@ void compute_wino_ref_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
     free_scratchpad(&sp);
 }
 
-void compute_wino_ref_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m) {
+void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &diff_wei_m = args.find(DNNL_ARG_DIFF_WEIGHTS);
+    const dnn_mem_t &diff_dst_m = args.find(DNNL_ARG_DIFF_DST);
     scratchpad_t sp {};
     SAFE_V(init_scratchpad(prb, sp));
 
@@ -618,7 +620,7 @@ void compute_wino_ref_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
 
     free_scratchpad(&sp);
 
-    if (prb->dir & FLAG_BIA) compute_ref_bwd_bias(prb, diff_bia_m, diff_dst_m);
+    if (prb->dir & FLAG_BIA) compute_ref_bwd_bias(prb, args);
 }
 
 } // namespace conv

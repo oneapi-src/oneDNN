@@ -20,9 +20,11 @@
 
 namespace matmul {
 
-void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m) {
+void compute_ref_matmul(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &bia_m = args.find(DNNL_ARG_BIAS);
+    const dnn_mem_t &dst_m = args.find(DNNL_ARG_DST);
     const int64_t M = prb->m;
     const int64_t N = prb->n;
     const int64_t K = prb->k;
@@ -31,7 +33,7 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
 
     const int wei_zero_point = prb->attr.zero_points[DNNL_ARG_WEIGHTS];
 
-    dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, tag::undef, engine_tgt);
+    dnn_mem_t dst_tmp(dst_m, dnnl_f32, tag::undef, dst_m.engine());
 
     const auto src_broadcast_mask = prb->src_broadcast_mask();
     const auto wei_broadcast_mask = prb->weights_broadcast_mask();
@@ -53,7 +55,7 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
         ((float *)dst_tmp)[dst_off_f(prb, mb, m, n)] = dst;
     });
 
-    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
+    auto v_po_masks = prb->attr.post_ops.get_po_masks();
     const auto bias_broadcast_mask = prb->bias_broadcast_mask();
     dnnl::impl::parallel_nd(MB, M, N, [&](int64_t mb, int64_t m, int64_t n) {
         size_t dst_off = dst_off_f(prb, mb, m, n);
@@ -67,18 +69,24 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
         }
         maybe_oscale(prb->attr, tmp, prb->scales, n);
 
-        std::vector<float> v_binary_vals(v_bin_po_mask.size());
-        for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-            const auto bin_po_offset
-                    = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
-            const float binary_val = binary_po[d].get_elem(bin_po_offset);
-            v_binary_vals[d] = binary_val;
-        }
-        maybe_post_ops(prb->attr, tmp, dst, v_binary_vals);
+        const auto v_po_vals
+                = prepare_po_vals(dst_m, args, v_po_masks, dst_off);
+
+        maybe_post_ops(prb->attr, tmp, dst, v_po_vals);
 
         maybe_zero_point(prb->attr, tmp, prb->dst_zp, n, DNNL_ARG_DST, true);
         dst = tmp;
     });
+}
+
+void compute_ref(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+    if (prim_ref) {
+        SAFE_V(execute_and_wait(prim_ref, args));
+        return;
+    }
+
+    compute_ref_matmul(prb, args);
 }
 
 } // namespace matmul

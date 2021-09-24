@@ -340,8 +340,10 @@ struct attr_t {
         int binary_index() const;
         int prelu_index() const;
 
+        std::vector<std::pair<int, int>> get_po_masks() const;
+
+        // TODO: remove
         std::vector<int> get_binary_po_masks() const;
-        std::vector<int> get_prelu_po_masks() const;
 
         std::vector<entry_t> entry;
     };
@@ -520,15 +522,15 @@ float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta);
 float compute_binary(attr_t::post_ops_t::kind_t kind, float src0, float src1);
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
-        const std::vector<float> &v_binary_vals,
-        const std::vector<float> &v_prelu_weights);
+        const std::vector<float> &v_po_vals);
 inline void maybe_post_ops(
         const attr_t &attr, float &val, float sum_val = 0.f) {
-    maybe_post_ops(
-            attr, val, sum_val, std::vector<float>(), std::vector<float>());
+    maybe_post_ops(attr, val, sum_val, std::vector<float>());
 }
-inline void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
-        const std::vector<float> &v_binary_vals) {
-    maybe_post_ops(attr, val, sum_val, v_binary_vals, std::vector<float>());
-}
+
+// When using fast-ref-gpu option, reference expects everything to be in f32
+// data type and also no additional memories coming from runtime attributes.
+// That's why we update all data types to f32 and remove all runtime arguments
+// to makes them constant when possible.
+void update_cpu_ref_attrs(attr_t &attr, dnnl_data_type_t new_dt = dnnl_f32);
 #endif

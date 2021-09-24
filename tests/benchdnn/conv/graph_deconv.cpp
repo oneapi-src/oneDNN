@@ -179,11 +179,23 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    args_t ref_args;
 
     if (is_bench_mode(CORR)) {
         const auto fp = dnnl_f32;
         const auto src_tag = tag::abx;
         dnnl_primitive_t c_ref = nullptr;
+        ref_args.set(DNNL_ARG_DIFF_SRC, dst_fp);
+        ref_args.set(DNNL_ARG_WEIGHTS, wei_tr_fp);
+        ref_args.set(DNNL_ARG_DIFF_DST, src_fp);
+        ref_args.set(DNNL_ARG_BIAS, bia_fp);
+
+        std::vector<int> binary_po_args;
+        for (int idx = 0; idx < binary_po_fp.size(); idx++) {
+            binary_po_args.emplace_back(
+                    (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+        }
+        ref_args.set(binary_po_args, binary_po_fp);
 
         const auto &dnnl_test_engine = ::get_test_engine();
         {
@@ -194,8 +206,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             std::swap(prb_tr.ih, prb_tr.oh);
             std::swap(prb_tr.id, prb_tr.od);
             std::swap(prb_tr.iw, prb_tr.ow);
-            ::conv::compute_ref_bwd_d(&prb_tr, c_ref, dst_fp, wei_tr_fp, bia_fp,
-                    binary_po_fp, src_fp);
+            ::conv::compute_ref_bwd_d(&prb_tr, c_ref, ref_args);
         }
         dnn_mem_t dst(dst_dt, fp, src_tag, dnnl_test_engine);
         SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);

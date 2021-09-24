@@ -402,6 +402,28 @@ dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(pk_t kind) {
     return kind_table[table_size - 1].dnnl_kind;
 }
 
+std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks() const {
+    std::vector<std::pair<int, int>> v_masks;
+    for (int idx = 0; idx < len(); ++idx) {
+        const auto &e = this->entry[idx];
+        policy_t policy = policy_t::COMMON;
+        int arg = BENCHDNN_DNNL_ARG_UNDEF;
+        if (e.is_binary_kind()) {
+            policy = e.binary.policy;
+            arg = DNNL_ARG_SRC_1;
+        } else if (e.is_prelu_kind()) {
+            policy = e.prelu.policy;
+            arg = DNNL_ARG_WEIGHTS;
+        } else
+            continue;
+
+        const auto mask = attr_t::get_default_mask(policy);
+        v_masks.emplace_back(std::make_pair(
+                DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | arg, mask));
+    }
+    return v_masks;
+}
+
 std::vector<int> attr_t::post_ops_t::get_binary_po_masks() const {
     std::vector<int> v_masks;
     for (int idx = 0; idx < len(); ++idx) {
@@ -409,19 +431,6 @@ std::vector<int> attr_t::post_ops_t::get_binary_po_masks() const {
         if (!e.is_binary_kind()) continue;
 
         const auto policy = e.binary.policy;
-        const auto mask = attr_t::get_default_mask(policy);
-        v_masks.push_back(mask);
-    }
-    return v_masks;
-}
-
-std::vector<int> attr_t::post_ops_t::get_prelu_po_masks() const {
-    std::vector<int> v_masks;
-    for (int idx = 0; idx < len(); ++idx) {
-        const auto &e = this->entry[idx];
-        if (!e.is_prelu_kind()) continue;
-
-        const auto policy = e.prelu.policy;
         const auto mask = attr_t::get_default_mask(policy);
         v_masks.push_back(mask);
     }
@@ -1374,12 +1383,10 @@ float compute_binary(pk_t kind, float src0, float src1) {
 }
 
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
-        const std::vector<float> &v_binary_vals,
-        const std::vector<float> &v_prelu_weights) {
+        const std::vector<float> &v_po_vals) {
     using namespace dnnl::impl::math;
 
-    auto it_bin_po = v_binary_vals.begin();
-    auto it_prelu_po = v_prelu_weights.begin();
+    auto it_po = v_po_vals.begin();
     const auto &po = attr.post_ops;
     for (int idx = 0; idx < po.len(); ++idx) {
         const auto &e = po.entry[idx];
@@ -1394,12 +1401,25 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
             const auto &b = e.eltwise.beta;
             val = compute_eltwise_fwd(e.kind, val, s, a, b);
         } else if (e.is_binary_kind()) {
-            val = compute_binary(e.kind, val, *it_bin_po);
-            it_bin_po++;
+            val = compute_binary(e.kind, val, *it_po);
+            it_po++;
         } else if (e.is_prelu_kind()) {
-            val = val > 0 ? val : val * (*it_prelu_po);
-            it_prelu_po++;
+            val = val > 0 ? val : val * (*it_po);
+            it_po++;
         }
+    }
+}
+
+void update_cpu_ref_attrs(attr_t &attr, dnnl_data_type_t new_dt) {
+    auto &os = attr.oscale;
+    os.runtime = false;
+
+    auto &po = attr.post_ops;
+    for (int idx = 0; idx < po.len(); ++idx) {
+        auto &e = po.entry[idx];
+        if (!e.is_binary_kind()) continue;
+
+        e.binary.src1_dt = new_dt;
     }
 }
 

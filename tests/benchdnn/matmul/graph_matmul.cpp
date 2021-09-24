@@ -357,19 +357,30 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
+    dnnl_primitive_t c_ref = nullptr;
+    dnn_mem_t bia_fp_scaled;
+    args_t ref_args;
+
     if (is_bench_mode(CORR)) {
         const auto &dnnl_test_engine = ::get_test_engine();
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        std::vector<int> binary_po_args;
+        for (int idx = 0; idx < binary_po_fp.size(); idx++) {
+            binary_po_args.emplace_back(
+                    (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+        }
+        ref_args.set(binary_po_args, binary_po_fp);
 
         if (apply_bias && is_low_precision(graph_prb.get_dtypes())) {
-            dnn_mem_t bia_fp_scaled;
             bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::abx);
             scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
-            ::matmul::compute_ref(dnnl_test_engine, prb, src_fp, wei_fp,
-                    bia_fp_scaled, binary_po_fp, dst_fp);
+            ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
         } else {
-            ::matmul::compute_ref(dnnl_test_engine, prb, src_fp, wei_fp, bia_fp,
-                    binary_po_fp, dst_fp);
+            ref_args.set(DNNL_ARG_BIAS, bia_fp);
         }
+        ::matmul::compute_ref(prb, c_ref, ref_args);
 
         compare::compare_t cmp;
         cmp.set_threshold(prb->cfg[DST].eps);

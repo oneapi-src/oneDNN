@@ -243,7 +243,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     auto init_pd = [&](dnnl_engine_t engine, const ::conv::prb_t *prb,
                            dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
                            const_dnnl_primitive_desc_t hint) {
-        SAFE(::conv::init_pd_custom(engine, prb, cpd, res), WARN);
+        SAFE(::conv::init_pd(engine, prb, cpd, res, dir, hint), WARN);
         return OK;
     };
     auto cp = compile_partition(init_pd, prb, res, par, ins, outs);
@@ -309,10 +309,22 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
+    args_t ref_args;
+
     if (is_bench_mode(CORR)) {
         const auto fp = dnnl_f32;
         const auto src_tag = tag::abx;
         dnnl_primitive_t c_ref = nullptr;
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        std::vector<int> binary_po_args;
+        for (int idx = 0; idx < binary_po_fp.size(); idx++) {
+            binary_po_args.emplace_back(
+                    (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+        }
+        ref_args.set(binary_po_args, binary_po_fp);
+        ref_args.set(prelu_po_args, prelu_po_fp);
 
         // re-scale bias
         dnn_mem_t bia_fp_scaled;
@@ -320,10 +332,10 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
             scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
         }
+        ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
 
         const auto &dnnl_test_engine = ::get_test_engine();
-        ::conv::compute_ref_fwd(prb, c_ref, src_fp, wei_fp, bia_fp_scaled,
-                binary_po_fp, prelu_po_fp, dst_fp);
+        ::conv::compute_ref_fwd(prb, c_ref, ref_args);
         dnn_mem_t dst(dst_dt, fp, src_tag, dnnl_test_engine);
         SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
     }
