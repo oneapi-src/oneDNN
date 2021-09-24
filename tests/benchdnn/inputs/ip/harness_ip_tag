@@ -23,6 +23,14 @@ mb2ic640iw10oc256
 mb2ic640ih10oc256
 mb2ic640id2ih10iw10oc256
 
+# Test GEMM impl (regression shapes) with different tags
+--reset
+--cfg=f32,bf16bf16bf16 --dir=FWD_B,BWD_D,BWD_WB
+--stag=ba --wtag=ba --dtag=ab mb16ic16oc16
+
+--cfg=s8s8s8 --dir=FWD_B
+mb32ic32oc16
+
 # Test reference impl with arbitrary tag combinations
 --reset
 --cfg=f32,u8s8u8 # for float and integral reference impl
