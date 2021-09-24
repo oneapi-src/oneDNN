@@ -32,12 +32,12 @@ namespace ocl {
 class ocl_gpu_kernel_t : public compute::kernel_impl_t {
 public:
     ocl_gpu_kernel_t(const std::shared_ptr<compute::binary_t> &binary,
-            const std::string &binary_name,
+            const std::string &kernel_name,
             const std::vector<gpu::compute::scalar_type_t> &arg_types)
         : state_(state_t::binary)
         , ocl_kernel_(nullptr)
         , binary_(binary)
-        , binary_name_(binary_name)
+        , kernel_name_(kernel_name)
         , arg_types_(arg_types) {
         MAYBE_UNUSED(state_);
     }
@@ -57,7 +57,7 @@ public:
 
     const char *name() const {
         assert(state_ == state_t::binary);
-        return binary_name_.c_str();
+        return kernel_name_.c_str();
     }
 
     const std::shared_ptr<compute::binary_t> &binary() const {
@@ -72,7 +72,7 @@ public:
     void clear() override {
         assert(state_ == state_t::binary);
         binary_->clear();
-        binary_name_.clear();
+        kernel_name_.clear();
         arg_types_.clear();
     }
     enum class state_t { binary, kernel };
@@ -89,7 +89,7 @@ protected:
     state_t state_;
     cl_kernel ocl_kernel_;
     std::shared_ptr<compute::binary_t> binary_;
-    std::string binary_name_;
+    std::string kernel_name_;
 
     std::vector<gpu::compute::scalar_type_t> arg_types_;
 };

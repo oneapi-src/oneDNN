@@ -80,7 +80,7 @@ status_t sycl_interop_gpu_kernel_t::realize(gpu::compute::kernel_t *kernel,
         auto *p = programs->get<cl::sycl::program *>(binary_.get());
         if (p) {
             (*kernel) = gpu::compute::kernel_t(new sycl_interop_gpu_kernel_t(
-                    p->get_kernel(binary_name_), arg_types_));
+                    p->get_kernel(kernel_name_), arg_types_));
             return status::success;
         }
     }
@@ -116,7 +116,7 @@ status_t sycl_interop_gpu_kernel_t::realize(gpu::compute::kernel_t *kernel,
     }
 
     (*kernel) = gpu::compute::kernel_t(new sycl_interop_gpu_kernel_t(
-            sycl_program->get_kernel(binary_name_), arg_types_));
+            sycl_program->get_kernel(kernel_name_), arg_types_));
 
     if (programs) {
         programs->add(binary_.get(), sycl_program.get());
