@@ -47,6 +47,9 @@ static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
     val.data_type = dtype;
     val.layout_type = ltype;
     val.ndims = -1;
+    // initialize dims and layout field to avoid dirty data
+    val.dims[0] = -1;
+    val.layout.strides[0] = -1;
     val.property = dnnl::graph::impl::property_type::undef;
 
     return val;
@@ -77,6 +80,9 @@ static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
             size_t si = static_cast<size_t>(s);
             val.layout.strides[si] = dims[si + 1] * val.layout.strides[si + 1];
         }
+    } else {
+        // initialize layout field to avoid dirty data
+        val.layout.strides[0] = -1;
     }
 
     return val;
