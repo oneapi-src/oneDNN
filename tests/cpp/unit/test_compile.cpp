@@ -5237,75 +5237,85 @@ TEST(operator_kernel, conv_add) {
     test::vector<float> post_src {1.0, 2.0, 3.0, 4.0};
     test::vector<float> ref_dst {0.0, 4.5, 8.0, 5.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
-    impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t add_dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
+    std::vector<bool> swaps {false, true};
 
-    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+    for (auto swap : swaps) {
+        impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+        conv_op.set_attr<dims>("strides", dims {1, 1});
+        conv_op.set_attr<dims>("dilations", dims {1, 1});
+        conv_op.set_attr<dims>("pads_begin", dims {0, 0});
+        conv_op.set_attr<dims>("pads_end", dims {0, 0});
+        conv_op.set_attr<int64_t>("groups", 1);
+        conv_op.set_attr<std::string>("data_format", "NCX");
+        conv_op.set_attr<std::string>("filter_format", "OIX");
+        impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
-    in_op.add_output(post_src_lt);
-    conv_op.add_input(src_lt);
-    conv_op.add_input(weight_lt);
-    conv_op.add_output(dst_lt);
-    add_op.add_input(dst_lt);
-    add_op.add_input(post_src_lt);
-    add_op.add_output(add_dst_lt);
+        // prepare logical tensor
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 1, 4, 4}, impl::data_type::f32);
+        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {1, 1, 3, 3}, impl::data_type::f32);
+        impl::logical_tensor_t post_src_lt = utils::logical_tensor_init(
+                2, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                3, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+                4, {1, 1, 2, 2}, impl::data_type::f32);
 
-    impl::graph_t g;
-    g.add_op(&in_op);
-    g.add_op(&conv_op);
-    g.add_op(&add_op);
-    g.build_graph();
+        impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
-    apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
-    auto part = g.get_partitions()[0];
+        in_op.add_output(post_src_lt);
+        conv_op.add_input(src_lt);
+        conv_op.add_input(weight_lt);
+        conv_op.add_output(dst_lt);
+        if (swap) {
+            add_op.add_input(post_src_lt);
+            add_op.add_input(dst_lt);
+        } else {
+            add_op.add_input(dst_lt);
+            add_op.add_input(post_src_lt);
+        }
+        add_op.add_output(add_dst_lt);
 
-    // compile
-    impl::partition_t p;
-    p.init(part);
+        impl::graph_t g;
+        g.add_op(&in_op);
+        g.add_op(&conv_op);
+        g.add_op(&add_op);
+        g.build_graph();
 
-    impl::compiled_partition_t cp(p);
+        impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
 
-    std::vector<const impl::logical_tensor_t *> inputs {
-            &src_lt, &weight_lt, &post_src_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+        // compile
+        impl::partition_t p;
+        p.init(part);
 
-    p.compile(&cp, inputs, outputs, &eng);
+        impl::compiled_partition_t cp(p);
 
-    impl::logical_tensor_t lt;
-    cp.query_logical_tensor(add_dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &weight_lt, &post_src_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
 
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
-    impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
+        p.compile(&cp, inputs, outputs, &eng);
 
-    impl::stream_t &strm = get_stream();
-    cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {add_dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(add_dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+        impl::tensor_t src_ts(src_lt, &eng, src.data());
+        impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+        impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+        impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
+
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {add_dst_ts});
+        strm.wait();
+        for (size_t i = 0; i < dst.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        }
     }
 }
 
