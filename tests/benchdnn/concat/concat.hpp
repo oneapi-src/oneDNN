@@ -37,7 +37,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    std::vector<dims_t> sdims;
+    std::vector<dims_t> vdims;
 
     std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
     std::vector<std::vector<std::string>> stag {{tag::abx}};
@@ -57,22 +57,22 @@ struct settings_t {
 };
 
 struct prb_t {
-    prb_t(const std::vector<dims_t> &sdims, dnnl_data_type_t sdt,
+    prb_t(const std::vector<dims_t> &vdims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,
             const std::string &dtag, int axis, const attr_t &attr)
-        : sdims(sdims)
+        : vdims(vdims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
         , axis(axis)
         , attr(attr)
-        , ndims((int)sdims[0].size()) {
+        , ndims((int)vdims[0].size()) {
         generate_ddims();
     }
     ~prb_t() {}
 
-    std::vector<dims_t> sdims;
+    std::vector<dims_t> vdims;
     dims_t ddims;
     dnnl_data_type_t sdt, ddt;
     std::vector<std::string> stag;
@@ -81,21 +81,21 @@ struct prb_t {
     attr_t attr;
     int ndims;
 
-    int n_inputs() const { return (int)sdims.size(); }
+    int n_inputs() const { return (int)vdims.size(); }
 
     int64_t axis_size() const {
         int64_t as = 0;
         for (int i = 0; i < n_inputs(); ++i)
-            as += sdims[i].at(axis);
+            as += vdims[i].at(axis);
         return as;
     }
 
     void generate_ddims() {
-        const dims_t &sdims0 = sdims[0];
+        const dims_t &vdims0 = vdims[0];
         ddims.resize(ndims);
 
         for (int i = 0; i < ndims; ++i)
-            ddims[i] = sdims0[i];
+            ddims[i] = vdims0[i];
         ddims[axis] = axis_size();
     }
 };
@@ -112,9 +112,9 @@ struct perf_report_t : public base_perf_report_t {
             stag_.push_back(normalize_tag(p_->stag[d], p_->ndims));
     }
 
-    void dump_desc(std::ostream &s) const override { s << p_->sdims; }
+    void dump_desc(std::ostream &s) const override { s << p_->vdims; }
 
-    void dump_desc_csv(std::ostream &s) const override { s << p_->sdims; }
+    void dump_desc_csv(std::ostream &s) const override { s << p_->vdims; }
 
     const int *axis() const override { return &p_->axis; }
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }

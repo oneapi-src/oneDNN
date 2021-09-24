@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@ void get_sizes(const prb_t *prb, int64_t &outer_size, int64_t &inner_size,
         int64_t &axis_size) {
     outer_size = inner_size = 1;
     for (int i = 0; i < prb->axis; i++)
-        outer_size *= prb->sdims[0][i];
+        outer_size *= prb->vdims[0][i];
     for (int i = prb->axis + 1; i < prb->ndims; i++)
-        inner_size *= prb->sdims[0][i];
+        inner_size *= prb->vdims[0][i];
     axis_size = prb->axis_size();
 }
 
@@ -42,7 +42,7 @@ void compute_ref(
                 int64_t off_dst = ou * axis_size * inner_size;
                 for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
                     const float *src_ptr = (const float *)src[i_input];
-                    int64_t i_axis_size = prb->sdims[i_input][prb->axis];
+                    int64_t i_axis_size = prb->vdims[i_input][prb->axis];
                     int64_t off_src = ou * i_axis_size * inner_size;
 
                     for (int64_t as = 0; as < i_axis_size; ++as) {

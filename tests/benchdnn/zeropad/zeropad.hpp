@@ -62,7 +62,7 @@ struct prb_t {
     std::string tag;
     int ndims;
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)
@@ -82,7 +82,7 @@ private:
     std::string tag_;
 };
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 } // namespace zeropad

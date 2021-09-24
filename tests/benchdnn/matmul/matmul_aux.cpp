@@ -142,16 +142,16 @@ int legacy_str2desc(desc_t *desc, const char *str) {
     if (mb < 0 || m < 0 || n < 0 || k < 0) return FAIL;
     if (m * n * k == 0) return FAIL;
 
-    d.sdims.resize(2);
+    d.vdims.resize(2);
     if (mb) {
-        d.sdims[0].push_back(mb);
-        d.sdims[1].push_back(mb);
+        d.vdims[0].push_back(mb);
+        d.vdims[1].push_back(mb);
     }
-    d.sdims[0].push_back(m);
-    d.sdims[0].push_back(k);
+    d.vdims[0].push_back(m);
+    d.vdims[0].push_back(k);
 
-    d.sdims[1].push_back(k);
-    d.sdims[1].push_back(n);
+    d.vdims[1].push_back(k);
+    d.vdims[1].push_back(n);
 
     *desc = d;
 
@@ -187,11 +187,11 @@ int str2desc(desc_t *desc, const char *str) {
     int dims_idx = 0;
     while (*s) {
         if (isdigit(*s)) {
-            d.sdims.resize(dims_idx + 1);
+            d.vdims.resize(dims_idx + 1);
 
             char *end_s;
-            d.sdims.back().push_back(strtol(s, &end_s, 10));
-            if (d.sdims.back().back() < 0) return FAIL;
+            d.vdims.back().push_back(strtol(s, &end_s, 10));
+            if (d.vdims.back().back() < 0) return FAIL;
 
             s += (end_s - s);
             if (*s == ':') {
@@ -209,9 +209,9 @@ int str2desc(desc_t *desc, const char *str) {
             return FAIL;
         }
     }
-    if (d.sdims.size() < 2) return FAIL;
-    const auto ndims = d.sdims[0].size();
-    for (const auto &dims : d.sdims) {
+    if (d.vdims.size() < 2) return FAIL;
+    const auto ndims = d.vdims[0].size();
+    for (const auto &dims : d.vdims) {
         if (dims.size() != ndims) return FAIL;
     }
     *desc = d;
@@ -220,12 +220,12 @@ int str2desc(desc_t *desc, const char *str) {
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 
-    for (size_t i = 0; i < d.sdims.size(); ++i) {
-        for (size_t j = 0; j < d.sdims[i].size(); ++j) {
-            s << d.sdims[i][j];
-            if (j + 1 < d.sdims[i].size()) s << "x";
+    for (size_t i = 0; i < d.vdims.size(); ++i) {
+        for (size_t j = 0; j < d.vdims[i].size(); ++j) {
+            s << d.vdims[i][j];
+            if (j + 1 < d.vdims[i].size()) s << "x";
         }
-        if (i + 1 < d.sdims.size()) s << ":";
+        if (i + 1 < d.vdims.size()) s << ":";
     }
 
     if (d.name) s << "_n" << d.name;

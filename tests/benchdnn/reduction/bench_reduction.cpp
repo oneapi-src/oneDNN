@@ -32,13 +32,13 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_p : s.p)
     for_(const auto &i_eps : s.eps)
     {
-        bool ok = s.dims.size() == 2 && s.dims[0].size() == s.dims[1].size();
+        bool ok = s.vdims.size() == 2 && s.vdims[0].size() == s.vdims[1].size();
         if (!ok) SAFE_V(FAIL);
 
         attr_t attr;
         attr.insert(i_post_ops);
         const prb_t prb(
-                s.dims, i_sdt, i_ddt, i_stag, i_dtag, i_alg, i_p, i_eps, attr);
+                s.vdims, i_sdt, i_ddt, i_stag, i_dtag, i_alg, i_p, i_eps, attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();

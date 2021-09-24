@@ -59,7 +59,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    std::vector<dims_t> dims;
+    std::vector<dims_t> vdims;
     std::vector<dnnl_data_type_t> sdt {dnnl_f32};
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::string> stag {tag::abx};
@@ -80,13 +80,13 @@ struct settings_t {
 };
 
 struct prb_t {
-    prb_t(const std::vector<dims_t> &dims, dnnl_data_type_t sdt,
+    prb_t(const std::vector<dims_t> &vdims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::string &stag,
             const std::string &dtag, alg_t alg, float p, float eps,
             const attr_t &attr)
-        : src_dims(dims[0])
-        , dst_dims(dims[1])
-        , ndims(static_cast<int>(dims[0].size()))
+        : src_dims(vdims[0])
+        , dst_dims(vdims[1])
+        , ndims(static_cast<int>(vdims[0].size()))
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)

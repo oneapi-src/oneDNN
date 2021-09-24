@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
     if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
     s << prb.attr;
-    s << prb.sdims;
+    s << prb.vdims;
 
     return s;
 }

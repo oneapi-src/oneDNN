@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,13 +21,13 @@
 
 namespace zeropad {
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || p.dt != def.dt[0]) s << "--dt=" << p.dt << " ";
-    if (canonical || p.tag != def.tag[0]) s << "--tag=" << p.tag << " ";
-    s << p.dims;
+    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
+    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
+    s << prb.dims;
 
     return s;
 }

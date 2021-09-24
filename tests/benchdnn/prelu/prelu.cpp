@@ -129,8 +129,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     dnnl_prelu_desc_t pd;
     dnnl_memory_desc_t data_d, weights_d;
 
-    const auto &src_dims = prb->sdims[0];
-    const auto &weight_dims = prb->sdims[1];
+    const auto &src_dims = prb->vdims[0];
+    const auto &weight_dims = prb->vdims[1];
 
     SAFE(init_md(&data_d, prb->ndims, src_dims.data(), prb->sdt[0],
                  prb->stag[0]),

@@ -40,8 +40,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     dnnl_memory_desc_t dst_d;
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
-        const dims_t &i_sdims = prb->sdims[i_input];
-        SAFE(init_md(&src_d[i_input], prb->ndims, i_sdims.data(), prb->sdt,
+        const dims_t &i_vdims = prb->vdims[i_input];
+        SAFE(init_md(&src_d[i_input], prb->ndims, i_vdims.data(), prb->sdt,
                      prb->stag[i_input]),
                 CRIT);
     }

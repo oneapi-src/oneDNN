@@ -39,7 +39,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    std::vector<dims_t> sdims;
+    std::vector<dims_t> vdims;
 
     std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
@@ -64,11 +64,11 @@ struct settings_t {
 };
 
 struct prb_t {
-    prb_t(const std::vector<dims_t> &sdims,
+    prb_t(const std::vector<dims_t> &vdims,
             const std::vector<dnnl_data_type_t> &sdt, dnnl_data_type_t ddt,
             const std::vector<std::string> &stag, std::string dtag, alg_t alg,
             bool inplace, const attr_t &attr)
-        : sdims(sdims)
+        : vdims(vdims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
@@ -76,10 +76,10 @@ struct prb_t {
         , alg(alg)
         , inplace(inplace)
         , attr(attr)
-        , ndims({(int)sdims[0].size(), (int)sdims[1].size()}) {}
+        , ndims({(int)vdims[0].size(), (int)vdims[1].size()}) {}
     ~prb_t() {}
 
-    std::vector<dims_t> sdims;
+    std::vector<dims_t> vdims;
     std::vector<dnnl_data_type_t> sdt;
     dnnl_data_type_t ddt;
     std::vector<std::string> stag;
@@ -92,7 +92,7 @@ struct prb_t {
     int n_inputs() const { return 2; }
 
     int get_broadcast_mask(const dims_t &dims_B, int source_num) const {
-        const dims_t &dims_A = this->sdims[source_num];
+        const dims_t &dims_A = this->vdims[source_num];
 
         int broadcast_mask = 0;
         for (int d = 0; d < ndims[source_num]; ++d)
@@ -114,9 +114,9 @@ struct perf_report_t : public base_perf_report_t {
 
     void dump_alg(std::ostream &s) const override { s << p_->alg; }
 
-    void dump_desc(std::ostream &s) const override { s << p_->sdims; }
+    void dump_desc(std::ostream &s) const override { s << p_->vdims; }
 
-    void dump_desc_csv(std::ostream &s) const override { s << p_->sdims; }
+    void dump_desc_csv(std::ostream &s) const override { s << p_->vdims; }
 
     const std::vector<dnnl_data_type_t> *sdt() const override {
         return &p_->sdt;

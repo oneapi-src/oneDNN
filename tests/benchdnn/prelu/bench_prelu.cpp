@@ -32,7 +32,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_sdt : s.sdt)
     for_(const auto &i_stag : s.stag)
     for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
-        if (s.sdims.size() != 2) {
+        if (s.vdims.size() != 2) {
             BENCHDNN_PRINT(0, "%s\n",
                     "Error: input tensors were specified in wrong format. "
                     "Please use NxNxNxNxN:MxMxMxMxM as a problem description "
@@ -55,7 +55,7 @@ void check_correctness(const settings_t &s) {
         attr_t attr;
         attr.insert(i_scratchpad_mode);
 
-        const prb_t prb(s.sdims, i_dir, i_sdt, i_stag, attr);
+        const prb_t prb(s.vdims, i_dir, i_sdt, i_stag, attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -96,7 +96,7 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_multi_dims(s.sdims, argv[0]);
+            parse_multi_dims(s.vdims, argv[0]);
             check_correctness(s);
         }
     }

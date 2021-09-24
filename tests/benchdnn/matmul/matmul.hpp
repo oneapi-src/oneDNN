@@ -49,7 +49,7 @@ const int64_t LD_NONE = INT64_MAX - 1;
 
 struct desc_t {
     desc_t() : is_legacy_desc(false), name(nullptr) {}
-    std::vector<dims_t> sdims;
+    std::vector<dims_t> vdims;
     bool is_legacy_desc = false;
     const char *name = nullptr;
 };
@@ -162,9 +162,9 @@ struct prb_t : public desc_t {
     float *scales;
     int32_t *src_zp, *dst_zp;
 
-    const dims_t &src_dims() const { return sdims[0]; }
-    const dims_t &weights_dims() const { return sdims[1]; }
-    const dims_t &dst_dims() const { return sdims[2]; }
+    const dims_t &src_dims() const { return vdims[0]; }
+    const dims_t &weights_dims() const { return vdims[1]; }
+    const dims_t &dst_dims() const { return vdims[2]; }
 
     const dims_mask_t &src_runtime_dim_mask() const { return rt_dims_masks[0]; }
     const dims_mask_t &weights_runtime_dim_mask() const {
@@ -198,16 +198,16 @@ private:
     }
 
     void init_dst_dims() {
-        if (sdims.size() > 2) return;
-        sdims.resize(3);
-        auto &dst_dims = sdims.back();
+        if (vdims.size() > 2) return;
+        vdims.resize(3);
+        auto &dst_dims = vdims.back();
         dst_dims.resize(ndims);
 
         for (int i = 0; i < ndims - 2; ++i) {
-            sdims.back()[i] = MAX2(sdims[0][i], sdims[1][i]);
+            vdims.back()[i] = MAX2(vdims[0][i], vdims[1][i]);
         }
-        sdims.back()[ndims - 2] = m;
-        sdims.back()[ndims - 1] = n;
+        vdims.back()[ndims - 2] = m;
+        vdims.back()[ndims - 1] = n;
     }
 
     void init_dst_rt_dims_mask() {
@@ -236,7 +236,7 @@ private:
     // used only for legacy desc support
     void set_runtime_dims_masks() {
         // here we only set src and wei masks. dst mask is computed in init_dst
-        const auto ndims = sdims[0].size();
+        const auto ndims = vdims[0].size();
         auto &src_mask = rt_dims_masks[0];
         auto &wei_mask = rt_dims_masks[1];
         if (runtime_mb && ndims == 3) { // else silently ignore
