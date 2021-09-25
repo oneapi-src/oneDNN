@@ -684,6 +684,10 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         // minimum of these two values to prevent potential OOM issues.
         nthr_ = nstl::min(dnnl_get_current_num_threads(), bgmmc.nthr);
 
+        nthr_k_ = bgmmc.nthr_k > 0 && bgmmc.nthr_k <= nthr_ ? bgmmc.nthr_k : 1;
+        nthr_bmn_ = nthr_ / nthr_k_;
+        num_threads_used_ = nthr_k_ * nthr_bmn_;
+
         // If parallel_work_amount_ == 1 and parallel reduction is not used, we
         // limit num threads to 1 as parallel(1, ...) does not create parallel
         // section at all. We do not limit number of threads for case
@@ -691,11 +695,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         // overhead on spawning different number of OMP threads from layer to
         // layer.
         if (parallel_work_amount_ == 1 && !parallel_reduction_is_used())
-            nthr_ = 1;
-
-        nthr_k_ = bgmmc.nthr_k > 0 && bgmmc.nthr_k <= nthr_ ? bgmmc.nthr_k : 1;
-        nthr_bmn_ = nthr_ / nthr_k_;
-        num_threads_used_ = nthr_k_ * nthr_bmn_;
+            nthr_ = nthr_bmn_ = nthr_k_ = 1;
 
         const bool need_to_calculate_compensation_for_a
                 = bgmmc.has_zero_point_b;
