@@ -211,12 +211,11 @@ struct brgemm_matmul_conf_utils_t {
         // Values based on measured performance difference
         // between plain and copy-to-blocked routine.
         size_t big_LDB = bgmmc.N > 256;
-        size_t is_pow2 = math::is_pow2(bgmmc.N);
-        bool f32_use_copy_buffer = use_heuristic
-                && this->check_is_plain(bgmmc.wei_tag) && (big_LDB && is_pow2);
-        return this->is_f32()
-                && (f32_use_copy_buffer
-                        || this->check_is_transposed(bgmmc.wei_tag));
+        bool is_pow2 = math::is_pow2(bgmmc.N);
+        bool use_copy_buffer = IMPLICATION(
+                this->is_f32(), use_heuristic && (big_LDB && is_pow2));
+        return (use_copy_buffer && this->check_is_plain(bgmmc.wei_tag))
+                || this->check_is_transposed(bgmmc.wei_tag);
     }
 
     inline dim_t get_actual_LDB() const {

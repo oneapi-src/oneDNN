@@ -75,7 +75,7 @@ status_t check_isa_with_datatype(
             && IMPLICATION(bm_conf_utils.is_int8(),
                     one_of(isa, avx512_core_bf16_amx_int8))
             && IMPLICATION(bm_conf_utils.is_bf16(),
-                    one_of(isa, avx512_core_bf16_amx_bf16));
+                    one_of(isa, avx512_core_bf16_amx_bf16, avx512_core_bf16));
     return ok ? status::success : status::unimplemented;
 }
 
@@ -313,7 +313,7 @@ struct matmul_avx512_blocking_params_t {
         const int batch;
     };
 
-    matmul_avx512_blocking_params_t(const matmul_params_t &m)
+    matmul_avx512_blocking_params_t(const matmul_params_t &m, const int nthr)
         : mp(m)
         , m_chunks(1)
         , m_blk(1)
@@ -324,7 +324,8 @@ struct matmul_avx512_blocking_params_t {
         , batch_size(1)
         , k_blk(1)
         , k_tail(0)
-        , nthr_k(1) {}
+        , nthr_k(1)
+        , nthr(nthr) {}
 
     matmul_avx512_blocking_params_t &operator=(
             const matmul_avx512_blocking_params_t &brgemm_params) {
@@ -344,7 +345,9 @@ struct matmul_avx512_blocking_params_t {
     const matmul_params_t &mp;
     int m_chunks, m_blk, m_tail;
     int n_chunks, n_blk, n_tail;
-    int batch_size, k_blk, k_tail, nthr_k;
+    int batch_size, k_blk, k_tail;
+    int nthr_k;
+    const int nthr;
 
     void update_params(int m_chunks_, int m_blk_, int n_chunks_, int n_blk_,
             int batch_size_, int k_blk_, int nthr_k_) {
@@ -360,37 +363,50 @@ struct matmul_avx512_blocking_params_t {
         nthr_k = nthr_k_;
     }
 
-    float get_imbalance(size_t nthr) {
-        int num_n_blk = div_up(mp.N, n_blk);
-        int par_n_chunks = div_up(num_n_blk, n_chunks);
-        int par_m_chunks = div_up(mp.M, m_blk);
-        int par_k_chunks = nthr_k;
-        size_t parallel_work = static_cast<size_t>(par_n_chunks) * par_m_chunks
-                * mp.batch * par_k_chunks;
-        size_t mod = parallel_work % nthr;
-        size_t scalar = parallel_work < nthr ? nthr - mod
-                                             : nstl::min(nthr - mod, mod);
-        float parallel_work_disb = static_cast<float>(scalar) / nthr;
+    float calculate_spatial_disbalance(size_t work, size_t thread_block) const {
+        size_t mod = work % thread_block;
+        size_t scalar = work < thread_block
+                ? thread_block - mod
+                : nstl::min(thread_block - mod, mod);
+        return static_cast<float>(scalar) / thread_block;
+    }
+
+    float get_imbalance() const {
+        const size_t cur_nthr = nthr / nthr_k;
+
+        size_t parallel_work = get_parallel_work();
+        const float parallel_work_disb
+                = calculate_spatial_disbalance(parallel_work, cur_nthr);
 
         int m_work = (m_blk * div_up(mp.M, m_blk)) % mp.M;
-        float m_blk_disbalance = static_cast<float>(m_work) / mp.M;
+        const float m_blk_disbalance = static_cast<float>(m_work) / mp.M;
 
-        float n_chunk_disbalance
+        int num_n_blk = div_up(mp.N, n_blk);
+        int par_n_chunks = div_up(num_n_blk, n_chunks);
+        const float n_chunk_disbalance
                 = (static_cast<float>(par_n_chunks) * n_chunks - num_n_blk)
                 / num_n_blk;
 
-        float score
-                = (parallel_work_disb + m_blk_disbalance + n_chunk_disbalance)
-                / 3;
+        const float disbalance_nthr_k
+                = calculate_spatial_disbalance(mp.K, nthr_k * k_blk);
+
+        const float thread_allocation_disb
+                = (cur_nthr * nthr_k) != static_cast<size_t>(nthr)
+                ? (static_cast<float>(nthr) - cur_nthr * nthr_k) / nthr
+                : 0;
+
+        const float score
+                = (parallel_work_disb + m_blk_disbalance + n_chunk_disbalance
+                          + thread_allocation_disb + disbalance_nthr_k)
+                / 5;
 
         return score;
     }
 
-    size_t get_parallel_work() {
+    size_t get_parallel_work() const {
         int m_elems = div_up(mp.M, m_blk * m_chunks);
         int n_elems = div_up(mp.N, n_blk * n_chunks);
-        int k_elems = nthr_k;
-        return static_cast<size_t>(m_elems) * n_elems * k_elems * mp.batch;
+        return static_cast<size_t>(m_elems) * n_elems * mp.batch;
     }
 
     inline dim_t get_actual_lda(bool use_buffer_a, dim_t a_dt_sz) const {
@@ -421,7 +437,7 @@ struct matmul_avx512_blocking_params_t {
         bgmmc.N_blk = n_blk;
         bgmmc.N_chunk_size = n_chunks;
 
-        bgmmc.K_blk = k_blk;
+        bgmmc.K_blk = rnd_up(k_blk, bgmmc.required_k_granularity);
         bgmmc.brgemm_batch_size = batch_size;
 
         bgmmc.nthr_k = nthr_k;
@@ -510,7 +526,7 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
         const matmul_avx512_blocking_params_t::matmul_params_t &matmul,
         matmul_avx512_blocking_params_t &best_blocking) {
 
-    const size_t nthr = static_cast<size_t>(bgmmc.nthr);
+    const int nthr = bgmmc.nthr;
 
     const int max_m_blk = nstl::min(256, matmul.M);
     int min_m_blk = nstl::min(32, matmul.M);
@@ -521,15 +537,16 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
     const int n_chunks_start = nstl::min(max_n_chunks, div_up(matmul.N, n_blk));
 
     // Note: do not extend K_blk for 'bwd_w' cases
-    const bool use_extended_k_blk = matmul.K > 1024 && (!bgmmc.use_buffer_a);
+    const bool use_extended_k_blk = matmul.K > 1024
+            && (!bm_conf_utils.check_is_transposed(bgmmc.src_tag));
     int default_k_blk = use_extended_k_blk ? 1024 : 512;
     int k_blk = nstl::min(matmul.K, default_k_blk);
-    int nthr_k = 1;
+    int start_nthr_k = 1;
 
     // for cases with low parallel work, reduce 'min_m_blk' to
     // increase potential parallelization balance.
-    const size_t max_parallel = static_cast<size_t>(matmul.batch) * n_chunks;
-    const bool low_parallel_work = nthr > max_parallel;
+    const size_t max_parallel = matmul.batch * n_chunks;
+    const bool low_parallel_work = static_cast<size_t>(nthr) > max_parallel;
     if (low_parallel_work) {
 
         min_m_blk = nstl::min(matmul.M, 16);
@@ -555,26 +572,27 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
 
         // Parallelize across K for shapes with big 'K' dimension
         bool bwd_w_par_k_blk = bm_conf_utils.check_is_transposed(bgmmc.src_tag)
+                && IMPLICATION(bm_conf_utils.is_bf16(), math::is_pow2(matmul.K))
                 && matmul.K >= 2048;
         if (bwd_w_par_k_blk) {
-            nthr_k = nstl::min(nthr, sizeof(4));
+            start_nthr_k = nstl::min(nthr, 4);
             assert(k_blk == nstl::min(matmul.K, 512));
         }
     }
 
     float best_imbalance = 1.f; // reduce
-    for (int n_chunk_size = n_chunks_start; n_chunk_size >= 1; --n_chunk_size) {
-        for (int m_blk = max_m_blk; m_blk >= min_m_blk; --m_blk) {
+    for_(int nthr_k = start_nthr_k; nthr_k >= 1; --nthr_k)
+    for_(int n_chunk_size = n_chunks_start; n_chunk_size >= 1; --n_chunk_size)
+    for (int m_blk = max_m_blk; m_blk >= min_m_blk; --m_blk) {
 
-            matmul_avx512_blocking_params_t cur_params(matmul);
-            cur_params.update_params(
-                    1, m_blk, n_chunk_size, n_blk, 1, k_blk, nthr_k);
+        matmul_avx512_blocking_params_t cur_params(matmul, nthr);
+        cur_params.update_params(
+                1, m_blk, n_chunk_size, n_blk, 1, k_blk, nthr_k);
 
-            float cur_imbalance = cur_params.get_imbalance(nthr / nthr_k);
-            if (cur_imbalance < best_imbalance) {
-                best_imbalance = cur_imbalance;
-                best_blocking = cur_params;
-            }
+        float cur_imbalance = cur_params.get_imbalance();
+        if (cur_imbalance < best_imbalance) {
+            best_imbalance = cur_imbalance;
+            best_blocking = cur_params;
         }
     }
     return best_imbalance;
@@ -660,7 +678,8 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
 
         const matmul_avx512_blocking_params_t::matmul_params_t matmul(
                 bgmmc.M, bgmmc.N, bgmmc.K, bgmmc.batch);
-        matmul_avx512_blocking_params_t best_blocking(matmul);
+
+        matmul_avx512_blocking_params_t best_blocking(matmul, bgmmc.nthr);
 
         const float best_imbalance = compute_blocking_heuristic_avx512(
                 bgmmc, bm_conf_utils, matmul, best_blocking);
@@ -779,9 +798,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const bool lda_is_big_2pow = bm_conf_utils.is_bf16() && !bgmmc.transposed_A
             && math::is_pow2(bgmmc.K) && bgmmc.K >= 4096 && bgmmc.M >= 1024;
     const bool is_copy_a_required
-            = (bgmmc.is_amx
-                      && (bgmmc.K % bgmmc.required_k_granularity != 0
-                              || bgmmc.wei_zp_type != brgemm_broadcast_t::none))
+            = (bgmmc.is_amx && (bgmmc.K % bgmmc.required_k_granularity != 0))
+            || bgmmc.wei_zp_type != brgemm_broadcast_t::none
             || bgmmc.transposed_A || lda_is_big_2pow;
     bgmmc.use_buffer_a = is_copy_a_required;
 

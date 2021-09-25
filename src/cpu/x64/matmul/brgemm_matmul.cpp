@@ -112,10 +112,10 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, bgmmc_.bia_dt));
 
+        brgemm_attr_t brgattr;
         constexpr bool is_amx = one_of(
                 isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
         if (is_amx) {
-            brgemm_attr_t brgattr;
             brgattr.max_bs = bgmmc_.brgemm_batch_size;
             brgattr.wary_tail_read = false;
 
@@ -124,12 +124,12 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             brgattr.hint_expected_B_size = vN * vK * bgmmc_.brgemm_batch_size;
             brgattr.hint_expected_C_size = vM * vN * bgmmc_.brgemm_batch_size;
             brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
-
-            brgattr.generate_skip_accumulation
-                    = bgmmc_.post_ops_applicable && bgmmc_.nthr_k > 1;
-
-            CHECK(brgemm_desc_set_attr(&brg, brgattr));
         }
+
+        brgattr.generate_skip_accumulation
+                = bgmmc_.post_ops_applicable && bgmmc_.nthr_k > 1;
+
+        CHECK(brgemm_desc_set_attr(&brg, brgattr));
     }
 
     auto scratchpad = scratchpad_registry().registrar();
@@ -1018,6 +1018,7 @@ private:
 
 template struct brgemm_matmul_t<avx512_core_bf16_amx_int8>;
 template struct brgemm_matmul_t<avx512_core_bf16_amx_bf16>;
+template struct brgemm_matmul_t<avx512_core_bf16>;
 template struct brgemm_matmul_t<avx512_core>;
 
 } // namespace matmul
