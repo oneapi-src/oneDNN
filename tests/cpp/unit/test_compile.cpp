@@ -4107,14 +4107,11 @@ public:
 
         std::vector<const impl::logical_tensor_t *> inputs {
                 &src_lt, &weight_lt};
-        printf("Line4109\n");
         if (params.with_bias) inputs.push_back(&bias_lt);
         std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
 
-        printf("Line4112\n");
         p.compile(&cp, inputs, outputs, &eng);
         ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
-        printf("Line4114\n");
 
         impl::tensor_t src_ts(src_lt, &eng, params.src.data());
         impl::tensor_t weight_ts(weight_lt, &eng, params.weight.data());
