@@ -84,14 +84,6 @@ dnnl_data_type_t convert_dt(
     }
 }
 
-dnnl::graph::logical_tensor::data_type get_sum_src_dt(
-        const std::vector<attr_t::post_ops_t::entry_t> &post_ops) noexcept {
-    for (const auto &po : post_ops) {
-        if (po.is_sum_kind()) return convert_dt(po.sum.dt);
-    }
-    return dnnl::graph::logical_tensor::data_type::undef;
-}
-
 dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept {
     using graph_op = dnnl::graph::op::kind;
     // all options could be easily added later
@@ -543,4 +535,39 @@ fill_status_t po_handlers_t::sum_po_handler_t::operator()(graph_prb_t &p) {
     return fill_status::DONE;
 }
 
+fill_status
+po_handlers_t::low_precision_handler_t::handle_low_precision_post_sum(
+        graph_prb_t &p, const low_precision_attr &lp_attr,
+        const std::vector<attr_t::post_ops_t::entry_t> &po_entry) {
+    using op = dnnl::graph::op;
+
+    const size_t new_op_id = p.ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    const std::string QPSUM_SRC {TENSOR_ID + "_SUM_SRC1"};
+    const std::string POST_SUM_SRC = p.tensor_id["sum"].back() + "_SRC";
+
+    float sum_scale_val = 1.f;
+    int64_t sum_zp_val = 0L;
+    dt sum_src_dt = dt::undef;
+    for (const attr_t::post_ops_t::entry_t &po : po_entry) {
+        if (po.is_sum_kind()) {
+            sum_scale_val = po.sum.scale;
+            sum_zp_val = po.sum.zero_point;
+            sum_src_dt = convert_dt(po.sum.dt);
+        }
+    }
+    const std::vector<float> sum_scales {sum_scale_val};
+    const std::vector<int64_t> sum_zp {sum_zp_val};
+    if (dt::undef == sum_src_dt) sum_src_dt = lp_attr.dst_dt_;
+
+    p.tensor_descs_.emplace(
+            QPSUM_SRC, sum_src_dt, lp_attr.dst_dims_, lp_attr.dtag_);
+    op dequant_sum(p.ops_.size(), op::kind::Dequantize,
+            {p.tensor_descs_[QPSUM_SRC]}, {p.tensor_descs_[POST_SUM_SRC]},
+            "dequant_sum");
+
+    dequant_sum.set_attr("scales", sum_scales).set_attr("zps", sum_zp);
+    p.ops_.emplace_back(dequant_sum);
+    return fill_status::DONE;
+}
 } // namespace benchdnnext
