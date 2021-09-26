@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-if(NOT DNNL_GRAPH_BUILD_EXAMPLES)
+if(NOT DNNL_GRAPH_BUILD_TESTS)
     return()
 endif()
 
@@ -24,21 +24,21 @@ enable_testing()
 append(CMAKE_C_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
 append(CMAKE_CXX_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
 
-# propagate EXAMPLE specific flags
-append(CMAKE_C_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
-append(CMAKE_CXX_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
+# propagate tests specific flags
+append(CMAKE_C_FLAGS "${CMAKE_TESTS_CCXX_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_TESTS_CCXX_FLAGS}")
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     append_if(WIN32 CMAKE_CXX_FLAGS "/fp:precise")
     append_if(UNIX  CMAKE_CXX_FLAGS "-fp-model precise")
 endif()
 
-# Register example
-function(register_example name srcs)
+# Register demo
+function(register_demo name srcs)
     add_executable(${name} ${srcs})
     target_include_directories(${name}
         PRIVATE
-        ${PROJECT_SOURCE_DIR}/examples/cpp/include
+        ${PROJECT_SOURCE_DIR}/tests/demo/include
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
         ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
@@ -56,32 +56,32 @@ file(GLOB sources src/*.cpp)
 
 foreach(src ${sources})
     file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR}/src/ ${src})
-    string(REGEX REPLACE "[/_\\.]" "-" example_name ${src_rel_path})
+    string(REGEX REPLACE "[/_\\.]" "-" demo_name ${src_rel_path})
 
     set(cpu_rt_pattern "(SEQ|OMP)")
     set(gpu_rt_pattern "(DPCPP)")
     if(DNNL_GRAPH_CPU_RUNTIME MATCHES ${cpu_rt_pattern})
-	# Adding examples for OMP CPU
-        if(${example_name} MATCHES "cpu-*")
-            register_example(${example_name} ${src})
-            add_test("${example_name}" "${example_name}" cpu)
-            maybe_configure_windows_test("${example_name}" TEST)
+	# Adding demos for OMP CPU
+        if(${demo_name} MATCHES "cpu-*")
+            register_demo(${demo_name} ${src})
+            add_test("${demo_name}" "${demo_name}" cpu)
+            maybe_configure_windows_test("${demo_name}" TEST)
         endif()
     endif()
     if(DNNL_GRAPH_GPU_RUNTIME MATCHES ${gpu_rt_pattern})
-	# Adding examples for SYCL GPU
-        if(${example_name} MATCHES "gpu-*")
-            register_example(${example_name} ${src})
-            add_test("${example_name}" "${example_name}" gpu)
-            maybe_configure_windows_test("${example_name}" TEST)
+	# Adding demos for SYCL GPU
+        if(${demo_name} MATCHES "gpu-*")
+            register_demo(${demo_name} ${src})
+            add_test("${demo_name}" "${demo_name}" gpu)
+            maybe_configure_windows_test("${demo_name}" TEST)
         endif()
-	# Adding examples for SYCL CPU and GPU
-        if(${example_name} MATCHES "sycl-*")
-            register_example(${example_name} ${src})
-            add_test("${example_name}-cpu" "${example_name}" cpu)
-            maybe_configure_windows_test("${example_name}-cpu" TEST)
-            add_test("${example_name}-gpu" "${example_name}" gpu)
-            maybe_configure_windows_test("${example_name}-gpu" TEST)
+	# Adding demos for SYCL CPU and GPU
+        if(${demo_name} MATCHES "sycl-*")
+            register_demo(${demo_name} ${src})
+            add_test("${demo_name}-cpu" "${demo_name}" cpu)
+            maybe_configure_windows_test("${demo_name}-cpu" TEST)
+            add_test("${demo_name}-gpu" "${demo_name}" gpu)
+            maybe_configure_windows_test("${demo_name}-gpu" TEST)
         endif()
     endif()
 endforeach()

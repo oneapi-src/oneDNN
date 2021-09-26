@@ -59,3 +59,4 @@ endif()
 
 add_subdirectory(cpp)
 add_subdirectory(benchdnn)
+add_subdirectory(demo)
