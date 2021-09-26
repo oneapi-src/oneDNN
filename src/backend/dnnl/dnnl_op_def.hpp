@@ -1622,6 +1622,30 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_add_relu, 1,
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(convtranspose_bias, 1,
+        op_schema()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_input(1, "weight", "weight tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_input(2, "bias", "bias tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_attr("output_padding",
+                        "additional amount of paddings to be added to each "
+                        "spatial axis in the output tensor",
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
+                .set_shape_inference_function(infer_convtranspose_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
 DNNL_GRAPH_OP_SCHEMA(int8_convtranspose, 1,
         op_schema()
                 .set_num_inputs(2)

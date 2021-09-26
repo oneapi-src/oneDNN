@@ -65,6 +65,7 @@ namespace op_kind {
     X(conv_bn_relu, Conv_bn_relu) \
     X(conv_relu, Conv_relu) \
     X(conv_bwd_f_biasadd_bwd, ConvBwdF_biasAddBwd) \
+    X(convtranspose_bias, ConvTranspose_Bias) \
     X(matmul_bias, MatMul_bias) \
     X(matmul_bias_add, MatMul_bias_add) \
     X(matmul_bias_add_relu, MatMul_bias_add_relu) \

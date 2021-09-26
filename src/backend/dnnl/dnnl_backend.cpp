@@ -126,6 +126,7 @@ bool dnnl_backend::register_kernels() {
 
     // convtranspose related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::ConvTranspose, float_convtranspose_fwd)
+    DNNL_REGISTER_KERNEL(op_kind::convtranspose_bias, float_convtranspose_fwd)
 
     // bn related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormInference,
