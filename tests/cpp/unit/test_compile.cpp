@@ -7485,14 +7485,12 @@ static bool allclose(const test::vector<T> &a, const test::vector<T> &b,
 #define for_ for
 #define SET_Q_DQ_DATA_ATTR(q_dq_data) \
     q_dq_data.set_attr<std::string>("qtype", "per_tensor"); \
-    q_dq_data.set_attr<std::string>("out_type", "uint8"); \
     q_dq_data.set_attr<std::vector<int64_t>>("zps", {zp_src}); \
     q_dq_data.set_attr<std::vector<float>>("scales", {scale_src}); \
     q_dq_data.set_attr<int64_t>("axis", 0);
 
 #define SET_Q_DQ_WEIGHT_ATTR(q_dq_weight) \
     q_dq_weight.set_attr<std::string>("qtype", wei_qtype); \
-    q_dq_weight.set_attr<std::string>("out_type", "int8"); \
     q_dq_weight.set_attr<std::vector<int64_t>>("zps", zp_wei); \
     q_dq_weight.set_attr<std::vector<float>>("scales", scale_wei); \
     q_dq_weight.set_attr<int64_t>("axis", 0);
@@ -7508,7 +7506,6 @@ static bool allclose(const test::vector<T> &a, const test::vector<T> &b,
 
 #define SET_Q_DQ_OUT_ATTR(q_dq_out) \
     q_dq_out.set_attr<std::string>("qtype", "per_tensor"); \
-    q_dq_out.set_attr<std::string>("out_type", "int8"); \
     q_dq_out.set_attr<std::vector<int64_t>>("zps", {zp_out}); \
     q_dq_out.set_attr<std::vector<float>>("scales", {scale_out}); \
     q_dq_out.set_attr<int64_t>("axis", 0);
@@ -8126,7 +8123,6 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
         dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::string>("in_type", "int8");
         dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
         dqother_node.set_attr<int64_t>("axis", 0);
@@ -8343,7 +8339,6 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_NXC) {
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
         dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::string>("in_type", "int8");
         dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
         dqother_node.set_attr<int64_t>("axis", 0);
@@ -8893,7 +8888,6 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu) {
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
         dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::string>("in_type", "int8");
         dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
         dqother_node.set_attr<int64_t>("axis", 0);
@@ -9104,7 +9098,6 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu_NXC) {
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
         dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::string>("in_type", "int8");
         dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
         dqother_node.set_attr<int64_t>("axis", 0);
@@ -9283,14 +9276,12 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d) {
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op.set_attr<int64_t>("axis", 1);
@@ -9301,7 +9292,6 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d) {
 
         impl::op_t qout_op(4, impl::op_kind::Quantize, "qout_op");
         qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::string>("out_type", "int8");
         qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
@@ -9431,14 +9421,12 @@ TEST(int8_subgraph_mode, int8_matmul_ndx1d) {
 
             impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
             dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-            dqdata_op.set_attr<std::string>("in_type", "uint8");
             dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
             dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
             dqdata_op.set_attr<int64_t>("axis", 0);
 
             impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
             dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-            dqweight_op.set_attr<std::string>("in_type", "int8");
             dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
             dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
             dqweight_op.set_attr<int64_t>("axis", 0);
@@ -9449,7 +9437,6 @@ TEST(int8_subgraph_mode, int8_matmul_ndx1d) {
 
             impl::op_t qout_op(4, impl::op_kind::Quantize, "qout_op");
             qout_op.set_attr<std::string>("qtype", "per_tensor");
-            qout_op.set_attr<std::string>("out_type", "int8");
             qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
             qout_op.set_attr<std::vector<float>>("scales", {scale_out});
             qout_op.set_attr<int64_t>("axis", 0);
@@ -9586,14 +9573,12 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d_with_transpose) {
             // -------------------------case 1----------------------------------
             impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
             dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-            dqdata_op.set_attr<std::string>("in_type", "uint8");
             dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
             dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
             dqdata_op.set_attr<int64_t>("axis", 0);
 
             impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
             dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-            dqweight_op.set_attr<std::string>("in_type", "int8");
             dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
             dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
             dqweight_op.set_attr<int64_t>("axis", 0);
@@ -9604,7 +9589,6 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d_with_transpose) {
 
             impl::op_t qout_op(4, impl::op_kind::Quantize, "qout_op");
             qout_op.set_attr<std::string>("qtype", "per_tensor");
-            qout_op.set_attr<std::string>("out_type", "int8");
             qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
             qout_op.set_attr<std::vector<float>>("scales", {scale_out});
             qout_op.set_attr<int64_t>("axis", 0);
@@ -9731,14 +9715,12 @@ TEST(int8_subgraph_mode, int8_matmul_relu_fusion) {
     // -------------------------case 1----------------------------------
     impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
     dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::string>("in_type", "uint8");
     dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
     dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
     dqdata_op.set_attr<int64_t>("axis", 0);
 
     impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
     dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-    dqweight_op.set_attr<std::string>("in_type", "int8");
     dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
     dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
     dqweight_op.set_attr<int64_t>("axis", 0);
@@ -9751,7 +9733,6 @@ TEST(int8_subgraph_mode, int8_matmul_relu_fusion) {
 
     impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
     qout_op.set_attr<std::string>("qtype", "per_tensor");
-    qout_op.set_attr<std::string>("out_type", "int8");
     qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
     qout_op.set_attr<std::vector<float>>("scales", {scale_out});
     qout_op.set_attr<int64_t>("axis", 0);
@@ -10051,14 +10032,12 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op.set_attr<int64_t>("axis", 1);
@@ -10069,14 +10048,12 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
 
         impl::op_t qout_op(4, impl::op_kind::Quantize, "qout_op");
         qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::string>("out_type", "int8");
         qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqother_op(5, impl::op_kind::Dequantize, "dqother_op");
         dqother_op.set_attr<std::string>("qtype", "per_tensor");
-        dqother_op.set_attr<std::string>("in_type", "int8");
         dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqother_op.set_attr<std::vector<float>>("scales", {scale_other});
         dqother_op.set_attr<int64_t>("axis", 0);
@@ -10240,14 +10217,12 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_sum_ndx2d) {
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op.set_attr<int64_t>("axis", 1);
@@ -10258,7 +10233,6 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_sum_ndx2d) {
 
         impl::op_t dqother_op(4, impl::op_kind::Dequantize, "dqother_op");
         dqother_op.set_attr<std::string>("qtype", "per_tensor");
-        dqother_op.set_attr<std::string>("in_type", "int8");
         dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqother_op.set_attr<std::vector<float>>("scales", {scale_other});
         dqother_op.set_attr<int64_t>("axis", 0);
@@ -10410,14 +10384,12 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_ndx2d) {
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op.set_attr<int64_t>("axis", 1);
@@ -10549,14 +10521,12 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_ndx2d) {
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op.set_attr<int64_t>("axis", 1);
@@ -10687,14 +10657,12 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_gelu_ndx2d) {
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op.set_attr<int64_t>("axis", 1);
@@ -10837,7 +10805,6 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_get_inplace_pair) {
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
         dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::string>("in_type", "int8");
         dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
         dqother_node.set_attr<int64_t>("axis", 0);
@@ -11217,14 +11184,12 @@ TEST(int8_subgraph_mode, int8_maxpool) {
         // -------------------------case 1----------------------------------
         impl::op_t qdata_op(0, impl::op_kind::Quantize, "qdata_op");
         qdata_op.set_attr<std::string>("qtype", "per_tensor");
-        qdata_op.set_attr<std::string>("out_type", "uint8");
         qdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         qdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         qdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
@@ -11240,7 +11205,6 @@ TEST(int8_subgraph_mode, int8_maxpool) {
 
         impl::op_t qout_op(3, impl::op_kind::Quantize, "qout_op");
         qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::string>("out_type", "uint8");
         qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
@@ -11387,14 +11351,12 @@ TEST(int8_subgraph_mode, int8_avgpool) {
         // -------------------------case 1----------------------------------
         impl::op_t qdata_op(0, impl::op_kind::Quantize, "qdata_op");
         qdata_op.set_attr<std::string>("qtype", "per_tensor");
-        qdata_op.set_attr<std::string>("out_type", "uint8");
         qdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         qdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         qdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
@@ -11410,7 +11372,6 @@ TEST(int8_subgraph_mode, int8_avgpool) {
 
         impl::op_t qout_op(3, impl::op_kind::Quantize, "qout_op");
         qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::string>("out_type", "uint8");
         qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
@@ -11666,7 +11627,6 @@ TEST(int8_subgraph_mode, int8_quant_wei_conv2d_sum_relu) {
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
         dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::string>("in_type", "int8");
         dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
         dqother_node.set_attr<int64_t>("axis", 0);
@@ -11881,21 +11841,18 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t qweight_op(2, impl::op_kind::Quantize, "qweight_op");
         qweight_op.set_attr<std::string>("qtype", qtype);
-        qweight_op.set_attr<std::string>("out_type", "int8");
         qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         qweight_op.set_attr<int64_t>("axis", 1);
 
         impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op.set_attr<int64_t>("axis", 1);
@@ -11906,14 +11863,12 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
 
         impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
         qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::string>("out_type", "int8");
         qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqother_op(6, impl::op_kind::Dequantize, "dqother_op");
         dqother_op.set_attr<std::string>("qtype", "per_tensor");
-        dqother_op.set_attr<std::string>("in_type", "int8");
         dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqother_op.set_attr<std::vector<float>>("scales", {scale_other});
         dqother_op.set_attr<int64_t>("axis", 0);
@@ -12096,21 +12051,18 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_ndx2d_with_transpose) {
         // -------------------------case 1----------------------------------
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t qweight_op(2, impl::op_kind::Quantize, "qweight_op");
         qweight_op.set_attr<std::string>("qtype", qtype);
-        qweight_op.set_attr<std::string>("out_type", "int8");
         qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         qweight_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op.set_attr<int64_t>("axis", 0);
@@ -12121,7 +12073,6 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_ndx2d_with_transpose) {
 
         impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
         qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::string>("out_type", "int8");
         qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
@@ -12275,21 +12226,18 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_relu_ndx2d) {
         // -------------------------case 1----------------------------------
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t qweight_op(2, impl::op_kind::Quantize, "qweight_op");
         qweight_op.set_attr<std::string>("qtype", qtype);
-        qweight_op.set_attr<std::string>("out_type", "int8");
         qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         qweight_op.set_attr<int64_t>("axis", 1);
 
         impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op.set_attr<int64_t>("axis", 1);
@@ -12302,7 +12250,6 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_relu_ndx2d) {
 
         impl::op_t qout_op(6, impl::op_kind::Quantize, "qout_op");
         qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::string>("out_type", "int8");
         qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
@@ -12460,28 +12407,24 @@ TEST(int8_subgraph_mode, int8_matmul_2dx3d_with_transpose) {
 
         impl::op_t qdata_op(0, impl::op_kind::Quantize, "qdata_op");
         qdata_op.set_attr<std::string>("qtype", "per_tensor");
-        qdata_op.set_attr<std::string>("out_type", "uint8");
         qdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         qdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         qdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t qweight_op(2, impl::op_kind::Quantize, "qweight_op");
         qweight_op.set_attr<std::string>("qtype", "per_tensor");
-        qweight_op.set_attr<std::string>("out_type", "int8");
         qweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
         qweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
         qweight_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
         dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
         dqweight_op.set_attr<int64_t>("axis", 0);
@@ -12492,7 +12435,6 @@ TEST(int8_subgraph_mode, int8_matmul_2dx3d_with_transpose) {
 
         impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
         qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::string>("out_type", "int8");
         qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
@@ -12597,14 +12539,12 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::string>("in_type", "uint8");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::string>("in_type", "int8");
         dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op.set_attr<int64_t>("axis", 1);
@@ -12617,21 +12557,18 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
 
         impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
         qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::string>("out_type", "int8");
         qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqdata_op2(9, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op2.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op2.set_attr<std::string>("in_type", "uint8");
         dqdata_op2.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op2.set_attr<std::vector<float>>("scales", {scale_src});
         dqdata_op2.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqweight_op2(10, impl::op_kind::Dequantize, "dqweight_op");
         dqweight_op2.set_attr<std::string>("qtype", qtype);
-        dqweight_op2.set_attr<std::string>("in_type", "int8");
         dqweight_op2.set_attr<std::vector<int64_t>>("zps", zp_wei);
         dqweight_op2.set_attr<std::vector<float>>("scales", scale_wei);
         dqweight_op2.set_attr<int64_t>("axis", 1);
@@ -12642,14 +12579,12 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
 
         impl::op_t qout_op2(6, impl::op_kind::Quantize, "qother_op");
         qout_op2.set_attr<std::string>("qtype", "per_tensor");
-        qout_op2.set_attr<std::string>("out_type", "int8");
         qout_op2.set_attr<std::vector<int64_t>>("zps", {zp_other});
         qout_op2.set_attr<std::vector<float>>("scales", {scale_other});
         qout_op2.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqout_o2p(7, impl::op_kind::Dequantize, "dqother_op");
         dqout_o2p.set_attr<std::string>("qtype", "per_tensor");
-        dqout_o2p.set_attr<std::string>("in_type", "int8");
         dqout_o2p.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqout_o2p.set_attr<std::vector<float>>("scales", {scale_other});
         dqout_o2p.set_attr<int64_t>("axis", 0);
@@ -13302,14 +13237,12 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias) {
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
     dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::string>("in_type", "uint8");
     dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
     dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
     dqdata_op.set_attr<int64_t>("axis", 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
     dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::string>("in_type", "int8");
     dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
     dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
     dqweight_op.set_attr<int64_t>("axis", 1);
@@ -13429,21 +13362,18 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias_add) {
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
     dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::string>("in_type", "uint8");
     dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
     dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
     dqdata_op.set_attr<int64_t>("axis", 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
     dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::string>("in_type", "int8");
     dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
     dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
     dqweight_op.set_attr<int64_t>("axis", 1);
 
     impl::op_t dqother_op(2, impl::op_kind::Dequantize, "dqother_op");
     dqother_op.set_attr<std::string>("qtype", qtype);
-    dqother_op.set_attr<std::string>("in_type", "uint8");
     dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
     dqother_op.set_attr<std::vector<float>>("scales", {scale_src});
     dqother_op.set_attr<int64_t>("axis", 1);
@@ -13587,14 +13517,12 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias_gelu) {
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
     dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::string>("in_type", "uint8");
     dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
     dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
     dqdata_op.set_attr<int64_t>("axis", 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
     dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::string>("in_type", "int8");
     dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
     dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
     dqweight_op.set_attr<int64_t>("axis", 1);
@@ -13611,7 +13539,6 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias_gelu) {
 
     impl::op_t qout_op(7, impl::op_kind::Quantize, "qdout_op");
     qout_op.set_attr<std::string>("qtype", qtype);
-    qout_op.set_attr<std::string>("out_type", "uint8");
     qout_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
     qout_op.set_attr<std::vector<float>>("scales", {scale_src});
     qout_op.set_attr<int64_t>("axis", 1);

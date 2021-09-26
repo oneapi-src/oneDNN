@@ -376,21 +376,18 @@ TEST(pass_test, subgraph_passes) {
 
     impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
     dqdata_node.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_node.set_attr<std::string>("out_type", "uint8");
     dqdata_node.set_attr<std::vector<int64_t>>("zps", {zp_src});
     dqdata_node.set_attr<std::vector<float>>("scales", {scale_src});
     dqdata_node.set_attr<int64_t>("axis", 0);
 
     impl::op_t qweight_node(10, impl::op_kind::Quantize, "qweight_node");
     qweight_node.set_attr<std::string>("qtype", "per_tensor");
-    qweight_node.set_attr<std::string>("out_type", "int8");
     qweight_node.set_attr<std::vector<int64_t>>("zps", zp_wei);
     qweight_node.set_attr<std::vector<float>>("scales", scale_wei);
     qweight_node.set_attr<int64_t>("axis", 0);
 
     impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
     dqweight_node.set_attr<std::string>("qtype", "per_tensor");
-    dqweight_node.set_attr<std::string>("out_type", "int8");
     dqweight_node.set_attr<std::vector<int64_t>>("zps", zp_wei);
     dqweight_node.set_attr<std::vector<float>>("scales", scale_wei);
     dqweight_node.set_attr<int64_t>("axis", 0);
@@ -408,14 +405,12 @@ TEST(pass_test, subgraph_passes) {
 
     impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
     qout_node.set_attr<std::string>("qtype", "per_tensor");
-    qout_node.set_attr<std::string>("out_type", "int8");
     qout_node.set_attr<std::vector<int64_t>>("zps", {zp_out});
     qout_node.set_attr<std::vector<float>>("scales", {scale_out});
     qout_node.set_attr<int64_t>("axis", 0);
 
     impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
     dqother_node.set_attr<std::string>("qtype", "per_tensor");
-    dqother_node.set_attr<std::string>("in_type", "int8");
     dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
     dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
     dqother_node.set_attr<int64_t>("axis", 0);
