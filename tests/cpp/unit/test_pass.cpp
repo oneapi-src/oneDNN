@@ -7704,3 +7704,14 @@ TEST(pass_test, int8_mix_bf16_matmul_gelu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
+
+// deq->matmul->gelu->q should have higher priority than deq->matmul->gelu
+// deq->typecast->matmul->gelu->typecast->q should have higher priority than
+// deq->typecast->matmul
+TEST(pass_priority_test, int8_bf16_matmul_gelu) {
+    pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_gelu_fusion");
+    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_gelu_fusion");
+    pass::pass_base_ptr pass3 = get_pass("x8s8bf16_matmul_bias_fusion");
+    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
+    ASSERT_GT(pass1->get_priority(), pass3->get_priority());
+}
