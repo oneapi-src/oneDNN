@@ -53,8 +53,6 @@ void check_known_skipped_case_graph_common(
         const dir_t &dir, res_t *res);
 dnnl::graph::logical_tensor::data_type convert_dt(
         const dnnl_data_type_t dt) noexcept;
-dnnl::graph::logical_tensor::data_type get_sum_src_dt(
-        const std::vector<attr_t::post_ops_t::entry_t> &post_ops) noexcept;
 dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept;
 std::string convert_tag(
         const std::string &tag, bool activation_tag = true) noexcept;
@@ -342,6 +340,14 @@ protected:
     friend struct po_handlers_t;
 };
 
+struct low_precision_attr {
+    const dt &dst_dt_;
+    const dims_t &dst_dims_;
+    const std::string &dtag_;
+    low_precision_attr(
+            const dt &dst_dt, const dims_t &dst_dims, const std::string &dtag)
+        : dst_dt_(dst_dt), dst_dims_(dst_dims), dtag_(dtag) {};
+};
 struct po_handlers_t {
     using dt = dnnl::graph::logical_tensor::data_type;
     using lt = dnnl::graph::logical_tensor::layout_type;
@@ -366,6 +372,12 @@ private:
         fill_status_t operator()(graph_prb_t &p);
     };
 
+    struct low_precision_handler_t {
+        fill_status handle_low_precision_post_sum(graph_prb_t &p,
+                const low_precision_attr &lp_attr,
+                const std::vector<attr_t::post_ops_t::entry_t> &po_entry);
+    };
+
 public:
     union {
         struct {
@@ -373,6 +385,7 @@ public:
             eltwise_po_handler_t eltw_handler;
             sum_po_handler_t sum_handler;
             binary_po_handler_t bin_handler;
+            low_precision_handler_t low_precision_handler;
         } conv;
 
         struct {
@@ -380,6 +393,7 @@ public:
             eltwise_po_handler_t eltw_handler;
             sum_po_handler_t sum_handler;
             binary_po_handler_t bin_handler;
+            low_precision_handler_t low_precision_handler;
         } matmul;
 
         struct {

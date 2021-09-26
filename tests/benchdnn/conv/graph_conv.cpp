@@ -192,17 +192,10 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
     }
 
     if (has_post_sum()) {
-        const std::string QPSUM_SRC {TENSOR_ID + "_SUM_SRC1"};
-        const std::string POST_SUM_SRC = tensor_id["sum"].back() + "_SRC";
-        auto sum_src_dt = get_sum_src_dt(prb->attr.post_ops.entry);
-        if (dt::undef == sum_src_dt) sum_src_dt = spec_.dst_dt;
-        tensor_descs_.emplace(QPSUM_SRC, sum_src_dt, spec_.dst_dims, prb->dtag);
-        graph::op dequant_sum(ops_.size(), graph::op::kind::Dequantize,
-                {tensor_descs_[QPSUM_SRC]}, {tensor_descs_[POST_SUM_SRC]},
-                "dequant_sum");
-        dequant_sum.set_attr("scales", std::vector<float> {1.f})
-                .set_attr("zps", std::vector<int64_t> {0L});
-        ops_.emplace_back(dequant_sum);
+        const low_precision_attr lp_attr(
+                spec_.dst_dt, spec_.dst_dims, prb->dtag);
+        po_handler.conv.low_precision_handler.handle_low_precision_post_sum(
+                *this, lp_attr, prb->attr.post_ops.entry);
     }
     curr_out_map_ids_.assign({TENSOR_ID});
 
