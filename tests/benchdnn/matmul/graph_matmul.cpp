@@ -200,8 +200,10 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
             = prb_->attr.oscale.policy == policy_t::COMMON ? 1 : prb_->n;
 
     oscales_.resize(count, 1.f);
-    for (int64_t c = 0; c < count; ++c) {
-        oscales_[c] = prb_->scales[c];
+    // if oscale is not default, copy values and pass it to oneDNN Graph
+    if (!prb_->attr.oscale.is_def()) {
+        for (int64_t c = 0; c < count; ++c)
+            oscales_[c] = prb_->scales[c];
     }
 
     // currently, only policy_t::COMMON is supported for asymmetric quant

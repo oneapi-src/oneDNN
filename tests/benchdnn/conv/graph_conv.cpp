@@ -119,8 +119,11 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
     const int64_t oscale_count
             = prb->attr.oscale.policy == policy_t::COMMON ? 1 : prb->oc;
     oscales.resize(oscale_count, 1.f);
-    for (int64_t c = 0; c < oscale_count; ++c)
-        oscales[c] = prb->scales[c];
+    // if oscale is not default, copy values and pass it to oneDNN Graph
+    if (!prb->attr.oscale.is_def()) {
+        for (int64_t c = 0; c < oscale_count; ++c)
+            oscales[c] = prb->scales[c];
+    }
 
     // currently, only policy_t::COMMON is supported for asymmetric quant
     // for src and dst, other policy is not suppoted by oneDNN Graph.
