@@ -38,7 +38,8 @@ using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper;
 
 static bool has_optional_bias(op_kind_t kind) {
-    std::set<op_kind_t> ops {impl::op_kind::Convolution, impl::op_kind::MatMul};
+    std::set<op_kind_t> ops {impl::op_kind::Convolution, impl::op_kind::MatMul,
+            impl::op_kind::ConvTranspose};
     return ops.count(kind) != 0;
 }
 

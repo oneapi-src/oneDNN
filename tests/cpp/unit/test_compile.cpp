@@ -4033,6 +4033,8 @@ struct dnnl_graph_test_convtranspose_params {
     std::string filter_format;
     std::vector<int64_t> src_shape;
     std::vector<int64_t> weight_shape;
+    bool with_bias;
+    std::vector<int64_t> bias_shape;
     std::vector<int64_t> dst_shape;
     impl::dnnl_impl::dims strides;
     impl::dnnl_impl::dims dilations;
@@ -4040,6 +4042,7 @@ struct dnnl_graph_test_convtranspose_params {
     impl::dnnl_impl::dims pads_end;
     test::vector<float> src;
     test::vector<float> weight;
+    test::vector<float> bias;
     test::vector<float> ref_dst;
 };
 
@@ -4073,16 +4076,25 @@ public:
                 1, params.weight_shape, impl::data_type::f32);
         impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
                 2, params.dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t bias_lt
+                = utils::logical_tensor_init(3, impl::data_type::f32);
 
         convtranspose_op.add_input(src_lt);
         convtranspose_op.add_input(weight_lt);
+        if (params.with_bias) {
+            bias_lt = utils::logical_tensor_init(
+                    3, params.bias_shape, impl::data_type::f32);
+            convtranspose_op.add_input(bias_lt);
+        }
         convtranspose_op.add_output(dst_lt);
 
         impl::graph_t g;
         g.add_op(&convtranspose_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
+        impl::pass::pass_base_ptr apass = params.with_bias
+                ? get_pass("convtranspose_bias_fusion")
+                : get_pass("convtranspose_pass");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -4095,17 +4107,27 @@ public:
 
         std::vector<const impl::logical_tensor_t *> inputs {
                 &src_lt, &weight_lt};
+        printf("Line4109\n");
+        if (params.with_bias) inputs.push_back(&bias_lt);
         std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
 
+        printf("Line4112\n");
         p.compile(&cp, inputs, outputs, &eng);
         ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+        printf("Line4114\n");
 
         impl::tensor_t src_ts(src_lt, &eng, params.src.data());
         impl::tensor_t weight_ts(weight_lt, &eng, params.weight.data());
         impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+        impl::tensor_t bias_ts;
+        if (params.with_bias)
+            bias_ts = impl::tensor_t(bias_lt, &eng, params.bias.data());
 
         impl::stream_t &strm = get_stream();
-        cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
+        if (params.with_bias)
+            cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+        else
+            cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
         strm.wait();
         for (size_t i = 0; i < dst.size(); ++i) {
             ASSERT_FLOAT_EQ(dst[i], params.ref_dst[i]);
@@ -4120,57 +4142,57 @@ TEST_P(test_convtranspose_compile, TestConvtranspose_compile) {
 INSTANTIATE_TEST_SUITE_P(TestConvtranspose_compile, test_convtranspose_compile,
         ::testing::Values(
                 dnnl_graph_test_convtranspose_params {"NXC", "OIX",
-                        {1, 2, 2, 1}, {1, 1, 3, 3}, {1, 4, 4, 1}, {1, 1},
-                        {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {1, 2, 2, 1}, {1, 1, 3, 3}, false, {1}, {1, 4, 4, 1},
+                        {1, 1}, {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {0.0},
                         {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
                                 0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
                 dnnl_graph_test_convtranspose_params {"NCX", "OIX",
-                        {1, 1, 2, 2}, {1, 1, 3, 3}, {1, 1, 4, 4}, {1, 1},
-                        {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
-                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
-                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                        {1, 1, 2, 2}, {1, 1, 3, 3}, true, {1}, {1, 1, 4, 4},
+                        {1, 1}, {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
+                        {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
+                                3.5, 6.0, 2.5, 6.0, 2.5}},
                 dnnl_graph_test_convtranspose_params {"NXC", "XIO",
-                        {1, 2, 2, 1}, {3, 3, 1, 1}, {1, 4, 4, 1}, {1, 1},
-                        {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {1, 2, 2, 1}, {3, 3, 1, 1}, false, {1}, {1, 4, 4, 1},
+                        {1, 1}, {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
                         {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
                                 0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
                 dnnl_graph_test_convtranspose_params {"NCX", "XIO",
-                        {1, 1, 2, 2}, {3, 3, 1, 1}, {1, 1, 4, 4}, {1, 1},
-                        {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
-                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
-                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                        {1, 1, 2, 2}, {3, 3, 1, 1}, true, {1}, {1, 1, 4, 4},
+                        {1, 1}, {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
+                        {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
+                                3.5, 6.0, 2.5, 6.0, 2.5}},
                 dnnl_graph_test_convtranspose_params {"NXC", "OIX",
-                        {1, 1, 2, 2, 1}, {1, 1, 1, 3, 3}, {1, 1, 4, 4, 1},
-                        {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
-                        {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {1, 1, 2, 2, 1}, {1, 1, 1, 3, 3}, false, {1},
+                        {1, 1, 4, 4, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
                         {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
                                 0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
                 dnnl_graph_test_convtranspose_params {"NCX", "OIX",
-                        {1, 1, 1, 2, 2}, {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4},
-                        {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
-                        {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {1, 1, 1, 2, 2}, {1, 1, 1, 3, 3}, false, {1},
+                        {1, 1, 1, 4, 4}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
                         {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
                                 0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
                 dnnl_graph_test_convtranspose_params {"NXC", "XIO",
-                        {1, 1, 2, 2, 1}, {1, 3, 3, 1, 1}, {1, 1, 4, 4, 1},
-                        {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
-                        {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {1, 1, 2, 2, 1}, {1, 3, 3, 1, 1}, false, {1},
+                        {1, 1, 4, 4, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
                         {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
                                 0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
                 dnnl_graph_test_convtranspose_params {"NCX", "XIO",
-                        {1, 1, 1, 2, 2}, {1, 3, 3, 1, 1}, {1, 1, 1, 4, 4},
-                        {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
-                        {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
-                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
-                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}}));
+                        {1, 1, 1, 2, 2}, {1, 3, 3, 1, 1}, true, {1},
+                        {1, 1, 1, 4, 4}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {-1.0, 2.5, 5.0, 1.5},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
+                        {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
+                                3.5, 6.0, 2.5, 6.0, 2.5}}));
 
 TEST(operator_compile, Convolution3D_NCX_OIX) {
     using dims = std::vector<int64_t>;
