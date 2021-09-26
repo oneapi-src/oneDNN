@@ -120,7 +120,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, dnnl, Reorder, 8.f)
         return true; \
     })
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, typecast_pass)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](std::shared_ptr<pb_graph> pgraph) -> void {
