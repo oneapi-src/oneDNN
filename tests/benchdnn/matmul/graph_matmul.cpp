@@ -57,20 +57,8 @@ void check_known_skipped_case_graph(
     ::matmul::check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return;
 
-    for (const auto &po : prb->attr.post_ops.entry) {
-        if (po.is_eltwise_kind()) {
-            // for swish, alpha is always set to 1.0 in the oneDNN graph
-            // it's because swish is represented as Multiply+Sigmoid
-            // and Sigmoid don't have either alpha or beta
-            const auto is_swish = po.kind == attr_t::post_ops_t::SWISH;
-            const auto alpha_differs_from_one
-                    = std::fabs(1.0 - po.eltwise.alpha) > 1.0e-05;
-            if (is_swish && alpha_differs_from_one) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                return;
-            }
-        }
-    }
+    check_graph_eltwise_post_ops(prb->attr, res);
+    if (res->state == SKIPPED) return;
 }
 
 fill_status_t matmul_graph_prb_t::handle_main_op_() {

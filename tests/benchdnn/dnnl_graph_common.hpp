@@ -51,6 +51,10 @@ typedef fill_status fill_status_t;
 void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res);
+void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res);
+void check_graph_eltwise_params(res_t *res,
+        const attr_t::post_ops_t::kind_t alg, const float alpha,
+        const float beta);
 dnnl::graph::logical_tensor::data_type convert_dt(
         const dnnl_data_type_t dt) noexcept;
 dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept;
