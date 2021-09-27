@@ -19,34 +19,24 @@
 /// > Annotated version: @ref cpu_get_started_cpp
 
 /// @page cpu_get_started_cpp Getting started on CPU
-/// This is an example to demonstrate how to build a simple graph and run on
+/// This is an example to demonstrate how to build a simple graph and run it on
 /// CPU.
 ///
 /// > Example code: @ref cpu_get_started.cpp
 ///
 /// Some key take-aways included in this example:
 ///
-/// * how to build a graph and get several partitions
-/// * how to create engine, allocator and stream
+/// * how to build a graph and get partitions from it
+/// * how to create an engine, allocator and stream
 /// * how to compile a partition
-/// * how to execute a compiled partition with input tensors on a specific
-///     stream
+/// * how to execute a compiled partition
 ///
-
-#include <assert.h>
-
-#include <algorithm>
-#include <cmath>
-#include <iostream>
-#include <stdexcept>
-
-#include "common/utils.hpp"
 
 /// @page cpu_get_started_cpp
 /// @section cpu_get_started_cpp_headers Public headers
 ///
-/// To start using oneDNN graph, we must include the @ref dnnl_graph.hpp header file
-/// in the application. All the C++ APIs reside in namespace `dnnl::graph`.
+/// To start using oneDNN graph, we must include the @ref dnnl_graph.hpp header
+/// file in the application. All the C++ APIs reside in namespace `dnnl::graph`.
 /// @page cpu_get_started_cpp
 /// @snippet cpu_get_started.cpp Headers and namespace
 //[Headers and namespace]
@@ -54,14 +44,13 @@
 using namespace dnnl::graph;
 //[Headers and namespace]
 
+#include "example_utils.hpp"
+
 /// @page cpu_get_started_cpp
 /// @section cpu_get_started_cpp_tutorial cpu_get_started_tutorial() function
 ///
-void cpu_get_started_tutorial(engine::kind engine_kind) {
-    std::cout << "========Example: Conv->ReLU->Conv->ReLU========\n";
+void cpu_get_started_tutorial() {
     // clang-format off
-
-    std::cout << "Create logical tensors and ops-----------------";
     const std::vector<size_t> logical_id {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
     std::vector<int64_t> input_dims {8, 3, 227, 227};
@@ -75,17 +64,21 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     /// @page cpu_get_started_cpp
     /// @subsection cpu_get_started_cpp_get_partition Build graph and get partitions
     ///
-    /// In this section, we are trying to build a graph containing the pattern like `conv0->relu0->conv1->relu1`. After that,
-    /// we can get all of partitions which are determined by backend.
+    /// In this section, we are trying to build a graph containing the pattern
+    /// like `conv0->relu0->conv1->relu1`. After that, we can get all of
+    /// partitions which are determined by backend.
     ///
-    /// To create a graph, #dnnl::graph::engine::kind is needed because the returned partitions maybe vary on different devices.
+    /// To create a graph, #dnnl::graph::engine::kind is needed because the
+    /// returned partitions maybe vary on different devices.
     /// @snippet cpu_get_started.cpp Create graph
     //[Create graph]
-    graph g(engine_kind);
+    graph g(engine::kind::cpu);
     //[Create graph]
 
-    /// To build a graph, the connection relationship of different ops must be known. In oneDNN graph, #dnnl::graph::logical_tensor is used
-    /// to express such relationship. So, next step is to create logical tensors for these ops including inputs and outputs.
+    /// To build a graph, the connection relationship of different ops must be
+    /// known. In oneDNN graph, #dnnl::graph::logical_tensor is used to express
+    /// such relationship. So, next step is to create logical tensors for these
+    /// ops including inputs and outputs.
     ///
     /// Create input/output #dnnl::graph::logical_tensor for first `Convolution` op.
     /// @snippet cpu_get_started.cpp Create conv's logical tensor
@@ -95,7 +88,8 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     logical_tensor conv0_dst_desc {logical_id[2], logical_tensor::data_type::f32, dst_dims, logical_tensor::layout_type::undef};
     //[Create conv's logical tensor]
 
-    /// Create first `Convolution` op (#dnnl::graph::op) and attaches attributes to it, such as `strides`, `pads_begin`, `pads_end`, `data_format`, etc.
+    /// Create first `Convolution` op (#dnnl::graph::op) and attaches attributes
+    /// to it, such as `strides`, `pads_begin`, `pads_end`, `data_format`, etc.
     /// @snippet cpu_get_started.cpp Create first conv
     //[Create first conv]
     op conv0(0, op::kind::Convolution, {conv0_src_desc, conv0_weight_desc}, {conv0_dst_desc}, "conv0");
@@ -177,25 +171,23 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     //[Create second relu]
     op relu1(5, op::kind::ReLU, {conv1_bias_add_dst_desc}, {relu1_dst_desc}, "relu1");
     //[Create second relu]
-    std::cout << "Success!\n";
 
-    std::cout << "Add OP to the graph----------------------------";
-    /// Finally, those created ops will be added into the graph. The graph inside will maintain a
-    /// list to store all these ops.
+    /// Finally, those created ops will be added into the graph. The graph
+    /// inside will maintain a list to store all these ops.
     /// @snippet cpu_get_started.cpp Add op
     //[Add op]
     g.add_op(conv0);
-    g.add_op(relu0);
-    g.add_op(conv1);
-    g.add_op(relu1);
     g.add_op(conv0_bias_add);
-    g.add_op(conv1_bias_add);
-    //[Add op]
-    std::cout << "Success!\n";
+    g.add_op(relu0);
 
-    std::cout << "Filter and get partition-----------------------";
-    /// After finished above operations, we can get partitions by calling #dnnl::graph::graph::get_partitions().
-    /// Here we can slao specify the #dnnl::graph::partition::policy to get different partitions.
+    g.add_op(conv1);
+    g.add_op(conv1_bias_add);
+    g.add_op(relu1);
+    //[Add op]
+
+    /// After finished above operations, we can get partitions by calling
+    /// #dnnl::graph::graph::get_partitions(). Here we can also specify the
+    /// #dnnl::graph::partition::policy to get different partitions.
     ///
     /// In this example, the graph will be filtered into two partitions:
     /// `conv0+relu0` and `conv1+relu1`.
@@ -212,32 +204,31 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     if (partitions.size() != 2) {
         throw std::runtime_error("wrong partition number");
     }
-    std::cout << "Success!\n";
 
     /// @page cpu_get_started_cpp
     /// @subsection cpu_get_started_cpp_compile Compile partition
     ///
-    /// In the real case, we assume that framework can provide device info at this stage. But in this example, we just use a
-    /// self-defined device to simulate the real behavior.
+    /// In the real case, we assume that framework can provide device info at
+    /// this stage. But in this example, we just use a self-defined device to
+    /// simulate the real behavior.
     ///
 
-    /// Create a #dnnl::graph::engine. Also, set a
-    /// user-defined #dnnl::graph::allocator to this engine.
+    /// Create a #dnnl::graph::engine. Also, set a user-defined
+    /// #dnnl::graph::allocator to this engine.
     ///
     /// @snippet cpu_get_started.cpp Create engine
     //[Create engine]
-    const int32_t device_id = 0;
-    engine eng {engine_kind, device_id};
+    engine eng {engine::kind::cpu, 0};
     allocator alloc {};
     eng.set_allocator(alloc);
     //[Create engine]
 
-    std::cout << "Prepare logical tensors with proper format-----";
     /// Sets proper format to the logical tensors for inputs/outputs of
     /// partition 0.
     ///
     /// @note
-    ///    In this example, partition inputs(conv0)/weights/bias are created with plain layout while output has opaque layout.
+    ///    In this example, partition inputs(conv0)/weights/bias are created
+    ///    with plain layout while output has opaque layout.
     ///
     /// @snippet cpu_get_started.cpp Prepare format for logical tensors 0
     //[Prepare format for logical tensors 0]
@@ -246,16 +237,13 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     logical_tensor conv0_bias_desc_plain {logical_id[3], logical_tensor::data_type::f32, bias_dims, logical_tensor::layout_type::strided};
     logical_tensor relu0_dst_desc_plain {logical_id[5], logical_tensor::data_type::f32, dst_dims, logical_tensor::layout_type::strided};
     //[Prepare format for logical tensors 0]
-    std::cout << "Success!\n";
 
-    std::cout << "Compile partition 0----------------------------";
     /// Compile the partition 0 to generate compiled partition with the
     /// input and output logical tensors.
     /// @snippet cpu_get_started.cpp Compile partition 0
     //[Compile partition 0]
     auto cp0 = partitions[0].compile({conv0_src_desc_plain, conv0_weight_desc_plain, conv0_bias_desc_plain}, {relu0_dst_desc_plain}, eng);
     //[Compile partition 0]
-    std::cout << "Success!\n";
 
     /// Sets proper format to the logical tensors for inputs/outputs of
     /// partition 1.
@@ -271,17 +259,14 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     logical_tensor relu1_dst_desc_plain {logical_id[10], logical_tensor::data_type::f32, dst_dims, logical_tensor::layout_type::strided};
     //[Prepare format for logical tensors 1]
 
-    std::cout << "Compile partition 1----------------------------";
-    /// Compile the partition 1 to generate compiled partition with the
-    /// input and output logical tensors.
+    /// Compile the partition 1 to generate compiled partition with the input
+    /// and output logical tensors.
     /// @snippet cpu_get_started.cpp Compile partition 1
     //[Compile partition 1]
     auto cp1 = partitions[1].compile({relu0_dst_desc_plain, conv1_weight_desc_plain, conv1_bias_desc_plain}, {relu1_dst_desc_plain}, eng);
     //[Compile partition 1]
-    std::cout << "Success!\n";
 
     // Step 5: Prepare tensor and execute compiled partitions
-    std::cout << "Prepare tensor and execute compiled partitions-";
 
     /// @page cpu_get_started_cpp
     /// @subsection cpu_get_started_cpp_execute Execute compiled partition
@@ -331,34 +316,14 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     //[Execute compiled partition 1]
     cp1.execute(strm, {relu0_dst, conv1_weight, conv1_bias}, {relu1_dst});
     //[Execute compiled partition 1]
-    std::cout << "Success!\n";
-
-    std::cout << "Check correctness------------------------------";
-    /// Check correctness of the output results.
-    /// @snippet cpu_get_started.cpp Check results
-    //[Check results]
-    float expected_result
-            = (1 * 11 * 11 * 3 + /* conv0 bias */ 1.0f) * (1 * 1 * 96)
-            + /* conv1 bias */ 1.0f;
-    for (auto v : relu1_dst_data) {
-        if ((float)expected_result != v) {
-            throw std::runtime_error(
-                    "output result is not equal to excepted "
-                    "results");
-        }
-    }
-    //[Check results]
-    std::cout << "Success!\n";
 
     set_compiled_partition_cache_capacity(0);
 
-    std::cout << "============Run Example Successfully===========\n";
     /// @page cpu_get_started_cpp Getting started on CPU
     // clang-format on
 }
 
 int main(int argc, char **argv) {
-    engine::kind engine_kind = parse_engine_kind(argc, argv);
-    cpu_get_started_tutorial(engine_kind);
+    cpu_get_started_tutorial();
     return 0;
 }
