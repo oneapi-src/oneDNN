@@ -2560,7 +2560,11 @@ private:
         const int grf_size = ngen::GRF::bytes(hw_);
         auto dummy = scope.try_alloc_range(
                 utils::div_up(dst_layout.size(), grf_size));
-        if (dummy.isInvalid()) return false;
+        if (dummy.isInvalid()) {
+            ir_warning() << "Can't allocate buffer for 2D reorder. Reorder "
+                            "performance may be suboptimal.\n";
+            return false;
+        }
 
         // Allocation succeeded, can proceed further.
         scope.safeRelease(dummy);
