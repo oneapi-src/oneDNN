@@ -4,9 +4,10 @@ public:
 /// Constructs a tensor object according to the given logical tensor
 ///
 /// @param lt The given logical tensor
+/// @param aengine Engine to store the data on.
 /// @param handle Handle of memory buffer to use as an underlying storage,
 ///    if the ndims in the logical tensor is 0, data handle holds a scalar
-tensor(const logical_tensor &lt, void *handle);
+tensor(const logical_tensor &lt, const engine &aengine, void *handle);
 
 /// Returns the underlying memory buffer with the specific type
 ///
@@ -25,4 +26,9 @@ void set_data_handle(void *handle);
 ///
 /// @returns Number of elements
 int64_t get_element_num() const;
+
+/// Returns the associated engine.
+///
+/// @returns An engine object
+engine get_engine() const;
 };

@@ -38,13 +38,6 @@ engine::kind get_engine_kind() const;
 compiled_partition compile(const std::vector<logical_tensor> &inputs,
         const std::vector<logical_tensor> &outputs, const engine &e) const;
  
-/// Infer the shape of outputs
-///
-/// @param inputs A list of input logical tensors
-/// @param outputs A list of output logical tensors
-void infer_shape(const std::vector<logical_tensor> &inputs, 
-                std::vector<logical_tensor> &outputs);
-
 /// Returns the supporting status of the partition
 ///
 /// @returns @c true if this partition is supported by oneDNN Graph backend

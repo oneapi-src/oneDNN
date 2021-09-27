@@ -199,7 +199,7 @@ public:
     /// @param adims Tensor dimensions, -1 means a particular axis of dims is
     /// @param lid Layout id
     logical_tensor(
-            size_t tid, data_type dtype, const dims_t &adims, int64_t lid);
+            size_t tid, data_type dtype, const dims_t &adims, size_t lid);
 
     /// Returns dimensions of the logical tensor
     ///
@@ -224,7 +224,7 @@ public:
     /// Returns the layout of the tensor
     ///
     /// @returns Layout id
-    int64_t get_layout_id() const;
+    size_t get_layout_id() const;
 
     /// Returns strides of this logical tensor
     ///
@@ -263,9 +263,10 @@ public:
     /// Constructs a tensor object according to the given logical tensor
     ///
     /// @param lt The given logical tensor
+    /// @param aengine Engine to store the data on.
     /// @param handle Handle of memory buffer to use as an underlying storage,
     ///     if the ndims in the logical tensor is 0, data handle holds a scalar
-    tensor(const logical_tensor &lt, void *handle);
+    tensor(const logical_tensor &lt, const engine &aengine, void *handle);
 
     /// Returns the underlying memory buffer with the specific type
     ///
@@ -284,6 +285,11 @@ public:
     ///
     /// @returns Number of element
     int64_t get_element_num() const;
+
+    /// Returns the associated engine.
+    ///
+    /// @returns An engine object
+    engine get_engine() const;
 };
 
 /// @} dnnl_graph_api_tensor
@@ -394,13 +400,6 @@ public:
     /// @returns A compiled partition
     compiled_partition compile(const std::vector<logical_tensor> &inputs,
             const std::vector<logical_tensor> &outputs, const engine &e) const;
-
-    /// Infer the partition's output shape
-    ///
-    /// @param inputs A list of input logical tensors
-    /// @param outputs A list of output logical tensors
-    void infer_shape(const std::vector<logical_tensor> &inputs,
-            std::vector<logical_tensor> &outputs) const;
 
     /// Returns the supporting status of the partition
     ///

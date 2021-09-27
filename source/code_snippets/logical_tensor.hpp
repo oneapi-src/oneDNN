@@ -95,7 +95,7 @@ layout_type get_layout_type() const;
 /// Returns the layout of the tensor
 ///
 /// @returns Layout id
-int64_t get_layout_id() const;
+size_t get_layout_id() const;
  
 /// Returns strides of this logical tensor
 ///
