@@ -82,6 +82,9 @@ void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
             return;
         }
     }
+
+    check_graph_eltwise_post_ops(prb->attr, res);
+    if (res->state == SKIPPED) return;
 }
 
 fill_status_t binary_graph_prb_t::handle_main_op_() {

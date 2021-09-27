@@ -67,6 +67,9 @@ void check_known_skipped_case_graph(
             return;
         }
     }
+
+    check_graph_eltwise_post_ops(prb->attr, res);
+    if (res->state == SKIPPED) return;
 }
 
 fill_status_t bnorm_graph_prb_t::handle_main_op_() {

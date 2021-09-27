@@ -33,6 +33,15 @@ eltwise_graph_prb_t::spec_t::spec_t(const ::eltwise::prb_t *prb) noexcept {
     beta = prb->beta;
 }
 
+void check_known_skipped_case_graph(
+        const ::eltwise::prb_t *prb, res_t *res) noexcept {
+    ::eltwise::check_known_skipped_case(prb, res);
+    if (res->state == SKIPPED) return;
+
+    check_graph_eltwise_params(res, prb->alg, prb->alpha, prb->beta);
+    if (res->state == SKIPPED) return;
+}
+
 fill_status_t eltwise_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
@@ -82,7 +91,7 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    ::eltwise::check_known_skipped_case(prb, res);
+    check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
     eltwise_graph_prb_t graph_prb(prb);

@@ -52,6 +52,42 @@ void check_known_skipped_case_graph_common(
     }
 }
 
+void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res) {
+    for (const auto &e : attr.post_ops.entry) {
+        if (!e.is_eltwise_kind()) continue;
+
+        check_graph_eltwise_params(
+                res, e.kind, e.eltwise.alpha, e.eltwise.beta);
+    }
+}
+
+// Due to differences between oneDNN and oneDNN graph APIs we need
+// to skip cases in which elementwise parameters cannot be set. For
+// example, oneDNN graph API doesn't have alpha parameter for ReLU,
+// while oneDNN does. Another example is Swish, which is represented
+// in oneDNN graph by Multiply+Sigmoid - Sigmoid doesn't accept any
+// param, so alpha is fixed and equal to 1.0.
+void check_graph_eltwise_params(res_t *res,
+        const attr_t::post_ops_t::kind_t alg, const float alpha,
+        const float beta) {
+    using alg_t = attr_t::post_ops_t::kind_t;
+
+    constexpr float eps = 1.0e-05;
+    if (alg == alg_t::RELU) {
+        const float expected_alpha = 0.0;
+        if (std::fabs(expected_alpha - alpha) > eps) {
+            res->state = SKIPPED, res->reason = KNOWN_LIMITATION;
+            return;
+        }
+    } else if (alg == alg_t::SWISH) {
+        const float expected_alpha = 1.0;
+        if (std::fabs(expected_alpha - alpha) > eps) {
+            res->state = SKIPPED, res->reason = KNOWN_LIMITATION;
+            return;
+        }
+    }
+}
+
 dnnl::graph::logical_tensor::data_type convert_dt(
         const dnnl_data_type_t dt) noexcept {
     using graph_dt = dnnl::graph::logical_tensor::data_type;

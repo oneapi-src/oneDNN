@@ -31,6 +31,15 @@ namespace conv {
 
 namespace graph = dnnl::graph;
 
+void check_known_skipped_case_graph(
+        const ::conv::prb_t *prb, res_t *res) noexcept {
+    ::conv::check_known_skipped_case(prb, res);
+    if (res->state == SKIPPED) return;
+
+    check_graph_eltwise_post_ops(prb->attr, res);
+    if (res->state == SKIPPED) return;
+}
+
 fill_status_t conv_graph_prb_t::handle_main_op_() {
     using kind = graph::op::kind;
 
@@ -211,7 +220,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    ::conv::check_known_skipped_case(prb, res);
+    check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
     conv_graph_prb_t graph_prb(prb);
