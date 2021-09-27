@@ -7708,10 +7708,23 @@ TEST(pass_test, int8_mix_bf16_matmul_gelu_fusion) {
 // deq->matmul->gelu->q should have higher priority than deq->matmul->gelu
 // deq->typecast->matmul->gelu->typecast->q should have higher priority than
 // deq->typecast->matmul
+// quant(weight)->dequant(data & weight)->matmul->gelu->q
+// should have higher priority than deq->matmul->gelu->q
 TEST(pass_priority_test, int8_bf16_matmul_gelu) {
     pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_gelu_fusion");
     pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_gelu_fusion");
     pass::pass_base_ptr pass3 = get_pass("x8s8bf16_matmul_bias_fusion");
+    pass::pass_base_ptr pass4
+            = get_pass("int8_quant_wei_matmul_bias_gelu_fusion");
     ASSERT_GT(pass1->get_priority(), pass2->get_priority());
     ASSERT_GT(pass1->get_priority(), pass3->get_priority());
+    ASSERT_GT(pass4->get_priority(), pass1->get_priority());
+}
+
+// deq->typecast->matmul->add should have higher priority than
+// deq->typecast->matmul
+TEST(pass_priority_test, x8s8bf16_matmul_add) {
+    pass::pass_base_ptr pass1 = get_pass("x8s8bf16_matmul_bias_add_fusion");
+    pass::pass_base_ptr pass2 = get_pass("x8s8bf16_matmul_bias_fusion");
+    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
 }
