@@ -1240,7 +1240,7 @@ private:
             int pref_slm_bufs = (tg_grid_dim[0] * tg_grid_dim[1] <= 8 ? 2 : 3);
             if (do_loop_unroll) {
                 slm_bufs = pref_slm_bufs;
-                gmem_bufs = 2;
+                gmem_bufs = (is_dpas_fma() ? 2 : 1);
             } else {
                 // Double/triple SLM buffering is not supported when only one
                 // matrix is SLM-buffered.
