@@ -868,7 +868,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_gelu_fusion)
-        .set_priority(11.0f)
+        .set_priority(10.5f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
@@ -2139,7 +2139,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_bias_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_bias_add_fusion)
-        .set_priority(10.4f)
+        .set_priority(10.5f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
