@@ -146,10 +146,6 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(weights_format_test_t, InnerProductWeightsCheck) {
                 src_md, wei_md, bia_md, dst_md);
 
         auto fwd_pd = inner_product_forward::primitive_desc(fwd_desc, eng);
-        auto bwdd_pd = inner_product_backward_data::primitive_desc(
-                bwdd_desc, eng, fwd_pd);
-        auto bwdw_pd = inner_product_backward_weights::primitive_desc(
-                bwdw_desc, eng, fwd_pd);
 
         bool fwd_brgemm_ker_found = false, bwdd_brgemm_ker_found = false,
              bwdw_brgemm_ker_found = false;
@@ -159,6 +155,13 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(weights_format_test_t, InnerProductWeightsCheck) {
         ASSERT_NO_THROW(fwd_brgemm_ker_found = seek_brgemm_impl(fwd_pd));
         if (!fwd_brgemm_ker_found) continue;
 
+        // Since `seek_brgemm_impl` modifies the forward primitive desc above
+        // therefore bwdd_pd and bwdw_pd needs to be initialized only after
+        // fwd_pd is fixed.
+        auto bwdd_pd = inner_product_backward_data::primitive_desc(
+                bwdd_desc, eng, fwd_pd);
+        auto bwdw_pd = inner_product_backward_weights::primitive_desc(
+                bwdw_desc, eng, fwd_pd);
         // If the forward inner product can be handled by brgemm then so
         // should be the backward data/weights one
         ASSERT_NO_THROW(bwdd_brgemm_ker_found = seek_brgemm_impl(bwdd_pd));
