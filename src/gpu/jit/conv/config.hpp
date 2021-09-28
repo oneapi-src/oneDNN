@@ -405,8 +405,6 @@ public:
         }
 
         regs = hw <= ngen::HW::XeLP ? 128 : 256;
-        fixup_inference_consistency();
-        if (!try_reduce_grf_usage()) return status::unimplemented;
 
         if (mb >= 16) {
             // Large batch performance is slightly behind for some cases.
@@ -416,6 +414,9 @@ public:
             if (is_small_ic() && mb % 16 == 0) large_batch_ok = true;
             if (!large_batch_ok) return status::unimplemented;
         }
+
+        fixup_inference_consistency();
+        if (!try_reduce_grf_usage()) return status::unimplemented;
 
         return status::success;
     }
@@ -1403,13 +1404,20 @@ private:
             a_headers = utils::div_up(a_headers, 2);
         }
 
+        // Size of A/B thread blocks when split full A/B TG blocks across all
+        // threads in TG.
+        int a_tg_per_thr_bytes = utils::div_up(m_tg_blk * k_blk * a_size, nthr);
+        int b_tg_per_thr_bytes = utils::div_up(k_blk * n_tg_blk * b_size, nthr);
+
         // Temporary registers for GMEM -> SLM load.
-        int a_g2s_bytes
-                = (use_a_slm ? utils::div_up(m_tg_blk * k_blk * a_size, nthr)
-                             : 0);
-        int b_g2s_bytes
-                = (use_b_slm ? utils::div_up(k_blk * n_tg_blk * b_size, nthr)
-                             : 0);
+        int a_g2s_bytes = (use_a_slm ? a_tg_per_thr_bytes : 0);
+        int b_g2s_bytes = (use_b_slm ? b_tg_per_thr_bytes : 0);
+
+        // Account for dedicated headers for prefetches.
+        if (use_prefetch) {
+            a_headers += utils::div_up(a_tg_per_thr_bytes, a_gmem_msg_bytes);
+            b_headers += utils::div_up(b_tg_per_thr_bytes, b_gmem_msg_bytes);
+        }
 
         int a_g2s_regs = utils::div_up(a_g2s_bytes, reg_bytes);
         int b_g2s_regs = utils::div_up(b_g2s_bytes, reg_bytes);
@@ -1437,12 +1445,26 @@ private:
             if (use_a_slm) {
                 ab_reorder_regs = std::max(ab_reorder_regs, a_g2s_regs);
             } else {
-                ab_reorder_regs = std::max(ab_reorder_regs, a_regs);
+                int a_reorder_regs = a_regs;
+                // Loads must be aligned to a GRF boundary, account for cases
+                // when the load size is less than the register size.
+                if (a_gmem_msg_bytes < reg_bytes) {
+                    a_reorder_regs
+                            *= utils::div_up(reg_bytes, a_gmem_msg_bytes);
+                }
+                ab_reorder_regs = std::max(ab_reorder_regs, a_reorder_regs);
             }
             if (use_b_slm) {
                 ab_reorder_regs = std::max(ab_reorder_regs, b_g2s_regs);
             } else {
-                ab_reorder_regs = std::max(ab_reorder_regs, b_regs);
+                int b_reorder_regs = b_regs;
+                // Loads must be aligned to a GRF boundary, account for cases
+                // when the load size is less than the register size.
+                if (b_gmem_msg_bytes < reg_bytes) {
+                    b_reorder_regs
+                            *= utils::div_up(reg_bytes, b_gmem_msg_bytes);
+                }
+                ab_reorder_regs = std::max(ab_reorder_regs, b_reorder_regs);
             }
             reorder_regs += ab_reorder_regs;
         }
