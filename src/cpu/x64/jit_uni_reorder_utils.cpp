@@ -88,12 +88,15 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
                 stride *= bd.inner_blks[iblk];
             }
         }
+
+        // TODO: should be `md.padded_dims()[d]`, but submemory descriptor fails
+        const int padded_dim = utils::rnd_up(md.dims()[d], blocks[d]);
         const int dim_with_external_padding
-                = (md.padded_dims()[d] + external_padding[d]) / blocks[d];
-        const int padded_dim = md.padded_dims()[d] / blocks[d];
-        const int tail = dim_with_external_padding != padded_dim
+                = (padded_dim + external_padding[d]) / blocks[d];
+        const int occur_num_of_padded_dim = padded_dim / blocks[d];
+        const int tail = dim_with_external_padding != occur_num_of_padded_dim
                 ? dim_with_external_padding
-                        - (dim_with_external_padding - padded_dim)
+                        - (dim_with_external_padding - occur_num_of_padded_dim)
                 : 0;
         add_dim(d, dim_with_external_padding, tail, !it_is_blk, bd.strides[d]);
 
