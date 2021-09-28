@@ -174,8 +174,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             kernel_t::choose_unrolls(arch_, dev_info_->hw_threads(),
                     eff_transa(), eff_transb(), d->a_type(), d->b_type(),
                     d->c_type(), eff_align_a(), eff_align_b(), align_c(),
-                    eff_m(), eff_n(), d->k(), d->batch(), unroll_m_, unroll_n_,
-                    tag_);
+                    eff_m(), eff_n(), d->k(), d->batch(), batch_dims(),
+                    unroll_m_, unroll_n_, tag_);
         }
 
         bool set_default_formats() {

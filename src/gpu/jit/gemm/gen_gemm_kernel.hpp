@@ -143,8 +143,8 @@ struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
     static void choose_unrolls(compute::gpu_arch_t arch, int hw_threads,
             bool trans_a, bool trans_b, data_type_t a_type, data_type_t b_type,
             data_type_t c_type, int align_a, int align_b, int align_c, dim_t m,
-            dim_t n, dim_t k, dim_t batch, int &unroll_m, int &unroll_n,
-            char &tag);
+            dim_t n, dim_t k, dim_t batch, int batch_dims, int &unroll_m,
+            int &unroll_n, char &tag);
 };
 
 struct gen_gemm_xehp_systolic_kernel_t : public gen_gemm_kernel_t {
