@@ -486,8 +486,17 @@ void xehp_systolic_gemm_kernel_t<hw>::store_c(bool remainder, bool c_align16) {
             auto jj = (j & 7);
 
             if (remainder) {
-                // Skip this load if masked off. Otherwise, prepare next flag.
-                jmpi(1 | ~f1[j & 1], done);
+                // Skip this store if masked off. Otherwise, prepare next flag.
+                if (!cfg.c_packed) {
+                    jmpi(1 | ~f1[j & 1], done);
+                } else {
+                    // Zero out instead of masking off.
+                    Label zero_out_done;
+                    jmpi(1 | f1[j & 1], zero_out_done);
+                    mov<uint32_t>(16, utemp[jj * 4 + 0], 0u);
+                    mov<uint32_t>(16, utemp[jj * 4 + 2], 0u);
+                    mark(zero_out_done);
+                }
                 if (j + 2 < cfg.tile_n)
                     cmp(1 | gt | f1[j & 1], un_rem, uint16_t(j + 2));
             }
@@ -496,9 +505,20 @@ void xehp_systolic_gemm_kernel_t<hw>::store_c(bool remainder, bool c_align16) {
                 if (remainder) {
                     // Block write with masks.
                     assert(c32);
-                    store(16 | f0[0], block_oword(4), A64, uheaders[2 * jj + 0],
+                    InstructionModifier mod0 = 16 | f0[0];
+                    InstructionModifier mod1 = 16 | f0[1];
+                    if (cfg.c_packed) {
+                        mod0 = mod0 | any16h;
+                        mod1 = mod1 | any16h;
+
+                        // Zero-out remainders in registers.
+                        mov<uint32_t>(16 | ~f0[0], utemp[jj * 4 + 0], 0u);
+                        mov<uint32_t>(16 | ~f0[1], utemp[jj * 4 + 2], 0u);
+                    }
+
+                    store(mod0, block_oword(4), A64, uheaders[2 * jj + 0],
                             utemp[jj * 4 + 0]);
-                    store(16 | f0[1], block_oword(4), A64, uheaders[2 * jj + 1],
+                    store(mod1, block_oword(4), A64, uheaders[2 * jj + 1],
                             utemp[jj * 4 + 2]);
                 } else {
                     // Block write.
@@ -527,6 +547,15 @@ void xehp_systolic_gemm_kernel_t<hw>::store_c(bool remainder, bool c_align16) {
                     mod0 = mod0 | f0[0];
                     mod1 = mod1 | f0[1];
                 }
+                if (remainder && cfg.c_packed) {
+                    mod0 = mod0 | any16h;
+                    mod1 = mod1 | any16h;
+
+                    // Zero-out remainders in registers.
+                    mov<uint32_t>(16 | ~f0[0], utemp[jj * 4 + 0], 0u);
+                    mov<uint32_t>(16 | ~f0[1], utemp[jj * 4 + 2], 0u);
+                }
+
                 if (c32) {
                     store(mod0, scattered_dword(1), A64, uheaders[8 * j1 + 0],
                             utemp[jj * 4 + 0]);
