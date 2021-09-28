@@ -31,13 +31,7 @@ CPU engine can use OpenMP, Threading Building Blocks (TBB) or sequential
 threading runtimes. OpenMP threading is the default build mode. This behavior
 is controlled by the `DNNL_GRAPH_CPU_RUNTIME` CMake option. Currently, this
 option will be directly passed to DNNL build option `DNNL_CPU_RUNTIME` and not
-affect the behavior of oneDNN Graph itself. There are two cases:
-
-- when `DNNL_GRAPH_GPU_RUNTIME=DPCPP`, `DNNL_GRAPH_CPU_RUNTIME` and
-  `DNNL_CPU_RUNTIME` will be both directly set to `DPCPP`.
-
-- when `DNNL_GRAPH_GPU_RUNTIME=NONE`, `DNNL_GRAPH_CPU_RUNTIME` will be passed to
-  `DNNL_CPU_RUNTIME`.
+affect the behavior of oneDNN Graph itself.
 
 ##### OpenMP
 
