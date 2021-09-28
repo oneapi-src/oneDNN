@@ -723,8 +723,8 @@ const kernel_table_t *xe_hp_bf16_nocopy_tables[2][2] = {
 void gen_gemm_nocopy_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
         int hw_threads, bool trans_a, bool trans_b, data_type_t a_type,
         data_type_t b_type, data_type_t c_type, int align_a, int align_b,
-        int align_c, dim_t m, dim_t n, dim_t k, dim_t batch, int &unroll_m,
-        int &unroll_n, char &tag) {
+        int align_c, dim_t m, dim_t n, dim_t k, dim_t batch, int batch_dims,
+        int &unroll_m, int &unroll_n, char &tag) {
 
     unroll_m = unroll_n = 1;
 
@@ -777,8 +777,15 @@ void gen_gemm_nocopy_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
         auto mnb_threads = utils::div_up(m, trial_unroll_m)
                 * utils::div_up(n, trial_unroll_n) * batch;
         if (mnb_threads <= hw_threads) break;
+        // To reduce register pressure for specific cases, use smaller unrolls if batch_dims > 1
+        if (batch_dims > 1) {
+            if ((arch_idx == 0) && (c_type == data_type::f32)
+                    && (a_type == data_type::f32) && !(trans_a) && !(trans_b)
+                    && (trial_unroll_n == 16)) {
+                break;
+            }
+        }
     }
-
     unroll_m = table->unrolls[0];
     unroll_n = table->unrolls[1];
     tag = table->tag;
