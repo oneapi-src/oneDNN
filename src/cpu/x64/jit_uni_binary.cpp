@@ -117,18 +117,21 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
     const auto &po = attr()->post_ops_;
     const int elt_idx = po.find(primitive_kind::eltwise);
     conf_.is_i8 = utils::one_of(conf_.dst_type, s8, u8);
-    conf_.is_src_different_layouts = !compare_layouts(src0_md_, src1_md_);
 
-    const bool ok = data_type_supported(conf_.dst_type)
+    bool ok = data_type_supported(conf_.dst_type)
             && data_type_supported(conf_.src0_type)
             && data_type_supported(conf_.src1_type)
             && IMPLICATION(conf_.src0_type == bf16, mayiuse(avx512_core))
             && set_default_params() == status::success && !has_zero_dim_memory()
             && IMPLICATION(!conf_.is_i8, src0_md_ == dst_md_) && is_applicable()
             && attr()->has_default_values(sm::post_ops | sm::scales_runtime)
-            && attr_.set_default_formats(dst_md(0)) == status::success
-            && post_ops_ok(
-                    attr(), src_md(0), dst_md(), conf_.is_src_different_layouts)
+            && attr_.set_default_formats(dst_md(0)) == status::success;
+    if (!ok) return status::unimplemented;
+
+    // All operations over blocking descriptors should have md initialized.
+    conf_.is_src_different_layouts = !compare_layouts(src0_md_, src1_md_);
+    ok = post_ops_ok(
+                 attr(), src_md(0), dst_md(), conf_.is_src_different_layouts)
             && (conf_.is_i8 || elt_idx == -1
                     || IMPLICATION(!dst_md_.is_dense(),
                             cpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
