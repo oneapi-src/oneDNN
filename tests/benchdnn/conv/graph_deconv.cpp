@@ -53,6 +53,29 @@ void check_known_skipped_case_graph(
     }
 }
 
+dims_t get_acbdx_strides(const dims_t &wei_dims) {
+    // permute dims OIX => IOX
+    const dims_t wei_dims_permuted = [&wei_dims]() {
+        auto d = wei_dims;
+        std::swap(d[0], d[1]);
+        return d;
+    }();
+    // calculate the original strides
+    dims_t strides(wei_dims_permuted.size());
+    strides[strides.size() - 1] = 1;
+    for (int i = static_cast<int>(strides.size()) - 2; i >= 0; --i) {
+        strides[i] = wei_dims_permuted[i + 1] * strides[i + 1];
+    }
+    // permute strides IOX => OIX
+    const dims_t strides_permuted = [&strides]() {
+        auto s = strides;
+        std::swap(s[0], s[1]);
+        return s;
+    }();
+
+    return strides_permuted;
+}
+
 fill_status_t deconv_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
@@ -72,25 +95,7 @@ fill_status_t deconv_graph_prb_t::handle_main_op_() {
         wei_dims[1] *= groups;
     }
     if (spec_.has_groups && spec_.groups > 1) {
-        // permute dims OIX => IOX
-        dims_t wei_dims_permuted = [&wei_dims]() {
-            auto d = wei_dims;
-            std::swap(d[0], d[1]);
-            return d;
-        }();
-        // calculate the original strides
-        dims_t strides(wei_dims_permuted.size());
-        strides[strides.size() - 1] = 1;
-        for (int i = static_cast<int>(strides.size()) - 2; i >= 0; --i) {
-            strides[i] = wei_dims_permuted[i + 1] * strides[i + 1];
-        }
-        // permute strides IOX => OIX
-        dims_t strides_permuted = [&strides]() {
-            auto s = strides;
-            std::swap(s[0], s[1]);
-            return s;
-        }();
-
+        const auto strides_permuted = get_acbdx_strides(wei_dims);
         tensor_descs_.emplace(WEI, dt::f32, wei_dims, strides_permuted);
     } else {
         tensor_descs_.emplace(WEI, dt::f32, wei_dims, spec_.raw_wei_tag);
@@ -113,6 +118,108 @@ fill_status_t deconv_graph_prb_t::handle_main_op_() {
             .set_attr("filter_format", spec_.filter_format);
 
     ops_.emplace_back(deconv_op);
+    curr_out_map_ids_.assign({TENSOR_ID});
+
+    return fill_status::DONE;
+}
+
+fill_status_t deconv_graph_prb_t::handle_low_precision_(
+        const ::conv::prb_t *prb) {
+    using op = dnnl::graph::op;
+
+    const std::string SRC = tensor_id["main"].back() + "_SRC";
+    const std::string WEI = tensor_id["main"].back() + "_WEI";
+    const std::string DST = curr_out_map_ids_.back() + "_DST";
+
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["dequant"].push_back(TENSOR_ID);
+    const std::string QSRC {TENSOR_ID + "_SRC"};
+    const std::string QWEI {TENSOR_ID + "_WEI"};
+    const std::string QDST {TENSOR_ID + "_DST"};
+
+    const std::string qsrc_type = spec_.src_dt == dt::u8 ? "uint8" : "int8";
+    const std::string qwei_type = spec_.wei_dt == dt::u8 ? "uint8" : "int8";
+    const std::string qdst_type = spec_.dst_dt == dt::u8 ? "uint8" : "int8";
+
+    const std::string wei_qtype = prb->attr.oscale.policy == policy_t::COMMON
+            ? "per_tensor"
+            : "per_channel";
+
+    const int64_t oscale_count
+            = prb->attr.oscale.policy == policy_t::COMMON ? 1 : prb->oc;
+    oscales.resize(oscale_count, 1.f);
+    if (!prb->attr.oscale.is_def()) {
+        for (int64_t c = 0; c < oscale_count; ++c)
+            oscales[c] = prb->scales[c];
+    }
+
+    // currently, only policy_t::COMMON is supported for asymmetric quant
+    // for src and dst, other policies are not suppoted by oneDNN Graph.
+    const int64_t common_zp_count = 1;
+    const int64_t dflt_zp_val = 0;
+    src_zero_points.resize(common_zp_count, dflt_zp_val);
+    // if zp is not default, copy values and pass it to oneDNN Graph
+    if (!prb->attr.zero_points.is_def(DNNL_ARG_SRC)) {
+        const auto &src_zp_e = prb->attr.zero_points.get(DNNL_ARG_SRC);
+        if (src_zp_e.policy != policy_t::COMMON)
+            return fill_status::UNSUPPORTED_CONFIG;
+        src_zero_points[0] = prb->src_zp[0];
+    }
+
+    dst_zero_points.resize(common_zp_count, dflt_zp_val);
+    // if zp is not default, copy values and pass it to oneDNN Graph
+    if (!prb->attr.zero_points.is_def(DNNL_ARG_DST)) {
+        const auto &dst_zp_e = prb->attr.zero_points.get(DNNL_ARG_DST);
+        if (dst_zp_e.policy != policy_t::COMMON)
+            return fill_status::UNSUPPORTED_CONFIG;
+        dst_zero_points[0] = prb->dst_zp[0];
+    }
+
+    dims_t wei_dims = spec_.wei_dims;
+    if (spec_.has_groups) {
+        // group convolution convert
+        dim_t groups = wei_dims[0];
+        wei_dims.erase(wei_dims.begin());
+        wei_dims[1] *= groups;
+    }
+    if (spec_.has_groups && spec_.groups > 1) {
+        const auto strides_permuted = get_acbdx_strides(wei_dims);
+        tensor_descs_.emplace(QWEI, spec_.wei_dt, wei_dims, strides_permuted);
+    } else {
+        tensor_descs_.emplace(QWEI, spec_.wei_dt, wei_dims, spec_.raw_wei_tag);
+    }
+
+    tensor_descs_.emplace(QSRC, spec_.src_dt, spec_.src_dims, prb->stag);
+    tensor_descs_.emplace(QDST, spec_.dst_dt, spec_.dst_dims, prb->dtag);
+
+    op dequant_src(ops_.size(), op::kind::Dequantize, {tensor_descs_[QSRC]},
+            {tensor_descs_[SRC]}, "dequant_src");
+    dequant_src.set_attr("scales", std::vector<float> {1.f})
+            .set_attr("zps", src_zero_points)
+            .set_attr<std::string>("qtype", "per_tensor")
+            .set_attr("in_type", qsrc_type)
+            .set_attr("axis", static_cast<int64_t>(0));
+    ops_.emplace_back(dequant_src);
+
+    op dequant_wei(ops_.size(), op::kind::Dequantize, {tensor_descs_[QWEI]},
+            {tensor_descs_[WEI]}, "dequant_wei");
+    dequant_wei.set_attr("scales", oscales)
+            .set_attr("zps", std::vector<int64_t>(oscale_count, 0L))
+            .set_attr("qtype", wei_qtype)
+            .set_attr("in_type", qwei_type)
+            .set_attr("axis", static_cast<int64_t>(0));
+    ops_.emplace_back(dequant_wei);
+
+    op quant_dst(ops_.size(), op::kind::Quantize, {tensor_descs_[DST]},
+            {tensor_descs_[QDST]}, "quant");
+    quant_dst.set_attr("scales", std::vector<float> {1.f})
+            .set_attr("zps", dst_zero_points)
+            .set_attr<std::string>("qtype", "per_tensor")
+            .set_attr("out_type", qdst_type)
+            .set_attr("axis", static_cast<int64_t>(0));
+    ops_.emplace_back(quant_dst);
+
     curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;

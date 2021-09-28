@@ -39,20 +39,32 @@ struct deconv_graph_prb_t : public graph_prb_t {
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
 
+        if (is_low_precision({spec_.src_dt, spec_.dst_dt})) {
+            ctor_status = handle_low_precision_(prb);
+            if (stop_work(ctor_status)) return;
+        }
+
         ctor_status = fill_status::DONE;
     };
 
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::ConvTranspose;
-    }
-    const struct spec_t spec() const noexcept { return spec_; }
+    const struct spec_t &spec() const noexcept { return spec_; }
+    std::vector<float> &get_oscales() noexcept { return oscales; }
 
     fill_status_t ctor_status;
 
 private:
+    std::vector<float> oscales;
+    std::vector<int64_t> src_zero_points;
+    std::vector<int64_t> dst_zero_points;
+
     spec_t spec_;
 
     fill_status_t handle_main_op_();
+    fill_status_t handle_low_precision_(const ::conv::prb_t *prb);
+
+    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
+        return dnnl::graph::op::kind::ConvTranspose;
+    }
 };
 
 int doit(const ::conv::prb_t *prb, res_t *res);
