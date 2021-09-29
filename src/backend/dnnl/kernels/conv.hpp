@@ -342,7 +342,12 @@ public:
 
             const logical_tensor_wrapper post_src_lt(inputs[idx]);
             const logical_tensor_wrapper dst_lt(outputs[0]);
-            if (post_src_lt.is_opaque() && dst_lt.is_opaque()
+            // TODO(qun) we didn't report iplace pair if two lts have different
+            // layout type because of frontend users didn't process this
+            // situation at this moment. In the future, we need to fix this for
+            // more inplace opportunities.
+            if (((post_src_lt.is_opaque() && dst_lt.is_opaque())
+                        || (post_src_lt.is_strided() && dst_lt.is_strided()))
                     && post_src_lt.is_similar(dst_lt))
                 inplace_pairs_.push_back({post_src_id, outputs[0].id});
         }
