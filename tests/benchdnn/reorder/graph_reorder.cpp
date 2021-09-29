@@ -32,7 +32,46 @@ reorder_graph_prb_t::spec_t::spec_t(const ::reorder::prb_t *prb) noexcept {
 
 void check_known_skipped_case_graph(
         const ::reorder::prb_t *prb, res_t *res) noexcept {
-    if (prb->conf_in->dt != prb->conf_out->dt) { res->state = SKIPPED; }
+    /* reorder op requires source and destination data types to be same.
+       four possible cases:
+       (1) input datatype == output datatype and different layout invoke
+           reorder operator. reorder does layout conversion as memory operator.
+       (2) input datatype != output datatype
+            (a) input = fp32 and output = bf16 invoke typecast operator
+            (b) input = bf16 and output = fp32 invoke typecast operator
+       (3) input datatype != output datatype
+            (a) input = fp32 and output = int8 and same layout
+             invoke quantize operator
+            (b) input = fp32 and output = int8 and different layout
+             invoke quantize operator followed by reorder
+            (c) input = int8 and output = fp32 and same layout
+             invoke dequantize operator
+            (d) input = int8 and output = fp32 and different layout
+             invoke dequantize operator followed by reorder
+       (4)  Complex cases like reorder from f32 abx to bf16 axb, may need
+            combine Reorder operator and TypeCast operator
+    */
+    /* TODO: involves multiple operators. Eg: reorder+typecast */
+    if (prb->conf_in->dt != prb->conf_out->dt
+            && prb->reorder.tag_in != prb->reorder.tag_out) {
+        res->state = SKIPPED;
+    }
+    if (prb->reorder.tag_in == prb->reorder.tag_out) {
+        if ((prb->conf_in->dt == dnnl_s8 || prb->conf_in->dt == dnnl_u8)
+                && (prb->conf_out->dt == dnnl_bf16)) {
+            res->state = SKIPPED;
+        }
+        if ((prb->conf_out->dt == dnnl_s8 || prb->conf_out->dt == dnnl_u8)
+                && (prb->conf_in->dt == dnnl_bf16)) {
+            res->state = SKIPPED;
+        }
+        if (prb->conf_in->dt == dnnl_s8 && prb->conf_out->dt == dnnl_u8) {
+            res->state = SKIPPED;
+        }
+        if (prb->conf_in->dt == dnnl_u8 && prb->conf_out->dt == dnnl_s8) {
+            res->state = SKIPPED;
+        }
+    }
 }
 
 fill_status_t reorder_graph_prb_t::handle_main_op_(
@@ -51,10 +90,38 @@ fill_status_t reorder_graph_prb_t::handle_main_op_(
     tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dims,
             calculate_strides(spec_.dims, spec_.dst_dt, tag_out));
 
-    op reorder_op(new_op_id, op::kind::Reorder, {tensor_descs_[SRC]},
-            {tensor_descs_[DST]}, "reorder");
+    if (spec_.src_dt == spec_.dst_dt) {
+        op reorder_op(new_op_id, op::kind::Reorder, {tensor_descs_[SRC]},
+                {tensor_descs_[DST]}, "reorder");
+        ops_.emplace_back(reorder_op);
+    } else if ((spec_.src_dt == graph_dt::f32 && spec_.dst_dt == graph_dt::bf16)
+            || (spec_.src_dt == graph_dt::bf16
+                    && spec_.dst_dt == graph_dt::f32)) {
+        op typecast_op(new_op_id, op::kind::TypeCast, {tensor_descs_[SRC]},
+                {tensor_descs_[DST]}, "typecast");
+        ops_.emplace_back(typecast_op);
+    } else if ((spec_.src_dt == graph_dt::f32)
+            && (spec_.dst_dt == graph_dt::s8 || spec_.dst_dt == graph_dt::u8)) {
+        op quantize_op(new_op_id, op::kind::Quantize, {tensor_descs_[SRC]},
+                {tensor_descs_[DST]}, "quantize");
+        float scale = (spec_.dst_dt == graph_dt::u8) ? 1 / 255.f : 1 / 128.f;
+        quantize_op.set_attr<std::vector<int64_t>>("zps", {0});
+        quantize_op.set_attr<std::vector<float>>("scales", {scale});
+        quantize_op.set_attr<int64_t>("axis", 0);
+        ops_.emplace_back(quantize_op);
+    } else if ((spec_.src_dt == graph_dt::s8 || spec_.src_dt == graph_dt::u8)
+            && (spec_.dst_dt == graph_dt::f32)) {
+        op dequantize_op(new_op_id, op::kind::Dequantize, {tensor_descs_[SRC]},
+                {tensor_descs_[DST]}, "dequantize");
+        float scale = (spec_.dst_dt == graph_dt::u8) ? 1 / 255.f : 1 / 128.f;
+        dequantize_op.set_attr<std::vector<int64_t>>("zps", {0});
+        dequantize_op.set_attr<std::vector<float>>("scales", {scale});
+        dequantize_op.set_attr<int64_t>("axis", 0);
+        ops_.emplace_back(dequantize_op);
+    } else {
+        return fill_status::UNHANDLED_CONFIG_OPTIONS;
+    }
 
-    ops_.emplace_back(reorder_op);
     curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
