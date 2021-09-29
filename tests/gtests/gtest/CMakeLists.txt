@@ -20,6 +20,8 @@ add_library(${TARGET_NAME} STATIC ${MAIN_SRC})
 # In that case FindThreads module may skip adding any flags for pthread library
 # because they are not needed for C compiler but this may led to issues with
 # C++ compiler which is not checked.
-if(UNIX OR MINGW)
+if((UNIX AND NOT QNXNTO) OR MINGW)
     target_link_libraries(${TARGET_NAME} pthread)
+elseif(QNXNTO)
+    target_link_libraries(${TARGET_NAME} regex)
 endif()
