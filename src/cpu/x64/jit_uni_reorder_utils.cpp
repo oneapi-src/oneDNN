@@ -222,6 +222,10 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
                 ? om_d.extra().compensation_mask
                 : (p.req_asymmetric_comp ? om_d.extra().asymm_compensation_mask
                                          : tr::prb_t::invalid_comp_mask);
+
+        if (p.compensation_mask == tr::prb_t::asymmetric_comp_mask)
+            return unimplemented;
+
         assert(p.compensation_mask == tr::prb_t::standard_comp_mask
                 || p.compensation_mask == tr::prb_t::comp_mask_with_groups);
         if (p.scale_type == scale_type_t::MANY

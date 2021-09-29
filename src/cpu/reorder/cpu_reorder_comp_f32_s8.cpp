@@ -26,6 +26,14 @@ const impl_list_map_t comp_f32_s8_impl_list_map {
     // f32 -> s8
     {{f32, s8, 2}, {
         REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t)))
+        REG_REORDER_P(REG_SR(f32, ab, s8, BA16a16b4a, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(f32, ab, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(f32, ab, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(f32, ab, s8, BA16a64b4a, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(f32, ba, s8, BA16a16b4a, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(f32, ba, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(f32, ba, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(f32, ba, s8, BA16a64b4a, fmt_order::keep, spec::conv_req_comp))
 
         nullptr,
     }},

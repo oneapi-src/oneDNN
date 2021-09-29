@@ -60,6 +60,7 @@ namespace spec {
 struct direct_copy {};
 struct direct_copy_except_dim_0 {};
 struct reference {};
+struct conv_req_comp {}; // {s8, u8: asymmetric quantization}
 } // namespace spec
 
 #define SIMPLE_REORDER_TEMPL_DECL \
@@ -114,6 +115,156 @@ inline bool simple_attr_check(const primitive_attr_t *attr,
     return attr->output_scales_.mask_ == 0;
 }
 } // namespace
+
+/* specific reorders: implementation */
+
+/* Asymmetric Blocking */
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<
+                (utils::one_of(tag_i, format_tag::ab, format_tag::ba)
+                        && utils::one_of(tag_o, format_tag::BA16a16b4a,
+                                format_tag::BA16a32b4a, format_tag::BA16a48b4a,
+                                format_tag::BA16a64b4a)),
+                spec::conv_req_comp>::type> {
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        using namespace format_tag;
+        using namespace data_type;
+        using namespace utils;
+
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
+        // Current formats are only used in jit kernels that natively
+        // support s8 instructions, hence, there is no need for signed
+        // compensation.
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+
+        const bool req_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
+        auto mask_ok = [&](bool check, int mask) {
+            return IMPLICATION(check, mask == 1 << 1);
+        };
+
+        const size_t D_mask = utils::array_product(
+                input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
+
+        return simple_attr_check(attr, true, false)
+                && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
+                && mask_ok(req_asymmetric_comp,
+                        output_d.extra().asymm_compensation_mask)
+                && one_of(input_d.data_type(), f32, s8, bf16)
+                && output_d.data_type() == s8 && !req_comp && D_mask == 1;
+    }
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+        using namespace format_tag;
+
+        constexpr dim_t A_blksize = 64;
+        constexpr dim_t B_blksize
+                = (tag_traits<tag_o>::inner_blks == ib::_16a64b4a)
+                ? 64
+                : (tag_traits<tag_o>::inner_blks == ib::_16a48b4a)
+                        ? 48
+                        : (tag_traits<tag_o>::inner_blks == ib::_16a32b4a)
+                                ? 32
+                                : (tag_traits<tag_o>::inner_blks
+                                          == ib::_16a16b4a)
+                                        ? 16
+                                        : 1;
+        assert(B_blksize != 1);
+
+        const auto &plain_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        const auto &pdims
+                = order_keep ? output_d.padded_dims() : input_d.padded_dims();
+
+        const dim_t Adim = dims[0];
+        const dim_t NB_Adim = pdims[0] / A_blksize;
+        const dim_t Bdim = dims[1];
+        const dim_t NB_Bdim = pdims[1] / B_blksize;
+
+        const float *scales = pd->attr()->output_scales_.scales_;
+        const bool has_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
+        float adj_scale
+                = (output_d.extra().flags & memory_extra_flags::scale_adjust)
+                ? output_d.extra().scale_adjust
+                : 1.f;
+
+        auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
+                           int32_t *zp, const float *s, const int a_block,
+                           const int b_block) {
+            for (int a = 0; a < a_block; ++a) {
+                for (int b = 0; b < b_block; ++b) {
+                    const auto plain_off
+                            = a * plain_d.blocking_desc().strides[0]
+                            + b * plain_d.blocking_desc().strides[1];
+                    auto index
+                            = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
+                                    a, b);
+                    out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                            inp[plain_off], s[0] * adj_scale);
+
+                    if (has_asymmetric_comp) zp[b] -= (int32_t)(out[index]);
+                }
+                for (int b = b_block; b < B_blksize; ++b) {
+                    auto index
+                            = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
+                                    a, b);
+                    out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                            0, s[0] * adj_scale);
+                }
+            }
+
+            for_(int a = a_block; a < A_blksize; ++a)
+            for (int b = 0; b < B_blksize; ++b) {
+                auto index
+                        = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(a, b);
+                out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                        0, s[0] * adj_scale);
+            }
+        };
+
+        size_t offset = pdims[0] * pdims[1];
+        int32_t *zp = has_asymmetric_comp
+                ? reinterpret_cast<int32_t *>(output + offset)
+                : nullptr;
+
+        if (has_asymmetric_comp) {
+            parallel_nd(NB_Bdim * B_blksize, [&](dim_t i) { zp[i] = 0; });
+        }
+
+#define get_blk_off(md, a, b) (md).blk_off(a, b)
+
+        parallel_nd(NB_Bdim, [&](dim_t B) {
+            for (int A = 0; A < NB_Adim; A++) {
+                auto i = &input[get_blk_off(
+                        input_d, A_blksize * A, B_blksize * B)];
+                auto o = &output[get_blk_off(output_d, A, B)];
+                const dim_t a_block
+                        = nstl::min(A_blksize, Adim - A * A_blksize);
+                const dim_t b_block
+                        = nstl::min(B_blksize, Bdim - B * B_blksize);
+                dim_t _offset = B * B_blksize;
+                ker(i, o,
+                        (order_keep && has_asymmetric_comp) ? &zp[_offset]
+                                                            : nullptr,
+                        &scales[0], a_block, b_block);
+            }
+        });
+
+#undef get_blk_off
+
+        return status::success;
+    }
+};
 
 /* generic and direct-copy reorders */
 

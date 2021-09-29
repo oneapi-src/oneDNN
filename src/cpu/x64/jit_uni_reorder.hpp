@@ -56,10 +56,13 @@ struct prb_t {
     /* The compensation mask value indicates how big an additional buffer should be.
      * Possible values for reorder:
      *     1) standard compensation = 1 = 0b01
-     *     2) compensation if tensor contains group = 3 = 0b11 */
+     *     2) asymmetric compensation = 2 = 0b10
+     *     3) compensation if tensor contains group = 3 = 0b11 */
     static constexpr int invalid_comp_mask = 0;
     static constexpr int standard_comp_mask = 0b1;
-    static constexpr int comp_mask_with_groups = standard_comp_mask + (1 << 1);
+    static constexpr int asymmetric_comp_mask = 0b10;
+    static constexpr int comp_mask_with_groups
+            = standard_comp_mask + asymmetric_comp_mask;
 
     bool is_tail_in_one_of_child_nodes(int parent_node_id) const {
         for (int i = parent_node_id; i >= 0; i--) {
