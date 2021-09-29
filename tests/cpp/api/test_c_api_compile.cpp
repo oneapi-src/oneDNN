@@ -523,8 +523,7 @@ TEST(c_api_test, compile_conv2d_bias_sum) {
     EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       compiled_partition, &num_inplace_pairs, &inplace_pairs),
             dnnl_graph_result_success);
-    EXPECT_EQ(num_inplace_pairs,
-            0); // Convolutional operator W/O sum has no in-place operation.
+    EXPECT_EQ(num_inplace_pairs, 1); // two strided lts also can inplace
 
     COMPILE_CONV2D_BIAS_SUM_DESTROY;
 #undef COMPILE_CONV2D_BIAS_SUM_DESTROY
