@@ -15501,6 +15501,9 @@ void gemm_kernel_generator_t<hw>::sysgemm2MultiplyX32(
         // Barrier wait
         barrierwait();
 
+        // XeHPG: wait for SLM loads to return before signaling.
+        if (hw >= HW::XeHPG) sync.allwr(0x3F << tokenBase);
+
         // Barrier signal
         if (doSignal) barriermsg(sb15 | signalMod, barrierHeader);
 
