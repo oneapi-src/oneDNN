@@ -591,7 +591,7 @@ static size_t get_cpu_ram_size() {
     GlobalMemoryStatusEx(&s);
     return s.ullTotalPhys;
 }
-#elif defined(__APPLE__) || defined(__FreeBSD__)
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__QNXNTO__)
 #include <unistd.h>
 #include <sys/sysctl.h>
 
