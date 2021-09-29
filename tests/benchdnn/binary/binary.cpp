@@ -161,7 +161,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             break;
         }
 
-    if ((bcast_src0 && (prb->inplace || is_sum || engine_tgt_kind != dnnl_cpu))
+    if ((bcast_src0 && (prb->inplace || is_sum))
             || (prb->inplace && prb->sdt[0] != prb->ddt)) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
@@ -191,7 +191,8 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         const bool diff_dt_ok = dt_ok
                 && IMPLICATION(
                         prb->sdt[0] != prb->ddt, prb->attr.scales.is_def());
-        if (!alg_ok || !dt_ok || !diff_dt_ok || !prb->attr.post_ops.is_def()) {
+        if (!alg_ok || !dt_ok || !diff_dt_ok || !prb->attr.post_ops.is_def()
+                || bcast_src0) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -270,7 +271,7 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args), WARN);
 
     if (is_bench_mode(CORR)) {
-        compute_ref(prb, src0_fp, src1_fp, binary_po_fp, dst_fp);
+        TIME_REF(compute_ref(prb, src0_fp, src1_fp, binary_po_fp, dst_fp));
 
         compare::compare_t cmp;
         cmp.set_threshold(epsilon_dt(dst_dt.dt()));
@@ -296,7 +297,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    return measure_perf(res->timer, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace binary

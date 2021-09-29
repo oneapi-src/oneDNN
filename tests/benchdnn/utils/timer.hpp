@@ -17,10 +17,24 @@
 #ifndef UTILS_TIMER_HPP
 #define UTILS_TIMER_HPP
 
+#include <map>
+#include <string>
+
+#define TIME_FUNC(func, res, name) \
+    do { \
+        auto &t = res->timer_map.get_timer(name); \
+        t.start(); \
+        func; \
+        t.stop(); \
+    } while (0)
+
+// Designated timer to calculate time spent on reference computations
+#define TIME_REF(func) TIME_FUNC(func, res, timer::timer_t::ref_timer)
+
 namespace timer {
 
 struct timer_t {
-    enum mode_t { min = 0, avg = 1, max = 2, n_modes };
+    enum mode_t { min = 0, avg = 1, max = 2, sum = 3, n_modes };
 
     timer_t() { reset(); }
 
@@ -52,6 +66,18 @@ struct timer_t {
     int times_;
     unsigned long long ticks_[n_modes], ticks_start_;
     double ms_[n_modes], ms_start_;
+
+    // Section with timer fixed timer names for ease of use
+    static const std::string perf_timer;
+    static const std::string ref_timer;
+};
+
+struct timer_map_t {
+    timer_t &get_timer(const std::string &name);
+
+    timer_t &perf_timer();
+
+    std::map<std::string, timer_t> timers;
 };
 
 } // namespace timer

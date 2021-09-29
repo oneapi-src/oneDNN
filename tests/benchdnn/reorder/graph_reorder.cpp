@@ -146,7 +146,8 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         // TODO: enable additional checks for border values validity.
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
-    SAFE(measure_perf(res->timer, cp, tensors_in, tensors_out), WARN);
+    SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
+            WARN);
 
     return OK;
 }

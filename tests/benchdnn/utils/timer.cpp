@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <chrono>
 
+#include "common.hpp"
 #include "utils/timer.hpp"
 
 namespace timer {
@@ -68,19 +69,21 @@ void timer_t::stop(int add_times) {
     ticks_start_ += d_ticks;
     ms_start_ += d_ms;
 
-    ms_[timer_t::avg] += d_ms;
-    ticks_[timer_t::avg] += d_ticks;
+    ms_[mode_t::avg] += d_ms;
+    ms_[mode_t::sum] += d_ms;
+    ticks_[mode_t::avg] += d_ticks;
+    ticks_[mode_t::sum] += d_ticks;
 
     d_ticks /= add_times;
     d_ms /= add_times;
 
-    ms_[timer_t::min] = times_ ? std::min(ms_[timer_t::min], d_ms) : d_ms;
-    ms_[timer_t::max] = times_ ? std::max(ms_[timer_t::max], d_ms) : d_ms;
+    ms_[mode_t::min] = times_ ? std::min(ms_[mode_t::min], d_ms) : d_ms;
+    ms_[mode_t::max] = times_ ? std::max(ms_[mode_t::max], d_ms) : d_ms;
 
-    ticks_[timer_t::min]
-            = times_ ? std::min(ticks_[timer_t::min], d_ticks) : d_ticks;
-    ticks_[timer_t::max]
-            = times_ ? std::max(ticks_[timer_t::max], d_ticks) : d_ticks;
+    ticks_[mode_t::min]
+            = times_ ? std::min(ticks_[mode_t::min], d_ticks) : d_ticks;
+    ticks_[mode_t::max]
+            = times_ ? std::max(ticks_[mode_t::max], d_ticks) : d_ticks;
 
     times_ += add_times;
 }
@@ -96,5 +99,21 @@ timer_t &timer_t::operator=(const timer_t &rhs) {
     ms_start_ = rhs.ms_start_;
     return *this;
 }
+
+timer_t &timer_map_t::get_timer(const std::string &name) {
+    auto it = timers.find(name);
+    if (it != timers.end()) return it->second;
+    // Set a new timer if requested one wasn't found
+    timers.insert(std::make_pair(std::string(name), timer_t()));
+    return timers.find(name)->second;
+}
+
+timer_t &timer_map_t::perf_timer() {
+    return get_timer(timer_t::perf_timer);
+}
+
+// Initializing timers with fixed names.
+const std::string timer_t::perf_timer = "perf_timer";
+const std::string timer_t::ref_timer = "compute_ref_timer";
 
 } // namespace timer

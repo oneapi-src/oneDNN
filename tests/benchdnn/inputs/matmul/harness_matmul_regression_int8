@@ -14,3 +14,9 @@
 
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --attr-zero-points=src:common:1*+wei:common:2* 2x2:2x2
+
+# verify zero-padding for blocked format tags
+--reset
+--cfg=s8s8s8
+--stag=ab,ba --wtag=ba --dtag=AB16b16a
+11x13:13x16:11x16

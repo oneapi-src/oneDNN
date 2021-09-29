@@ -46,12 +46,13 @@ primitive accepts exactly two input shapes delimited by ':'.  The `--stag` and
 `--sdt` options, if present, must have same number of arguments.
 
 ## Element broadcasting
-Element broadcasting supported for the second tensor: it can have fewer
-dimensions than the first one. The trailing dimensions are implicitly padded
-with dimensions of size 1. For example, for a 8x7x6:1x7 problem the 1x7 tensor
-dimensions are first padded to 1x7x1. Then, according to the definition of the
-primitive, each element of the second tensor is broadcast across the first and
-the last dimensions when applying a binary operation.
+Element broadcasting is supported for both tensors. Additionally, the second
+tensor can have fewer dimensions than the first one. The trailing dimensions
+are implicitly padded with dimensions of size 1. For example, for a 8x7x6:1x7
+problem the 1x7 tensor dimensions are first padded to 1x7x1. Then, according
+to the definition of the primitive, each element of the second tensor is
+broadcast across the first and the last dimensions when applying a binary
+operation.
 
 ## Essence of Testing
 Input data is initialized with floating point values while ensuring that there

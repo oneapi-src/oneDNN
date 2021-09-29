@@ -217,7 +217,8 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
         }
     }
 
-    SAFE(measure_perf(res->timer, cp, tensors_in, tensors_out), WARN);
+    SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
+            WARN);
 
     return OK;
 }

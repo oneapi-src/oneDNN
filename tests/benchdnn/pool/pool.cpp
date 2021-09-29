@@ -280,7 +280,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     // want this pass on backward to get ws_fp filled properly
     if (is_bench_mode(CORR)) {
-        compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp, ws_fp);
+        TIME_REF(compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp, ws_fp));
         if (prb->dir & FLAG_FWD) {
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[DST].eps);
@@ -341,7 +341,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_bwd(prb, d_src_fp, d_dst_fp, ws_fp);
+            TIME_REF(compute_ref_bwd(prb, d_src_fp, d_dst_fp, ws_fp));
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[SRC].eps);
             cmp.set_data_kind(SRC);
@@ -350,7 +350,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    return measure_perf(res->timer, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace pool

@@ -344,7 +344,8 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         dnn_mem_t dst(dst_dt, fp, src_tag, dnnl_test_engine);
         SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
     }
-    SAFE(measure_perf(res->timer, cp, tensors_in, tensors_out), WARN);
+    SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
+            WARN);
 
     return OK;
 }

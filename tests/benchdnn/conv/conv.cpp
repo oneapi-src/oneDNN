@@ -960,7 +960,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(prelu_po_args, prelu_po_fp);
 
-            compute_ref_fwd(prb, prim_ref, ref_args);
+            TIME_REF(compute_ref_fwd(prb, prim_ref, ref_args));
             dnn_mem_t dst(dst_dt, fp, src_tag, test_engine);
             SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
         }
@@ -978,7 +978,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            compute_ref_bwd_d(prb, prim_ref, ref_args);
+            TIME_REF(compute_ref_bwd_d(prb, prim_ref, ref_args));
             dnn_mem_t src(src_dt, fp, src_tag, test_engine);
             SAFE(compare_src(prb, src, src_fp, res, true), WARN);
         }
@@ -998,7 +998,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            compute_ref_bwd_w(prb, prim_ref, ref_args);
+            TIME_REF(compute_ref_bwd_w(prb, prim_ref, ref_args));
             dnn_mem_t wei(wei_dt, fp, wei_tag, test_engine);
             SAFE(compare_wei(prb, wei, wei_fp, res, true), WARN);
             if (prb->dir & FLAG_BIA) {
@@ -1010,7 +1010,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(FAIL, CRIT);
     }
 
-    return measure_perf(res->timer, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace conv

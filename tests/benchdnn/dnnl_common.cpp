@@ -261,7 +261,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
     return OK;
 }
 
-int measure_perf(timer::timer_t &t, perf_function_t &perf_func, args_t &args) {
+int measure_perf(res_t *res, perf_function_t &perf_func, args_t &args) {
     int ret = OK;
     if (is_bench_mode(PERF)) {
         const auto &engine = get_test_engine();
@@ -269,6 +269,7 @@ int measure_perf(timer::timer_t &t, perf_function_t &perf_func, args_t &args) {
         std::vector<dnnl_exec_arg_t> dnnl_args;
         execute_unmap_args(args, dnnl_args);
 
+        auto &t = res->timer_map.perf_timer();
         // For non-DPCPP CPU: measure individual iterations.
         // For DPCPP CPU and GPU: measure iterations in batches to hide driver
         // overhead. DPCPP CPU follows the model of GPU, thus, handled similar.
@@ -282,11 +283,11 @@ int measure_perf(timer::timer_t &t, perf_function_t &perf_func, args_t &args) {
     return ret;
 }
 
-int measure_perf(timer::timer_t &t, dnnl_primitive_t prim, args_t &args) {
+int measure_perf(res_t *res, dnnl_primitive_t prim, args_t &args) {
     perf_function_t perf_func = std::bind(&primitive_executor, prim,
             std::placeholders::_1, std::placeholders::_2);
 
-    return measure_perf(t, perf_func, args);
+    return measure_perf(res, perf_func, args);
 }
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,

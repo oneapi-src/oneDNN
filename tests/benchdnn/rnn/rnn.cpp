@@ -986,10 +986,10 @@ int doit(const prb_t &prb, res_t *res) {
 
     if (prb.prop != dnnl_backward) {
         if (is_bench_mode(CORR)) {
-            compute_ref_fwd(prb, src_layer_fp, src_iter_fp, src_iter_c_fp,
-                    weights_layer_fp, weights_iter_fp, weights_peephole_fp,
-                    weights_projection_fp, bias_fp, dst_layer_fp, dst_iter_fp,
-                    dst_iter_c_fp);
+            TIME_REF(compute_ref_fwd(prb, src_layer_fp, src_iter_fp,
+                    src_iter_c_fp, weights_layer_fp, weights_iter_fp,
+                    weights_peephole_fp, weights_projection_fp, bias_fp,
+                    dst_layer_fp, dst_iter_fp, dst_iter_c_fp));
 
             COMPARE_DAT(DST_LAYER, dst_layer, tag::abx /*tnc*/);
             COMPARE_DAT(DST_ITER, dst_iter, tag::abx /*ldnc*/);
@@ -1140,14 +1140,14 @@ int doit(const prb_t &prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_bwd(prb, src_layer_fp, src_iter_fp, src_iter_c_fp,
-                    diff_dst_layer_fp, diff_dst_iter_fp, diff_dst_iter_c_fp,
-                    weights_layer_fp, weights_iter_fp, weights_peephole_fp,
-                    weights_projection_fp, bias_fp, dst_layer_fp, dst_iter_fp,
-                    dst_iter_c_fp, diff_src_layer_fp, diff_src_iter_fp,
-                    diff_src_iter_c_fp, diff_weights_layer_fp,
+            TIME_REF(compute_ref_bwd(prb, src_layer_fp, src_iter_fp,
+                    src_iter_c_fp, diff_dst_layer_fp, diff_dst_iter_fp,
+                    diff_dst_iter_c_fp, weights_layer_fp, weights_iter_fp,
+                    weights_peephole_fp, weights_projection_fp, bias_fp,
+                    dst_layer_fp, dst_iter_fp, dst_iter_c_fp, diff_src_layer_fp,
+                    diff_src_iter_fp, diff_src_iter_c_fp, diff_weights_layer_fp,
                     diff_weights_iter_fp, diff_weights_peephole_fp,
-                    diff_weights_projection_fp, diff_bias_fp);
+                    diff_weights_projection_fp, diff_bias_fp));
 
             COMPARE_DAT(DST_LAYER, dst_layer, tag::abx /*tnc*/);
             COMPARE_DAT(DST_ITER, dst_iter, tag::abx /*ldnc*/);
@@ -1174,7 +1174,7 @@ int doit(const prb_t &prb, res_t *res) {
         }
     }
 
-    return measure_perf(res->timer, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace rnn

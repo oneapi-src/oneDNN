@@ -314,6 +314,10 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t bia_dt(bia_md, test_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+    dnn_mem_t scales;
+    maybe_prepare_runtime_scales(
+            scales, prb->attr.oscale, prb->oc, prb->scales);
+
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
     SAFE(binary::setup_binary_po(
@@ -338,13 +342,14 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
         args.set(binary_po_args, binary_po_dt);
 
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_fwd(test_engine, prb, src_fp, wei_fp, bia_fp,
-                    binary_po_fp, dst_fp);
+            TIME_REF(compute_ref_fwd(test_engine, prb, src_fp, wei_fp, bia_fp,
+                    binary_po_fp, dst_fp));
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[DST].eps);
             cmp.set_data_kind(DST);
@@ -360,7 +365,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_bwd_d(prb, src_fp, wei_fp, dst_fp);
+            TIME_REF(compute_ref_bwd_d(prb, src_fp, wei_fp, dst_fp));
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[SRC].eps);
             cmp.set_data_kind(SRC);
@@ -377,7 +382,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_bwd_w(prb, src_fp, wei_fp, bia_fp, dst_fp);
+            TIME_REF(compute_ref_bwd_w(prb, src_fp, wei_fp, bia_fp, dst_fp));
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[WEI].eps);
             cmp.set_data_kind(WEI);
@@ -392,7 +397,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    return measure_perf(res->timer, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace ip

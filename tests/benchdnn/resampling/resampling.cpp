@@ -277,7 +277,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp);
+            TIME_REF(compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp));
             const float linear_trh = epsilon_dt(prb->sdt) > epsilon_dt(prb->ddt)
                     ? epsilon_dt(prb->sdt) // conversion error sdt->ddt
                     : 7 * epsilon_dt(prb->ddt); // algorithm calculation error
@@ -305,7 +305,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_bwd(prb, src_fp, dst_fp);
+            TIME_REF(compute_ref_bwd(prb, src_fp, dst_fp));
             const float linear_trh = epsilon_dt(prb->ddt) > epsilon_dt(prb->sdt)
                     ? epsilon_dt(prb->ddt)
                     : 7 * epsilon_dt(prb->sdt);
@@ -324,7 +324,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    return measure_perf(res->timer, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace resampling

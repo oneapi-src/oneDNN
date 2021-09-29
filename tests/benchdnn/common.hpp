@@ -175,7 +175,7 @@ const char *skip_reason2str(skip_reason_t skip_reason);
 struct res_t {
     res_state_t state;
     size_t errors, total;
-    timer::timer_t timer;
+    timer::timer_map_t timer_map;
     timer::timer_t par_compl_timer;
     timer::timer_t prim_create_timer;
     std::string impl_name;

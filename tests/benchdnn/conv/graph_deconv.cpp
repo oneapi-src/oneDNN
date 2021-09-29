@@ -212,7 +212,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
     }
 
-    measure_perf(res->timer, cp, tensors_in, tensors_out);
+    measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out);
 
     return OK;
 }

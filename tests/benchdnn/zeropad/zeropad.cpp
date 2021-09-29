@@ -165,7 +165,7 @@ int doit(const prb_t *prb, res_t *res) {
                 - dnnl_memory_desc_get_size(&plain_data_md);
     }
 
-    measure_perf(res->timer, perf_func_, args);
+    measure_perf(res, perf_func_, args);
 
     return OK;
 }

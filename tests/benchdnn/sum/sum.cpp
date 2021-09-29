@@ -158,13 +158,13 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args), WARN);
 
     if (is_bench_mode(CORR)) {
-        compute_ref(prb, src_fp, dst_fp);
+        TIME_REF(compute_ref(prb, src_fp, dst_fp));
         compare::compare_t cmp;
         cmp.set_threshold(epsilon_dt(dst_md.data_type) * prb->n_inputs());
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    return measure_perf(res->timer, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace sum

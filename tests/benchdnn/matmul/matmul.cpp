@@ -500,7 +500,7 @@ int doit(const prb_t *prb, res_t *res) {
         ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
         ref_args.set(binary_po_args, binary_po_fp);
 
-        compute_ref(prb, prim_ref, ref_args);
+        TIME_REF(compute_ref(prb, prim_ref, ref_args));
         compare::compare_t cmp;
         cmp.set_threshold(prb->cfg[DST].eps);
         cmp.set_data_kind(DST);
@@ -508,7 +508,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    return measure_perf(res->timer, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace matmul
