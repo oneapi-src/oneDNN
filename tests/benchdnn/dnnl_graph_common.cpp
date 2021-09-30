@@ -412,7 +412,7 @@ int measure_partition_compl(timer::timer_t &t,
     if (lt::opaque == alogical_tensor.get_layout_type()) { \
         container.emplace(id, dtype, dims, alogical_tensor.get_layout_id()); \
     } else if (lt::strided == alogical_tensor.get_layout_type()) { \
-        container.emplace(id, dtype, dims, lt::strided); \
+        container.emplace(id, dtype, dims, alogical_tensor.get_strides()); \
     } else { \
         return fill_status::UNKNOWN_ERROR; \
     }
@@ -422,7 +422,7 @@ fill_status_t po_handlers_t::bias_po_handler_t::operator()(graph_prb_t &p,
         const dnnl::graph::logical_tensor::data_type bia_dt) {
     using op = dnnl::graph::op;
 
-    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
+    const auto &dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
     const dim_t channels = (dst_dataf == "NCX") ? dst_dims[1] : dst_dims.back();
@@ -462,7 +462,7 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(
     const auto post_op_kind
             = (is_swish) ? op::kind::Sigmoid : requested_post_op_kind;
 
-    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
+    const auto &dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
 
@@ -513,7 +513,7 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
     if (post_op_kind == op::kind::LastSymbol)
         return fill_status::UNSUPPORTED_OP;
 
-    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
+    const auto &dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
     const auto bin_src_dims
@@ -526,8 +526,12 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
     const std::string BIN_SRC {TENSOR_ID + "_SRC"};
     const std::string BIN_DST {TENSOR_ID + "_DST"};
 
-    BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
-            p.tensor_descs_, BIN_SRC, bin_src_dt, bin_src_dims, dst_lt);
+    if (bin_src_dims != dst_dims) {
+        p.tensor_descs_.emplace(BIN_SRC, bin_src_dt, bin_src_dims, lt::strided);
+    } else {
+        BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
+                p.tensor_descs_, BIN_SRC, bin_src_dt, bin_src_dims, dst_lt);
+    }
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, BIN_DST, dst_dt, dst_dims, dst_lt);
 
@@ -545,7 +549,7 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
 fill_status_t po_handlers_t::sum_po_handler_t::operator()(graph_prb_t &p) {
     using op = dnnl::graph::op;
 
-    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
+    const auto &dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
 

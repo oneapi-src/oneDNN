@@ -48,3 +48,11 @@ mb50ic64ih56oc64oh56kh1ph0
 # oneDNN graph is not limited by it, because of additional reorder
 --attr-post-ops=,relu,sum:1:0:s8+relu
 mb50ic64ih56oc64oh56kh1ph0
+
+# acdeb correctness test case
+--reset
+--mode=c
+--stag=acdeb
+--wtag=any
+--dtag=acdeb
+g1mb1ic3id116ih132iw132oc32od114oh130ow130kd3kh3kw3sd1sh1sw1pd0ph0pw0dd0dh0dw0n"3d_unet:conv_1"
