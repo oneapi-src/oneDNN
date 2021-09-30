@@ -109,8 +109,7 @@ void check_known_skipped_case_graph(const ::concat::prb_t *prb, res_t *res) {
         return;
     }
     // Concat will support low precision in later releases
-    auto dtypes = {convert_dt(prb->sdt), convert_dt(prb->ddt)};
-    if (benchdnnext::is_low_precision(dtypes)) {
+    if (is_low_precision({convert_dt(prb->sdt), convert_dt(prb->ddt)})) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
