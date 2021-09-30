@@ -3686,6 +3686,217 @@ public:
                 /*is_prefetch=*/false, /*is_load=*/false, atomic_op) {}
 };
 
+class slm_reduce_builder_t {
+public:
+    slm_reduce_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
+            const constraint_set_t &cset, const grid_info_t &tg_grid,
+            const expr_t &reg_buf, const layout_t &reg_layout,
+            const tensor_t &thr_tile, int dim = 2)
+        : cfg_(cfg)
+        , ir_ctx_(ir_ctx)
+        , cset_(cset)
+        , tg_grid_(tg_grid)
+        , reg_buf_(reg_buf)
+        , reg_layout_(reg_layout)
+        , thr_tile_(thr_tile)
+        , dim_(dim) {
+        ir_assert((dim_ >= 0) && (dim_ <= 2));
+        ir_assert(tg_grid_.dim(dim_) > 1);
+
+        tmp_reg_buf_ = ir_ctx_.create_tmp_var(type_t::byte_ptr());
+        slm_buf_ = make_buffer("reduce_slm");
+        tg_ndims_ = (dim_ != 2) ? dim_ + 1 : tg_grid_.ndims();
+
+        build();
+    }
+
+    layout_t reg_layout() const { return reg_layout_; }
+
+    tensor_t thr_tile() const { return thr_tile_; }
+
+    stmt_t stmt() const { return stmt_; }
+
+private:
+    void build() {
+        int ndims = reg_layout_.ndims();
+
+        // Create SLM layout to store all intermediate buffers from the thread
+        // group.
+        layout_t slm_layout(reg_layout_.type(), ndims + tg_ndims_,
+                reg_layout_.offset(), reg_layout_.blocks());
+        for (int i = tg_ndims_ - 1; i >= 0; i--) {
+            slm_layout = slm_layout.add_outer_block(ndims + i, tg_grid_.dim(i));
+        }
+
+        slm_buf_size_ = slm_layout.size();
+
+        // Write thread tile to SLM.
+        std::vector<dim_t> write_dims = reg_layout_.dims();
+        std::vector<expr_t> write_start(ndims + tg_ndims_, 0);
+        write_dims.resize(ndims + tg_ndims_, 1);
+        for (int i = tg_ndims_ - 1; i >= 0; i--) {
+            write_start[ndims + i] = tg_grid_.idx(i);
+        }
+        auto write_tile = tensor_t(write_dims, write_start);
+        write_builder_t write(cfg_.hw, ir_ctx_, cset_,
+                view_t(slm_layout.map(write_tile)), slm_buf_, reg_buf_,
+                /*is_slm=*/true);
+        stmt_ = stmt_.append(funcs::barrier());
+        stmt_ = stmt_.append(write.stmt());
+        stmt_ = stmt_.append(funcs::barrier());
+
+        auto &write_layout = write.reg_layout();
+        ir_assert(write_layout == reg_layout_) << "Incompatible layouts.";
+
+        // Redistribute the layout to read/reduce all k-axis tiles from every
+        // thread.
+        auto local_thr_tile = reg_layout_.split(tg_grid_.sub_grid({dim_}));
+        reg_layout_ = reg_layout_.map(tensor_t(local_thr_tile.dims()));
+
+        stmt_t reduce_stmt;
+
+        std::vector<dim_t> read_dims(ndims + tg_ndims_, 1);
+        std::vector<expr_t> read_start(ndims + tg_ndims_);
+        for (int i = 0; i < ndims; i++) {
+            read_dims[i] = local_thr_tile(i);
+            read_start[i] = local_thr_tile.start(i);
+        }
+        read_dims[ndims + dim_] = tg_grid_.dim(dim_);
+        for (int i = 0; i < tg_ndims_; i++) {
+            read_start[ndims + i] = (i == dim_) ? 0 : tg_grid_.idx(i);
+        }
+        tensor_t read_tile(read_dims, read_start);
+        read_builder_t read(cfg_.hw, ir_ctx_, cset_,
+                view_t(slm_layout.map(read_tile)), slm_buf_, tmp_reg_buf_,
+                /*is_slm=*/true);
+        reduce_stmt = reduce_stmt.append(read.stmt());
+        tmp_reg_buf_size_ = std::max(tmp_reg_buf_size_, read.reg_buf_size());
+
+        auto read_layout = read.reg_layout();
+        reduce_stmt = reduce_stmt.append(
+                create_reduce_stmt(read_layout, reg_layout_, tmp_reg_buf_,
+                        reg_buf_, tensor_t(), reduction_mask()));
+
+        stmt_ = stmt_.append(
+                create_zero_out_stmt(cfg_.hw, reg_buf_, reg_layout_.size()));
+        stmt_ = stmt_.append(reduce_stmt);
+
+        stmt_ = alloc_t::make(
+                slm_buf_, slm_buf_size_, alloc_kind_t::slm, {}, stmt_);
+        stmt_ = alloc_t::make(
+                tmp_reg_buf_, tmp_reg_buf_size_, alloc_kind_t::grf, {}, stmt_);
+
+        if (!thr_tile_.is_empty()) {
+            thr_tile_ = thr_tile_.create_sub_tensor(local_thr_tile);
+        }
+    }
+
+    uint32_t reduction_mask() const {
+        uint32_t mask = 0xFFFFFFFF;
+        for (int i = 0; i < tg_ndims_; i++) {
+            int k_dim_idx = reg_layout_.ndims() + i;
+            mask &= ~(1 << k_dim_idx);
+        }
+        return mask;
+    }
+
+    const conv_config_t &cfg_;
+    ir_context_t &ir_ctx_;
+    const constraint_set_t &cset_;
+    grid_info_t tg_grid_;
+
+    expr_t reg_buf_;
+    layout_t reg_layout_;
+    tensor_t thr_tile_;
+
+    int dim_;
+
+    expr_t tmp_reg_buf_;
+    int tmp_reg_buf_size_ = 0;
+
+    expr_t slm_buf_;
+    int slm_buf_size_ = 0;
+
+    int tg_ndims_;
+
+    stmt_t stmt_;
+};
+
+// Zero pads a register buffer of f32 type.
+class zero_pad_builder_t {
+public:
+    zero_pad_builder_t(const constraint_set_t &cset,
+            const post_op_context_t &post_op_ctx, const view_t &mem_view,
+            const layout_t &reg_layout, const expr_t &reg_buf)
+        : cset_(cset)
+        , post_op_ctx_(post_op_ctx)
+        , mem_view_(mem_view)
+        , reg_layout_(reg_layout)
+        , reg_buf_(reg_buf) {
+        ir_assert(mem_view_.nvdims() == reg_layout_.ndims())
+                << "Incompatible view/layout.";
+        build();
+    }
+
+    const stmt_t &stmt() const { return stmt_; }
+
+    expr_t create_mask(const tensor_t &tile) const {
+        auto layout = reg_layout_.map(tile);
+        auto view = mem_view_.create_sub_view(tile);
+        mask_tensor_t mask_tensor(layout);
+        std::vector<dim_t> args(layout.ndims());
+        fill_mask_impl(mask_tensor, 0, args, view, layout);
+        mask_tensor.simplify(cset_);
+        return mask_tensor.to_expr(tile.elems());
+    }
+
+private:
+    void build() {
+        int max_step = 16; // Handle 16 elements at most in one step.
+        auto base_tile = reg_layout_.split_into_max_tile(
+                max_step, /*is_dense_tile=*/true);
+        reg_layout_.for_each_tile(
+                base_tile, [&](const std::vector<dim_t> &start) {
+                    tensor_t tile(base_tile.dims(), start);
+                    int off = reg_layout_(start) * reg_layout_.type().size();
+                    auto mask = create_mask(tile);
+                    auto store = store_t::make(reg_buf_, off,
+                            shuffle_t::make_broadcast(0.0f, tile.elems()),
+                            store_t::default_stride, -mask);
+                    stmt_ = stmt_.append(store);
+                });
+    }
+
+    void fill_mask_impl(mask_tensor_t &mask_tensor, int idx,
+            std::vector<dim_t> &args, const view_t &view,
+            const layout_t &layout) const {
+        if (idx == layout.ndims()) {
+            expr_t mask = bool_imm_t::make(true);
+            for (int i = 0; i < layout.ndims(); i++) {
+                if (!post_op_ctx_.is_lhs_dim_zero_padded(i)) continue;
+                mask &= (view.vstart(i) + args[i] < post_op_ctx_.lhs_dim(i));
+            }
+            auto off = layout.offset(args, /*ignore_offset=*/true);
+            mask_tensor.set_mask(off, mask);
+            return;
+        }
+
+        for (int i = 0; i < int(layout.dims()[idx]); i++) {
+            args[idx] = i;
+            fill_mask_impl(mask_tensor, idx + 1, args, view, layout);
+        }
+    }
+
+    const constraint_set_t &cset_;
+    const post_op_context_t &post_op_ctx_;
+
+    view_t mem_view_;
+    layout_t reg_layout_;
+    expr_t reg_buf_;
+
+    stmt_t stmt_;
+};
+
 // Generates loads to the post-op buffer and applies a single post-op.
 // There are two types of post-ops:
 // - Eltwise: lhs = F(lhs)
@@ -3942,84 +4153,6 @@ private:
     layout_t rhs_reg_layout_;
 
     object_map_t<expr_t, int> rhs_bufs_;
-};
-
-// Zero pads a register buffer of f32 type.
-class zero_pad_builder_t {
-public:
-    zero_pad_builder_t(const constraint_set_t &cset,
-            const post_op_context_t &post_op_ctx, const view_t &mem_view,
-            const layout_t &reg_layout, const expr_t &reg_buf)
-        : cset_(cset)
-        , post_op_ctx_(post_op_ctx)
-        , mem_view_(mem_view)
-        , reg_layout_(reg_layout)
-        , reg_buf_(reg_buf) {
-        ir_assert(mem_view_.nvdims() == reg_layout_.ndims())
-                << "Incompatible view/layout.";
-        build();
-    }
-
-    const stmt_t &stmt() const { return stmt_; }
-
-private:
-    void build() {
-        int max_step = 16; // Handle 16 elements at most in one step.
-        auto base_tile = reg_layout_.split_into_max_tile(
-                max_step, /*is_dense_tile=*/true);
-        reg_layout_.for_each_tile(
-                base_tile, [&](const std::vector<dim_t> &start) {
-                    tensor_t tile(base_tile.dims(), start);
-                    auto sub_layout = reg_layout_.map(tile);
-                    auto sub_view = mem_view_.create_sub_view(tile);
-                    int elems = tile.elems();
-                    int off = reg_layout_(start) * reg_layout_.type().size();
-                    auto mask_tensor = create_mask(sub_view, sub_layout);
-                    auto mask = mask_tensor.to_expr(elems);
-                    auto store = store_t::make(reg_buf_, off,
-                            shuffle_t::make_broadcast(expr_t(0.0f), elems),
-                            store_t::default_stride, -mask);
-                    stmt_ = stmt_.append(store);
-                });
-    }
-
-    mask_tensor_t create_mask(
-            const view_t &view, const layout_t &layout) const {
-        mask_tensor_t mask_tensor(layout);
-        std::vector<dim_t> args(layout.ndims());
-        fill_mask_impl(mask_tensor, 0, args, view, layout);
-        mask_tensor.simplify(cset_);
-        return mask_tensor;
-    }
-
-    void fill_mask_impl(mask_tensor_t &mask_tensor, int idx,
-            std::vector<dim_t> &args, const view_t &view,
-            const layout_t &layout) const {
-        if (idx == layout.ndims()) {
-            expr_t mask = bool_imm_t::make(true);
-            for (int i = 0; i < layout.ndims(); i++) {
-                if (!post_op_ctx_.is_lhs_dim_zero_padded(i)) continue;
-                mask &= (view.vstart(i) + args[i] < post_op_ctx_.lhs_dim(i));
-            }
-            auto off = layout.offset(args, /*ignore_offset=*/true);
-            mask_tensor.set_mask(off, mask);
-            return;
-        }
-
-        for (int i = 0; i < int(layout.dims()[idx]); i++) {
-            args[idx] = i;
-            fill_mask_impl(mask_tensor, idx + 1, args, view, layout);
-        }
-    }
-
-    const constraint_set_t &cset_;
-    const post_op_context_t &post_op_ctx_;
-
-    view_t mem_view_;
-    layout_t reg_layout_;
-    expr_t reg_buf_;
-
-    stmt_t stmt_;
 };
 
 // Performs the following steps after the computation:
@@ -5164,137 +5297,6 @@ private:
     int c_buf_off_ = 0;
     layout_t c_sub_tile_layout_;
     alloc_attr_t c_attr_;
-};
-
-class slm_reduce_builder_t {
-public:
-    slm_reduce_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const grid_info_t &tg_grid,
-            const expr_t &reg_buf, const layout_t &reg_layout,
-            const tensor_t &thr_tile)
-        : cfg_(cfg)
-        , ir_ctx_(ir_ctx)
-        , cset_(cset)
-        , tg_grid_(tg_grid)
-        , reg_buf_(reg_buf)
-        , reg_layout_(reg_layout)
-        , thr_tile_(thr_tile) {
-        ir_assert(tg_grid_.dim(2) > 1);
-
-        tmp_reg_buf_ = ir_ctx_.create_tmp_var(type_t::byte_ptr());
-        slm_buf_ = make_buffer("reduce_slm");
-
-        build();
-    }
-
-    layout_t reg_layout() const { return reg_layout_; }
-
-    tensor_t thr_tile() const { return thr_tile_; }
-
-    stmt_t stmt() const { return stmt_; }
-
-private:
-    void build() {
-        int ndims = reg_layout_.ndims();
-        int tg_ndims = tg_grid_.ndims();
-
-        // Create SLM layout to store all intermediate buffers from the thread
-        // group.
-        layout_t slm_layout(reg_layout_.type(), ndims + tg_ndims,
-                reg_layout_.offset(), reg_layout_.blocks());
-        for (int i = tg_ndims - 1; i >= 0; i--) {
-            slm_layout = slm_layout.add_outer_block(ndims + i, tg_grid_.dim(i));
-        }
-
-        slm_buf_size_ = slm_layout.size();
-
-        // Write thread tile to SLM.
-        std::vector<dim_t> write_dims = reg_layout_.dims();
-        std::vector<expr_t> write_start(ndims + tg_ndims, 0);
-        write_dims.resize(ndims + tg_ndims, 1);
-        for (int i = tg_ndims - 1; i >= 0; i--) {
-            write_start[ndims + i] = tg_grid_.idx(i);
-        }
-        auto write_tile = tensor_t(write_dims, write_start);
-        write_builder_t write(cfg_.hw, ir_ctx_, cset_,
-                view_t(slm_layout.map(write_tile)), slm_buf_, reg_buf_,
-                /*is_slm=*/true);
-        stmt_ = stmt_.append(funcs::barrier());
-        stmt_ = stmt_.append(write.stmt());
-        stmt_ = stmt_.append(funcs::barrier());
-
-        auto &write_layout = write.reg_layout();
-        ir_assert(write_layout == reg_layout_) << "Incompatible layouts.";
-
-        // Redistribute the layout to read/reduce all k-axis tiles from every
-        // thread.
-        auto local_thr_tile = reg_layout_.split(tg_grid_.sub_grid({2}));
-        reg_layout_ = reg_layout_.map(tensor_t(local_thr_tile.dims()));
-
-        stmt_t reduce_stmt;
-        std::vector<dim_t> read_dims(ndims + tg_ndims, 1);
-        std::vector<expr_t> read_start(ndims + tg_ndims);
-        for (int i = 0; i < ndims; i++) {
-            read_dims[i] = local_thr_tile(i);
-            read_start[i] = local_thr_tile.start(i);
-        }
-        read_start[ndims + 0] = tg_grid_.idx(0);
-        read_start[ndims + 1] = tg_grid_.idx(1);
-        for (int i = 0; i < tg_grid_.dim(2); i++) {
-            read_start[ndims + 2] = i;
-            tensor_t read_tile(read_dims, read_start);
-            read_builder_t read(cfg_.hw, ir_ctx_, cset_,
-                    view_t(slm_layout.map(read_tile)), slm_buf_, tmp_reg_buf_,
-                    /*is_slm=*/true);
-            reduce_stmt = reduce_stmt.append(read.stmt());
-
-            tmp_reg_buf_size_
-                    = std::max(tmp_reg_buf_size_, read.reg_buf_size());
-            auto read_layout = read.reg_layout();
-            for (int j = 0; j < 2; j++)
-                ir_assert(read_layout.dim(ndims + j) == 1);
-            read_layout = layout_t(read_layout.type(), ndims + 1,
-                    read_layout.offset(), read_layout.blocks());
-            reduce_stmt = reduce_stmt.append(
-                    create_reduce_stmt(read_layout, reg_layout_, tmp_reg_buf_,
-                            reg_buf_, tensor_t(), reduction_mask()));
-        }
-
-        stmt_ = stmt_.append(
-                create_zero_out_stmt(cfg_.hw, reg_buf_, reg_layout_.size()));
-        stmt_ = stmt_.append(reduce_stmt);
-
-        stmt_ = alloc_t::make(
-                slm_buf_, slm_buf_size_, alloc_kind_t::slm, {}, stmt_);
-        stmt_ = alloc_t::make(
-                tmp_reg_buf_, tmp_reg_buf_size_, alloc_kind_t::grf, {}, stmt_);
-
-        thr_tile_ = thr_tile_.create_sub_tensor(local_thr_tile);
-    }
-
-    uint32_t reduction_mask() const {
-        int k_dim_idx = reg_layout_.ndims();
-        uint32_t mask = 0xFFFFFFFF;
-        mask &= ~(1 << k_dim_idx);
-        return mask;
-    }
-
-    const conv_config_t &cfg_;
-    ir_context_t &ir_ctx_;
-    const constraint_set_t &cset_;
-    grid_info_t tg_grid_;
-
-    expr_t reg_buf_;
-    layout_t reg_layout_;
-    tensor_t thr_tile_;
-
-    expr_t tmp_reg_buf_;
-    int tmp_reg_buf_size_ = 0;
-
-    expr_t slm_buf_;
-    int slm_buf_size_ = 0;
-
-    stmt_t stmt_;
 };
 
 class compute_builder_t {
