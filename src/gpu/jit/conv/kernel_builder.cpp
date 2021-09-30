@@ -3464,29 +3464,34 @@ stmt_t create_reorder_stmt(const layout_t &src, const layout_t &dst,
 
 stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
         const expr_t &src_buf, const expr_t &dst_buf, const tensor_t &_sub_tile,
-        uint32_t reduction_mask) {
+        uint32_t reduction_mask, bool drop_dims = true) {
     auto sub_tile = _sub_tile;
     if (sub_tile.is_empty()) sub_tile = tensor_t(src.dims());
     ir_assert(src.ndims() == sub_tile.ndims());
     int ndims = src.ndims();
 
-    // Align dst layout with src layout according to the mask.
-    std::vector<int> dst2src(dst.ndims());
-    int dst_dim_idx = 0;
-    for (int i = 0; i < ndims; i++) {
-        if ((reduction_mask & (1 << i)) != 0) {
-            dst2src[dst_dim_idx] = i;
-            dst_dim_idx++;
+    // Align dst layout with src layout according to the mask if needed.
+    layout_t dst_aligned;
+    if (drop_dims) {
+        std::vector<int> dst2src(dst.ndims());
+        int dst_dim_idx = 0;
+        for (int i = 0; i < ndims; i++) {
+            if ((reduction_mask & (1 << i)) != 0) {
+                dst2src[dst_dim_idx] = i;
+                dst_dim_idx++;
+            }
         }
+        ir_assert(dst_dim_idx == dst.ndims()) << "Incompatible reduction mask.";
+
+        auto dst_blocks = dst.blocks();
+        for (auto &b : dst_blocks)
+            b.dim_idx = dst2src[b.dim_idx];
+
+        // Create final layout.
+        dst_aligned = layout_t(dst.type(), ndims, dst.offset(), dst_blocks);
+    } else {
+        dst_aligned = dst;
     }
-    ir_assert(dst_dim_idx == dst.ndims()) << "Incompatible reduction mask.";
-
-    auto dst_blocks = dst.blocks();
-    for (auto &b : dst_blocks)
-        b.dim_idx = dst2src[b.dim_idx];
-
-    // Create final layouts.
-    auto dst_aligned = layout_t(dst.type(), ndims, dst.offset(), dst_blocks);
 
     std::vector<dim_t> dst_tile_dims = sub_tile.dims();
     std::vector<expr_t> dst_tile_start = sub_tile.start();
