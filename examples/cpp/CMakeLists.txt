@@ -77,7 +77,7 @@ foreach(src ${sources})
         endif()
 	# Adding examples for SYCL CPU and GPU
         if(${example_name} MATCHES "sycl-*")
-            register_demo(${example_name} ${src})
+            register_example(${example_name} ${src})
             add_test("${example_name}-cpu" "${example_name}" cpu)
             maybe_configure_windows_test("${example_name}-cpu" TEST)
             add_test("${example_name}-gpu" "${example_name}" gpu)
