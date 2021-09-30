@@ -17,16 +17,42 @@
 #ifndef EXAMPLE_UTILS_HPP
 #define EXAMPLE_UTILS_HPP
 
+#include <iostream>
 #include <numeric>
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
+#include "oneapi/dnnl/dnnl_graph.hpp"
+
 inline int64_t product(const std::vector<int64_t> &dims) {
     return dims.empty() ? 0
                         : std::accumulate(dims.begin(), dims.end(), (int64_t)1,
                                 std::multiplies<int64_t>());
+}
+
+dnnl::graph::engine::kind parse_engine_kind(int argc, char **argv) {
+    // Returns default engine kind, i.e. CPU, if none given
+    if (argc == 1) {
+        return dnnl::graph::engine::kind::cpu;
+    } else if (argc == 2) {
+        // Checking the engine type, i.e. CPU or GPU
+        std::string engine_kind_str = argv[1];
+        if (engine_kind_str == "cpu") {
+            return dnnl::graph::engine::kind::cpu;
+        } else if (engine_kind_str == "gpu") {
+            return dnnl::graph::engine::kind::gpu;
+        } else {
+            throw std::runtime_error(
+                    "parse_engine_kind: only support cpu or gpu engine");
+        }
+    }
+    // If all above fails, the example should be ran properly
+    std::cout << "Inappropriate engine kind." << std::endl
+              << "Please run the example like: " << argv[0] << " [cpu|gpu]"
+              << "." << std::endl;
+    exit(1);
 }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
