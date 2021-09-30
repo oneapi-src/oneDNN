@@ -67,11 +67,10 @@ struct prb_t : public prb_vdims_t {
         , dtag(dtag)
         , axis(axis)
         , attr(attr) {
-        generate_ddims();
+        dst_dims[axis] = axis_size();
     }
     ~prb_t() {}
 
-    dims_t ddims;
     dnnl_data_type_t sdt, ddt;
     std::vector<std::string> stag;
     std::string dtag;
@@ -83,15 +82,6 @@ struct prb_t : public prb_vdims_t {
         for (int i = 0; i < n_inputs(); ++i)
             as += vdims[i].at(axis);
         return as;
-    }
-
-    void generate_ddims() {
-        const dims_t &vdims0 = vdims[0];
-        ddims.resize(ndims);
-
-        for (int i = 0; i < ndims; ++i)
-            ddims[i] = vdims0[i];
-        ddims[axis] = axis_size();
     }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);

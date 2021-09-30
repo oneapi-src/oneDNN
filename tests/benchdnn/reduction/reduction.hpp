@@ -85,8 +85,6 @@ struct prb_t : public prb_vdims_t {
             const std::string &dtag, alg_t alg, float p, float eps,
             const attr_t &attr)
         : prb_vdims_t(prb_vdims)
-        , src_dims(prb_vdims.vdims[0])
-        , dst_dims(prb_vdims.vdims[1])
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
@@ -96,7 +94,6 @@ struct prb_t : public prb_vdims_t {
         , eps(eps)
         , attr(attr) {}
 
-    dims_t src_dims, dst_dims;
     dnnl_data_type_t sdt, ddt;
     std::string stag, dtag;
     alg_t alg;

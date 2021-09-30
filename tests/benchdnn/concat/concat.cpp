@@ -47,7 +47,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     }
 
     if (prb->dtag != tag::undef) {
-        SAFE(init_md(&dst_d, prb->ndims, prb->ddims.data(), prb->ddt,
+        SAFE(init_md(&dst_d, prb->ndims, prb->dst_dims.data(), prb->ddt,
                      prb->dtag),
                 CRIT);
     }

@@ -234,6 +234,12 @@ void parse_prb_vdims(prb_vdims_t &prb_vdims, const std::string &str) {
         if (prb_vdims.ndims > static_cast<int>(prb_vdims.vdims[i].size()))
             prb_vdims.vdims[i].resize(prb_vdims.ndims, 1);
 
+    prb_vdims.dst_dims = prb_vdims.vdims[0];
+    for (int i = 1; i < prb_vdims.n_inputs(); i++)
+        for (int d = 0; d < prb_vdims.ndims; ++d)
+            prb_vdims.dst_dims[d]
+                    = std::max(prb_vdims.dst_dims[d], prb_vdims.vdims[i][d]);
+
     if (start_pos != eol) prb_vdims.name = str.substr(start_pos);
 }
 

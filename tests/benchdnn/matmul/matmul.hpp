@@ -105,10 +105,11 @@ struct prb_t : public prb_vdims_t {
         m = srcdims[ndims - 2];
         k = srcdims.back();
         n = weidims.back();
+        dst_dims[ndims - 2] = m;
+        dst_dims[ndims - 1] = n;
 
-        init_dst();
-        const auto &dstdims = dst_dims();
-        const auto nelems = std::accumulate(dstdims.begin(), dstdims.end(),
+        init_dst_rt_dims_mask();
+        const auto nelems = std::accumulate(dst_dims.begin(), dst_dims.end(),
                 (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
         ops = 2. * nelems * k;
 
@@ -138,7 +139,6 @@ struct prb_t : public prb_vdims_t {
 
     const dims_t &src_dims() const { return vdims[0]; }
     const dims_t &weights_dims() const { return vdims[1]; }
-    const dims_t &dst_dims() const { return vdims[2]; }
 
     const dims_mask_t &src_runtime_dim_mask() const { return rt_dims_masks[0]; }
     const dims_mask_t &weights_runtime_dim_mask() const {
@@ -162,26 +162,11 @@ struct prb_t : public prb_vdims_t {
 
 private:
     int get_broadcast_mask(const dims_t &dims_idx) const {
-        const dims_t &dims_dst = this->dst_dims();
-
         int broadcast_mask = 0;
         for (int d = 0; d < ndims; ++d)
-            broadcast_mask += dims_dst[d] == dims_idx[d] ? (1 << d) : 0;
+            broadcast_mask += dst_dims[d] == dims_idx[d] ? (1 << d) : 0;
 
         return broadcast_mask;
-    }
-
-    void init_dst_dims() {
-        if (vdims.size() > 2) return;
-        vdims.resize(3);
-        auto &dst_dims = vdims.back();
-        dst_dims.resize(ndims);
-
-        for (int i = 0; i < ndims - 2; ++i) {
-            vdims.back()[i] = MAX2(vdims[0][i], vdims[1][i]);
-        }
-        vdims.back()[ndims - 2] = m;
-        vdims.back()[ndims - 1] = n;
     }
 
     void init_dst_rt_dims_mask() {
@@ -200,11 +185,6 @@ private:
         dst_rt_dim_mask[ndims - 1] = wei_rt_dim_mask[ndims - 1];
 
         rt_dims_masks.push_back(dst_rt_dim_mask);
-    }
-
-    void init_dst() {
-        init_dst_dims();
-        init_dst_rt_dims_mask();
     }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);

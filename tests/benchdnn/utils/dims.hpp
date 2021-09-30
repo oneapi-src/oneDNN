@@ -36,6 +36,9 @@ struct prb_dims_t {
 // don't make much sense for dims_t.
 struct prb_vdims_t {
     vdims_t vdims;
+    // Destination dimensions with all broadcasts incorporated. Drivers inherit
+    // this member and may modify it due to driver specifics.
+    dims_t dst_dims;
     int ndims;
     std::string name;
 

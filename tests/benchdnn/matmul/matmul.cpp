@@ -33,10 +33,10 @@
 
 namespace matmul {
 
-void prep_bia_dims(const prb_t *prb, dims_t &bia_dims, const dims_t &dst_dims) {
-    bia_dims.resize(dst_dims.size());
+void prep_bia_dims(const prb_t *prb, dims_t &bia_dims) {
+    bia_dims.resize(prb->ndims);
     for (int d = 0; d < prb->ndims; ++d)
-        bia_dims[d] = (prb->bia_mask & (1 << d)) ? dst_dims[d] : 1;
+        bia_dims[d] = (prb->bia_mask & (1 << d)) ? prb->dst_dims[d] : 1;
 }
 
 dims_t get_runtime_dims(const dims_t &dims, const dims_mask_t &mask) {
@@ -59,7 +59,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     const auto &weights_rt_dims = get_runtime_dims(
             prb->weights_dims(), prb->weights_runtime_dim_mask());
     const auto &dst_rt_dims
-            = get_runtime_dims(prb->dst_dims(), prb->dst_runtime_dim_mask());
+            = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
 
     SAFE(init_md(&src_d, prb->ndims, src_rt_dims.data(), prb->cfg[SRC].dt,
                  prb->stag, prb->strides[STRIDES_SRC]),
@@ -75,7 +75,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     if (prb->bia_dt != dnnl_data_type_undef) {
         dims_t bia_dims;
-        prep_bia_dims(prb, bia_dims, prb->dst_dims());
+        prep_bia_dims(prb, bia_dims);
         bia_dims = get_runtime_dims(bia_dims, prb->dst_runtime_dim_mask());
         DNN_SAFE(dnnl_memory_desc_init_by_strides(&bia_d, prb->ndims,
                          bia_dims.data(), prb->bia_dt, nullptr),
@@ -95,9 +95,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         mask = (1 << (dst_rt_dims.size() - 1));
 
     attr_args_t attr_args;
-    const auto &dst_dims = prb->dst_dims();
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->n, mask);
-    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims.data());
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -409,16 +408,15 @@ int doit(const prb_t *prb, res_t *res) {
                 WARN);
     }
 
-    const auto &dst_dims = prb->dst_dims();
     if (dnnl_memory_desc_equal(&dst_md, &def_md)) {
         assert(prb->dtag != tag::any);
-        SAFE(init_md(&dst_md, prb->ndims, dst_dims.data(), prb->cfg[DST].dt,
-                     prb->dtag, prb->strides[STRIDES_DST]),
+        SAFE(init_md(&dst_md, prb->ndims, prb->dst_dims.data(),
+                     prb->cfg[DST].dt, prb->dtag, prb->strides[STRIDES_DST]),
                 WARN);
     }
     if (prb->bia_dt != dnnl_data_type_undef) {
         dims_t bia_dims;
-        prep_bia_dims(prb, bia_dims, dst_dims);
+        prep_bia_dims(prb, bia_dims);
         DNN_SAFE(dnnl_memory_desc_init_by_strides(&bia_md, prb->ndims,
                          bia_dims.data(), prb->bia_dt, nullptr),
                 WARN);

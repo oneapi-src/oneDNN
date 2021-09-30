@@ -109,12 +109,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                 CRIT);
     }
 
-    dnnl_dims_t dst_dims;
-    for (int d = 0; d < prb->ndims; ++d)
-        dst_dims[d] = std::max(prb->vdims[0][d], prb->vdims[1][d]);
-
     dnnl_memory_desc_t dst_d;
-    SAFE(init_md(&dst_d, prb->ndims, dst_dims, prb->ddt, prb->dtag), WARN);
+    SAFE(init_md(&dst_d, prb->ndims, prb->dst_dims.data(), prb->ddt, prb->dtag),
+            WARN);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 
@@ -122,7 +119,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             WARN);
 
     attr_args_t attr_args;
-    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims);
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
