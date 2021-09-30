@@ -2714,6 +2714,16 @@ public:
         auto src_rd = ngen_reg_data(hw_, _src_rd, 0, to_ngen(src_type), 1);
         auto dst_rd = ngen_reg_data(hw_, _dst_rd, 0, to_ngen(dst_type), 1);
 
+        bool is_inplace = (src_rd.getBase() == dst_rd.getBase()
+                && src_rd.getByteOffset() == dst_rd.getByteOffset());
+
+        if (is_inplace) {
+            ir_assert(src_type == dst_type)
+                    << "Inplace operation is supported for the same type only.";
+        }
+
+        std::vector<bool> seen(src_layout_.size() * src_type.size());
+
         tensor_t tile = find_1d_tile();
         src_layout_.for_each_tile(
                 tile, [&](const std::vector<dim_t> &src_start) {
@@ -2723,6 +2733,17 @@ public:
                     }
                     int src_off = int(src_layout_(src_start) * src_type.size());
                     int dst_off = int(dst_layout_(dst_start) * dst_type.size());
+
+                    if (is_inplace) {
+                        bool same_src_dst = (dst_off == src_off);
+                        if (!seen[dst_off] && !same_src_dst) {
+                            ir_error_not_expected()
+                                    << "Invalid inplace reduction.";
+                        }
+                        seen[dst_off] = true;
+                        if (same_src_dst) return;
+                    }
+
                     auto sub_src = ngen_subregister(hw_, src_rd, src_off);
                     auto sub_dst = ngen_subregister(hw_, dst_rd, dst_off);
                     host->add(int(tile.elems()), sub_dst(1), sub_dst(1),
@@ -2733,7 +2754,7 @@ public:
 private:
     tensor_t find_1d_tile() const {
         auto a = src_layout_;
-        auto b = src_layout_;
+        auto b = dst_layout_;
         layout_t::align_layouts(a, b);
 
         ir_assert(!a.blocks().empty());
@@ -2744,11 +2765,21 @@ private:
 
         ir_assert(a0.is_equal(b0)) << "Incompatible layouts for reduction.";
         ir_assert(dim_t(a0.stride) == 1) << "Reduction is not supported.";
-        ir_assert(utils::one_of(a0.block, 8, 16))
-                << "Reduction is not supported.";
+
+        int grf_size = ngen::GRF::bytes(hw_);
+        int a_grf_elems = grf_size / a.type().size();
+        int b_grf_elems = grf_size / b.type().size();
+
+        int min_step = std::min(a_grf_elems, b_grf_elems);
+        int max_step = 2 * min_step;
+
+        min_step = std::min(8, min_step);
+
+        ir_assert(a0.block % min_step == 0) << "Reduction is not supported.";
 
         std::vector<dim_t> tile_dims(src_layout_.ndims(), 1);
-        tile_dims[a0.dim_idx] = a0.block;
+        tile_dims[a0.dim_idx]
+                = ir_utils::max_divisor(int(a0.block), {min_step, max_step});
 
         return tensor_t(tile_dims);
     }
