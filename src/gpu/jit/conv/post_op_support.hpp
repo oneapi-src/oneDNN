@@ -151,12 +151,15 @@ public:
         return (rhs_mask() & (1 << dim_idx)) == 0;
     }
 
-    tensor_t apply_mask(const tensor_t &tile) const {
+    tensor_t apply_mask(const tensor_t &tile, bool update_dims = true,
+            bool update_start = true) const {
         ir_assert(has_rhs());
         ir_assert(tile.ndims() == rhs_view_.nvdims())
                 << "Incompatible dimensions.";
-        auto tile_dims = apply_mask(tile.dims(), 1);
-        auto tile_start = apply_mask(tile.start(), 0);
+        auto tile_dims
+                = (update_dims ? apply_mask(tile.dims(), 1) : tile.dims());
+        auto tile_start
+                = (update_start ? apply_mask(tile.start(), 0) : tile.start());
         return tensor_t(tile_dims, tile_start);
     }
 
