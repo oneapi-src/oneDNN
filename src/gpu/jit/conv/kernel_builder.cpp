@@ -3242,6 +3242,41 @@ stmt_t optimize_peephole(const stmt_t &s) {
     return ret;
 }
 
+class barrier_optimizer_t : public ir_mutator_t {
+public:
+    object_t _mutate(const for_t &obj) override {
+        loop_level_++;
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        loop_level_--;
+        return new_obj;
+    }
+
+    object_t _mutate(const func_call_t &obj) override {
+        if (!obj.func.is_same(funcs::barrier_func())) return obj;
+
+        bool is_first = is_first_barrier_;
+        is_first_barrier_ = false;
+
+        // If not in a loop and this is the first barrier -> can be dropped.
+        if (loop_level_ == 0 && is_first) return stmt_t();
+
+        return obj;
+    }
+
+    // Store doesn't contain nested statements, return as is.
+    object_t _mutate(const store_t &obj) override { return obj; }
+
+private:
+    int loop_level_ = 0;
+    bool is_first_barrier_ = true;
+};
+
+stmt_t optimize_barrier(const stmt_t &s) {
+    auto ret = barrier_optimizer_t().mutate(s);
+    trace_pass("optimize_barrier", ret);
+    return ret;
+}
+
 class if_condition_fixer_t : public ir_mutator_t {
 public:
     if_condition_fixer_t(int simd_size) : simd_size_(simd_size) {}
@@ -5901,6 +5936,7 @@ void kernel_builder_t::build() {
     stmt_ = simplify_pass(stmt_, init_cset);
     stmt_ = optimize_let(stmt_);
     stmt_ = optimize_peephole(stmt_);
+    stmt_ = optimize_barrier(stmt_);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
     ir_trace() << "Kernel body:\n" << stmt_ << std::endl;
