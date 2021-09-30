@@ -19,10 +19,36 @@
 
 #include <numeric>
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+#include <CL/sycl.hpp>
+#endif
+
 inline int64_t product(const std::vector<int64_t> &dims) {
     return dims.empty() ? 0
                         : std::accumulate(dims.begin(), dims.end(), (int64_t)1,
                                 std::multiplies<int64_t>());
 }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+template <typename dtype>
+void fill_buffer(
+        cl::sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
+    dtype *usm_buffer_casted = static_cast<dtype *>(usm_buffer);
+    q.parallel_for(cl::sycl::range<1>(length), [=](cl::sycl::id<1> i) {
+         int idx = (int)i[0];
+         usm_buffer_casted[idx] = value;
+     }).wait();
+}
+
+void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
+        dnnl::graph::allocator::attribute attr) {
+    return malloc_device(n, *static_cast<const cl::sycl::device *>(dev),
+            *static_cast<const cl::sycl::context *>(ctx));
+}
+
+void sycl_free_wrapper(void *ptr, const void *context) {
+    free(ptr, *static_cast<const cl::sycl::context *>(context));
+}
+#endif
 
 #endif
