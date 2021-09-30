@@ -85,15 +85,6 @@ struct prb_t : public prb_vdims_t {
     alg_t alg;
     bool inplace;
     attr_t attr;
-
-    int get_broadcast_mask(const dims_t &dims_B, int source_num) const {
-        const dims_t &dims_A = this->vdims[source_num];
-
-        int broadcast_mask = 0;
-        for (int d = 0; d < ndims; ++d)
-            broadcast_mask += dims_A[d] == dims_B[d] ? (1 << d) : 0;
-        return broadcast_mask;
-    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 

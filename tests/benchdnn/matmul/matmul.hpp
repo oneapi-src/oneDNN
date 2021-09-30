@@ -146,11 +146,9 @@ struct prb_t : public prb_vdims_t {
     }
     const dims_mask_t &dst_runtime_dim_mask() const { return rt_dims_masks[2]; }
 
-    int src_broadcast_mask() const { return get_broadcast_mask(src_dims()); }
+    int src_broadcast_mask() const { return get_broadcast_mask(0); }
 
-    int weights_broadcast_mask() const {
-        return get_broadcast_mask(weights_dims());
-    }
+    int weights_broadcast_mask() const { return get_broadcast_mask(1); }
 
     int bias_broadcast_mask() const { return bia_mask; }
 
@@ -161,14 +159,6 @@ struct prb_t : public prb_vdims_t {
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 
 private:
-    int get_broadcast_mask(const dims_t &dims_idx) const {
-        int broadcast_mask = 0;
-        for (int d = 0; d < ndims; ++d)
-            broadcast_mask += dst_dims[d] == dims_idx[d] ? (1 << d) : 0;
-
-        return broadcast_mask;
-    }
-
     void init_dst_rt_dims_mask() {
         if (rt_dims_masks.size() > 2) return;
 

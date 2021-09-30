@@ -43,6 +43,7 @@ struct prb_vdims_t {
     std::string name;
 
     int n_inputs() const { return static_cast<int>(vdims.size()); }
+    int get_broadcast_mask(int i_input = 1) const;
 };
 
 // strides for SRC, WEI, and DST

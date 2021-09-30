@@ -63,16 +63,6 @@ struct prb_t : public prb_vdims_t {
     std::vector<dnnl_data_type_t> sdt;
     std::vector<std::string> stag;
     attr_t attr;
-
-    int get_broadcast_mask() const {
-        const dims_t &src = vdims[0];
-        const dims_t &wei = vdims[1];
-
-        int broadcast_mask = 0;
-        for (int d = 0; d < ndims; ++d)
-            broadcast_mask += src[d] == wei[d] ? (1 << d) : 0;
-        return broadcast_mask;
-    }
 };
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,10 +29,10 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
     float *dst_ptr = (float *)dst;
 
     const auto nelems = src.nelems();
-    const auto broadcast_mask = prb->get_broadcast_mask();
+    const auto weights_broadcast_mask = prb->get_broadcast_mask();
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const auto wei_idx = src.get_scale_idx(i, broadcast_mask);
+        const auto wei_idx = src.get_scale_idx(i, weights_broadcast_mask);
         float res = src_ptr[i] * (src_ptr[i] > 0 ? 1.f : wei_ptr[wei_idx]);
         maybe_saturate(prb->sdt[0], res);
         dst_ptr[i] = res;
@@ -82,7 +82,7 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
     } else if (src_nelems == wei_nelems) {
         dnnl::impl::parallel_nd(src_nelems, [&](int64_t i) { ker(i, i, i); });
     } else {
-        const auto broadcast_mask = prb->get_broadcast_mask();
+        const auto weights_broadcast_mask = prb->get_broadcast_mask();
 
         dnnl::impl::parallel(0, [&](const int ithr, const int nthr) {
             int64_t start {0}, end {0};
@@ -90,7 +90,8 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
             if (start == end) return;
 
             for (int64_t i = 0; i < src_nelems; ++i) {
-                const auto wei_idx = diff_src.get_scale_idx(i, broadcast_mask);
+                const auto wei_idx
+                        = diff_src.get_scale_idx(i, weights_broadcast_mask);
                 if (wei_idx < start || wei_idx >= end) continue;
                 ker(i, wei_idx, wei_idx);
             }

@@ -16,6 +16,13 @@
 
 #include "utils/dims.hpp"
 
+int prb_vdims_t::get_broadcast_mask(int i_input) const {
+    int broadcast_mask = 0;
+    for (int d = 0; d < ndims; ++d)
+        broadcast_mask += dst_dims[d] == vdims[i_input][d] ? (1 << d) : 0;
+    return broadcast_mask;
+}
+
 // returns dims with current @p off values using actual values from @p dims
 dims_t off2dims_idx(const dims_t &dims, int64_t off) {
     dims_t dims_idx;
