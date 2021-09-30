@@ -140,8 +140,8 @@ int init_prim_ref(
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
     prb_t prb_cpu {*prb, conf_f32, tag::abx, tag::abx, tag::abx,
-            {vdims_t(STRIDES_SIZE)}, false, false, false, false, cpu_bia_dt,
-            cpu_bia_mask, {0, 0, 0}, cpu_attr};
+            {vdims_t(STRIDES_SIZE)}, cpu_bia_dt, cpu_bia_mask, {0, 0, 0},
+            cpu_attr};
 
     dnnl_primitive_desc_t pd_ref_ {};
     SAFE(init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, FLAG_FWD,

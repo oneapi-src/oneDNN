@@ -26,14 +26,6 @@ where *matmul-knobs* are:
             default format of the skipped tensor will be used. As long as
             `--strides` and `--*tag` options refer to different tensors, they
             can be specified together.
- - `--runtime_mb=BOOL` -- specify whether `mb` dimension is a run-time
-            parameter (will be deprecated soon. See `--runtime_dims_masks`).
- - `--runtime_m=BOOL` -- specify whether `m` dimension is a run-time parameter
-            (will be deprecated soon. See `--runtime_dims_masks`).
- - `--runtime_n=BOOL` -- specify whether `n` dimension is a run-time parameter
-            (will be deprecated soon. See `--runtime_dims_masks`).
- - `--runtime_k=BOOL` -- specify whether `k` dimension is a run-time parameter
-            (will be deprecated soon. See `--runtime_dims_masks`).
  - `--attr-oscale=STRING` -- output scale primitive attribute. No oscale is
             set by default. Refer to [attributes](knobs_attr.md) for details.
  - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
@@ -65,18 +57,6 @@ optional, and each of its individual dimensions are computed as
 `d0`, `d1`, `d2` and so on are dimension values of the corresponding tensor,
 where `m`, `n`, and `k` are inner dimensions for matrix multiplication.
 
-**Deprecated desc (only supports up to 3D)**
-```
-    [mbX]mXnXkX_nS
-```
-Here `X` is an integer number and `S` is a string literal without spaces (`n`
-stands for name). The special symbol `_` is ignored, so it may be used as a
-delimiter for better readability.
-
-The `mb` can be omitted, in which case the problem is treated as regular
-2D matrix multiplication. With `mb` set to a non-zero value, batched matrix
-multiplication is used.
-
 ## Examples
 
 Run the default validation set of MatMul using `inputs/matmul/shapes_2d`
@@ -87,16 +67,7 @@ file:
 
 Run single precision matrix multiplication with all sizes provided at run-time:
 ``` sh
-    ./benchdnn --matmul \
-               --runtime_dims_masks=3:3 \
-               10x30:30x20
-```
-
-The same can be expressed with deprecated matmul desc as below:
-``` sh
-    ./benchdnn --matmul \
-               --runtime_m=true --runtime_n=true --runtime_k=true \
-               m10n20k30
+    ./benchdnn --matmul --runtime_dims_masks=3:3 10x30:30x20
 ```
 
 Run reduced precision (int8) matrix multiplication with asymmetric quantization
@@ -109,24 +80,23 @@ runtime, but sizes specified at creation time:
                --cfg=u8s8u8 \
                --wtag=any \
                --attr-zero-points=src:1*_dst:-2* \
-               10x30:30x20 # or m10n20k30 with deprecated matmul desc
+               10x30:30x20
 ```
 
 Run single precision batched matrix multiplication with bias, of which only the
 full dimension is along the `n`-axis:
 ``` sh
-    ./benchdnn --matmul \
-               --bia_dt=f32 --bia_mask=4 \
-               2x10x30:2x30x20 # or mb2m10n20k30 with deprecated matmul desc
+    ./benchdnn --matmul --bia_dt=f32 --bia_mask=4 2x10x30:2x30x20
 ```
 
 Run single precision batched matrix multiplication with strides so that `dst` tensor
 has non-dense memory layout:
 ``` sh
-    ./benchdnn --matmul \
-               --strides=8x4x1:24x6x1:21x7x1 \
-               3x2x4:3x4x6:3x2x6 # or mb3m2n6k4 with deprecated matmul desc
+    ./benchdnn --matmul --strides=8x4x1:24x6x1:21x7x1 3x2x4:3x4x6:3x2x6
+```
 
+or
+``` sh
     ./benchdnn --matmul \
                --stag=bax --wtag=abx --strides=::8x4x1 \
                2x2x3:2x3x2:2x2x2 # --dtag cannot be specified here
