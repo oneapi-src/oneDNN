@@ -638,7 +638,12 @@ inline bool memory_desc_strides_check(
 
         // Make an exception for strides[d] == 0 as it has broadcast semantics
         // Note: owing to being sorted, these are the initial strides
-        if (strides[d] == 0)
+
+        // FIXME: make an exception for dims[d] == 1 with the
+        // assumption that no code applies that stride when the only
+        // index accessed for that dimenstion is 0. This is because PT
+        // can use "dummy" padding in those situations
+        if ((strides[d] == 0) || (md.padded_dims[d] == 1))
             continue;
         else if (strides[d] < min_stride)
             return false;
