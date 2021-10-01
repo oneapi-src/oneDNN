@@ -821,41 +821,45 @@ static std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto src_layer_md = pd->is_fwd() ? pd->src_md(0) : pd->diff_src_md(0);
-    ss << "src_layer_" << src_layer_md;
-    if (pd->with_src_iter()) {
-        auto src_iter_md = pd->is_fwd() ? pd->src_md(1) : pd->diff_src_md(1);
-        ss << " src_iter_" << src_iter_md;
+    auto tensor_sep = "";
+    auto print_tensor = [&](bool cond, int arg_idx, const char *arg_str) {
+        if (cond) {
+            auto md = pd->arg_md(arg_idx);
+            ss << tensor_sep << arg_str << "_" << md;
+        }
+        tensor_sep = " ";
+    };
+
+    // TODO: shorten the names to consume fewer characters on verbose
+    // output
+    print_tensor(true, DNNL_ARG_SRC_LAYER, "src_layer");
+    print_tensor(pd->with_src_iter(), DNNL_ARG_SRC_ITER, "src_iter");
+    print_tensor(true, DNNL_ARG_WEIGHTS_LAYER, "wei_layer");
+    print_tensor(true, DNNL_ARG_WEIGHTS_ITER, "wei_iter");
+    print_tensor(
+            pd->is_lstm_peephole(), DNNL_ARG_WEIGHTS_PEEPHOLE, "wei_peephole");
+    print_tensor(
+            pd->is_lstm_projection(), DNNL_ARG_WEIGHTS_PROJECTION, "wei_proj");
+    print_tensor(pd->with_bias(), DNNL_ARG_BIAS, "bias");
+    print_tensor(true, DNNL_ARG_DST_LAYER, "dst_layer");
+    print_tensor(pd->with_dst_iter(), DNNL_ARG_DST_ITER, "dst_iter");
+
+    if (!pd->is_fwd()) {
+        print_tensor(true, DNNL_ARG_DIFF_SRC_LAYER, "diff_src_layer");
+        print_tensor(
+                pd->with_src_iter(), DNNL_ARG_DIFF_SRC_ITER, "diff_src_iter");
+        print_tensor(true, DNNL_ARG_DIFF_WEIGHTS_LAYER, "diff_wei_layer");
+        print_tensor(true, DNNL_ARG_DIFF_WEIGHTS_ITER, "diff_wei_iter");
+        print_tensor(pd->is_lstm_peephole(), DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE,
+                "diff_wei_peephole");
+        print_tensor(pd->is_lstm_projection(), DNNL_ARG_DIFF_WEIGHTS_PROJECTION,
+                "diff_wei_proj");
+        print_tensor(pd->with_bias(), DNNL_ARG_DIFF_BIAS, "diff_bias");
+        print_tensor(true, DNNL_ARG_DIFF_DST_LAYER, "diff_dst_layer");
+        print_tensor(
+                pd->with_dst_iter(), DNNL_ARG_DIFF_DST_ITER, "diff_dst_iter");
     }
-    auto wei_layer_md
-            = pd->is_fwd() ? pd->weights_md(0) : pd->diff_weights_md(0);
-    ss << " wei_layer_" << wei_layer_md;
-    auto wei_iter_md
-            = pd->is_fwd() ? pd->weights_md(1) : pd->diff_weights_md(1);
-    ss << " wei_iter_" << wei_iter_md;
-    if (pd->is_lstm_peephole()) {
-        auto wei_peephole_md
-                = pd->arg_md(pd->is_fwd() ? DNNL_ARG_WEIGHTS_PEEPHOLE
-                                          : DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
-        ss << " wei_peephole_" << wei_peephole_md;
-    }
-    if (pd->is_lstm_projection()) {
-        auto wei_projection_md
-                = pd->arg_md(pd->is_fwd() ? DNNL_ARG_WEIGHTS_PROJECTION
-                                          : DNNL_ARG_DIFF_WEIGHTS_PROJECTION);
-        ss << " wei_proj_" << wei_projection_md;
-    }
-    if (pd->with_bias()) {
-        auto bia_md
-                = pd->arg_md(pd->is_fwd() ? DNNL_ARG_BIAS : DNNL_ARG_DIFF_BIAS);
-        ss << " bias_" << bia_md;
-    }
-    auto dst_layer_md = pd->is_fwd() ? pd->dst_md(0) : pd->diff_dst_md(0);
-    ss << " dst_layer_" << dst_layer_md;
-    if (pd->with_dst_iter()) {
-        auto dst_iter_md = pd->is_fwd() ? pd->dst_md(1) : pd->diff_dst_md(1);
-        ss << " dst_iter_" << dst_iter_md;
-    }
+
     ss << ",";
 
     ss << pd->attr() << ",";
