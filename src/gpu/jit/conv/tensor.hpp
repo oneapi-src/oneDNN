@@ -1653,16 +1653,15 @@ private:
 };
 
 std::vector<dim_t> normalize_conv_dims(std::vector<dim_t> &dims,
-        bool with_groups, int groups, bool is_dw, bool reduced_to_1d,
+        bool with_groups, int groups, bool is_dw, int reduced_dim,
         bool add_groups, bool is_wei);
 
 layout_t normalize_conv_layout(const layout_t &_layout, bool with_groups,
-        int groups, bool is_dw, bool reduced_to_1d, bool add_groups,
-        bool is_wei);
+        int groups, bool is_dw, int reduced_dim, bool add_groups, bool is_wei);
 
 void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
         layout_t &dst_layout, bool with_groups, int groups, bool is_dw,
-        bool reduced_to_1d, bool add_groups);
+        int reduced_dim, bool add_groups);
 
 } // namespace jit
 } // namespace gpu

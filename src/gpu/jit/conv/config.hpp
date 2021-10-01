@@ -108,13 +108,51 @@ public:
     void try_reduce_to_1d() {
         bool is_1x1 = (kd * kh * kw == 1);
         bool is_eq_oi = (od == id && oh == ih && ow == iw);
+        bool is_iw_1 = iw == 1 && kw == 1 && pw == 0 && ow == 1;
+        bool is_ih_1 = ih == 1 && kh == 1 && ph == 0 && oh == 1;
+        reduced_dim = 0;
+        auto shift_oh_to_ow = [&]() {
+            ow = oh;
+            iw = ih;
+            ih = 1;
+            oh = 1;
+            kw = kh;
+            kh = 1;
+            pw = ph;
+            ph = 0;
+            sw = sh;
+            sh = 1;
+            dw = dh;
+            dh = 0;
+            reduced_dim += 1;
+        };
+        auto shift_od_to_oh = [&]() {
+            oh = od;
+            ih = id;
+            id = 1;
+            od = 1;
+            kh = kd;
+            kd = 1;
+            ph = pd;
+            pd = 0;
+            sh = sd;
+            sd = 1;
+            dh = dd;
+            dd = 0;
+            reduced_dim += 1;
+        };
+
+        if (is_iw_1) { shift_oh_to_ow(); }
+        if (is_ih_1 || is_iw_1) { shift_od_to_oh(); }
+        if (is_iw_1 && is_ih_1) { shift_oh_to_ow(); }
+
         if (is_1x1 && is_stride1() && is_eq_oi) {
             ir_assert(pd == 0 && ph == 0 && pw == 0);
             ow = od * oh * ow;
             iw = id * ih * iw;
             od = id = kd = 1;
             oh = ih = kh = 1;
-            reduced_to_1d = true;
+            reduced_dim = 3;
         }
     }
 
@@ -169,7 +207,7 @@ public:
     int sd, sh, sw; // Strides.
     int pd, ph, pw; // Padding in the beginning.
     int dd, dh, dw; // Dilation.
-    bool reduced_to_1d; // Whether the problem spatial was reduced to 1D.
+    int reduced_dim; // Indicates which dims were shifted over or reduced.
 };
 
 // Parameters for kernel generation.
@@ -225,11 +263,13 @@ public:
     status_t init_fwd(convolution_pd_t *conv_pd) {
         using namespace ir_utils;
 
-        if (ic < 16 && !is_dp_fma() && !is_dw) return status::unimplemented;
+        if (ic < 16 && (is_s32_accumulator() || (!is_dp_fma() && !is_dw)))
+            return status::unimplemented;
 
         bool is_src_nhwc = is_nhwc("src");
         bool is_dst_nhwc = is_nhwc("dst");
 
+        kh_blk = 1;
         // Set dispatch and kernel parameters.
         if (is_dw) {
             g_tg_blk = (is_int8_dst() ? 32 : 16);
@@ -247,13 +287,11 @@ public:
             int iw_load_blk = (ow_thr_blk - 1) * sw + (kw - 1) + 1;
             bool do_kw_buf = (kw > 1 && mb_thr_blk == 1 && iw_load_blk <= 32);
             kw_blk = (do_kw_buf ? kw : 1);
-        } else if (fma_kind == fma_kind_t::mad
-                && src_data_type == data_type::f32) {
+        } else if (fma_kind == fma_kind_t::mad) {
             const int max_tg_size = 16;
             g_tg_blk = 1;
-            mb_thr_blk = (mb < 16 ? 1 : 8);
-            mb_thr_dim = std::min((mb_thr_blk != 1) ? (32 / mb_thr_blk) : 1,
-                    utils::div_up(mb, mb_thr_blk));
+            mb_thr_blk = (mb < 16 ? mb < 2 ? 1 : 2 : 8);
+            mb_thr_dim = (mb_thr_blk > 7) ? (32 / mb_thr_blk) : 1;
 #ifdef GEN_CONV_DEBUG
             mb_thr_blk = getenv_int("mb_thr_blk", mb_thr_blk);
 #endif
@@ -266,38 +304,53 @@ public:
             } else {
                 const int pref_ow_thr_dim
                         = max_tg_size / (oc_thr_dim * mb_thr_dim);
-                const int pref_ow_block
-                        = (mb_thr_blk == 1) ? 8 : kw > 1 ? 4 : 1;
+                const int pref_ow_block = (mb_thr_blk < 8) ? 8 : kw > 1 ? 4 : 1;
                 ow_thr_blk = ow < pref_ow_block * pref_ow_thr_dim
                         ? utils::rnd_down_pow2(
                                 utils::div_up(ow, pref_ow_thr_dim))
                         : pref_ow_block;
-                ow_thr_dim = pref_ow_thr_dim;
+                ow_thr_dim = std::min(ow, pref_ow_thr_dim);
             }
             ic_thr_dim = 1;
             kw_blk = 1;
             ic_blk = (is_small_ic() ? ic : 16);
         } else if (is_dp_fma()) {
             g_tg_blk = 1;
-            mb_thr_blk = is_small_ic() ? 8 : (mb < 16 ? 1 : mb == 16 ? 16 : 32);
+            mb_thr_blk = is_small_ic() ? mb < 16 ? mb < 2 ? 1 : 2 : 4
+                                       : (mb < 16 ? 1 : mb == 16 ? 16 : 32);
             mb_thr_dim = (is_small_ic())
-                    ? (mb < 16 ? std::min(utils::div_up(mb, mb_thr_blk), 4) : 4)
+                    ? (mb < 16 ? utils::rnd_up_pow2(
+                               utils::div_up(mb, mb_thr_blk))
+                               : 4)
                     : 1;
             oc_thr_blk = 32;
             if (hw >= ngen::HW::XeHPC && !is_small_ic()) oc_thr_blk = 64;
             oc_thr_dim = init_thr_dim(oc, oc_thr_blk, /*max_thr_dim=*/4);
             if (is_small_ic()) {
-                ow_thr_blk = 4;
+                ow_thr_blk = std::min(utils::rnd_up_pow2(ow), 4);
             } else {
                 ow_thr_blk = (mb < 16 ? 16 : 1);
                 if (ow < ow_thr_blk) ow_thr_blk = 8;
             }
             ow_thr_dim = is_small_ic()
-                    ? 1
+                    ? std::min(4, utils::div_up(ow, 4))
                     : std::min(4, utils::div_up(ow, ow_thr_blk));
             if (is_small_ic()) {
-                kw_blk = 8;
-                ic_blk = (is_s32_accumulator() ? 4 : 2);
+                int goal_blk = is_s32_accumulator() ? 32 : 16;
+                kw_blk = std::min(8, utils::rnd_up_pow2(kw));
+                ic_blk = goal_blk / kw_blk;
+                if (goal_blk / (utils::rnd_up_pow2(ic) * kw_blk) > 1
+                        && kh > 1) {
+                    kh_blk = std::min(
+                            8, goal_blk / (utils::rnd_up_pow2(ic) * kw_blk));
+                }
+                ic_blk = goal_blk / (kw_blk * kh_blk);
+                // Fall back conditions, likely due to wasted computation
+                // from m_blk and k_blk.
+                // ocl:xe_hp implementation is currently better
+                if (ic > 4) return status::unimplemented;
+                // ocl:xe_hp_1x1 implementation is currently better
+                if (kd == 1 && kh == 1 && kw == 1) return status::unimplemented;
             } else {
                 kw_blk = 1;
                 ic_blk = (is_s32_accumulator() ? 32 : 16);
@@ -1031,6 +1084,7 @@ public:
     // Block sizes per iteration.
     int ic_blk;
     int kw_blk;
+    int kh_blk;
     int mb_blk;
     int oc_blk;
 
@@ -1253,10 +1307,7 @@ private:
 
         // Force mad for some cases.
         if (is_small_ic() && !is_dw) {
-            if (is_fwd && (kw != 7 || mb % 8 != 0))
-                fma_kind = fma_kind_t::mad;
-            else if (is_bwd_d)
-                fma_kind = fma_kind_t::mad;
+            if (is_bwd_d) fma_kind = fma_kind_t::mad;
         } else if (is_dw) {
             fma_kind = fma_kind_t::mad;
         }
@@ -1951,8 +2002,12 @@ private:
         int data_regs = a_regs + b_regs + acc_regs + g2s_regs;
         int header_regs = a_headers + b_headers + g2s_headers;
         if (reuse_headers) header_regs = 1;
-
-        int estimated_regs = data_regs + reorder_regs + header_regs;
+        int c_msg_arg_regs = !is_fwd
+                ? 0
+                : utils::div_up(acc_bytes,
+                        (c_layout().is_n_blocked(2) ? 4 : 1) * hword_bytes);
+        int estimated_regs
+                = data_regs + reorder_regs + header_regs + c_msg_arg_regs;
 
         double reg_factor = (is_bwd_w && is_dp_fma()) ? 1 / 0.875 : 1 / 0.95;
         estimated_regs = std::ceil(reg_factor * estimated_regs);
@@ -1983,6 +2038,12 @@ private:
         if (is_fwd) return tensor_config.compute_layout("wei");
         if (is_bwd_d) return tensor_config.compute_layout("wei");
         return tensor_config.compute_layout("dst");
+    }
+
+    const layout_t &c_layout() const {
+        if (is_fwd) return tensor_config.compute_layout("dst");
+        if (is_bwd_d) return tensor_config.compute_layout("src");
+        return tensor_config.compute_layout("wei");
     }
 
     int src_arg_key() const {

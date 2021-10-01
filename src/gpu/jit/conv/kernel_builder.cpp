@@ -3919,7 +3919,8 @@ public:
     access_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
             const constraint_set_t &cset, const view_t &mem_view,
             const expr_t &mem_buf, const expr_t &reg_buf, bool is_slm,
-            bool is_prefetch, bool is_load, ngen_proxy::AtomicOp atomic_op)
+            bool is_prefetch, bool is_load, ngen_proxy::AtomicOp atomic_op,
+            bool empty_msg_ok)
         : hw_(hw)
         , ir_ctx_(&ir_ctx)
         , cset_(&cset)
@@ -3929,6 +3930,7 @@ public:
         , is_slm_(is_slm)
         , is_prefetch_(is_prefetch)
         , is_load_(is_load)
+        , empty_msg_ok_(empty_msg_ok)
         , atomic_op_(atomic_op) {
         build();
     }
@@ -3997,7 +3999,7 @@ private:
         }
         // Support for prefetch messages is limited. If message is not found,
         // skip prefetch generation.
-        if (_send.is_empty() && is_prefetch()) return;
+        if (_send.is_empty() && (is_prefetch() || empty_msg_ok_)) return;
         ir_assert(!_send.is_empty()) << "Can't decompose view into messages.";
 
         auto &send = _send.as<send_t>();
@@ -4047,6 +4049,7 @@ private:
     bool is_slm_;
     bool is_prefetch_;
     bool is_load_;
+    bool empty_msg_ok_;
     stmt_t stmt_;
     ngen_proxy::AtomicOp atomic_op_;
 };
@@ -4058,9 +4061,10 @@ public:
     read_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
             const constraint_set_t &cset, const view_t &view,
             const expr_t &mem_buf, const expr_t &reg_buf, bool is_slm,
-            bool is_prefetch = false)
+            bool is_prefetch = false, bool empty_msg_ok = false)
         : access_builder_t(hw, ir_ctx, cset, view, mem_buf, reg_buf, is_slm,
-                is_prefetch, /*is_load=*/true, ngen_proxy::AtomicOp::undef) {}
+                is_prefetch, /*is_load=*/true, ngen_proxy::AtomicOp::undef,
+                empty_msg_ok) {}
 };
 
 class write_builder_t : public access_builder_t {
@@ -4072,7 +4076,8 @@ public:
             const expr_t &mem_buf, const expr_t &reg_buf, bool is_slm,
             ngen_proxy::AtomicOp atomic_op = ngen_proxy::AtomicOp::undef)
         : access_builder_t(hw, ir_ctx, cset, view, mem_buf, reg_buf, is_slm,
-                /*is_prefetch=*/false, /*is_load=*/false, atomic_op) {}
+                /*is_prefetch=*/false, /*is_load=*/false, atomic_op,
+                /*empty_msg_ok=*/false) {}
 };
 
 class slm_reduce_builder_t {
@@ -6279,6 +6284,15 @@ private:
             }
         }
 
+        void remove_empty_buffer() {
+            for (int i = 0; i < (int)bufs.size(); i++) {
+                if (bufs[i].size == 0) {
+                    bufs.erase(bufs.begin() + i);
+                    break;
+                }
+            }
+        }
+
         ir_context_t &ir_ctx;
         grid_info_t prev_load_grid;
         bool reuse_buffers = false;
@@ -6370,7 +6384,12 @@ private:
 
         // GMEM -> GRF load.
         read_builder_t x_read(cfg_.hw, ir_ctx_, cset_, x_g2s_view, xp_buf,
-                x_g2s_reg_buf, /*is_slm=*/false);
+                x_g2s_reg_buf, /*is_slm=*/false, /*is_prefetch=*/false,
+                /*empty_msg_ok=*/true);
+        if (x_read.stmt().is_empty()) {
+            g2s_ctx.remove_empty_buffer();
+            return false;
+        }
         ir_trace() << tag << " GMEM to GRF load:\n"
                    << x_read.str() << std::endl;
 
@@ -6478,7 +6497,7 @@ private:
         auto padded_blocks = l.blocks();
         dim_t stride = -1;
         dim_t remaining_elems = inner_block;
-        bool past_inner_block = false;
+        bool past_inner_block = remaining_elems == 1;
         for (auto &b : padded_blocks) {
             if (past_inner_block) {
                 if (stride == -1) {
@@ -6762,7 +6781,7 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     auto wei_layout = orig_wei_layout;
     auto dst_layout = orig_dst_layout;
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, cfg_.with_groups,
-            cfg_.g, cfg_.is_dw, cfg_.reduced_to_1d, /*add_groups=*/true);
+            cfg_.g, cfg_.is_dw, cfg_.reduced_dim, /*add_groups=*/true);
 
     // Initialize views.
     auto mb = var_t::make(type_t::s32(), "mb");
@@ -6781,8 +6800,8 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     expr_t od_mask, oh_mask, ow_mask;
     expr_t src_mb_mask, dst_mb_mask;
     expr_t wei_oc_mask, dst_oc_mask;
-    expr_t src_g_mask, wei_g_mask, dst_g_mask;
-    expr_t kw_mask;
+    expr_t src_g_mask, wei_g_mask, dst_g_mask, src_ic_mask;
+    expr_t kw_mask, kh_mask;
 
     bool check_ow = (cfg_.ow % cfg_.ow_tg_blk != 0);
     bool check_iw = check_ow
@@ -6793,7 +6812,7 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     bool check_id = need_src_or_dst_check(
             cfg_.is_fwd, cfg_.od, cfg_.id, cfg_.kd, cfg_.pd, cfg_.sd, cfg_.dd);
     bool check_kw = (cfg_.kw % cfg_.kw_blk != 0);
-
+    bool check_kh = (cfg_.kh % cfg_.kh_blk != 0);
     int src_g = int(src_layout.dim(1));
     int src_g_inner_blk = ir_utils::max_pow2_divisor(src_g);
     src_g_inner_blk = std::min(src_g_inner_blk, cfg_.g_thr_blk);
@@ -6825,7 +6844,8 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
 
     bool check_src_mb = (src_mb % cfg_.mb_tg_blk != 0);
     bool check_dst_mb = (dst_mb % cfg_.mb_tg_blk != 0);
-
+    int src_ic = int(src_layout.dim(2));
+    bool check_src_ic = (src_ic % cfg_.ic_blk != 0);
     auto &x = view_t::placeholder_var();
     if (check_id) id_mask = (x >= 0) & (x < cfg_.id);
     if (check_ih) ih_mask = (x >= 0) & (x < cfg_.ih);
@@ -6842,8 +6862,10 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     if (check_dst_oc)
         dst_oc_mask = (x / dst_oc_inner_blk < dst_oc / dst_oc_inner_blk);
     if (check_kw) kw_mask = (x < cfg_.kw);
+    if (check_kh) kh_mask = (x < cfg_.kh);
     if (check_src_mb) src_mb_mask = (x < src_mb);
     if (check_dst_mb) dst_mb_mask = (x < dst_mb);
+    if (check_src_ic) src_ic_mask = (x < cfg_.ic);
 
     // Source.
     src_view = view_t({mb, g, ic, od, oh, ow, kd, kh, kw}, 6);
@@ -6858,7 +6880,7 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     src_view.set_vdim(kw, cfg_.kw);
     src_view.set_tdim(0, mb, src_mb_mask);
     src_view.set_tdim(1, g, src_g_mask);
-    src_view.set_tdim(2, ic);
+    src_view.set_tdim(2, ic, src_ic_mask);
     src_view.set_tdim(3, od * cfg_.sd - cfg_.pd + kd * (1 + cfg_.dd), id_mask);
     src_view.set_tdim(4, oh * cfg_.sh - cfg_.ph + kh * (1 + cfg_.dh), ih_mask);
     src_view.set_tdim(5, ow * cfg_.sw - cfg_.pw + kw * (1 + cfg_.dw), iw_mask);
@@ -6876,7 +6898,7 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     wei_view.set_tdim(1, oc, wei_oc_mask);
     wei_view.set_tdim(2, ic);
     wei_view.set_tdim(3, kd);
-    wei_view.set_tdim(4, kh);
+    wei_view.set_tdim(4, kh, kh_mask);
     wei_view.set_tdim(5, kw, kw_mask);
     wei_view.set_tlayout(wei_layout);
 
@@ -6910,6 +6932,7 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     expr_t mb_tg_blk_idx, mb_thr_blk_idx, mb_inner;
     expr_t ow_tg_blk_idx, ow_thr_blk_idx, ow_inner;
     expr_t kw_outer, kw_inner;
+    expr_t kh_outer, kh_inner;
     expr_t ic_thr_blk_idx, ic_outer, ic_inner;
 
     gemm_schedule.split(g, cfg_.g_tg_blk, g_tg_blk_idx, g_inner);
@@ -6922,6 +6945,7 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     gemm_schedule.split(ic, cfg_.ic_blk * cfg_.ic_thr_dim, cfg_.ic_blk,
             ic_outer, ic_thr_blk_idx, ic_inner);
     gemm_schedule.split(kw, cfg_.kw_blk, kw_outer, kw_inner);
+    gemm_schedule.split(kh, cfg_.kh_blk, kh_outer, kh_inner);
 
     auto g_odhw_idx = gemm_schedule.fuse({g_tg_blk_idx, od, oh, ow_tg_blk_idx});
     auto mb_ow_thr_blk_idx = gemm_schedule.fuse(mb_thr_blk_idx, ow_thr_blk_idx);
@@ -6938,9 +6962,10 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     gemm_schedule.tensorize(mb_inner);
     gemm_schedule.tensorize(ow_inner);
     gemm_schedule.tensorize(kw_inner);
+    gemm_schedule.tensorize(kh_inner);
     gemm_schedule.tensorize(ic_inner);
 
-    gemm_schedule.reorder({ic_outer, kd, kh, kw_outer, oc_thr_blk_idx,
+    gemm_schedule.reorder({ic_outer, kd, kh_outer, kw_outer, oc_thr_blk_idx,
             mb_ow_thr_blk_idx, ic_thr_blk_idx});
 
     src_buf = kernel_info_.find_arg("src");
@@ -6959,7 +6984,7 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     auto wei_layout = orig_wei_layout;
     auto dst_layout = orig_dst_layout;
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, cfg_.with_groups,
-            cfg_.g, cfg_.is_dw, cfg_.reduced_to_1d, /*add_groups=*/false);
+            cfg_.g, cfg_.is_dw, cfg_.reduced_dim, /*add_groups=*/false);
 
     // Initialize views.
     auto mb = var_t::make(type_t::s32(), "mb");
@@ -7154,7 +7179,7 @@ void kernel_builder_t::init_bwd_w(gemm_schedule_t &gemm_schedule,
     auto wei_layout = orig_wei_layout;
     auto dst_layout = orig_dst_layout;
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, cfg_.with_groups,
-            cfg_.g, cfg_.is_dw, cfg_.reduced_to_1d, /*add_groups=*/false);
+            cfg_.g, cfg_.is_dw, cfg_.reduced_dim, /*add_groups=*/false);
 
     // Initialize thread group views.
     auto mb = var_t::make(type_t::s32(), "mb");

@@ -556,13 +556,13 @@ private:
                 md.padded_dims, md.padded_dims + md.ndims);
         maybe_reshape_dims(cfg_->ndims, layout, dims, padded_dims);
         layout = normalize_conv_layout(layout, /*with_groups=*/false, cfg_->g,
-                cfg_->is_dw, cfg_->reduced_to_1d, add_groups,
+                cfg_->is_dw, cfg_->reduced_dim, add_groups,
                 /*is_wei=*/false);
         dims = normalize_conv_dims(dims, /*with_groups=*/false, cfg_->g,
-                cfg_->is_dw, cfg_->reduced_to_1d, add_groups, /*is_wei=*/false);
+                cfg_->is_dw, cfg_->reduced_dim, add_groups, /*is_wei=*/false);
         padded_dims = normalize_conv_dims(padded_dims,
-                /*with_groups=*/false, cfg_->g, cfg_->is_dw,
-                cfg_->reduced_to_1d, add_groups, /*is_wei=*/false);
+                /*with_groups=*/false, cfg_->g, cfg_->is_dw, cfg_->reduced_dim,
+                add_groups, /*is_wei=*/false);
         ir_assert(layout.ndims() == cp_ndims()) << "Incompatible dimensions.";
         uint32_t bound_check_mask = 0;
         for (int i = 0; i < cp_ndims(); i++) {
@@ -598,7 +598,7 @@ private:
             if ((orig_mask & (1 << i)) != 0) dummy_dims[i] = mask_set_value;
         }
         auto cvt_dims = normalize_conv_dims(dummy_dims, /*with_groups=*/false,
-                cfg_->g, cfg_->is_dw, cfg_->reduced_to_1d, /*add_groups=*/false,
+                cfg_->g, cfg_->is_dw, cfg_->reduced_dim, /*add_groups=*/false,
                 /*is_wei=*/false);
         // Split channels into groups and channels to match ngcdhw layout.
         if (add_groups) cvt_dims.insert(cvt_dims.begin() + 1, cvt_dims[1]);
