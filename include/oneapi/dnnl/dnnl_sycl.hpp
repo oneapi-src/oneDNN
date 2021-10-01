@@ -30,6 +30,27 @@
 
 #include "oneapi/dnnl/dnnl.hpp"
 #include "oneapi/dnnl/dnnl_sycl.h"
+
+#if defined(__INTEL_LLVM_COMPILER) && defined(SYCL_LANGUAGE_VERSION)
+#if (__INTEL_LLVM_COMPILER < 20220000)
+#define DNNL_SYCL_INTEROP_USE_SYCL121
+#endif
+#elif defined(SYCL_LANGUAGE_VERSION) && defined(__LIBSYCL_MAJOR_VERSION) \
+        && defined(__LIBSYCL_MINOR_VERSION)
+#if (__LIBSYCL_MAJOR_VERSION == 5 && __LIBSYCL_MINOR_VERSION < 4)
+#define DNNL_SYCL_INTEROP_USE_SYCL121
+#endif
+#else
+#error "Unsupported compiler"
+#endif
+
+#ifdef DNNL_SYCL_INTEROP_USE_SYCL121
+// oneAPI DPC++/C++ Compiler issues deprecation warnings for SYCL 1.2.1 API.
+// We suppress the warnings to avoid getting them into the user application.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 /// @endcond
 
 /// @addtogroup dnnl_api
@@ -168,7 +189,12 @@ cl::sycl::buffer<T, ndims> get_buffer(const memory &amemory) {
     if (!handle_ptr) return cl::sycl::buffer<T, ndims>(cl::sycl::range<1>(1));
 
     auto &buf_u8 = *static_cast<cl::sycl::buffer<uint8_t, 1> *>(handle_ptr);
+
+#ifdef DNNL_SYCL_INTEROP_USE_SYCL121
     auto range = cl::sycl::range<1>(buf_u8.get_size() / sizeof(T));
+#else
+    auto range = ::sycl::range<1>(buf_u8.byte_size() / sizeof(T));
+#endif
     return buf_u8.reinterpret<T, 1>(range);
 }
 
@@ -180,7 +206,11 @@ cl::sycl::buffer<T, ndims> get_buffer(const memory &amemory) {
 /// @param abuffer SYCL buffer.
 template <typename T, int ndims>
 void set_buffer(memory &amemory, cl::sycl::buffer<T, ndims> &abuffer) {
+#ifdef DNNL_SYCL_INTEROP_USE_SYCL121
     auto range = cl::sycl::range<1>(abuffer.get_size());
+#else
+    auto range = ::sycl::range<1>(abuffer.byte_size());
+#endif
     auto buf_u8 = abuffer.template reinterpret<uint8_t, 1>(range);
     error::wrap_c_api(dnnl_sycl_interop_memory_set_buffer(amemory.get(),
                               static_cast<void *>(&buf_u8), nullptr),
@@ -197,7 +227,11 @@ void set_buffer(memory &amemory, cl::sycl::buffer<T, ndims> &abuffer) {
 template <typename T, int ndims>
 void set_buffer(memory &amemory, cl::sycl::buffer<T, ndims> &abuffer,
         const stream &astream) {
+#ifdef DNNL_SYCL_INTEROP_USE_SYCL121
     auto range = cl::sycl::range<1>(abuffer.get_size());
+#else
+    auto range = ::sycl::range<1>(abuffer.byte_size());
+#endif
     auto buf_u8 = abuffer.template reinterpret<uint8_t, 1>(range);
     error::wrap_c_api(dnnl_sycl_interop_memory_set_buffer(amemory.get(),
                               static_cast<void *>(&buf_u8), astream.get(true)),
@@ -313,5 +347,10 @@ inline cl::sycl::event execute(const dnnl::primitive &aprimitive,
 } // namespace dnnl
 
 /// @} dnnl_api
+
+#ifdef DNNL_SYCL_INTEROP_USE_SYCL121
+#undef DNNL_SYCL_INTEROP_USE_SYCL121
+#pragma clang diagnostic pop
+#endif
 
 #endif // DNNL_SYCL_HPP
