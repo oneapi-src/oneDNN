@@ -488,5 +488,6 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd);
 memory_kind_ext_t str2memory_kind(const char *str);
 
 float reorder_rescale_factor();
+dims_t md2dims(const dnnl_memory_desc_t &md);
 
 #endif

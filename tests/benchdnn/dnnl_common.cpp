@@ -868,3 +868,10 @@ float reorder_rescale_factor() {
 #endif
     return factor;
 }
+
+dims_t md2dims(const dnnl_memory_desc_t &md) {
+    dims_t dims(md.ndims, 0);
+    for (int d = 0; d < md.ndims; ++d)
+        dims[d] = md.dims[d];
+    return dims;
+}

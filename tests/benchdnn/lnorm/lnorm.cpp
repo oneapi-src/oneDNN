@@ -392,7 +392,7 @@ void add_additional_fwd_lnorm_check(const prb_t *&prb, const dnn_mem_t &ss_fp,
         bool scale_or_shift = prb->use_ss() || prb->use_sc() || prb->use_sh();
         if (!scale_or_shift) return false;
 
-        dims_t l_dims(dst_fp.md_);
+        dims_t l_dims = md2dims(dst_fp.md_);
         dims_t dims_idx = off2dims_idx(l_dims, args.idx);
         int64_t c = dims_idx[prb->ndims - 1];
         const float beta = prb->use_sh() ? ((const float *)sh_fp)[c]
