@@ -3688,13 +3688,13 @@ public:
 
 class slm_reduce_builder_t {
 public:
+    slm_reduce_builder_t() = default;
+
     slm_reduce_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
             const constraint_set_t &cset, const grid_info_t &tg_grid,
             const expr_t &reg_buf, const layout_t &reg_layout,
             const tensor_t &thr_tile, int dim = 2)
-        : cfg_(cfg)
-        , ir_ctx_(ir_ctx)
-        , cset_(cset)
+        : hw_(cfg.hw)
         , tg_grid_(tg_grid)
         , reg_buf_(reg_buf)
         , reg_layout_(reg_layout)
@@ -3703,21 +3703,37 @@ public:
         ir_assert((dim_ >= 0) && (dim_ <= 2));
         ir_assert(tg_grid_.dim(dim_) > 1);
 
-        tmp_reg_buf_ = ir_ctx_.create_tmp_var(type_t::byte_ptr());
-        slm_buf_ = make_buffer("reduce_slm");
+        tmp_reg_buf_ = ir_ctx.create_tmp_var(type_t::byte_ptr());
+        slm_buf_ = ir_ctx.create_tmp_var(type_t::byte_ptr(), "reduce_slm");
         tg_ndims_ = (dim_ != 2) ? dim_ + 1 : tg_grid_.ndims();
 
-        build();
+        build(ir_ctx, cset);
     }
 
-    layout_t reg_layout() const { return reg_layout_; }
+    bool is_empty() const { return reg_buf_.is_empty(); }
 
-    tensor_t thr_tile() const { return thr_tile_; }
+    const layout_t &reg_layout() const { return reg_layout_; }
 
-    stmt_t stmt() const { return stmt_; }
+    const tensor_t &thr_tile() const { return thr_tile_; }
+
+    const stmt_t &store_stmt() const { return store_stmt_; }
+
+    const stmt_t &load_stmt() const { return load_stmt_; }
+
+    const std::vector<stmt_t> &allocs() const { return allocs_; }
+
+    stmt_t stmt() const {
+        stmt_t ret;
+        ret = ret.append(funcs::barrier());
+        ret = ret.append(store_stmt_);
+        ret = ret.append(funcs::barrier());
+        ret = ret.append(load_stmt_);
+        ret = inject_alloc_stmts(ret, allocs_);
+        return ret;
+    }
 
 private:
-    void build() {
+    void build(ir_context_t &ir_ctx, const constraint_set_t &cset) {
         int ndims = reg_layout_.ndims();
 
         // Create SLM layout to store all intermediate buffers from the thread
@@ -3738,12 +3754,10 @@ private:
             write_start[ndims + i] = tg_grid_.idx(i);
         }
         auto write_tile = tensor_t(write_dims, write_start);
-        write_builder_t write(cfg_.hw, ir_ctx_, cset_,
+        write_builder_t write(hw_, ir_ctx, cset,
                 view_t(slm_layout.map(write_tile)), slm_buf_, reg_buf_,
                 /*is_slm=*/true);
-        stmt_ = stmt_.append(funcs::barrier());
-        stmt_ = stmt_.append(write.stmt());
-        stmt_ = stmt_.append(funcs::barrier());
+        store_stmt_ = write.stmt();
 
         auto &write_layout = write.reg_layout();
         ir_assert(write_layout == reg_layout_) << "Incompatible layouts.";
@@ -3752,8 +3766,6 @@ private:
         // thread.
         auto local_thr_tile = reg_layout_.split(tg_grid_.sub_grid({dim_}));
         reg_layout_ = reg_layout_.map(tensor_t(local_thr_tile.dims()));
-
-        stmt_t reduce_stmt;
 
         std::vector<dim_t> read_dims(ndims + tg_ndims_, 1);
         std::vector<expr_t> read_start(ndims + tg_ndims_);
@@ -3766,25 +3778,25 @@ private:
             read_start[ndims + i] = (i == dim_) ? 0 : tg_grid_.idx(i);
         }
         tensor_t read_tile(read_dims, read_start);
-        read_builder_t read(cfg_.hw, ir_ctx_, cset_,
+        read_builder_t read(hw_, ir_ctx, cset,
                 view_t(slm_layout.map(read_tile)), slm_buf_, tmp_reg_buf_,
                 /*is_slm=*/true);
-        reduce_stmt = reduce_stmt.append(read.stmt());
+
+        load_stmt_ = load_stmt_.append(
+                create_zero_out_stmt(hw_, reg_buf_, reg_layout_.size()));
+        load_stmt_ = load_stmt_.append(read.stmt());
+
         tmp_reg_buf_size_ = std::max(tmp_reg_buf_size_, read.reg_buf_size());
 
         auto read_layout = read.reg_layout();
-        reduce_stmt = reduce_stmt.append(
-                create_reduce_stmt(read_layout, reg_layout_, tmp_reg_buf_,
-                        reg_buf_, tensor_t(), reduction_mask()));
+        load_stmt_
+                = load_stmt_.append(create_reduce_stmt(read_layout, reg_layout_,
+                        tmp_reg_buf_, reg_buf_, tensor_t(), reduction_mask()));
 
-        stmt_ = stmt_.append(
-                create_zero_out_stmt(cfg_.hw, reg_buf_, reg_layout_.size()));
-        stmt_ = stmt_.append(reduce_stmt);
-
-        stmt_ = alloc_t::make(
-                slm_buf_, slm_buf_size_, alloc_kind_t::slm, {}, stmt_);
-        stmt_ = alloc_t::make(
-                tmp_reg_buf_, tmp_reg_buf_size_, alloc_kind_t::grf, {}, stmt_);
+        allocs_.push_back(
+                alloc_t::make(slm_buf_, slm_buf_size_, alloc_kind_t::slm));
+        allocs_.push_back(alloc_t::make(
+                tmp_reg_buf_, tmp_reg_buf_size_, alloc_kind_t::grf));
 
         if (!thr_tile_.is_empty()) {
             thr_tile_ = thr_tile_.create_sub_tensor(local_thr_tile);
@@ -3800,9 +3812,7 @@ private:
         return mask;
     }
 
-    const conv_config_t &cfg_;
-    ir_context_t &ir_ctx_;
-    const constraint_set_t &cset_;
+    ngen::HW hw_;
     grid_info_t tg_grid_;
 
     expr_t reg_buf_;
@@ -3819,7 +3829,10 @@ private:
 
     int tg_ndims_;
 
-    stmt_t stmt_;
+    stmt_t store_stmt_;
+    stmt_t load_stmt_;
+
+    std::vector<stmt_t> allocs_;
 };
 
 // Zero pads a register buffer of f32 type.
