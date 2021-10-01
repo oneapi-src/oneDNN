@@ -159,9 +159,6 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
         status_t init(engine_t *engine) {
-            auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine);
-
             bool ok = desc()->prop_kind == prop_kind::backward_data
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
