@@ -47,6 +47,7 @@ uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
                     |= (uint64_t)device_ext_t::intel_variable_eu_thread_count;
             extensions |= (uint64_t)device_ext_t::future_bf16_cvt;
         case gpu_arch_t::xe_lp:
+            extensions |= (uint64_t)device_ext_t::intel_subgroup_local_block_io;
             extensions |= (uint64_t)device_ext_t::intel_dot_accumulate;
             break;
         default: break;
