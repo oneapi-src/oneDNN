@@ -17,11 +17,6 @@
 #include "gpu/ocl/gemm/gemm_with_post_ops.hpp"
 #include "gpu/gemm/gpu_gemm_utils.hpp"
 
-#ifdef DNNL_WITH_SYCL
-#include "dnnl_sycl.hpp"
-#include "sycl/sycl_memory_storage.hpp"
-#endif
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
