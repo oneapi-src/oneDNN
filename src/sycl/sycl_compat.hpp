@@ -51,6 +51,15 @@ native_object_t get_native(const sycl_object_t &sycl_object) {
 bool is_fp64_supported(const ::sycl::device &dev);
 uint64_t init_extensions(const ::sycl::device &dev);
 
+#if DNNL_USE_SYCL121_API
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+constexpr auto target_device = ::sycl::target::global_buffer;
+#pragma clang diagnostic pop
+#else
+constexpr auto target_device = ::sycl::target::device;
+#endif
+
 } // namespace compat
 } // namespace sycl
 } // namespace impl

@@ -115,7 +115,7 @@ protected:
             d_ss_acc_t diff_scaleshift_acc, read_acc_t wkspace_acc,
             std::shared_ptr<cl::sycl::accessor<uint8_t, 1,
                     cl::sycl::access::mode::read_write,
-                    cl::sycl::access::target::global_buffer>>
+                    sycl::compat::target_device>>
                     temp_relu_output,
             bool init_ss, bool init_mean_var) const {
 
@@ -428,12 +428,12 @@ struct bnorm_exec_bwd_t : public bnorm_exec_base_t {
 
             std::shared_ptr<cl::sycl::accessor<uint8_t, 1,
                     cl::sycl::access::mode::read_write,
-                    cl::sycl::access::target::global_buffer>>
+                    sycl::compat::target_device>>
                     temp_relu_output = nullptr;
             if (bnorm_impl->fuse_norm_relu()) {
                 temp_relu_output = std::make_shared<cl::sycl::accessor<uint8_t,
                         1, cl::sycl::access::mode::read_write,
-                        cl::sycl::access::target::global_buffer>>(
+                        sycl::compat::target_device>>(
                         CTX_SCRATCH_ACCESSOR(memory_tracking::names::key_none));
             }
 
@@ -476,12 +476,12 @@ struct bnorm_exec_bwd_dw_ss_t : public bnorm_exec_base_t {
 
             std::shared_ptr<cl::sycl::accessor<uint8_t, 1,
                     cl::sycl::access::mode::read_write,
-                    cl::sycl::access::target::global_buffer>>
+                    sycl::compat::target_device>>
                     temp_relu_output = nullptr;
             if (bnorm_impl->fuse_norm_relu()) {
                 temp_relu_output = std::make_shared<cl::sycl::accessor<uint8_t,
                         1, cl::sycl::access::mode::read_write,
-                        cl::sycl::access::target::global_buffer>>(
+                        sycl::compat::target_device>>(
                         CTX_SCRATCH_ACCESSOR(memory_tracking::names::key_none));
             }
 
@@ -525,12 +525,12 @@ struct bnorm_exec_bwd_d_ss_t : public bnorm_exec_base_t {
 
             std::shared_ptr<cl::sycl::accessor<uint8_t, 1,
                     cl::sycl::access::mode::read_write,
-                    cl::sycl::access::target::global_buffer>>
+                    sycl::compat::target_device>>
                     temp_relu_output = nullptr;
             if (bnorm_impl->fuse_norm_relu()) {
                 temp_relu_output = std::make_shared<cl::sycl::accessor<uint8_t,
                         1, cl::sycl::access::mode::read_write,
-                        cl::sycl::access::target::global_buffer>>(
+                        sycl::compat::target_device>>(
                         CTX_SCRATCH_ACCESSOR(memory_tracking::names::key_none));
             }
 

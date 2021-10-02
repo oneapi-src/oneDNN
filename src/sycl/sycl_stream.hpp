@@ -227,7 +227,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             out_event = queue_->submit([&](cl::sycl::handler &cgh) {
                 // need a u8 accessor to get the proper range
                 cl::sycl::accessor<uint8_t, 1, cl::sycl::access::mode::write,
-                        cl::sycl::access::target::global_buffer>
+                        compat::target_device>
                         acc_dst(buffer_dst->buffer(), cgh,
                                 cl::sycl::range<1>(size), cl::sycl::id<1>(0));
                 register_deps(cgh);

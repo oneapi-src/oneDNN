@@ -320,7 +320,7 @@ cl::sycl::event copy(cl::sycl::queue &q, T *src, cl::sycl::buffer<T, 1> &dst) {
     auto event = q.submit([&, src](cl::sycl::handler &cgh) {
         // Retrieve a  write accessor to a global buffer
         auto acc = dst.template get_access<cl::sycl::access::mode::write,
-                cl::sycl::access::target::global_buffer>(cgh);
+                sycl::compat::target_device>(cgh);
         // Copy from the input pointer into the buffer associated with the
         // accessor
         cgh.copy(src, acc);
@@ -334,7 +334,7 @@ cl::sycl::event copy(cl::sycl::queue &q, cl::sycl::buffer<T, 1> &src, T *dst) {
     auto event = q.submit([&, dst](cl::sycl::handler &cgh) {
         // Retrieve a read accessor to a global buffer
         auto acc = src.template get_access<cl::sycl::access::mode::read,
-                cl::sycl::access::target::global_buffer>(cgh);
+                sycl::compat::target_device>(cgh);
         // Copy from the buffer associated with the accessor into the output
         // pointer
         cgh.copy(acc, dst);

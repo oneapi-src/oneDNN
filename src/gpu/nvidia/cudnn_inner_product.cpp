@@ -36,10 +36,9 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
     return cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
         using scratch_acc_t = cl::sycl::accessor<uint8_t, 1,
                 cl::sycl::access::mode::read_write,
-                cl::sycl::access::target::global_buffer>;
-        using read_acc_t
-                = cl::sycl::accessor<uint8_t, 1, cl::sycl::access::mode::read,
-                        cl::sycl::access::target::global_buffer>;
+                sycl::compat::target_device>;
+        using read_acc_t = cl::sycl::accessor<uint8_t, 1,
+                cl::sycl::access::mode::read, sycl::compat::target_device>;
         auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
         auto wei_acc = CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS);
         std::shared_ptr<read_acc_t> bias_acc;
@@ -105,7 +104,7 @@ status_t cudnn_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
     return cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
         using scratch_acc_t = cl::sycl::accessor<uint8_t, 1,
                 cl::sycl::access::mode::read_write,
-                cl::sycl::access::target::global_buffer>;
+                sycl::compat::target_device>;
         auto diff_dst_acc = CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST);
         auto wei_acc = CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS);
         auto diff_src_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_SRC);
@@ -181,13 +180,12 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
     return cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
         using scratch_acc_t = cl::sycl::accessor<uint8_t, 1,
                 cl::sycl::access::mode::read_write,
-                cl::sycl::access::target::global_buffer>;
+                sycl::compat::target_device>;
         auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
         auto diff_dst_acc = CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST);
         auto diff_wei_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_WEIGHTS);
-        using write_acc_t
-                = cl::sycl::accessor<uint8_t, 1, cl::sycl::access::mode::write,
-                        cl::sycl::access::target::global_buffer>;
+        using write_acc_t = cl::sycl::accessor<uint8_t, 1,
+                cl::sycl::access::mode::write, sycl::compat::target_device>;
         std::shared_ptr<write_acc_t> diff_bias_acc;
         if (pd()->with_bias()) {
             diff_bias_acc = std::make_shared<write_acc_t>(
