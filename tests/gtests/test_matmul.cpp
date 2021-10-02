@@ -447,6 +447,12 @@ static auto cases_ef = []() {
             {P::NONE, {P::ZERO_POINTS | P::SRC | P::COMMON}}, true,
             dnnl_unimplemented});
 
+    // bf16 data and zero-points
+    cases.push_back({{{{10, 1}, data_type::bf16, tag::ab},
+                             {{1, 20}, data_type::bf16, tag::ab},
+                             {{10, 20}, data_type::bf16, tag::ab}},
+            {P::NONE, {P::ZERO_POINTS | P::SRC | P::COMMON}}, true,
+            dnnl_unimplemented});
     // unimplemented data types
     if (get_test_engine_kind() == engine::kind::cpu) {
         cases.push_back(
