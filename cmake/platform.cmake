@@ -78,8 +78,6 @@ macro(platform_gnu_nowarn_ccxx_flags var gnu_version)
 endmacro()
 
 if(DNNL_WITH_SYCL)
-    # XXX: SYCL deprecated some API, suppress warnings for now.
-    append(CMAKE_CCXX_FLAGS "-Wno-deprecated-declarations")
     # Clang cannot vectorize some loops with #pragma omp simd and gets
     # very upset. Tell it that it's okay and that we love it
     # unconditionally.
