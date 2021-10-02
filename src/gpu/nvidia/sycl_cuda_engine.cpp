@@ -34,6 +34,7 @@
 #include "gpu/nvidia/cudnn_pooling.hpp"
 #include "gpu/nvidia/cudnn_resampling.hpp"
 #include "gpu/nvidia/cudnn_softmax.hpp"
+#include "gpu/nvidia/sycl_cuda_compat.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
@@ -111,7 +112,7 @@ status_t sycl_cuda_engine_t::set_cudnn_handle() {
 }
 
 CUcontext sycl_cuda_engine_t::get_underlying_context() const {
-    return cl::sycl::get_native<cl::sycl::backend::cuda>(context());
+    return compat::get_native<CUcontext>(context());
 }
 
 status_t sycl_cuda_engine_t::create_stream(stream_t **stream, unsigned flags) {
@@ -128,10 +129,8 @@ status_t sycl_cuda_engine_t::underlying_context_type() {
     // on titanrx. So we must run it once and store the variable
     // in  is_primary_context_;
     CUcontext primary;
-    CUcontext desired
-            = cl::sycl::get_native<cl::sycl::backend::cuda>(context());
-    CUdevice cuda_device
-            = cl::sycl::get_native<cl::sycl::backend::cuda>(device());
+    CUcontext desired = compat::get_native<CUcontext>(context());
+    CUdevice cuda_device = compat::get_native<CUdevice>(device());
     CHECK(CUDA_EXECUTE_FUNC_S(cuDevicePrimaryCtxRetain, &primary, cuda_device));
     CHECK(CUDA_EXECUTE_FUNC_S(cuDevicePrimaryCtxRelease, cuda_device));
     primary_context_ = (primary == desired);
@@ -150,8 +149,7 @@ cublasHandle_t *sycl_cuda_engine_t::get_cublas_handle() {
 
 device_id_t sycl_cuda_engine_t::device_id() const {
     return device_id_t(static_cast<int>(sycl::backend_t::nvidia),
-            static_cast<uint64_t>(
-                    cl::sycl::get_native<cl::sycl::backend::cuda>(device())),
+            static_cast<uint64_t>(compat::get_native<CUdevice>(device())),
             static_cast<uint64_t>(0));
 }
 

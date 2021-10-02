@@ -24,8 +24,8 @@ namespace nvidia {
 
 bool compare_cuda_devices(
         const cl::sycl::device &lhs, const cl::sycl::device &rhs) {
-    auto lhs_cuda_handle = lhs.get_native<cl::sycl::backend::cuda>();
-    auto rhs_cuda_handle = rhs.get_native<cl::sycl::backend::cuda>();
+    auto lhs_cuda_handle = compat::get_native<CUdevice>(lhs);
+    auto rhs_cuda_handle = compat::get_native<CUdevice>(rhs);
     return lhs_cuda_handle == rhs_cuda_handle;
 }
 

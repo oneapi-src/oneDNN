@@ -16,6 +16,7 @@
 *******************************************************************************/
 
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/sycl_cuda_compat.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 
@@ -37,12 +38,12 @@ cudnnHandle_t &sycl_cuda_stream_t::get_cudnn_handle() {
 }
 // the sycl_cuda_stream_t will not own this. it is an observer pointer
 CUstream sycl_cuda_stream_t::get_underlying_stream() {
-    return cl::sycl::get_native<cl::sycl::backend::cuda>(*queue_);
+    return compat::get_native<CUstream>(*queue_);
 }
 
 // the sycl_cuda_stream_t will not own this. it is an observer pointer
 CUcontext sycl_cuda_stream_t::get_underlying_context() {
-    return cl::sycl::get_native<cl::sycl::backend::cuda>(queue_->get_context());
+    return compat::get_native<CUcontext>(queue_->get_context());
 }
 
 status_t sycl_cuda_stream_t::init() {
@@ -73,12 +74,10 @@ status_t sycl_cuda_stream_t::init() {
         if (!args_ok) return status::invalid_arguments;
 
         auto queue_context = get_underlying_context();
-        CUdevice queue_device
-                = cl::sycl::get_native<cl::sycl::backend::cuda>(sycl_dev);
+        CUdevice queue_device = compat::get_native<CUdevice>(sycl_dev);
 
         auto engine_context = sycl_engine.get_underlying_context();
-        auto engine_device = cl::sycl::get_native<cl::sycl::backend::cuda>(
-                sycl_engine.device());
+        auto engine_device = compat::get_native<CUdevice>(sycl_engine.device());
 
         stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));

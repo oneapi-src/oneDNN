@@ -46,6 +46,12 @@ void host_task(::sycl::handler &cgh, const T &task) {
     cgh.interop_task(task);
 }
 
+template <typename native_object_t, typename sycl_object_t>
+native_object_t get_native(const sycl_object_t &sycl_object) {
+    auto handle = sycl_object.template get_native<::sycl::backend::cuda>();
+    return reinterpret_cast<native_object_t>(handle);
+}
+
 #else
 using interop_handle = ::sycl::interop_handle;
 template <typename T, typename U>
@@ -58,6 +64,11 @@ void host_task(::sycl::handler &cgh, const T &task) {
     cgh.host_task(task);
 }
 
+template <typename native_object_t, typename sycl_object_t>
+native_object_t get_native(const sycl_object_t &sycl_object) {
+    auto handle = ::sycl::get_native<::sycl::backend::cuda>(sycl_object);
+    return reinterpret_cast<native_object_t>(handle);
+}
 #endif
 
 } // namespace compat
