@@ -40,7 +40,7 @@
 #define REG_BNORM_P(...) __VA_ARGS__
 #else
 #define REG_BNORM_P(...) \
-    { nullptr }
+    {}
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_BINARY
@@ -84,14 +84,14 @@
 
 #else // BUILD_PRIMITIVE_ALL || BUILD_DECONVOLUTION
 #define REG_DECONV_P(...) \
-    { nullptr }
+    {}
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_ELTWISE
 #define REG_ELTWISE_P(...) __VA_ARGS__
 #else
 #define REG_ELTWISE_P(...) \
-    { nullptr }
+    {}
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_INNER_PRODUCT
@@ -105,14 +105,14 @@
 #define REG_LNORM_P(...) __VA_ARGS__
 #else
 #define REG_LNORM_P(...) \
-    { nullptr }
+    {}
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_LRN
 #define REG_LRN_P(...) __VA_ARGS__
 #else
 #define REG_LRN_P(...) \
-    { nullptr }
+    {}
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_MATMUL
@@ -126,14 +126,14 @@
 #define REG_POOLING_P(...) __VA_ARGS__
 #else
 #define REG_POOLING_P(...) \
-    { nullptr }
+    {}
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_PRELU
 #define REG_PRELU_P(...) __VA_ARGS__
 #else
 #define REG_PRELU_P(...) \
-    { nullptr }
+    {}
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_REDUCTION
@@ -154,14 +154,14 @@
 #define REG_RESAMPLING_P(...) __VA_ARGS__
 #else
 #define REG_RESAMPLING_P(...) \
-    { nullptr }
+    {}
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_RNN
 #define REG_RNN_P(...) __VA_ARGS__
 #else
 #define REG_RNN_P(...) \
-    { nullptr }
+    {}
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_SHUFFLE
@@ -175,7 +175,7 @@
 #define REG_SOFTMAX_P(...) __VA_ARGS__
 #else
 #define REG_SOFTMAX_P(...) \
-    { nullptr }
+    {}
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_SUM

@@ -31,27 +31,39 @@ namespace cpu {
 
 namespace {
 using namespace dnnl::impl::data_type;
+using namespace dnnl::impl::prop_kind;
 
 // clang-format off
-const impl_list_item_t impl_list[] = REG_RESAMPLING_P({
+const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_RESAMPLING_P({
+    {{forward}, {
         CPU_INSTANCE_X64(jit_uni_resampling_fwd_t)
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t))
-
         CPU_INSTANCE(simple_resampling_fwd_t)
-        REG_BWD_PK(CPU_INSTANCE(simple_resampling_bwd_t))
-
         CPU_INSTANCE(ref_resampling_fwd_t)
-        REG_BWD_PK(CPU_INSTANCE(ref_resampling_bwd_t))
-        /* eol */
         nullptr,
+    }},
+    {{backward}, {
+        REG_BWD_PK(CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t))
+        REG_BWD_PK(CPU_INSTANCE(simple_resampling_bwd_t))
+        REG_BWD_PK(CPU_INSTANCE(ref_resampling_bwd_t))
+        nullptr,
+    }},
 });
 // clang-format on
 } // namespace
 
 const impl_list_item_t *get_resampling_impl_list(
         const resampling_desc_t *desc) {
-    UNUSED(desc);
-    return impl_list;
+    static const impl_list_item_t empty_list[] = {nullptr};
+
+    const bool is_fwd = utils::one_of(
+            desc->prop_kind, forward_training, forward_inference);
+    prop_kind_t prop_kind = is_fwd ? forward : backward;
+
+    pk_impl_key_t key {prop_kind};
+
+    const auto impl_list_it = impl_list_map.find(key);
+    return impl_list_it != impl_list_map.cend() ? impl_list_it->second.data()
+                                                : empty_list;
 }
 
 } // namespace cpu

@@ -43,6 +43,18 @@ private:
     }
 };
 
+// This is a simpler version of key to use only prop_kind.
+struct pk_impl_key_t {
+    prop_kind_t kind;
+
+    bool operator<(const pk_impl_key_t &rhs) const {
+        return value() < rhs.value();
+    }
+
+private:
+    size_t value() const { return (size_t)kind; }
+};
+
 struct impl_list_item_t {
     impl_list_item_t() = default;
     impl_list_item_t(const impl_list_item_t &other) = default;
