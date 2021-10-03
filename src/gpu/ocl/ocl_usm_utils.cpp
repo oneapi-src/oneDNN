@@ -18,6 +18,8 @@
 
 #include <CL/cl.h>
 
+#include "common/cpp_compat.hpp"
+
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_gpu_engine.hpp"
@@ -56,7 +58,7 @@ struct ext_func_t {
     }
 
     template <typename... Args>
-    typename std::result_of<F(Args...)>::type operator()(
+    typename cpp_compat::invoke_result<F, Args...>::type operator()(
             engine_t *engine, Args... args) const {
         cl_platform_id platform;
         cl_int err = clGetDeviceInfo(get_ocl_device(engine), CL_DEVICE_PLATFORM,

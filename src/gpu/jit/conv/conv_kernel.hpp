@@ -17,7 +17,7 @@
 #ifndef GPU_JIT_CONV_CONV_KERNEL_HPP
 #define GPU_JIT_CONV_CONV_KERNEL_HPP
 
-#include <exception>
+#include "common/cpp_compat.hpp"
 
 #include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/conv/fma_support.hpp"
@@ -471,7 +471,7 @@ public:
     expr_binding_t(ngen::HW hw) : hw_(hw) {}
 
     ~expr_binding_t() {
-        if (!std::uncaught_exception()) {
+        if (!cpp_compat::uncaught_exceptions()) {
             ir_assert(expr2dst_.empty()) << "Detected missing unbind_dst().";
         }
     }

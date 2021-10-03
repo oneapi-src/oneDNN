@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
+#include "common/cpp_compat.hpp"
 #include "common/utils.hpp"
 
 namespace dnnl {
@@ -135,7 +136,7 @@ struct thread_args_t {
         , func_retval {} {}
     const F &func;
     std::tuple<Targs...> func_args;
-    typename std::result_of<F *(Targs...)>::type func_retval;
+    typename cpp_compat::invoke_result<F *, Targs...>::type func_retval;
 };
 
 template <typename T>
@@ -170,7 +171,7 @@ struct stack_checker_t {
     stack_checker_t(const std::string &context) : context_(context) {}
 
     template <typename F, typename... Targs>
-    typename std::result_of<F *(Targs...)>::type check(
+    typename cpp_compat::invoke_result<F *, Targs...>::type check(
             const F &func, const Targs &... func_args) {
 
         auto thread_args = utils::make_unique<thread_args_t<F, const Targs...>>(
