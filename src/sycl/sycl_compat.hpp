@@ -48,6 +48,26 @@ native_object_t get_native(const sycl_object_t &sycl_object) {
     return reinterpret_cast<native_object_t>(get_native(sycl_object));
 }
 
+// Automatically use host_task if it is supported by compiler,
+// otherwise fall back to codeplay_host_task.
+template <typename H, typename F>
+inline auto host_task_impl(H &cgh, F &&f, int) -> decltype(cgh.host_task(f)) {
+    cgh.host_task(f);
+}
+
+template <typename H, typename F>
+inline auto host_task_impl(H &cgh, F &&f, long)
+        -> decltype(cgh.codeplay_host_task(f)) {
+    cgh.codeplay_host_task(f);
+}
+
+template <typename H, typename F>
+inline void host_task(H &cgh, F &&f) {
+    // Third argument is 0 (int) which prefers the
+    // host_task option if both are available.
+    host_task_impl(cgh, f, 0);
+}
+
 bool is_fp64_supported(const ::sycl::device &dev);
 uint64_t init_extensions(const ::sycl::device &dev);
 

@@ -67,26 +67,6 @@ inline ::sycl::nd_range<3> to_sycl_nd_range(
     return ::sycl::nd_range<3>(sycl_global_range, sycl_local_range);
 }
 
-// Automatically use host_task if it is supported by compiler,
-// otherwise fall back to codeplay_host_task.
-template <typename H, typename F>
-inline auto host_task_impl(H &cgh, F &&f, int) -> decltype(cgh.host_task(f)) {
-    cgh.host_task(f);
-}
-
-template <typename H, typename F>
-inline auto host_task_impl(H &cgh, F &&f, long)
-        -> decltype(cgh.codeplay_host_task(f)) {
-    cgh.codeplay_host_task(f);
-}
-
-template <typename H, typename F>
-inline void host_task(H &cgh, F &&f) {
-    // Third argument is 0 (int) which prefers the
-    // host_task option if both are available.
-    host_task_impl(cgh, f, 0);
-}
-
 enum class backend_t { unknown, host, level0, opencl, nvidia };
 
 inline std::string to_string(backend_t backend) {
