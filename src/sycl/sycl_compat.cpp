@@ -127,7 +127,48 @@ status_t cache_program(
     return status::success;
 }
 
+template <typename sycl_object_t>
+void *get_native_impl(backend_t backend, const sycl_object_t &sycl_object) {
+    if (backend == backend_t::opencl) {
+#if DNNL_USE_SYCL121_API
+        return sycl_object.template get_native<::sycl::backend::opencl>();
+#else
+        return ::sycl::get_native<::sycl::backend::opencl>(sycl_object);
+#endif
+    } else if (backend == backend_t::level0) {
+#ifdef DNNL_WITH_LEVEL_ZERO
+#if DNNL_USE_SYCL121_API
+        return sycl_object.template get_native<::sycl::backend::level_zero>();
+#else
+        return ::sycl::get_native<::sycl::backend::ext_oneapi_level_zero>(
+                sycl_object);
+#endif
+#else
+        assert(!"unexpected");
+        return nullptr;
+#endif
+    } else {
+        assert(!"unexpected");
+        return nullptr;
+    }
+    return nullptr;
+}
+
 } // namespace
+
+void *get_native(const ::sycl::device &dev) {
+    auto backend = get_sycl_backend(dev);
+    return get_native_impl(backend, dev);
+}
+
+void *get_native(const ::sycl::context &ctx) {
+    auto devices = ctx.get_devices();
+    assert(!devices.empty());
+    if (devices.empty()) return nullptr;
+    // backend is expected to be the same for all devices in a context.
+    auto backend = get_sycl_backend(devices[0]);
+    return get_native_impl(backend, ctx);
+}
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine,

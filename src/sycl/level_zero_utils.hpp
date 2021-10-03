@@ -24,6 +24,7 @@
 #include <CL/sycl.hpp>
 
 #include "gpu/compute/kernel.hpp"
+#include "sycl/sycl_compat.hpp"
 
 namespace dnnl {
 namespace impl {

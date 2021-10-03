@@ -142,7 +142,7 @@ device_uuid_t get_device_uuid(const cl::sycl::device &dev) {
             "ZE_MAX_DEVICE_UUID_SIZE is expected to be 16");
 
     ze_device_properties_t ze_device_properties;
-    auto ze_device = dev.get_native<cl::sycl::backend::level_zero>();
+    auto ze_device = compat::get_native<ze_device_handle_t>(dev);
     auto status = func_zeDeviceGetProperties(ze_device, &ze_device_properties);
     MAYBE_UNUSED(status);
     assert(status == status::success);
@@ -173,9 +173,10 @@ status_t sycl_create_kernel_with_level_zero(
     ze_module_handle_t ze_module;
 
     auto ze_device
-            = sycl_engine->device().get_native<cl::sycl::backend::level_zero>();
-    auto ze_ctx = sycl_engine->context()
-                          .get_native<cl::sycl::backend::level_zero>();
+            = compat::get_native<ze_device_handle_t>(sycl_engine->device());
+    auto ze_ctx
+            = compat::get_native<ze_context_handle_t>(sycl_engine->context());
+
     CHECK(func_zeModuleCreate(ze_ctx, ze_device, &desc, &ze_module, nullptr));
     CHECK(compat::make_kernel(sycl_kernel, kernel_name, sycl_engine, ze_module,
             binary, programs));
@@ -185,8 +186,9 @@ status_t sycl_create_kernel_with_level_zero(
 
 bool compare_ze_devices(
         const cl::sycl::device &lhs, const cl::sycl::device &rhs) {
-    auto lhs_ze_handle = lhs.get_native<cl::sycl::backend::level_zero>();
-    auto rhs_ze_handle = rhs.get_native<cl::sycl::backend::level_zero>();
+    auto lhs_ze_handle = compat::get_native<ze_device_handle_t>(lhs);
+    auto rhs_ze_handle = compat::get_native<ze_device_handle_t>(rhs);
+
     return lhs_ze_handle == rhs_ze_handle;
 }
 

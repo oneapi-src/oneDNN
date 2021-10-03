@@ -40,6 +40,14 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
 
 std::function<void(void *)> get_program_list_deleter();
 
+void *get_native(const ::sycl::device &dev);
+void *get_native(const ::sycl::context &ctx);
+
+template <typename native_object_t, typename sycl_object_t>
+native_object_t get_native(const sycl_object_t &sycl_object) {
+    return reinterpret_cast<native_object_t>(get_native(sycl_object));
+}
+
 } // namespace compat
 } // namespace sycl
 } // namespace impl

@@ -29,6 +29,7 @@
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_interop_gpu_kernel.hpp"
 #include "sycl/sycl_utils.hpp"
 
@@ -138,7 +139,8 @@ public:
             return nullptr;
         }
         assert(device_.is_cpu() || device_.is_gpu());
-        return gpu::ocl::make_ocl_wrapper(device().get());
+        return gpu::ocl::make_ocl_wrapper(
+                compat::get_native<cl_device_id>(device()));
     }
     cl_context ocl_context() const {
         if (backend() != backend_t::opencl) {
@@ -146,7 +148,8 @@ public:
             return nullptr;
         }
         assert(device_.is_cpu() || device_.is_gpu());
-        return gpu::ocl::make_ocl_wrapper(context().get());
+        return gpu::ocl::make_ocl_wrapper(
+                compat::get_native<cl_context>(context()));
     }
 
     device_id_t device_id() const override { return sycl_device_id(device_); }
