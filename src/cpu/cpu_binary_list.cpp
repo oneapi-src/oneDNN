@@ -31,12 +31,12 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-const impl_list_item_t impl_list[] = {
-        REG_BINARY_P(CPU_INSTANCE_X64(jit_uni_binary_t))
-        REG_BINARY_P(CPU_INSTANCE(ref_binary_t))
+const impl_list_item_t impl_list[] = REG_BINARY_P({
+        CPU_INSTANCE_X64(jit_uni_binary_t)
+        CPU_INSTANCE(ref_binary_t)
         /* eol */
         nullptr,
-};
+});
 // clang-format on
 } // namespace
 

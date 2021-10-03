@@ -35,20 +35,20 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-const impl_list_item_t impl_list[] = {
-        REG_DECONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_deconvolution_fwd_t))
-        REG_DECONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t))
-        REG_DECONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_deconvolution_fwd_t))
-        REG_DECONV_P_FWD(CPU_INSTANCE_X64(jit_uni_x8s8s32x_1x1_deconvolution_fwd_t<avx2>))
-        REG_DECONV_P_FWD(CPU_INSTANCE_X64(jit_uni_x8s8s32x_deconvolution_fwd_t<avx2>))
-        REG_DECONV_P_FWD(CPU_INSTANCE_X64(jit_uni_x8s8s32x_1x1_deconvolution_fwd_t<sse41>))
-        REG_DECONV_P_FWD(CPU_INSTANCE_X64(jit_uni_x8s8s32x_deconvolution_fwd_t<sse41>))
-        REG_DECONV_P_BWD(CPU_INSTANCE(ref_deconvolution_bwd_weights_t))
-        REG_DECONV_P_BWD(CPU_INSTANCE(ref_deconvolution_bwd_data_t))
-        REG_DECONV_P_FWD(CPU_INSTANCE(ref_deconvolution_fwd_t))
+const impl_list_item_t impl_list[] = REG_DECONV_P({
+        CPU_INSTANCE_X64(jit_avx512_core_amx_deconvolution_fwd_t)
+        CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t)
+        CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_deconvolution_fwd_t)
+        CPU_INSTANCE_X64(jit_uni_x8s8s32x_1x1_deconvolution_fwd_t<avx2>)
+        CPU_INSTANCE_X64(jit_uni_x8s8s32x_deconvolution_fwd_t<avx2>)
+        CPU_INSTANCE_X64(jit_uni_x8s8s32x_1x1_deconvolution_fwd_t<sse41>)
+        CPU_INSTANCE_X64(jit_uni_x8s8s32x_deconvolution_fwd_t<sse41>)
+        REG_BWD_PK(CPU_INSTANCE(ref_deconvolution_bwd_weights_t))
+        REG_BWD_PK(CPU_INSTANCE(ref_deconvolution_bwd_data_t))
+        CPU_INSTANCE(ref_deconvolution_fwd_t)
         /* eol */
         nullptr,
-};
+});
 // clang-format on
 } // namespace
 

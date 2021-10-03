@@ -22,19 +22,19 @@ namespace cpu {
 
 // clang-format off
 
-const impl_list_map_t regular_f32_bf16_impl_list_map {
+const impl_list_map_t regular_f32_bf16_impl_list_map REG_REORDER_P({
     // f32 -> bf16
     {{f32, bf16, 0}, {
-        REG_RNN_P_FWD(CPU_REORDER_INSTANCE(rnn_weights_reorder_t<f32, bf16>))
+        CPU_REORDER_INSTANCE(rnn_weights_reorder_t<f32, bf16>)
 
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t)))
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t)))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
-        REG_REORDER_P(REG_SR(f32, any, bf16, any, fmt_order::any, spec::reference))
+        REG_SR(f32, any, bf16, any, fmt_order::any, spec::reference)
 
         nullptr,
     }},
-};
+});
 
 // clang-format on
 

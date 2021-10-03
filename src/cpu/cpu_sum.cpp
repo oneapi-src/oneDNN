@@ -37,15 +37,15 @@ using namespace dnnl::impl::data_type;
             __VA_ARGS__::pd_t>()),
 #define INSTANCE_X64(...) DNNL_X64_ONLY(INSTANCE(__VA_ARGS__))
 // clang-format off
-const impl_list_item_t cpu_sum_impl_list[] = {
-        REG_SUM_P(INSTANCE_X64(jit_bf16_sum_t<bf16, bf16>))
-        REG_SUM_P(INSTANCE_X64(jit_bf16_sum_t<bf16, f32>))
-        REG_SUM_P(INSTANCE(simple_sum_t<bf16>))
-        REG_SUM_P(INSTANCE(simple_sum_t<bf16, f32>))
-        REG_SUM_P(INSTANCE(simple_sum_t<f32>))
-        REG_SUM_P(INSTANCE(ref_sum_t))
+const impl_list_item_t cpu_sum_impl_list[] = REG_SUM_P({
+        INSTANCE_X64(jit_bf16_sum_t<bf16, bf16>)
+        INSTANCE_X64(jit_bf16_sum_t<bf16, f32>)
+        INSTANCE(simple_sum_t<bf16>)
+        INSTANCE(simple_sum_t<bf16, f32>)
+        INSTANCE(simple_sum_t<f32>)
+        INSTANCE(ref_sum_t)
         nullptr,
-};
+});
 // clang-format on
 #undef INSTANCE_X64
 #undef INSTANCE

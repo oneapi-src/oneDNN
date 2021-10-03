@@ -32,14 +32,14 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-const impl_list_item_t impl_list[] = {
-        REG_SHUFFLE_P(CPU_INSTANCE_X64(jit_uni_shuffle_t<avx512_common>))
-        REG_SHUFFLE_P(CPU_INSTANCE_X64(jit_uni_shuffle_t<avx>))
-        REG_SHUFFLE_P(CPU_INSTANCE_X64(jit_uni_shuffle_t<sse41>))
-        REG_SHUFFLE_P(CPU_INSTANCE(ref_shuffle_t))
+const impl_list_item_t impl_list[] = REG_SHUFFLE_P({
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<avx512_common>)
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<avx>)
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<sse41>)
+        CPU_INSTANCE(ref_shuffle_t)
         /* eol */
         nullptr,
-};
+});
 // clang-format on
 } // namespace
 

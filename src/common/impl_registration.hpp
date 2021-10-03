@@ -19,222 +19,170 @@
 
 #include "oneapi/dnnl/dnnl_config.h"
 
+// Workload section
+
+// Note: REG_BWD_D_PK is a dedicated macro for deconv to enable bwd_d conv.
+#if BUILD_TRAINING
+#define REG_BWD_PK(...) __VA_ARGS__
+#define REG_BWD_D_PK(...) __VA_ARGS__
+#else
+#define REG_BWD_PK(...)
+#define REG_BWD_D_PK(...)
+#endif
+
 // Primitives section
 
 // Note:
 // `_P` is a mandatory suffix for macros. This is to avoid a conflict with
 // `REG_BINARY`, Windows-defined macro.
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_BATCH_NORMALIZATION)
-#define REG_BNORM_P_FWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_BATCH_NORMALIZATION
+#define REG_BNORM_P(...) __VA_ARGS__
 #else
-#define REG_BNORM_P_FWD(...)
+#define REG_BNORM_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_BATCH_NORMALIZATION && BUILD_TRAINING)
-#define REG_BNORM_P_BWD(...) __VA_ARGS__
-#else
-#define REG_BNORM_P_BWD(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_BINARY)
+#if BUILD_PRIMITIVE_ALL || BUILD_BINARY
 #define REG_BINARY_P(...) __VA_ARGS__
 #else
-#define REG_BINARY_P(...)
+#define REG_BINARY_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_CONCAT)
+#if BUILD_PRIMITIVE_ALL || BUILD_CONCAT
 #define REG_CONCAT_P(...) __VA_ARGS__
 #else
-#define REG_CONCAT_P(...)
+#define REG_CONCAT_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_CONVOLUTION)
-#define REG_CONV_P_FWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_CONVOLUTION
+#define REG_CONV_P(...) __VA_ARGS__
 #else
-#define REG_CONV_P_FWD(...)
+#define REG_CONV_P(...) \
+    {}
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_CONVOLUTION && BUILD_TRAINING)
-#define REG_CONV_P_BWD_D(...) __VA_ARGS__
-#define REG_CONV_P_BWD_W(...) __VA_ARGS__
-#else
-#define REG_CONV_P_BWD_D(...)
-#define REG_CONV_P_BWD_W(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_DECONVOLUTION)
-#define REG_DECONV_P_FWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_DECONVOLUTION
+#define REG_DECONV_P(...) __VA_ARGS__
 // This case is special, it requires handling of convolution_bwd_d internally
 // since major optimizations are based on convolution implementations.
-#ifndef REG_CONV_P_BWD_D
-#error "REG_CONV_P_BWD_D is not defined. Check that convolution " \
-       "is defined prior deconvolution."
-#endif
-#undef REG_CONV_P_BWD_D
-#define REG_CONV_P_BWD_D(...) __VA_ARGS__
+#ifndef REG_CONV_P
+#error "REG_CONV_P is not defined. Check that convolution is defined prior deconvolution."
 #else
-#define REG_DECONV_P_FWD(...)
+#undef REG_CONV_P
+#define REG_CONV_P(...) __VA_ARGS__
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_DECONVOLUTION && BUILD_TRAINING)
-#define REG_DECONV_P_BWD(...) __VA_ARGS__
-// This case is special, it requires handling of convolution_fwd and
-// convolution_bwd_w internally since major optimizations are based on
-// convolution implementations.
-#ifndef REG_CONV_P_FWD
-#error "REG_CONV_P_FWD is not defined. Check that convolution " \
-       "is defined prior deconvolution."
-#endif
-#undef REG_CONV_P_FWD
-#define REG_CONV_P_FWD(...) __VA_ARGS__
-
-#ifndef REG_CONV_P_BWD_W
-#error "REG_CONV_P_BWD_W is not defined. Check that convolution " \
-       "is defined prior deconvolution."
-#endif
-#undef REG_CONV_P_BWD_W
-#define REG_CONV_P_BWD_W(...) __VA_ARGS__
+#ifndef REG_BWD_D_PK
+#error "REG_BWD_D_PK is not defined. Dedicated macro was not enabled."
 #else
-#define REG_DECONV_P_BWD(...)
+#undef REG_BWD_D_PK
+#define REG_BWD_D_PK(...) __VA_ARGS__
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_ELTWISE)
-#define REG_ELTWISE_P_FWD(...) __VA_ARGS__
+#else // BUILD_PRIMITIVE_ALL || BUILD_DECONVOLUTION
+#define REG_DECONV_P(...) \
+    { nullptr }
+#endif
+
+#if BUILD_PRIMITIVE_ALL || BUILD_ELTWISE
+#define REG_ELTWISE_P(...) __VA_ARGS__
 #else
-#define REG_ELTWISE_P_FWD(...)
+#define REG_ELTWISE_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_ELTWISE && BUILD_TRAINING)
-#define REG_ELTWISE_P_BWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_INNER_PRODUCT
+#define REG_IP_P(...) __VA_ARGS__
 #else
-#define REG_ELTWISE_P_BWD(...)
+#define REG_IP_P(...) \
+    {}
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_INNER_PRODUCT)
-#define REG_IP_P_FWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_LAYER_NORMALIZATION
+#define REG_LNORM_P(...) __VA_ARGS__
 #else
-#define REG_IP_P_FWD(...)
+#define REG_LNORM_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_INNER_PRODUCT && BUILD_TRAINING)
-#define REG_IP_P_BWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_LRN
+#define REG_LRN_P(...) __VA_ARGS__
 #else
-#define REG_IP_P_BWD(...)
+#define REG_LRN_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_LAYER_NORMALIZATION)
-#define REG_LNORM_P_FWD(...) __VA_ARGS__
-#else
-#define REG_LNORM_P_FWD(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_LAYER_NORMALIZATION && BUILD_TRAINING)
-#define REG_LNORM_P_BWD(...) __VA_ARGS__
-#else
-#define REG_LNORM_P_BWD(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_LRN)
-#define REG_LRN_P_FWD(...) __VA_ARGS__
-#else
-#define REG_LRN_P_FWD(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_LRN && BUILD_TRAINING)
-#define REG_LRN_P_BWD(...) __VA_ARGS__
-#else
-#define REG_LRN_P_BWD(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_MATMUL)
+#if BUILD_PRIMITIVE_ALL || BUILD_MATMUL
 #define REG_MATMUL_P(...) __VA_ARGS__
 #else
-#define REG_MATMUL_P(...)
+#define REG_MATMUL_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_POOLING)
-#define REG_POOLING_P_FWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_POOLING
+#define REG_POOLING_P(...) __VA_ARGS__
 #else
-#define REG_POOLING_P_FWD(...)
+#define REG_POOLING_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_POOLING && BUILD_TRAINING)
-#define REG_POOLING_P_BWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_PRELU
+#define REG_PRELU_P(...) __VA_ARGS__
 #else
-#define REG_POOLING_P_BWD(...)
+#define REG_PRELU_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_PRELU)
-#define REG_PRELU_P_FWD(...) __VA_ARGS__
-#else
-#define REG_PRELU_P_FWD(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_PRELU && BUILD_TRAINING)
-#define REG_PRELU_P_BWD(...) __VA_ARGS__
-#else
-#define REG_PRELU_P_BWD(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_REDUCTION)
+#if BUILD_PRIMITIVE_ALL || BUILD_REDUCTION
 #define REG_REDUCTION_P(...) __VA_ARGS__
 #else
-#define REG_REDUCTION_P(...)
+#define REG_REDUCTION_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_REORDER)
+#if BUILD_PRIMITIVE_ALL || BUILD_REORDER
 #define REG_REORDER_P(...) __VA_ARGS__
 #else
-#define REG_REORDER_P(...)
+#define REG_REORDER_P(...) \
+    {}
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_RESAMPLING)
-#define REG_RESAMPLING_P_FWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_RESAMPLING
+#define REG_RESAMPLING_P(...) __VA_ARGS__
 #else
-#define REG_RESAMPLING_P_FWD(...)
+#define REG_RESAMPLING_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_RESAMPLING && BUILD_TRAINING)
-#define REG_RESAMPLING_P_BWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_RNN
+#define REG_RNN_P(...) __VA_ARGS__
 #else
-#define REG_RESAMPLING_P_BWD(...)
+#define REG_RNN_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_RNN)
-#define REG_RNN_P_FWD(...) __VA_ARGS__
-#else
-#define REG_RNN_P_FWD(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_RNN && BUILD_TRAINING)
-#define REG_RNN_P_BWD(...) __VA_ARGS__
-#else
-#define REG_RNN_P_BWD(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_SHUFFLE)
+#if BUILD_PRIMITIVE_ALL || BUILD_SHUFFLE
 #define REG_SHUFFLE_P(...) __VA_ARGS__
 #else
-#define REG_SHUFFLE_P(...)
+#define REG_SHUFFLE_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_SOFTMAX)
-#define REG_SOFTMAX_P_FWD(...) __VA_ARGS__
+#if BUILD_PRIMITIVE_ALL || BUILD_SOFTMAX
+#define REG_SOFTMAX_P(...) __VA_ARGS__
 #else
-#define REG_SOFTMAX_P_FWD(...)
+#define REG_SOFTMAX_P(...) \
+    { nullptr }
 #endif
 
-#if BUILD_PRIMITIVE_ALL || (BUILD_SOFTMAX && BUILD_TRAINING)
-#define REG_SOFTMAX_P_BWD(...) __VA_ARGS__
-#else
-#define REG_SOFTMAX_P_BWD(...)
-#endif
-
-#if BUILD_PRIMITIVE_ALL || (BUILD_SUM)
+#if BUILD_PRIMITIVE_ALL || BUILD_SUM
 #define REG_SUM_P(...) __VA_ARGS__
 #else
-#define REG_SUM_P(...)
+#define REG_SUM_P(...) \
+    { nullptr }
 #endif
 
 #endif

@@ -22,27 +22,27 @@ namespace cpu {
 
 // clang-format off
 
-const impl_list_map_t regular_f32_s8_impl_list_map {
+const impl_list_map_t regular_f32_s8_impl_list_map REG_REORDER_P({
     // f32 -> s8
     {{f32, s8, 0}, {
-        REG_CONV_P_FWD(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::wino_reorder_t<f32, s8>)))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::wino_reorder_t<f32, s8>))
 
-        REG_REORDER_P(CPU_REORDER_INSTANCE(rnn_data_reorder_t<f32, s8>))
-        REG_RNN_P_FWD(CPU_REORDER_INSTANCE(rnn_weights_reorder_s8_t<f32>))
-        REG_RNN_P_FWD(CPU_REORDER_INSTANCE(rnn_brgemm_weights_reorder_s8_t<f32, s8>))
+        CPU_REORDER_INSTANCE(rnn_data_reorder_t<f32, s8>)
+        CPU_REORDER_INSTANCE(rnn_weights_reorder_s8_t<f32>)
+        CPU_REORDER_INSTANCE(rnn_brgemm_weights_reorder_s8_t<f32, s8>)
 
-        REG_REORDER_P(REG_FAST_DIRECT_COPY(f32, s8))
+        REG_FAST_DIRECT_COPY(f32, s8)
 
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t)))
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t)))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
         DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
 
-        REG_REORDER_P(REG_SR(f32, any, s8, any, fmt_order::any, spec::reference))
+        REG_SR(f32, any, s8, any, fmt_order::any, spec::reference)
 
         nullptr,
     }},
-};
+});
 
 // clang-format on
 

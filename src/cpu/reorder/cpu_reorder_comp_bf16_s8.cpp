@@ -22,43 +22,43 @@ namespace cpu {
 
 // clang-format off
 
-const impl_list_map_t comp_bf16_s8_impl_list_map {
+const impl_list_map_t comp_bf16_s8_impl_list_map REG_REORDER_P({
     // bf16 -> s8
     {{bf16, s8, 2}, {
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t)))
-        REG_REORDER_P(REG_SR(bf16, ab, s8, BA16a16b4a, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(bf16, ab, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(bf16, ab, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(bf16, ab, s8, BA16a64b4a, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(bf16, ba, s8, BA16a16b4a, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(bf16, ba, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(bf16, ba, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(bf16, ba, s8, BA16a64b4a, fmt_order::keep, spec::conv_req_comp))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
+        REG_SR(bf16, ab, s8, BA16a16b4a, fmt_order::keep, spec::conv_req_comp)
+        REG_SR(bf16, ab, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp)
+        REG_SR(bf16, ab, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp)
+        REG_SR(bf16, ab, s8, BA16a64b4a, fmt_order::keep, spec::conv_req_comp)
+        REG_SR(bf16, ba, s8, BA16a16b4a, fmt_order::keep, spec::conv_req_comp)
+        REG_SR(bf16, ba, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp)
+        REG_SR(bf16, ba, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp)
+        REG_SR(bf16, ba, s8, BA16a64b4a, fmt_order::keep, spec::conv_req_comp)
 
         nullptr,
     }},
     // bf16 -> s8
     {{bf16, s8, 3}, {
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t)))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
         nullptr,
     }},
     {{bf16, s8, 4}, {
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t)))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
         nullptr,
     }},
     {{bf16, s8, 5}, {
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t)))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
         nullptr,
     }},
     {{bf16, s8, 6}, {
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t)))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
         nullptr,
     }},
-};
+});
 
 // clang-format on
 

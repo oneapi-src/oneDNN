@@ -33,18 +33,18 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-const impl_list_item_t impl_list[] = {
-        REG_RESAMPLING_P_FWD(CPU_INSTANCE_X64(jit_uni_resampling_fwd_t))
-        REG_RESAMPLING_P_BWD(CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t))
+const impl_list_item_t impl_list[] = REG_RESAMPLING_P({
+        CPU_INSTANCE_X64(jit_uni_resampling_fwd_t)
+        REG_BWD_PK(CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t))
 
-        REG_RESAMPLING_P_FWD(CPU_INSTANCE(simple_resampling_fwd_t))
-        REG_RESAMPLING_P_BWD(CPU_INSTANCE(simple_resampling_bwd_t))
+        CPU_INSTANCE(simple_resampling_fwd_t)
+        REG_BWD_PK(CPU_INSTANCE(simple_resampling_bwd_t))
 
-        REG_RESAMPLING_P_FWD(CPU_INSTANCE(ref_resampling_fwd_t))
-        REG_RESAMPLING_P_BWD(CPU_INSTANCE(ref_resampling_bwd_t))
+        CPU_INSTANCE(ref_resampling_fwd_t)
+        REG_BWD_PK(CPU_INSTANCE(ref_resampling_bwd_t))
         /* eol */
         nullptr,
-};
+});
 // clang-format on
 } // namespace
 

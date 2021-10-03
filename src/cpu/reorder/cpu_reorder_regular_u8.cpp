@@ -22,29 +22,29 @@ namespace cpu {
 
 // clang-format off
 
-const impl_list_map_t regular_u8_impl_list_map {
+const impl_list_map_t regular_u8_impl_list_map REG_REORDER_P({
     // u8 ->
     {{u8, data_type::undef, 0}, {
-        REG_REORDER_P(REG_FAST_DIRECT_COPY(u8, f32))
-        REG_REORDER_P(REG_FAST_DIRECT_COPY(u8, s32))
-        REG_REORDER_P(REG_FAST_DIRECT_COPY(u8, bf16))
-        REG_REORDER_P(REG_FAST_DIRECT_COPY(u8, s8))
-        REG_REORDER_P(REG_FAST_DIRECT_COPY(u8, u8))
+        REG_FAST_DIRECT_COPY(u8, f32)
+        REG_FAST_DIRECT_COPY(u8, s32)
+        REG_FAST_DIRECT_COPY(u8, bf16)
+        REG_FAST_DIRECT_COPY(u8, s8)
+        REG_FAST_DIRECT_COPY(u8, u8)
 
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t)))
-        REG_REORDER_P(DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t)))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
         DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
 
-        REG_REORDER_P(REG_SR(u8, any, f32, any, fmt_order::any, spec::reference))
-        REG_REORDER_P(REG_SR(u8, any, s32, any, fmt_order::any, spec::reference))
-        REG_REORDER_P(REG_SR(u8, any, bf16, any, fmt_order::any, spec::reference))
-        REG_REORDER_P(REG_SR(u8, any, u8, any, fmt_order::any, spec::reference))
-        REG_REORDER_P(REG_SR(u8, any, s8, any, fmt_order::any, spec::reference))
+        REG_SR(u8, any, f32, any, fmt_order::any, spec::reference)
+        REG_SR(u8, any, s32, any, fmt_order::any, spec::reference)
+        REG_SR(u8, any, bf16, any, fmt_order::any, spec::reference)
+        REG_SR(u8, any, u8, any, fmt_order::any, spec::reference)
+        REG_SR(u8, any, s8, any, fmt_order::any, spec::reference)
 
         nullptr,
     }},
-};
+});
 
 // clang-format on
 
