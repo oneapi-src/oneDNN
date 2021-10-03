@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,38 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_LEVEL_ZERO_UTILS_HPP
-#define SYCL_LEVEL_ZERO_UTILS_HPP
+#ifndef SYCL_SYCL_COMPAT_HPP
+#define SYCL_SYCL_COMPAT_HPP
 
-#include <memory>
-#include <string>
-#include <vector>
-
-#include <CL/sycl.hpp>
-
-#include "gpu/compute/kernel.hpp"
+#include "gpu/compute/compute.hpp"
+#include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace sycl {
 
-using device_uuid_t = std::tuple<uint64_t, uint64_t>;
-device_uuid_t get_device_uuid(const cl::sycl::device &dev);
-
-// including sycl_gpu_engine.hpp leads to circular dependencies, w/a for now.
 class sycl_gpu_engine_t;
 
-status_t sycl_create_kernel_with_level_zero(
-        std::unique_ptr<::sycl::kernel> &sycl_kernel,
+namespace compat {
+
+status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine,
-        const gpu::compute::binary_t *binary,
+        void *native_program_handle, const gpu::compute::binary_t *binary,
         gpu::compute::program_list_t *programs);
 
-bool compare_ze_devices(
-        const cl::sycl::device &lhs, const cl::sycl::device &rhs);
+status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
+        const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine,
+        const gpu::compute::binary_t *binary,
+        const gpu::compute::program_list_t *programs);
 
+std::function<void(void *)> get_program_list_deleter();
+
+} // namespace compat
 } // namespace sycl
 } // namespace impl
 } // namespace dnnl
 
-#endif // SYCL_LEVEL_ZERO_UTILS_HPP
+#endif

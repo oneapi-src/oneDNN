@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 
 #include "common/memory.hpp"
 #include "common/memory_storage.hpp"
+#include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 #include "sycl/sycl_stream.hpp"
@@ -55,7 +56,7 @@ status_t sycl_engine_base_t::init_device_info() {
 
 std::function<void(void *)>
 sycl_engine_base_t::get_program_list_deleter() const {
-    return [](void *p) { delete reinterpret_cast<cl::sycl::program *>(p); };
+    return compat::get_program_list_deleter();
 }
 
 } // namespace sycl

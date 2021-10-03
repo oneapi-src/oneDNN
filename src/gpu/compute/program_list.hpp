@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ public:
     }
 
     template <typename program_t>
-    program_t get(const binary_t *binary) {
+    program_t get(const binary_t *binary) const {
         static_assert(std::is_pointer<program_t>::value,
                 "program_t is expected to be a pointer.");
 

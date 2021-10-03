@@ -120,6 +120,19 @@ status_t func_zeDeviceGetProperties(
 
 } // namespace
 
+// This function is called from compatibility layer that ensures compatibility
+// with SYCL 2017 API. Once the compatibility layer is removed this function
+// can be moved to the anonymous namespace above and a function with SYCL
+// data types in its interface can be created to call it.
+status_t func_zeKernelCreate(ze_module_handle_t hModule,
+        const ze_kernel_desc_t *desc, ze_kernel_handle_t *phKernel) {
+    static auto f = find_ze_symbol<decltype(&zeKernelCreate)>("zeKernelCreate");
+
+    if (!f) return status::runtime_error;
+    ZE_CHECK(f(hModule, desc, phKernel));
+    return status::success;
+}
+
 // FIXME: Currently SYCL doesn't provide any API to get device UUID so
 // we query it directly from Level0 with the zeDeviceGetProperties function.
 // The `get_device_uuid` function packs 128 bits of the device UUID, which are
@@ -144,10 +157,11 @@ device_uuid_t get_device_uuid(const cl::sycl::device &dev) {
     return device_uuid_t(uuid[0], uuid[1]);
 }
 
-status_t sycl_create_program_with_level_zero(
-        std::unique_ptr<cl::sycl::program> &sycl_program,
-        const sycl_gpu_engine_t *sycl_engine,
-        const gpu::compute::binary_t *binary) {
+status_t sycl_create_kernel_with_level_zero(
+        std::unique_ptr<::sycl::kernel> &sycl_kernel,
+        const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine,
+        const gpu::compute::binary_t *binary,
+        gpu::compute::program_list_t *programs) {
     auto desc = ze_module_desc_t();
     desc.stype = ZE_STRUCTURE_TYPE_MODULE_DESC;
     desc.format = ZE_MODULE_FORMAT_NATIVE;
@@ -163,9 +177,8 @@ status_t sycl_create_program_with_level_zero(
     auto ze_ctx = sycl_engine->context()
                           .get_native<cl::sycl::backend::level_zero>();
     CHECK(func_zeModuleCreate(ze_ctx, ze_device, &desc, &ze_module, nullptr));
-    sycl_program.reset(
-            new cl::sycl::program(cl::sycl::level_zero::make<cl::sycl::program>(
-                    sycl_engine->context(), ze_module)));
+    CHECK(compat::make_kernel(sycl_kernel, kernel_name, sycl_engine, ze_module,
+            binary, programs));
 
     return status::success;
 }
@@ -191,9 +204,8 @@ device_uuid_t get_device_uuid(const cl::sycl::device &) {
     return device_uuid_t(0, 0);
 }
 
-status_t sycl_create_program_with_level_zero(
-        std::unique_ptr<cl::sycl::kernel> &, const sycl_gpu_engine_t *,
-        const gpu::compute::binary_t *) {
+status_t sycl_create_kernel_with_level_zero(std::unique_ptr<::sycl::kernel> &,
+        const sycl_gpu_engine_t *, const gpu::compute::binary_t *) {
     return status::unimplemented;
 }
 

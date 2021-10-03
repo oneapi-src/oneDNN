@@ -25,6 +25,23 @@
 #include <vector>
 #include <CL/sycl.hpp>
 
+#if defined(__INTEL_LLVM_COMPILER) && defined(SYCL_LANGUAGE_VERSION)
+#if (__INTEL_LLVM_COMPILER < 20220000)
+#define DNNL_USE_SYCL121_API 1
+#else
+#define DNNL_USE_SYCL121_API 0
+#endif
+#elif defined(SYCL_LANGUAGE_VERSION) && defined(__LIBSYCL_MAJOR_VERSION) \
+        && defined(__LIBSYCL_MINOR_VERSION)
+#if (__LIBSYCL_MAJOR_VERSION == 5 && __LIBSYCL_MINOR_VERSION < 4)
+#define DNNL_USE_SYCL121_API 1
+#else
+#define DNNL_USE_SYCL121_API 0
+#endif
+#else
+#error "Unsupported compiler"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace sycl {
