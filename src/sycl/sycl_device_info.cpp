@@ -77,8 +77,7 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
 
     // XXX: temporary WA for different Xe_HP devices
     if (gpu_arch_ == gpu::compute::gpu_arch_t::xe_hpg
-            && !device.has_extension(
-                    ext2cl_str(gpu::compute::device_ext_t::khr_fp64)))
+            && !compat::is_fp64_supported(device))
         gpu_arch_ = gpu::compute::gpu_arch_t::xe_hpg;
     return status::success;
 }
@@ -111,15 +110,7 @@ status_t sycl_device_info_t::init_extensions(engine_t *engine) {
 
     auto &device
             = utils::downcast<const sycl_engine_base_t *>(engine)->device();
-    std::string extension_string;
-    for (uint64_t i_ext = 1; i_ext < (uint64_t)device_ext_t::last;
-            i_ext <<= 1) {
-        const char *s_ext = ext2cl_str((device_ext_t)i_ext);
-        if (s_ext && device.has_extension(s_ext)) {
-            extension_string += std::string(s_ext) + " ";
-            extensions_ |= i_ext;
-        }
-    }
+    extensions_ = compat::init_extensions(device);
 
     // Handle future extensions, not yet supported by the DPC++ API
     extensions_ |= (uint64_t)get_future_extensions(gpu_arch());

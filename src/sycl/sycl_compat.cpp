@@ -279,6 +279,62 @@ std::function<void(void *)> get_program_list_deleter() {
 #endif
 }
 
+bool is_fp64_supported(const ::sycl::device &dev) {
+#if DNNL_USE_SYCL121_API
+    return dev.has_extension(ext2cl_str(device_ext_t::khr_fp64));
+#else
+    return dev.has(::sycl::aspect::fp64);
+#endif
+}
+
+uint64_t init_extensions(const ::sycl::device &dev) {
+    uint64_t extensions = 0;
+#if DNNL_USE_SYCL121_API
+    for (uint64_t i_ext = 1; i_ext < (uint64_t)device_ext_t::last;
+            i_ext <<= 1) {
+        const char *s_ext = ext2cl_str((device_ext_t)i_ext);
+        if (s_ext && dev.has_extension(s_ext)) { extensions |= i_ext; }
+    }
+#else
+    for (uint64_t i_ext = 1; i_ext < (uint64_t)device_ext_t::last;
+            i_ext <<= 1) {
+        bool is_ext_supported = false;
+        switch (static_cast<device_ext_t>(i_ext)) {
+            case device_ext_t::khr_fp16:
+                is_ext_supported = dev.has(::sycl::aspect::fp16);
+                break;
+            case device_ext_t::khr_fp64:
+                is_ext_supported = dev.has(::sycl::aspect::fp64);
+                break;
+            case device_ext_t::khr_global_int32_base_atomics:
+            case device_ext_t::khr_local_int32_base_atomics:
+            case device_ext_t::khr_int64_base_atomics:
+                is_ext_supported = dev.has(::sycl::aspect::int64_base_atomics);
+                break;
+            case device_ext_t::khr_global_int32_extended_atomics:
+            case device_ext_t::khr_local_int32_extended_atomics:
+            case device_ext_t::khr_int64_extended_atomics:
+                is_ext_supported
+                        = dev.has(::sycl::aspect::int64_extended_atomics);
+                break;
+            // SYCL 2020 assumes that subroups are always supported.
+            case device_ext_t::intel_subgroups:
+            case device_ext_t::intel_required_subgroup_size:
+            case device_ext_t::intel_subgroups_char:
+            case device_ext_t::intel_subgroups_short:
+            case device_ext_t::intel_subgroups_long:
+                is_ext_supported = true;
+                break;
+                // The workaround for future extensions should be used to cover
+                // the remaining extensions.
+            default: is_ext_supported = false;
+        }
+        if (is_ext_supported) extensions |= i_ext;
+    }
+#endif
+    return extensions;
+}
+
 #if DNNL_USE_SYCL121_API
 #pragma clang diagnostic pop
 #endif

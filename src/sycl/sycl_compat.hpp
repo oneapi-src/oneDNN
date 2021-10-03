@@ -48,6 +48,9 @@ native_object_t get_native(const sycl_object_t &sycl_object) {
     return reinterpret_cast<native_object_t>(get_native(sycl_object));
 }
 
+bool is_fp64_supported(const ::sycl::device &dev);
+uint64_t init_extensions(const ::sycl::device &dev);
+
 } // namespace compat
 } // namespace sycl
 } // namespace impl
