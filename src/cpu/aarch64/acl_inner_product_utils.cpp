@@ -135,16 +135,33 @@ status_t init_conf_ip(acl_ip_conf_t &aip, memory_desc_t &src_md,
     aip.with_sum = (post_ops.len() == 1) && post_ops.entry_[0].is_sum();
 
     // clang-format off
-    // Validate convolution manually to check for return status
+    // Validate fully connected layer manually to check for return status
     auto acl_st = arm_compute::NEFullyConnectedLayer::validate(
         &aip.src_info,
         &aip.wei_info,
         aip.with_bias ? &aip.bia_info : nullptr,
         &aip.dst_info,
-	aip.fc_info);
+        aip.fc_info);
     // clang-format on
     if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
+        MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
         return status::unimplemented;
+    }
+
+    if (aip.with_sum) {
+        // clang-format off
+        // Validate arithmetic addition manually to check for return status
+        auto acl_aa_st = arm_compute::NEArithmeticAddition::validate(
+            &aip.dst_info,
+            &aip.dst_info,
+            &aip.dst_info,
+            arm_compute::ConvertPolicy::SATURATE);
+
+        // clang-format on
+        if (acl_aa_st.error_code() != arm_compute::ErrorCode::OK) {
+            MAYBE_REPORT_ACL_ERROR(acl_aa_st.error_description().c_str());
+            return status::unimplemented;
+        }
     }
 
     return status::success;
