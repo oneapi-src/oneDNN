@@ -214,6 +214,33 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
             && post_ops.entry_[1].is_eltwise(true);
     acp.act_info = acl_common_utils::get_acl_act(attr);
 
+    if (acp.sum_with_eltwise) {
+        // clang-format off
+        // Validate activation layer manually to check for return status
+        auto acl_al_st = arm_compute::NEActivationLayer::validate(
+            &acp.dst_info,
+            &acp.dst_info,
+            acp.act_info);
+        // clang-format on
+        if (acl_al_st.error_code() != arm_compute::ErrorCode::OK) {
+            MAYBE_REPORT_ACL_ERROR(acl_al_st.error_description().c_str());
+            return status::unimplemented;
+        }
+
+        // clang-format off
+        // Validate arithmetic addition manually to check for return status
+        auto acl_aa_st = arm_compute::NEArithmeticAddition::validate(
+            &acp.dst_info,
+            &acp.dst_info,
+            &acp.dst_info,
+            arm_compute::ConvertPolicy::SATURATE);
+        // clang-format on
+        if (acl_aa_st.error_code() != arm_compute::ErrorCode::OK) {
+            MAYBE_REPORT_ACL_ERROR(acl_aa_st.error_description().c_str());
+            return status::unimplemented;
+        }
+    }
+
     return status::success;
 }
 
@@ -239,6 +266,7 @@ status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         acp.fast_math);
     // clang-format on
     if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
+        MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
         return status::unimplemented;
     }
 
@@ -273,6 +301,7 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
                                 1));
     // clang-format on
     if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
+        MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
         return status::unimplemented;
     }
 
@@ -317,6 +346,7 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
         true); // enable_fast_math flag in ACL Winograd
     // clang-format on
     if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
+        MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
         return status::unimplemented;
     }
 
