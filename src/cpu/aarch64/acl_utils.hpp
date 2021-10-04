@@ -46,6 +46,11 @@ arm_compute::ActivationLayerInfo get_acl_act(const eltwise_desc_t &ed);
 bool acl_act_ok(alg_kind_t eltwise_activation);
 void acl_thread_bind();
 
+#define MAYBE_REPORT_ACL_ERROR(msg) \
+    do { \
+        if (get_verbose()) printf("dnnl_verbose,cpu,error,acl,%s\n", (msg)); \
+    } while (0)
+
 } // namespace acl_common_utils
 
 } // namespace aarch64
