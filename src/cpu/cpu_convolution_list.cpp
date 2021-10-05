@@ -77,26 +77,8 @@ namespace {
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::prop_kind;
 
-struct conv_impl_key_t {
-    prop_kind_t kind;
-    data_type_t src_dt, wei_dt, dst_dt;
-
-    bool operator<(const conv_impl_key_t &rhs) const {
-        return value() < rhs.value();
-    }
-
-private:
-    enum { MAX_DT_NUM = 10 };
-    size_t value() const {
-        return (((size_t)kind * MAX_DT_NUM + (size_t)src_dt) * MAX_DT_NUM
-                       + (size_t)wei_dt)
-                * MAX_DT_NUM
-                + (size_t)dst_dt;
-    }
-};
-
 // clang-format off
-const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_CONV_P({
+const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_CONV_P({
     // FWD fp
     {{forward, f32, f32, f32}, {
         CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t)
@@ -441,11 +423,11 @@ const impl_list_item_t *get_convolution_impl_list(
         const convolution_desc_t *desc) {
     static const impl_list_item_t empty_list[] = {nullptr};
 
-    prop_kind_t prop_kind = utils::one_of(desc->prop_kind, forward_training,
-                                    forward_inference)
-            ? forward
-            : desc->prop_kind;
-    conv_impl_key_t key {
+    const bool is_fwd = utils::one_of(
+            desc->prop_kind, forward_training, forward_inference);
+    prop_kind_t prop_kind = is_fwd ? forward : desc->prop_kind;
+
+    pk_dt_impl_key_t key {
             prop_kind,
             conv_prop_invariant_src_d(desc)->data_type,
             conv_prop_invariant_wei_d(desc)->data_type,

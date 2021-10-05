@@ -40,26 +40,8 @@ namespace {
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::prop_kind;
 
-struct ip_impl_key_t {
-    prop_kind_t kind;
-    data_type_t src_dt, wei_dt, dst_dt;
-
-    bool operator<(const ip_impl_key_t &rhs) const {
-        return value() < rhs.value();
-    }
-
-private:
-    enum { MAX_DT_NUM = 10 };
-    size_t value() const {
-        return (((size_t)kind * MAX_DT_NUM + (size_t)src_dt) * MAX_DT_NUM
-                       + (size_t)wei_dt)
-                * MAX_DT_NUM
-                + (size_t)dst_dt;
-    }
-};
-
 // clang-format off
-const std::map<ip_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_IP_P({
+const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_IP_P({
     {{forward, f32, f32, f32}, {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core>)
         CPU_INSTANCE_AARCH64_ACL(acl_inner_product_fwd_t)
@@ -209,7 +191,7 @@ const impl_list_item_t *get_inner_product_impl_list(
             : &desc->weights_desc;
     const memory_desc_t *dst_md
             = is_fwd ? &desc->dst_desc : &desc->diff_dst_desc;
-    ip_impl_key_t key {
+    pk_dt_impl_key_t key {
             prop_kind,
             src_md->data_type,
             wei_md->data_type,

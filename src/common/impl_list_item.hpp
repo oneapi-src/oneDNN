@@ -24,6 +24,25 @@
 namespace dnnl {
 namespace impl {
 
+// This key takes prop_kind and correspondent data_type for src, wei and dst.
+struct pk_dt_impl_key_t {
+    prop_kind_t kind;
+    data_type_t src_dt, wei_dt, dst_dt;
+
+    bool operator<(const pk_dt_impl_key_t &rhs) const {
+        return value() < rhs.value();
+    }
+
+private:
+    enum { MAX_DT_NUM = 10 };
+    size_t value() const {
+        return (((size_t)kind * MAX_DT_NUM + (size_t)src_dt) * MAX_DT_NUM
+                       + (size_t)wei_dt)
+                * MAX_DT_NUM
+                + (size_t)dst_dt;
+    }
+};
+
 struct impl_list_item_t {
     impl_list_item_t() = default;
     impl_list_item_t(const impl_list_item_t &other) = default;
