@@ -39,7 +39,11 @@ const impl_list_item_t reorder_impl_list[] = {
         INSTANCE(ocl::rnn_weights_reorder_t::pd_t),
         INSTANCE(ocl::cross_engine_reorder_t::pd_t),
         INSTANCE(ocl::custom_reorder_t::pd_t), // for specific tensor shapes
-        INSTANCE(ocl::generic_reorder_t::pd_t),// fast and quite generic 
+        
+        // Disable generic reorder - it introduced regressions in reorder and
+        // concat tests that slipped by precommit and were found in nightly.
+        //INSTANCE(ocl::generic_reorder_t::pd_t),// fast and quite generic 
+
         INSTANCE(ocl::ref_reorder_t::pd_t),    // slow but fits every use case
         nullptr,
 };
