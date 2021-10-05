@@ -26,8 +26,10 @@
 #define REG_BWD_PK(...) __VA_ARGS__
 #define REG_BWD_D_PK(...) __VA_ARGS__
 #else
-#define REG_BWD_PK(...)
-#define REG_BWD_D_PK(...)
+#define REG_BWD_PK(...) \
+    { nullptr }
+#define REG_BWD_D_PK(...) \
+    { nullptr }
 #endif
 
 // Primitives section

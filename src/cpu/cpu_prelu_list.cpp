@@ -39,11 +39,11 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_P
         CPU_INSTANCE(ref_prelu_fwd_t)
         nullptr,
     }},
-    {{backward}, {
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_prelu_bwd_t))
-        REG_BWD_PK(CPU_INSTANCE(ref_prelu_bwd_t))
+    {{backward}, REG_BWD_PK({
+        CPU_INSTANCE_X64(jit_prelu_bwd_t)
+        CPU_INSTANCE(ref_prelu_bwd_t)
         nullptr,
-    }},
+    })},
 });
 // clang-format on
 } // namespace

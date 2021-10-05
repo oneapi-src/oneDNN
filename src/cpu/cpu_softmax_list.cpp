@@ -47,12 +47,12 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_S
         CPU_INSTANCE(ref_softmax_fwd_t<bf16>)
         nullptr,
     }},
-    {{backward}, {
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_softmax_bwd_t<avx512_common>))
-        REG_BWD_PK(CPU_INSTANCE(ref_softmax_bwd_t<f32>))
-        REG_BWD_PK(CPU_INSTANCE(ref_softmax_bwd_t<bf16>))
+    {{backward}, REG_BWD_PK({
+        CPU_INSTANCE_X64(jit_uni_softmax_bwd_t<avx512_common>)
+        CPU_INSTANCE(ref_softmax_bwd_t<f32>)
+        CPU_INSTANCE(ref_softmax_bwd_t<bf16>)
         nullptr,
-    }},
+    })},
 });
 // clang-format on
 } // namespace

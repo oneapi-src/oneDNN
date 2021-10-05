@@ -72,16 +72,16 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_E
         CPU_INSTANCE(ref_eltwise_fwd_t<u8>)
         nullptr,
     }},
-    {{backward}, {
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx512_common, f32>))
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx512_core, bf16>))
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx2, f32>))
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx, f32>))
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<sse41, f32>))
-        REG_BWD_PK(CPU_INSTANCE(ref_eltwise_bwd_t<f32>))
-        REG_BWD_PK(CPU_INSTANCE(ref_eltwise_bwd_t<bf16>))
+    {{backward}, REG_BWD_PK({
+        CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx512_common, f32>)
+        CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx512_core, bf16>)
+        CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx2, f32>)
+        CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx, f32>)
+        CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<sse41, f32>)
+        CPU_INSTANCE(ref_eltwise_bwd_t<f32>)
+        CPU_INSTANCE(ref_eltwise_bwd_t<bf16>)
         nullptr,
-    }},
+    })},
 });
 // clang-format on
 } // namespace

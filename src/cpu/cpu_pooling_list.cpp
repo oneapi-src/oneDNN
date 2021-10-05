@@ -66,22 +66,22 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_P
         CPU_INSTANCE(ref_pooling_fwd_t<u8, s32>)
         nullptr,
     }},
-    {{backward}, {
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx512_core, bf16>))
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx512_core, f32>))
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx512_common, f32>))
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx2, f32>))
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx, f32>))
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<sse41, f32>))
-        REG_BWD_PK(CPU_INSTANCE_AARCH64(jit_uni_pooling_bwd_t<sve_512, f32>))
-        REG_BWD_PK(CPU_INSTANCE(nchw_pooling_bwd_t<bf16>))
-        REG_BWD_PK(CPU_INSTANCE(nchw_pooling_bwd_t<f32>))
-        REG_BWD_PK(CPU_INSTANCE(nhwc_pooling_bwd_t<bf16>))
-        REG_BWD_PK(CPU_INSTANCE(nhwc_pooling_bwd_t<f32>))
-        REG_BWD_PK(CPU_INSTANCE(ref_pooling_bwd_t<f32>))
-        REG_BWD_PK(CPU_INSTANCE(ref_pooling_bwd_t<bf16>))
+    {{backward}, REG_BWD_PK({
+        CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx512_core, bf16>)
+        CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx512_core, f32>)
+        CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx512_common, f32>)
+        CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx2, f32>)
+        CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx, f32>)
+        CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<sse41, f32>)
+        CPU_INSTANCE_AARCH64(jit_uni_pooling_bwd_t<sve_512, f32>)
+        CPU_INSTANCE(nchw_pooling_bwd_t<bf16>)
+        CPU_INSTANCE(nchw_pooling_bwd_t<f32>)
+        CPU_INSTANCE(nhwc_pooling_bwd_t<bf16>)
+        CPU_INSTANCE(nhwc_pooling_bwd_t<f32>)
+        CPU_INSTANCE(ref_pooling_bwd_t<f32>)
+        CPU_INSTANCE(ref_pooling_bwd_t<bf16>)
         nullptr,
-    }},
+    })},
 });
 // clang-format on
 } // namespace

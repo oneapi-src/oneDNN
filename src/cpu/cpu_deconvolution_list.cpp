@@ -48,14 +48,14 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_D
         CPU_INSTANCE(ref_deconvolution_fwd_t)
         nullptr,
     }},
-    {{backward_data}, {
-        REG_BWD_PK(CPU_INSTANCE(ref_deconvolution_bwd_data_t))
+    {{backward_data}, REG_BWD_PK({
+        CPU_INSTANCE(ref_deconvolution_bwd_data_t)
         nullptr,
-    }},
-    {{backward_weights}, {
-        REG_BWD_PK(CPU_INSTANCE(ref_deconvolution_bwd_weights_t))
+    })},
+    {{backward_weights}, REG_BWD_PK({
+        CPU_INSTANCE(ref_deconvolution_bwd_weights_t)
         nullptr,
-    }},
+    })},
 });
 // clang-format on
 } // namespace

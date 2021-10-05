@@ -41,12 +41,12 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_R
         CPU_INSTANCE(ref_resampling_fwd_t)
         nullptr,
     }},
-    {{backward}, {
-        REG_BWD_PK(CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t))
-        REG_BWD_PK(CPU_INSTANCE(simple_resampling_bwd_t))
-        REG_BWD_PK(CPU_INSTANCE(ref_resampling_bwd_t))
+    {{backward}, REG_BWD_PK({
+        CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t)
+        CPU_INSTANCE(simple_resampling_bwd_t)
+        CPU_INSTANCE(ref_resampling_bwd_t)
         nullptr,
-    }},
+    })},
 });
 // clang-format on
 } // namespace
