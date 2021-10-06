@@ -221,7 +221,14 @@ bool ip_fwd_adjust_thread_balance(const jit_brgemm_primitive_conf_t &jbgp) {
 int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
 
-    if (!is_amx_bf16) return get_oc_block(jbgp);
+    // we can't change block size on forward and weights update (external)
+    // if layout is set by user, for backward data it can be choosen different
+    // from external in this case because copy routine
+    const bool not_adjustable_oc_block_size
+            = !jbgp.is_wei_layout_any && jbgp.prop_kind != backward_data;
+
+    if (IMPLICATION(is_amx_bf16, not_adjustable_oc_block_size))
+        return get_oc_block(jbgp);
 
     int oc_block = get_oc_block(jbgp, true);
     if (ip_fwd_adjust_thread_balance(jbgp)) {
@@ -298,7 +305,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     // gemm-based inner product performs better when oc = 1
     if (is_f32 && jbgp.oc == 1) return status::unimplemented;
 
-    jbgp.oc_block = get_oc_block(jbgp);
+    jbgp.oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
     jbgp.nb_oc_blocking = ip_fwd_get_nb_oc_blocking(jbgp);
 
@@ -703,9 +710,7 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
 
     jbgp.oc_block = has_weights_buffer ? get_oc_block(jbgp)
                                        : ip_fwd_get_adjusted_oc_block(jbgp);
-    jbgp.oc_block_ext = jbgp.is_wei_layout_any
-            ? ip_fwd_get_adjusted_oc_block(jbgp)
-            : get_oc_block(jbgp);
+    jbgp.oc_block_ext = ip_fwd_get_adjusted_oc_block(jbgp);
 
     jbgp.os_block = get_os_block(jbgp, false, false);
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
