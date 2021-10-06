@@ -22,8 +22,8 @@
 #include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/conv/fma_support.hpp"
 #include "gpu/jit/conv/ir.hpp"
-#include "gpu/jit/conv/kernel_arg_info.hpp"
 #include "gpu/jit/conv/kernel_builder.hpp"
+#include "gpu/jit/conv/kernel_info.hpp"
 #include "gpu/jit/conv/message_support.hpp"
 #include "gpu/jit/conv/ngen_proxy.hpp"
 #include "gpu/jit/conv/post_op_support.hpp"
@@ -566,10 +566,10 @@ public:
     friend class send_impl_t;
 
     conv_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
-            const kernel_arg_info_t &kernel_arg_info);
+            const kernel_info_t &kernel_info);
 
-    void setup_interface(const stmt_t &kernel_body,
-            const kernel_arg_info_t &kernel_arg_info) {
+    void setup_interface(
+            const stmt_t &kernel_body, const kernel_info_t &kernel_info) {
         externalName("gen_conv");
         requireLocalID(3);
         requireLocalSize();
@@ -580,9 +580,9 @@ public:
             requireDPAS();
         if (cfg_.do_atomic_update) requireGlobalAtomics();
 
-        for (int i = 0; i < kernel_arg_info.nargs(); i++) {
-            auto &name = kernel_arg_info.arg_name(i);
-            auto &type = kernel_arg_info.arg_type(i);
+        for (int i = 0; i < kernel_info.nargs(); i++) {
+            auto &name = kernel_info.arg_name(i);
+            auto &type = kernel_info.arg_type(i);
             if (type.is_ptr()) {
                 newArgument(name, ngen::ExternalArgumentType::GlobalPtr);
             } else {
@@ -942,16 +942,25 @@ class zero_out_kernel_t : public jit_generator<hw> {
 public:
     NGEN_FORWARD_OPENCL(hw);
 
-    zero_out_kernel_t(int simd, int regs, bool with_dpas) : ra_(hw) {
+    zero_out_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
+            const kernel_info_t &kernel_info)
+        : ra_(hw) {
         externalName("zero_out");
         requireLocalID(1);
         requireLocalSize();
-        requireGRF(regs);
-        requireSIMD(simd);
-        if (with_dpas) requireDPAS();
+        requireGRF(cfg.regs);
+        requireSIMD(cfg.simd_size);
+        if (cfg.is_dpas_fma()) requireDPAS();
 
-        newArgument("ptr", ngen::ExternalArgumentType::GlobalPtr);
-        newArgument("size", ngen::DataType::ud);
+        for (int i = 0; i < kernel_info.nargs(); i++) {
+            auto &name = kernel_info.arg_name(i);
+            auto &type = kernel_info.arg_type(i);
+            if (type.is_ptr()) {
+                newArgument(name, ngen::ExternalArgumentType::GlobalPtr);
+            } else {
+                newArgument(name, to_ngen(type));
+            }
+        }
 
         finalizeInterface();
 
@@ -959,8 +968,13 @@ public:
         ra_.claim(r0);
         ra_.claim(getLocalID(0));
         ra_.claim(getLocalSize(0));
-        ra_.claim(getArgument("ptr"));
-        ra_.claim(getArgument("size"));
+
+        std::vector<std::string> arg_names(kernel_info.nargs());
+        ;
+        for (int i = 0; i < kernel_info.nargs(); i++) {
+            arg_names[i] = kernel_info.arg_name(i);
+            ra_.claim(getArgument(arg_names[i]));
+        }
 
         setDefaultNoMask();
         setDefaultAutoSWSB(true);
@@ -976,15 +990,15 @@ public:
             emu_state.temp[1] = ra_.alloc();
         }
 
-        auto ptr = getArgument("ptr");
-        auto surf = Surface(getArgumentSurface("ptr"));
-        auto size = getArgument("size");
+        auto ptr = getArgument(arg_names[0]);
+        auto surf = Surface(getArgumentSurface(arg_names[0]));
+        auto size = getArgument(arg_names[1]);
         auto global_id = ra_.alloc_sub<uint32_t>();
         auto off0 = ra_.alloc_sub<uint32_t>();
 
         mul(1, global_id, r0.ud(1), getLocalSize(0).uw());
         add(1, global_id, global_id, getLocalID(0));
-        shl(1, off0, global_id, math::ilog2q(bytes_per_thr / simd));
+        shl(1, off0, global_id, math::ilog2q(bytes_per_thr / cfg.simd_size));
 
         int grf_size = ngen::GRF::bytes(hw);
         int bytes_per_store = 16;
@@ -1056,181 +1070,6 @@ private:
 
 template <ngen::HW hw>
 const int zero_out_kernel_t<hw>::bytes_per_thr = 128;
-
-template <ngen::HW hw = ngen::HW::Unknown>
-class reorder_kernel_t : public jit_generator<hw> {
-public:
-    NGEN_FORWARD_OPENCL(hw);
-
-    reorder_kernel_t(int simd, int regs, bool with_dpas) : ra_(hw) {
-        externalName("reorder");
-        requireLocalID(1);
-        requireLocalSize();
-        requireGRF(regs);
-        requireSIMD(simd);
-        if (with_dpas) requireDPAS();
-
-        newArgument("src", ngen::ExternalArgumentType::GlobalPtr);
-        newArgument("dst", ngen::ExternalArgumentType::GlobalPtr);
-        newArgument("elems", ngen::DataType::ud);
-
-        finalizeInterface();
-
-        // Claim registers.
-        ra_.claim(r0);
-        ra_.claim(getLocalID(0));
-        ra_.claim(getLocalSize(0));
-        ra_.claim(getArgument("src"));
-        ra_.claim(getArgument("dst"));
-        ra_.claim(getArgument("elems"));
-
-        setDefaultNoMask();
-        setDefaultAutoSWSB(true);
-
-        bool use_a64 = false;
-        // XXX: Stateful messages don't work on XeHPC.
-        use_a64 = (hw == ngen::HW::XeHPC);
-
-        prologue();
-
-        if (emu_strategy.emulate64) {
-            emu_state.temp[0] = ra_.alloc();
-            emu_state.temp[1] = ra_.alloc();
-        }
-
-        int grf_size = ngen::GRF::bytes(hw);
-        int ud_size = sizeof(uint32_t);
-        int uq_size = sizeof(uint64_t);
-        int f_size = sizeof(float);
-        int bf_size = sizeof(uint16_t);
-
-        auto src = getArgument("src");
-        auto dst = getArgument("dst");
-        auto src_surf = Surface(getArgumentSurface("src"));
-        auto dst_surf = Surface(getArgumentSurface("dst"));
-        auto elems = getArgument("elems");
-        auto global_id = ra_.alloc_sub<uint32_t>();
-        auto elem_vec = ra_.alloc_range(elems_per_thr * ud_size / grf_size);
-        auto src_ptr_vec = ra_.alloc_range(elems_per_thr * uq_size / grf_size);
-
-        auto get_elem = [&](int i) {
-            return get_subregister(hw, ngen::DataType::ud, elem_vec, i);
-        };
-
-        auto S = ra_.alloc_range(elems_per_thr * f_size / grf_size);
-        // D is for bf16 but allocated as dword-strided to use with
-        // scattered_byte(2) messages.
-        auto D = ra_.alloc_range(elems_per_thr * f_size / grf_size);
-
-        auto get_src_reg = [&](int i) {
-            return get_subregister(hw, ngen::DataType::f, S, i);
-        };
-
-        auto get_dst_reg = [&](int i) {
-            return get_subregister(hw, ngen::DataType::bf, D, i);
-        };
-
-        mul(1, global_id, r0.ud(1), getLocalSize(0).uw());
-        add(1, global_id, global_id, getLocalID(0));
-
-        auto idx_vec = ra_.alloc().uw();
-        mov(8, idx_vec, ngen::Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
-        for (int i = 0; i < elems_per_thr; i += 8)
-            shl(8, get_elem(i), global_id, math::ilog2q(elems_per_thr / simd));
-        for (int i = 0; i < elems_per_thr; i += 8) {
-            add3(8, get_elem(i), get_elem(i), idx_vec, i);
-            if (use_a64) {
-                auto src_ptr_sub_vec = get_subregister(
-                        hw, ngen::DataType::uq, src_ptr_vec, i)(1);
-                eshl(8, src_ptr_sub_vec, get_elem(i)(1), math::ilog2q(f_size));
-                eadd(8, src_ptr_sub_vec, src_ptr_sub_vec, src);
-            }
-        }
-
-        int elems_per_load = 16;
-        for (int i = 0; i < elems_per_thr; i += elems_per_load) {
-            cmp(16 | lt | f0[0], get_elem(i), elems);
-            if (use_a64) {
-                auto h_a64 = get_subregister(
-                        hw, ngen::DataType::uq, src_ptr_vec, i);
-                load(16 | f0[0], get_src_reg(i), ngen::scattered_dword(), A64,
-                        h_a64);
-            } else {
-                auto h_bts = get_elem(i);
-                load(16 | f0[0], get_src_reg(i), ngen::scattered_dword(),
-                        src_surf, h_bts);
-            }
-        }
-
-        int mov_step = (grf_size == 32 ? 8 : 16);
-        for (int i = 0; i < elems_per_thr; i += mov_step) {
-            // dst is dword-strided.
-            mov(mov_step, get_dst_reg(i * 2)(2), get_src_reg(i)(1));
-        }
-
-        auto dst_header = ra_.alloc_range(
-                elems_per_load * (use_a64 ? uq_size : ud_size) / grf_size);
-        for (int i = 0; i < elems_per_thr; i += elems_per_load) {
-            for (int j = 0; j < elems_per_load; j += 8) {
-                ngen::RegData h;
-                if (use_a64) {
-                    int off = j * uq_size;
-                    h = dst_header[off / grf_size].uq(
-                            (off % grf_size) / uq_size)(1);
-                } else {
-                    int off = j * ud_size;
-                    h = dst_header[off / grf_size].ud(
-                            (off % grf_size) / ud_size)(1);
-                }
-                eshl(8, h, get_elem(i + j)(1), math::ilog2q(bf_size));
-                if (use_a64) eadd(8, h, h, dst);
-            }
-
-            cmp(16 | lt | f0[0], get_elem(i), elems);
-            if (use_a64) {
-                store(16 | f0[0], ngen::scattered_byte(2), A64, dst_header[0],
-                        get_dst_reg(i * 2));
-            } else {
-                store(16 | f0[0], ngen::scattered_byte(2), dst_surf,
-                        dst_header[0], get_dst_reg(i * 2));
-            }
-        }
-
-        epilogue();
-    }
-
-    friend struct dnnl::impl::gpu::jit::EmulationImplementation;
-
-    template <typename DT = void>
-    void emov(const ngen::InstructionModifier &mod, ngen::RegData dst,
-            ngen::RegData src0) {
-        EmulationImplementation::emov<DT>(*this, mod, dst, src0, emu_strategy);
-    }
-
-    template <typename DT = void>
-    void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::RegData &src1) {
-        EmulationImplementation::eadd<DT>(
-                *this, mod, dst, src0, src1, emu_strategy, emu_state);
-    }
-
-    template <typename DT = void>
-    void eshl(const ngen::InstructionModifier &mod, ngen::RegData dst,
-            ngen::RegData src0, uint16_t src1) {
-        EmulationImplementation::eshl<DT>(
-                *this, mod, dst, src0, src1, emu_strategy, emu_state);
-    }
-
-    static const int elems_per_thr;
-
-private:
-    ngen::RegisterAllocator ra_;
-    EmulationStrategy emu_strategy = EmulationStrategy(hw);
-    EmulationState emu_state;
-};
-
-template <ngen::HW hw>
-const int reorder_kernel_t<hw>::elems_per_thr = 32;
 
 // Evaluates expression by emitting instructions with nGEN.
 template <ngen::HW hw>
@@ -2346,6 +2185,348 @@ private:
     tensor_t tile_;
 };
 
+template <ngen::HW hw = ngen::HW::Unknown>
+class reorder_kernel_t : public jit_generator<hw> {
+public:
+    NGEN_FORWARD_OPENCL(hw);
+
+    reorder_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
+            const kernel_info_t &kernel_info, const layout_t &src_layout,
+            const layout_t &dst_layout)
+        : simd_size_(cfg.simd_size), ra_(hw) {
+        externalName("reorder");
+        requireLocalID(1);
+        requireLocalSize();
+        requireGRF(cfg.regs);
+        requireSIMD(simd_size_);
+        if (cfg.is_dpas_fma()) requireDPAS();
+
+        for (int i = 0; i < kernel_info.nargs(); i++) {
+            auto &name = kernel_info.arg_name(i);
+            auto &type = kernel_info.arg_type(i);
+            if (type.is_ptr()) {
+                newArgument(name, ngen::ExternalArgumentType::GlobalPtr);
+            } else {
+                newArgument(name, to_ngen(type));
+            }
+        }
+
+        finalizeInterface();
+
+        // Claim registers.
+        ra_.claim(r0);
+        ra_.claim(getLocalID(0));
+        ra_.claim(getLocalSize(0));
+
+        std::vector<std::string> arg_names(kernel_info.nargs());
+
+        for (int i = 0; i < kernel_info.nargs(); i++) {
+            arg_names[i] = kernel_info.arg_name(i);
+            ra_.claim(getArgument(kernel_info.arg_name(i)));
+        }
+
+        setDefaultNoMask();
+        setDefaultAutoSWSB(true);
+
+        prologue();
+
+        if (emu_strategy.emulate64) {
+            emu_state.temp[0] = ra_.alloc();
+            emu_state.temp[1] = ra_.alloc();
+        }
+
+        src_ptr_ = getArgument(arg_names[0]);
+        dst_ptr_ = getArgument(arg_names[1]);
+        src_surf_ = Surface(getArgumentSurface(arg_names[0]));
+        dst_surf_ = Surface(getArgumentSurface(arg_names[1]));
+        elems_ = getArgument(arg_names[2]);
+
+        global_id_ = ra_.alloc_sub<uint32_t>();
+
+        mul(1, global_id_, r0.ud(1), getLocalSize(0).uw());
+        add(1, global_id_, global_id_, getLocalID(0));
+
+        int elems_per_thr;
+        if (is_f32_to_bf16(src_layout, dst_layout)) {
+            emit_f32_to_bf16();
+        } else if (is_2d_reorder(src_layout, dst_layout, elems_per_thr)) {
+            emit_2d_reorder(src_layout, dst_layout, elems_per_thr);
+        } else {
+            ir_error_not_expected();
+        }
+
+        epilogue();
+    }
+
+    void emit_f32_to_bf16() {
+        int elems_per_thr = f32_to_bf16_elems_per_thr();
+
+        bool use_a64 = false;
+        // XXX: Stateful messages don't work on XeHPC.
+        use_a64 = (hw == ngen::HW::XeHPC);
+
+        int grf_size = ngen::GRF::bytes(hw);
+        int ud_size = sizeof(uint32_t);
+        int uq_size = sizeof(uint64_t);
+        int f_size = sizeof(float);
+        int bf_size = sizeof(uint16_t);
+
+        auto elem_vec = ra_.alloc_range(elems_per_thr * ud_size / grf_size);
+        auto src_ptr_vec = ra_.alloc_range(elems_per_thr * uq_size / grf_size);
+
+        auto get_elem = [&](int i) {
+            return get_subregister(hw, ngen::DataType::ud, elem_vec, i);
+        };
+
+        auto S = ra_.alloc_range(elems_per_thr * f_size / grf_size);
+        // D is for bf16 but allocated as dword-strided to use with
+        // scattered_byte(2) messages.
+        auto D = ra_.alloc_range(elems_per_thr * f_size / grf_size);
+
+        auto get_src_reg = [&](int i) {
+            return get_subregister(hw, ngen::DataType::f, S, i);
+        };
+
+        auto get_dst_reg = [&](int i) {
+            return get_subregister(hw, ngen::DataType::bf, D, i);
+        };
+
+        auto idx_vec = ra_.alloc().uw();
+        mov(8, idx_vec, ngen::Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
+        for (int i = 0; i < elems_per_thr; i += 8)
+            shl(8, get_elem(i), global_id_,
+                    math::ilog2q(elems_per_thr / simd_size_));
+        for (int i = 0; i < elems_per_thr; i += 8) {
+            add3(8, get_elem(i), get_elem(i), idx_vec, i);
+            if (use_a64) {
+                auto src_ptr_sub_vec = get_subregister(
+                        hw, ngen::DataType::uq, src_ptr_vec, i)(1);
+                eshl(8, src_ptr_sub_vec, get_elem(i)(1), math::ilog2q(f_size));
+                eadd(8, src_ptr_sub_vec, src_ptr_sub_vec, src_ptr_);
+            }
+        }
+
+        int elems_per_load = 16;
+        for (int i = 0; i < elems_per_thr; i += elems_per_load) {
+            cmp(16 | lt | f0[0], get_elem(i), elems_);
+            if (use_a64) {
+                auto h_a64 = get_subregister(
+                        hw, ngen::DataType::uq, src_ptr_vec, i);
+                load(16 | f0[0], get_src_reg(i), ngen::scattered_dword(), A64,
+                        h_a64);
+            } else {
+                auto h_bts = get_elem(i);
+                load(16 | f0[0], get_src_reg(i), ngen::scattered_dword(),
+                        src_surf_, h_bts);
+            }
+        }
+
+        int mov_step = (grf_size == 32 ? 8 : 16);
+        for (int i = 0; i < elems_per_thr; i += mov_step) {
+            // dst is dword-strided.
+            mov(mov_step, get_dst_reg(i * 2)(2), get_src_reg(i)(1));
+        }
+
+        auto dst_header = ra_.alloc_range(
+                elems_per_load * (use_a64 ? uq_size : ud_size) / grf_size);
+        for (int i = 0; i < elems_per_thr; i += elems_per_load) {
+            for (int j = 0; j < elems_per_load; j += 8) {
+                ngen::RegData h;
+                if (use_a64) {
+                    int off = j * uq_size;
+                    h = dst_header[off / grf_size].uq(
+                            (off % grf_size) / uq_size)(1);
+                } else {
+                    int off = j * ud_size;
+                    h = dst_header[off / grf_size].ud(
+                            (off % grf_size) / ud_size)(1);
+                }
+                eshl(8, h, get_elem(i + j)(1), math::ilog2q(bf_size));
+                if (use_a64) eadd(8, h, h, dst_ptr_);
+            }
+
+            cmp(16 | lt | f0[0], get_elem(i), elems_);
+            if (use_a64) {
+                store(16 | f0[0], ngen::scattered_byte(2), A64, dst_header[0],
+                        get_dst_reg(i * 2));
+            } else {
+                store(16 | f0[0], ngen::scattered_byte(2), dst_surf_,
+                        dst_header[0], get_dst_reg(i * 2));
+            }
+        }
+    }
+
+    void emit_2d_reorder(
+            const layout_t &_src, const layout_t &_dst, int elems_per_thr) {
+        auto tile = _src.split_into_max_tile(elems_per_thr, /*is_dense=*/true);
+        ir_assert(!tile.is_empty()) << "Can't split " << _src;
+
+        auto src = _src.map(tile);
+        auto dst = _dst.map(tile);
+
+        int src_size = src.type().size();
+        int dst_size = dst.type().size();
+        int src_tile_bytes = src_size * elems_per_thr;
+        int dst_tile_bytes = dst_size * elems_per_thr;
+
+        int grf_size = ngen::GRF::bytes(hw);
+
+        auto S = ra_.alloc_range(utils::div_up(src_tile_bytes, grf_size));
+        auto D = ra_.alloc_range(utils::div_up(dst_tile_bytes, grf_size));
+
+        auto src_header = ra_.alloc();
+        auto dst_header = ra_.alloc();
+
+        // Prepare headers for loads and stores.
+        eshl(1, src_header.uq(0), global_id_,
+                math::ilog2q(elems_per_thr / simd_size_ * src_size));
+        eshl(1, dst_header.uq(0), global_id_,
+                math::ilog2q(elems_per_thr / simd_size_ * dst_size));
+        eadd(1, src_header.uq(0), src_header.uq(0), src_ptr_);
+        eadd(1, dst_header.uq(0), dst_header.uq(0), dst_ptr_);
+
+        int oword_bytes = 16;
+
+        // Load source tile.
+        int src_off = 0;
+        while (src_tile_bytes > 0) {
+            for (int i = 3; i >= 0; i--) {
+                int size = (1 << i) * oword_bytes;
+                if (src_tile_bytes >= size) {
+                    load(16, S[src_off / grf_size],
+                            ngen::block_oword(size / oword_bytes), A64,
+                            src_header);
+                    eadd(1, src_header.uq(0), src_header.uq(0), size);
+                    src_tile_bytes -= size;
+                    src_off += size;
+                    break;
+                }
+            }
+        }
+
+        // Reorder source tile to destination tile.
+        ngen_register_scope_t scope(ra_);
+        reorder_2d_impl_t r(hw, src, dst);
+        r.emit(this, scope, grf_permutator_t(hw), S[0], D[0]);
+
+        // Store destination tile.
+        int dst_off = 0;
+        while (dst_tile_bytes > 0) {
+            for (int i = 3; i >= 0; i--) {
+                int size = (1 << i) * oword_bytes;
+                if (dst_tile_bytes >= size) {
+                    store(16, ngen::block_oword(size / oword_bytes), A64,
+                            dst_header, D[dst_off / grf_size]);
+                    eadd(1, dst_header.uq(0), dst_header.uq(0), size);
+                    dst_tile_bytes -= size;
+                    dst_off += size;
+                    break;
+                }
+            }
+        }
+    }
+
+    friend struct dnnl::impl::gpu::jit::EmulationImplementation;
+
+    template <typename DT = void>
+    void emov(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const ngen::RegData &src0) {
+        EmulationImplementation::emov<DT>(*this, mod, dst, src0, emu_strategy);
+    }
+
+    template <typename DT = void>
+    void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const ngen::RegData &src0, const ngen::RegData &src1) {
+        EmulationImplementation::eadd<DT>(
+                *this, mod, dst, src0, src1, emu_strategy, emu_state);
+    }
+
+    template <typename DT = void>
+    void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const ngen::RegData &src0, const ngen::Immediate &src1) {
+        EmulationImplementation::eadd<DT>(
+                *this, mod, dst, src0, src1, emu_strategy, emu_state);
+    }
+
+    template <typename DT = void>
+    void eshl(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const ngen::RegData &src0, uint16_t src1) {
+        EmulationImplementation::eshl<DT>(
+                *this, mod, dst, src0, src1, emu_strategy, emu_state);
+    }
+
+    static compute::nd_range_t nd_range(
+            int simd, const layout_t &src, const layout_t &dst) {
+        ir_assert(src.elems() == dst.elems());
+
+        if (is_f32_to_bf16(src, dst)) {
+            int elems_per_thr = f32_to_bf16_elems_per_thr();
+            return compute::nd_range_t(
+                    {utils::div_up(src.elems(), elems_per_thr) * simd});
+        }
+
+        int elems_per_thr;
+        if (is_2d_reorder(src, dst, elems_per_thr)) {
+            return compute::nd_range_t(
+                    {utils::div_up(src.elems(), elems_per_thr) * simd});
+        }
+
+        ir_error_not_expected();
+        return compute::nd_range_t();
+    }
+
+private:
+    static bool is_f32_to_bf16(const layout_t &src, const layout_t &dst) {
+        if (src.type() != type_t::f32()) return false;
+        if (dst.type() != type_t::bf16()) return false;
+        if (src.retype(type_t::u8()) != dst.retype(type_t::u8())) return false;
+        return true;
+    }
+
+    static int f32_to_bf16_elems_per_thr() { return 32; }
+
+    static bool is_2d_reorder(
+            const layout_t &src, const layout_t &dst, int &elems_per_thr) {
+        const int hword_bytes = 32;
+        const int min_bytes_per_thr = hword_bytes;
+        const int max_bytes_per_thr = 16 * hword_bytes;
+
+        int max_elems_per_thr = max_bytes_per_thr
+                / std::max(src.type().size(), dst.type().size());
+
+        auto tile
+                = reorder_2d_impl_t::find_2d_tile(src, dst, max_elems_per_thr);
+
+        if (tile.is_empty()) return false;
+
+        elems_per_thr = tile.elems();
+        int src_bytes_per_thr = elems_per_thr * src.type().size();
+        int dst_bytes_per_thr = elems_per_thr * dst.type().size();
+
+        if (src_bytes_per_thr % hword_bytes != 0) return false;
+        if (dst_bytes_per_thr % hword_bytes != 0) return false;
+
+        if (std::min(src_bytes_per_thr, dst_bytes_per_thr) < min_bytes_per_thr)
+            return false;
+        if (std::max(src_bytes_per_thr, dst_bytes_per_thr) > max_bytes_per_thr)
+            return false;
+
+        return true;
+    }
+
+    int simd_size_;
+    ngen::RegisterAllocator ra_;
+    EmulationStrategy emu_strategy = EmulationStrategy(hw);
+    EmulationState emu_state;
+
+    ngen::Subregister src_ptr_;
+    ngen::Subregister dst_ptr_;
+    ngen::AddressBase src_surf_;
+    ngen::AddressBase dst_surf_;
+    ngen::Subregister elems_;
+    ngen::Subregister global_id_;
+};
+
 ngen::Subregister get_subregister(ngen::HW hw, const grf_permutator_t &grf_perm,
         const ngen::Subregister &base_sub, int off, int width, int stride_bytes,
         ngen::DataType type = ngen::DataType::invalid) {
@@ -2432,8 +2613,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     src_stride_bytes, ngen::DataType::uw);
             auto d = get_subregister(hw, grf_perm, dst, i, esize,
                     dst_stride_bytes, ngen::DataType::ud);
-            host->eshl(
-                    esize, d(dst_stride), s(src_stride), ngen::Immediate(16));
+            host->eshl(esize, d(dst_stride), s(src_stride), 16);
         }
         return;
     }
@@ -3249,7 +3429,7 @@ private:
 
 template <ngen::HW hw>
 conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
-        const convolution_pd_t *pd, const kernel_arg_info_t &kernel_arg_info)
+        const convolution_pd_t *pd, const kernel_info_t &kernel_info)
     : cfg_(cfg), ra_(hw) {
 
     // XXX: BWD_W does 32x32 multiplication in the inner loop which may cause
@@ -3258,12 +3438,12 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     if (cfg_.is_bwd_w) emu_strategy.emulate64 = true;
 
     // Build IR for the kernel.
-    kernel_builder_t builder(cfg, pd, kernel_arg_info);
+    kernel_builder_t builder(cfg, pd, kernel_info);
     stmt_t body = builder.stmt();
 
     alloc_manager_t alloc_mgr(body);
 
-    setup_interface(body, kernel_arg_info);
+    setup_interface(body, kernel_info);
 
     setDefaultNoMask();
     setDefaultAutoSWSB(true);
@@ -3275,8 +3455,8 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     for (int i = 0; i < 3; i++)
         ra_.claim(getLocalID(i));
 
-    for (int i = 0; i < kernel_arg_info.nargs(); i++) {
-        ra_.claim(getArgument(kernel_arg_info.arg_name(i)));
+    for (int i = 0; i < kernel_info.nargs(); i++) {
+        ra_.claim(getArgument(kernel_info.arg_name(i)));
     }
 
     if (emu_strategy.emulate64) {
@@ -3304,9 +3484,9 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     }
 
     // Bind arguments.
-    for (int i = 0; i < kernel_arg_info.nargs(); i++) {
-        auto &arg_var = kernel_arg_info.arg_var(i);
-        auto &name = kernel_arg_info.arg_name(i);
+    for (int i = 0; i < kernel_info.nargs(); i++) {
+        auto &arg_var = kernel_info.arg_var(i);
+        auto &name = kernel_info.arg_name(i);
         if (arg_var.type().is_ptr()) {
             auto alloc_buf = alloc_mgr.find_buffer(name);
             ir_assert(alloc_buf.is_same(arg_var));

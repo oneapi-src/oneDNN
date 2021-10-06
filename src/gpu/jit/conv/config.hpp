@@ -29,6 +29,7 @@
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/jit/conv/fma_support.hpp"
 #include "gpu/jit/conv/tensor.hpp"
+#include "gpu/jit/conv/tensor_config.hpp"
 #include "gpu/jit/conv/utils.hpp"
 #include "gpu/jit/jit_eltwise_injector.hpp"
 
@@ -51,18 +52,10 @@ public:
         with_bias = conv_pd->with_bias();
         with_groups = conv_pd->with_groups();
 
-        orig_src_md = *conv_pd->invariant_src_md();
-        orig_wei_md = *conv_pd->invariant_wei_md();
-        orig_dst_md = *conv_pd->invariant_dst_md();
-        orig_bia_md = *conv_pd->invariant_bia_md();
-
-        src_data_type = orig_src_md.data_type;
-        wei_data_type = orig_wei_md.data_type;
-        dst_data_type = orig_dst_md.data_type;
-        bia_data_type = orig_bia_md.data_type;
-
-        if (with_bias)
-            bia_layout = layout_t(orig_bia_md, "a", /*do_normalize=*/false);
+        src_data_type = conv_pd->invariant_src_md()->data_type;
+        wei_data_type = conv_pd->invariant_wei_md()->data_type;
+        bia_data_type = conv_pd->invariant_bia_md()->data_type;
+        dst_data_type = conv_pd->invariant_dst_md()->data_type;
 
         ndims = conv_pd->ndims();
 
@@ -123,16 +116,6 @@ public:
         }
     }
 
-    memory_desc_wrapper orig_src_mdw() const {
-        return memory_desc_wrapper(orig_src_md);
-    }
-    memory_desc_wrapper orig_wei_mdw() const {
-        return memory_desc_wrapper(orig_wei_md);
-    }
-    memory_desc_wrapper orig_dst_mdw() const {
-        return memory_desc_wrapper(orig_dst_md);
-    }
-
     std::string desc_str() const {
         std::ostringstream oss;
         oss << "mb" << mb;
@@ -154,15 +137,7 @@ public:
         return oss.str();
     }
 
-    memory_desc_t orig_src_md;
-    memory_desc_t orig_wei_md;
-    memory_desc_t orig_dst_md;
-    memory_desc_t orig_bia_md;
-
-    layout_t src_layout;
-    layout_t wei_layout;
-    layout_t dst_layout;
-    layout_t bia_layout;
+    tensor_config_t tensor_config;
 
     data_type_t src_data_type;
     data_type_t wei_data_type;
@@ -222,7 +197,7 @@ public:
             CHECK(init_bwd_d(conv_pd));
             output_md = conv_pd->diff_src_md();
         } else if (is_bwd_w) {
-            CHECK(init_bwd_w());
+            CHECK(init_bwd_w(conv_pd));
             output_md = conv_pd->diff_weights_md();
         } else {
             ir_error_not_expected();
@@ -233,6 +208,8 @@ public:
         if (!post_ops_ok(conv_pd)) return status::unimplemented;
         if (!hw_ok(engine)) return status::unimplemented;
 
+        CHECK(init_extra_tensor_layouts(conv_pd));
+
         return status::success;
     }
 
@@ -241,12 +218,9 @@ public:
 
         if (ic < 16 && !is_dpas_fma() && !is_dw) return status::unimplemented;
 
-        auto &src_md = *conv_pd->invariant_src_md();
-        auto &dst_md = *conv_pd->invariant_dst_md();
-        bool is_src_nhwc = (orig_src_mdw().is_plain()
-                && src_layout == make_layout(src_md, "axb"));
-        bool is_dst_nhwc = (orig_dst_mdw().is_plain()
-                && dst_layout == make_layout(dst_md, "axb"));
+        bool is_src_nhwc = is_nhwc("src", conv_pd);
+        bool is_dst_nhwc = is_nhwc("dst", conv_pd);
+
         // Set dispatch and kernel parameters.
         if (is_dw) {
             g_tg_blk = (is_int8_dst() ? 32 : 16);
@@ -507,14 +481,10 @@ public:
         fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
 
-        auto &src_md = *conv_pd->invariant_src_md();
-        auto &dst_md = *conv_pd->invariant_dst_md();
-
         // Validate layouts.
-        bool is_src_nhwc = (orig_src_mdw().is_plain()
-                && src_layout == make_layout(src_md, "axb"));
-        bool is_dst_nhwc = (orig_dst_mdw().is_plain()
-                && dst_layout == make_layout(dst_md, "axb"));
+        bool is_src_nhwc = is_nhwc("src", conv_pd);
+        bool is_dst_nhwc = is_nhwc("dst", conv_pd);
+
         // XXX: in case of nhwc or small mb allow reorders on XeHPC
         // since A/B tile loads may be strided
         if (hw >= ngen::HW::XeHPC
@@ -528,7 +498,7 @@ public:
         return status::success;
     }
 
-    status_t init_bwd_w() {
+    status_t init_bwd_w(convolution_pd_t *conv_pd) {
         using namespace ir_utils;
 
         if (fma_kind == fma_kind_t::mad) {
@@ -641,10 +611,24 @@ public:
         do_b_reduction = with_bias;
         do_loop_unroll = (hw >= ngen::HW::XeHPC && is_dpas_fma() && mb_blk > 1);
         allow_grf_reorder = is_dpas_fma();
-        zero_out_output = true;
         do_atomic_update = true;
-        do_post_wei_reorder = (wei_data_type == data_type::bf16);
-        do_post_bia_reorder = (with_bias && bia_data_type == data_type::bf16);
+
+        if (!with_sum_post_op(conv_pd)) {
+            tensor_config.require_zero_out("wei");
+            if (with_bias) tensor_config.require_zero_out("bia");
+        }
+
+        if (wei_data_type == data_type::bf16) {
+            auto &bf16_layout = tensor_config.compute_layout("wei");
+            tensor_config.set_compute_layout(
+                    "wei", bf16_layout.retype(type_t::f32()));
+        }
+
+        if (bia_data_type == data_type::bf16) {
+            auto &bf16_layout = tensor_config.compute_layout("bia");
+            tensor_config.set_compute_layout(
+                    "bia", bf16_layout.retype(type_t::f32()));
+        }
 
 #ifdef GEN_CONV_DEBUG
         do_loop_unroll = getenv_bool("do_loop_unroll", do_loop_unroll);
@@ -653,15 +637,6 @@ public:
 
         fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
-
-        if (do_post_wei_reorder) {
-            wei_layout = wei_layout.retype(type_t::f32());
-            orig_wei_md.data_type = data_type::f32;
-        }
-        if (do_post_bia_reorder) {
-            bia_layout = bia_layout.retype(type_t::f32());
-            orig_bia_md.data_type = data_type::f32;
-        }
 
         // XXX: disable f32 bwd_w due to hang
         if (hw == ngen::HW::XeHP || hw == ngen::HW::XeHPG)
@@ -753,11 +728,8 @@ public:
         assign_sbids = is_dpas_fma();
         do_loop_unroll = hw > ngen::HW::XeLP;
         reduce_grf_usage = true;
-        zero_out_output = false;
         do_atomic_update = false;
         reuse_headers = hw <= ngen::HW::XeLP;
-        do_post_wei_reorder = false;
-        do_post_bia_reorder = false;
         a_sub_tiles = 1;
         b_sub_tiles = 1;
 
@@ -882,9 +854,9 @@ public:
         std::ostringstream oss;
         // clang-format off
         oss << "  Problem:                    " << desc_str() << std::endl;
-        oss << "  Source layout:              " << src_layout << std::endl;
-        oss << "  Weights layout:             " << wei_layout << std::endl;
-        oss << "  Destination layout:         " << dst_layout << std::endl;
+        oss << "  Source layout:              " << tensor_config.compute_layout("src") << std::endl;
+        oss << "  Weights layout:             " << tensor_config.compute_layout("wei") << std::endl;
+        oss << "  Destination layout:         " << tensor_config.compute_layout("dst") << std::endl;
         oss << "  MB TG block:                " << mb_tg_blk << std::endl;
         oss << "  OD TG block:                " << od_tg_blk << std::endl;
         oss << "  OH TG block:                " << oh_tg_blk << std::endl;
@@ -994,13 +966,8 @@ public:
     bool do_loop_unroll; // Whether to fully unroll inner loops.
     bool reduce_grf_usage; // Whether to try to reduce GRF usage based on heuristics.
     bool allow_grf_reorder; // Whether to allow GRF reorders to FMA-friendly layouts.
-    bool zero_out_output; // Whether to zero out outputs before the main kernel.
     bool do_atomic_update; // Whether to use atomics during C update.
     bool reuse_headers; // Whether to reuse header messages to reduce GRF usage.
-
-    // Specific to BWD_W.
-    bool do_post_bia_reorder; // Whether to perform extra reorder for weights.
-    bool do_post_wei_reorder; // Whether to perform extra reorder for bias.
 
     // Sub-tiles to split into for the inner A x B multiplication:
     // for i in range(0, a_sub_tiles):
@@ -1157,9 +1124,12 @@ private:
     }
 
     status_t init_data_layouts(convolution_pd_t *conv_pd) {
-        std::string src_tag;
-        std::string wei_tag;
-        std::string dst_tag;
+        // Compute layout tags and user layout tags. If a compute layout is
+        // different from a user layout then an extra pre/post reorder will be
+        // executed before/after convolution.
+        std::string src_tag, user_src_tag;
+        std::string wei_tag, user_wei_tag;
+        std::string dst_tag, user_dst_tag;
 
         const bool is_wei16aXb = hw >= ngen::HW::XeHPC;
         assert(hw != ngen::HW::Unknown);
@@ -1227,30 +1197,47 @@ private:
                 } else if (is_s32_accumulator()) {
                     wei_tag = is_wei16aXb ? "ABx2a8b16a4b" : "ABx4a8b8a4b";
                 } else {
-                    wei_tag = is_wei16aXb ? "ABx2a8b16a2b" : "ABx4a8b8a2b";
+                    wei_tag = is_wei16aXb ? "ABx8b16a2b" : "ABx2a8b8a2b";
                 }
             }
         } else if (is_bwd_d) {
+            // Set user_wei_tag to match forward for dpas to be able to reuse
+            // the same weights buffer/layout on the user side. Compute layout
+            // is different to match dpas so an extra reorder will be used.
             if (fma_kind == fma_kind_t::mad)
                 wei_tag = "ABx16a16b";
-            else if (is_s32_accumulator())
-                wei_tag = is_wei16aXb ? "BAx2b8a16b4a" : "BAx4b8a8b4a";
-            else
-                wei_tag = is_wei16aXb ? "BAx2b8a16b2a" : "BAx4b8a8b2a";
+            else if (is_s32_accumulator()) {
+                user_wei_tag = is_wei16aXb ? "ABx2a8b16a4b" : "ABx4a8b8a4b";
+                wei_tag = is_wei16aXb ? "ABx2b8a16b4a" : "ABx4b8a8b4a";
+            } else {
+                user_wei_tag = is_wei16aXb ? "ABx8b16a2b" : "ABx2a8b8a2b";
+                wei_tag = is_wei16aXb ? "ABx8a16b2a" : "ABx2b8a8b2a";
+            }
         } else if (is_bwd_w) {
             if (is_small_ic()) {
-                wei_tag = "Axb16a";
+                wei_tag = is_wei16aXb ? "ABx16a2b" : "ABx8a2b";
             } else {
-                wei_tag = "ABx16b16a";
+                wei_tag = is_wei16aXb ? "ABx8b16a2b" : "ABx2a8b8a2b";
             }
         }
 
-        if (with_groups && !is_dw) wei_tag = prepend_groups_to_tag(wei_tag);
+        if (user_src_tag.empty()) user_src_tag = src_tag;
+        if (user_wei_tag.empty()) user_wei_tag = wei_tag;
+        if (user_dst_tag.empty()) user_dst_tag = dst_tag;
+
+        if (with_groups && !is_dw) {
+            wei_tag = prepend_groups_to_tag(wei_tag);
+            user_wei_tag = prepend_groups_to_tag(user_wei_tag);
+        }
 
 #ifdef GEN_CONV_DEBUG
         src_tag = ir_utils::getenv_str("stag", src_tag);
         wei_tag = ir_utils::getenv_str("wtag", wei_tag);
         dst_tag = ir_utils::getenv_str("dtag", dst_tag);
+
+        user_src_tag = ir_utils::getenv_str("user_stag", user_src_tag);
+        user_wei_tag = ir_utils::getenv_str("user_wtag", user_wei_tag);
+        user_dst_tag = ir_utils::getenv_str("user_dtag", user_dst_tag);
 #endif
 
         auto &src_md = *conv_pd->invariant_src_md();
@@ -1258,38 +1245,87 @@ private:
         auto &dst_md = *conv_pd->invariant_dst_md();
         auto &bia_md = *conv_pd->invariant_bia_md();
 
-        // Select layouts.
-        src_layout = init_layout(src_md, src_tag);
-        wei_layout = init_layout(wei_md, wei_tag);
-        dst_layout = init_layout(dst_md, dst_tag);
+        // Select user layouts.
+        auto src_layout = init_layout(src_md, user_src_tag);
+        auto wei_layout = init_layout(wei_md, user_wei_tag);
+        auto dst_layout = init_layout(dst_md, user_dst_tag);
+
+        layout_t bia_layout;
         if (with_bias) bia_layout = init_layout(bia_md, "a");
 
         // Validate layouts.
-        bool is_src_nhwc = false;
-        bool is_dst_nhwc = false;
+        bool is_src_nhwc = is_nhwc("src", conv_pd, src_layout);
+        bool is_dst_nhwc = is_nhwc("dst", conv_pd, dst_layout);
+        if (is_src_nhwc != is_dst_nhwc) return status::unimplemented;
 
-        if (is_fwd || is_bwd_d) {
-            is_src_nhwc = (orig_src_mdw().is_plain()
-                    && src_layout == layout_t(src_md, "axb"));
-            is_dst_nhwc = (orig_dst_mdw().is_plain()
-                    && dst_layout == layout_t(dst_md, "axb"));
-            if (is_src_nhwc != is_dst_nhwc) return status::unimplemented;
+        if (is_src_nhwc) {
+            if (is_bwd_w) return status::unimplemented;
+
+            src_tag = user_src_tag = "axb";
+            dst_tag = user_dst_tag = "axb";
 
             // HWord loads require 32 byte alignment. For NHWC layout it means
             // input/output channels must be multiples of 32 bytes.
             size_t ic_bytes = ic * types::data_type_size(src_data_type);
             size_t oc_bytes = oc * types::data_type_size(dst_data_type);
-            if (is_dst_nhwc && (ic_bytes % 32 != 0 || oc_bytes % 32 != 0))
+            if (ic_bytes % 32 != 0 || oc_bytes % 32 != 0)
                 return status::unimplemented;
         }
-        if (!is_src_nhwc
-                && !src_layout.is_strictly_equal(make_layout(src_md, src_tag)))
+        if (!src_layout.is_strictly_equal(make_layout(src_md, user_src_tag)))
             return status::unimplemented;
-        if (!is_dst_nhwc
-                && !dst_layout.is_strictly_equal(make_layout(dst_md, dst_tag)))
+        if (!dst_layout.is_strictly_equal(make_layout(dst_md, user_dst_tag)))
             return status::unimplemented;
-        if (!wei_layout.is_strictly_equal(make_layout(wei_md, wei_tag)))
+        if (!wei_layout.is_strictly_equal(make_layout(wei_md, user_wei_tag)))
             return status::unimplemented;
+
+        tensor_config.add_tensor("src", src_arg_key(), is_src_input(),
+                is_src_output(), src_layout);
+        tensor_config.add_tensor("wei", wei_arg_key(), is_wei_input(),
+                is_wei_output(), wei_layout);
+        if (with_bias)
+            tensor_config.add_tensor("bia", bia_arg_key(), is_bia_input(),
+                    is_bia_output(), bia_layout);
+        tensor_config.add_tensor("dst", dst_arg_key(), is_dst_input(),
+                is_dst_output(), dst_layout);
+
+        if (src_tag != user_src_tag)
+            tensor_config.set_compute_layout("src", layout_t(src_md, src_tag));
+
+        if (wei_tag != user_wei_tag)
+            tensor_config.set_compute_layout("wei", layout_t(wei_md, wei_tag));
+
+        if (dst_tag != user_dst_tag)
+            tensor_config.set_compute_layout("dst", layout_t(dst_md, dst_tag));
+
+        return status::success;
+    }
+
+    status_t init_extra_tensor_layouts(const convolution_pd_t *conv_pd) {
+        auto *attr = conv_pd->attr();
+        bool with_oscales = !attr->output_scales_.has_default_values();
+        if (with_oscales) {
+            std::vector<dim_t> dims = {attr->output_scales_.count_};
+            layout_t oscales_layout(type_t::f32(), 0, dims);
+            int arg_key = -1;
+            if (!attr->output_scales_.defined())
+                arg_key = DNNL_ARG_ATTR_OUTPUT_SCALES;
+            tensor_config.add_tensor("oscales", arg_key, /*is_input=*/true,
+                    /*is_output=*/false, oscales_layout);
+        }
+
+        for (int i = 0; i < attr->post_ops_.len(); i++) {
+            auto &po = attr->post_ops_.entry_[i];
+            if (po.is_binary()) {
+                auto layout = make_layout(po.binary.src1_desc);
+                int arg_key
+                        = DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1;
+                tensor_config.add_tensor("binary_rhs_" + std::to_string(i),
+                        arg_key, /*is_input=*/true,
+                        /*is_output=*/false, layout);
+            } else {
+                ir_error_not_expected();
+            }
+        }
         return status::success;
     }
 
@@ -1546,30 +1582,60 @@ private:
     }
 
     const layout_t &a_layout() const {
-        const layout_t *ret = nullptr;
-        if (is_fwd) {
-            ret = &src_layout;
-        } else if (is_bwd_d) {
-            ret = &dst_layout;
-        } else if (is_bwd_w) {
-            ret = &src_layout;
-        }
-        ir_assert(ret && !ret->is_empty()) << "Layout is not initialized.";
-        return *ret;
+        if (is_fwd) return tensor_config.compute_layout("src");
+        if (is_bwd_d) return tensor_config.compute_layout("dst");
+        return tensor_config.compute_layout("src");
     }
 
     const layout_t &b_layout() const {
-        const layout_t *ret = nullptr;
-        if (is_fwd) {
-            ret = &wei_layout;
-        } else if (is_bwd_d) {
-            ret = &wei_layout;
-        } else if (is_bwd_w) {
-            ret = &dst_layout;
-        }
-        ir_assert(ret && !ret->is_empty()) << "Layout is not initialized.";
-        return *ret;
+        if (is_fwd) return tensor_config.compute_layout("wei");
+        if (is_bwd_d) return tensor_config.compute_layout("wei");
+        return tensor_config.compute_layout("dst");
     }
+
+    int src_arg_key() const {
+        if (is_fwd) return DNNL_ARG_SRC;
+        if (is_bwd_d) return DNNL_ARG_DIFF_SRC;
+        if (is_bwd_w) return DNNL_ARG_SRC;
+        ir_error_not_expected();
+        return -1;
+    }
+
+    bool is_src_input() const { return is_fwd || is_bwd_w; }
+    bool is_src_output() const { return is_bwd_d; }
+
+    int wei_arg_key() const {
+        if (is_fwd) return DNNL_ARG_WEIGHTS;
+        if (is_bwd_d) return DNNL_ARG_WEIGHTS;
+        if (is_bwd_w) return DNNL_ARG_DIFF_WEIGHTS;
+        ir_error_not_expected();
+        return -1;
+    }
+
+    bool is_wei_input() const { return is_fwd || is_bwd_d; }
+    bool is_wei_output() const { return is_bwd_w; }
+
+    int bia_arg_key() const {
+        if (is_fwd) return DNNL_ARG_BIAS;
+        if (is_bwd_d) return DNNL_ARG_BIAS;
+        if (is_bwd_w) return DNNL_ARG_DIFF_BIAS;
+        ir_error_not_expected();
+        return -1;
+    }
+
+    bool is_bia_input() const { return is_fwd || is_bwd_d; }
+    bool is_bia_output() const { return is_bwd_w; }
+
+    int dst_arg_key() const {
+        if (is_fwd) return DNNL_ARG_DST;
+        if (is_bwd_d) return DNNL_ARG_DIFF_DST;
+        if (is_bwd_w) return DNNL_ARG_DIFF_DST;
+        ir_error_not_expected();
+        return -1;
+    }
+
+    bool is_dst_input() const { return is_bwd_d || is_bwd_w; }
+    bool is_dst_output() const { return is_fwd; }
 
     static std::string prepend_groups_to_tag(const std::string &tag) {
         auto ret = tag;
@@ -1596,6 +1662,33 @@ private:
     static layout_t make_layout(
             const memory_desc_t &md, const std::string &tag) {
         return layout_t(md, tag, /*do_normalize=*/false);
+    }
+
+    static bool with_sum_post_op(const convolution_pd_t *pd) {
+        auto &post_ops = pd->attr()->post_ops_;
+        return post_ops.find(primitive_kind::sum) != -1;
+    }
+
+    static bool is_nhwc(const std::string &tag, const convolution_pd_t *pd,
+            const layout_t &layout) {
+        const memory_desc_t *md = nullptr;
+        if (tag == "src") {
+            md = pd->invariant_src_md();
+        } else if (tag == "dst") {
+            md = pd->invariant_dst_md();
+        } else {
+            ir_error_not_expected();
+        }
+
+        if (!memory_desc_wrapper(md).is_plain()) return false;
+        if (layout != make_layout(*md, "axb")) return false;
+
+        return true;
+    }
+
+    bool is_nhwc(const std::string &tag, const convolution_pd_t *pd) {
+        auto &layout = tensor_config.user_layout(tag);
+        return is_nhwc(tag, pd, layout);
     }
 };
 

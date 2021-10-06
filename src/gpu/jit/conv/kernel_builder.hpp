@@ -32,8 +32,8 @@ namespace jit {
 class kernel_builder_t {
 public:
     kernel_builder_t(const conv_config_t &cfg, const convolution_pd_t *pd,
-            const kernel_arg_info_t &kernel_arg_info)
-        : cfg_(cfg), pd_(pd), kernel_arg_info_(kernel_arg_info) {
+            const kernel_info_t &kernel_info)
+        : cfg_(cfg), pd_(pd), kernel_info_(kernel_info) {
         build();
     }
 
@@ -60,7 +60,7 @@ private:
 
     const conv_config_t &cfg_;
     const convolution_pd_t *pd_;
-    const kernel_arg_info_t &kernel_arg_info_;
+    const kernel_info_t &kernel_info_;
 
     expr_t local_id_[3]; // Local IDs (OpenCL) for the 0-th lane.
     grid_info_t kernel_grid_; // Kernel grid (consisting of thread groups).

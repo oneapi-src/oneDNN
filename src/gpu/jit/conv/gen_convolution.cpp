@@ -23,7 +23,7 @@
 #include "common/verbose.hpp"
 #include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/conv/conv_kernel.hpp"
-#include "gpu/jit/conv/kernel_arg_info.hpp"
+#include "gpu/jit/conv/kernel_info.hpp"
 #include "gpu/jit/conv/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -108,10 +108,8 @@ public:
         if (!pd->set_default_alg_kind(alg_kind::convolution_direct))
             return status::unimplemented;
         pd->cfg = std::make_shared<conv_config_t>();
-        pd->kernel_arg_info = std::make_shared<kernel_arg_info_t>();
         CHECK(pd->cfg->init(pd, &pd->attr_, engine));
-
-        CHECK(init_kernel_arg_info(pd, *pd->kernel_arg_info));
+        CHECK(init_kernel_infos(pd));
 
         return status::success;
     }
@@ -126,17 +124,41 @@ public:
             ir_trace() << "Configuration:" << std::endl;
             ir_trace() << cfg;
 
-            kernel_ = make_kernel<conv_kernel_t>(primitive, engine, cfg,
-                    primitive->pd(), *primitive->pd()->kernel_arg_info);
-            if (!kernel_) return status::runtime_error;
-
-            if (cfg.zero_out_output) {
-                bool with_dpas = utils::one_of(
-                        cfg.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw);
-
-                zero_out_kernel_ = make_kernel<zero_out_kernel_t>(
-                        primitive, engine, cfg.simd_size, cfg.regs, with_dpas);
-                if (!zero_out_kernel_) return status::runtime_error;
+            auto &kernel_infos = primitive->pd()->kernel_infos;
+            for (int i = 0; i < int(kernel_infos.size()); i++) {
+                auto &info = *kernel_infos[i];
+                switch (info.id()) {
+                    case kernel_id_t::convolution:
+                        kernels_.push_back(make_kernel<conv_kernel_t>(
+                                primitive, engine, cfg, primitive->pd(), info));
+                        break;
+                    case kernel_id_t::pre_reorder: {
+                        auto src_layout = cfg.tensor_config.user_layout(
+                                info.arg_name(1));
+                        auto dst_layout = cfg.tensor_config.compute_layout(
+                                info.arg_name(1));
+                        kernels_.push_back(make_kernel<reorder_kernel_t>(
+                                primitive, engine, cfg, primitive->pd(), info,
+                                src_layout, dst_layout));
+                        break;
+                    }
+                    case kernel_id_t::post_reorder: {
+                        auto src_layout = cfg.tensor_config.compute_layout(
+                                info.arg_name(0));
+                        auto dst_layout = cfg.tensor_config.user_layout(
+                                info.arg_name(0));
+                        kernels_.push_back(make_kernel<reorder_kernel_t>(
+                                primitive, engine, cfg, primitive->pd(), info,
+                                src_layout, dst_layout));
+                        break;
+                    }
+                    case kernel_id_t::zero_out:
+                        kernels_.push_back(make_kernel<zero_out_kernel_t>(
+                                primitive, engine, cfg, primitive->pd(), info));
+                        break;
+                    default: ir_error_not_expected();
+                }
+                if (!kernels_[i]) return status::runtime_error;
             }
         } catch (...) {
             // If verbose is enabled, print the primitive case and rethrow the
@@ -151,46 +173,51 @@ public:
     }
 
     template <typename T>
-    status_t execute(const T *primitive, const exec_ctx_t &ctx) const {
-        auto &kernel_arg_info = *primitive->pd()->kernel_arg_info;
+    status_t init_res_storage(
+            const T *primitive, engine_t *engine, gpu_resource_t *r) const {
+        auto &kernel_infos = primitive->pd()->kernel_infos;
+        for (int i = 0; i < int(kernel_infos.size()); i++) {
+            auto &kernel_info = *kernel_infos[i];
+            for (int j = 0; j < kernel_info.nargs(); j++) {
+                if (!kernel_info.is_resource(j)) continue;
 
-        std::vector<memory_storage_wrapper_t> storage_list;
-        kernel_arg_info.init_memory_storage_list(storage_list, ctx, primitive);
-
-        kernel_arg_list_t arg_list;
-        kernel_arg_info.set_args(arg_list, storage_list);
-
-        auto &cfg = get_cfg(primitive);
-
-        if (cfg.zero_out_output) {
-            for (int i = 0; i < kernel_arg_info.nargs(); i++) {
-                if (kernel_arg_info.is_input(i)) continue;
-
-                int key = kernel_arg_info.key(i);
-                if (kernel_arg_info.is_scratchpad(i)) {
-                    if (!utils::one_of(key,
-                                memory_tracking::names::key_conv_wei_reduction,
-                                memory_tracking::names::key_conv_bia_reduction))
-                        continue;
+                auto &arg_name = kernel_info.arg_name(j);
+                int key = kernel_info.key(j);
+                if (arg_name == "oscales") {
+                    CHECK(primitive->init_output_scales_res_storage(
+                            engine, r, key));
+                } else {
+                    ir_error_not_expected();
                 }
-                const auto &storage
-                        = kernel_arg_info.arg_storage(i, ctx, primitive);
-                size_t size = kernel_arg_info.arg_size(i, primitive);
-
-                kernel_arg_list_t arg_list;
-                arg_list.set(0, *storage.get());
-                arg_list.set(1, uint32_t(size));
-
-                int bytes_per_thr = zero_out_kernel_t<>::bytes_per_thr;
-                compute::nd_range_t nd_range(
-                        {utils::div_up(size, bytes_per_thr) * cfg.simd_size});
-                CHECK(primitive->parallel_for(
-                        ctx, nd_range, zero_out_kernel_, arg_list));
             }
         }
+        return status::success;
+    }
 
-        auto nd_range = cfg.nd_range();
-        CHECK(primitive->parallel_for(ctx, nd_range, kernel_, arg_list));
+    template <typename T>
+    status_t execute(const T *primitive, const exec_ctx_t &ctx) const {
+        auto &kernel_infos = primitive->pd()->kernel_infos;
+
+        int max_stage = 100;
+        int nsubmitted = 0;
+        int nkernels = int(kernel_infos.size());
+        for (int stage = 0; stage < max_stage; stage++) {
+            for (int i = 0; i < nkernels; i++) {
+                auto &info = *kernel_infos[i];
+                if (info.stage_id() != stage) continue;
+
+                std::vector<memory_storage_wrapper_t> storage_list;
+                info.init_memory_storage_list(storage_list, ctx, primitive);
+
+                kernel_arg_list_t arg_list;
+                info.set_args(arg_list, storage_list);
+
+                CHECK(primitive->parallel_for(
+                        ctx, info.nd_range(), kernels_[i], arg_list));
+                nsubmitted++;
+                if (nsubmitted == nkernels) break;
+            }
+        }
 
         return status::success;
     }
@@ -202,80 +229,121 @@ private:
     }
 
     template <typename T>
-    static status_t init_kernel_arg_info(
-            const T *pd, kernel_arg_info_t &kernel_arg_info) {
+    static kernel_info_t &create_kernel_info(T *pd, kernel_id_t kernel_id) {
+        auto &infos = pd->kernel_infos;
+        infos.push_back(std::make_shared<kernel_info_t>());
+        auto &ret = *infos.back();
+        ret.set_id(kernel_id);
+        return ret;
+    }
+
+    template <typename T>
+    static status_t init_kernel_infos(T *pd) {
         auto &cfg = *pd->cfg;
         auto *attr = pd->attr();
 
-        // Initialize main arguments.
-        if (cfg.is_fwd) {
-            kernel_arg_info.register_user_arg(
-                    make_buffer("src"), DNNL_ARG_SRC, /*is_input=*/true);
-            kernel_arg_info.register_user_arg(
-                    make_buffer("wei"), DNNL_ARG_WEIGHTS, /*is_input=*/true);
-            kernel_arg_info.register_user_arg(
-                    make_buffer("dst"), DNNL_ARG_DST, /*is_input=*/false);
-        } else if (cfg.is_bwd_d) {
-            kernel_arg_info.register_user_arg(
-                    make_buffer("dst"), DNNL_ARG_DIFF_DST, /*is_input=*/true);
-            kernel_arg_info.register_user_arg(
-                    make_buffer("wei"), DNNL_ARG_WEIGHTS, /*is_input=*/true);
-            kernel_arg_info.register_user_arg(
-                    make_buffer("src"), DNNL_ARG_DIFF_SRC, /*is_input=*/false);
-        } else if (cfg.is_bwd_w) {
-            kernel_arg_info.register_user_arg(
-                    make_buffer("src"), DNNL_ARG_SRC, /*is_input=*/true);
-            kernel_arg_info.register_user_arg(
-                    make_buffer("dst"), DNNL_ARG_DIFF_DST, /*is_input=*/true);
-            if (!cfg.do_post_wei_reorder) {
-                kernel_arg_info.register_user_arg(make_buffer("wei"),
-                        DNNL_ARG_DIFF_WEIGHTS, /*is_input=*/false);
+        auto scratchpad = pd->scratchpad_registry().registrar();
+
+        auto &conv_info = create_kernel_info(pd, kernel_id_t::convolution);
+
+        // Initialize kernel arguments.
+        uint32_t scratchpad_key = 1;
+        for (auto &t : cfg.tensor_config.tensors()) {
+            int compute_arg_key = t.arg_key;
+            int user_arg_key = t.arg_key;
+            size_t elems = t.compute_layout.elems();
+            size_t compute_size = t.compute_layout.size();
+            auto compute_buf = make_buffer(t.name);
+            auto user_buf = (t.needs_reorder ? make_buffer(t.name + "_user")
+                                             : compute_buf);
+
+            if (user_arg_key == -1) {
+                ir_assert(!t.needs_reorder);
+                ir_assert(!t.needs_zero_out);
+
+                if (t.name == "oscales") {
+                    if (elems == 1) {
+                        auto oscales_var = var_t::make(type_t::f32(), t.name);
+                        conv_info.register_internal_arg(
+                                oscales_var, attr->output_scales_.scales_[0]);
+                    } else {
+                        conv_info.register_resource_arg(make_buffer(t.name));
+                    }
+                } else {
+                    ir_error_not_expected();
+                }
+                continue;
             }
-            if (cfg.with_bias && !cfg.do_post_bia_reorder) {
-                kernel_arg_info.register_user_arg(make_buffer("bia"),
-                        DNNL_ARG_DIFF_BIAS, /*is_input=*/false);
+
+            if (t.needs_reorder) {
+                compute_arg_key = int(scratchpad_key);
+                scratchpad.book(scratchpad_key, compute_size, 1,
+                        ocl::OCL_BUFFER_ALIGNMENT);
+                conv_info.register_scratchpad_arg(compute_buf, compute_arg_key,
+                        /*is_input=*/t.is_input && !t.is_output, compute_size);
+                scratchpad_key++;
+
+                if (t.is_input) {
+                    auto &reorder_info
+                            = create_kernel_info(pd, kernel_id_t::pre_reorder);
+                    reorder_info.register_user_arg(user_buf, user_arg_key,
+                            /*is_input=*/true);
+                    reorder_info.register_scratchpad_arg(compute_buf,
+                            compute_arg_key,
+                            /*is_input=*/false, compute_size);
+                    auto elems_var = var_t::make(type_t::u32(), "elems");
+                    reorder_info.register_internal_arg(
+                            elems_var, uint32_t(elems));
+                    reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
+                            cfg.simd_size, t.user_layout, t.compute_layout));
+                }
+                if (t.is_output) {
+                    auto &reorder_info
+                            = create_kernel_info(pd, kernel_id_t::post_reorder);
+                    reorder_info.register_scratchpad_arg(compute_buf,
+                            compute_arg_key,
+                            /*is_input=*/true, compute_size);
+                    reorder_info.register_user_arg(user_buf, user_arg_key,
+                            /*is_input=*/false);
+                    auto elems_var = var_t::make(type_t::u32(), "elems");
+                    reorder_info.register_internal_arg(
+                            elems_var, uint32_t(elems));
+                    reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
+                            cfg.simd_size, t.compute_layout, t.user_layout));
+                }
             }
-        } else {
-            ir_error_not_expected();
+            if (t.needs_zero_out) {
+                auto &zero_out_info
+                        = create_kernel_info(pd, kernel_id_t::zero_out);
+                if (t.needs_reorder) {
+                    zero_out_info.register_scratchpad_arg(compute_buf,
+                            compute_arg_key,
+                            /*is_input=*/false, compute_size);
+                } else {
+                    zero_out_info.register_user_arg(compute_buf,
+                            compute_arg_key,
+                            /*is_input=*/false);
+                }
+                auto size_var = var_t::make(type_t::u32(), "size");
+                zero_out_info.register_internal_arg(
+                        size_var, uint32_t(compute_size));
+                int bytes_per_thr = zero_out_kernel_t<>::bytes_per_thr;
+                compute::nd_range_t nd_range(
+                        {utils::div_up(compute_size, bytes_per_thr)
+                                * cfg.simd_size});
+                zero_out_info.set_nd_range(nd_range);
+            }
+            if (!t.needs_reorder)
+                conv_info.register_user_arg(user_buf, user_arg_key,
+                        /*is_input=*/t.is_input && !t.is_output);
         }
 
-        // Initialize post-op arguments.
-        if ((cfg.is_fwd || cfg.is_bwd_d) && cfg.with_bias) {
-            kernel_arg_info.register_user_arg(
-                    make_buffer("bia"), DNNL_ARG_BIAS, /*is_input=*/true);
-        }
-
-        bool with_oscales = !attr->output_scales_.has_default_values();
-        if (with_oscales) {
-            bool is_runtime_oscales = !attr->output_scales_.defined();
-            bool is_common_oscales = (attr->output_scales_.mask_ == 0);
-            if (is_runtime_oscales) {
-                kernel_arg_info.register_user_arg(make_buffer("oscales"),
-                        DNNL_ARG_ATTR_OUTPUT_SCALES, /*is_input=*/true);
-            } else if (is_common_oscales) {
-                auto oscales_buf = var_t::make(type_t::f32(), "oscales");
-                auto value = float_imm_t::make(attr->output_scales_.scales_[0]);
-                kernel_arg_info.register_internal_arg(oscales_buf, value);
-            } else {
-                kernel_arg_info.register_resource_arg(make_buffer("oscales"));
-            }
-        }
-
-        for (int i = 0; i < attr->post_ops_.len(); i++) {
-            auto &po = attr->post_ops_.entry_[i];
-            if (po.is_binary()) {
-                auto buf = make_buffer("binary_rhs_" + std::to_string(i));
-                kernel_arg_info.register_user_arg(buf,
-                        DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1,
-                        /*is_input=*/true);
-            }
-        }
+        conv_info.set_nd_range(cfg.nd_range());
 
         return status::success;
     }
 
-    kernel_t kernel_;
-    kernel_t zero_out_kernel_;
+    std::vector<kernel_t> kernels_;
 };
 
 status_t gen_convolution_fwd_t::pd_t::init(engine_t *engine) {
@@ -295,19 +363,7 @@ status_t gen_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
 
 status_t gen_convolution_fwd_t::init_res_storage(
         engine_t *engine, gpu_resource_t *r) const {
-    auto &kernel_arg_info = *pd()->kernel_arg_info;
-    for (int i = 0; i < kernel_arg_info.nargs(); i++) {
-        if (!kernel_arg_info.is_resource(i)) continue;
-
-        auto &arg_name = kernel_arg_info.arg_name(i);
-        int key = kernel_arg_info.key(i);
-        if (arg_name == "oscales") {
-            CHECK(init_output_scales_res_storage(engine, r, key));
-        } else {
-            ir_error_not_expected();
-        }
-    }
-    return status::success;
+    return impl_->init_res_storage(this, engine, r);
 }
 
 status_t gen_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
@@ -316,37 +372,14 @@ status_t gen_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
     return status::success;
 }
 
+status_t gen_convolution_bwd_data_t::init_res_storage(
+        engine_t *engine, gpu_resource_t *r) const {
+    return impl_->init_res_storage(this, engine, r);
+}
+
 status_t gen_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
     if (!is_bwd_w()) return status::unimplemented;
     CHECK(gen_convolution_t::init_pd(this, engine));
-
-    CHECK(init_scratchpad(*kernel_arg_info));
-    return status::success;
-}
-
-status_t gen_convolution_bwd_weights_t::pd_t::init_scratchpad(
-        kernel_arg_info_t &kernel_arg_info) {
-    auto scratchpad = scratchpad_registry().registrar();
-    if (cfg->do_post_wei_reorder) {
-        size_t tmp_wei_size = memory_desc_wrapper(diff_weights_md())
-                                      .nelems(/*with_padding=*/true)
-                * types::data_type_size(data_type::f32);
-        scratchpad.book(memory_tracking::names::key_conv_wei_reduction,
-                tmp_wei_size, 1, ocl::OCL_BUFFER_ALIGNMENT);
-        kernel_arg_info.register_scratchpad_arg(make_buffer("wei"),
-                memory_tracking::names::key_conv_wei_reduction,
-                /*is_input=*/false, tmp_wei_size);
-    }
-    if (cfg->do_post_bia_reorder) {
-        size_t tmp_bia_size = memory_desc_wrapper(diff_weights_md(1))
-                                      .nelems(/*with_padding=*/true)
-                * types::data_type_size(data_type::f32);
-        scratchpad.book(memory_tracking::names::key_conv_bia_reduction,
-                tmp_bia_size, 1, ocl::OCL_BUFFER_ALIGNMENT);
-        kernel_arg_info.register_scratchpad_arg(make_buffer("bia"),
-                memory_tracking::names::key_conv_bia_reduction,
-                /*is_input=*/false, tmp_bia_size);
-    }
     return status::success;
 }
 
@@ -360,48 +393,17 @@ status_t gen_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
 }
 
 status_t gen_convolution_bwd_weights_t::init(engine_t *engine) {
-    auto &cfg = *pd()->cfg;
     impl_.reset(new gen_convolution_t());
-    bool with_dpas
-            = utils::one_of(cfg.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw);
-    if (cfg.do_post_wei_reorder || cfg.do_post_bia_reorder) {
-        reorder_kernel_ = make_kernel<reorder_kernel_t>(
-                this, engine, cfg.simd_size, cfg.regs, with_dpas);
-        if (!reorder_kernel_) return status::runtime_error;
-    }
     return impl_->init(this, engine);
 }
 
+status_t gen_convolution_bwd_weights_t::init_res_storage(
+        engine_t *engine, gpu_resource_t *r) const {
+    return impl_->init_res_storage(this, engine, r);
+}
+
 status_t gen_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
-    CHECK(impl_->execute(this, ctx));
-    auto &cfg = *pd()->cfg;
-    if (cfg.do_post_wei_reorder) {
-        auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
-                memory_tracking::names::key_conv_wei_reduction);
-        int elems = memory_desc_wrapper(pd()->diff_weights_md()).nelems(true);
-        kernel_arg_list_t arg_list;
-        arg_list.set(0, *scratchpad);
-        arg_list.set(1, CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS));
-        arg_list.set(2, uint32_t(elems));
-        int elems_per_thr = reorder_kernel_t<>::elems_per_thr;
-        compute::nd_range_t nd_range(
-                {utils::div_up(elems, elems_per_thr) * cfg.simd_size, 1, 1});
-        CHECK(parallel_for(ctx, nd_range, reorder_kernel_, arg_list));
-    }
-    if (cfg.do_post_bia_reorder) {
-        auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
-                memory_tracking::names::key_conv_bia_reduction);
-        int elems = memory_desc_wrapper(pd()->diff_weights_md(1)).nelems(true);
-        kernel_arg_list_t arg_list;
-        arg_list.set(0, *scratchpad);
-        arg_list.set(1, CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS));
-        arg_list.set(2, uint32_t(elems));
-        int elems_per_thr = reorder_kernel_t<>::elems_per_thr;
-        compute::nd_range_t nd_range(
-                {utils::div_up(elems, elems_per_thr) * cfg.simd_size, 1, 1});
-        CHECK(parallel_for(ctx, nd_range, reorder_kernel_, arg_list));
-    }
-    return status::success;
+    return impl_->execute(this, ctx);
 }
 
 } // namespace jit

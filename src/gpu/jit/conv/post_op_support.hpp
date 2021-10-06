@@ -27,7 +27,7 @@
 #include "common/utils.hpp"
 #include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/conv/ir.hpp"
-#include "gpu/jit/conv/kernel_arg_info.hpp"
+#include "gpu/jit/conv/kernel_info.hpp"
 #include "gpu/jit/conv/tensor.hpp"
 #include "gpu/jit/conv/utils.hpp"
 
@@ -217,7 +217,7 @@ public:
     post_op_context_t() = default;
 
     post_op_context_t(const convolution_pd_t *pd, const conv_config_t &cfg,
-            const view_t &lhs_view, const kernel_arg_info_t &kernel_arg_info)
+            const view_t &lhs_view, const kernel_info_t &kernel_info)
         : pd_(pd), cfg_(&cfg), lhs_view_(lhs_view) {
 
         // Handle bias.
@@ -225,7 +225,7 @@ public:
             uint32_t rhs_mask = convert_rhs_mask(2); // Per-channel mask.
             auto rhs_view = create_rhs_view(
                     pd->invariant_bia_md()->data_type, rhs_mask);
-            auto rhs_buf = kernel_arg_info.find_arg("bia");
+            auto rhs_buf = kernel_info.find_arg("bia");
             post_ops_.emplace_back(
                     rhs_view, rhs_buf, rhs_mask, 1, op_kind_t::_add);
         }
@@ -236,7 +236,7 @@ public:
         bool with_oscales = !attr->output_scales_.has_default_values();
         if (with_oscales) {
             uint32_t mask = convert_rhs_mask(attr->output_scales_.mask_);
-            auto oscales_buf = kernel_arg_info.find_arg("oscales");
+            auto oscales_buf = kernel_info.find_arg("oscales");
             auto oscales_view = create_rhs_view(type_t::f32(), mask);
             post_ops_.emplace_back(
                     oscales_view, oscales_buf, mask, 1, op_kind_t::_mul);
@@ -251,8 +251,8 @@ public:
             } else if (po.is_sum(/*require_scale_one=*/false)) {
                 float scale = po.sum.scale;
                 uint32_t rhs_mask = 0xFFFFFFFF;
-                auto rhs_buf = kernel_arg_info.find_arg(
-                        pd->is_fwd() ? "dst" : "src");
+                auto rhs_buf
+                        = kernel_info.find_arg(pd->is_fwd() ? "dst" : "src");
                 auto rhs_view = lhs_view_;
                 if (po.sum.dt != data_type::undef)
                     rhs_view = rhs_view.retype(po.sum.dt);
@@ -262,7 +262,7 @@ public:
                 uint32_t rhs_mask = 0;
                 auto rhs_view = create_rhs_view(po.binary.src1_desc, rhs_mask);
                 auto buf_name = "binary_rhs_" + std::to_string(i);
-                auto rhs_buf = kernel_arg_info.find_arg(buf_name);
+                auto rhs_buf = kernel_info.find_arg(buf_name);
                 post_ops_.emplace_back(rhs_view, rhs_buf, rhs_mask, 1,
                         alg_kind_to_op_kind(po.binary.alg));
             } else {

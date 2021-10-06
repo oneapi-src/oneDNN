@@ -5891,7 +5891,7 @@ void kernel_builder_t::build() {
     gemm_schedule.finalize();
 
     post_op_context_t post_op_ctx(
-            pd_, cfg_, gemm_schedule.c_view(), kernel_arg_info_);
+            pd_, cfg_, gemm_schedule.c_view(), kernel_info_);
     compute_builder_t cb(cfg_, ir_ctx, init_cset);
 
     cb.set_gemm_schedule(gemm_schedule);
@@ -5906,8 +5906,8 @@ void kernel_builder_t::build() {
     cb.build();
 
     std::vector<stmt_t> allocs;
-    for (int i = 0; i < kernel_arg_info_.nargs(); i++) {
-        auto &var = kernel_arg_info_.arg_var(i);
+    for (int i = 0; i < kernel_info_.nargs(); i++) {
+        auto &var = kernel_info_.arg_var(i);
         if (!var.type().is_ptr()) continue;
         allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
     }
@@ -5982,9 +5982,12 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
         view_t &src_view, view_t &wei_view, view_t &dst_view, expr_t &src_buf,
         expr_t &wei_buf, expr_t &dst_buf) {
     // Unify layouts.
-    auto src_layout = cfg_.src_layout;
-    auto wei_layout = cfg_.wei_layout;
-    auto dst_layout = cfg_.dst_layout;
+    auto orig_src_layout = cfg_.tensor_config.compute_layout("src");
+    auto orig_wei_layout = cfg_.tensor_config.compute_layout("wei");
+    auto orig_dst_layout = cfg_.tensor_config.compute_layout("dst");
+    auto src_layout = orig_src_layout;
+    auto wei_layout = orig_wei_layout;
+    auto dst_layout = orig_dst_layout;
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, cfg_.with_groups,
             cfg_.g, cfg_.is_dw, cfg_.reduced_to_1d, /*add_groups=*/true);
 
@@ -6167,18 +6170,21 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     gemm_schedule.reorder({ic_outer, kd, kh, kw_outer, oc_thr_blk_idx,
             mb_ow_thr_blk_idx, ic_thr_blk_idx});
 
-    src_buf = kernel_arg_info_.find_arg("src");
-    wei_buf = kernel_arg_info_.find_arg("wei");
-    dst_buf = kernel_arg_info_.find_arg("dst");
+    src_buf = kernel_info_.find_arg("src");
+    wei_buf = kernel_info_.find_arg("wei");
+    dst_buf = kernel_info_.find_arg("dst");
 }
 
 void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
         view_t &dst_view, view_t &wei_view, view_t &src_view, expr_t &dst_buf,
         expr_t &wei_buf, expr_t &src_buf) {
     // Unify layouts.
-    auto src_layout = cfg_.src_layout;
-    auto wei_layout = cfg_.wei_layout;
-    auto dst_layout = cfg_.dst_layout;
+    auto orig_src_layout = cfg_.tensor_config.compute_layout("src");
+    auto orig_wei_layout = cfg_.tensor_config.compute_layout("wei");
+    auto orig_dst_layout = cfg_.tensor_config.compute_layout("dst");
+    auto src_layout = orig_src_layout;
+    auto wei_layout = orig_wei_layout;
+    auto dst_layout = orig_dst_layout;
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, cfg_.with_groups,
             cfg_.g, cfg_.is_dw, cfg_.reduced_to_1d, /*add_groups=*/false);
 
@@ -6209,8 +6215,8 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     bool check_od = need_src_or_dst_check(
             cfg_.is_fwd, cfg_.od, cfg_.id, cfg_.kd, cfg_.pd, cfg_.sd, cfg_.dd);
 
-    int wei_ic = int(cfg_.wei_layout.dim(cfg_.with_groups ? 2 : 1));
-    int src_ic = int(cfg_.src_layout.dim(1));
+    int wei_ic = int(orig_wei_layout.dim(cfg_.with_groups ? 2 : 1));
+    int src_ic = int(orig_src_layout.dim(1));
 
     int wei_ic_inner_blk = ir_utils::max_pow2_divisor(wei_ic);
     int src_ic_inner_blk = ir_utils::max_pow2_divisor(src_ic);
@@ -6220,8 +6226,8 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     bool check_wei_ic = (wei_ic % cfg_.ic_tg_blk != 0);
     bool check_src_ic = (src_ic % cfg_.ic_tg_blk != 0);
 
-    int src_mb = int(cfg_.src_layout.dim(0));
-    int dst_mb = int(cfg_.src_layout.dim(0));
+    int src_mb = int(orig_src_layout.dim(0));
+    int dst_mb = int(orig_src_layout.dim(0));
 
     bool check_src_mb = (src_mb % cfg_.mb_tg_blk != 0);
     bool check_dst_mb = (dst_mb % cfg_.mb_tg_blk != 0);
@@ -6322,9 +6328,9 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
 
     gemm_schedule.reorder({oc_blk_idx, kd, kh, kw});
 
-    src_buf = kernel_arg_info_.find_arg("src");
-    wei_buf = kernel_arg_info_.find_arg("wei");
-    dst_buf = kernel_arg_info_.find_arg("dst");
+    src_buf = kernel_info_.find_arg("src");
+    wei_buf = kernel_info_.find_arg("wei");
+    dst_buf = kernel_info_.find_arg("dst");
 }
 
 void kernel_builder_t::init_bwd_w(gemm_schedule_t &gemm_schedule,
@@ -6332,9 +6338,15 @@ void kernel_builder_t::init_bwd_w(gemm_schedule_t &gemm_schedule,
         expr_t &src_buf, expr_t &dst_buf, expr_t &wei_buf, expr_t &bia_buf,
         expr_t &bia_reduction_condition) {
     // Unify layouts.
-    auto src_layout = cfg_.src_layout;
-    auto wei_layout = cfg_.wei_layout;
-    auto dst_layout = cfg_.dst_layout;
+    auto orig_src_layout = cfg_.tensor_config.compute_layout("src");
+    auto orig_wei_layout = cfg_.tensor_config.compute_layout("wei");
+    auto orig_bia_layout
+            = (cfg_.with_bias ? cfg_.tensor_config.compute_layout("bia")
+                              : layout_t());
+    auto orig_dst_layout = cfg_.tensor_config.compute_layout("dst");
+    auto src_layout = orig_src_layout;
+    auto wei_layout = orig_wei_layout;
+    auto dst_layout = orig_dst_layout;
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, cfg_.with_groups,
             cfg_.g, cfg_.is_dw, cfg_.reduced_to_1d, /*add_groups=*/false);
 
@@ -6375,10 +6387,10 @@ void kernel_builder_t::init_bwd_w(gemm_schedule_t &gemm_schedule,
     bool check_ih_max = (check_ih || check_oh);
     bool check_id_max = (check_id || check_od);
 
-    int src_ic = int(cfg_.src_layout.dim(1));
-    int dst_oc = int(cfg_.dst_layout.dim(1));
-    int wei_oc = int(cfg_.wei_layout.dim(cfg_.with_groups ? 1 : 0));
-    int wei_ic = int(cfg_.wei_layout.dim(cfg_.with_groups ? 2 : 1));
+    int src_ic = int(orig_src_layout.dim(1));
+    int dst_oc = int(orig_dst_layout.dim(1));
+    int wei_oc = int(orig_wei_layout.dim(cfg_.with_groups ? 1 : 0));
+    int wei_ic = int(orig_wei_layout.dim(cfg_.with_groups ? 2 : 1));
 
     int src_ic_inner_blk = ir_utils::max_pow2_divisor(src_ic);
     int dst_oc_inner_blk = ir_utils::max_pow2_divisor(dst_oc);
@@ -6464,7 +6476,7 @@ void kernel_builder_t::init_bwd_w(gemm_schedule_t &gemm_schedule,
         bia_view = view_t({oc}, 1);
         bia_view.set_vdim(oc, cfg_.oc, 0);
         bia_view.set_tdim(0, oc, bia_oc_mask);
-        bia_view.set_tlayout(cfg_.bia_layout);
+        bia_view.set_tlayout(orig_bia_layout);
     }
 
     // Initialize GEMM schedule.
@@ -6516,12 +6528,12 @@ void kernel_builder_t::init_bwd_w(gemm_schedule_t &gemm_schedule,
     gemm_schedule.tensorize(ow_inner);
     gemm_schedule.tensorize(kw_inner);
 
-    src_buf = kernel_arg_info_.find_arg("src");
-    wei_buf = kernel_arg_info_.find_arg("wei");
-    dst_buf = kernel_arg_info_.find_arg("dst");
+    src_buf = kernel_info_.find_arg("src");
+    wei_buf = kernel_info_.find_arg("wei");
+    dst_buf = kernel_info_.find_arg("dst");
 
     if (cfg_.with_bias) {
-        bia_buf = kernel_arg_info_.find_arg("bia");
+        bia_buf = kernel_info_.find_arg("bia");
         bia_reduction_condition = expr_t(true);
         if (cfg_.kd > 1) bia_reduction_condition &= (kd == 0);
         if (cfg_.kh > 1) bia_reduction_condition &= (kh == 0);

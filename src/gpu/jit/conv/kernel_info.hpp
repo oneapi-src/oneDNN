@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CONV_KERNEL_ARG_INFO_HPP
-#define GPU_JIT_CONV_KERNEL_ARG_INFO_HPP
+#ifndef GPU_JIT_CONV_KERNEL_INFO_HPP
+#define GPU_JIT_CONV_KERNEL_INFO_HPP
 
 #include <limits>
 #include <memory>
@@ -69,15 +69,48 @@ private:
     std::shared_ptr<memory_storage_ptr_t> ptr_;
 };
 
-// Stores kernel arguments. Kernel arguments can be:
+enum class kernel_id_t {
+    convolution,
+    pre_reorder,
+    post_reorder,
+    zero_out,
+};
+
+// Kernel information, includes:
+// - Kernel identifier
+// - Kernel arguments
+// - ND-range for submission
+// Kernel arguments can be of the following kinds:
 // - Internal arguments: only scalar
 //   - Examples: common output scales (contain a single value)
 // - Resource arguments: stored to a resource storage during primitive creation
 //   - Examples: output scales or zero points
 // - User arguments: passed by the user at run time
 //   - Examples: source, weights, destination
-class kernel_arg_info_t {
+class kernel_info_t {
 public:
+    void set_id(kernel_id_t id) { id_ = id; }
+
+    kernel_id_t id() const { return id_; }
+
+    // Returns stage ID, kernels with smaller stage IDs are executed first.
+    int stage_id() const {
+        switch (id()) {
+            case kernel_id_t::convolution: return 1;
+            case kernel_id_t::pre_reorder: return 0;
+            case kernel_id_t::post_reorder: return 2;
+            case kernel_id_t::zero_out: return 0;
+            default: ir_error_not_expected();
+        }
+        return -1;
+    }
+
+    void set_nd_range(const compute::nd_range_t &nd_range) {
+        nd_range_ = nd_range;
+    }
+
+    const compute::nd_range_t &nd_range() const { return nd_range_; }
+
     void register_internal_arg(const expr_t &var, const expr_t &value) {
         register_arg(var, arg_kind_t::internal, -1, /*is_input=*/true, value);
     }
@@ -203,11 +236,25 @@ public:
                 case arg_kind_t::internal: {
                     auto &value = args_[i].value;
                     auto &type = value.type();
-                    if (type == type_t::f32()) {
-                        arg_list.set(i, to_cpp<float>(value));
-                    } else {
-                        ir_error_not_expected();
-                    }
+
+                    do {
+#define CASE(ir_type, cpp_type) \
+    if (type == type_t::ir_type()) { \
+        arg_list.set(i, to_cpp<cpp_type>(value)); \
+        break; \
+    }
+
+                        CASE(f32, float)
+                        CASE(s16, int16_t)
+                        CASE(s32, int32_t)
+                        CASE(s64, int64_t)
+                        CASE(u16, uint16_t)
+                        CASE(u32, uint32_t)
+                        CASE(u64, uint64_t)
+#undef CASE
+
+                        ir_error_not_expected() << type;
+                    } while (false);
                     break;
                 }
                 case arg_kind_t::resource:
@@ -248,6 +295,9 @@ private:
         ir_assert(is_var(var)) << "Expected var, got: " << var;
         args_.emplace_back(var, kind, key, is_input, value, scratchpad_size);
     }
+
+    kernel_id_t id_;
+    compute::nd_range_t nd_range_;
 
     std::vector<arg_t> args_;
 };
