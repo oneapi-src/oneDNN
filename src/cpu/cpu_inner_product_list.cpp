@@ -106,56 +106,56 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map RE
     {{forward, s8, s8, f32}, {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, f32>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t)
         CPU_INSTANCE(ref_inner_product_int8_fwd_t)
         nullptr,
     }},
     {{forward, s8, s8, s32}, {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s32>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t)
         CPU_INSTANCE(ref_inner_product_int8_fwd_t)
         nullptr,
     }},
     {{forward, s8, s8, s8}, {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s8>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t)
         CPU_INSTANCE(ref_inner_product_int8_fwd_t)
         nullptr,
     }},
     {{forward, s8, s8, u8}, {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, u8>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t)
         CPU_INSTANCE(ref_inner_product_int8_fwd_t)
         nullptr,
     }},
     {{forward, u8, s8, f32}, {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, f32>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t)
         CPU_INSTANCE(ref_inner_product_int8_fwd_t)
         nullptr,
     }},
     {{forward, u8, s8, s32}, {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s32>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t)
         CPU_INSTANCE(ref_inner_product_int8_fwd_t)
         nullptr,
     }},
     {{forward, u8, s8, s8}, {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s8>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t)
         CPU_INSTANCE(ref_inner_product_int8_fwd_t)
         nullptr,
     }},
     {{forward, u8, s8, u8}, {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, u8>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t)
         CPU_INSTANCE(ref_inner_product_int8_fwd_t)
         nullptr,
     }},
