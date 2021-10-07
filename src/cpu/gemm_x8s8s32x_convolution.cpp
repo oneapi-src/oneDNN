@@ -107,14 +107,13 @@ static zero_point_call_params_t prepare_zp_params(const conv_gemm_conf_t &jcp,
     return {zp_src, zp_dst, zp_src_comp, zp_src_comp_pad};
 }
 
-template <data_type_t src_type, data_type_t dst_type>
-status_t _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
+status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
-    auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto src_base = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    auto wei_base = CTX_IN_MEM(const int8_t *, DNNL_ARG_WEIGHTS);
     auto bia_base = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    auto dst_base = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    auto dst_base = CTX_OUT_MEM(void *, DNNL_ARG_DST);
     DEFINE_ZERO_POINTS_BUFFER(zp_src, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(zp_dst, DNNL_ARG_DST);
     const auto post_ops_binary_rhs_arg_vec
@@ -149,11 +148,9 @@ static const int32_t *get_wei_comp(
     return reinterpret_cast<const int32_t *>(&weights[comp_off]);
 }
 
-template <data_type_t src_type, data_type_t dst_type>
-status_t
-_gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
-        const int ithr, const int nthr, const src_data_t *src_base,
-        const wei_data_t *wei_base, const char *bia_base, dst_data_t *dst_base,
+status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
+        const int nthr, const char *src_base, const int8_t *wei_base,
+        const char *bia_base, void *dst_base,
         const zero_point_call_params_t &zp,
         const memory_tracking::grantor_t &scratchpad,
         const void *post_ops_binary_rhs_arg_vec, const exec_ctx_t &ctx) const {
@@ -179,10 +176,9 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
 
     uint8_t *__restrict col = scratchpad.get<uint8_t>(key_conv_gemm_col)
             + (ptrdiff_t)ithr * jcp.im2col_sz;
-    src_data_t *__restrict imtr = scratchpad.get<src_data_t>(key_conv_gemm_imtr)
+    char *__restrict imtr = scratchpad.get<char>(key_conv_gemm_imtr)
             + (ptrdiff_t)ithr * jcp.is * jcp.ic;
-    acc_data_t *__restrict acc
-            = scratchpad.get<acc_data_t>(key_conv_int_dat_in_acc_dt)
+    int *__restrict acc = scratchpad.get<int>(key_conv_int_dat_in_acc_dt)
             + (ptrdiff_t)ithr * jcp.oh_block * jcp.ow_block * jcp.oc;
 
     const int32_t *_wei_comp
@@ -218,28 +214,43 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
     for (dim_t iwork = start; iwork < end; ++iwork) {
         const int oh = ohb * jcp.oh_block;
         const int ow = owb * jcp.ow_block;
-        const src_data_t *__restrict src
+        const char *__restrict src
                 = src_base + n * src_mb_stride + g * src_g_stride;
-        const wei_data_t *__restrict wei = wei_base + g * wei_g_stride;
+        const int8_t *__restrict wei = wei_base + g * wei_g_stride;
         const int32_t *__restrict wei_comp
                 = _wei_comp ? _wei_comp + g * jcp.oc : nullptr;
         const int h_step = nstl::min(jcp.oh_block, jcp.oh - oh);
         const int w_step = nstl::min(jcp.ow_block, jcp.ow - ow);
         if (jcp.im2col_sz && is_problem_3d)
-            jit_gemm_convolution_utils::transpose_dt<src_data_t>(
-                    jcp, src, imtr);
+            jit_gemm_convolution_utils::transpose_dt<char>(jcp, src, imtr);
 
         for (int od = 0; od < jcp.od; od++) {
-            dst_data_t *__restrict dst = dst_base + n * dst_mb_stride
-                    + g * dst_g_stride
+            const auto dst_off = n * dst_mb_stride + g * dst_g_stride
                     + ((od * jcp.oh + oh) * jcp.ow + ow) * jcp.dst_os_stride;
+            char *__restrict dst = (char *)dst_base
+                    + types::data_type_size(dst_md.data_type()) * dst_off;
             if (jcp.im2col_sz) {
-                if (is_problem_3d)
-                    jit_gemm_convolution_utils::im2col_dt_3d<src_data_t,
-                            uint8_t>(jcp, imtr, col, od);
-                else
-                    jit_gemm_convolution_utils::im2col_dt<src_data_t, uint8_t>(
-                            jcp, src, imtr, col, oh, h_step, ow, w_step);
+                switch (src_md.data_type()) {
+                    case data_type::s8: {
+                        if (is_problem_3d)
+                            jit_gemm_convolution_utils::im2col_dt_3d<int8_t,
+                                    uint8_t>(jcp, imtr, col, od);
+                        else
+                            jit_gemm_convolution_utils::im2col_dt<int8_t,
+                                    uint8_t>(jcp, src, imtr, col, oh, h_step,
+                                    ow, w_step);
+                    } break;
+                    case data_type::u8: {
+                        if (is_problem_3d)
+                            jit_gemm_convolution_utils::im2col_dt_3d<uint8_t,
+                                    uint8_t>(jcp, imtr, col, od);
+                        else
+                            jit_gemm_convolution_utils::im2col_dt<uint8_t,
+                                    uint8_t>(jcp, src, imtr, col, oh, h_step,
+                                    ow, w_step);
+                    } break;
+                    default: assert(!"unsupported data type"); break;
+                }
             }
 
             const dim_t M = jcp.oc;
@@ -252,7 +263,7 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
             const uint8_t off_b = 0;
             const int32_t off_c = 0;
             const float onef = 1.f, zerof = 0.f;
-            const src_data_t *__restrict src_od
+            const char *__restrict src_od
                     = src + od * jcp.oh * jcp.ow * jcp.ngroups * jcp.ic;
             st = gemm_s8x8s32("N", BT, jcp.signed_input ? "C" : "F", &M, &N, &K,
                     &onef, wei, &LDA, &off_a,
@@ -406,16 +417,6 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
 }
 
 using namespace data_type;
-
-template struct _gemm_x8s8s32x_convolution_fwd_t<u8, f32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<u8, s32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<u8, s8>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<u8, u8>;
-
-template struct _gemm_x8s8s32x_convolution_fwd_t<s8, f32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<s8, s32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<s8, s8>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<s8, u8>;
 
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<f32>;
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<s32>;

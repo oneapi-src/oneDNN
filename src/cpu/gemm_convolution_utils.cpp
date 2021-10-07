@@ -267,15 +267,16 @@ template void transpose_dt(const conv_gemm_conf_t &jcp,
 template void transpose_dt(const conv_gemm_conf_t &jcp,
         const uint8_t *__restrict im, uint8_t *__restrict imtr);
 template void transpose_dt(const conv_gemm_conf_t &jcp,
+        const char *__restrict im, char *__restrict imtr);
+template void transpose_dt(const conv_gemm_conf_t &jcp,
         const float *__restrict im, float *__restrict imtr);
 template void transpose_dt(const conv_gemm_conf_t &jcp,
         const bfloat16_t *__restrict im, bfloat16_t *__restrict imtr);
 
 /* col[kd][kh][kw][g][ic][od][oh][ow] <-- im2col_dt_3d(im[id][ih][iw][g][ic]) */
 template <typename orig_im_dt, typename orig_col_dt>
-void im2col_dt_3d(const conv_gemm_conf_t &jcp,
-        const orig_im_dt *__restrict _imtr, orig_col_dt *__restrict _col,
-        dim_t od) {
+void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
+        orig_col_dt *__restrict _col, dim_t od) {
     // For performance reasons, use uint16_t as a proxy for bfloat16_t
     using im_dt = typename utils::conditional<data_traits<orig_im_dt>::data_type
                     == bf16,
@@ -400,13 +401,13 @@ void im2col_dt_3d(const conv_gemm_conf_t &jcp,
 }
 
 template void im2col_dt_3d<int8_t, uint8_t>(const conv_gemm_conf_t &jcp,
-        const int8_t *__restrict im, uint8_t *__restrict col, dim_t od);
+        const void *__restrict im, uint8_t *__restrict col, dim_t od);
 template void im2col_dt_3d<uint8_t, uint8_t>(const conv_gemm_conf_t &jcp,
-        const uint8_t *__restrict im, uint8_t *__restrict col, dim_t od);
+        const void *__restrict im, uint8_t *__restrict col, dim_t od);
 template void im2col_dt_3d<float, float>(const conv_gemm_conf_t &jcp,
-        const float *__restrict im, float *__restrict col, dim_t od);
+        const void *__restrict im, float *__restrict col, dim_t od);
 template void im2col_dt_3d<bfloat16_t, bfloat16_t>(const conv_gemm_conf_t &jcp,
-        const bfloat16_t *__restrict im, bfloat16_t *__restrict col, dim_t od);
+        const void *__restrict im, bfloat16_t *__restrict col, dim_t od);
 
 /* col[ic][kh][kw][oh][ow] <-- im2col(im[ic][ih][iw]) */
 template <typename data_type_t>
@@ -577,8 +578,8 @@ template void im2col(const conv_gemm_conf_t &jcp,
 
 /* col[kh][kw][ic][oh][ow] <-- im2col_dt(im[ih][iw][ic]) */
 template <typename orig_im_dt, typename orig_col_dt>
-void im2col_dt(const conv_gemm_conf_t &jcp, const orig_im_dt *__restrict _im,
-        orig_im_dt *__restrict _imtr, orig_col_dt *__restrict _col, dim_t hs,
+void im2col_dt(const conv_gemm_conf_t &jcp, const void *__restrict _im,
+        void *__restrict _imtr, orig_col_dt *__restrict _col, dim_t hs,
         dim_t hb, dim_t ws, dim_t wb) {
     // For performance reasons, use uint16_t as a proxy for bfloat16_t
     using im_dt = typename utils::conditional<data_traits<orig_im_dt>::data_type
@@ -706,17 +707,17 @@ void im2col_dt(const conv_gemm_conf_t &jcp, const orig_im_dt *__restrict _im,
 }
 
 template void im2col_dt<int8_t, uint8_t>(const conv_gemm_conf_t &jcp,
-        const int8_t *__restrict im, int8_t *__restrict imtr,
+        const void *__restrict im, void *__restrict imtr,
         uint8_t *__restrict col, dim_t hs, dim_t hb, dim_t ws, dim_t wb);
 template void im2col_dt<uint8_t, uint8_t>(const conv_gemm_conf_t &jcp,
-        const uint8_t *__restrict im, uint8_t *__restrict imtr,
+        const void *__restrict im, void *__restrict imtr,
         uint8_t *__restrict col, dim_t hs, dim_t hb, dim_t ws, dim_t wb);
 template void im2col_dt<float, float>(const conv_gemm_conf_t &jcp,
-        const float *__restrict im, float *__restrict imtr,
-        float *__restrict col, dim_t hs, dim_t hb, dim_t ws, dim_t wb);
+        const void *__restrict im, void *__restrict imtr, float *__restrict col,
+        dim_t hs, dim_t hb, dim_t ws, dim_t wb);
 
 template void im2col_dt<bfloat16_t, bfloat16_t>(const conv_gemm_conf_t &jcp,
-        const bfloat16_t *__restrict im, bfloat16_t *__restrict imtr,
+        const void *__restrict im, void *__restrict imtr,
         bfloat16_t *__restrict col, dim_t hs, dim_t hb, dim_t ws, dim_t wb);
 
 /* im[id][ih][iw][ic] <-- col2im_dt_3d(col[od][oh][ow][kd][kh][kw][ic]) */

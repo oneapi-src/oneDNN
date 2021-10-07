@@ -93,7 +93,7 @@ void transpose_dt(const conv_gemm_conf_t &jcp, const T *__restrict im,
         T *__restrict imtr);
 
 template <typename im_dt, typename col_dt>
-void im2col_dt_3d(const conv_gemm_conf_t &jcp, const im_dt *__restrict im,
+void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict im,
         col_dt *__restrict col, dim_t od);
 
 template <typename data_type_t>
@@ -101,8 +101,8 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
         data_type_t *__restrict col, dim_t ss, dim_t sb, dim_t cs, dim_t cb);
 
 template <typename im_dt, typename col_dt>
-void im2col_dt(const conv_gemm_conf_t &jcp, const im_dt *__restrict im,
-        im_dt *__restrict imtr, col_dt *__restrict col, dim_t hs, dim_t hb,
+void im2col_dt(const conv_gemm_conf_t &jcp, const void *__restrict im,
+        void *__restrict imtr, col_dt *__restrict col, dim_t hs, dim_t hb,
         dim_t ws, dim_t wb);
 
 template <typename T>

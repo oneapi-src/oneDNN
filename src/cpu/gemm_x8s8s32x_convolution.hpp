@@ -37,27 +37,28 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <data_type_t src_type, data_type_t dst_type>
-struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
+struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(IGEMM_S8U8S32_ISA_STR,
-                _gemm_x8s8s32x_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
+                gemm_x8s8s32x_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
+            const auto dst_type = dst_md(0)->data_type;
 
             bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(
-                            src_type, s8, data_type::undef, dst_type, s32)
+                    && utils::one_of(src_md()->data_type, s8, u8)
+                    && weights_md()->data_type == s8
+                    && utils::one_of(dst_md()->data_type, f32, s32, s8, u8)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type, f32, s32,
-                                    s8, u8))
+                            utils::one_of(
+                                    weights_md(1)->data_type, f32, s32, s8, u8))
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(skip_mask_t::oscale
                                     | skip_mask_t::zero_points_runtime
@@ -87,12 +88,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
         }
     };
 
-    _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<data_type::s8>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
-    typedef typename prec_traits<data_type::s32>::type acc_data_t;
+    gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(pp_ker_, pp_ker_t::create(pd(), pd()->jcp_)));
@@ -107,14 +103,11 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_forward(const exec_ctx_t &ctx) const;
     status_t execute_forward_thr(const int ithr, const int nthr,
-            const src_data_t *src_base, const wei_data_t *wei_base,
-            const char *bia_base, dst_data_t *dst_base,
-            const zero_point_call_params_t &zp,
+            const char *src_base, const int8_t *wei_base, const char *bia_base,
+            void *dst_base, const zero_point_call_params_t &zp,
             const memory_tracking::grantor_t &scratchpad,
             const void *post_ops_binary_rhs_arg_vec,
             const exec_ctx_t &ctx) const;
-
-    int nthr_ = 0;
 
     using pp_ker_t = gemm_x8s8s32x_convolution_utils::pp_ker_t;
     std::unique_ptr<pp_ker_t> pp_ker_;
