@@ -61,7 +61,7 @@ potential performance issues.
 ##### Build-Time Controls
 
 At build-time, support for this feature is controlled via cmake option
-`DNNL_ENABLE_JIT_PROFILING`.
+`DNNL_ENABLE_ITT_TASKS`.
 
 | CMake Option                | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
