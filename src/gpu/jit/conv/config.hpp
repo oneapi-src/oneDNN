@@ -959,6 +959,8 @@ public:
 private:
     int init_fwd_ic_thr_dim(engine_t *engine, int mb_thr_blk, int oc_thr_blk,
             int ow_thr_blk, int ic_blk) const {
+        if (mb_thr_blk > 1) return 1;
+
         int ic_blocks = utils::div_up(ic, ic_blk);
         int reduction_blocks = ic_blocks * kd * kh * kw;
 
