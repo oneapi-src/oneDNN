@@ -106,10 +106,13 @@ private:
         return Xbyak::Zmm(row_idx);
     }
 
-    const Xbyak::Zmm zmm_tail = Xbyak::Zmm(row_loop_unroll);
-    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(row_loop_unroll + 1);
-    const Xbyak::Opmask reg_m_row_tail_store = k6;
-    const Xbyak::Opmask reg_m_row_tail_load = k7;
+    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(row_loop_unroll);
+    const Xbyak::Zmm zmm_row_tail = Xbyak::Zmm(row_loop_unroll + 1);
+
+    const Xbyak::Opmask reg_m_full_row_tail_load = k7;
+    const Xbyak::Opmask reg_m_full_row_tail_store = k6;
+    const Xbyak::Opmask reg_m_last_row_tail_load = k5;
+    const Xbyak::Opmask reg_m_last_row_tail_store = k4;
 
     const Xbyak::Reg64 reg_data = rax;
     const Xbyak::Reg64 reg_tr_data = rbx;
@@ -118,12 +121,16 @@ private:
     const Xbyak::Reg64 reg_last_row_blk = r12;
     const Xbyak::Reg64 reg_tail_mask = r13;
 
-    void copy_row_loop();
-    void copy_row_blk_loop(int copy_row_iters);
-    void copy_row_tail(int initial_offset);
-
     void copy_os_loop();
-    void set_tail_mask();
+    void copy_row_loop();
+
+    void copy_row_blks(int num_row_blks);
+    void copy_row_tail(bool is_last_iteration, int row_offset);
+    void zero_out_rows();
+
+    void set_full_row_tail_masks();
+    void set_last_row_tail_masks();
+
     void generate() override;
 };
 
