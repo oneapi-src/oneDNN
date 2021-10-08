@@ -35,20 +35,17 @@ namespace inner_product_utils {
 
 using namespace dnnl::impl::cpu::inner_product_utils;
 using namespace Xbyak;
+using namespace data_type;
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-struct jit_pp_kernel_t : public pp_kernel_t<acc_type, dst_type>,
-                         public jit_generator {
+template <cpu_isa_t isa>
+struct jit_pp_kernel_t : public pp_kernel_t, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(inner_product_utils::jit_pp_kernel_t);
 
     jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
             const primitive_attr_t *attr, data_type_t bias_dt,
-            const memory_desc_t *dst_md, bool skip_sum);
+            data_type_t acc_dt, const memory_desc_t *dst_md, bool skip_sum);
 
-    using acc_data_t = typename prec_traits<acc_type>::type;
-    using dst_data_t = typename prec_traits<dst_type>::type;
-
-    void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
+    void operator()(void *dst, const void *acc, const char *bias,
             const float *scales, size_t start, size_t dst_logical_off,
             size_t dim1_off, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
             const float *dst_zero_points,
@@ -105,8 +102,8 @@ private:
     void advance_binary_postops_channel_bcast_off(const T &offset);
 
     struct ker_args_t {
-        dst_data_t *dst = nullptr;
-        const acc_data_t *acc = nullptr;
+        char *dst = nullptr;
+        const char *acc = nullptr;
         const char *bias = nullptr;
         const float *scales = nullptr;
         const float *dst_zero_points = nullptr;
@@ -255,30 +252,30 @@ private:
 
     data_type_t get_data_type(const arg_t arg_num) {
         switch (arg_num) {
-            case arg_t::dst: return dst_type;
+            case arg_t::dst: return this->dst_data_type_;
             case arg_t::sum: return this->sum_data_type_;
-            case arg_t::acc: return acc_type;
+            case arg_t::acc: return this->acc_data_type_;
             case arg_t::bias: return this->bias_data_type_;
             // default for stack or scale operation
-            default: return data_type::f32;
+            default: return f32;
         }
         return data_type::undef;
     }
 };
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-jit_pp_kernel_t<isa, acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
-        dim_t dst_mb_stride, const primitive_attr_t *attr, data_type_t bias_dt,
+template <cpu_isa_t isa>
+jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
+        const primitive_attr_t *attr, data_type_t bias_dt, data_type_t acc_dt,
         const memory_desc_t *dst_md, bool skip_sum)
-    : pp_kernel_t<acc_type, dst_type>(
-            OC, MB, dst_mb_stride, attr, bias_dt, dst_md->ndims, skip_sum) {
-    assert(IMPLICATION(dst_type == data_type::bf16, mayiuse(avx512_core)));
+    : pp_kernel_t(
+            OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum) {
+    assert(IMPLICATION(this->dst_data_type_ == bf16, mayiuse(avx512_core)));
     assert(isa != avx512_common);
 
     if (this->do_scale_) vreg_scale = Vmm(idx_compute_vreg_start_++);
 
-    if (dst_type == data_type::u8) vreg_zero = Vmm(idx_compute_vreg_start_++);
-    if (utils::one_of(dst_type, data_type::u8, data_type::s8, data_type::s32))
+    if (this->dst_data_type_ == u8) vreg_zero = Vmm(idx_compute_vreg_start_++);
+    if (utils::one_of(this->dst_data_type_, u8, s8, s32))
         vreg_saturation_ubound = Vmm(idx_compute_vreg_start_++);
 
     if (this->do_sum_) {
@@ -295,7 +292,7 @@ jit_pp_kernel_t<isa, acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
         vreg_dst_zero_points = Vmm(idx_compute_vreg_start_++);
     }
 
-    if (dst_type == data_type::bf16 && isa != avx512_core_bf16) {
+    if (this->dst_data_type_ == bf16 && isa != avx512_core_bf16) {
         idx_compute_vreg_max_ = 27;
         bf16_emu_.reset(new bf16_emulation_t(this, bf16_emu_reserv_1,
                 bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
@@ -362,10 +359,9 @@ jit_pp_kernel_t<isa, acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
 #undef PARAM_OFF
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+template <cpu_isa_t isa>
 template <typename T>
-void jit_pp_kernel_t<isa, acc_type,
-        dst_type>::advance_binary_postops_per_oc_off(const T &offset) {
+void jit_pp_kernel_t<isa>::advance_binary_postops_per_oc_off(const T &offset) {
 
     const auto binary_post_op_oc_off_reg = reg_tmp_comp;
     const auto binary_post_op_current_offset_on_stack
@@ -385,9 +381,8 @@ void jit_pp_kernel_t<isa, acc_type,
     mov(binary_post_op_current_offset_on_stack, binary_post_op_oc_off_reg);
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type,
-        dst_type>::update_binary_postops_per_tensor_off() {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::update_binary_postops_per_tensor_off() {
     // substract dst_origin from current dst and divide it by dst data type
     // size to get the correct offset
     const auto binary_post_op_offset_reg = reg_tmp_comp;
@@ -400,10 +395,10 @@ void jit_pp_kernel_t<isa, acc_type,
     mov(binary_post_op_current_offset_on_stack, binary_post_op_offset_reg);
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+template <cpu_isa_t isa>
 template <typename T>
-void jit_pp_kernel_t<isa, acc_type,
-        dst_type>::advance_binary_postops_channel_bcast_off(const T &offset) {
+void jit_pp_kernel_t<isa>::advance_binary_postops_channel_bcast_off(
+        const T &offset) {
 
     const auto binary_post_op_offset_reg = reg_tmp_comp;
     const auto binary_post_op_current_offset_on_stack
@@ -417,9 +412,8 @@ void jit_pp_kernel_t<isa, acc_type,
  * Advance binary postops offsets with per_tensor_offset passed as plain value
  * type (const offset value).
  */
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::advance_binary_postops_off(
-        const size_t offset) {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::advance_binary_postops_off(const size_t offset) {
     if (offset) {
         if (any_binary_postop_is_per_oc_bcast_type_)
             advance_binary_postops_per_oc_off(offset);
@@ -433,8 +427,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::advance_binary_postops_off(
 /*
  * Advance binary postops offsets with per_tensor_offset passed in Reg64.
  */
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::advance_binary_postops_off(
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::advance_binary_postops_off(
         const Xbyak::Reg64 reg_offset) {
     if (any_binary_postop_is_per_oc_bcast_type_)
         advance_binary_postops_per_oc_off(reg_offset);
@@ -444,10 +438,9 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::advance_binary_postops_off(
         advance_binary_postops_channel_bcast_off(reg_offset);
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::apply_postops(
-        const bool apply_mask, const int vmm_idx, const size_t offset,
-        const bool runtime_tail_mask) {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::apply_postops(const bool apply_mask,
+        const int vmm_idx, const size_t offset, const bool runtime_tail_mask) {
     if (this->do_eltwise_ || this->do_binary_) {
         if (this->do_binary_) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
@@ -487,8 +480,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::apply_postops(
     }
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::prepare_mask(const size_t tail) {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::prepare_mask(const size_t tail) {
     assert(tail > 0 && tail <= vlen - 1);
     if (is_avx512_) {
         const size_t tail_mask = (1 << tail) - 1;
@@ -504,8 +497,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::prepare_mask(const size_t tail) {
     }
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::load_no_tail(
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::load_no_tail(
         const Vmm &v, Xbyak::Address op, const data_type_t dt) {
     using namespace data_type;
     switch (dt) {
@@ -521,10 +514,9 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::load_no_tail(
     }
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::load_tail(const Vmm &v,
-        const arg_t arg_num, const size_t off, const data_type_t dt,
-        const size_t tail) {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::load_tail(const Vmm &v, const arg_t arg_num,
+        const size_t off, const data_type_t dt, const size_t tail) {
     using namespace data_type;
     if (is_avx512_) {
         auto v_dst = tail ? v | kreg_rem_mask : v;
@@ -552,9 +544,9 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::load_tail(const Vmm &v,
     }
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::load_and_cvt(const Vmm &v,
-        const arg_t arg_num, const size_t off, const size_t tail, bool do_cvt) {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::load_and_cvt(const Vmm &v, const arg_t arg_num,
+        const size_t off, const size_t tail, bool do_cvt) {
     using namespace data_type;
     const data_type_t dt = get_data_type(arg_num);
     if (tail)
@@ -565,10 +557,9 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::load_and_cvt(const Vmm &v,
     if (do_cvt && utils::one_of(dt, u8, s8, s32)) uni_vcvtdq2ps(v, v);
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::cvt_and_store(
-        const Xbyak::Zmm &v, const arg_t arg_num, const size_t off,
-        const size_t tail) {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Zmm &v,
+        const arg_t arg_num, const size_t off, const size_t tail) {
     using namespace data_type;
     const data_type_t dt = get_data_type(arg_num);
     if (!utils::one_of(dt, f32, bf16)) {
@@ -597,10 +588,9 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::cvt_and_store(
     }
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::cvt_and_store(
-        const Xbyak::Ymm &v, const arg_t arg_num, const size_t off,
-        const size_t tail) {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Ymm &v,
+        const arg_t arg_num, const size_t off, const size_t tail) {
     using namespace data_type;
     const data_type_t dt = get_data_type(arg_num);
     const Xbyak::Address dst = get_address(arg_num, off);
@@ -648,10 +638,9 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::cvt_and_store(
     }
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::cvt_and_store(
-        const Xbyak::Xmm &v, const arg_t arg_num, const size_t off,
-        const size_t tail) {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Xmm &v,
+        const arg_t arg_num, const size_t off, const size_t tail) {
     using namespace data_type;
     const data_type_t dt = get_data_type(arg_num);
     const Xbyak::Address dst = get_address(arg_num, off);
@@ -696,8 +685,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::cvt_and_store(
     }
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::runtime_tail_load_cvt(
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::runtime_tail_load_cvt(
         const Vmm &v, const arg_t arg_num, const size_t off, bool cvt) {
     assert(!is_avx512_);
     const data_type_t dt = get_data_type(arg_num);
@@ -715,12 +704,11 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::runtime_tail_load_cvt(
 
     runtime_tail_process<Vmm>(reg_tail, reg_rem_mask, runtime_tail_load);
 
-    if (cvt && utils::one_of(dt, data_type::u8, data_type::s8, data_type::s32))
-        uni_vcvtdq2ps(v, v);
+    if (cvt && utils::one_of(dt, u8, s8, s32)) uni_vcvtdq2ps(v, v);
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::runtime_tail_cvt_store(
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::runtime_tail_cvt_store(
         const Vmm &v, const arg_t arg_num, const size_t off) {
     assert(!is_avx512_);
     const data_type_t dt = get_data_type(arg_num);
@@ -729,7 +717,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::runtime_tail_cvt_store(
     const Xbyak::Ymm y = Xbyak::Ymm(v.getIdx());
     const Xbyak::Reg64 &reg_addr = get_reg_address(arg_num);
 
-    if (utils::one_of(dt, data_type::u8, data_type::s8, data_type::s32)) {
+    if (utils::one_of(dt, u8, s8, s32)) {
         saturate_f32(v, vreg_zero, vreg_saturation_ubound, dt);
         uni_vcvtps2dq(v, v);
     }
@@ -744,11 +732,10 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::runtime_tail_cvt_store(
     runtime_tail_process<Vmm>(reg_tail, reg_rem_mask, runtime_tail_store);
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::data_copy(const Vmm &v,
-        const arg_t arg_num, const size_t off, data_op_t data_op,
-        const size_t tail, const bool is_needed_runtime_tail_process,
-        const bool do_cvt) {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::data_copy(const Vmm &v, const arg_t arg_num,
+        const size_t off, data_op_t data_op, const size_t tail,
+        const bool is_needed_runtime_tail_process, const bool do_cvt) {
     if (data_op == data_op_t::load) {
         if (is_needed_runtime_tail_process)
             runtime_tail_load_cvt(v, arg_num, off, do_cvt);
@@ -762,8 +749,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::data_copy(const Vmm &v,
     }
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
     // Load accumulated value, convert to float, apply bias (if any), scaling,
     // and eltwise (if any); then convert to destination type and store
 
@@ -782,7 +769,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
 
         const int dst_idx = vreg_dst_idx(idx);
         auto vreg_dst_ = Vmm(dst_idx);
-        data_copy(vreg_dst_, arg_t::acc, offset * sizeof(acc_data_t),
+        data_copy(vreg_dst_, arg_t::acc, offset * this->acc_data_type_size_,
                 data_op_t::load, tail, is_needed_runtime_tail_process);
 
         if (this->do_bias()) {
@@ -797,8 +784,9 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
 
         if (this->do_sum_) {
             auto vreg_prev_dst_ = vreg_prev_dst(idx);
-            data_copy(vreg_prev_dst_, arg_t::sum, offset * sizeof(dst_data_t),
-                    data_op_t::load, tail, is_needed_runtime_tail_process);
+            data_copy(vreg_prev_dst_, arg_t::sum,
+                    offset * this->dst_data_type_size_, data_op_t::load, tail,
+                    is_needed_runtime_tail_process);
             if (this->sum_zp_ != 0)
                 uni_vsubps(vreg_prev_dst_, vreg_prev_dst_, vreg_sum_zp);
             if (this->sum_scale_ != 1.f)
@@ -812,14 +800,14 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
         if (this->do_dst_zero_points_)
             uni_vaddps(vreg_dst_, vreg_dst_, vreg_dst_zero_points);
 
-        data_copy(vreg_dst_, arg_t::dst, offset * sizeof(dst_data_t),
+        data_copy(vreg_dst_, arg_t::dst, offset * this->dst_data_type_size_,
                 data_op_t::store, tail, is_needed_runtime_tail_process);
     };
 
     // Advance all pointers by an immediate
     auto advance_ptrs_imm = [&](size_t offset) {
-        add(reg_dst, offset * sizeof(dst_data_t));
-        add(reg_acc, offset * sizeof(acc_data_t));
+        add(reg_dst, offset * this->dst_data_type_size_);
+        add(reg_acc, offset * this->acc_data_type_size_);
         if (this->do_scale_ && this->scale_idx_mult_ == 1)
             add(reg_scales, offset * sizeof(float));
         if (this->do_bias()) add(reg_bias, offset * this->bias_data_type_size_);
@@ -828,8 +816,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
 
     // Advance all pointers by a value stored in a register
     auto advance_ptrs_reg = [&](const Reg64 &offset) {
-        lea(reg_dst, ptr[reg_dst + offset * sizeof(dst_data_t)]);
-        lea(reg_acc, ptr[reg_acc + offset * sizeof(acc_data_t)]);
+        lea(reg_dst, ptr[reg_dst + offset * this->dst_data_type_size_]);
+        lea(reg_acc, ptr[reg_acc + offset * this->acc_data_type_size_]);
         if (this->do_scale_ && this->scale_idx_mult_ == 1)
             lea(reg_scales, ptr[reg_scales + offset * sizeof(float)]);
         if (this->do_bias())
@@ -840,8 +828,12 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
     // incase of non-trivial dst_mb_strides, fixup the reg_dst and reg_acc
     auto maybe_advance_mb_stride = [&]() {
         if (!this->has_trivial_mb_stride()) {
-            lea(reg_dst, ptr[reg_dst + reg_dst_mb_stride * sizeof(dst_data_t)]);
-            lea(reg_acc, ptr[reg_acc + reg_acc_mb_stride * sizeof(acc_data_t)]);
+            lea(reg_dst,
+                    ptr[reg_dst
+                            + reg_dst_mb_stride * this->dst_data_type_size_]);
+            lea(reg_acc,
+                    ptr[reg_acc
+                            + reg_acc_mb_stride * this->acc_data_type_size_]);
         }
         if (this->do_binary_ && any_binary_postop_is_no_bcast_type_)
             update_binary_postops_per_tensor_off();
@@ -904,7 +896,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
     // |    |       Epilogue loop            |      not accessed    :
     // v    +--------------------------------+......................+
 
-    if (dst_type == data_type::bf16 && isa != avx512_core_bf16)
+    if (this->dst_data_type_ == bf16 && isa != avx512_core_bf16)
         bf16_emu_->init_vcvtneps2bf16();
 
     // Prologue loop
@@ -1008,12 +1000,12 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
     L(l_epilogue_end);
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_mb_blk() {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::compute_mb_blk() {
     auto compute = [&](int tail, bool runtime_tail = false) {
         auto vmm_bias = vreg_bias(0);
         auto vmm_dst = vreg_dst(0);
-        assert(utils::one_of(acc_type, data_type::s32, data_type::f32));
+        assert(utils::one_of(this->acc_data_type_, s32, f32));
         data_copy(vmm_dst, arg_t::acc, 0, data_op_t::load, tail, runtime_tail);
         uni_vaddps(vmm_dst, vmm_dst, vmm_bias);
         data_copy(vmm_dst, arg_t::dst, 0, data_op_t::store, tail, runtime_tail);
@@ -1021,27 +1013,22 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_mb_blk() {
 
     Label mb_main_loop, end_main_loop;
 
-    bool expl_broadcast = this->OC_ == 1
-            && utils::one_of(
-                    this->bias_data_type_, data_type::s32, data_type::f32);
+    bool expl_broadcast
+            = this->OC_ == 1 && utils::one_of(this->bias_data_type_, s32, f32);
     size_t mb_step = vlen / this->OC_;
     size_t mb_tail = this->MB_ % mb_step;
     size_t mb_oc_blk = mb_step * this->OC_;
     size_t tail_size = mb_oc_blk % vlen;
     auto vmm_bias = vreg_bias(0);
 
-    if (dst_type == data_type::bf16 && isa != avx512_core_bf16)
+    if (this->dst_data_type_ == bf16 && isa != avx512_core_bf16)
         bf16_emu_->init_vcvtneps2bf16();
 
     if (expl_broadcast) {
         // when OC == 1 bias can be loaded directly into simd
         switch (this->bias_data_type_) {
-            case data_type::s32:
-                uni_vpbroadcastd(vmm_bias, ptr[reg_bias]);
-                break;
-            case data_type::f32:
-                uni_vbroadcastss(vmm_bias, ptr[reg_bias]);
-                break;
+            case s32: uni_vpbroadcastd(vmm_bias, ptr[reg_bias]); break;
+            case f32: uni_vbroadcastss(vmm_bias, ptr[reg_bias]); break;
             // TODO: enable broadcast for other data types
             default: assert(!"unimplemented");
         }
@@ -1060,8 +1047,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_mb_blk() {
         if (tail_size) prepare_mask(tail_size);
         load_and_cvt(vmm_bias, arg_t::stack, 0, tail_size, false);
     }
-    if (utils::one_of(this->bias_data_type_, data_type::u8, data_type::s8,
-                data_type::s32))
+    if (utils::one_of(this->bias_data_type_, u8, s8, s32))
         uni_vcvtdq2ps(vmm_bias, vmm_bias);
     L(mb_main_loop);
     {
@@ -1069,8 +1055,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_mb_blk() {
         jl(end_main_loop, T_NEAR);
 
         compute(!expl_broadcast ? tail_size : 0);
-        add(reg_dst, mb_oc_blk * sizeof(dst_data_t));
-        add(reg_acc, mb_oc_blk * sizeof(acc_data_t));
+        add(reg_dst, mb_oc_blk * this->dst_data_type_size_);
+        add(reg_acc, mb_oc_blk * this->acc_data_type_size_);
         sub(reg_len, mb_oc_blk);
         jmp(mb_main_loop, T_NEAR);
     }
@@ -1085,8 +1071,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_mb_blk() {
             cmp(reg_len, tail_size);
             jl(runtime_tail, T_NEAR);
             compute(tail_size);
-            add(reg_dst, tail_size * sizeof(dst_data_t));
-            add(reg_acc, tail_size * sizeof(acc_data_t));
+            add(reg_dst, tail_size * this->dst_data_type_size_);
+            add(reg_acc, tail_size * this->acc_data_type_size_);
             sub(reg_len, tail_size);
             jmp(mb_tail_loop, T_NEAR);
         }
@@ -1110,8 +1096,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_mb_blk() {
     if (!expl_broadcast) add(rsp, mb_oc_blk * sizeof(uint32_t));
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::generate() {
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::generate() {
     preamble();
 
 #ifdef _WIN32
@@ -1188,8 +1174,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::generate() {
         }
     }
 
-    init_saturate_f32(vreg_zero, vreg_saturation_ubound, reg_tmp_comp,
-            data_type::f32, dst_type);
+    init_saturate_f32(vreg_zero, vreg_saturation_ubound, reg_tmp_comp, f32,
+            this->dst_data_type_);
 
     // at least 2 blocks of mb within vlen
     bool dim_restrict = !this->runtime_oc() && !this->runtime_mb()
@@ -1210,11 +1196,11 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::generate() {
     if (this->do_eltwise_) postops_injector_->prepare_table();
 }
 
-template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<isa, acc_type, dst_type>::operator()(dst_data_t *dst,
-        const acc_data_t *acc, const char *bias, const float *scales,
-        size_t start, size_t dst_logical_off, size_t dim1_off, size_t end,
-        size_t runtime_oc, dim_t dst_mb_stride, const float *dst_zero_points,
+template <cpu_isa_t isa>
+void jit_pp_kernel_t<isa>::operator()(void *dst, const void *acc,
+        const char *bias, const float *scales, size_t start,
+        size_t dst_logical_off, size_t dim1_off, size_t end, size_t runtime_oc,
+        dim_t dst_mb_stride, const float *dst_zero_points,
         const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
         size_t first_mb_matrix_addr_off, const exec_ctx_t & /* ctx */,
         const memory_desc_t & /* dst_md */) const {
@@ -1225,17 +1211,17 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::operator()(dst_data_t *dst,
     ker_args_t args;
     size_t oc_offset = start % OC;
     if (this->has_trivial_mb_stride()) {
-        args.dst = dst + start;
-        args.acc = acc + start;
+        args.dst = static_cast<char *>(dst) + this->dst_data_type_size_ * start;
+        args.acc = static_cast<const char *>(acc)
+                + this->acc_data_type_size_ * start;
     } else {
         const dim_t offt = (start / OC) * dst_mb_stride + oc_offset;
-        args.dst = dst + offt;
+        args.dst = static_cast<char *>(dst) + this->dst_data_type_size_ * offt;
         // if dst and acc point to same address (inplace), then strides
         // must be similar, else assume acc buffer is dense.
-        if (dst == (dst_data_t *)acc)
-            args.acc = acc + offt;
-        else
-            args.acc = acc + start;
+        const auto stride = dst == acc ? offt : start;
+        args.acc = static_cast<const char *>(acc)
+                + this->acc_data_type_size_ * stride;
     }
     args.bias = bias + oc_offset * this->bias_data_type_size_;
     args.scales = scales + this->scale_idx_mult_ * oc_offset;
@@ -1253,42 +1239,25 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::operator()(dst_data_t *dst,
     jit_generator::operator()(&args);
 }
 
-template <data_type_t acc_type, data_type_t dst_type>
-pp_kernel_t<acc_type, dst_type> *jit_pp_kernel_create(size_t OC, size_t MB,
-        dim_t dst_mb_stride, const primitive_attr_t *attr, data_type_t bias_dt,
+pp_kernel_t *jit_pp_kernel_create(size_t OC, size_t MB, dim_t dst_mb_stride,
+        const primitive_attr_t *attr, data_type_t bias_dt, data_type_t acc_dt,
         const memory_desc_t *dst_md, bool skip_sum) {
     if (mayiuse(avx512_core_bf16)) {
-        return new jit_pp_kernel_t<avx512_core_bf16, acc_type, dst_type>(
-                OC, MB, dst_mb_stride, attr, bias_dt, dst_md, skip_sum);
+        return new jit_pp_kernel_t<avx512_core_bf16>(
+                OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum);
     } else if (mayiuse(avx512_core)) {
-        return new jit_pp_kernel_t<avx512_core, acc_type, dst_type>(
-                OC, MB, dst_mb_stride, attr, bias_dt, dst_md, skip_sum);
+        return new jit_pp_kernel_t<avx512_core>(
+                OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum);
     } else if (mayiuse(avx2)) {
-        return new jit_pp_kernel_t<avx2, acc_type, dst_type>(
-                OC, MB, dst_mb_stride, attr, bias_dt, dst_md, skip_sum);
+        return new jit_pp_kernel_t<avx2>(
+                OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum);
     } else if (mayiuse(sse41)) {
-        return new jit_pp_kernel_t<sse41, acc_type, dst_type>(
-                OC, MB, dst_mb_stride, attr, bias_dt, dst_md, skip_sum);
+        return new jit_pp_kernel_t<sse41>(
+                OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum);
     } else {
         return nullptr;
     }
 }
-
-#define INST(acc_type, dst_type) \
-    template pp_kernel_t<acc_type, dst_type> * \
-    jit_pp_kernel_create<acc_type, dst_type>(size_t OC, size_t MB, \
-            dim_t dst_mb_stride, const primitive_attr_t *attr, \
-            data_type_t bias_dt, const memory_desc_t *dst_md, bool skip_sum);
-
-using namespace data_type;
-INST(f32, f32);
-INST(s32, f32);
-INST(s32, s32);
-INST(s32, s8);
-INST(s32, u8);
-INST(f32, bf16);
-
-#undef INST
 
 } // namespace inner_product_utils
 } // namespace x64

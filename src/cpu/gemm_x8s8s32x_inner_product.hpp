@@ -109,7 +109,8 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     status_t init(engine_t *engine) override {
-        CHECK(safe_ptr_assign(pp_kernel_, pp_kernel_t::create(pd(), false)));
+        CHECK(safe_ptr_assign(pp_kernel_,
+                inner_product_utils::pp_kernel_t::create(pd(), false)));
         return pp_kernel_->create_kernel();
     }
 
@@ -121,9 +122,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    using pp_kernel_t
-            = inner_product_utils::pp_kernel_t<data_type::s32, dst_type>;
-    std::unique_ptr<pp_kernel_t> pp_kernel_;
+    std::unique_ptr<inner_product_utils::pp_kernel_t> pp_kernel_;
 };
 
 } // namespace cpu

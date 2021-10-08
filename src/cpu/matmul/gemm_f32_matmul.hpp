@@ -73,9 +73,10 @@ struct gemm_f32_matmul_t : public primitive_t {
                     pd()->dst_md()
                             ->data_type); // sum can be done by gemm itself
             CHECK(safe_ptr_assign(pp_kernel_,
-                    pp_kernel_t::create(pd()->N(), mb, pd()->ldc(),
-                            &pd()->params().pp_attr_,
-                            pd()->desc()->bias_desc.data_type, pd()->dst_md(),
+                    inner_product_utils::pp_kernel_t::create(pd()->N(), mb,
+                            pd()->ldc(), &pd()->params().pp_attr_,
+                            pd()->desc()->bias_desc.data_type,
+                            pd()->desc()->accum_data_type, pd()->dst_md(),
                             skip_sum)));
             return pp_kernel_->create_kernel();
         }
@@ -102,8 +103,7 @@ private:
     status_t execute_ref(const exec_ctx_t &ctx) const;
     bool should_skip_sum_po(data_type_t dst_dt) const noexcept;
 
-    using pp_kernel_t = inner_product_utils::pp_kernel_t<acc_type, dst_type>;
-    std::unique_ptr<pp_kernel_t> pp_kernel_;
+    std::unique_ptr<inner_product_utils::pp_kernel_t> pp_kernel_;
 };
 
 } // namespace matmul

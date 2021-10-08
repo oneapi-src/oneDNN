@@ -25,10 +25,10 @@ namespace cpu {
 namespace x64 {
 namespace inner_product_utils {
 
-template <data_type_t acc_type, data_type_t dst_type>
-cpu::inner_product_utils::pp_kernel_t<acc_type, dst_type> *jit_pp_kernel_create(
-        size_t OC, size_t MB, dim_t dst_mb_stride, const primitive_attr_t *attr,
-        data_type_t bias_dt, const memory_desc_t *dst_md, bool skip_sum);
+cpu::inner_product_utils::pp_kernel_t *jit_pp_kernel_create(size_t OC,
+        size_t MB, dim_t dst_mb_stride, const primitive_attr_t *attr,
+        data_type_t bias_dt, data_type_t acc_dt, const memory_desc_t *dst_md,
+        bool skip_sum);
 
 constexpr cpu_isa_t jit_pp_kernel_supported_isa() {
     return sse41;

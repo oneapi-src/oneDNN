@@ -71,9 +71,12 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
                 }
             }
 
-            pp_kernel_.reset(pp_kernel_t::create(pd()->N(), mb, pd()->ldc(),
-                    &pd()->params().pp_attr_, pd()->desc()->bias_desc.data_type,
-                    pd()->dst_md(), false));
+            CHECK(safe_ptr_assign(pp_kernel_,
+                    inner_product_utils::pp_kernel_t::create(pd()->N(), mb,
+                            pd()->ldc(), &pd()->params().pp_attr_,
+                            pd()->desc()->bias_desc.data_type,
+                            pd()->desc()->accum_data_type, pd()->dst_md(),
+                            false)));
             return pp_kernel_->create_kernel();
         }
         return status::success;
@@ -101,8 +104,7 @@ private:
             acc_data_t *acc, int ldc, acc_data_t src_zero_point,
             acc_data_t wei_zero_point) const;
 
-    using pp_kernel_t = inner_product_utils::pp_kernel_t<acc_type, dst_type>;
-    std::unique_ptr<pp_kernel_t> pp_kernel_;
+    std::unique_ptr<inner_product_utils::pp_kernel_t> pp_kernel_;
 };
 
 } // namespace matmul
