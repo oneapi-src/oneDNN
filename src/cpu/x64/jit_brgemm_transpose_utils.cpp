@@ -673,13 +673,13 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
     postamble();
 }
 
-void jit_brgemm_copy_to_coarse_t::copy_row_blk_loop(int copy_row_iters) {
-    int row_blks = div_up(copy_row_iters, row_loop_unroll);
+void jit_brgemm_copy_to_coarse_t::copy_row_blks(int num_row_blks) {
+    int rnd_row_blks = div_up(num_row_blks, row_loop_unroll);
 
-    for (int row_b = 0; row_b < row_blks; ++row_b) {
+    for (int row_b = 0; row_b < rnd_row_blks; ++row_b) {
         const int row_start = 0;
         const int row_end = nstl::min(static_cast<int>(row_loop_unroll),
-                copy_row_iters - row_b * static_cast<int>(row_loop_unroll));
+                num_row_blks - row_b * static_cast<int>(row_loop_unroll));
 
         for (int row = row_start; row < row_end; ++row) {
             const int row_idx = row_b * row_loop_unroll + row;
@@ -695,10 +695,16 @@ void jit_brgemm_copy_to_coarse_t::copy_row_blk_loop(int copy_row_iters) {
     }
 }
 
-void jit_brgemm_copy_to_coarse_t::copy_row_tail(int row_offset) {
-    // Mask for row tail load and store are already set up
-    const auto zmm_data = zmm_tail | reg_m_row_tail_load | T_z;
-    const auto zmm_tr_data = zmm_tail | reg_m_row_tail_store;
+void jit_brgemm_copy_to_coarse_t::copy_row_tail(
+        bool is_last_iteration, int row_offset) {
+    // Masks for row tail load and store are already set up
+    const auto load_mask = is_last_iteration ? reg_m_last_row_tail_load
+                                             : reg_m_full_row_tail_load;
+    const auto store_mask = is_last_iteration ? reg_m_last_row_tail_store
+                                              : reg_m_full_row_tail_store;
+
+    const auto zmm_data = zmm_row_tail | load_mask | T_z;
+    const auto zmm_tr_data = zmm_row_tail | store_mask;
 
     const auto offset = addr_offset(row_offset);
     const auto addr = EVEX_compress_addr(reg_data, offset);
@@ -708,26 +714,64 @@ void jit_brgemm_copy_to_coarse_t::copy_row_tail(int row_offset) {
     vmovdqu8(addr_tr, zmm_tr_data);
 }
 
+void jit_brgemm_copy_to_coarse_t::zero_out_rows() {
+    const int row_blk = row_size_ % tr_row_size_;
+    const int rnd_up_row_blk = utils::rnd_up(row_blk, row_step_);
+
+    int zero_row_blks = tr_row_size_ - rnd_up_row_blk;
+    if (zero_row_blks == 0) return;
+
+    const auto zmm_step = row_step_, ymm_step = row_step_ / 2,
+               xmm_step = row_step_ / 4;
+    assert(zero_row_blks % xmm_step == 0);
+    MAYBE_UNUSED(xmm_step);
+
+    int zmm_iters = zero_row_blks / zmm_step;
+    zero_row_blks %= zmm_step;
+    int ymm_iters = zero_row_blks / ymm_step;
+    zero_row_blks %= ymm_step;
+    int xmm_iters = zero_row_blks / xmm_step;
+
+    auto offset = addr_offset(rnd_up_row_blk / row_step_);
+
+    for (int row = 0; row < zmm_iters; ++row) {
+        const auto addr_tr = EVEX_compress_addr(reg_tr_data, offset);
+        vmovdqu8(addr_tr, zmm_zero);
+        offset += (zmm_step * typesize_);
+    }
+
+    const auto ymm_zero = Xbyak::Ymm(zmm_zero.getIdx());
+    const auto xmm_zero = Xbyak::Xmm(zmm_zero.getIdx());
+
+    assert(xmm_iters <= 1 && ymm_iters <= 1);
+    if (ymm_iters > 0) {
+        const auto addr_tr = EVEX_compress_addr(reg_tr_data, offset);
+        vmovdqu8(addr_tr, ymm_zero);
+        offset += (ymm_step * typesize_);
+    }
+
+    if (xmm_iters > 0) {
+        const auto addr_tr = EVEX_compress_addr(reg_tr_data, offset);
+        vmovdqu8(addr_tr, xmm_zero);
+    }
+}
+
 void jit_brgemm_copy_to_coarse_t::copy_row_loop() {
     Xbyak::Label label_row_tail, label_row_exit;
 
     // Note: copying is done in chunks of size row_step_
-    const auto copy_row = [&](bool is_last_blk) {
+    const auto copy_row = [&](bool is_last_iteration) {
         const int row_blk
-                = is_last_blk ? (row_size_ % tr_row_size_) : tr_row_size_;
+                = is_last_iteration ? (row_size_ % tr_row_size_) : tr_row_size_;
         const int row_iters = row_blk / row_step_;
         const int row_iters_tail = row_blk % row_step_;
 
-        copy_row_blk_loop(row_iters);
-        if (row_iters_tail != 0) copy_row_tail(/* row_offset = */ row_iters);
+        copy_row_blks(row_iters);
+        if (row_iters_tail != 0)
+            copy_row_tail(is_last_iteration, /* row_offset = */ row_iters);
 
-        const int rnd_up_row_blk = utils::rnd_up(row_blk, row_step_);
-        const int zero_row_iters = (tr_row_size_ - rnd_up_row_blk) / row_step_;
-        for (int row = 0; row < zero_row_iters; ++row) {
-            const auto offset = addr_offset(rnd_up_row_blk / row_step_ + row);
-            const auto addr_tr = EVEX_compress_addr(reg_tr_data, offset);
-            vmovdqu8(addr_tr, zmm_zero);
-        }
+        // For the last iteration, zero-out rows if needed
+        if (is_last_iteration) zero_out_rows();
     };
 
     const bool only_row_tail = row_size_ < tr_row_size_;
@@ -736,12 +780,12 @@ void jit_brgemm_copy_to_coarse_t::copy_row_loop() {
         cmp(reg_last_row_blk, 0);
         jne(label_row_tail, T_NEAR);
 
-        copy_row(/* is_last_blk = */ false);
+        copy_row(/* is_last_iteration = */ false);
         jmp(label_row_exit, T_NEAR);
     }
 
     L(label_row_tail);
-    copy_row(/* is_last_blk = */ true);
+    copy_row(/* is_last_iteration = */ true);
 
     L(label_row_exit);
 }
@@ -759,15 +803,15 @@ void jit_brgemm_copy_to_coarse_t::copy_os_loop() {
     jnz(loop_os, T_NEAR);
 }
 
-void jit_brgemm_copy_to_coarse_t::set_tail_mask() {
-    const int row_tail = row_size_ % row_step_;
+void jit_brgemm_copy_to_coarse_t::set_last_row_tail_masks() {
+    const int row_tail = (row_size_ % tr_row_size_) % row_step_;
     assert(row_tail > 0 && "kernel is meant to be used with tail processing");
 
     // Set load mask
     const size_t tail_mask_load
             = (static_cast<size_t>(1) << (typesize_ * row_tail)) - 1;
     mov(reg_tail_mask, tail_mask_load);
-    kmovq(reg_m_row_tail_load, reg_tail_mask);
+    kmovq(reg_m_last_row_tail_load, reg_tail_mask);
 
     // Caution: Since size of ZMM equals 64 bytes therefore we need
     // different masks to store tails with smaller row_block_size_
@@ -790,24 +834,44 @@ void jit_brgemm_copy_to_coarse_t::set_tail_mask() {
         assert(row_tail_store_size == num_bytes(quad_mask));
         mov(reg_tail_mask, quad_mask);
     }
-    kmovq(reg_m_row_tail_store, reg_tail_mask);
+    kmovq(reg_m_last_row_tail_store, reg_tail_mask);
+}
+
+void jit_brgemm_copy_to_coarse_t::set_full_row_tail_masks() {
+    const auto full_row_tail = tr_row_size_ % row_step_;
+    assert(row_step_ == 2 * full_row_tail || row_step_ == 4 * full_row_tail);
+
+    const auto tail_mask = row_step_ == 2 * full_row_tail
+            ? size_t {0x00000000ffffffff}
+            : size_t {0x000000000000ffff};
+
+    mov(reg_tail_mask, tail_mask);
+    kmovq(reg_m_full_row_tail_store, reg_tail_mask);
+    kmovq(reg_m_full_row_tail_load, reg_tail_mask);
 }
 
 void jit_brgemm_copy_to_coarse_t::generate() {
     preamble();
 
-    set_tail_mask();
+    // set up masks for tail processing
+    set_last_row_tail_masks();
+    const bool has_full_row_tail_ = tr_row_size_ % row_step_ != 0;
+    if (has_full_row_tail_) set_full_row_tail_masks();
+
+    // init zero vreg (zmm_zero) if it is needed
     const int last_row_size
             = utils::rnd_up(row_size_ % tr_row_size_, row_step_);
     const bool zero_iters_needed
             = last_row_size > 0 && last_row_size < tr_row_size_;
     if (zero_iters_needed) vpxord(zmm_zero, zmm_zero, zmm_zero);
 
+    // load arguments to the jit kernel
     mov(reg_data, ptr[param1 + GET_OFF(data)]);
     mov(reg_tr_data, ptr[param1 + GET_OFF(tr_data)]);
     mov(reg_os_work, ptr[param1 + GET_OFF(os_work)]);
     mov(reg_last_row_blk, ptr[param1 + GET_OFF(last_row_blk)]);
 
+    // enter the `main` loop
     copy_os_loop();
 
     postamble();
