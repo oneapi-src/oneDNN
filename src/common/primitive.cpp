@@ -20,7 +20,11 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+
+#if defined(DNNL_ENABLE_ITT_TASKS)
 #include "ittnotify.hpp"
+#endif
+
 #include "primitive.hpp"
 #include "primitive_desc.hpp"
 #include "primitive_exec_types.hpp"
@@ -109,9 +113,11 @@ status_t primitive_execute(
 
     stream->before_exec_hook();
 
+#if defined(DNNL_ENABLE_ITT_TASKS)
     const bool enable_itt = itt::get_itt(itt::__itt_task_level_low);
     if (enable_itt)
         itt::primitive_task_start(primitive_iface->pd()->impl()->kind());
+#endif
 
     if (get_verbose()) {
         stream->wait();
@@ -129,7 +135,9 @@ status_t primitive_execute(
         status = stream->enqueue_primitive(primitive_iface, ctx);
     }
 
+#if defined(DNNL_ENABLE_ITT_TASKS)
     if (enable_itt) itt::primitive_task_end();
+#endif
 
     stream->after_exec_hook();
 
