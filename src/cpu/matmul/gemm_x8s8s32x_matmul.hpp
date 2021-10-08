@@ -35,7 +35,6 @@ namespace impl {
 namespace cpu {
 namespace matmul {
 
-template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type>
 struct gemm_x8s8s32x_matmul_t : public primitive_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
@@ -82,13 +81,6 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
         return status::success;
     }
 
-    static constexpr data_type_t acc_type = data_type::s32;
-
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<weights_type>::type weights_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
-    typedef typename prec_traits<acc_type>::type acc_data_t;
-
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_ref(ctx);
     }
@@ -97,12 +89,11 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
     void post_process_src_and_weights_zero_points(
-            std::vector<acc_data_t> &src_comp,
-            std::vector<acc_data_t> &wei_comp, dim_t M, dim_t N, dim_t K,
-            const src_data_t *src, dim_t src_s0, dim_t src_s1,
-            const weights_data_t *wei, dim_t wei_s0, dim_t wei_s1,
-            acc_data_t *acc, int ldc, acc_data_t src_zero_point,
-            acc_data_t wei_zero_point) const;
+            std::vector<int32_t> &src_comp, std::vector<int32_t> &wei_comp,
+            dim_t M, dim_t N, dim_t K, const char *src, dim_t src_s0,
+            dim_t src_s1, const int8_t *wei, dim_t wei_s0, dim_t wei_s1,
+            int32_t *acc, int ldc, int32_t src_zero_point,
+            int32_t wei_zero_point) const;
 
     std::unique_ptr<inner_product_utils::pp_kernel_t> pp_kernel_;
 };
