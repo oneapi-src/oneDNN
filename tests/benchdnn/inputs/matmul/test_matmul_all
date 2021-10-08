@@ -49,6 +49,9 @@
 # f32 Run-time
 --batch=harness_matmul_runtime_f32
 
+# f32 regression
+--batch=harness_matmul_regression_f32
+
 # int8
 --batch=test_matmul_int8
 

@@ -72,18 +72,7 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
     dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, engine);
     const auto dt = got_mem.dt();
-
-    float trh = trh_;
-    // Update trh with the largest value from all eltwise post-ops
-    const auto &po = attr.post_ops;
-    const bool has_eltwise = po.eltwise_index() != -1;
-    if (has_eltwise) {
-        for (int i = 0; i < po.len(); ++i) {
-            const auto &e = po.entry[i];
-            if (e.is_eltwise_kind())
-                trh = MAX2(trh, eltwise::get_eltwise_threshold(dt, e.kind));
-        }
-    }
+    const bool has_eltwise = attr.post_ops.eltwise_index() != -1;
 
     // Atomics to be updated in parallel section, non-atomics - in sequential.
     std::atomic<bool> all_ok(true);
@@ -102,7 +91,7 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             ok = true;
         } else {
             // Standard check for relative diff is under set threshold...
-            ok = (fabsf(args.exp) > 1e-5 ? args.rel_diff : args.diff) <= trh;
+            ok = (fabsf(args.exp) > 1e-5 ? args.rel_diff : args.diff) <= trh_;
             // If not, check that both are NaNs or infinity with same sign...
             if (!ok) ok = compare::compare_extreme_values(args.exp, args.got);
             // If not, use hack to check not fully correct s32 saturation on
@@ -113,6 +102,18 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                         && args.got < max_dt(dnnl_s32);
             // If not, check driver additional checks if set...
             if (!ok && driver_check_func_) ok = driver_check_func_(args);
+            // If not, check if there are eltwise post-ops, use very relaxed
+            // comparison since we can't control inputs for each driver finely
+            // or validate if the output value from operation satisfies the
+            // check for catastrophic cancellation (see eltwise additional check
+            // function). We rely on validation of pure eltwise and let some
+            // big rdiff errors slip away hoping that absolute error is good
+            // enough.
+            if (!ok && has_eltwise) {
+                const float experimental_tolerated_trh = 2e-6;
+                ok = args.diff <= experimental_tolerated_trh;
+            }
+
             // Update zero stats for mistrust testing.
             if (from_parallel && args.got == 0) zeros++;
         }

@@ -119,6 +119,14 @@ args_t &args_t::set(
     return *this;
 }
 
+const dnn_mem_t &args_t::find(int arg) const {
+    static dnn_mem_t empty_stub;
+    for (const auto &e : args_) {
+        if (e.first == arg) return *(e.second);
+    }
+    return empty_stub;
+}
+
 // Unmap before passing the memory to execute
 void execute_unmap_args(
         const args_t &args, std::vector<dnnl_exec_arg_t> &dnnl_args) {
@@ -303,6 +311,20 @@ void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
     zero_points_m = dnn_mem_t(1, &cnt, dnnl_s32, tag::x, get_test_engine());
     for (int64_t c = 0; c < cnt; ++c)
         ((int32_t *)zero_points_m)[c] = zero_points[c];
+}
+
+std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
+        const std::vector<std::pair<int, int>> &v_po_masks,
+        const size_t dst_off) {
+    std::vector<float> v_vals(v_po_masks.size());
+
+    for (size_t d = 0; d < v_po_masks.size(); ++d) {
+        const auto po_offset
+                = dst_m.get_scale_idx(dst_off, v_po_masks[d].second);
+        const float val = args.find(v_po_masks[d].first).get_elem(po_offset);
+        v_vals[d] = val;
+    }
+    return v_vals;
 }
 
 bool check_md_consistency_with_tag(

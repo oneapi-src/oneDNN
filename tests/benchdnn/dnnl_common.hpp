@@ -215,11 +215,7 @@ enum class memory_kind_ext_t {
     usm_shared, // USM allocated via malloc_shared()
 };
 
-#ifdef DNNL_WITH_SYCL
 const memory_kind_ext_t default_memory_kind = memory_kind_ext_t::usm;
-#else
-const memory_kind_ext_t default_memory_kind = memory_kind_ext_t::buffer;
-#endif
 
 extern memory_kind_ext_t memory_kind;
 
@@ -240,6 +236,8 @@ struct args_t {
     void clear() { args_.clear(); }
 
     int size() const { return (int)args_.size(); }
+
+    const dnn_mem_t &find(int arg) const;
 
     int arg(int index) const { return args_[index].first; }
     const dnn_mem_t &dnn_mem(int index) const { return *args_[index].second; }
@@ -467,6 +465,10 @@ void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
 
 void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         const attr_t &attr, int arg, int64_t count, const int32_t *zero_points);
+
+std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
+        const std::vector<std::pair<int, int>> &v_po_masks,
+        const size_t dst_off);
 
 bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag);

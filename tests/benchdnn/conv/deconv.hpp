@@ -28,10 +28,18 @@
 #include "dnnl_memory.hpp"
 
 namespace deconv {
-int transpose_data_wei(
-        const conv::prb_t *prb, dnn_mem_t &wei, dnn_mem_t &wei_tr);
 void check_known_skipped_case(const conv::prb_t *prb, res_t *res);
 int doit(const conv::prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
+
+int transpose_data_wei(
+        const conv::prb_t *prb, const dnn_mem_t &wei, const dnn_mem_t &wei_tr);
+void compute_ref_fwd(
+        const conv::prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+void compute_ref_bwd_d(
+        const conv::prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+void compute_ref_bwd_w(
+        const conv::prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+
 } // namespace deconv
 #endif

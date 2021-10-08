@@ -14,6 +14,7 @@
                 sum:0.5, \
                 linear:2:1, \
                 add:f32, \
+                prelu:per_oc, \
                 mul:s8:per_oc+sum:0.25+relu:0.5+add:f32:per_tensor
 --batch=shapes_basic
 ### Wino
