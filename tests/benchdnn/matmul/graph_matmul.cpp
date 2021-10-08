@@ -343,12 +343,14 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
 
     // matmul operator supports only binary-add (single binary post-op)
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
     if (graph_prb.has_post_bin()) {
         binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
         binary_po_dt.emplace_back(make_dnn_mem(ins.back(), prb->dtag));
-        const int idx = 0;
-        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
-                binary_po_dt.back(), binary_po_fp.back());
+        const int bin_po_arg
+                = DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1;
+        binary::fill_mem(bin_po_arg, binary_po_dt.back(), binary_po_fp.back());
+        binary_po_args.push_back(bin_po_arg);
     }
 
     dnnl::graph::engine &eng = get_test_engine();
@@ -382,18 +384,24 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
     if (is_bench_mode(CORR)) {
-        const auto &dnnl_test_engine = ::get_test_engine();
+        dnnl_primitive_t c_ref = nullptr;
+        args_t ref_args;
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(binary_po_args, binary_po_fp);
 
-        if (apply_bias && is_low_precision(graph_prb.get_dtypes())) {
-            dnn_mem_t bia_fp_scaled;
+        dnn_mem_t bia_fp_scaled;
+        if (apply_bias) {
             bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::abx);
             scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
-            ::matmul::compute_ref(dnnl_test_engine, prb, src_fp, wei_fp,
-                    bia_fp_scaled, binary_po_fp, dst_fp);
-        } else {
-            ::matmul::compute_ref(dnnl_test_engine, prb, src_fp, wei_fp, bia_fp,
-                    binary_po_fp, dst_fp);
+            if (is_low_precision(graph_prb.get_dtypes()))
+                ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
+            else
+                ref_args.set(DNNL_ARG_BIAS, bia_fp);
         }
+
+        ::matmul::compute_ref(prb, c_ref, ref_args);
 
         compare::compare_t cmp;
         cmp.set_threshold(prb->cfg[DST].eps);

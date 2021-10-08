@@ -43,15 +43,8 @@ int fill_dst(
 int compare_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *res, bool final_compare);
 void check_known_skipped_case(const prb_t *prb, res_t *res);
-int init_pd_custom(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &cpd, res_t *res,
-        dnnl_data_type_t src_dt = dnnl_data_type_undef,
-        dnnl_data_type_t wei_dt = dnnl_data_type_undef,
-        dnnl_data_type_t bia_dt = dnnl_data_type_undef,
-        dnnl_data_type_t dst_dt = dnnl_data_type_undef,
-        dnnl_data_type_t acc_dt = dnnl_data_type_undef,
-        std::string src_tag = tag::undef, std::string wei_tag = tag::undef,
-        std::string bia_tag = tag::undef, std::string dst_tag = tag::undef);
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

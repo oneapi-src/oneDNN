@@ -156,6 +156,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     std::swap(wei_tr_dims[1], wei_tr_dims[2]);
     auto wei_tr_fp = make_dnn_mem(ins[1], wei_tr_dims, dt::f32, tag::abx);
     std::vector<dnn_mem_t> binary_po_fp;
+    std::vector<int> binary_po_args;
     dnn_mem_t bia_fp;
 
     auto src_dt = make_dnn_mem(ins[0], spec.src_dims, spec.raw_src_tag);
@@ -181,11 +182,8 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
     if (is_bench_mode(CORR)) {
-        const auto fp = dnnl_f32;
-        const auto src_tag = tag::abx;
         dnnl_primitive_t c_ref = nullptr;
 
-        const auto &dnnl_test_engine = ::get_test_engine();
         {
             ::conv::prb_t prb_tr((::conv::desc_t)*prb, prb->dir, prb->cfg,
                     prb->stag, prb->wtag, prb->dtag, prb->alg, prb->attr,
@@ -194,9 +192,20 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             std::swap(prb_tr.ih, prb_tr.oh);
             std::swap(prb_tr.id, prb_tr.od);
             std::swap(prb_tr.iw, prb_tr.ow);
-            ::conv::compute_ref_bwd_d(&prb_tr, c_ref, dst_fp, wei_tr_fp, bia_fp,
-                    binary_po_fp, src_fp);
+
+            args_t ref_args;
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+            ref_args.set(DNNL_ARG_BIAS, bia_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
+            ref_args.set(binary_po_args, binary_po_fp);
+            ::deconv::compute_ref_fwd(&prb_tr, c_ref, ref_args);
         }
+
+        const auto &dnnl_test_engine = ::get_test_engine();
+        const auto src_tag = tag::abx;
+        const auto fp = dnnl_f32;
         dnn_mem_t dst(dst_dt, fp, src_tag, dnnl_test_engine);
         SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
     }

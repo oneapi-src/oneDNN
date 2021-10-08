@@ -62,14 +62,16 @@ struct conv_graph_prb_t : public graph_prb_t {
             }
         }
 
-        auto dtypes = {spec_.src_dt, spec_.dst_dt};
-        if (benchdnnext::is_low_precision(dtypes)) {
+        if (benchdnnext::is_low_precision(get_dtypes())) {
             ctor_status = handle_low_precision_(prb);
             if (stop_work(ctor_status)) return;
         }
 
         ctor_status = fill_status::DONE;
     };
+
+    std::vector<dt> get_dtypes() const { return {spec_.src_dt, spec_.dst_dt}; }
+
     fill_status_t ctor_status;
 
 private:

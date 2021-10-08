@@ -235,14 +235,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    auto init_pd = [&](dnnl_engine_t engine, const ::conv::prb_t *prb,
-                           dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
-                           const_dnnl_primitive_desc_t hint) {
-        SAFE(::conv::init_pd_custom(engine, prb, cpd, res), WARN);
-        return OK;
-    };
-    auto cp = compile_partition(init_pd, prb, res, par, ins, outs);
+    auto cp = compile_partition(::conv::init_pd, prb, res, par, ins, outs);
 
     auto src_fp = make_dnn_mem(ins[0], spec.src_dims, dt::f32, tag::abx);
     auto wei_fp = make_dnn_mem(ins[1], spec.wei_dims, dt::f32, tag::abx);
@@ -264,6 +257,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<dnn_mem_t> prelu_po_fp, prelu_po_dt;
+    std::vector<int> binary_po_args;
     std::vector<int> prelu_po_args;
     //TODO - Please add support for prelu in dnnl-graph
     //SAFE(prelu::setup_prelu_po(
@@ -272,9 +266,10 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     if (graph_prb.has_post_bin()) {
         binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
         binary_po_dt.emplace_back(make_dnn_mem(ins.back(), tag::abx));
-        const int idx = 0;
-        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
-                binary_po_dt.back(), binary_po_fp.back());
+        const int bin_po_arg
+                = DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1;
+        binary::fill_mem(bin_po_arg, binary_po_dt.back(), binary_po_fp.back());
+        binary_po_args.push_back(bin_po_arg);
     }
 
     dnnl::graph::engine &eng = get_test_engine();
@@ -306,20 +301,28 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
     if (is_bench_mode(CORR)) {
-        const auto fp = dnnl_f32;
-        const auto src_tag = tag::abx;
         dnnl_primitive_t c_ref = nullptr;
+        args_t ref_args;
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(binary_po_args, binary_po_fp);
 
-        // re-scale bias
         dnn_mem_t bia_fp_scaled;
         if (prb->dir == FWD_B) {
             bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
             scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
+            if (is_low_precision(graph_prb.get_dtypes()))
+                ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
+            else
+                ref_args.set(DNNL_ARG_BIAS, bia_fp);
         }
 
+        ::conv::compute_ref_fwd(prb, c_ref, ref_args);
+
         const auto &dnnl_test_engine = ::get_test_engine();
-        ::conv::compute_ref_fwd(prb, c_ref, src_fp, wei_fp, bia_fp_scaled,
-                binary_po_fp, prelu_po_fp, dst_fp);
+        const auto src_tag = tag::abx;
+        const auto fp = dnnl_f32;
         dnn_mem_t dst(dst_dt, fp, src_tag, dnnl_test_engine);
         SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
     }
