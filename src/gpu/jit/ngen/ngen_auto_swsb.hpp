@@ -26,6 +26,7 @@
 #include <iostream>
 #endif
 
+#include <limits>
 #include <list>
 #include <map>
 
