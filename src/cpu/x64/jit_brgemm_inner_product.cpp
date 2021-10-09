@@ -990,7 +990,10 @@ void brgemm_inner_product_bwd_weights_t<isa>::transpose_matrix_c_chunk(
                 * ext_ic_block_ * ext_oc_block_;
         dim_t out_offset = ocb_shift + icb_shift;
 
-        p.src = (void *)(ti->buffer_c + acc_dt_size * get_wei_offset(ocb, icb));
+        p.src = jbgp.nthr_mb == 1
+                ? get_wei_acc_ptr(ti, ocb, icb)
+                : (void *)(ti->buffer_c
+                        + acc_dt_size * get_wei_offset(ocb, icb));
         p.dst = (void *)(ti->diff_weights
                 + types::data_type_size(jbgp.wei_dt) * out_offset);
 
@@ -1051,8 +1054,18 @@ char *brgemm_inner_product_bwd_weights_t<isa>::get_wei_acc_ptr(
             UNUSED(icb);
             UNUSED(ocb);
             return ti->buffer_c + acc_dt_size * ti->ithr * jbgp.LDC * jbgp.M;
-        } else
-            return ti->buffer_c + acc_dt_size * get_wei_offset(ocb, icb);
+        } else {
+            const size_t blk_size = acc_dt_size * jbgp.ic_block * jbgp.oc_block;
+            const size_t buf_size_per_thread
+                    = blk_size * jbgp.nb_ic_blocking * jbgp.nb_oc_blocking;
+            const int ocb_l = ocb % jbgp.nb_oc_blocking;
+            const int icb_l = icb % jbgp.nb_ic_blocking;
+            const size_t offset_within_thread_buf
+                    = blk_size * (jbgp.nb_ic_blocking * ocb_l + icb_l);
+            const size_t offset
+                    = ti->ithr * buf_size_per_thread + offset_within_thread_buf;
+            return ti->buffer_c + offset;
+        }
     } else if (jbgp.use_buffer && jbgp.nthr_mb > 1
             && ti->ithr_os_c >= reduction_buf_start_idx) {
         const size_t red_buf_elems = (size_t)jbgp.nb_ic * jbgp.ic_block
