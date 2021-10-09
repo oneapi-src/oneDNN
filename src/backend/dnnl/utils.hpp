@@ -25,6 +25,8 @@
 
 #include "backend/dnnl/common.hpp"
 
+#include "utils/utils.hpp"
+
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -107,8 +109,9 @@ inline bool is_aligned_ptr(void *ptr, size_t bytes) {
 }
 
 inline bool is_enable_constant_cache() {
-    char *env = std::getenv("DNNL_GRAPH_CONSTANT_CACHE");
-    return env != nullptr && std::strcmp(env, "1") == 0;
+    const bool enabled
+            = impl::utils::getenv_int("DNNL_GRAPH_CONSTANT_CACHE", 0) > 0;
+    return enabled;
 }
 
 inline std::pair<std::vector<float>, std::vector<float>> compute_scales(
@@ -142,11 +145,6 @@ inline int tensor_scale_mask(dim scale_size, bool grouped) {
 
 inline int tensor_zp_mask(dim zp_size) {
     return zp_size > 1 ? 1 : 0;
-}
-
-inline bool is_dump_subgraph() {
-    char *env = std::getenv("DNNL_GRAPH_DUMP_SUBGRAPH");
-    return env != nullptr && std::strcmp(env, "1") == 0;
 }
 
 } // namespace utils
