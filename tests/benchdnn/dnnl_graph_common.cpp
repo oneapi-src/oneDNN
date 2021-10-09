@@ -434,7 +434,8 @@ fill_status_t po_handlers_t::bias_po_handler_t::operator()(graph_prb_t &p,
     const std::string BIA_SRC {TENSOR_ID + "_SRC"};
     const std::string BIA_DST {TENSOR_ID + "_DST"};
 
-    p.tensor_descs_.emplace(BIA_SRC, bia_dt, bia_dims, lt::strided);
+    p.tensor_descs_.emplace(BIA_SRC, bia_dt, bia_dims, lt::strided,
+            tensor_descs_t::property_type::constant);
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, BIA_DST, dst_dt, dst_dims, dst_lt);
 

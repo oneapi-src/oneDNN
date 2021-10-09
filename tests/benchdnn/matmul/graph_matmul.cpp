@@ -87,10 +87,12 @@ fill_status_t matmul_graph_prb_t::handle_main_op_() {
     dt wei_dt = (change_dt) ? default_dt : spec_.wei_dt;
     dt dst_dt = (change_dt) ? default_dt : spec_.dst_dt;
     tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
-    tensor_descs_.emplace(WEI, wei_dt, spec_.wei_dims, spec_.raw_wei_tag);
+    tensor_descs_.emplace(WEI, wei_dt, spec_.wei_dims, spec_.raw_wei_tag,
+            tensor_descs_t::property_type::constant);
     tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
     if (with_bias) {
-        tensor_descs_.emplace(BIA, spec_.bia_dt, spec_.bia_dims, lt::strided);
+        tensor_descs_.emplace(BIA, spec_.bia_dt, spec_.bia_dims, lt::strided,
+                tensor_descs_t::property_type::constant);
     }
 
     std::vector<dnnl::graph::logical_tensor> lt_inputs {
@@ -175,8 +177,8 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
 
     tensor_descs_.emplace(
             QSRC, spec_.src_dt, spec_.src_dims, spec_.raw_src_tag);
-    tensor_descs_.emplace(
-            QWEI, spec_.wei_dt, spec_.wei_dims, spec_.raw_wei_tag);
+    tensor_descs_.emplace(QWEI, spec_.wei_dt, spec_.wei_dims, spec_.raw_wei_tag,
+            tensor_descs_t::property_type::constant);
     if (with_qdst)
         tensor_descs_.emplace(
                 QDST, spec_.dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
