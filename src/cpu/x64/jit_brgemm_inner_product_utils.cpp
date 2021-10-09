@@ -736,12 +736,12 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.K_tail = (jbgp.os % jbgp.os_block) + (do_rnd_os ? 1 : 0);
 
     jbgp.nb_os_blocking = 1;
-    int os_blocking_max = (is_amx_bf16)
+    int os_blocking_max = (is_amx_bf16 && jbgp.nb_os >= 64)
             ? (types::data_type_size(jbgp.src_dt) * jbgp.mb * jbgp.ic
                       < platform::get_per_core_cache_size(2))
                     ? 8
                     : 4
-            : 64;
+            : nstl::min(64, jbgp.nb_os);
 
     for (int bl = os_blocking_max; bl >= 1; bl--)
         if (jbgp.nb_os % bl == 0) {
@@ -948,9 +948,12 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     }
     if (jbgp.use_buffer) {
         size_t nelements = (size_t)jbgp.nthr * jbgp.LDC * jbgp.M;
-        if (jbgp.prop_kind == dnnl_backward_weights
-                && (jbgp.nthr_mb > 1
-                        || jbgp.isa == avx512_core_bf16_amx_bf16)) {
+        if (jbgp.prop_kind == dnnl_backward_weights && jbgp.nthr_mb == 1
+                && jbgp.isa == avx512_core_bf16_amx_bf16) {
+            nelements = (size_t)jbgp.nthr * jbgp.nb_ic_blocking * jbgp.ic_block
+                    * jbgp.nb_oc_blocking * jbgp.oc_block;
+        } else if (jbgp.prop_kind == dnnl_backward_weights
+                && jbgp.nthr_mb > 1) {
             int n_reduction_buffers = jbgp.nthr_mb - (jbgp.wei_dt == f32);
             nelements = (size_t)n_reduction_buffers * jbgp.nb_ic * jbgp.ic_block
                     * jbgp.nb_oc * jbgp.oc_block;
