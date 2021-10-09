@@ -144,6 +144,7 @@ inline size_t encode_dnnl_layout(size_t layout_idx) noexcept {
 }
 
 struct tensor_descs_t {
+    using property_type = dnnl::graph::logical_tensor::property_type;
     tensor_descs_t() = default;
 
     template <typename... Args>
@@ -153,7 +154,8 @@ struct tensor_descs_t {
     }
 
     void emplace(std::string str, dt dtype, const dims_t &adims,
-            const std::string &atag) {
+            const std::string &atag,
+            property_type ptype = property_type::undef) {
         size_t ndims = adims.size();
         const std::string dnnl_fmt_tag_str
                 = normalize_tag(atag, static_cast<int>(ndims));
@@ -167,7 +169,7 @@ struct tensor_descs_t {
         }
 
         if (fmt_tag == dnnl_format_tag_any) {
-            emplace(str, dtype, adims, lt::strided);
+            emplace(str, dtype, adims, lt::strided, ptype);
             return;
         }
 
@@ -199,12 +201,12 @@ struct tensor_descs_t {
                 strides[coord] = acc;
                 acc *= adims[coord];
             }
-            emplace(str, dtype, adims, strides);
+            emplace(str, dtype, adims, strides, ptype);
         } else {
             const size_t dnnl_layout_id
                     = encode_dnnl_layout(static_cast<size_t>(fmt_tag));
             dnnl::graph::logical_tensor t(
-                    idmgr_[str], dtype, adims, dnnl_layout_id);
+                    idmgr_[str], dtype, adims, dnnl_layout_id, ptype);
             map_.emplace(str, t);
         }
     }

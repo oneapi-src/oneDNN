@@ -64,7 +64,8 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
     auto dst_dt = benchdnnext::set_main_op_dtype(spec_.dst_dt);
 
     tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
-    tensor_descs_.emplace(WEI, wei_dt, wei_dims, spec_.raw_wei_tag);
+    tensor_descs_.emplace(WEI, wei_dt, wei_dims, spec_.raw_wei_tag,
+            tensor_descs_t::property_type::constant);
     tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
 
     graph::op conv_op(new_op_id, kind::Convolution,
@@ -167,7 +168,8 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
     }
 
     tensor_descs_.emplace(QSRC, spec_.src_dt, spec_.src_dims, prb->stag);
-    tensor_descs_.emplace(QWEI, spec_.wei_dt, wei_dims, prb->wtag);
+    tensor_descs_.emplace(QWEI, spec_.wei_dt, wei_dims, prb->wtag,
+            tensor_descs_t::property_type::constant);
     if (with_qdst)
         tensor_descs_.emplace(QDST, spec_.dst_dt, spec_.dst_dims, prb->dtag);
 
