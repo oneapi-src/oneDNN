@@ -250,11 +250,12 @@ public:
         : persistent_buffer_assigner_(16)
         , temporary_buffer_assigner_(16)
         , enable_memory_sharing_(true) {
-        // if user set the env var, use it. Now this env var is only for debug
-        char *env = std::getenv("DNNL_GRAPH_ENABLE_MEM_REUSE");
-        if (env != nullptr) {
-            enable_memory_sharing_ = std::strcmp(env, "1") == 0;
-        }
+        // By default, memory reuse is enabled. One can use this internal env
+        // var to disable it. The env var is for debugging purpose only and may
+        // be removed without any prior notice.
+        enable_memory_sharing_
+                = impl::utils::getenv_int("_DNNL_GRAPH_ENABLE_MEM_REUSE", 1)
+                > 0;
     }
 
     memory_planner_t(memory_planner_t &&) = delete;
