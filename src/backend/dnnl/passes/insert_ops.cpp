@@ -323,7 +323,7 @@ void insert_expand_and_squeeze_for_matmul(std::vector<op_ptr> &subgraph) {
             expand_ops.emplace_back(expand_op);
         }
 
-        std::vector<int64_t> squeeze_dims {};
+        std::vector<int64_t> squeeze_dims = {};
         for (size_t i = 0; i < expand_ops.size(); ++i) {
             if (i == 0 && new_src_ndims < new_wei_ndims) {
                 expand_ops[i]->set_attr<int64_t>("expand_to", new_wei_ndims);

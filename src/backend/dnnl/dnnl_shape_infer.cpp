@@ -198,15 +198,14 @@ status_t infer_squeeze_output_shape(op_t *n,
     auto in_dims = ltw(inputs[0]).vdims();
     auto in_ndim = in_dims.size();
 
-    std::vector<int64_t> axes {};
-    axes = n->get_attr<std::vector<int64_t>>("axes");
+    auto axes = n->get_attr<std::vector<int64_t>>("axes");
     // convert negative axis to positive one
     std::transform(axes.begin(), axes.end(), axes.begin(),
             [&in_ndim](int64_t axis) -> int64_t {
                 return axis < 0 ? axis + in_ndim : axis;
             });
 
-    dims inferred_output_shape {};
+    dims inferred_output_shape = {};
     for (size_t i = 0; i < in_ndim; ++i) {
         if (axes.empty() && in_dims[i] == 1) {
             continue;
