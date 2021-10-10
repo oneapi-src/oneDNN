@@ -1903,11 +1903,21 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (jcp.exec_type == exec_trans) {
         // TODO: this is rough estimation of buffer for transpose input
-        jcp.inp_buffer_size = rnd_up(static_cast<dim_t>(jcp.idp)
-                        * (jcp.is_os_blocking ? rnd_up(jcp.ihp, jcp.brgM)
-                                              : jcp.ihp)
-                        * jcp.iwp * jcp.ngroups * jcp.nb_ic * jcp.ic_block
-                        * jcp.kh_sets * jcp.kw_sets,
+        dim_t ds = jcp.copy_block_only
+                ? (brg_blocking_t::get_inp_size(jcp.idp, jcp.od_block, jcp.kd,
+                           jcp.stride_d, jcp.dilate_d)
+                        + jcp.f_pad + jcp.back_pad)
+                : jcp.idp;
+        dim_t hs = jcp.copy_block_only
+                ? (brg_blocking_t::get_inp_size(jcp.ihp, jcp.oh_block, jcp.kh,
+                           jcp.stride_h, jcp.dilate_h)
+                        + jcp.t_pad + jcp.b_pad)
+                : jcp.ihp;
+        if (jcp.is_os_blocking)
+            hs = div_up(rnd_up(hs * jcp.iwp, jcp.brgM), jcp.iwp);
+
+        jcp.inp_buffer_size = rnd_up(ds * hs * jcp.iwp * jcp.ngroups * jcp.nb_ic
+                        * jcp.ic_block * jcp.kh_sets * jcp.kw_sets,
                 4096);
         jcp.inp_buffer_mask_size = rnd_up(static_cast<dim_t>(jcp.nb_od)
                         * jcp.nb_oh * jcp.nb_ow * jcp.ngroups * jcp.nb_ic,
