@@ -160,6 +160,13 @@ unsigned get_num_cores() {
 // function supports process affinity.
 unsigned get_max_threads_to_use() {
     int num_cores_per_socket = (int)dnnl::impl::cpu::platform::get_num_cores();
+    // It may happen that XByak doesn't get num of threads identified, e.g. for
+    // AMD. In order to make threadpool working, we supply an additional
+    // condition to have some reasonable number of threads available at
+    // primitive descriptor creation time.
+    if (num_cores_per_socket == 0)
+        num_cores_per_socket = std::thread::hardware_concurrency();
+
 #if defined(_WIN32)
     DWORD_PTR proc_affinity_mask;
     DWORD_PTR sys_affinity_mask;
