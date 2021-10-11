@@ -380,7 +380,10 @@ public:
                 op_kind::matmul_bias_add, op_kind::matmul_bias_add_relu,
                 op_kind::matmul_bias_bn, op_kind::matmul_add,
                 op_kind::matmul_add_gelu, op_kind::matmul_add_relu,
-                op_kind::matmul_add_sigmoid};
+                op_kind::matmul_add_sigmoid,
+                // f32 pooling pattern
+                impl::op_kind::AvgPool, impl::op_kind::MaxPool,
+                op_kind::avgpool_add, op_kind::maxpool_add};
 
         // compile will transform the subgraph in partition, so we make
         // a copy

@@ -356,7 +356,8 @@ private:
             const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr);
 
     void prepare_args_for_siso_op(op_t *op, const dnnl::engine &p_engine,
-            bool need_scratchpad = false, bool need_workspace = false);
+            primitive_attr_mgr &prm_attr_mgr, bool need_scratchpad = false,
+            bool need_workspace = false);
 
     void bind_memory_for_bn_folding(op_t *op, const dnnl::engine &p_engine);
 

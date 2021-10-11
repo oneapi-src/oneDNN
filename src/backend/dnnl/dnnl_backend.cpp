@@ -198,10 +198,10 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::matmul_add_sigmoid, float_matmul)
 
     // pooling related operators
-    DNNL_REGISTER_KERNEL(impl::op_kind::AvgPool, pooling_forward)
-    DNNL_REGISTER_KERNEL(op_kind::avgpool_add, pooling_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::MaxPool, pooling_forward)
-    DNNL_REGISTER_KERNEL(op_kind::maxpool_add, pooling_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::AvgPool, float_pooling_fwd)
+    DNNL_REGISTER_KERNEL(op_kind::avgpool_add, float_pooling_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::MaxPool, float_pooling_fwd)
+    DNNL_REGISTER_KERNEL(op_kind::maxpool_add, float_pooling_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::AvgPoolBackprop, pooling_backward)
     DNNL_REGISTER_KERNEL(impl::op_kind::MaxPoolBackprop, pooling_backward)
 

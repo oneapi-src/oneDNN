@@ -180,6 +180,11 @@ void insert_permute(std::vector<op_ptr> &subgraph) {
                 || cur_op->get_kind() == impl::op_kind::AvgPool) {
             op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_pool);
             replace_op(cur_op, new_op);
+            if (cur_op->get_kind() == impl::op_kind::MaxPool) {
+                new_op->set_attr<std::string>("kind", "maxpool");
+            } else {
+                new_op->set_attr<std::string>("kind", "avgpool");
+            }
             to_be_inserted_ops.emplace_back(new_op);
             to_be_removed_ops.emplace_back(cur_op);
         }

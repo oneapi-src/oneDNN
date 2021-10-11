@@ -3732,7 +3732,7 @@ TEST(operator_kernel, max_pool) {
     test::vector<float> ref_dst {-0.5, 2.0, 3.0, 4.0};
     test::vector<float> dst(ref_dst.size(), 0.0);
 
-    impl::op_t max_pool_op(impl::op_kind::MaxPool);
+    impl::op_t max_pool_op(0, impl::op_kind::MaxPool, "maxpool");
     max_pool_op.set_attr<dims>("strides", {2, 2});
     max_pool_op.set_attr<dims>("kernel", {2, 2});
     max_pool_op.set_attr<dims>("pads_begin", {0, 0});
@@ -3746,20 +3746,38 @@ TEST(operator_kernel, max_pool) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             1, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    max_pool_op.add_input(src_lt);
+    max_pool_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto max_pool_kernel = op_factory.create_kernel(max_pool_op);
+    impl::graph_t g(eng.kind());
+    g.add_op(&max_pool_op);
+    g.build_graph();
 
-    max_pool_kernel->compile(&max_pool_op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass = get_pass("max_pool_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    max_pool_kernel->execute(&max_pool_op, &strm, {src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -3773,13 +3791,13 @@ TEST(operator_kernel, max_pool_with_opaque_input) {
     impl::engine_t &eng = get_engine();
 
     // prepare ops
-    impl::op_t dequantize(impl::op_kind::Dequantize);
+    impl::op_t dequantize(0, impl::op_kind::Dequantize, "dq");
     dequantize.set_attr<std::vector<float>>("scales", {0.1f});
     dequantize.set_attr<std::vector<int64_t>>("zps", {10});
     dequantize.set_attr<std::string>("qtype", "per_tensor");
     dequantize.set_attr<int64_t>("axis", 0);
 
-    impl::op_t maxpool(impl::op_kind::MaxPool);
+    impl::op_t maxpool(1, impl::op_kind::MaxPool, "maxpool");
     maxpool.set_attr<dims>("strides", {2, 2});
     maxpool.set_attr<dims>("kernel", {2, 2});
     maxpool.set_attr<dims>("pads_begin", {0, 0});
@@ -3795,18 +3813,48 @@ TEST(operator_kernel, max_pool_with_opaque_input) {
     impl::logical_tensor_t mp_dst_lt = utils::logical_tensor_init(
             2, {1, 1, 1, 1}, impl::data_type::f32, impl::layout_type::any);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto op_dq = op_factory.create_kernel(dequantize);
-    auto op_mp = op_factory.create_kernel(maxpool);
+    dequantize.add_input(dq_src_lt);
+    dequantize.add_output(dq_dst_lt);
+    maxpool.add_input(dq_dst_lt);
+    maxpool.add_output(mp_dst_lt);
 
-    std::vector<impl::logical_tensor_t> dq_in = {dq_src_lt};
-    std::vector<impl::logical_tensor_t> dq_out = {dq_dst_lt};
-    op_dq->compile(&dequantize, &eng, dq_in, dq_out);
-    ASSERT_EQ(dq_out[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g(eng.kind());
+    g.add_op(&dequantize);
+    g.add_op(&maxpool);
+    g.build_graph();
 
-    std::vector<impl::logical_tensor_t> mp_out = {mp_dst_lt};
-    op_mp->compile(&maxpool, &eng, dq_out, mp_out);
-    ASSERT_EQ(mp_out[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass1 = get_pass("dequant_pass");
+    impl::pass::pass_base_ptr apass2 = get_pass("max_pool_pass");
+    apass1->run(g);
+    apass2->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 2);
+    auto dq_part = g.get_partitions()[0];
+    auto mp_part = g.get_partitions()[1];
+
+    // compile
+    impl::partition_t dq_p, mp_p;
+    dq_p.init(dq_part);
+    mp_p.init(mp_part);
+
+    impl::compiled_partition_t dq_cp(dq_p);
+    impl::compiled_partition_t mp_cp(mp_p);
+
+    std::vector<const impl::logical_tensor_t *> dq_inputs {&dq_src_lt};
+    std::vector<const impl::logical_tensor_t *> dq_outputs {&dq_dst_lt};
+    ASSERT_EQ(dq_p.compile(&dq_cp, dq_inputs, dq_outputs, &eng),
+            impl::status::success);
+
+    impl::logical_tensor_t lt;
+    dq_cp.query_logical_tensor(dq_dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+
+    std::vector<const impl::logical_tensor_t *> mp_inputs {&lt};
+    std::vector<const impl::logical_tensor_t *> mp_outputs {&mp_dst_lt};
+    ASSERT_EQ(mp_p.compile(&mp_cp, mp_inputs, mp_outputs, &eng),
+            impl::status::success);
+
+    mp_cp.query_logical_tensor(mp_dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 }
 
 TEST(operator_kernel, avg_pool_exclude_pad) {
@@ -3819,7 +3867,7 @@ TEST(operator_kernel, avg_pool_exclude_pad) {
             -2.0, 0.25, 0.5, 0.75, 0.5, 0.75, 3.0, -1.5, 4.0};
     test::vector<float> dst(ref_dst.size(), 0.0);
 
-    impl::op_t avg_pool_op(impl::op_kind::AvgPool);
+    impl::op_t avg_pool_op(0, impl::op_kind::AvgPool, "avgpool");
     avg_pool_op.set_attr<dims>("strides", {2, 2});
     avg_pool_op.set_attr<dims>("kernel", {2, 2});
     avg_pool_op.set_attr<dims>("pads_begin", {1, 1});
@@ -3833,21 +3881,40 @@ TEST(operator_kernel, avg_pool_exclude_pad) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             1, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    avg_pool_op.add_input(src_lt);
+    avg_pool_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto avg_pool_kernel = op_factory.create_kernel(avg_pool_op);
+    impl::graph_t g(eng.kind());
+    g.add_op(&avg_pool_op);
+    g.build_graph();
 
-    avg_pool_kernel->compile(&avg_pool_op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass = get_pass("avg_pool_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    avg_pool_kernel->execute(&avg_pool_op, &strm, {src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts}, {dst_ts});
     strm.wait();
+
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3863,7 +3930,7 @@ TEST(operator_kernel, avg_pool_include_pad) {
             -0.5, 0.125, 0.125, 0.375, 0.5, 0.375, 0.75, -0.75, 1.0};
     test::vector<float> dst(ref_dst.size(), 0.0);
 
-    impl::op_t avg_pool_op(impl::op_kind::AvgPool);
+    impl::op_t avg_pool_op(0, impl::op_kind::AvgPool, "avgpool");
     avg_pool_op.set_attr<dims>("strides", {2, 2});
     avg_pool_op.set_attr<dims>("kernel", {2, 2});
     avg_pool_op.set_attr<dims>("pads_begin", {1, 1});
@@ -3877,21 +3944,40 @@ TEST(operator_kernel, avg_pool_include_pad) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             1, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    avg_pool_op.add_input(src_lt);
+    avg_pool_op.add_output(dst_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto avg_pool_kernel = op_factory.create_kernel(avg_pool_op);
+    impl::graph_t g(eng.kind());
+    g.add_op(&avg_pool_op);
+    g.build_graph();
 
-    avg_pool_kernel->compile(&avg_pool_op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass = get_pass("avg_pool_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    avg_pool_kernel->execute(&avg_pool_op, &strm, {src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts}, {dst_ts});
     strm.wait();
+
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -11032,17 +11118,14 @@ TEST(operator_kernel, avgpool_add) {
         std::vector<float> dst(product(dst_shape), 0.0);
         std::vector<float> post_src(product(post_src_shape), 2.0);
 
-        impl::op_t avgpool_op(impl::dnnl_impl::op_kind::avgpool_add);
+        impl::op_t avgpool_op(0, impl::op_kind::AvgPool, "avgpool");
         avgpool_op.set_attr<dims>("strides", dims(spatial_size, 2));
         avgpool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
         avgpool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
         avgpool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
         avgpool_op.set_attr<std::string>("data_format", data_format);
         avgpool_op.set_attr<bool>("exclude_pad", false);
-
-        auto &op_factory = get_dnnl_kernel_registry();
-        auto avgpool_kernel = op_factory.create_kernel(avgpool_op);
-        ASSERT_TRUE(avgpool_kernel);
+        impl::op_t add_op(1, impl::op_kind::Add, "Add");
 
         impl::logical_tensor_t src_lt
                 = utils::logical_tensor_init(0, src_shape, dt);
@@ -11050,18 +11133,48 @@ TEST(operator_kernel, avgpool_add) {
                 = utils::logical_tensor_init(1, dst_shape, dt);
         impl::logical_tensor_t post_src_lt
                 = utils::logical_tensor_init(2, post_src_shape, dt);
+        impl::logical_tensor_t add_dst_lt
+                = utils::logical_tensor_init(3, dst_shape, dt);
 
-        std::vector<impl::logical_tensor_t> inputs {src_lt, post_src_lt};
-        std::vector<impl::logical_tensor_t> outputs {dst_lt};
-        avgpool_kernel->compile(&avgpool_op, &eng, inputs, outputs);
+        avgpool_op.add_input(src_lt);
+        avgpool_op.add_output(dst_lt);
+        add_op.add_input(dst_lt);
+        add_op.add_input(post_src_lt);
+        add_op.add_output(add_dst_lt);
+
+        impl::graph_t g;
+        g.add_op(&avgpool_op);
+        g.add_op(&add_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("avgpool_add_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &post_src_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(add_dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
         impl::tensor_t src_ts(src_lt, &eng, src.data());
-        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
         impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+        impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
 
         impl::stream_t &strm = get_stream();
-        avgpool_kernel->execute(
-                &avgpool_op, &strm, {src_ts, post_src_ts}, {dst_ts});
+        ASSERT_EQ(cp.execute(&strm, {src_ts, post_src_ts}, {add_dst_ts}),
+                impl::status::success);
         strm.wait();
     }
 }
@@ -11105,17 +11218,14 @@ TEST(operator_kernel, maxpool_add) {
         std::vector<float> dst(product(dst_shape), 0.0);
         std::vector<float> post_src(product(post_src_shape), 2.0);
 
-        impl::op_t maxpool_op(impl::dnnl_impl::op_kind::maxpool_add);
+        impl::op_t maxpool_op(0, impl::op_kind::MaxPool, "maxpool");
         maxpool_op.set_attr<dims>("strides", dims(spatial_size, 2));
         maxpool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
         maxpool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
         maxpool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
         maxpool_op.set_attr<std::string>("data_format", data_format);
         maxpool_op.set_attr<dims>("dilations", dims(spatial_size, 1));
-
-        auto &op_factory = get_dnnl_kernel_registry();
-        auto maxpool_kernel = op_factory.create_kernel(maxpool_op);
-        ASSERT_TRUE(maxpool_kernel);
+        impl::op_t add_op(1, impl::op_kind::Add, "Add");
 
         impl::logical_tensor_t src_lt
                 = utils::logical_tensor_init(0, src_shape, dt);
@@ -11123,18 +11233,47 @@ TEST(operator_kernel, maxpool_add) {
                 = utils::logical_tensor_init(1, dst_shape, dt);
         impl::logical_tensor_t post_src_lt
                 = utils::logical_tensor_init(2, post_src_shape, dt);
+        impl::logical_tensor_t add_dst_lt
+                = utils::logical_tensor_init(3, dst_shape, dt);
 
-        std::vector<impl::logical_tensor_t> inputs {src_lt, post_src_lt};
-        std::vector<impl::logical_tensor_t> outputs {dst_lt};
-        maxpool_kernel->compile(&maxpool_op, &eng, inputs, outputs);
+        maxpool_op.add_input(src_lt);
+        maxpool_op.add_output(dst_lt);
+        add_op.add_input(dst_lt);
+        add_op.add_input(post_src_lt);
+        add_op.add_output(add_dst_lt);
+
+        impl::graph_t g;
+        g.add_op(&maxpool_op);
+        g.add_op(&add_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("maxpool_add_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &post_src_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(add_dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
         impl::tensor_t src_ts(src_lt, &eng, src.data());
-        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
         impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+        impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
 
         impl::stream_t &strm = get_stream();
-        maxpool_kernel->execute(
-                &maxpool_op, &strm, {src_ts, post_src_ts}, {dst_ts});
+        ASSERT_EQ(cp.execute(&strm, {src_ts, post_src_ts}, {add_dst_ts}),
+                impl::status::success);
         strm.wait();
     }
 }
@@ -11167,26 +11306,22 @@ TEST(int8_subgraph_mode, int8_maxpool) {
             dst_shape.erase(dst_shape.begin() + 1);
         }
 
-        test::vector<float> src_data(product(src_shape));
-        test::vector<float> other_data(product(dst_shape));
+        test::vector<uint8_t> src_u8_data(product(src_shape));
+        test::vector<int8_t> case1_out_data(product(dst_shape));
+        test::vector<int8_t> case2_out_data(product(dst_shape));
 
         // random generate src, weight and bias data
         // random seed = 7
         std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
-        std::generate(src_data.begin(), src_data.end(),
-                [&]() { return distribution(generator); });
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
+            return static_cast<uint8_t>(u8_distribution(generator));
+        });
+
         float scale_src = 1 / 127.f;
         float scale_out = 1 / 127.f;
         int64_t zp_src = 0;
         int64_t zp_out = 0;
-
-        // -------------------------case 1----------------------------------
-        impl::op_t qdata_op(0, impl::op_kind::Quantize, "qdata_op");
-        qdata_op.set_attr<std::string>("qtype", "per_tensor");
-        qdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        qdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        qdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
@@ -11209,17 +11344,7 @@ TEST(int8_subgraph_mode, int8_maxpool) {
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
 
-        // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_maxpool
-                = get_dnnl_kernel_registry().create_kernel(maxpool_op);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_op);
-
         // prepare logical tensor
-        impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
-                0, src_shape, impl::data_type::f32);
         impl::logical_tensor_t src_u8
                 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
         impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
@@ -11229,37 +11354,6 @@ TEST(int8_subgraph_mode, int8_maxpool) {
         impl::logical_tensor_t dst_u8
                 = utils::logical_tensor_init(4, dst_shape, impl::data_type::u8);
 
-        // compile
-        kernel_qdata->compile(&qdata_op, &engine, {src_f32}, {src_u8});
-        kernel_dqdata->compile(&dqdata_op, &engine, {src_u8}, {src_f32_dq});
-        kernel_maxpool->compile(&maxpool_op, &engine, {src_f32_dq}, {dst_f32});
-        kernel_qout->compile(&qout_op, &engine, {dst_f32}, {dst_u8});
-
-        // execute
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        impl::tensor_t src_f32_ts(src_f32, &engine, src_data.data());
-        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
-        kernel_qdata->execute(&qdata_op, &strm, {src_f32_ts}, {src_u8_ts});
-        strm.wait();
-
-        test::vector<float> src_f32_dq_data(product(src_shape));
-        impl::tensor_t src_f32_dq_ts(
-                src_f32_dq, &engine, src_f32_dq_data.data());
-        kernel_dqdata->execute(&dqdata_op, &strm, {src_u8_ts}, {src_f32_dq_ts});
-        strm.wait();
-
-        test::vector<float> out_f32_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(dst_f32, &engine, out_f32_data.data());
-        kernel_maxpool->execute(
-                &maxpool_op, &strm, {src_f32_dq_ts}, {dst_f32_ts});
-        strm.wait();
-
-        test::vector<int8_t> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_u8_ts(dst_u8, &engine, case1_out_data.data());
-        kernel_qout->execute(&qout_op, &strm, {dst_f32_ts}, {dst_u8_ts});
-        strm.wait();
-
-        // -------------------------case 2----------------------------------
         dqdata_op.add_input(src_u8);
         dqdata_op.add_output(src_f32_dq);
 
@@ -11275,6 +11369,15 @@ TEST(int8_subgraph_mode, int8_maxpool) {
         g.add_op(&qout_op);
         g.build_graph();
 
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t dst_u8_ts(dst_u8, &engine, case1_out_data.data());
+        impl::tensor_t dst_u8_case2_ts(dst_u8, &engine, case2_out_data.data());
+
+        // -------------------------case 1----------------------------------
+        ASSERT_EQ(run_graph(g, {src_u8_ts}, {dst_u8_ts}, engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass = get_pass("int8_maxpool_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -11291,8 +11394,6 @@ TEST(int8_subgraph_mode, int8_maxpool) {
 
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
-        test::vector<int8_t> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_u8_case2_ts(dst_u8, &engine, case2_out_data.data());
         cp.execute(&strm, {src_u8_ts}, {dst_u8_case2_ts});
         strm.wait();
 
@@ -11334,26 +11435,22 @@ TEST(int8_subgraph_mode, int8_avgpool) {
             dst_shape.erase(dst_shape.begin() + 1);
         }
 
-        test::vector<float> src_data(product(src_shape));
-        test::vector<float> other_data(product(dst_shape));
+        test::vector<uint8_t> src_u8_data(product(src_shape));
+        test::vector<int8_t> case1_out_data(product(dst_shape));
+        test::vector<int8_t> case2_out_data(product(dst_shape));
 
         // random generate src, weight and bias data
         // random seed = 7
         std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
-        std::generate(src_data.begin(), src_data.end(),
-                [&]() { return distribution(generator); });
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
+            return static_cast<uint8_t>(u8_distribution(generator));
+        });
+
         float scale_src = 1 / 127.f;
         float scale_out = 1 / 127.f;
         int64_t zp_src = 0;
         int64_t zp_out = 0;
-
-        // -------------------------case 1----------------------------------
-        impl::op_t qdata_op(0, impl::op_kind::Quantize, "qdata_op");
-        qdata_op.set_attr<std::string>("qtype", "per_tensor");
-        qdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        qdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        qdata_op.set_attr<int64_t>("axis", 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
@@ -11376,14 +11473,6 @@ TEST(int8_subgraph_mode, int8_avgpool) {
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
         qout_op.set_attr<int64_t>("axis", 0);
 
-        // create kernels
-        auto kernel_qdata = get_dnnl_kernel_registry().create_kernel(qdata_op);
-        auto kernel_dqdata
-                = get_dnnl_kernel_registry().create_kernel(dqdata_op);
-        auto kernel_avgpool
-                = get_dnnl_kernel_registry().create_kernel(avgpool_op);
-        auto kernel_qout = get_dnnl_kernel_registry().create_kernel(qout_op);
-
         // prepare logical tensor
         impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
                 0, src_shape, impl::data_type::f32);
@@ -11396,37 +11485,6 @@ TEST(int8_subgraph_mode, int8_avgpool) {
         impl::logical_tensor_t dst_u8
                 = utils::logical_tensor_init(4, dst_shape, impl::data_type::u8);
 
-        // compile
-        kernel_qdata->compile(&qdata_op, &engine, {src_f32}, {src_u8});
-        kernel_dqdata->compile(&dqdata_op, &engine, {src_u8}, {src_f32_dq});
-        kernel_avgpool->compile(&avgpool_op, &engine, {src_f32_dq}, {dst_f32});
-        kernel_qout->compile(&qout_op, &engine, {dst_f32}, {dst_u8});
-
-        // execute
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        impl::tensor_t src_f32_ts(src_f32, &engine, src_data.data());
-        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
-        kernel_qdata->execute(&qdata_op, &strm, {src_f32_ts}, {src_u8_ts});
-        strm.wait();
-
-        test::vector<float> src_f32_dq_data(product(src_shape));
-        impl::tensor_t src_f32_dq_ts(
-                src_f32_dq, &engine, src_f32_dq_data.data());
-        kernel_dqdata->execute(&dqdata_op, &strm, {src_u8_ts}, {src_f32_dq_ts});
-        strm.wait();
-
-        test::vector<float> out_f32_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(dst_f32, &engine, out_f32_data.data());
-        kernel_avgpool->execute(
-                &avgpool_op, &strm, {src_f32_dq_ts}, {dst_f32_ts});
-        strm.wait();
-
-        test::vector<int8_t> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_u8_ts(dst_u8, &engine, case1_out_data.data());
-        kernel_qout->execute(&qout_op, &strm, {dst_f32_ts}, {dst_u8_ts});
-        strm.wait();
-
-        // -------------------------case 2----------------------------------
         dqdata_op.add_input(src_u8);
         dqdata_op.add_output(src_f32_dq);
 
@@ -11442,6 +11500,15 @@ TEST(int8_subgraph_mode, int8_avgpool) {
         g.add_op(&qout_op);
         g.build_graph();
 
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t dst_u8_ts(dst_u8, &engine, case1_out_data.data());
+        impl::tensor_t dst_u8_case2_ts(dst_u8, &engine, case2_out_data.data());
+
+        // -------------------------case 1----------------------------------
+        ASSERT_EQ(run_graph(g, {src_u8_ts}, {dst_u8_ts}, engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass = get_pass("int8_avgpool_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -11458,8 +11525,6 @@ TEST(int8_subgraph_mode, int8_avgpool) {
 
         p.compile(&cp, lt_ins, lt_outs, &engine);
 
-        test::vector<int8_t> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_u8_case2_ts(dst_u8, &engine, case2_out_data.data());
         cp.execute(&strm, {src_u8_ts}, {dst_u8_case2_ts});
         strm.wait();
 

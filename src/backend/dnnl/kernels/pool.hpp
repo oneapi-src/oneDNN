@@ -57,248 +57,174 @@ namespace pool_bwd_with_indices {
 enum maxpool_bwd_inputs { kSrc, kIndices, kDiff_dst };
 } // namespace pool_bwd_with_indices
 
-struct pooling_forward : public dnnl::pooling_v2_forward, public kernel_base {
-    using super = dnnl::pooling_v2_forward;
-    using dims_t = std::vector<dnnl::graph::impl::dim_t>;
-
+template <bool quantized>
+struct pooling_fwd : public kernel_base {
 private:
-    attr_t attr_;
-    algorithm algo_;
-    primitive_desc pd_;
-    dnnl::pooling_v2_forward prim_;
-
-    bool is_training_ {false};
-    bool with_post_binary_ {false};
-    prop_kind prop_kind_;
-
     dnnl::engine p_engine_;
+    impl::allocator_t *g_alloc_;
 
-    bool with_workspace_;
+    primitive_attr_mgr prm_attr_mgr_;
+    memory_planner_t memory_planner_;
+    executable_mgr exec_mgr_;
 
-    dnnl::reorder::primitive_desc src_reorder_pd_;
-    dnnl::reorder::primitive_desc dst_reorder_pd_;
+    std::vector<op_executable *> execs_;
+    std::vector<exec_args> exec_args_;
 
-    registry_t registry_;
-    std::function<std::shared_ptr<f32_kernel_resource_t>()> resource_ctor_;
+    std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
 
-    f32_kernel_resource_t::desc_t res_desc_;
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
-    /**
-     * Check if pooling operator fuses binary
-     *
-     * @param kind operator kind
-     * @return whether the operator fused binary
-     */
-    static bool fuse_binary(op_kind_t kind) {
-        static const std::unordered_set<op_kind_t, enum_hash> with_binary_set {
-                op_kind::avgpool_add, op_kind::maxpool_add};
-        return with_binary_set.find(kind) != with_binary_set.end();
-    }
-
-    static op_kind_t get_fuse_base_op(op_kind_t kind) {
-        switch (static_cast<int>(kind)) {
-            case op_kind::avgpool_add: return (impl::op_kind::AvgPool);
-            case op_kind::maxpool_add: return (impl::op_kind::MaxPool);
-            default: return (impl::op_kind::LastSymbol);
-        }
-    }
-
-    static algorithm get_binary_algo(op_kind_t kind) {
-        switch (static_cast<int>(kind)) {
-            case op_kind::avgpool_add:
-            case op_kind::maxpool_add: return (algorithm::binary_add);
-            default: return (algorithm::undef);
-        }
-    }
+    pd_cache_t pd_cache_;
 
 public:
-    virtual ~pooling_forward() {
-        thread_local_cache_t<f32_kernel_resource_t> res_cache;
+    virtual ~pooling_fwd() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
 
-public:
-    impl::status_t compile_impl(const impl::op_t *op,
+    virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = tensor::desc;
-        dims strides = op->get_attr<dims>("strides");
-        dims kernel = op->get_attr<dims>("kernel");
-        dims pads_begin = op->get_attr<dims>("pads_begin");
-        dims pads_end = op->get_attr<dims>("pads_end");
-        std::string data_format = op->get_attr<std::string>("data_format");
-
-        res_desc_.cvt_src_ = make_dnnl_memory_desc(inputs.at(pool::kSrc));
-        res_desc_.cvt_dst_ = make_dnnl_memory_desc(outputs.at(pool::kDst));
-        if (data_format == "NXC") { // permute NXC to NCX
-            res_desc_.cvt_src_ = permute_NXC2NCX(res_desc_.cvt_src_);
-            res_desc_.cvt_dst_ = permute_NXC2NCX(res_desc_.cvt_dst_);
-        }
-
-        const auto kind = op->get_kind();
-        dims dilations;
-        if (kind == impl::op_kind::MaxPool
-                || get_fuse_base_op(kind) == impl::op_kind::MaxPool) {
-            algo_ = algorithm::pooling_max;
-            dilations = op->get_attr<dims>("dilations");
-            // default dilations are all 1s but in primitive, they're 0s.
-            std::for_each(dilations.begin(), dilations.end(),
-                    [](dim_t &v) { v -= 1; });
-        } else if (kind == impl::op_kind::AvgPool
-                || get_fuse_base_op(kind) == impl::op_kind::AvgPool) {
-            dilations = dims(strides.size(), 0);
-            bool exclude_pad = op->get_attr<bool>("exclude_pad");
-            algo_ = exclude_pad ? algorithm::pooling_avg_exclude_padding
-                                : algorithm::pooling_avg_include_padding;
-        } else {
-            BACKEND_DNNL_ENFORCE(0, "Unsupported pool op.");
-        }
-
-        if (fuse_binary(kind)) {
-            with_post_binary_ = true;
-
-            const int dst_ndims
-                    = static_cast<int>(res_desc_.cvt_dst_.dims().size());
-            res_desc_.cvt_post_src_ = make_dnnl_memory_desc(inputs.back());
-            if (data_format == "NXC") {
-                res_desc_.cvt_post_src_
-                        = permute_NXC2NCX(res_desc_.cvt_post_src_);
-            }
-            res_desc_.cvt_post_src_
-                    = expand(res_desc_.cvt_post_src_, dst_ndims);
-
-            // currently, we support two scenarios that are optimized for post
-            // binary, per tensor and per channel broadcast. That means
-            // the expanded shape of post src should be all one or the
-            // post_src_dim[c_axis] == dst_dims[c_axis]
-            const int c_axis = 1;
-            for (int i = dst_ndims - 1; i >= 0; i--) {
-                if (res_desc_.cvt_post_src_.dims()[i] == 1) continue;
-
-                if (i != c_axis
-                        || res_desc_.cvt_dst_.dims()[i]
-                                != res_desc_.cvt_post_src_.dims()[i]) {
-                    return impl::status::compile_fail;
-                }
-            }
-            attr_ = attr_t::fuse_binary(
-                    res_desc_.cvt_post_src_, get_binary_algo(kind));
-        }
+        // TODO(wuxun): since oneDNN pooling primitive only support u8u8 or
+        // s8s8 on CPU device for now, we need to check whether the data types
+        // between input and output are compatible. If we enable this check in
+        // op schema or primitive supports u8s8/s8u8, then this check can be
+        // safely removed.
+        if (inputs[0].data_type != outputs[0].data_type)
+            return status::unsupported;
 
         p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
 
-        // workaround: use src once issue intel/mkl-dnn#588 is
-        // resolved
-        auto expected_src = is_4c_blocked(res_desc_.cvt_src_)
-                ? to_default_format(res_desc_.cvt_src_)
-                : res_desc_.cvt_src_;
-        auto any_dst = to_format_any(res_desc_.cvt_dst_);
+        std::vector<std::shared_ptr<op_t>> subgraph = part->get_ops();
 
-        prop_kind_ = is_training_ ? prop_kind::forward
-                                  : prop_kind::forward_inference;
+        set_all_layout_to_any(subgraph);
 
-        with_workspace_ = prop_kind_ == prop_kind::forward_training
-                && algo_ == dnnl::algorithm::pooling_max;
+        // have to set the given inputs and outputs before infer shape and
+        // compile
+        set_given_inputs_outputs(subgraph, inputs, outputs);
 
-        pd_ = primitive_desc({prop_kind_, algo_, expected_src, any_dst, strides,
-                                     kernel, dilations, pads_begin, pads_end},
-                attr_, p_engine_);
-        prim_ = super(pd_);
-        res_desc_.opt_src_ = pd_.src_desc();
-        res_desc_.opt_dst_ = pd_.dst_desc();
-        if (impl::logical_tensor_wrapper(outputs.at(pool::kDst)).is_any()) {
-            res_desc_.cvt_dst_ = pd_.dst_desc();
+        // for those primitive ops like pooling, it requires the scales and zps
+        // between input tensor and output tensor are the same. So here, we
+        // don't need to split Dequant and Quant ops firstly, it should be okay
+        // to directly fuse Dequant and Quant into int8 pool op.
+        if (quantized) { fuse_to_int8_pool(subgraph); }
+
+        BACKEND_DNNL_CHECK(fuse_post_ops(subgraph, prm_attr_mgr_));
+
+        insert_permute(subgraph);
+        insert_reorder(subgraph);
+
+        subgraph_visualizer_t vis(part->id());
+        vis.run(subgraph, "after_lower_down", false);
+
+        impl::graph_t agraph(subgraph);
+        BACKEND_DNNL_CHECK(agraph.infer_shape());
+        BACKEND_DNNL_CHECK(infer_type(agraph));
+
+        vis.run(subgraph, "after_infer_shape_infer_type", true);
+
+        BACKEND_DNNL_CHECK(layout_propagation(
+                subgraph, p_engine_, prm_attr_mgr_, pd_cache_));
+
+        vis.run(subgraph, "after_layout_propagation", true);
+
+        // fill layout information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            for (auto out_val : impl::graph_t(subgraph).get_output_values()) {
+                auto compiled_lt = out_val->get_logical_tensor();
+                if (compiled_lt.id == outputs[i].id) {
+                    auto lt = const_cast<impl::logical_tensor_t *>(&outputs[i]);
+                    auto md = make_dnnl_memory_desc(compiled_lt);
+                    lt->ndims = compiled_lt.ndims;
+                    impl::utils::array_copy(
+                            lt->dims, compiled_lt.dims, DNNL_GRAPH_MAX_NDIMS);
+                    impl::utils::array_copy(lt->layout.strides,
+                            compiled_lt.layout.strides, DNNL_GRAPH_MAX_NDIMS);
+                    fill_layout_info(lt, md);
+                }
+            }
         }
-        res_desc_.scratchpad_ = pd_.scratchpad_desc();
-        if (with_workspace_) res_desc_.workspace_ = pd_.workspace_desc();
 
-        registrar_t registrar = registry_.registrar();
+        // bind the memory for each op
+        BACKEND_DNNL_CHECK(memory_planner_.run(
+                subgraph, inputs, outputs, p_engine_, prm_attr_mgr_));
 
-        if (res_desc_.opt_src_ != res_desc_.cvt_src_) {
-            registrar.book(pool::kOpt_src, res_desc_.opt_src_.get_size());
-            src_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.cvt_src_, p_engine_, res_desc_.opt_src_);
-        }
+        vis.run(subgraph, "after_memory_planning", true, true,
+                [this](const value_t *val) {
+                    return this->memory_planner_.get_memory_info(val);
+                });
 
-        if (res_desc_.opt_dst_ != res_desc_.cvt_dst_) {
-            registrar.book(pool::kOpt_dst, res_desc_.opt_dst_.get_size());
-            dst_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.opt_dst_, p_engine_, res_desc_.cvt_dst_);
-        }
+        BACKEND_DNNL_CHECK(compile_ops(
+                subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
 
-        registrar.book(pool::kScratchpad, res_desc_.scratchpad_.get_size());
-        if (with_workspace_)
-            registrar.book(pool::kWorkspace, res_desc_.workspace_.get_size());
+        // topologically sort the executables
+        impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),
+                [this](impl::op_t *op) {
+                    auto exec_key = op->get_attr<int64_t>("executable_key");
+                    auto &exec = exec_mgr_.get_executable(exec_key);
+                    execs_.emplace_back(exec.get());
 
-        impl::logical_tensor_t *ori_dst_lt
-                = const_cast<impl::logical_tensor_t *>(&outputs.at(pool::kDst));
-        if (data_format == "NXC") {
-            memory::desc tmp = permute_NCX2NXC(pd_.dst_desc());
-            fill_layout_info(ori_dst_lt, tmp);
-        } else {
-            fill_layout_info(ori_dst_lt, pd_.dst_desc());
-        }
+                    return impl::status::success;
+                });
 
+        opt_subgraph_ = subgraph;
+
+        // generate a hash key for exec_args_mgr
         resource_ctor_ = [this]() {
-            return std::make_shared<f32_kernel_resource_t>(
-                    this->res_desc_, this->p_engine_);
+            return this->memory_planner_.get_exec_args_set().clone();
         };
 
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::op_t *op,
+    virtual impl::status_t execute_impl(const dnnl_partition_impl_t *part,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
+        UNUSED(part);
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
         // each thread's own local resource
-        thread_local_cache_t<f32_kernel_resource_t> res_cache;
-        f32_kernel_resource_t *res = res_cache.get_or_add(
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
                 reinterpret_cast<size_t>(this), resource_ctor_);
 
-        temporary_scratchpad_t scratchpad(registry_.size(), p_engine_, *alc);
-        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
-
-        res->cvt_src_.set_data_handle(inputs.at(pool::kSrc).get_data_handle());
-        res->cvt_dst_.set_data_handle(outputs.at(pool::kDst).get_data_handle());
-
-        if (res_desc_.cvt_src_ != res_desc_.opt_src_) {
-            res->opt_src_.set_data_handle(grantor.get(pool::kOpt_src));
-            dnnl::reorder(src_reorder_pd_)
-                    .execute(p_stream, res->cvt_src_, res->opt_src_);
-        } else {
-            res->opt_src_.set_data_handle(res->cvt_src_.get_data_handle());
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
+        }
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
         }
 
-        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
-            res->opt_dst_.set_data_handle(grantor.get(pool::kOpt_dst));
-        } else {
-            res->opt_dst_.set_data_handle(res->cvt_dst_.get_data_handle());
+        temporary_scratchpad_t scratchpad(
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
+
+        registry_t::key_t key = 0;
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
         }
 
-        res->scratchpad_.set_data_handle(grantor.get(pool::kScratchpad));
-        if (with_workspace_)
-            res->workspace_.set_data_handle(grantor.get(pool::kWorkspace));
-
-        if (with_post_binary_) {
-            res->cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
+        for (size_t i = 0; i < execs_.size(); i++) {
+            execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
-        prim_.execute(p_stream, res->exec_args_);
-
-        // if output layout has been set and different from optimal layout
-        // we have to do reorder
-        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
-            dnnl::reorder(dst_reorder_pd_)
-                    .execute(p_stream, res->opt_dst_, res->cvt_dst_);
-        }
         return impl::status::success;
     }
 };
+
+using float_pooling_fwd = pooling_fwd</* quantized */ false>;
+using quantized_pooling = pooling_fwd</* quantized */ true>;
 
 struct pooling_backward : public dnnl::pooling_v2_backward, public kernel_base {
     using super = dnnl::pooling_v2_backward;

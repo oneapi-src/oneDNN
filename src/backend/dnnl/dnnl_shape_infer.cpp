@@ -89,7 +89,6 @@ status_t infer_permute_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs) {
     using ltw = logical_tensor_wrapper;
     auto out0 = ltw(outputs[0]);
-    if (!out0.is_shape_unknown()) return status::success;
 
     // this permute is actually a transpose
     if (n->get_attr<std::string>("permute_kind") == "transpose") {
@@ -97,25 +96,43 @@ status_t infer_permute_output_shape(op_t *n,
         auto rank = tmp.size();
         // swap the right-most two elements
         std::swap(tmp[rank - 2], tmp[rank - 1]);
+
+        // check the given shape
+        if (!out0.is_shape_unknown()) {
+            if (!validate(tmp, out0.vdims())) { return status::invalid_shape; }
+        }
+
         set_shape_and_strides(*outputs[0], tmp);
         return status::success;
     }
 
     auto from_format = n->get_attr<std::string>("from_format");
     auto to_format = n->get_attr<std::string>("to_format");
+    impl::logical_tensor_t tmp;
+    std::vector<dim_t> tmp_dims;
     if (from_format == "NCX" && to_format == "NXC") {
-        // TODO(xxx)
-        return status::unsupported;
+        auto in_dims = ltw(inputs[0]).vdims();
+        tmp_dims.emplace_back(in_dims[0]); // N
+        for (size_t i = 2; i < in_dims.size(); i++) { // X
+            tmp_dims.emplace_back(in_dims[i]);
+        }
+        tmp_dims.emplace_back(in_dims[1]); // C
     } else if (from_format == "NXC" && to_format == "NCX") {
-        auto tmp = ltw(inputs[0]).reorder_data_dims_strides();
-        set_shape_and_strides(*outputs[0], ltw(tmp).vdims());
+        tmp = ltw(inputs[0]).reorder_data_dims_strides();
+        tmp_dims = ltw(tmp).vdims();
     } else if (from_format == "XIO" && to_format == "OIX") {
-        auto tmp = ltw(inputs[0]).reorder_weight_dims_strides();
-        set_shape_and_strides(*outputs[0], ltw(tmp).vdims());
+        tmp = ltw(inputs[0]).reorder_weight_dims_strides();
+        tmp_dims = ltw(tmp).vdims();
     } else {
         assertm(false, "should not reach here");
         return status::unsupported;
     }
+
+    // check the given shape
+    if (!out0.is_shape_unknown()) {
+        if (!validate(tmp_dims, out0.vdims())) { return status::invalid_shape; }
+    }
+    set_shape_and_strides(*outputs[0], tmp_dims);
 
     return status::success;
 }

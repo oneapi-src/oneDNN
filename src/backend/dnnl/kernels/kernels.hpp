@@ -33,7 +33,4 @@
 #include "resampling.hpp"
 #include "softmax.hpp"
 
-// kernel based on subgraph
-#include "int8_pool.hpp"
-
 #endif

@@ -166,14 +166,33 @@ void memory_planner_t::prepare_args_for_conv_and_matmul(op_t *op,
 
 // for single-input-single-output op
 void memory_planner_t::prepare_args_for_siso_op(op_t *op,
-        const dnnl::engine &p_engine, bool need_scratchpad,
-        bool need_workspace) {
+        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        bool need_scratchpad, bool need_workspace) {
     exec_args args;
 
     memory mem;
+    size_t index = 0;
 
-    exec_args_set_.find_value_mem_map(op->get_input_value(0).get(), mem);
+    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
     args.insert({DNNL_ARG_FROM, mem});
+
+    dnnl::primitive_attr prm_attr = op->has_attr("primitive_attr_key")
+            ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
+            : dnnl::primitive_attr();
+    dnnl::post_ops pops = prm_attr.get_post_ops();
+    for (int i = 0; i < pops.len(); i++) {
+        if (pops.kind(i) == dnnl::primitive::kind::sum) {
+            exec_args_set_.find_value_mem_map(
+                    op->get_input_value(index++).get(), mem);
+            args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
+        } else if (pops.kind(i) == dnnl::primitive::kind::binary) {
+            exec_args_set_.find_value_mem_map(
+                    op->get_input_value(index++).get(), mem);
+            args.insert(
+                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
+        } else {
+        }
+    }
 
     exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
     args.insert({DNNL_ARG_TO, mem});
@@ -502,11 +521,13 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     prepare_args_for_conv_and_matmul(
                             op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == impl::op_kind::MaxPool
+                        || op->get_kind() == impl::op_kind::AvgPool
                         || op->get_kind() == op_kind::dnnl_pool) {
                     const bool is_training = op->has_attr("is_training")
                             ? op->get_attr<bool>("is_training")
                             : false;
-                    prepare_args_for_siso_op(op, p_engine, true, is_training);
+                    prepare_args_for_siso_op(
+                            op, p_engine, prm_attr_mgr, true, is_training);
                 } else if (op->get_kind() == impl::op_kind::Reorder
                         || op->get_kind() == op_kind::mul_scales
                         || op->get_kind() == op_kind::permute
@@ -514,7 +535,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::expand
                         || op->get_kind() == op_kind::squeeze
                         || op->get_kind() == op_kind::dnnl_u8_to_s8) {
-                    prepare_args_for_siso_op(op, p_engine);
+                    prepare_args_for_siso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
                     bind_memory_for_bn_folding(op, p_engine);
                 } else if (op->get_kind() == op_kind::dnnl_conv_bwd_data) {

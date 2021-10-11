@@ -54,7 +54,8 @@ static bool has_int8_support(op_kind_t kind) {
 static bool has_post_ops(op_kind_t kind) {
     std::set<op_kind_t> ops {impl::op_kind::Convolution,
             op_kind::dnnl_convolution, impl::op_kind::MatMul,
-            impl::op_kind::ConvTranspose, op_kind::dnnl_convtranspose};
+            impl::op_kind::ConvTranspose, op_kind::dnnl_convtranspose,
+            impl::op_kind::AvgPool, impl::op_kind::MaxPool, op_kind::dnnl_pool};
     return ops.count(kind) != 0;
 }
 
