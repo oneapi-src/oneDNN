@@ -30,6 +30,8 @@
 
 #include <CL/sycl/backend/cuda.hpp>
 
+#include "gpu/nvidia/sycl_cuda_compat.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {

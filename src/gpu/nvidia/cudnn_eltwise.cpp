@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,7 +36,7 @@ status_t cudnn_eltwise_fwd_t::execute(const exec_ctx_t &ctx) const {
         auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
         auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
 
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             std::vector<void *> args;
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
@@ -63,7 +63,7 @@ status_t cudnn_eltwise_bwd_t::execute(const exec_ctx_t &ctx) const {
         auto diff_dst_acc = CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST);
         auto diff_src_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_SRC);
 
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             std::vector<void *> args;
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());

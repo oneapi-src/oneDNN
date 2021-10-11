@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -124,7 +124,7 @@ protected:
                     = buffer(grid_storage_.get())
                               .get_access<cl::sycl::access::mode::write>(cgh);
 
-            cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+            compat::host_task(cgh, [=](const compat::interop_handle &ih) {
                 // scoped context will make sure the top of the stack context is
                 // the engine context while creating the cublas handle.
                 auto &s_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);

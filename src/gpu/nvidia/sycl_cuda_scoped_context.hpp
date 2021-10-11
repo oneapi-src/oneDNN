@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,8 +47,8 @@ public:
     // This is a work-around function for reinterpret_casting the memory. This
     // will be fixed when SYCL-2020 has been implemented for Pi backend.
     template <typename T, typename U>
-    inline T memory(const cl::sycl::interop_handler &ih, U acc) {
-        return reinterpret_cast<T>(ih.get_mem<cl::sycl::backend::cuda>(acc));
+    inline T memory(const compat::interop_handle &ih, U acc) {
+        return compat::get_native_mem<T>(ih, acc);
     }
 };
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,7 +38,7 @@ status_t cudnn_resampling_fwd_t::execute(const exec_ctx_t &ctx) const {
         auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
         auto grid_acc = buffer(grid_storage_.get())
                                 .get_access<cl::sycl::access::mode::read>(cgh);
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
@@ -70,7 +70,7 @@ status_t cudnn_resampling_bwd_t::execute(const exec_ctx_t &ctx) const {
                                 .get_access<cl::sycl::access::mode::read>(cgh);
         auto diff_grid_acc
                 = CTX_SCRATCH_ACCESSOR(memory_tracking::names::key_none);
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);

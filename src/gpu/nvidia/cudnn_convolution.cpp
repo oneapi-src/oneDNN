@@ -79,7 +79,7 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
                                     cgh));
         }
 
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
@@ -143,7 +143,7 @@ status_t cudnn_convolution_bwd_data_t::execute_convolution(
                     = std::make_shared<scratch_acc_t>(CTX_SCRATCH_ACCESSOR(
                             memory_tracking::names::key_conv_cudnn_filter));
         }
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
@@ -179,7 +179,7 @@ status_t cudnn_convolution_bwd_weights_t::execute_zero_dims(
                     cl::sycl::access::mode::write>>(
                     CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_BIAS));
         }
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
@@ -230,7 +230,7 @@ status_t cudnn_convolution_bwd_weights_t::execute_convolution(
                             memory_tracking::names::key_conv_cudnn_filter));
         }
 
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);

@@ -47,7 +47,7 @@ protected:
             read_acc_t src_acc, write_acc_t dst_acc, bias_acc_t bias_acc,
             scratch_acc_t scratch_acc, float output_scale) {
 
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
@@ -67,13 +67,13 @@ protected:
 
     template <typename T, cl::sycl::access::mode md, typename sc_t>
     void *maybe_cast_to_ptr(cl::sycl::accessor<T, 1, md> acc, sc_t &sc,
-            const cl::sycl::interop_handler &ih) const {
+            const compat::interop_handle &ih) const {
         return sc.template memory<void *>(ih, acc);
     }
 
     template <typename sc_t>
     std::nullptr_t maybe_cast_to_ptr(std::nullptr_t acc, sc_t &,
-            const cl::sycl::interop_handler &ih) const {
+            const compat::interop_handle &ih) const {
         return acc;
     }
 };

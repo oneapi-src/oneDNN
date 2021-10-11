@@ -42,13 +42,13 @@ struct bnorm_exec_base_t {
 protected:
     template <typename T, cl::sycl::access::mode md, typename sc_t>
     void *mean_var_ptr(cl::sycl::accessor<T, 1, md> acc, sc_t &sc,
-            const cl::sycl::interop_handler &ih) const {
+            const compat::interop_handle &ih) const {
         return sc.template memory<void *>(ih, acc);
     }
 
     template <typename sc_t>
     std::nullptr_t mean_var_ptr(std::nullptr_t acc, sc_t &,
-            const cl::sycl::interop_handler &ih) const {
+            const compat::interop_handle &ih) const {
         return acc;
     }
 
@@ -78,7 +78,7 @@ protected:
 
         maybe_init_mean_var(cuda_stream, mean_acc, var_acc, init_mean_var);
         maybe_init_ss(cuda_stream, scale_acc, bias_acc, init_ss);
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
@@ -120,7 +120,7 @@ protected:
             bool init_ss, bool init_mean_var) const {
 
         maybe_init_ss(cuda_stream, scale_acc, bias_acc, init_ss);
-        cgh.interop_task([=](const cl::sycl::interop_handler &ih) {
+        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
