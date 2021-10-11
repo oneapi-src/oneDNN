@@ -137,7 +137,7 @@ status_t func_zeKernelCreate(ze_module_handle_t hModule,
 // we query it directly from Level0 with the zeDeviceGetProperties function.
 // The `get_device_uuid` function packs 128 bits of the device UUID, which are
 // represented as an uint8_t array of size 16, to 2 uint64_t values.
-device_uuid_t get_device_uuid(const cl::sycl::device &dev) {
+device_uuid_t get_device_uuid(const ::sycl::device &dev) {
     static_assert(ZE_MAX_DEVICE_UUID_SIZE == 16,
             "ZE_MAX_DEVICE_UUID_SIZE is expected to be 16");
 
@@ -184,8 +184,7 @@ status_t sycl_create_kernel_with_level_zero(
     return status::success;
 }
 
-bool compare_ze_devices(
-        const cl::sycl::device &lhs, const cl::sycl::device &rhs) {
+bool compare_ze_devices(const ::sycl::device &lhs, const ::sycl::device &rhs) {
     auto lhs_ze_handle = compat::get_native<ze_device_handle_t>(lhs);
     auto rhs_ze_handle = compat::get_native<ze_device_handle_t>(rhs);
 
@@ -202,7 +201,7 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-device_uuid_t get_device_uuid(const cl::sycl::device &) {
+device_uuid_t get_device_uuid(const ::sycl::device &) {
     return device_uuid_t(0, 0);
 }
 
@@ -211,7 +210,7 @@ status_t sycl_create_kernel_with_level_zero(std::unique_ptr<::sycl::kernel> &,
     return status::unimplemented;
 }
 
-bool compare_ze_devices(const cl::sycl::device &, const cl::sycl::device &) {
+bool compare_ze_devices(const ::sycl::device &, const ::sycl::device &) {
     return false;
 }
 

@@ -46,18 +46,18 @@ status_t sycl_stream_t::init() {
         // If service stream is NULL then the current stream will be service
         // so construct it from scratch.
         if (!sycl_engine.is_service_stream_created()) {
-            cl::sycl::property_list props = (flags() & stream_flags::in_order)
-                    ? cl::sycl::property_list {cl::sycl::property::queue::
-                                    in_order {}}
-                    : cl::sycl::property_list {};
-            queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev, props));
+            ::sycl::property_list props = (flags() & stream_flags::in_order)
+                    ? ::sycl::
+                            property_list {::sycl::property::queue::in_order {}}
+                    : ::sycl::property_list {};
+            queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev, props));
         } else {
             // XXX: multiple queues support has some issues, so always re-use
             // the same queue from the service stream.
             stream_t *service_stream;
             CHECK(sycl_engine.get_service_stream(service_stream));
             auto sycl_stream = utils::downcast<sycl_stream_t *>(service_stream);
-            queue_.reset(new cl::sycl::queue(sycl_stream->queue()));
+            queue_.reset(new ::sycl::queue(sycl_stream->queue()));
         }
     } else {
         // TODO: Compare device and context of the engine with those of the

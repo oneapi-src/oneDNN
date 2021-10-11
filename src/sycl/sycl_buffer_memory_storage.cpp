@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ status_t sycl_buffer_memory_storage_t::map_data(
 
     auto &guard_manager = guard_manager_t<map_buffer_tag>::instance();
 
-    auto acc = buffer_->get_access<cl::sycl::access::mode::read_write>();
+    auto acc = buffer_->get_access<::sycl::access::mode::read_write>();
     auto *acc_ptr = new decltype(acc)(acc);
     *mapped_ptr = static_cast<void *>(acc_ptr->get_pointer());
     auto unmap_callback = [=]() { delete acc_ptr; };
@@ -99,11 +99,11 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::clone() const {
 status_t sycl_buffer_memory_storage_t::init_allocate(size_t size) {
     const auto &device
             = utils::downcast<sycl_engine_base_t *>(engine())->device();
-    if (size > device.get_info<cl::sycl::info::device::max_mem_alloc_size>()) {
+    if (size > device.get_info<::sycl::info::device::max_mem_alloc_size>()) {
         return status::out_of_memory;
     }
 
-    buffer_ = std::make_shared<buffer_u8_t>(cl::sycl::range<1>(size));
+    buffer_ = std::make_shared<buffer_u8_t>(::sycl::range<1>(size));
     if (!buffer_) return status::out_of_memory;
     return status::success;
 }

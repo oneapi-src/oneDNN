@@ -45,8 +45,8 @@ namespace sycl {
 
 class sycl_engine_base_t : public gpu::compute::compute_engine_t {
 public:
-    sycl_engine_base_t(engine_kind_t kind, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx, size_t index)
+    sycl_engine_base_t(engine_kind_t kind, const ::sycl::device &dev,
+            const ::sycl::context &ctx, size_t index)
         : gpu::compute::compute_engine_t(kind, runtime_kind::sycl, index)
         , device_(dev)
         , context_(ctx)
@@ -67,7 +67,7 @@ public:
             size_t size, void *handle) override;
 
     status_t create_stream(stream_t **stream, unsigned flags) override;
-    status_t create_stream(stream_t **stream, cl::sycl::queue &queue);
+    status_t create_stream(stream_t **stream, ::sycl::queue &queue);
 
     status_t create_kernel(gpu::compute::kernel_t *kernel,
             gpu::jit::jit_generator_base &jitter) const override {
@@ -128,8 +128,8 @@ public:
         return status::success;
     }
 
-    const cl::sycl::device &device() const { return device_; }
-    const cl::sycl::context &context() const { return context_; }
+    const ::sycl::device &device() const { return device_; }
+    const ::sycl::context &context() const { return context_; }
 
     backend_t backend() const { return backend_; }
 
@@ -170,8 +170,8 @@ protected:
     status_t init_device_info() override;
 
 private:
-    cl::sycl::device device_;
-    cl::sycl::context context_;
+    ::sycl::device device_;
+    ::sycl::context context_;
 
     backend_t backend_;
 

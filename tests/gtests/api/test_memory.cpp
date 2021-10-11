@@ -92,7 +92,7 @@ TEST_P(memory_test_cpp_t, OutOfMemory) {
     if (is_sycl) {
         auto dev = sycl_interop::get_device(eng);
         const memory::dim max_alloc_size
-                = dev.get_info<cl::sycl::info::device::max_mem_alloc_size>();
+                = dev.get_info<::sycl::info::device::max_mem_alloc_size>();
         sz = (max_alloc_size < sz) ? max_alloc_size + 1 : sz;
     }
 #endif

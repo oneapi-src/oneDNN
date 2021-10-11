@@ -40,7 +40,7 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
 
     // skip other vendors
     const int intel_vendor_id = 0x8086;
-    auto vendor_id = device.get_info<cl::sycl::info::device::vendor_id>();
+    auto vendor_id = device.get_info<::sycl::info::device::vendor_id>();
     if (vendor_id != intel_vendor_id) return status::success;
 
     backend_t be = get_sycl_backend(device);
@@ -85,7 +85,7 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
 status_t sycl_device_info_t::init_device_name(engine_t *engine) {
     auto &device
             = utils::downcast<const sycl_engine_base_t *>(engine)->device();
-    name_ = device.get_info<cl::sycl::info::device::name>();
+    name_ = device.get_info<::sycl::info::device::name>();
     return status::success;
 }
 
@@ -93,7 +93,7 @@ status_t sycl_device_info_t::init_runtime_version(engine_t *engine) {
     auto &device
             = utils::downcast<const sycl_engine_base_t *>(engine)->device();
     auto driver_version
-            = device.get_info<cl::sycl::info::device::driver_version>();
+            = device.get_info<::sycl::info::device::driver_version>();
 
     if (runtime_version_.set_from_string(driver_version.c_str())
             != status::success) {
@@ -121,7 +121,7 @@ status_t sycl_device_info_t::init_extensions(engine_t *engine) {
 status_t sycl_device_info_t::init_attributes(engine_t *engine) {
     auto &device
             = utils::downcast<const sycl_engine_base_t *>(engine)->device();
-    eu_count_ = device.get_info<cl::sycl::info::device::max_compute_units>();
+    eu_count_ = device.get_info<::sycl::info::device::max_compute_units>();
     return status::success;
 }
 

@@ -32,7 +32,7 @@ status_t cudnn_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-    return cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
+    return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
         auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
 
@@ -58,7 +58,7 @@ status_t cudnn_softmax_bwd_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-    return cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
+    return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto dst_acc = CTX_IN_ACCESSOR(DNNL_ARG_DST);
         auto diff_dst_acc = CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST);
         auto diff_src_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_SRC);

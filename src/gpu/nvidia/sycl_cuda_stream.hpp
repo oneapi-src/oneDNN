@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,7 +48,7 @@ public:
     }
 
     static status_t create_stream(
-            stream_t **stream, engine_t *engine, cl::sycl::queue &queue) {
+            stream_t **stream, engine_t *engine, ::sycl::queue &queue) {
         unsigned flags;
         CHECK(base_t::init_flags(&flags, queue));
 
@@ -61,13 +61,13 @@ public:
         return status::success;
     }
 
-    status_t interop_task(std::function<void(cl::sycl::handler &)>);
+    status_t interop_task(std::function<void(::sycl::handler &)>);
     CUstream get_underlying_stream();
     CUcontext get_underlying_context();
 
 private:
     status_t init();
-    sycl_cuda_stream_t(engine_t *engine, unsigned flags, cl::sycl::queue &queue)
+    sycl_cuda_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
         : base_t(engine, flags, queue) {}
     sycl_cuda_stream_t(engine_t *engine, unsigned flags)
         : base_t(engine, flags) {}

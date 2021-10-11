@@ -30,8 +30,8 @@ status_t dnnl_sycl_interop_engine_create(
     bool args_ok = !utils::any_null(engine, dev, ctx);
     if (!args_ok) return status::invalid_arguments;
 
-    auto &sycl_dev = *static_cast<const cl::sycl::device *>(dev);
-    auto &sycl_ctx = *static_cast<const cl::sycl::context *>(ctx);
+    auto &sycl_dev = *static_cast<const ::sycl::device *>(dev);
+    auto &sycl_ctx = *static_cast<const ::sycl::context *>(ctx);
 
     engine_kind_t kind;
     if (sycl_dev.is_gpu())
@@ -62,7 +62,7 @@ status_t dnnl_sycl_interop_engine_get_context(engine_t *engine, void **ctx) {
 
     auto *sycl_engine
             = utils::downcast<dnnl::impl::sycl::sycl_engine_base_t *>(engine);
-    auto &sycl_ctx = const_cast<cl::sycl::context &>(sycl_engine->context());
+    auto &sycl_ctx = const_cast<::sycl::context &>(sycl_engine->context());
     *ctx = static_cast<void *>(&sycl_ctx);
     return status::success;
 }
@@ -75,7 +75,7 @@ status_t dnnl_sycl_interop_engine_get_device(engine_t *engine, void **dev) {
 
     auto *sycl_engine
             = utils::downcast<dnnl::impl::sycl::sycl_engine_base_t *>(engine);
-    auto &sycl_dev = const_cast<cl::sycl::device &>(sycl_engine->device());
+    auto &sycl_dev = const_cast<::sycl::device &>(sycl_engine->device());
     *dev = static_cast<void *>(&sycl_dev);
     return status::success;
 }

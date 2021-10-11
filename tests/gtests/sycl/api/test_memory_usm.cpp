@@ -33,10 +33,10 @@ class fill_kernel;
 class sycl_memory_usm_test : public ::testing::TestWithParam<engine::kind> {
 protected:
     static void fill_data(void *usm_ptr, memory::dim n, const engine &eng) {
-        auto alloc_kind = cl::sycl::get_pointer_type(
+        auto alloc_kind = ::sycl::get_pointer_type(
                 usm_ptr, sycl_interop::get_context(eng));
-        if (alloc_kind == cl::sycl::usm::alloc::host
-                || alloc_kind == cl::sycl::usm::alloc::shared) {
+        if (alloc_kind == ::sycl::usm::alloc::host
+                || alloc_kind == ::sycl::usm::alloc::shared) {
             for (int i = 0; i < n; i++)
                 ((float *)usm_ptr)[i] = float(i);
         } else {
@@ -70,7 +70,7 @@ TEST_P(sycl_memory_usm_test, Constructor) {
         return;
     }
 #endif
-    void *ptr = cl::sycl::malloc_shared(sizeof(float) * n,
+    void *ptr = ::sycl::malloc_shared(sizeof(float) * n,
             sycl_interop::get_device(eng), sycl_interop::get_context(eng));
 
     auto mem = sycl_interop::make_memory(
@@ -92,7 +92,7 @@ TEST_P(sycl_memory_usm_test, Constructor) {
         }
     }
 
-    cl::sycl::free(ptr, sycl_interop::get_context(eng));
+    ::sycl::free(ptr, sycl_interop::get_context(eng));
 }
 
 TEST_P(sycl_memory_usm_test, ConstructorNone) {

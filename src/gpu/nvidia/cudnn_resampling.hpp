@@ -57,12 +57,12 @@ protected:
             : s0_(s0), i_(i), tx_(tx), j_(j), s1_(s1), ty_(ty) {}
     };
 
-    cl::sycl::buffer<uint8_t, 1> &buffer(memory_storage_t *mem_storage) {
+    ::sycl::buffer<uint8_t, 1> &buffer(memory_storage_t *mem_storage) {
         return utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
                 mem_storage)
                 ->buffer();
     }
-    cl::sycl::buffer<uint8_t, 1> &buffer(memory_storage_t *mem_storage) const {
+    ::sycl::buffer<uint8_t, 1> &buffer(memory_storage_t *mem_storage) const {
         return utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
                 mem_storage)
                 ->buffer();
@@ -115,14 +115,14 @@ protected:
                 reinterpret_cast<uint8_t *>(theta_data.data()),
                 buffer(theta_storage_.get()));
         auto &st_desc_ = pd->resampling_impl_->st_desc_;
-        cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
+        cuda_stream->interop_task([&](::sycl::handler &cgh) {
             cgh.depends_on(event);
             auto theta_acc
                     = buffer(theta_storage_.get())
-                              .get_access<cl::sycl::access::mode::read>(cgh);
+                              .get_access<::sycl::access::mode::read>(cgh);
             auto grid_acc
                     = buffer(grid_storage_.get())
-                              .get_access<cl::sycl::access::mode::write>(cgh);
+                              .get_access<::sycl::access::mode::write>(cgh);
 
             compat::host_task(cgh, [=](const compat::interop_handle &ih) {
                 // scoped context will make sure the top of the stack context is

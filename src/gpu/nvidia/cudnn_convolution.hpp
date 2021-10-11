@@ -187,7 +187,7 @@ struct cudnn_convolution_fwd_t : public primitive_t {
             const exec_ctx_t &ctx, bool with_bias, bool with_scratchpad) const;
 
 private:
-    cl::sycl::buffer<uint8_t, 1> &buffer(memory_storage_t *mem_storage) const {
+    ::sycl::buffer<uint8_t, 1> &buffer(memory_storage_t *mem_storage) const {
         return utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
                 mem_storage)
                 ->buffer();

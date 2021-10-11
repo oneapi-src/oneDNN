@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,8 +54,8 @@ void init_thunk_params(
 }
 
 template <typename... param_types>
-status_t submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
-        cl::sycl::handler &cgh, param_types... params) {
+status_t submit_cpu_primitive_with_params_impl(
+        submit_ctx_t *submit_ctx, ::sycl::handler &cgh, param_types... params) {
 
     host_task(cgh, [=]() {
         thunk_params_t thunk_params;
@@ -73,16 +73,16 @@ status_t submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
 
 template <typename params_tuple_t, size_t... Is>
 void submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
-        cl::sycl::handler &cgh, params_tuple_t &params_tp,
+        ::sycl::handler &cgh, params_tuple_t &params_tp,
         nstl::index_sequence<Is...>) {
     submit_cpu_primitive_with_params_impl(submit_ctx, cgh,
             std::get<Is>(params_tp)
-                    .template get_access<cl::sycl::access::mode::read_write>(
+                    .template get_access<::sycl::access::mode::read_write>(
                             cgh)...);
 }
 
 template <typename... storage_types>
-void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
+void fast_dispatch_by_size(submit_ctx_t *submit_ctx, ::sycl::handler &cgh,
         const storage_types *... storages) {
     constexpr size_t nparams = sizeof...(storage_types);
 
@@ -110,7 +110,7 @@ void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
 // 6. Call the thunk function that executes the primitve
 //    natively.
 void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
-        const exec_ctx_t &exec_ctx, cl::sycl::handler &cgh) {
+        const exec_ctx_t &exec_ctx, ::sycl::handler &cgh) {
     const_cast<primitive_iface_t *>(prim_iface)->retain();
 
     std::vector<const memory_storage_t *> sycl_mem_storages;

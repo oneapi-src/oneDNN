@@ -27,8 +27,8 @@ namespace sycl {
 
 struct sycl_engine_id_impl_t : public engine_id_impl_t {
 
-    sycl_engine_id_impl_t(const cl::sycl::device &device,
-            const cl::sycl::context &context, engine_kind_t kind,
+    sycl_engine_id_impl_t(const ::sycl::device &device,
+            const ::sycl::context &context, engine_kind_t kind,
             runtime_kind_t runtime_kind, size_t index)
         : engine_id_impl_t(kind, runtime_kind, index)
         , device_(device)
@@ -50,8 +50,8 @@ private:
         return seed;
     }
 
-    cl::sycl::device device_;
-    cl::sycl::context context_;
+    ::sycl::device device_;
+    ::sycl::context context_;
 };
 
 } // namespace sycl

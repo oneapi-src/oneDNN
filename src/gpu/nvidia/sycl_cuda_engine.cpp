@@ -44,16 +44,15 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-bool is_nvidia_gpu(const cl::sycl::device &dev) {
+bool is_nvidia_gpu(const ::sycl::device &dev) {
     constexpr int nvidia_vendor_id = 0x10DE;
     return dev.is_gpu()
-            && dev.get_info<cl::sycl::info::device::vendor_id>()
+            && dev.get_info<::sycl::info::device::vendor_id>()
             == nvidia_vendor_id;
 }
 
 status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
-        const cl::sycl::device &dev, const cl::sycl::context &ctx,
-        size_t index) {
+        const ::sycl::device &dev, const ::sycl::context &ctx, size_t index) {
     CHECK(nvidia::check_device(engine_kind));
     std::unique_ptr<nvidia::sycl_cuda_engine_t, engine_deleter_t> cuda_engine(
             (new nvidia::sycl_cuda_engine_t(dev, ctx, index)));
@@ -66,7 +65,7 @@ status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
 }
 
 sycl_cuda_engine_t::sycl_cuda_engine_t(engine_kind_t kind,
-        const cl::sycl::device &dev, const cl::sycl::context &ctx, size_t index)
+        const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
     : base_t(kind, dev, ctx, index) {
     underlying_context_type();
     set_cudnn_handle();
@@ -74,7 +73,7 @@ sycl_cuda_engine_t::sycl_cuda_engine_t(engine_kind_t kind,
 }
 
 sycl_cuda_engine_t::sycl_cuda_engine_t(
-        const cl::sycl::device &dev, const cl::sycl::context &ctx, size_t index)
+        const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
     : sycl_cuda_engine_t(engine_kind::gpu, dev, ctx, index) {
     assert(is_nvidia_gpu(dev));
 }
@@ -120,7 +119,7 @@ status_t sycl_cuda_engine_t::create_stream(stream_t **stream, unsigned flags) {
 }
 
 status_t sycl_cuda_engine_t::create_stream(
-        stream_t **stream, cl::sycl::queue &queue) {
+        stream_t **stream, ::sycl::queue &queue) {
     return sycl_cuda_stream_t::create_stream(stream, this, queue);
 }
 

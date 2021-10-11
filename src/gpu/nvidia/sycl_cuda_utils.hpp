@@ -41,22 +41,21 @@ namespace nvidia {
     utils::downcast<sycl::sycl_buffer_memory_storage_t *>( \
             &CTX_OUT_STORAGE(arg)) \
             ->buffer() \
-            .get_access<cl::sycl::access::mode::write>(cgh)
+            .get_access<::sycl::access::mode::write>(cgh)
 
 #define CTX_IN_ACCESSOR(arg) \
     utils::downcast<sycl::sycl_buffer_memory_storage_t *>( \
             &CTX_IN_STORAGE(arg)) \
             ->buffer() \
-            .get_access<cl::sycl::access::mode::read>(cgh)
+            .get_access<::sycl::access::mode::read>(cgh)
 
 #define CTX_SCRATCH_ACCESSOR(arg) \
     utils::downcast<sycl::sycl_buffer_memory_storage_t *>( \
             ctx.get_scratchpad_grantor().get_memory_storage(arg).get()) \
             ->buffer() \
-            .get_access<cl::sycl::access::mode::read_write>(cgh)
+            .get_access<::sycl::access::mode::read_write>(cgh)
 
-bool compare_cuda_devices(
-        const cl::sycl::device &lhs, const cl::sycl::device &rhs);
+bool compare_cuda_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
 
 // Check if the device type matches the passed engine kind
 inline status_t check_device(dnnl::impl::engine_kind_t eng_kind) {
@@ -315,11 +314,11 @@ public:
 };
 
 template <typename T>
-cl::sycl::event copy(cl::sycl::queue &q, T *src, cl::sycl::buffer<T, 1> &dst) {
+::sycl::event copy(::sycl::queue &q, T *src, ::sycl::buffer<T, 1> &dst) {
 
-    auto event = q.submit([&, src](cl::sycl::handler &cgh) {
+    auto event = q.submit([&, src](::sycl::handler &cgh) {
         // Retrieve a  write accessor to a global buffer
-        auto acc = dst.template get_access<cl::sycl::access::mode::write,
+        auto acc = dst.template get_access<::sycl::access::mode::write,
                 sycl::compat::target_device>(cgh);
         // Copy from the input pointer into the buffer associated with the
         // accessor
@@ -329,11 +328,11 @@ cl::sycl::event copy(cl::sycl::queue &q, T *src, cl::sycl::buffer<T, 1> &dst) {
 }
 
 template <typename T>
-cl::sycl::event copy(cl::sycl::queue &q, cl::sycl::buffer<T, 1> &src, T *dst) {
+::sycl::event copy(::sycl::queue &q, ::sycl::buffer<T, 1> &src, T *dst) {
 
-    auto event = q.submit([&, dst](cl::sycl::handler &cgh) {
+    auto event = q.submit([&, dst](::sycl::handler &cgh) {
         // Retrieve a read accessor to a global buffer
-        auto acc = src.template get_access<cl::sycl::access::mode::read,
+        auto acc = src.template get_access<::sycl::access::mode::read,
                 sycl::compat::target_device>(cgh);
         // Copy from the buffer associated with the accessor into the output
         // pointer
@@ -344,14 +343,14 @@ cl::sycl::event copy(cl::sycl::queue &q, cl::sycl::buffer<T, 1> &src, T *dst) {
 }
 
 template <typename T>
-cl::sycl::event copy(cl::sycl::queue &q, cl::sycl::buffer<T, 1> &src,
-        cl::sycl::buffer<T, 1> &dst) {
-    auto event = q.submit([&](cl::sycl::handler &cgh) {
+::sycl::event copy(::sycl::queue &q, ::sycl::buffer<T, 1> &src,
+        ::sycl::buffer<T, 1> &dst) {
+    auto event = q.submit([&](::sycl::handler &cgh) {
         auto src_acc
-                = src.template get_access<cl::sycl::access::mode::read_write>(
+                = src.template get_access<::sycl::access::mode::read_write>(
                         cgh);
         auto dst_acc
-                = dst.template get_access<cl::sycl::access::mode::read_write>(
+                = dst.template get_access<::sycl::access::mode::read_write>(
                         cgh);
         cgh.copy(src_acc, dst_acc);
     });

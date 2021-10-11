@@ -33,7 +33,7 @@ status_t cudnn_deconvolution_bwd_weights_t::execute_bias(
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-    return cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
+    return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto bias_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_BIAS);
         auto y_acc = CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST);
 

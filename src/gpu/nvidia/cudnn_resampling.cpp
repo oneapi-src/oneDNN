@@ -33,11 +33,11 @@ status_t cudnn_resampling_fwd_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-    cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
+    cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
         auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
         auto grid_acc = buffer(grid_storage_.get())
-                                .get_access<cl::sycl::access::mode::read>(cgh);
+                                .get_access<::sycl::access::mode::read>(cgh);
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
@@ -63,11 +63,11 @@ status_t cudnn_resampling_bwd_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-    cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
+    cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto diff_src_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_SRC);
         auto diff_dst_acc = CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST);
         auto grid_acc = buffer(grid_storage_.get())
-                                .get_access<cl::sycl::access::mode::read>(cgh);
+                                .get_access<::sycl::access::mode::read>(cgh);
         auto diff_grid_acc
                 = CTX_SCRATCH_ACCESSOR(memory_tracking::names::key_none);
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {

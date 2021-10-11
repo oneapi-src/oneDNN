@@ -40,7 +40,7 @@ public:
         MAYBE_UNUSED(state_);
     }
 
-    cl::sycl::kernel sycl_kernel() const {
+    ::sycl::kernel sycl_kernel() const {
         assert(state_ == state_t::kernel);
         return *sycl_kernel_;
     }
@@ -72,14 +72,14 @@ public:
     enum class state_t { binary, kernel };
 
 protected:
-    sycl_interop_gpu_kernel_t(const cl::sycl::kernel &sycl_kernel,
+    sycl_interop_gpu_kernel_t(const ::sycl::kernel &sycl_kernel,
             const std::vector<gpu::compute::scalar_type_t> &arg_types)
         : state_(state_t::kernel)
-        , sycl_kernel_(new cl::sycl::kernel(sycl_kernel))
+        , sycl_kernel_(new ::sycl::kernel(sycl_kernel))
         , arg_types_(arg_types) {}
 
     state_t state_;
-    std::unique_ptr<cl::sycl::kernel> sycl_kernel_;
+    std::unique_ptr<::sycl::kernel> sycl_kernel_;
     std::shared_ptr<gpu::compute::binary_t> binary_;
     std::string kernel_name_;
 

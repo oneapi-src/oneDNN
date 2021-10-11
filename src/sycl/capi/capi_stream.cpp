@@ -35,7 +35,7 @@ status_t dnnl_sycl_interop_stream_create(
 
     auto *sycl_engine
             = utils::downcast<dnnl::impl::sycl::sycl_engine_base_t *>(engine);
-    auto &sycl_queue = *static_cast<cl::sycl::queue *>(queue);
+    auto &sycl_queue = *static_cast<::sycl::queue *>(queue);
     return sycl_engine->create_stream(stream, sycl_queue);
 }
 

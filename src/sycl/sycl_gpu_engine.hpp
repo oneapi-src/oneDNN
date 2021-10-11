@@ -35,8 +35,8 @@ public:
     using sycl_engine_base_t::create_stream;
     using sycl_engine_base_t::device;
 
-    sycl_gpu_engine_t(const cl::sycl::device &dev, const cl::sycl::context &ctx,
-            size_t index)
+    sycl_gpu_engine_t(
+            const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
         : sycl_engine_base_t(engine_kind::gpu, dev, ctx, index) {
         assert(dev.is_gpu());
     }

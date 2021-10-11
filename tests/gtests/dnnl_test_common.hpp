@@ -111,7 +111,7 @@ inline bool is_nvidia_gpu(const dnnl::engine &eng) {
     const uint32_t nvidia_vendor_id = get_vendor_id("nvidia");
     const auto device = dnnl::sycl_interop::get_device(eng);
     const auto eng_vendor_id
-            = device.get_info<cl::sycl::info::device::vendor_id>();
+            = device.get_info<::sycl::info::device::vendor_id>();
     return eng_vendor_id == nvidia_vendor_id;
 #endif
     return false;

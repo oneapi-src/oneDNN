@@ -41,7 +41,7 @@ status_t dnnl_sycl_interop_primitive_execute(
             = utils::downcast<dnnl::impl::sycl::sycl_stream_t *>(stream);
 
     if (deps_ != nullptr) {
-        const auto &deps = *(const std::vector<cl::sycl::event> *)deps_;
+        const auto &deps = *(const std::vector<::sycl::event> *)deps_;
         sycl_stream->set_deps(deps);
     }
 
@@ -54,9 +54,9 @@ status_t dnnl_sycl_interop_primitive_execute(
     CHECK(primitive_execute(primitive_iface, ctx));
 
     // return output event
-    cl::sycl::event return_event = sycl_stream->get_output_event();
+    ::sycl::event return_event = sycl_stream->get_output_event();
     if (return_event_ != nullptr)
-        *(cl::sycl::event *)return_event_ = return_event;
+        *(::sycl::event *)return_event_ = return_event;
 
     return status::success;
 }

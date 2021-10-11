@@ -464,7 +464,7 @@ bool is_nvidia_gpu(const dnnl_engine_t &engine) {
     auto eng = dnnl::engine(engine, true);
     auto device = dnnl::sycl_interop::get_device(eng);
     const auto eng_vendor_id
-            = device.get_info<cl::sycl::info::device::vendor_id>();
+            = device.get_info<::sycl::info::device::vendor_id>();
     return eng_vendor_id == nvidia_vendor_id;
 #endif
     return false;
@@ -638,7 +638,7 @@ static size_t get_gpu_ram_size() {
     if (status == CL_SUCCESS) return (size_t)ram_size;
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
     auto sycl_dev = dnnl::sycl_interop::get_device(eng);
-    return (size_t)sycl_dev.get_info<cl::sycl::info::device::global_mem_size>();
+    return (size_t)sycl_dev.get_info<::sycl::info::device::global_mem_size>();
 #endif
     return 0;
 }

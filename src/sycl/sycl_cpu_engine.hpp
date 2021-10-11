@@ -35,8 +35,8 @@ public:
     using sycl_engine_base_t::create_stream;
     using sycl_engine_base_t::device;
 
-    sycl_cpu_engine_t(const cl::sycl::device &dev, const cl::sycl::context &ctx,
-            size_t index)
+    sycl_cpu_engine_t(
+            const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
         : sycl_engine_base_t(engine_kind::cpu, dev, ctx, index) {
         assert(dev.is_cpu() || dev.is_host());
     }

@@ -31,7 +31,7 @@ namespace impl {
 namespace sycl {
 
 static void set_scalar_arg(
-        cl::sycl::handler &cgh, int index, size_t size, const void *value) {
+        ::sycl::handler &cgh, int index, size_t size, const void *value) {
     switch (size) {
         case sizeof(uint8_t):
             cgh.set_arg(index, *static_cast<const uint8_t *>(value));
@@ -141,7 +141,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
         }
     }
 
-    auto event = queue.submit([&](cl::sycl::handler &cgh) {
+    auto event = queue.submit([&](::sycl::handler &cgh) {
         cgh.depends_on(sycl_stream->get_deps());
         for (int i = 0; i < arg_list.nargs(); ++i) {
             auto &arg = arg_list.get(i);
@@ -159,7 +159,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                             auto &sycl_buf = m->buffer();
                             cgh.set_arg((int)i,
                                     sycl_buf.get_access<
-                                            cl::sycl::access::mode::read_write>(
+                                            ::sycl::access::mode::read_write>(
                                             cgh));
                             break;
                         }
@@ -176,10 +176,10 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                     cgh.set_arg((int)i, nullptr);
                 }
             } else if (arg.is_local()) {
-                auto acc = cl::sycl::accessor<uint8_t, 1,
-                        cl::sycl::access::mode::read_write,
-                        cl::sycl::access::target::local>(
-                        cl::sycl::range<1>(arg.size()), cgh);
+                auto acc = ::sycl::accessor<uint8_t, 1,
+                        ::sycl::access::mode::read_write,
+                        ::sycl::access::target::local>(
+                        ::sycl::range<1>(arg.size()), cgh);
                 cgh.set_arg((int)i, acc);
             } else {
                 if (arg_types_[i] == gpu::compute::scalar_type_t::undef) {
@@ -198,7 +198,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
             cgh.parallel_for(sycl_nd_range, *sycl_kernel_);
         } else {
             auto *global_range = range.global_range();
-            auto sycl_range = cl::sycl::range<3>(
+            auto sycl_range = ::sycl::range<3>(
                     global_range[2], global_range[1], global_range[0]);
             cgh.parallel_for(sycl_range, *sycl_kernel_);
         }

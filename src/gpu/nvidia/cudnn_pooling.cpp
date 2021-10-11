@@ -48,7 +48,7 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
     // If src is empty and dst is not, fill dst with
     // numeric_limits<dt>::lowest() to match the other backends' behaviour
     if (src_wrap.size() == 0 && dst_wrap.size() != 0) {
-        return cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
+        return cuda_stream->interop_task([&](::sycl::handler &cgh) {
             auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
 
             compat::host_task(cgh, [=](const compat::interop_handle &ih) {
@@ -80,20 +80,20 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
         });
     }
 
-    return cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
+    return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
         auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
 
         std::shared_ptr<
-                cl::sycl::accessor<uint8_t, 1, cl::sycl::access::mode::write>>
+                ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::write>>
                 wkspace_acc;
         if (!wkspace_st->is_null()) {
-            wkspace_acc = std::make_shared<cl::sycl::accessor<uint8_t, 1,
-                    cl::sycl::access::mode::write>>(
+            wkspace_acc = std::make_shared<
+                    ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::write>>(
                     utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
                             wkspace_st)
                             ->buffer()
-                            .template get_access<cl::sycl::access::mode::write>(
+                            .template get_access<::sycl::access::mode::write>(
                                     cgh));
         }
 
@@ -130,7 +130,7 @@ status_t cudnn_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-    return cuda_stream->interop_task([&](cl::sycl::handler &cgh) {
+    return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto diff_src_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_SRC);
         auto diff_dst_acc = CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST);
         auto wkspace_acc = CTX_IN_ACCESSOR(DNNL_ARG_WORKSPACE);

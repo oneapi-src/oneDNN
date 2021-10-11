@@ -23,7 +23,7 @@ namespace gpu {
 namespace nvidia {
 
 bool compare_cuda_devices(
-        const cl::sycl::device &lhs, const cl::sycl::device &rhs) {
+        const ::sycl::device &lhs, const ::sycl::device &rhs) {
     auto lhs_cuda_handle = compat::get_native<CUdevice>(lhs);
     auto rhs_cuda_handle = compat::get_native<CUdevice>(rhs);
     return lhs_cuda_handle == rhs_cuda_handle;

@@ -105,7 +105,7 @@ TEST_P(sycl_stream_test, BasicInterop) {
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
     if (kind == engine::kind::cpu) {
-        cl::sycl::queue dummy;
+        ::sycl::queue dummy;
         EXPECT_ANY_THROW(sycl_interop::make_stream(get_engine(kind), dummy));
         return;
     }

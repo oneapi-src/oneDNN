@@ -58,7 +58,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
     }
 
     static status_t create_stream(
-            stream_t **stream, engine_t *engine, cl::sycl::queue &queue) {
+            stream_t **stream, engine_t *engine, ::sycl::queue &queue) {
         unsigned flags;
         status_t status = sycl_stream_t::init_flags(&flags, queue);
         if (status != status::success) return status;
@@ -78,7 +78,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return status::success;
     }
 
-    cl::sycl::queue &queue() { return *queue_; }
+    ::sycl::queue &queue() { return *queue_; }
 
     status_t enqueue_primitive(const primitive_iface_t *prim_iface,
             exec_ctx_t &exec_ctx) override {
@@ -87,7 +87,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             if (engine()->kind() == engine_kind::cpu) {
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-                auto event = queue_->submit([&](cl::sycl::handler &cgh) {
+                auto event = queue_->submit([&](::sycl::handler &cgh) {
                     register_deps(cgh);
                     submit_cpu_primitive(this, prim_iface, exec_ctx, cgh);
                 });
@@ -141,14 +141,14 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 = utils::downcast<const sycl_memory_storage_base_t *>(&dst);
         bool usm_src = sycl_src->memory_kind() == memory_kind::usm;
         bool usm_dst = sycl_dst->memory_kind() == memory_kind::usm;
-        cl::sycl::event e;
+        ::sycl::event e;
 
         if (usm_src && usm_dst) {
             auto *usm_src
                     = utils::downcast<const sycl_usm_memory_storage_t *>(&src);
             auto *usm_dst
                     = utils::downcast<const sycl_usm_memory_storage_t *>(&dst);
-            e = queue_->submit([&](cl::sycl::handler &cgh) {
+            e = queue_->submit([&](::sycl::handler &cgh) {
                 register_deps(cgh);
                 cgh.memcpy(usm_dst->usm_ptr(), usm_src->usm_ptr(), size);
             });
@@ -159,10 +159,10 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                     = utils::downcast<const sycl_buffer_memory_storage_t *>(
                             &dst);
             auto &b_dst = buffer_dst->buffer();
-            e = queue_->submit([&](cl::sycl::handler &cgh) {
+            e = queue_->submit([&](::sycl::handler &cgh) {
                 register_deps(cgh);
                 auto acc_dst
-                        = b_dst.get_access<cl::sycl::access::mode::write>(cgh);
+                        = b_dst.get_access<::sycl::access::mode::write>(cgh);
                 cgh.copy(usm_src->usm_ptr(), acc_dst);
             });
         } else if (!usm_src && usm_dst) {
@@ -172,10 +172,10 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             auto &b_src = buffer_src->buffer();
             auto *usm_dst
                     = utils::downcast<const sycl_usm_memory_storage_t *>(&dst);
-            e = queue_->submit([&](cl::sycl::handler &cgh) {
+            e = queue_->submit([&](::sycl::handler &cgh) {
                 register_deps(cgh);
                 auto acc_src
-                        = b_src.get_access<cl::sycl::access::mode::read>(cgh);
+                        = b_src.get_access<::sycl::access::mode::read>(cgh);
                 cgh.copy(acc_src, usm_dst->usm_ptr());
             });
         } else { // if (!usm_src && !usm_dst)
@@ -188,11 +188,11 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                             &dst);
             auto &b_src = buffer_src->buffer();
             auto &b_dst = buffer_dst->buffer();
-            e = queue_->submit([&](cl::sycl::handler &cgh) {
+            e = queue_->submit([&](::sycl::handler &cgh) {
                 auto acc_src
-                        = b_src.get_access<cl::sycl::access::mode::read>(cgh);
+                        = b_src.get_access<::sycl::access::mode::read>(cgh);
                 auto acc_dst
-                        = b_dst.get_access<cl::sycl::access::mode::write>(cgh);
+                        = b_dst.get_access<::sycl::access::mode::write>(cgh);
                 register_deps(cgh);
                 cgh.copy(acc_src, acc_dst);
             });
@@ -208,7 +208,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 = utils::downcast<const sycl_memory_storage_base_t *>(&dst);
         bool usm = sycl_dst->memory_kind() == memory_kind::usm;
 
-        cl::sycl::event out_event;
+        ::sycl::event out_event;
 
         if (usm) {
             auto *usm_dst
@@ -216,7 +216,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             auto dst_ptr = static_cast<uint8_t *>(usm_dst->usm_ptr());
             // Note: we cannot use queue_.fill since it cannot handle
             // events as input
-            out_event = queue_->submit([&](cl::sycl::handler &cgh) {
+            out_event = queue_->submit([&](::sycl::handler &cgh) {
                 register_deps(cgh);
                 cgh.memset(dst_ptr, pattern, size);
             });
@@ -224,12 +224,12 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             auto *buffer_dst
                     = utils::downcast<const sycl_buffer_memory_storage_t *>(
                             &dst);
-            out_event = queue_->submit([&](cl::sycl::handler &cgh) {
+            out_event = queue_->submit([&](::sycl::handler &cgh) {
                 // need a u8 accessor to get the proper range
-                cl::sycl::accessor<uint8_t, 1, cl::sycl::access::mode::write,
+                ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::write,
                         compat::target_device>
                         acc_dst(buffer_dst->buffer(), cgh,
-                                cl::sycl::range<1>(size), cl::sycl::id<1>(0));
+                                ::sycl::range<1>(size), ::sycl::id<1>(0));
                 register_deps(cgh);
                 cgh.fill(acc_dst, pattern);
             });
@@ -238,44 +238,44 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return status::success;
     }
 
-    const std::vector<cl::sycl::event> &get_deps() const { return deps_; }
-    void set_deps(const std::vector<cl::sycl::event> &deps) { deps_ = deps; }
-    void add_dep(const cl::sycl::event &dep) { deps_.push_back(dep); }
-    cl::sycl::event get_output_event() const {
+    const std::vector<::sycl::event> &get_deps() const { return deps_; }
+    void set_deps(const std::vector<::sycl::event> &deps) { deps_ = deps; }
+    void add_dep(const ::sycl::event &dep) { deps_.push_back(dep); }
+    ::sycl::event get_output_event() const {
         // Fast path: if only one event, return it.
         if (deps_.size() == 1) return deps_[0];
 
         // Otherwise, we run a trivial kernel to gather all deps. The
         // dummy task is needed to not get an error related to empty
         // kernel.
-        auto e = queue_->submit([&](cl::sycl::handler &cgh) {
+        auto e = queue_->submit([&](::sycl::handler &cgh) {
             register_deps(cgh);
             cgh.single_task<class dnnl_dummy_kernel>([]() {});
         });
         return e;
     }
-    void register_deps(cl::sycl::handler &cgh) const {
+    void register_deps(::sycl::handler &cgh) const {
         cgh.depends_on(get_deps());
     }
 
 protected:
     sycl_stream_t(engine_t *engine, unsigned flags)
         : gpu::compute::compute_stream_t(engine, flags) {}
-    sycl_stream_t(engine_t *engine, unsigned flags, cl::sycl::queue &queue)
+    sycl_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
         : gpu::compute::compute_stream_t(engine, flags)
-        , queue_(new cl::sycl::queue(queue)) {}
+        , queue_(new ::sycl::queue(queue)) {}
 
-    static status_t init_flags(unsigned *flags, cl::sycl::queue &queue) {
+    static status_t init_flags(unsigned *flags, ::sycl::queue &queue) {
         *flags = queue.is_in_order() ? stream_flags::in_order
                                      : stream_flags::out_of_order;
         return status::success;
     }
 
-    std::unique_ptr<cl::sycl::queue> queue_;
+    std::unique_ptr<::sycl::queue> queue_;
 
     // XXX: This is a temporary solution, ideally events should be a part of
     // execution context.
-    std::vector<cl::sycl::event> deps_;
+    std::vector<::sycl::event> deps_;
 
 private:
     status_t init();

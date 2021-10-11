@@ -46,13 +46,13 @@ class sycl_cuda_engine_t : public dnnl::impl::sycl::sycl_engine_base_t {
 public:
     using base_t = dnnl::impl::sycl::sycl_engine_base_t;
 
-    sycl_cuda_engine_t(engine_kind_t kind, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx, size_t index);
-    sycl_cuda_engine_t(const cl::sycl::device &dev,
-            const cl::sycl::context &ctx, size_t index);
+    sycl_cuda_engine_t(engine_kind_t kind, const ::sycl::device &dev,
+            const ::sycl::context &ctx, size_t index);
+    sycl_cuda_engine_t(const ::sycl::device &dev, const ::sycl::context &ctx,
+            size_t index);
 
     status_t create_stream(stream_t **stream, unsigned flags) override;
-    status_t create_stream(stream_t **stream, cl::sycl::queue &queue);
+    status_t create_stream(stream_t **stream, ::sycl::queue &queue);
 
     const dnnl::impl::impl_list_item_t *get_reorder_implementation_list(
             const memory_desc_t *src_md,

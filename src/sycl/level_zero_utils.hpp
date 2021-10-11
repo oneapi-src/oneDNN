@@ -31,7 +31,7 @@ namespace impl {
 namespace sycl {
 
 using device_uuid_t = std::tuple<uint64_t, uint64_t>;
-device_uuid_t get_device_uuid(const cl::sycl::device &dev);
+device_uuid_t get_device_uuid(const ::sycl::device &dev);
 
 // including sycl_gpu_engine.hpp leads to circular dependencies, w/a for now.
 class sycl_gpu_engine_t;
@@ -42,8 +42,7 @@ status_t sycl_create_kernel_with_level_zero(
         const gpu::compute::binary_t *binary,
         gpu::compute::program_list_t *programs);
 
-bool compare_ze_devices(
-        const cl::sycl::device &lhs, const cl::sycl::device &rhs);
+bool compare_ze_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
 
 } // namespace sycl
 } // namespace impl

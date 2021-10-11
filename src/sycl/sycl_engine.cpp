@@ -28,17 +28,17 @@ status_t sycl_engine_factory_t::engine_create(
     assert(index < count());
 
     auto dev_type = (engine_kind_ == engine_kind::cpu)
-            ? cl::sycl::info::device_type::cpu
-            : cl::sycl::info::device_type::gpu;
+            ? ::sycl::info::device_type::cpu
+            : ::sycl::info::device_type::gpu;
     auto devices = get_sycl_devices(dev_type);
     auto &dev = devices[index];
 
-    auto exception_handler = [](const cl::sycl::exception_list &eptr_list) {
+    auto exception_handler = [](const ::sycl::exception_list &eptr_list) {
         for (auto &eptr : eptr_list) {
             if (get_verbose()) {
                 try {
                     std::rethrow_exception(eptr);
-                } catch (const cl::sycl::exception &e) {
+                } catch (const ::sycl::exception &e) {
                     printf("dnnl_verbose,gpu,sycl_exception,%s\n", e.what());
                 }
             } else {
@@ -52,17 +52,17 @@ status_t sycl_engine_factory_t::engine_create(
     // kernel for all devices from the context (e.g. build both CPU and
     // GPU). This doesn't work for the CPU thunk kernel which works on CPU
     // only because it calls a native CPU function.
-    cl::sycl::context ctx(dev, exception_handler);
+    ::sycl::context ctx(dev, exception_handler);
     return engine_create(engine, dev, ctx, index);
 }
 
 status_t sycl_engine_factory_t::engine_create(engine_t **engine,
-        const cl::sycl::device &dev, const cl::sycl::context &ctx,
+        const ::sycl::device &dev, const ::sycl::context &ctx,
         size_t index) const {
     // Validate device and context.
     auto ctx_devs = ctx.get_devices();
     auto it = std::find_if(ctx_devs.begin(), ctx_devs.end(),
-            [&](const cl::sycl::device &ctx_dev) {
+            [&](const ::sycl::device &ctx_dev) {
                 return are_equal(ctx_dev, dev);
             });
     if (it == ctx_devs.end()) return status::invalid_arguments;

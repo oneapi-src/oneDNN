@@ -59,12 +59,12 @@ status_t sycl_cuda_stream_t::init() {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
         if (!sycl_engine.is_service_stream_created())
-            queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev));
+            queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev));
         else {
             stream_t *service_stream;
             CHECK(sycl_engine.get_service_stream(service_stream));
             auto sycl_stream = utils::downcast<sycl_stream_t *>(service_stream);
-            queue_.reset(new cl::sycl::queue(sycl_stream->queue()));
+            queue_.reset(new ::sycl::queue(sycl_stream->queue()));
         }
     } else {
         auto queue_streamId = get_underlying_stream();
@@ -95,10 +95,10 @@ status_t sycl_cuda_stream_t::init() {
 }
 
 status_t sycl_cuda_stream_t::interop_task(
-        std::function<void(cl::sycl::handler &)> sycl_cuda_interop_) {
+        std::function<void(::sycl::handler &)> sycl_cuda_interop_) {
     try {
         this->set_deps({queue().submit(
-                [&](cl::sycl::handler &cgh) { sycl_cuda_interop_(cgh); })});
+                [&](::sycl::handler &cgh) { sycl_cuda_interop_(cgh); })});
         return status::success;
     } catch (std::runtime_error &e) {
         error::wrap_c_api(status::runtime_error, e.what());

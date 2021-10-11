@@ -49,7 +49,7 @@ public:
         auto &sycl_ctx = sycl_engine->context();
 
         usm_ptr_ = decltype(usm_ptr_)(handle, [](void *) {});
-        usm_kind_ = cl::sycl::get_pointer_type(handle, sycl_ctx);
+        usm_kind_ = ::sycl::get_pointer_type(handle, sycl_ctx);
 
         return status::success;
     }
@@ -78,9 +78,9 @@ public:
          * perfectly fine for gtests. As we weren't able to find the cause of
          * this behavior we went with the approach above. Hopefully, the driver
          * will be fixed and we can get rid of W/A altogether. */
-        return utils::one_of(usm_kind_, cl::sycl::usm::alloc::host,
-                // cl::sycl::usm::alloc::shared, // W/A (see above)
-                cl::sycl::usm::alloc::unknown);
+        return utils::one_of(usm_kind_, ::sycl::usm::alloc::host,
+                // ::sycl::usm::alloc::shared, // W/A (see above)
+                ::sycl::usm::alloc::unknown);
     }
 
     virtual std::unique_ptr<memory_storage_t> get_sub_storage(
@@ -114,18 +114,18 @@ protected:
         auto &sycl_dev = sycl_engine->device();
         auto &sycl_ctx = sycl_engine->context();
 
-        usm_kind_ = cl::sycl::usm::alloc::shared;
-        void *usm_ptr_alloc = cl::sycl::malloc_shared(size, sycl_dev, sycl_ctx);
+        usm_kind_ = ::sycl::usm::alloc::shared;
+        void *usm_ptr_alloc = ::sycl::malloc_shared(size, sycl_dev, sycl_ctx);
         if (!usm_ptr_alloc) return status::out_of_memory;
 
-        usm_ptr_ = decltype(usm_ptr_)(usm_ptr_alloc,
-                [&](void *ptr) { cl::sycl::free(ptr, sycl_ctx); });
+        usm_ptr_ = decltype(usm_ptr_)(
+                usm_ptr_alloc, [&](void *ptr) { ::sycl::free(ptr, sycl_ctx); });
         return status::success;
     }
 
 private:
     std::unique_ptr<void, std::function<void(void *)>> usm_ptr_;
-    cl::sycl::usm::alloc usm_kind_ = cl::sycl::usm::alloc::unknown;
+    ::sycl::usm::alloc usm_kind_ = ::sycl::usm::alloc::unknown;
 };
 
 } // namespace sycl
