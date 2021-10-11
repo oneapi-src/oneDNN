@@ -502,6 +502,7 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     if (!(is_superset(isa, req_isa) && mayiuse(req_isa)))
         return status::unimplemented;
 
+    brg->is_bf16_amx = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
     brg->is_dgmm = true;
     brg->type = type;
     brg->layout = layout;
