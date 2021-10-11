@@ -272,11 +272,6 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
         jpp.ur_bc = 1;
         jpp.ur_bc_tail = 0;
     }
-    auto ur_w = nstl::min(jpp.ow, jpp.ur / jpp.ur_bc);
-    if (utils::div_up(jpp.l_pad, jpp.stride_w) > ur_w)
-        return status::unimplemented;
-    if (utils::div_up(right_pad, jpp.stride_w) > ur_w)
-        return status::unimplemented;
 
     // scratchpad for c_block slice of input and/or output
     using namespace memory_tracking::names;
@@ -1301,7 +1296,8 @@ void jit_uni_pool_kernel<isa>::generate() {
 
         auto dt_size = jpp.dt_size;
         auto shift = (isa == sse41) ? vlen : 0;
-        add(reg_input, dt_size * (ur_w * stride_w - lpad) * c_off - shift);
+        add(reg_input,
+                dt_size * nstl::max(0, ur_w * stride_w - lpad) * c_off - shift);
         add(reg_output, dt_size * ur_w * c_off - shift);
         if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward)) {
             auto ishift = (isa == sse41) ? jpp.c_block / 2 : 0;
@@ -1344,18 +1340,25 @@ void jit_uni_pool_kernel<isa>::generate() {
         auto ur_w = nstl::min(jpp.ow, jpp.ur / jpp.ur_bc);
         auto ur_w_tail = jpp.ow % ur_w;
 
-        int n_oi = ow / ur_w;
+        const int n_oi_iterations = ow / ur_w;
+        int n_oi = n_oi_iterations;
 
-        int r_pad1
+        const int r_pad1
                 = calculate_end_padding(l_pad, ur_w * n_oi, iw, stride_w, kw);
-        if (r_pad1 > 0) n_oi--;
+        const int ur_stride_w = ur_w * stride_w;
+        const int l_pad_iterations = utils::div_up(l_pad, ur_stride_w);
+        const int r_pad_iterations = utils::div_up(r_pad1, ur_stride_w);
 
-        if (l_pad > 0) {
+        n_oi -= nstl::max(0, r_pad_iterations);
+
+        for (int i = 0; i < l_pad_iterations; ++i) {
             n_oi--;
+            const int cur_l_pad = l_pad - i * ur_stride_w;
             if (n_oi < 0 && r_pad1 > 0)
-                process_oi(ur_w, ur_bc, l_pad, r_pad1, with_c_tail_processing);
-            else
-                process_oi(ur_w, ur_bc, l_pad, 0, with_c_tail_processing);
+                process_oi(
+                        ur_w, ur_bc, cur_l_pad, r_pad1, with_c_tail_processing);
+            else if (n_oi >= 0)
+                process_oi(ur_w, ur_bc, cur_l_pad, 0, with_c_tail_processing);
         }
 
         xor_(oi_iter, oi_iter);
@@ -1371,12 +1374,23 @@ void jit_uni_pool_kernel<isa>::generate() {
             }
         }
 
-        if (r_pad1 > 0 && n_oi >= 0)
-            process_oi(ur_w, ur_bc, 0, r_pad1, with_c_tail_processing);
+        if (n_oi >= 0) {
+            const int r_pad1_tail = r_pad1 % ur_stride_w != 0
+                    ? r_pad1 % ur_stride_w
+                    : ur_stride_w;
+            for (int i = 0; i < r_pad_iterations; ++i) {
+                const int cur_r_pad = r_pad1_tail + ur_stride_w * i;
+                process_oi(ur_w, ur_bc, 0, cur_r_pad, with_c_tail_processing);
+            }
+        }
 
-        if (ur_w_tail != 0)
-            process_oi(
-                    ur_w_tail, ur_bc, 0, r_pad, with_c_tail_processing, false);
+        if (ur_w_tail != 0) {
+            const int l_pad_tail = n_oi_iterations < l_pad_iterations
+                    ? l_pad % ur_stride_w
+                    : 0;
+            process_oi(ur_w_tail, ur_bc, l_pad_tail, r_pad,
+                    with_c_tail_processing, false);
+        }
     };
     Label ur_bc_tail_label, c_tail_processing_label, finish_label;
 
