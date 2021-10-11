@@ -13,14 +13,14 @@ After that, users can compile and execute those partitions.
 
 Here, an example will be provided to show the programming model. The full
 example code can be found at
-[cpu_programming.cpp](../../examples/cpp/src/cpu_programming.cpp).
+[cpu_programming.cpp](../../tests/demo/src/cpu_programming.cpp).
 
 ## cpu_programming_tutorial() function
 
 ### Create tensor mapping
 
 In order to provide a running context, a new class named
-[tensor_map](../../examples/cpp/include/common/execution_context.hpp#L36) is
+[tensor_map](../../tests/demo/include/common/execution_context.hpp#L36) is
 being introduced in this example. A tensor map will be responsible for holding
 all the tensors that will be used in the users' program. it contains the mapping
 from an unique logical tensor id to the corresponding tensor.
@@ -74,7 +74,7 @@ logical_tensor conv_bias_lt {id_mgr["conv_bias"], data_type::f32, bias_dims, lay
 logical_tensor conv_dst_lt {id_mgr["dst_dims"], data_type::f32, dst_dims, layout_type::strided};
 ~~~
 
-Here [`id_mgr`](../../examples/cpp/include/common/utils.hpp#135) is a utility
+Here [`id_mgr`](../../tests/demo/include/common/utils.hpp#135) is a utility
 class to generate unique id according to the given name. It requires the 1:1
 mapping between id and the given name.
 
@@ -232,7 +232,7 @@ Graph API supports single op partition. As the name suggests, it's a partition
 which only contains one operator. There is no need to use graph for imperative
 execution mode. The demo code is like below. The full example code can be found
 at
-[cpu_single_op_partition_matmul.cpp](../../examples/cpp/src/cpu_single_op_partition_matmul.cpp).
+[cpu_single_op_partition_f32.cpp](../../examples/cpp/cpu_single_op_partition_f32.cpp).
 
 ~~~cpp
 // define input and output logical tensor
