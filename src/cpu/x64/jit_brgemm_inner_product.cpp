@@ -330,7 +330,8 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             while (loop_start < loop_end) {
                 const int n = (osb + osb_s) * jbgp.os_block;
                 const int cur_icc = icc + icc_start;
-                const bool copy_buffer_a = jbgp.use_buffer_a && ocb == 0;
+                const bool copy_buffer_a = jbgp.use_buffer_a
+                        && IMPLICATION(ocb_inner_most, ocb == 0);
                 ker(ithr_oc_mb, nthr_oc_mb, ithr_ic, n, ocb + ocb_s, cur_icc,
                         cur_icc == icc_start, osb, copy_buffer_a);
 
