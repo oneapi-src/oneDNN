@@ -70,7 +70,9 @@ namespace impl {
 
 static setting_t<int> verbose {0};
 int get_verbose() {
-#if !defined(DISABLE_VERBOSE)
+#if defined(DISABLE_VERBOSE)
+    return 0;
+#else
     // Assumes that all threads see the same environment
     const int len = 2;
     char val[len] = {0};
@@ -100,22 +102,23 @@ int get_verbose() {
                "time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
     }
-#endif
     return verbose.get();
+#endif
 }
 
 static setting_t<bool> verbose_timestamp {false};
 bool get_verbose_timestamp() {
-#if !defined(DISABLE_VERBOSE)
+#if defined(DISABLE_VERBOSE)
+    return false;
+#else
     // Assumes that all threads see the same environment
     const int len = 2;
     char val[len] = {0};
     static int get_verbose_timestamp_val
             = getenv("DNNL_VERBOSE_TIMESTAMP", val, len);
     if (get_verbose_timestamp_val == 1) verbose_timestamp.set(atoi(val), true);
-#endif
-    // No effect if verbose is not set.
     return verbose.get() && verbose_timestamp.get();
+#endif
 }
 
 double get_msec() {
