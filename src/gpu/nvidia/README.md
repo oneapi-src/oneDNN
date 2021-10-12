@@ -16,15 +16,37 @@ in-order queue when creating a stream if needed.
 
 ## Build command
 
+These build instructions have been validated with the latest CUDA 11.4 toolkit.
+
 ```bash
-export CC=/path/to/dpcpp/install/bin/clang
-export CXX=/path/to/dpcpp/install/bin/clang++
 mkdir build
 cd build
-cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP \
-      -DDNNL_GPU_VENDOR=NVIDIA -G Ninja \
-      -DOPENCLROOT=/path/to/the/root/folder/of/libOpenCL.so ..
+cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+-DOpenCL_INCLUDE_DIR=/path/to/DPCPP/build/_deps/ocl-headers-src \
+-DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP -DDNNL_GPU_VENDOR=NVIDIA \
+-DCUBLAS_LIBRARY=/path/to/cuda/lib64/libcublas.so \
+-DCUBLAS_INCLUDE_DIR=/path/to/cuda/include \
+-DCUDNN_INCLUDE_DIR=/path/to/cuda/include \
+-G Ninja -DOPENCLROOT=/path/to/DPCPP/build/lib ..
 ```
+
+The default /path/to/cuda is /usr/local/cuda
+
+## Running Tests
+
+Add the path to the dynamic libraries from DPC++ to LD_LIBRARY_PATH:
+
+```bash
+export LD_LIBRARY_PATH=/path/to/DPCPP/build/lib/:$LD_LIBRARY_PATH
+```
+
+Run tests:
+
+```bash
+ctest
+```
+
+All tests are expected to pass.
 
 ## Memory
 
