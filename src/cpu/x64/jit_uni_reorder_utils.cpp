@@ -140,6 +140,15 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     dims_t iblocks, oblocks, i_tails, o_tails, i_paddings, o_paddings;
     im_d.compute_blocks(iblocks);
     om_d.compute_blocks(oblocks);
+
+    for (int d = 0; d < om_d.ndims(); ++d) {
+        const auto dim = om_d.dims()[d];
+        const auto pdim = om_d.padded_dims()[d];
+        const auto cblock = oblocks[d];
+        // do not allow excess pdim other than required for rounding-up of dim.
+        if (utils::rnd_up(dim, cblock) != pdim) return unimplemented;
+    }
+
     utils::array_set(i_tails, 0, im_d.ndims());
     utils::array_set(o_tails, 0, om_d.ndims());
     utils::array_set(i_paddings, 0, im_d.ndims());
