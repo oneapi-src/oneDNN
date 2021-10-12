@@ -235,7 +235,7 @@ public:
             switch (args_[i].kind) {
                 case arg_kind_t::internal: {
                     auto &value = args_[i].value;
-                    auto &type = value.type();
+                    auto &type = args_[i].var.type();
 
                     do {
 #define CASE(ir_type, cpp_type) \
