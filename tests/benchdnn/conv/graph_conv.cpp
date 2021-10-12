@@ -343,8 +343,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
 
         const auto &dnnl_test_engine = ::get_test_engine();
         ::conv::compute_ref_fwd(prb, c_ref, ref_args);
-        dnn_mem_t dst(dst_dt, fp, src_tag, dnnl_test_engine);
-        SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
+        SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
     }
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);

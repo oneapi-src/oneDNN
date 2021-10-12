@@ -30,8 +30,7 @@ struct reorder_graph_prb_t : public graph_prb_t {
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status
-                = handle_main_op_(prb->reorder.tag_in, prb->reorder.tag_out);
+        ctor_status = handle_main_op_(prb->stag, prb->dtag);
         if (stop_work(ctor_status)) return;
 
         ctor_status = fill_status::DONE;

@@ -26,10 +26,10 @@ namespace benchdnnext {
 namespace binary {
 
 binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
-    src0_dims = prb->sdims[0];
-    src1_dims = prb->sdims[1];
+    src0_dims = prb->vdims[0];
+    src1_dims = prb->vdims[1];
 
-    const auto ndims = prb->ndims[0];
+    const auto ndims = (int)prb->vdims[0].size();
     dst_dims.reserve(ndims);
     for (auto d = 0; d < ndims; ++d)
         dst_dims.push_back(std::max(src0_dims[d], src1_dims[d]));
@@ -44,14 +44,14 @@ binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
 }
 
 void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
-    const auto src0_dims = prb->sdims[0];
-    const auto src1_dims = prb->sdims[1];
+    const auto src0_dims = prb->vdims[0];
+    const auto src1_dims = prb->vdims[1];
 
     // General broadcast rules:
     // Two dimensions are compatible when
     // 1) they are equal, or
     // 2) one of them is 1
-    for (auto d = 0; d < prb->ndims[0]; ++d) {
+    for (auto d = 0; d < (int)prb->vdims[0].size(); ++d) {
         if (src0_dims[d] == src1_dims[d] || src0_dims[d] == 1
                 || src1_dims[d] == 1) {
             continue;

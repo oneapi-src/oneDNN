@@ -78,7 +78,7 @@ void add_additional_fwd_lnorm_check(const ::lnorm::prb_t *&prb,
                 = prb->use_ss() || prb->use_sc() || prb->use_sh();
         if (!scale_or_shift) return false;
 
-        ::dims_t l_dims(dst_fp.md_);
+        ::dims_t l_dims = md2dims(dst_fp.md_);
         const dims_t dims_idx = off2dims_idx(l_dims, args.idx);
         const int64_t c = dims_idx[prb->ndims - 1];
         const float beta = prb->use_sh() ? ((const float *)sh_fp)[c]

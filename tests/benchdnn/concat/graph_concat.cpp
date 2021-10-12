@@ -32,11 +32,11 @@ concat_graph_prb_t::spec_t::spec_t(const ::concat::prb_t *prb) {
     raw_src_tag.resize(prb->n_inputs());
 
     for (auto i = 0; i < prb->n_inputs(); ++i) {
-        src_dims[i] = prb->sdims[i];
+        src_dims[i] = prb->vdims[i];
         raw_src_tag[i] = prb->stag[i];
     }
 
-    dst_dims = prb->ddims;
+    dst_dims = prb->dst_dims;
     raw_dst_tag = prb->dtag;
 
     src_dt = convert_dt(prb->sdt);
@@ -46,7 +46,7 @@ concat_graph_prb_t::spec_t::spec_t(const ::concat::prb_t *prb) {
 }
 
 void check_ranks_shapes_and_dtypes(const ::concat::prb_t *prb, res_t *res) {
-    auto rank = prb->sdims[0].size();
+    auto rank = prb->vdims[0].size();
     auto axis = prb->axis;
 
     // In oneDNN graph axis can take negative values. But in oneDNN
@@ -61,7 +61,7 @@ void check_ranks_shapes_and_dtypes(const ::concat::prb_t *prb, res_t *res) {
     }
 
     // Rank of all tensors should match
-    const auto same_rank = std::all_of(prb->sdims.cbegin(), prb->sdims.cend(),
+    const auto same_rank = std::all_of(prb->vdims.cbegin(), prb->vdims.cend(),
             [rank](const dims_t &sdim) { return rank == sdim.size(); });
     if (!same_rank) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
@@ -71,9 +71,9 @@ void check_ranks_shapes_and_dtypes(const ::concat::prb_t *prb, res_t *res) {
     // Shapes for all inputs should match at every position except axis position
     for (auto i = 0; i < rank; ++i) {
         if (axis == static_cast<int64_t>(i)) continue;
-        const auto d = prb->ddims[i];
+        const auto d = prb->dst_dims[i];
         const auto same_dim
-                = std::all_of(prb->sdims.cbegin(), prb->sdims.cend(),
+                = std::all_of(prb->vdims.cbegin(), prb->vdims.cend(),
                         [d, i](const dims_t &sdim) { return d == sdim[i]; });
         if (!same_dim) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
@@ -81,9 +81,9 @@ void check_ranks_shapes_and_dtypes(const ::concat::prb_t *prb, res_t *res) {
         }
     }
 
-    const auto dst_axis_dim = prb->ddims[axis];
-    const auto src_axis_dim_sum = std::accumulate(prb->sdims.cbegin(),
-            prb->sdims.cend(), 0L, [axis](int64_t acc, const dims_t &sdim) {
+    const auto dst_axis_dim = prb->dst_dims[axis];
+    const auto src_axis_dim_sum = std::accumulate(prb->vdims.cbegin(),
+            prb->vdims.cend(), 0L, [axis](int64_t acc, const dims_t &sdim) {
                 return acc + sdim[axis];
             });
     if (dst_axis_dim != src_axis_dim_sum) {

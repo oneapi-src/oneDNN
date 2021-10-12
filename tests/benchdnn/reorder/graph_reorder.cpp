@@ -23,11 +23,11 @@ namespace benchdnnext {
 namespace reorder {
 
 reorder_graph_prb_t::spec_t::spec_t(const ::reorder::prb_t *prb) noexcept {
-    dims = prb->reorder.dims;
+    dims = prb->dims;
     src_dt = convert_dt(prb->conf_in->dt);
     dst_dt = convert_dt(prb->conf_out->dt);
-    src_tag = convert_tag(prb->reorder.tag_in);
-    dst_tag = convert_tag(prb->reorder.tag_out);
+    src_tag = convert_tag(prb->stag);
+    dst_tag = convert_tag(prb->dtag);
 }
 
 void check_known_skipped_case_graph(
@@ -52,11 +52,10 @@ void check_known_skipped_case_graph(
             combine Reorder operator and TypeCast operator
     */
     /* TODO: involves multiple operators. Eg: reorder+typecast */
-    if (prb->conf_in->dt != prb->conf_out->dt
-            && prb->reorder.tag_in != prb->reorder.tag_out) {
+    if (prb->conf_in->dt != prb->conf_out->dt && prb->stag != prb->dtag) {
         res->state = SKIPPED;
     }
-    if (prb->reorder.tag_in == prb->reorder.tag_out) {
+    if (prb->stag == prb->dtag) {
         if ((prb->conf_in->dt == dnnl_s8 || prb->conf_in->dt == dnnl_u8)
                 && (prb->conf_out->dt == dnnl_bf16)) {
             res->state = SKIPPED;
@@ -162,8 +161,8 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     // we need src_fp for proper comparison, => no in-place reference
     auto dst_fp = make_dnn_mem(outs[0], spec.dst_dt, "abx");
 
-    auto src_dt = make_dnn_mem(ins[0], (prb->reorder.tag_in).c_str());
-    auto dst_dt = make_dnn_mem(outs[0], (prb->reorder.tag_out).c_str());
+    auto src_dt = make_dnn_mem(ins[0], (prb->stag).c_str());
+    auto dst_dt = make_dnn_mem(outs[0], (prb->dtag).c_str());
 
     //TODO: need to extend for post ops
     SAFE(fill_memory(prb, SRC, src_fp), WARN);

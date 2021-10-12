@@ -32,7 +32,7 @@ matmul_graph_prb_t::spec_t::spec_t(const ::matmul::prb_t *prb) noexcept {
     src_dims = get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask());
     wei_dims = get_runtime_dims(
             prb->weights_dims(), prb->weights_runtime_dim_mask());
-    dst_dims = get_runtime_dims(prb->dst_dims(), prb->dst_runtime_dim_mask());
+    dst_dims = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
     if (dt::undef != convert_dt(prb->bia_dt)) {
         bia_dims.resize(dst_dims.size());
         for (int i = 0; i < prb->ndims; ++i)
