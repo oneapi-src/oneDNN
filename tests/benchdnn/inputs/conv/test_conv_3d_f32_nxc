@@ -1,5 +1,5 @@
 # f32 3-D Convolutions
---reset --cfg=f32_full
+--reset --cfg=f32
 --stag=axb --dtag=axb
 --mb=2
 --skip-impl=ref,x64:gemm      # ! test jit version only

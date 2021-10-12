@@ -79,8 +79,8 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src,
     const float *src_ptr = (const float *)src;
 
     const auto &ndims = prb->ndims;
-    const auto &src_dims = prb->src_dims;
-    const auto &dst_dims = prb->dst_dims;
+    const auto &src_dims = prb->vdims[0];
+    const auto &dst_dims = prb->vdims[1];
 
     const auto alg = prb->alg;
     const auto p = prb->p;

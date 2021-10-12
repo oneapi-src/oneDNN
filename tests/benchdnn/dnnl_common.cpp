@@ -600,7 +600,7 @@ static size_t get_cpu_ram_size() {
     GlobalMemoryStatusEx(&s);
     return s.ullTotalPhys;
 }
-#elif defined(__APPLE__) || defined(__FreeBSD__)
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__QNXNTO__)
 #include <unistd.h>
 #include <sys/sysctl.h>
 
@@ -876,4 +876,11 @@ float reorder_rescale_factor() {
     factor = dnnl::impl::cpu::platform::s8s8_weights_scale_factor();
 #endif
     return factor;
+}
+
+dims_t md2dims(const dnnl_memory_desc_t &md) {
+    dims_t dims(md.ndims, 0);
+    for (int d = 0; d < md.ndims; ++d)
+        dims[d] = md.dims[d];
+    return dims;
 }

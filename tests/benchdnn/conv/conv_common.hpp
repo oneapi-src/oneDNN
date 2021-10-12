@@ -359,14 +359,8 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args);
 void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args);
 void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args);
 
-int compare_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        res_t *res, bool final_compare = false);
-int compare_wei(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        res_t *res, bool final_compare = false);
-int compare_bia(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        res_t *res, bool final_compare = false);
-int compare_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        res_t *res, bool final_compare = false);
+int compare_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *res);
 
 bool need_src_init(const prb_t *prb);
 bool need_wei_init(const prb_t *prb);

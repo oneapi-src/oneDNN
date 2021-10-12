@@ -35,11 +35,11 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
     dnnl_reduction_desc_t rd;
     dnnl_memory_desc_t src_desc, dst_desc;
 
-    SAFE(init_md(&src_desc, prb->ndims, prb->src_dims.data(), prb->sdt,
+    SAFE(init_md(&src_desc, prb->ndims, prb->vdims[0].data(), prb->sdt,
                  prb->stag),
             WARN);
 
-    SAFE(init_md(&dst_desc, prb->ndims, prb->dst_dims.data(), prb->ddt,
+    SAFE(init_md(&dst_desc, prb->ndims, prb->vdims[1].data(), prb->ddt,
                  prb->dtag),
             WARN);
 
@@ -48,7 +48,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
             WARN);
 
     attr_args_t attr_args;
-    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->vdims[1].data());
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -128,8 +128,8 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 
     int nelems_to_reduce = 1;
     for (int dim = 0; dim < prb->ndims; dim++) {
-        if (prb->src_dims.at(dim) != prb->dst_dims.at(dim)) {
-            nelems_to_reduce *= prb->src_dims.at(dim);
+        if (prb->vdims[0][dim] != prb->vdims[1][dim]) {
+            nelems_to_reduce *= prb->vdims[0][dim];
         }
     }
     // There is no accumulation error in case of min or max algorithm

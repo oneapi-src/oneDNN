@@ -32,13 +32,20 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_p : s.p)
     for_(const auto &i_eps : s.eps)
     {
-        bool ok = s.dims.size() == 2 && s.dims[0].size() == s.dims[1].size();
-        if (!ok) SAFE_V(FAIL);
+        // Expect exactly two inputs for problem dimensions.
+        static constexpr int n_inputs = 2;
+        if (s.prb_vdims.n_inputs() != n_inputs) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: input tensors were specified in wrong format. "
+                    "Please use NxNxNxNxN:MxMxMxMxM as a problem description "
+                    "format.");
+            SAFE_V(FAIL);
+        }
 
         attr_t attr;
         attr.insert(i_post_ops);
-        const prb_t prb(
-                s.dims, i_sdt, i_ddt, i_stag, i_dtag, i_alg, i_p, i_eps, attr);
+        const prb_t prb(s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_alg, i_p,
+                i_eps, attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -82,7 +89,7 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_multi_dims(s.dims, argv[0]);
+            parse_prb_vdims(s.prb_vdims, argv[0]);
 
             check_correctness(s);
         }

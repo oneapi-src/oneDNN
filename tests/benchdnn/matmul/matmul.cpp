@@ -33,10 +33,10 @@
 
 namespace matmul {
 
-void prep_bia_dims(const prb_t *prb, dims_t &bia_dims, const dims_t &dst_dims) {
-    bia_dims.resize(dst_dims.size());
+void prep_bia_dims(const prb_t *prb, dims_t &bia_dims) {
+    bia_dims.resize(prb->ndims);
     for (int d = 0; d < prb->ndims; ++d)
-        bia_dims[d] = (prb->bia_mask & (1 << d)) ? dst_dims[d] : 1;
+        bia_dims[d] = (prb->bia_mask & (1 << d)) ? prb->dst_dims[d] : 1;
 }
 
 dims_t get_runtime_dims(const dims_t &dims, const dims_mask_t &mask) {
@@ -58,7 +58,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
     const auto &weights_rt_dims = get_runtime_dims(
             prb->weights_dims(), prb->weights_runtime_dim_mask());
     const auto &dst_rt_dims
-            = get_runtime_dims(prb->dst_dims(), prb->dst_runtime_dim_mask());
+            = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
 
     SAFE(init_md(&src_d, prb->ndims, src_rt_dims.data(), prb->cfg[SRC].dt,
                  prb->stag, prb->strides[STRIDES_SRC]),
@@ -74,7 +74,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
 
     if (prb->bia_dt != dnnl_data_type_undef) {
         dims_t bia_dims;
-        prep_bia_dims(prb, bia_dims, prb->dst_dims());
+        prep_bia_dims(prb, bia_dims);
         bia_dims = get_runtime_dims(bia_dims, prb->dst_runtime_dim_mask());
         DNN_SAFE(dnnl_memory_desc_init_by_strides(&bia_d, prb->ndims,
                          bia_dims.data(), prb->bia_dt, nullptr),
@@ -94,9 +94,8 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
         mask = (1 << (dst_rt_dims.size() - 1));
 
     attr_args_t attr_args;
-    const auto &dst_dims = prb->dst_dims();
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->n, mask);
-    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims.data());
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -139,8 +138,8 @@ int init_prim_ref(
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
     prb_t prb_cpu {*prb, conf_f32, tag::abx, tag::abx, tag::abx,
-            {strides_t(STRIDES_SIZE)}, false, false, false, false, cpu_bia_dt,
-            cpu_bia_mask, {0, 0, 0}, cpu_attr};
+            {vdims_t(STRIDES_SIZE)}, cpu_bia_dt, cpu_bia_mask, {0, 0, 0},
+            cpu_attr};
 
     dnnl_primitive_desc_t pd_ref_ {};
     SAFE(init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, FLAG_FWD,
@@ -407,16 +406,15 @@ int doit(const prb_t *prb, res_t *res) {
                 WARN);
     }
 
-    const auto &dst_dims = prb->dst_dims();
     if (dnnl_memory_desc_equal(&dst_md, &def_md)) {
         assert(prb->dtag != tag::any);
-        SAFE(init_md(&dst_md, prb->ndims, dst_dims.data(), prb->cfg[DST].dt,
-                     prb->dtag, prb->strides[STRIDES_DST]),
+        SAFE(init_md(&dst_md, prb->ndims, prb->dst_dims.data(),
+                     prb->cfg[DST].dt, prb->dtag, prb->strides[STRIDES_DST]),
                 WARN);
     }
     if (prb->bia_dt != dnnl_data_type_undef) {
         dims_t bia_dims;
-        prep_bia_dims(prb, bia_dims, dst_dims);
+        prep_bia_dims(prb, bia_dims);
         DNN_SAFE(dnnl_memory_desc_init_by_strides(&bia_md, prb->ndims,
                          bia_dims.data(), prb->bia_dt, nullptr),
                 WARN);
@@ -427,6 +425,15 @@ int doit(const prb_t *prb, res_t *res) {
     // Use CPU prim as the reference in GPU testing to reduce testing time.
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim_ref;
     SAFE(init_prim_ref(prim_ref, prb), WARN);
+
+    const_dnnl_primitive_desc_t const_pd_ref;
+    if (prim_ref)
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim_ref, &const_pd_ref),
+                CRIT);
+    const auto q_ref = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                const_pd_ref, dnnl_query_exec_arg_md, index);
+    };
 
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = prim_ref ? get_cpu_engine() : get_test_engine();
@@ -446,7 +453,9 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t bia_fp;
     if (prb->bia_dt != dnnl_data_type_undef)
         bia_fp = dnn_mem_t(bia_md, fp, tag::abx, ref_engine);
-    dnn_mem_t scratchpad_fp(scratchpad_md, ref_engine);
+    dnn_mem_t scratchpad_fp;
+    if (prim_ref)
+        scratchpad_fp = dnn_mem_t(q_ref(DNNL_ARG_SCRATCHPAD), ref_engine);
 
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);

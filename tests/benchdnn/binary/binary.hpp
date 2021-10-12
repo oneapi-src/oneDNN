@@ -39,7 +39,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    std::vector<dims_t> sdims;
+    prb_vdims_t prb_vdims;
 
     std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
@@ -63,23 +63,21 @@ struct settings_t {
     void reset() { *this = settings_t(perf_template); }
 };
 
-struct prb_t {
-    prb_t(const std::vector<dims_t> &sdims,
+struct prb_t : public prb_vdims_t {
+    prb_t(const prb_vdims_t &prb_vdims,
             const std::vector<dnnl_data_type_t> &sdt, dnnl_data_type_t ddt,
             const std::vector<std::string> &stag, std::string dtag, alg_t alg,
             bool inplace, const attr_t &attr)
-        : sdims(sdims)
+        : prb_vdims_t(prb_vdims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
         , alg(alg)
         , inplace(inplace)
-        , attr(attr)
-        , ndims({(int)sdims[0].size(), (int)sdims[1].size()}) {}
+        , attr(attr) {}
     ~prb_t() {}
 
-    std::vector<dims_t> sdims;
     std::vector<dnnl_data_type_t> sdt;
     dnnl_data_type_t ddt;
     std::vector<std::string> stag;
@@ -87,18 +85,6 @@ struct prb_t {
     alg_t alg;
     bool inplace;
     attr_t attr;
-    std::vector<int> ndims;
-
-    int n_inputs() const { return 2; }
-
-    int get_broadcast_mask(const dims_t &dims_B, int source_num) const {
-        const dims_t &dims_A = this->sdims[source_num];
-
-        int broadcast_mask = 0;
-        for (int d = 0; d < ndims[source_num]; ++d)
-            broadcast_mask += dims_A[d] == dims_B[d] ? (1 << d) : 0;
-        return broadcast_mask;
-    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
@@ -107,16 +93,18 @@ struct perf_report_t : public base_perf_report_t {
         : base_perf_report_t(perf_template)
         , p_(prb)
         , stag_({})
-        , dtag_(normalize_tag(p_->dtag, p_->ndims[0])) {
+        , dtag_(normalize_tag(p_->dtag, p_->ndims)) {
         for (size_t d = 0; d < p_->stag.size(); d++)
-            stag_.push_back(normalize_tag(p_->stag[d], p_->ndims[d]));
+            stag_.push_back(normalize_tag(p_->stag[d], p_->ndims));
     }
 
     void dump_alg(std::ostream &s) const override { s << p_->alg; }
 
-    void dump_desc(std::ostream &s) const override { s << p_->sdims; }
+    void dump_desc(std::ostream &s) const override {
+        s << static_cast<const prb_vdims_t &>(*p_);
+    }
 
-    void dump_desc_csv(std::ostream &s) const override { s << p_->sdims; }
+    void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
     const std::vector<dnnl_data_type_t> *sdt() const override {
         return &p_->sdt;

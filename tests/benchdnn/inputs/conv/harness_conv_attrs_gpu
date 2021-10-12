@@ -46,8 +46,7 @@
 --attr-post-ops=sum:2.5+relu:0.5 --batch=shapes_resnet_50
 --attr-post-ops=sum+linear:0.5:1.5 --batch=shapes_resnet_50
 
-# requires no_limit config since final value can go out of f16 cfg boundaries
---cfg=f16_no_limits
+--cfg=f16
 --attr-post-ops=sum:2.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_tensor
 --batch=shapes_resnet_50
 

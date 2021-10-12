@@ -34,10 +34,9 @@ int get_n_scales(const prb_t *prb) {
     assert(IMPLICATION(mask >= (1 << 1), prb->ndims > 1));
     switch (mask) {
         case 0: return 1;
-        case (1 << 0): return prb->reorder.dims[0];
-        case (1 << 1): return prb->reorder.dims[1];
-        case (1 << 1) + (1 << 0):
-            return prb->reorder.dims[1] * prb->reorder.dims[0];
+        case (1 << 0): return prb->dims[0];
+        case (1 << 1): return prb->dims[1];
+        case (1 << 1) + (1 << 0): return prb->dims[1] * prb->dims[0];
         default: assert(!"unsupported mask"); return 1;
     }
 }
@@ -180,16 +179,14 @@ int compare_bootstrap(dnn_mem_t &mem_ref, dnn_mem_t &mem_got, res_t *res) {
 
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
-    const auto &rc = prb->reorder;
-    auto dims = rc.dims;
+    auto dims = prb->dims;
     for (int d = 0; d < prb->ndims; ++d)
         if (prb->runtime_dim_mask & (1 << d)) dims[d] = DNNL_RUNTIME_DIM_VAL;
 
     dnnl_memory_desc_t src_d, dst_d;
-    SAFE(init_md(&src_d, prb->ndims, dims.data(), prb->conf_in->dt, rc.tag_in),
+    SAFE(init_md(&src_d, prb->ndims, dims.data(), prb->conf_in->dt, prb->stag),
             CRIT);
-    SAFE(init_md(&dst_d, prb->ndims, dims.data(), prb->conf_out->dt,
-                 rc.tag_out),
+    SAFE(init_md(&dst_d, prb->ndims, dims.data(), prb->conf_out->dt, prb->dtag),
             CRIT);
 
     // Prepare and assign extra for dst_md.
@@ -360,12 +357,11 @@ int doit(const prb_t *prb, res_t *res) {
     dnnl_memory_desc_t src_md, dst_md;
     if (prb->runtime_dim_mask != 0) {
         // re-create memory descriptors with defined dims
-        const auto &rc = prb->reorder;
-        SAFE(init_md(&src_md, prb->ndims, rc.dims.data(), prb->conf_in->dt,
-                     rc.tag_in),
+        SAFE(init_md(&src_md, prb->ndims, prb->dims.data(), prb->conf_in->dt,
+                     prb->stag),
                 CRIT);
-        SAFE(init_md(&dst_md, prb->ndims, rc.dims.data(), prb->conf_out->dt,
-                     rc.tag_out),
+        SAFE(init_md(&dst_md, prb->ndims, prb->dims.data(), prb->conf_out->dt,
+                     prb->dtag),
                 CRIT);
     } else {
         src_md = q(DNNL_ARG_SRC);

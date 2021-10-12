@@ -42,16 +42,17 @@ void check_correctness(const settings_t &s) {
         auto i_stag = i_stag_;
         if (i_stag.size() == 1) {
             const auto val = i_stag_[0];
-            i_stag.assign(s.sdims.size(), val);
+            i_stag.assign(s.prb_vdims.n_inputs(), val);
         }
 
-        if (s.sdims.size() != i_stag.size()) // want 1:1 match of sdims and tag
+        // want 1:1 match of vdims and tag
+        if (s.prb_vdims.n_inputs() != static_cast<int>(i_stag.size()))
             SAFE_V(FAIL);
 
         attr_t attr;
         attr.insert(i_scratchpad_mode);
 
-        const prb_t prb(s.sdims, i_sdt, ddt, i_stag, i_dtag, i_axis, attr);
+        const prb_t prb(s.prb_vdims, i_sdt, ddt, i_stag, i_dtag, i_axis, attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -101,7 +102,7 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_multi_dims(s.sdims, argv[0]);
+            parse_prb_vdims(s.prb_vdims, argv[0]);
 
             check_correctness(s);
         }

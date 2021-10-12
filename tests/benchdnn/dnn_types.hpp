@@ -39,29 +39,6 @@ extern const char *any;
 extern const char *undef;
 } // namespace tag
 
-struct dims_t : public std::vector<int64_t> {
-    //  using vector<int64_t>::vector;
-    //  There is a bug in Intel compiler 19.0 on MacOS which prevents
-    //  using-declaration from being used here. The workaround is to introduce
-    //  constructors explicitly.
-    dims_t() = default;
-    dims_t(size_t size) : vector(size) {}
-    dims_t(size_t size, int64_t value) : vector(size, value) {}
-    dims_t(const dnnl_memory_desc_t &md) : dims_t(md.ndims) {
-        for (int d = 0; d < md.ndims; ++d)
-            this->at(d) = md.dims[d];
-    }
-};
-
-// strides for SRC, WEI, and DST
-using strides_t = std::vector<dims_t>;
-enum {
-    STRIDES_SRC = 0,
-    STRIDES_WEI = 1,
-    STRIDES_DST = 2,
-    STRIDES_SIZE = 3,
-};
-
 enum dir_t {
     DIR_UNDEF = 0,
     FLAG_DAT = 1,
@@ -84,8 +61,6 @@ dir_t str2dir(const char *str);
 const char *prop2str(dnnl_prop_kind_t prop);
 dnnl_prop_kind_t prop2prop_kind(dir_t dir);
 
-dims_t off2dims_idx(const dims_t &dims, int64_t off);
-std::ostream &operator<<(std::ostream &s, const dims_t &dims);
 std::ostream &operator<<(std::ostream &s, dir_t dir);
 std::ostream &operator<<(std::ostream &s, dnnl_data_type_t dt);
 std::ostream &operator<<(std::ostream &s, dnnl_engine_kind_t ek);

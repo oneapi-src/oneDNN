@@ -26,14 +26,12 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src0, const dnn_mem_t &src1,
     const float *A = (const float *)src0;
     const float *B = (const float *)src1;
 
-    dims_t ddims(dst.md_);
-
     float scales[2] = {prb->attr.scales.get(DNNL_ARG_SRC_0).scale,
             prb->attr.scales.get(DNNL_ARG_SRC_1).scale};
 
     const auto nelems = dst.nelems();
-    const auto broadcast_mask_A = prb->get_broadcast_mask(ddims, 0);
-    const auto broadcast_mask_B = prb->get_broadcast_mask(ddims, 1);
+    const auto broadcast_mask_A = prb->get_broadcast_mask(0);
+    const auto broadcast_mask_B = prb->get_broadcast_mask(1);
     std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {

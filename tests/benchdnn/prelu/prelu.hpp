@@ -35,7 +35,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    std::vector<dims_t> sdims;
+    prb_vdims_t prb_vdims;
 
     std::vector<dir_t> dir {FWD_D};
     std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
@@ -52,34 +52,17 @@ struct settings_t {
     void reset() { *this = settings_t(perf_template); }
 };
 
-struct prb_t {
-    prb_t(const std::vector<dims_t> &sdims, dir_t dir,
+struct prb_t : public prb_vdims_t {
+    prb_t(const prb_vdims_t &prb_vdims, dir_t dir,
             const std::vector<dnnl_data_type_t> &sdt,
             const std::vector<std::string> &stag, const attr_t &attr)
-        : sdims(sdims)
-        , dir(dir)
-        , sdt(sdt)
-        , stag(stag)
-        , attr(attr)
-        , ndims((int)sdims[0].size()) {}
+        : prb_vdims_t(prb_vdims), dir(dir), sdt(sdt), stag(stag), attr(attr) {}
     ~prb_t() {}
 
-    std::vector<dims_t> sdims;
     dir_t dir;
     std::vector<dnnl_data_type_t> sdt;
     std::vector<std::string> stag;
     attr_t attr;
-    int ndims;
-
-    int get_broadcast_mask() const {
-        const dims_t &src = this->sdims[0];
-        const dims_t &wei = this->sdims[1];
-
-        int broadcast_mask = 0;
-        for (int d = 0; d < ndims; ++d)
-            broadcast_mask += src[d] == wei[d] ? (1 << d) : 0;
-        return broadcast_mask;
-    }
 };
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -91,9 +74,11 @@ struct perf_report_t : public base_perf_report_t {
             stag_.push_back(normalize_tag(prb_->stag[d], prb_->ndims));
     }
 
-    void dump_desc(std::ostream &s) const override { s << prb_->sdims; }
+    void dump_desc(std::ostream &s) const override {
+        s << static_cast<const prb_vdims_t &>(*prb_);
+    }
 
-    void dump_desc_csv(std::ostream &s) const override { s << prb_->sdims; }
+    void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
     const dir_t *dir() const override { return &prb_->dir; }
     const std::vector<dnnl_data_type_t> *sdt() const override {

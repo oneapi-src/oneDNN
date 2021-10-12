@@ -40,10 +40,13 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     append_if(UNIX  CMAKE_CXX_FLAGS "-prec-div -prec-sqrt -fp-model precise")
 endif()
 
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT QNXNTO)
     find_library(LIBRT rt)
+elseif(QNXNTO)
+    find_library(LIBREGEX regex)
+    find_library(LIBSOCKET socket)
 endif()
-register_exe(benchdnn "${SOURCES}" "" "${LIBRT}")
+register_exe(benchdnn "${SOURCES}" "" "${LIBRT};${LIBREGEX};${LIBSOCKET}")
 
 file(COPY inputs DESTINATION .)
 

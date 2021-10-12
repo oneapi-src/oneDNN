@@ -47,15 +47,6 @@ extern const _dt_conf_t conf_f32;
 const int64_t LD_GOOD = INT64_MAX;
 const int64_t LD_NONE = INT64_MAX - 1;
 
-struct desc_t {
-    desc_t() : is_legacy_desc(false), name(nullptr) {}
-    std::vector<dims_t> sdims;
-    bool is_legacy_desc = false;
-    const char *name = nullptr;
-};
-int str2desc(desc_t *desc, const char *str);
-std::ostream &operator<<(std::ostream &s, const desc_t &d);
-
 struct settings_t {
     settings_t() = default;
 
@@ -64,13 +55,11 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    desc_t desc {};
+    prb_vdims_t prb_vdims;
 
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
-    std::vector<strides_t> strides {strides_t(STRIDES_SIZE)};
-    std::vector<bool> runtime_mb {false}, runtime_m {false}, runtime_n {false},
-            runtime_k {false};
+    std::vector<vdims_t> strides {vdims_t(STRIDES_SIZE)};
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
     std::vector<int> bia_mask {2};
     std::vector<std::vector<dims_mask_t>> rt_dims_masks {{}};
@@ -92,23 +81,18 @@ struct settings_t {
     void reset() { *this = settings_t(perf_template); }
 };
 
-struct prb_t : public desc_t {
-    prb_t(const desc_t &desc, const dt_conf_t *cfg, const std::string &stag,
-            const std::string &wtag, const std::string &dtag,
-            const strides_t &strides, bool runtime_mb, bool runtime_m,
-            bool runtime_n, bool runtime_k, dnnl_data_type_t bia_dt,
-            int bia_mask, const std::vector<dims_mask_t> &rt_dims_masks,
-            const attr_t &attr)
-        : desc_t(desc)
+struct prb_t : public prb_vdims_t {
+    prb_t(const prb_vdims_t &prb_vdims, const dt_conf_t *cfg,
+            const std::string &stag, const std::string &wtag,
+            const std::string &dtag, const vdims_t &strides,
+            dnnl_data_type_t bia_dt, int bia_mask,
+            const std::vector<dims_mask_t> &rt_dims_masks, const attr_t &attr)
+        : prb_vdims_t(prb_vdims)
         , cfg(cfg)
         , stag(stag)
         , wtag(wtag)
         , dtag(dtag)
         , strides(strides)
-        , runtime_mb(runtime_mb)
-        , runtime_m(runtime_m)
-        , runtime_n(runtime_n)
-        , runtime_k(runtime_k)
         , bia_dt(bia_dt)
         , bia_mask(bia_mask)
         , rt_dims_masks(rt_dims_masks)
@@ -116,23 +100,16 @@ struct prb_t : public desc_t {
         , scales(NULL) {
 
         this->rt_dims_masks.resize(2);
-        if (IMPLICATION(src_runtime_dim_mask().none()
-                            && weights_runtime_dim_mask().none(),
-                    runtime_mb || runtime_m || runtime_n || runtime_k)) {
-            // legacy desc_t
-            set_runtime_dims_masks();
-        }
-
         const auto &srcdims = src_dims();
         const auto &weidims = weights_dims();
-        ndims = (int)srcdims.size();
         m = srcdims[ndims - 2];
         k = srcdims.back();
         n = weidims.back();
+        dst_dims[ndims - 2] = m;
+        dst_dims[ndims - 1] = n;
 
-        init_dst();
-        const auto &dstdims = dst_dims();
-        const auto nelems = std::accumulate(dstdims.begin(), dstdims.end(),
+        init_dst_rt_dims_mask();
+        const auto nelems = std::accumulate(dst_dims.begin(), dst_dims.end(),
                 (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
         ops = 2. * nelems * k;
 
@@ -148,10 +125,8 @@ struct prb_t : public desc_t {
 
     int m, n, k;
     const dt_conf_t *cfg;
-    int ndims;
     std::string stag, wtag, dtag;
-    strides_t strides;
-    bool runtime_mb, runtime_m, runtime_n, runtime_k;
+    vdims_t strides;
     dnnl_data_type_t bia_dt;
     int bia_mask;
     std::vector<dims_mask_t> rt_dims_masks;
@@ -162,9 +137,8 @@ struct prb_t : public desc_t {
     float *scales;
     int32_t *src_zp, *dst_zp;
 
-    const dims_t &src_dims() const { return sdims[0]; }
-    const dims_t &weights_dims() const { return sdims[1]; }
-    const dims_t &dst_dims() const { return sdims[2]; }
+    const dims_t &src_dims() const { return vdims[0]; }
+    const dims_t &weights_dims() const { return vdims[1]; }
 
     const dims_mask_t &src_runtime_dim_mask() const { return rt_dims_masks[0]; }
     const dims_mask_t &weights_runtime_dim_mask() const {
@@ -172,11 +146,9 @@ struct prb_t : public desc_t {
     }
     const dims_mask_t &dst_runtime_dim_mask() const { return rt_dims_masks[2]; }
 
-    int src_broadcast_mask() const { return get_broadcast_mask(src_dims()); }
+    int src_broadcast_mask() const { return get_broadcast_mask(0); }
 
-    int weights_broadcast_mask() const {
-        return get_broadcast_mask(weights_dims());
-    }
+    int weights_broadcast_mask() const { return get_broadcast_mask(1); }
 
     int bias_broadcast_mask() const { return bia_mask; }
 
@@ -187,29 +159,6 @@ struct prb_t : public desc_t {
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 
 private:
-    int get_broadcast_mask(const dims_t &dims_idx) const {
-        const dims_t &dims_dst = this->dst_dims();
-
-        int broadcast_mask = 0;
-        for (int d = 0; d < ndims; ++d)
-            broadcast_mask += dims_dst[d] == dims_idx[d] ? (1 << d) : 0;
-
-        return broadcast_mask;
-    }
-
-    void init_dst_dims() {
-        if (sdims.size() > 2) return;
-        sdims.resize(3);
-        auto &dst_dims = sdims.back();
-        dst_dims.resize(ndims);
-
-        for (int i = 0; i < ndims - 2; ++i) {
-            sdims.back()[i] = MAX2(sdims[0][i], sdims[1][i]);
-        }
-        sdims.back()[ndims - 2] = m;
-        sdims.back()[ndims - 1] = n;
-    }
-
     void init_dst_rt_dims_mask() {
         if (rt_dims_masks.size() > 2) return;
 
@@ -226,30 +175,6 @@ private:
         dst_rt_dim_mask[ndims - 1] = wei_rt_dim_mask[ndims - 1];
 
         rt_dims_masks.push_back(dst_rt_dim_mask);
-    }
-
-    void init_dst() {
-        init_dst_dims();
-        init_dst_rt_dims_mask();
-    }
-
-    // used only for legacy desc support
-    void set_runtime_dims_masks() {
-        // here we only set src and wei masks. dst mask is computed in init_dst
-        const auto ndims = sdims[0].size();
-        auto &src_mask = rt_dims_masks[0];
-        auto &wei_mask = rt_dims_masks[1];
-        if (runtime_mb && ndims == 3) { // else silently ignore
-            src_mask[0] = true;
-            wei_mask[0] = true;
-        }
-
-        if (runtime_m) src_mask[ndims - 2] = true;
-        if (runtime_n) wei_mask[ndims - 1] = true;
-        if (runtime_k) {
-            src_mask[ndims - 1] = true;
-            wei_mask[ndims - 2] = true;
-        }
     }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -270,16 +195,14 @@ struct perf_report_t : public base_perf_report_t {
     void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
 
     void dump_desc(std::ostream &s) const override {
-        s << static_cast<const desc_t &>(*p_);
+        s << static_cast<const prb_vdims_t &>(*p_);
     }
 
-    void dump_desc_csv(std::ostream &s) const override {
-        s << static_cast<const desc_t &>(*p_);
-    }
+    void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
     double ops() const override { return p_->ops; }
     const attr_t *attr() const override { return &p_->attr; }
-    const char *name() const override { return p_->name; }
+    const char *name() const override { return p_->name.c_str(); }
     const std::vector<std::string> *stag() const override { return &stag_; }
     const std::string *wtag() const override { return &wtag_; }
     const std::string *dtag() const override { return &dtag_; }

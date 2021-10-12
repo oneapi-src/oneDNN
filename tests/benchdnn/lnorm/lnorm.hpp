@@ -53,7 +53,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    dims_t dims;
+    prb_dims_t prb_dims;
 
     std::vector<dir_t> dir {FWD_D};
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
@@ -75,39 +75,37 @@ struct settings_t {
     void reset() { *this = settings_t(perf_template); }
 };
 
-struct prb_t {
-    prb_t(const dims_t &dims, const std::string &tag,
+struct prb_t : public prb_dims_t {
+    prb_t(const prb_dims_t &prb_dims, const std::string &tag,
             const std::string &stat_tag, dir_t dir, dnnl_data_type_t dt,
             flags_t flags, const attr_t &attr, bool inplace,
             check_alg_t check_alg)
-        : check_alg(check_alg)
-        , dims(dims)
+        : prb_dims_t(prb_dims)
+        , check_alg(check_alg)
         , tag(tag)
         , stat_tag(stat_tag)
         , dir(dir)
         , dt(dt)
         , flags(flags)
         , inplace(inplace)
-        , attr(attr)
-        , ndims((int)dims.size()) {
-        n = std::accumulate(
-                dims.begin(), dims.end() - 1, 1, std::multiplies<int64_t>());
+        , attr(attr) {
+        n = 1;
+        for (int d = 0; d < ndims - 1; d++)
+            n *= dims[d];
         c = dims[ndims - 1];
         eps = 1.f / 16;
     }
     ~prb_t() {}
 
     check_alg_t check_alg;
-    int64_t n, c;
-    dims_t dims;
     std::string tag, stat_tag;
     dir_t dir;
     dnnl_data_type_t dt;
     flags_t flags;
     bool inplace;
     attr_t attr;
+    int64_t n, c;
     float eps;
-    int ndims;
 
     bool use_ss() const { return flags & USE_SCALESHIFT; }
     bool use_sc() const { return flags & USE_SCALE; }
@@ -123,9 +121,11 @@ struct perf_report_t : public base_perf_report_t {
         , tag_(normalize_tag(p_->tag, p_->ndims))
         , stat_tag_(normalize_tag(p_->stat_tag, p_->ndims - 1)) {}
 
-    void dump_desc(std::ostream &s) const override { s << p_->dims; }
+    void dump_desc(std::ostream &s) const override {
+        s << static_cast<const prb_dims_t &>(*p_);
+    }
 
-    void dump_desc_csv(std::ostream &s) const override { s << p_->dims; }
+    void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
     void dump_flags(std::ostream &s) const override {
         s << flags2str(p_->flags);

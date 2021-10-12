@@ -383,8 +383,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(binary_po_args, binary_po_fp);
 
             TIME_REF(deconv::compute_ref_fwd(&p_tr, prim_ref, ref_args));
-            dnn_mem_t dst(dst_dt, fp, src_tag, test_engine);
-            SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
+            SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
         }
     } else if (prb->dir == BWD_D) {
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
@@ -402,8 +401,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
             TIME_REF(deconv::compute_ref_bwd_d(&p_tr, prim_ref, ref_args));
-            dnn_mem_t src(src_dt, fp, src_tag, test_engine);
-            SAFE(compare_src(prb, src, src_fp, res, true), WARN);
+            SAFE(compare_data(prb, SRC, src_dt, src_fp, res), WARN);
         }
     } else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI) {
         args.set(DNNL_ARG_SRC, src_dt);
@@ -423,12 +421,9 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
             TIME_REF(deconv::compute_ref_bwd_w(&p_tr, prim_ref, ref_args));
-            dnn_mem_t wei(wei_dt, fp, wei_tag, test_engine);
-            SAFE(compare_wei(&p_tr, wei, wei_fp, res, true), WARN);
-            if (prb->dir & FLAG_BIA) {
-                dnn_mem_t bia(bia_dt, fp, tag::x, test_engine);
-                SAFE(compare_bia(prb, bia, bia_fp, res, true), WARN);
-            }
+            SAFE(compare_data(&p_tr, WEI, wei_dt, wei_fp, res), WARN);
+            if (prb->dir & FLAG_BIA)
+                SAFE(compare_data(prb, BIA, bia_dt, bia_fp, res), WARN);
         }
     } else {
         SAFE(FAIL, CRIT);

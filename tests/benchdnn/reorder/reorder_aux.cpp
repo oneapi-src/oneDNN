@@ -93,7 +93,7 @@ float *prb_t::generate_oscales() {
 
     int64_t uniq_scales = 1;
     for (int d = 0; d < this->ndims; ++d)
-        if (mask & (1 << d)) uniq_scales *= this->reorder.dims[d];
+        if (mask & (1 << d)) uniq_scales *= this->dims[d];
 
     float *scales = (float *)zmalloc(sizeof(float) * uniq_scales, 64);
     SAFE_V(scales != nullptr ? OK : FAIL);
@@ -122,8 +122,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
 
     s << "--sdt=" << cfg2dt(prb.conf_in) << " ";
     s << "--ddt=" << cfg2dt(prb.conf_out) << " ";
-    s << "--stag=" << prb.reorder.tag_in << " ";
-    s << "--dtag=" << prb.reorder.tag_out << " ";
+    s << "--stag=" << prb.stag << " ";
+    s << "--dtag=" << prb.dtag << " ";
 
     if (canonical || (!prb.oflag.empty() && prb.oflag != def.oflag[0]))
         s << "--oflag=" << prb.oflag << " ";
@@ -133,7 +133,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
         s << "--runtime-dim-mask=" << prb.runtime_dim_mask << " ";
 
     s << prb.attr;
-    s << prb.reorder.dims;
+    s << static_cast<prb_dims_t>(prb);
 
     return s;
 }

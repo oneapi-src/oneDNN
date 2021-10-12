@@ -34,6 +34,7 @@ int check_primitive_cache(dnnl_primitive_t p);
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_debug.hpp"
+#include "utils/dims.hpp"
 
 #define for_ for
 
@@ -500,5 +501,6 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd);
 memory_kind_ext_t str2memory_kind(const char *str);
 
 float reorder_rescale_factor();
+dims_t md2dims(const dnnl_memory_desc_t &md);
 
 #endif

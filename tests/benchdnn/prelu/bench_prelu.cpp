@@ -32,20 +32,22 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_sdt : s.sdt)
     for_(const auto &i_stag : s.stag)
     for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
-        if (s.sdims.size() != 2) {
+        // Expect exactly two inputs for problem dimensions.
+        static constexpr int n_inputs = 2;
+        if (s.prb_vdims.n_inputs() != n_inputs) {
             BENCHDNN_PRINT(0, "%s\n",
                     "Error: input tensors were specified in wrong format. "
                     "Please use NxNxNxNxN:MxMxMxMxM as a problem description "
                     "format.");
             SAFE_V(FAIL);
         }
-        if (i_sdt.size() != 2) {
+        if (i_sdt.size() != n_inputs) {
             BENCHDNN_PRINT(0, "%s\n",
                     "Error: input data types were specified in wrong format. "
                     "Please use --sdt=X:X format.");
             SAFE_V(FAIL);
         }
-        if (i_stag.size() != 2) {
+        if (i_stag.size() != n_inputs) {
             BENCHDNN_PRINT(0, "%s\n",
                     "Error: input format tags were specified in wrong format. "
                     "Please use --stag=X:X format.");
@@ -55,7 +57,7 @@ void check_correctness(const settings_t &s) {
         attr_t attr;
         attr.insert(i_scratchpad_mode);
 
-        const prb_t prb(s.sdims, i_dir, i_sdt, i_stag, attr);
+        const prb_t prb(s.prb_vdims, i_dir, i_sdt, i_stag, attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -96,7 +98,7 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_multi_dims(s.sdims, argv[0]);
+            parse_prb_vdims(s.prb_vdims, argv[0]);
             check_correctness(s);
         }
     }

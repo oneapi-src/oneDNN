@@ -31,7 +31,7 @@
 --reset --dir=BWD_D ic2ih1iw9oc3oh1ow4kh1kw3sh1sw2
 
 # DNNL-796: large asymmetric padding
---reset --cfg=f32_full mb2_g1ic32oc32_ih7oh11kh3ph2
+--reset --cfg=f32 mb2_g1ic32oc32_ih7oh11kh3ph2
 --reset --cfg=u8s8u8 mb2_g1ic32oc32_ih7oh11kh3ph2
 --reset --cfg=s8s8u8 mb2_g1ic32oc32_ih7oh11kh3ph2
 
@@ -50,7 +50,7 @@
 --reset --dir=BWD_D mb2_g1ic1oc2_ih3oh1kh2sh1dh1ph0_iw5ow3kw2sw1dw1pw0
 
 # special case for 4vnni and 4fma kernels had this FPE bug
---reset --cfg=f32_full mb1_g1ic16oc16_ih7oh7kh3ph1
+--reset --cfg=f32 mb1_g1ic16oc16_ih7oh7kh3ph1
 
 # DNNL-982: FPE for large right-hand-side padding
 --reset --dir=FWD_D mb2_g1ic1oc2_ih3oh10kh2sh1dh1ph4_iw5ow12kw2sw1dw1pw2
@@ -169,7 +169,7 @@ ic48ih7oc48oh5kh3ph0n"small_spatial_optimization"
 # False positives due to long accumulation chains
 --reset
 mb1_ic16oc16_id100od1kd100
---cfg=f32_full --dir=BWD_W mb28_ic16oc16_id10od10kd3
+--dir=BWD_W mb28_ic16oc16_id10od10kd3
 
 # Int 3D Depthwise dispatch check
 --reset --skip-impl=ref,x64:gemm --cfg=u8s8u8
