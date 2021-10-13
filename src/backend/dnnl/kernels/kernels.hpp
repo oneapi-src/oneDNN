@@ -23,7 +23,6 @@
 #include "conv.hpp"
 #include "convtranspose.hpp"
 #include "eltwise.hpp"
-#include "inner_product.hpp"
 #include "layernorm.hpp"
 #include "logsoftmax.hpp"
 #include "matmul.hpp"
