@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "utils/utils.hpp"
+
 #include "backend.hpp"
 
 namespace dnnl {
@@ -44,6 +46,64 @@ size_t backend_registry::extract_backend_id(size_t layout_id) {
     return layout_id & (size_t)((1 << BACKEND_ID_LENGTH) - 1);
 }
 
+// Backend API used by each backend to check the constant cache enabling status
+bool is_constant_cache_enabled() {
+    int result = 0;
+    dnnl_graph_get_constant_cache(&result);
+    return result;
+}
+
+class constant_cache_flag_t {
+    std::atomic<bool> constant_cache_enabled_;
+
+    // We specialize the constructor so that we can initialize the flag
+    // according to the env var. Because, with the new constant cache control
+    // API, the cache is enabled by default. If we want to run examples without
+    // caching, we need to change the code to call set_constant_cache(0)
+    // explicitly and rebuild it, which makes testing both two configrations in
+    // pre-CI inconvenient. So we add the internal env var
+    // _DNNL_GRAPH_CONSTANT_CACHE. If it's set by users, the initial status will
+    // equal to the env var value.
+    constant_cache_flag_t() {
+        // If env var is set, use it. Otherwise, use flag=1 by default.
+        int flag = utils::getenv_int("_DNNL_GRAPH_CONSTANT_CACHE", 1);
+        store(flag);
+    }
+
+    constant_cache_flag_t(const constant_cache_flag_t &) = delete;
+    constant_cache_flag_t(constant_cache_flag_t &&) = delete;
+    constant_cache_flag_t &operator=(const constant_cache_flag_t &) = delete;
+    constant_cache_flag_t &operator=(constant_cache_flag_t &&) = delete;
+
+public:
+    static constant_cache_flag_t &get_singleton() {
+        static constant_cache_flag_t ins;
+        return ins;
+    }
+
+    int load() const {
+        return static_cast<int>(constant_cache_enabled_.load(
+                std::memory_order::memory_order_relaxed));
+    }
+    void store(int flag) {
+        return constant_cache_enabled_.store(static_cast<bool>(flag),
+                std::memory_order::memory_order_relaxed);
+    }
+};
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
+
+// Constant cache control API
+dnnl::graph::impl::status_t dnnl_graph_set_constant_cache(int flag) {
+    if (flag < 0) return dnnl::graph::impl::status::invalid_argument;
+    dnnl::graph::impl::constant_cache_flag_t::get_singleton().store(flag);
+    return dnnl::graph::impl::status::success;
+}
+
+dnnl::graph::impl::status_t dnnl_graph_get_constant_cache(int *flag) {
+    if (flag == nullptr) return dnnl::graph::impl::status::invalid_argument;
+    *flag = dnnl::graph::impl::constant_cache_flag_t::get_singleton().load();
+    return dnnl::graph::impl::status::success;
+}

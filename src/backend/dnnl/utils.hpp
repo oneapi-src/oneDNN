@@ -108,12 +108,6 @@ inline bool is_aligned_ptr(void *ptr, size_t bytes) {
     return mod_ptr(ptr, bytes) == 0;
 }
 
-inline bool is_enable_constant_cache() {
-    const bool enabled
-            = impl::utils::getenv_int("DNNL_GRAPH_CONSTANT_CACHE", 0) > 0;
-    return enabled;
-}
-
 inline std::pair<std::vector<float>, std::vector<float>> compute_scales(
         float src_scale, float dst_scale, std::vector<float> weight_scales) {
     auto scale_size = weight_scales.size();

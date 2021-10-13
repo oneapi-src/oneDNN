@@ -64,7 +64,7 @@ private:
     constant_cache_t::key_t constant_key_
             = reinterpret_cast<constant_cache_t::key_t>(this);
 
-    bool enable_constant_cache_ = utils::is_enable_constant_cache();
+    bool enable_constant_cache_ = is_constant_cache_enabled();
 
     std::vector<bool> is_constant_;
 

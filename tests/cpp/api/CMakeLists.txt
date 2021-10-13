@@ -32,6 +32,7 @@ set(API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile_parametrized.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_version.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_constant_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_api_common.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition_cache_mt.cpp
     )
