@@ -32,7 +32,6 @@
 #include "backend/dnnl/kernels/concat.hpp"
 #include "backend/dnnl/kernels/conv.hpp"
 #include "backend/dnnl/kernels/eltwise.hpp"
-#include "backend/dnnl/kernels/inner_product.hpp"
 #include "backend/dnnl/kernels/layernorm.hpp"
 #include "backend/dnnl/kernels/matmul.hpp"
 #include "backend/dnnl/kernels/pool.hpp"
