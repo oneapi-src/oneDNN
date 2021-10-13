@@ -207,6 +207,9 @@ private:
             = impl::backend::register_backend( \
                     static_cast<impl::backend *>(&backend_ins_));
 
+// Backend API used by each backend to check the constant cache enabling status
+bool is_constant_cache_enabled();
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

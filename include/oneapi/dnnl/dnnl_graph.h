@@ -779,11 +779,32 @@ dnnl_graph_get_compiled_partition_cache_capacity(int *capacity);
 /// entries will be evicted. Setting the @p capacity to 0 clears the compiled
 /// partition cache and disables it. Cocurrently modifying @p capacity is safe.
 /// @returns #dnnl_graph_result_error_invalid_argument if the @p capacity value
-/// is invalid, and #dnnl_graph_result success on success.
+/// is invalid, and #dnnl_graph_result_success on success.
 dnnl_graph_result_t DNNL_GRAPH_API
 dnnl_graph_set_compiled_partition_cache_capacity(int capacity);
 
 /// @} dnnl_graph_compiled_partition_cache
+
+/// @addtogroup dnnl_graph_constant_cache
+/// @{
+
+/// Control the enabling or disabling of constant cache. This API must be called
+/// once before compilation stage.
+///
+/// @param flag Set to positive value to enable the cache and set to 0 to
+/// disable the cache. Negative values are invalid.
+/// @returns #dnnl_graph_result_error_invalid_argument if the @p flag value is
+/// invalid, and #dnnl_graph_result_success on success.
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_set_constant_cache(int flag);
+
+/// Return the enabling or disabling status of constant cache.
+///
+/// @param flag The constant cache enabling status to query.
+/// @returns #dnnl_graph_result_error_invalid_argument if the @p flag value is
+/// nullptr, and #dnnl_graph_result_success on success.
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_get_constant_cache(int *flag);
+
+/// @} dnnl_graph_constant_cache
 
 /// @addtogroup dnnl_graph_api_service Service
 /// @{
