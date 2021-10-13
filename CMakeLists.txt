@@ -72,7 +72,7 @@ endif()
 
 set(PROJECT_NAME "oneDNN")
 set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library (oneDNN)")
-set(PROJECT_VERSION "2.3.2")
+set(PROJECT_VERSION "2.3.3")
 
 function(set_lib_name LIB_NAME)
     string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
