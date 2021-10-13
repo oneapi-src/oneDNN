@@ -150,9 +150,9 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
             auto dev = dnnl::sycl_interop::get_device(eng);
             auto ctx = dnnl::sycl_interop::get_context(eng);
             if (memory_kind == memory_kind_ext_t::usm_device) {
-                data_ = cl::sycl::malloc_device(sz, dev, ctx);
+                data_ = ::sycl::malloc_device(sz, dev, ctx);
             } else {
-                data_ = cl::sycl::malloc_shared(sz, dev, ctx);
+                data_ = ::sycl::malloc_shared(sz, dev, ctx);
             }
             DNN_SAFE((sz > 0 && !data_) ? dnnl_out_of_memory : dnnl_success,
                     CRIT);
@@ -253,7 +253,7 @@ int dnn_mem_t::cleanup_sycl() {
         case memory_kind_ext_t::usm_shared: {
             auto eng = dnnl::engine(engine_, true);
             auto ctx = dnnl::sycl_interop::get_context(eng);
-            cl::sycl::free(data_, ctx);
+            ::sycl::free(data_, ctx);
             break;
         }
         default: break;
