@@ -602,6 +602,10 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     brg->dt_d = dt_d;
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
+    if (!IMPLICATION(
+                brg->is_int8 && brg->dt_d == bf16, mayiuse(avx512_core_bf16)))
+        return status::unimplemented;
+
     if (!brg->attr) return status::success;
 
     using namespace injector;

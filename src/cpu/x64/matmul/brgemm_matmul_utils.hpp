@@ -240,6 +240,10 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_int8() const { return int8_dt; }
 
+    inline bool is_int8_with_bf16_dst() const {
+        return this->is_int8() && bgmmc.dst_dt == data_type::bf16;
+    }
+
     status_t set_or_check_B_tag(memory_desc_t &B_md) const;
     status_t update_and_check_B_tag(memory_desc_t &B_md, int n_blk_size) const;
     status_t set_or_check_tags(memory_desc_t &A_md, memory_desc_t &C_md,

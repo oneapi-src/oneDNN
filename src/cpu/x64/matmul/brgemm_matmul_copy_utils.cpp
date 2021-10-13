@@ -1267,8 +1267,15 @@ void jit_brgemm_matmul_copy_b_int8_t::generate() {
     if (do_compute_compensation) {
         const bool req_s8s8_comp = conf_->s8s8_compensation_required;
         const bool req_zp_comp = conf_->has_zero_point_a;
+        int n_iters = div_up(conf_->wei_n_blk, 16);
         assert(IMPLICATION(req_zp_comp,
                 conf_->src_zp_type == brgemm_broadcast_t::per_tensor));
+
+        // copy 'comp_acc' into s8s8_comp accumulator
+        if (req_s8s8_comp) {
+            for (int i = 0; i < n_iters; i++)
+                vmovups(get_zmm_oscale_comp_res(i), get_comp_acc(i));
+        }
 
         Label skip_acc, store;
         if (req_s8s8_comp)
@@ -1279,7 +1286,6 @@ void jit_brgemm_matmul_copy_b_int8_t::generate() {
         mov(reg_K_start, ptr[param1 + GET_OFF(current_K_start)]);
         cmp(reg_K_start, 0);
         je(skip_acc, T_NEAR);
-        int n_iters = div_up(conf_->wei_n_blk, 16);
         if (req_s8s8_comp) {
             for (int i = 0; i < n_iters; i++) {
                 const auto zmm_acc = get_comp_acc(i);
@@ -1682,7 +1688,11 @@ struct jit_brgemm_matmul_copy_b_transposed_t
         : jit_brgemm_matmul_copy_b_t(conf)
         , typesize(conf_->b_dt_sz)
         , vnni_granularity(granularity_max / typesize)
-        , k_blk_step(bytes_in_zmm / typesize) {}
+        , k_blk_step(bytes_in_zmm / typesize)
+        , do_compute_compensation(
+                  conf_->has_zero_point_a || conf_->s8s8_compensation_required)
+        , req_zp_comp(conf_->has_zero_point_a)
+        , req_s8s8_comp(conf_->s8s8_compensation_required) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -1702,9 +1712,11 @@ private:
     const int typesize;
     const int vnni_granularity;
     const int k_blk_step;
+    const bool do_compute_compensation;
+    const bool req_zp_comp;
+    const bool req_s8s8_comp;
 
     dim_t src_stride = 0, tr_src_stride = 0;
-    bool do_compute_compensation = false;
 
     opmask_t k3333 = k1;
     opmask_t k5555 = k2;
@@ -1728,10 +1740,14 @@ private:
 
     reg64_t regq_tmp = r15;
     reg32_t regw_tmp = r15d;
+    reg64_t imm_addr64 = abi_not_param1;
 
     zmm zmm_zp_a_neg_val = zmm29;
     zmm zmm_comp_acc = zmm30;
     zmm zmm_comp_mul = zmm31;
+    zmm zmm_s8s8_comp_acc = zmm28;
+    zmm zmm_all_bits_1 = zmm27;
+    zmm zmm_one_s32 = zmm26;
 
     void copy_16x64_vnni(int nrows, int ncolumns);
     void compute_K_loop(bool is_N_tail, int curr_K_tail, bool is_first_K_iter,
@@ -1754,8 +1770,8 @@ void jit_brgemm_matmul_copy_b_transposed_t::copy_16x64_vnni(
     };
 
     auto tmp_zmm = [=](int i) {
-        // If compensation compute is required - last 4 zmms are reserved for it
-        assert(i >= 0 && i < 16 - do_compute_compensation * 4);
+        // If compensation compute is required - last 6 zmms are reserved for it
+        assert(i >= 0 && i < 16 - do_compute_compensation * 6);
         return Zmm(16 + i);
     };
 
@@ -1864,9 +1880,9 @@ void jit_brgemm_matmul_copy_b_transposed_t::copy_16x64_vnni(
 
         for (int i = 0; i < 8; i++) {
             // If compensation compute is required - last 4 zmms are reserved
-            const auto tmp = IMPLICATION(do_compute_compensation, i < 4)
+            const auto tmp = IMPLICATION(do_compute_compensation, i < 2)
                     ? tmp_zmm(8 + i)
-                    : src_zmm((i - 4) / 2 + (i % 2) * 8);
+                    : src_zmm((i - 2) / 2 + (i % 2) * 8);
             const auto src0 = src_zmm(i);
             const auto src8 = src_zmm(8 + i);
             vshuff64x2(tmp, src0, src8, 0xee);
@@ -1913,12 +1929,27 @@ void jit_brgemm_matmul_copy_b_transposed_t::compute_K_loop(bool is_N_tail,
 
     if (curr_K_tail > 0) copy_16x64_vnni(nrows, curr_K_tail);
 
-    if (do_compute_compensation) {
+    if (req_s8s8_comp) {
+        const auto addr = zword[reg_comp_ptr];
+        if (!is_first_K_iter)
+            vpaddd(zmm_s8s8_comp_acc, zmm_comp_acc, addr);
+        else
+            vmovups(zmm_s8s8_comp_acc, zmm_comp_acc);
+
+        if (is_last_K_iter) {
+            // multiply by 128
+            vpslld(zmm_s8s8_comp_acc, zmm_s8s8_comp_acc, 7);
+            // change sign
+            vpandnq(zmm_s8s8_comp_acc, zmm_s8s8_comp_acc, zmm_all_bits_1);
+            vpaddd(zmm_s8s8_comp_acc, zmm_s8s8_comp_acc, zmm_one_s32);
+        }
+        vmovups(addr, zmm_s8s8_comp_acc);
+    }
+    if (req_zp_comp) {
         const auto addr = zword[reg_zp_comp_ptr];
         if (!is_first_K_iter) vpaddd(zmm_comp_acc, zmm_comp_acc, addr);
         if (is_last_K_iter)
             vpmulld(zmm_comp_acc, zmm_comp_acc, zmm_zp_a_neg_val);
-
         vmovups(addr, zmm_comp_acc);
     }
 }
@@ -1926,6 +1957,7 @@ void jit_brgemm_matmul_copy_b_transposed_t::compute_K_loop(bool is_N_tail,
 void jit_brgemm_matmul_copy_b_transposed_t::compute_N_loop(
         int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     const int N_chunk_tail = conf_->N % n_blk_step;
+    const size_t comp_shift = 64;
 
     Label N_loop, N_loop_tail_or_done;
     if (N_chunk_tail > 0) {
@@ -1937,7 +1969,8 @@ void jit_brgemm_matmul_copy_b_transposed_t::compute_N_loop(
     compute_K_loop(false, curr_K_tail, is_first_K_iter, is_last_K_iter);
     add(reg_src_base, n_blk_step * src_stride);
     add(reg_tr_src_base, n_blk_step * vnni_granularity * typesize);
-    if (do_compute_compensation) add(reg_zp_comp_ptr, 64);
+    if (req_zp_comp) add(reg_zp_comp_ptr, comp_shift);
+    if (req_s8s8_comp) add(reg_comp_ptr, comp_shift);
 
     sub(reg_N_iters, n_blk_step);
     cmp(reg_N_iters, n_blk_step);
@@ -1955,14 +1988,11 @@ void jit_brgemm_matmul_copy_b_transposed_t::compute_N_loop(
 }
 
 void jit_brgemm_matmul_copy_b_transposed_t::generate() {
-    // TODO: support compensation calculation
-    if (conf_->s8s8_compensation_required) return;
 
     preamble();
 
     src_stride = conf_->K * typesize;
     tr_src_stride = conf_->LDB * vnni_granularity * typesize;
-    do_compute_compensation = conf_->has_zero_point_a;
 
     mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src_base, ptr[param1 + GET_OFF(tr_src)]);
@@ -1989,10 +2019,18 @@ void jit_brgemm_matmul_copy_b_transposed_t::generate() {
     const auto K_tail_tail = (conf_->K % conf_->K_blk) % k_blk_step;
 
     auto compute_body = [=](bool is_first_K_iter, bool is_last_K_iter) {
-        if (do_compute_compensation && is_last_K_iter) {
-            mov(reg_zp_a_neg_val_ptr,
-                    ptr[param1 + GET_OFF(zp_a_neg_value_ptr)]);
-            vbroadcastss(zmm_zp_a_neg_val, ptr[reg_zp_a_neg_val_ptr]);
+        if (is_last_K_iter) {
+            if (req_s8s8_comp) {
+                mov(imm_addr64, 0xffffffff);
+                vpbroadcastd(zmm_all_bits_1, imm_addr64.cvt32());
+                mov(imm_addr64, 0x1);
+                vpbroadcastd(zmm_one_s32, imm_addr64.cvt32());
+            }
+            if (req_zp_comp) {
+                mov(reg_zp_a_neg_val_ptr,
+                        ptr[param1 + GET_OFF(zp_a_neg_value_ptr)]);
+                vbroadcastss(zmm_zp_a_neg_val, ptr[reg_zp_a_neg_val_ptr]);
+            }
         }
 
         Label compute_body_done;
@@ -2012,10 +2050,14 @@ void jit_brgemm_matmul_copy_b_transposed_t::generate() {
 
     Label done;
     if (do_compute_compensation) {
-        assert(conf_->src_zp_type == brgemm_broadcast_t::per_tensor);
+        assert(IMPLICATION(req_zp_comp,
+                conf_->src_zp_type == brgemm_broadcast_t::per_tensor));
 
         mov(reg_K_start, ptr[param1 + GET_OFF(current_K_start)]);
-        mov(reg_zp_comp_ptr, ptr[param1 + GET_OFF(zp_a_compensation_ptr)]);
+        if (req_s8s8_comp)
+            mov(reg_comp_ptr, ptr[param1 + GET_OFF(compensation_ptr)]);
+        if (req_zp_comp)
+            mov(reg_zp_comp_ptr, ptr[param1 + GET_OFF(zp_a_compensation_ptr)]);
 
         mov(regq_tmp, 1);
         vpbroadcastb(zmm_comp_mul, regq_tmp.cvt8());

@@ -669,8 +669,13 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             // multitreaded execution mode
             const size_t reorder_zp_a_comp_offset
                     = weights_d.size() - weights_d.additional_buffer_size();
+            const size_t s8s8_buffer_sz = bgmmc.s8s8_compensation_required
+                    ? bgmmc.s8s8_comp_b_str * sizeof(int32_t)
+                    : 0;
             reorder_zp_a_comp_ptr_
-                    = (int32_t *)&data_B_ptr_[reorder_zp_a_comp_offset];
+                    = const_cast<int32_t *>(reinterpret_cast<const int32_t *>(
+                            &data_B_ptr_[reorder_zp_a_comp_offset
+                                    + s8s8_buffer_sz]));
         }
 
         // parallelization
@@ -1019,6 +1024,7 @@ private:
 template struct brgemm_matmul_t<avx512_core_bf16_amx_int8>;
 template struct brgemm_matmul_t<avx512_core_bf16_amx_bf16>;
 template struct brgemm_matmul_t<avx512_core_bf16>;
+template struct brgemm_matmul_t<avx512_core_vnni>;
 template struct brgemm_matmul_t<avx512_core>;
 
 } // namespace matmul

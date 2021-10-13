@@ -73,9 +73,11 @@ status_t check_isa_with_datatype(
         const cpu_isa_t isa, const brgemm_matmul_conf_utils_t &bm_conf_utils) {
     const bool ok = IMPLICATION(bm_conf_utils.is_f32(), isa == avx512_core)
             && IMPLICATION(bm_conf_utils.is_int8(),
-                    one_of(isa, avx512_core_bf16_amx_int8))
+                    one_of(isa, avx512_core_bf16_amx_int8, avx512_core_vnni))
             && IMPLICATION(bm_conf_utils.is_bf16(),
-                    one_of(isa, avx512_core_bf16_amx_bf16, avx512_core_bf16));
+                    one_of(isa, avx512_core_bf16_amx_bf16, avx512_core_bf16))
+            && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
+                    mayiuse(avx512_core_bf16));
     return ok ? status::success : status::unimplemented;
 }
 
@@ -803,9 +805,6 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             || bgmmc.transposed_A || lda_is_big_2pow;
     bgmmc.use_buffer_a = is_copy_a_required;
 
-    if ((!bgmmc.is_amx) && bgmmc.wei_zp_type != brgemm_broadcast_t::none)
-        return status::unimplemented; // TODO
-
     // Supported computation with copy only part of A related to K_tail if
     // is_copy_a_required == true, but the current performance measurements
     // show worse performance for it in comparison with copy whole A approach
@@ -929,7 +928,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_brgemm_primitive_buffer_b,
                 bgmmc.nthr * bgmmc.buffer_b_per_thread_sz, default_data_align);
 
-        if (bgmmc.s8s8_compensation_required)
+        if (bgmmc.s8s8_compensation_required && (!bgmmc.blocked_B))
             scratchpad.book(key_brgemm_primitive_buffer_comp,
                     bgmmc.nthr * bgmmc.s8s8_comp_ithr_str,
                     types::data_type_size(f32));
