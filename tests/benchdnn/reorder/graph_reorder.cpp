@@ -26,8 +26,52 @@ reorder_graph_prb_t::spec_t::spec_t(const ::reorder::prb_t *prb) noexcept {
     dims = prb->dims;
     src_dt = convert_dt(prb->conf_in->dt);
     dst_dt = convert_dt(prb->conf_out->dt);
-    src_tag = convert_tag(prb->stag);
-    dst_tag = convert_tag(prb->dtag);
+    src_tag = prb->stag;
+    dst_tag = prb->dtag;
+    qtype = convert_attr_policy(prb->attr.oscale.policy);
+    //TODO: add all policy supported
+    //PER_DIM_01 not supported
+    switch (prb->attr.oscale.policy) {
+        case (attr_t::policy_t::PER_DIM_0): axis = 0; break;
+        case (attr_t::policy_t::PER_DIM_1): axis = 1; break;
+        default: break;
+    }
+    if (qtype == "per_channel") {
+        //TODO: needs update for PER_DIM_01
+        for (int i = 0; i < prb->dims[axis]; i++) {
+            scales.emplace_back(prb->scales[i]);
+            //TODO: src_zps and dst_zps could be different.
+            //Need to modify depending on spec.-NOT SUPPORTED
+            zps.emplace_back(0);
+        }
+    } else {
+        scales.emplace_back(prb->scales[0]);
+        //Quantize Op
+        if ((src_dt == graph_dt::f32)
+                && (dst_dt == graph_dt::s8 || dst_dt == graph_dt::u8)) {
+            if (prb->attr.zero_points.is_def()) {
+                zps.emplace_back(0);
+            } else {
+                zps.emplace_back(prb->dst_zp[0]);
+            }
+        }
+        //Dequantize Op
+        if ((src_dt == graph_dt::s8 || src_dt == graph_dt::u8)
+                && (dst_dt == graph_dt::f32)) {
+            if (prb->attr.zero_points.is_def()) {
+                zps.emplace_back(0);
+            } else {
+                zps.emplace_back(prb->src_zp[0]);
+            }
+        }
+    }
+    //Need to inverse scale
+    if ((src_dt == graph_dt::f32)
+            && (dst_dt == graph_dt::s8 || dst_dt == graph_dt::u8)) {
+        for (int i = 0; i < scales.size(); i++) {
+            scales[i] = 1.f / scales[i];
+        }
+    }
 }
 
 void check_known_skipped_case_graph(
@@ -71,10 +115,17 @@ void check_known_skipped_case_graph(
             res->state = SKIPPED;
         }
     }
+    if (prb->attr.oscale.policy == attr_t::policy_t::PER_DIM_01) {
+        res->state = SKIPPED;
+    }
+    //TODO: Currently  Skip test cases for zps with per-channel quantization.
+    if (prb->attr.zero_points.points.size() > 0
+            && prb->attr.oscale.policy != attr_t::policy_t::COMMON) {
+        res->state = SKIPPED;
+    }
 }
 
-fill_status_t reorder_graph_prb_t::handle_main_op_(
-        const std::string &tag_in, const std::string &tag_out) {
+fill_status_t reorder_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
     const size_t new_op_id = ops_.size();
@@ -83,11 +134,8 @@ fill_status_t reorder_graph_prb_t::handle_main_op_(
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string DST {TENSOR_ID + "_DST"};
 
-    //TODO: how to pass layout_id??
-    tensor_descs_.emplace(SRC, spec_.src_dt, spec_.dims,
-            calculate_strides(spec_.dims, spec_.src_dt, tag_in));
-    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dims,
-            calculate_strides(spec_.dims, spec_.dst_dt, tag_out));
+    tensor_descs_.emplace(SRC, spec_.src_dt, spec_.dims, spec_.src_tag);
+    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dims, spec_.dst_tag);
 
     if (spec_.src_dt == spec_.dst_dt) {
         op reorder_op(new_op_id, op::kind::Reorder, {tensor_descs_[SRC]},
@@ -103,19 +151,25 @@ fill_status_t reorder_graph_prb_t::handle_main_op_(
             && (spec_.dst_dt == graph_dt::s8 || spec_.dst_dt == graph_dt::u8)) {
         op quantize_op(new_op_id, op::kind::Quantize, {tensor_descs_[SRC]},
                 {tensor_descs_[DST]}, "quantize");
-        float scale = (spec_.dst_dt == graph_dt::u8) ? 1 / 255.f : 1 / 128.f;
-        quantize_op.set_attr<std::vector<int64_t>>("zps", {0});
-        quantize_op.set_attr<std::vector<float>>("scales", {scale});
-        quantize_op.set_attr<int64_t>("axis", 0);
+        quantize_op.set_attr<std::string>("qtype", spec_.qtype);
+        //TODO: use zps - revisit
+        quantize_op.set_attr<std::vector<int64_t>>("zps", spec_.zps);
+        quantize_op.set_attr<std::vector<float>>("scales", spec_.scales);
+        //TODO: axis doesnt support PER_DIM_01
+        if (spec_.qtype == "per_channel")
+            quantize_op.set_attr<int64_t>("axis", spec_.axis);
         ops_.emplace_back(quantize_op);
     } else if ((spec_.src_dt == graph_dt::s8 || spec_.src_dt == graph_dt::u8)
             && (spec_.dst_dt == graph_dt::f32)) {
         op dequantize_op(new_op_id, op::kind::Dequantize, {tensor_descs_[SRC]},
                 {tensor_descs_[DST]}, "dequantize");
-        float scale = (spec_.dst_dt == graph_dt::u8) ? 1 / 255.f : 1 / 128.f;
-        dequantize_op.set_attr<std::vector<int64_t>>("zps", {0});
-        dequantize_op.set_attr<std::vector<float>>("scales", {scale});
-        dequantize_op.set_attr<int64_t>("axis", 0);
+        dequantize_op.set_attr<std::string>("qtype", spec_.qtype);
+        //TODO: use zps - revisit
+        dequantize_op.set_attr<std::vector<int64_t>>("zps", spec_.zps);
+        dequantize_op.set_attr<std::vector<float>>("scales", spec_.scales);
+        //TODO: axis doesnt support PER_DIM_01
+        if (spec_.qtype == "per_channel")
+            dequantize_op.set_attr<int64_t>("axis", spec_.axis);
         ops_.emplace_back(dequantize_op);
     } else {
         return fill_status::UNHANDLED_CONFIG_OPTIONS;

@@ -62,6 +62,7 @@ dnnl::graph::logical_tensor::data_type convert_dt(
 dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept;
 std::string convert_tag(
         const std::string &tag, bool activation_tag = true) noexcept;
+std::string convert_attr_policy(const attr_t::policy_t policy) noexcept;
 dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
         const std::string &data_format) noexcept;
 std::map<std::string, float> convert_eltw_entry(

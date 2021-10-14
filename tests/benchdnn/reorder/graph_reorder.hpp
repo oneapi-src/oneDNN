@@ -30,7 +30,7 @@ struct reorder_graph_prb_t : public graph_prb_t {
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status = handle_main_op_(prb->stag, prb->dtag);
+        ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
 
         ctor_status = fill_status::DONE;
@@ -45,12 +45,16 @@ private:
         dt dst_dt;
         std::string src_tag;
         std::string dst_tag;
+        std::string qtype;
+        //TODO: zps needs to be modified depending on qtype/policy
+        std::vector<int64_t> zps;
+        std::vector<float> scales;
+        int axis {1};
     };
 
     spec_t spec_;
 
-    fill_status_t handle_main_op_(
-            const std::string &tag_in, const std::string &tag_out);
+    fill_status_t handle_main_op_();
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::Reorder;
