@@ -571,6 +571,28 @@ int64_t bound_finder_t::find_bound_impl(const expr_t &e, bool is_low) const {
                 }
                 break;
             }
+            case op_kind_t::_div: {
+                if (!is_const(binary->b)) return def_bound;
+
+                auto b = to_cpp<int64_t>(binary->b);
+                ir_assert(b != 0);
+
+                auto a = find_bound_impl(binary->a, b > 0 ? is_low : !is_low);
+                if (!is_good_bound(a)) return def_bound;
+
+                bool is_neg = ((a > 0) && (b < 0)) || ((a < 0) && (b > 0));
+
+                int64_t div_bound;
+                if (is_low != is_neg) {
+                    // Truncate away from zero.
+                    div_bound = utils::div_up(std::abs(a), std::abs(b));
+                } else {
+                    // Truncate towards zero.
+                    div_bound = std::abs(a) / std::abs(b);
+                }
+                if (is_neg) div_bound *= -1;
+                return div_bound;
+            }
             case op_kind_t::_mod: {
                 if (is_low) return 0;
                 auto max_mod = find_bound_impl(binary->b, /*is_low=*/false);
