@@ -656,14 +656,10 @@ public:
     }
 
     // Returns a canonical representation of the layout:
+    // - Size one blocks are removed
     // - Consecutive dense blocks are merged
-    // - Size one blocks are:
-    //   - Removed (if keep_size_1_blocks is false)
-    //   - Reordered according to the heuristic (if keep_size_1_blocks is true)
-    // Optionally removes size one blocks and merges consecutive dense blocks
-    // representing the same dimension.
-    layout_t normalize(bool keep_size_1_blocks = false) const {
-        auto blocks = normalize_blocks(ndims(), blocks_, keep_size_1_blocks);
+    layout_t normalize() const {
+        auto blocks = normalize_blocks(ndims(), blocks_);
         return layout_t(type(), ndims(), offset(), blocks);
     }
 
@@ -935,17 +931,20 @@ public:
 
     static std::vector<block_t> normalize_blocks(int ndims,
             const std::vector<block_t> &blocks,
-            bool keep_size_1_blocks = false) {
+            bool remove_size_1_blocks = true) {
         auto new_blocks = blocks;
 
         // Remove blocks of size 1.
-        for (auto it = new_blocks.begin(); it != new_blocks.end();) {
-            if (it->block == 1) {
-                it = new_blocks.erase(it);
-            } else {
-                ++it;
+        if (remove_size_1_blocks) {
+            for (auto it = new_blocks.begin(); it != new_blocks.end();) {
+                if (it->block == 1) {
+                    it = new_blocks.erase(it);
+                } else {
+                    ++it;
+                }
             }
         }
+
         // Merge same dimension blocks.
         block_t prev_b;
         prev_b.dim_idx = -1;
@@ -960,23 +959,6 @@ public:
                 prev_b = *it;
                 ++it;
             }
-        }
-        // No need to keep size one blocks, return.
-        if (!keep_size_1_blocks) return new_blocks;
-
-        bool seen[max_ndims] = {false};
-        for (auto &b : new_blocks)
-            seen[b.dim_idx] = true;
-
-        stride_t stride = (new_blocks.empty()
-                        ? stride_t(1)
-                        : new_blocks.back().stride * new_blocks.back().block);
-
-        // Insert size one blocks according to the following heuristic:
-        // TODO: Add documentation.
-        for (int i = ndims - 1; i >= 0; i--) {
-            if (seen[i]) continue;
-            new_blocks.emplace_back(i, 1, stride);
         }
 
         return new_blocks;
