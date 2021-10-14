@@ -206,6 +206,18 @@ dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
     return rhs_dims;
 }
 
+std::string convert_attr_policy(attr_t::policy_t policy) noexcept {
+    std::string ret_policy;
+    switch (policy) {
+        case attr_t::policy_t::PER_DIM_0:
+        case attr_t::policy_t::PER_OC:
+        case attr_t::policy_t::PER_DIM_1: ret_policy = "per_channel"; break;
+        case attr_t::policy_t::COMMON: ret_policy = "per_tensor"; break;
+        default: assert(!"policy not supported for now."); SAFE_V(FAIL);
+    }
+    return ret_policy;
+}
+
 std::map<std::string, float> convert_eltw_entry(
         const dnnl::graph::op::kind op_kind,
         const attr_t::post_ops_t::entry_t &entry) noexcept {
