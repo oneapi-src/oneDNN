@@ -376,9 +376,58 @@ int check_pd_w_and_wo_attr(
 }
 
 bool should_stop(const timer::timer_t &t);
+bool should_stop_measure_ctime(const timer::timer_t &ct);
 
-int measure_prim_create(
-        timer::timer_t &t, dnnl_primitive_t &prim_, dnnl_primitive_desc_t &pd);
+template <typename func_t, typename prb_t>
+int measure_prim_create(timer::timer_t &ct,
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
+        const func_t &init_pd_func, prb_t *prb, res_t *res,
+        dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
+    dnnl_primitive_desc_t pd_ {};
+    dnnl_primitive_t prim_ {};
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pd;
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
+
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    engine_t engine(get_test_engine());
+#else
+    engine_t engine(engine_tgt_kind);
+#endif
+    SAFE(init_pd_func(engine, prb, pd_, res, dir, hint), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
+    pd.reset(pd_);
+    prim.reset(prim_);
+#endif
+
+    ct.reset();
+    while (true) {
+        ct.start();
+        // The second (if the cache is enabled) primitive creation using
+        // the global test engine.
+        SAFE(init_pd_func(get_test_engine(), prb, pd_, res, dir, hint), WARN);
+
+        // This primitive is expected to come from the cache.
+        DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
+        ct.stamp();
+        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+
+        pd.reset(pd_);
+        prim.reset(prim_);
+
+        SAFE(check_pd_cache(pd), WARN);
+        SAFE(check_primitive_cache(prim), WARN);
+
+        // Collect memory footprint for a given primitive descriptor.
+        SAFE(get_memory_footprint(pd, res), WARN);
+
+        user_prim.reset(prim.release());
+        if (should_stop_measure_ctime(ct)) break;
+    }
+    return OK;
+}
 
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
@@ -426,14 +475,8 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     SAFE(init_pd_func(get_test_engine(), prb, pd_, res, dir, hint), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    if (api_mode == GRAPH && is_bench_mode(PERF)) {
-        // For graph api mode we call init_prim function to measure
-        // primitive creation time.
-        SAFE(measure_prim_create(res->prim_create_timer, prim_, pd_), WARN);
-    } else {
-        // This primitive is expected to come from the cache.
-        DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
-    }
+    // This primitive is expected to come from the cache.
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
 
     pd.reset(pd_);
     prim.reset(prim_);

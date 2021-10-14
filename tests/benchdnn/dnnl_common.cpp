@@ -195,19 +195,16 @@ bool should_stop(const timer::timer_t &t) {
     return stop;
 }
 
+bool should_stop_measure_ctime(const timer::timer_t &ct) {
+    // TODO (kgajdamo): establish the conditions for completing the ctime measurement.
+    const bool stop = false || ct.times() >= ctimes_per_prb;
+    return stop;
+}
+
 dnnl_engine_kind_t get_engine_kind(const dnnl_engine_t &engine) {
     dnnl_engine_kind_t engine_kind = dnnl_any_engine;
     DNN_SAFE_V(dnnl_engine_get_kind(engine, &engine_kind));
     return engine_kind;
-}
-
-int measure_prim_create(
-        timer::timer_t &t, dnnl_primitive_t &prim_, dnnl_primitive_desc_t &pd) {
-    t.reset();
-    t.start();
-    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
-    t.stamp();
-    return OK;
 }
 
 inline int measure_perf_individual(timer::timer_t &t, dnnl_stream_t stream,

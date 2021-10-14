@@ -77,7 +77,6 @@ api_mode_t str2api_mode(const char *str) {
     return mode;
 }
 
-
 /* result structure */
 const char *state2str(res_state_t state) {
     if (state == UNTESTED) return "UNTESTED_FAILED"; // for easier fail search
