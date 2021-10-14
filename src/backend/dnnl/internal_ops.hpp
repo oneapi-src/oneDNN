@@ -144,7 +144,7 @@ namespace op_kind {
     X(maximum_sigmoid, Maximum_sigmoid) \
     X(minimum_relu, Minimum_relu) \
     X(minimum_sigmoid, Minimum_sigmoid) \
-    X(x8x8f32_matmul, X8X8F32_MatMul) \
+    X(x8x8float_matmul, X8X8FLOAT_MatMul) \
     X(x8s8float_matmul_bias, X8S8FLOAT_MatMul_bias) \
     X(x8s8f32_matmul_relu, X8S8F32_MatMul_relu) \
     X(x8s8f32_matmul_bias_relu, X8S8F32_MatMul_bias_relu) \
