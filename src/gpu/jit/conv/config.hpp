@@ -212,6 +212,7 @@ public:
 
         CHECK(attr->set_default_formats(output_md));
 
+        if (!zero_points_ok(conv_pd)) return status::unimplemented;
         if (!post_ops_ok(conv_pd)) return status::unimplemented;
         if (!hw_ok(engine)) return status::unimplemented;
 
@@ -379,6 +380,8 @@ public:
 
         allow_grf_reorder = is_small_ic() || is_dw;
 
+        CHECK(init_zero_points_config(conv_pd));
+
         if (kd * kh * kw > 9) do_loop_unroll = false;
         if (is_dw) {
             use_preload = false;
@@ -402,10 +405,14 @@ public:
             bool large_batch_ok = false;
             if (hw >= ngen::HW::XeHPC) large_batch_ok = true;
             if (is_src_nhwc) large_batch_ok = true;
+            if (zp_cfg.do_src_compensation || zp_cfg.do_dst_compensation)
+                large_batch_ok = true;
             // TODO: Fix issues with mb zero padding
             if (is_small_ic() && mb % 16 == 0) large_batch_ok = true;
             if (!large_batch_ok) return status::unimplemented;
         }
+        // Source zero points performance is behind for small batch
+        if (mb < 8 && zp_cfg.do_src_compensation) return status::unimplemented;
 
         fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
@@ -761,6 +768,8 @@ public:
         a_sub_tiles = 1;
         b_sub_tiles = 1;
 
+        init_zero_points_default_config();
+
 #ifdef GEN_CONV_DEBUG
         use_preload = getenv_bool("use_preload", use_preload);
         pad_slm = getenv_bool("pad_slm", pad_slm);
@@ -776,6 +785,22 @@ public:
         return status::success;
     }
 
+    bool zero_points_ok(const convolution_pd_t *pd) const {
+        auto *attr = pd->attr();
+
+        using namespace data_type;
+        const auto src_type = pd->invariant_src_md()->data_type;
+        int mask_src = 0, mask_dst = 0;
+        attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+        attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+
+        return IMPLICATION(!utils::one_of(src_type, s8, u8),
+                       attr->zero_points_.has_default_values())
+                && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                && (mask_src == 0 || mask_src == 1 << 1)
+                && (mask_dst == 0 || mask_dst == 1 << 1);
+    }
+
     bool post_ops_ok(const convolution_pd_t *pd) const {
         auto *attr = pd->attr();
 
@@ -783,6 +808,9 @@ public:
             auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops
                     | primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::sum_dt;
+            if (is_fwd)
+                attr_skip_mask
+                        |= primitive_attr_t::skip_mask_t::zero_points_runtime;
             if (!attr->has_default_values(attr_skip_mask)) return false;
         } else {
             if (!attr->has_default_values()) return false;
@@ -998,6 +1026,36 @@ public:
     bool do_atomic_update; // Whether to use atomics during C update.
     bool reuse_headers; // Whether to reuse header messages to reduce GRF usage.
     bool optimize_strided; // Apply special optimization for strided BWD_D convolution.
+
+    // Specific to FWD int8
+    struct zero_points_config_t {
+        bool do_src_compensation;
+        bool do_dst_compensation;
+        bool is_runtime_src_zero_points;
+        bool is_runtime_dst_zero_points;
+        bool is_common_src_zero_point;
+        bool is_common_dst_zero_point;
+        int common_src_zero_point;
+        int common_dst_zero_point;
+
+        std::string wei_tag;
+
+        int ic_block, oc_block;
+        int ic_inner, oc_inner;
+        int ic_outer, oc_outer;
+        int icb, ocb;
+        int ow_block;
+
+        struct {
+            bool run;
+            bool is_edge;
+            memory_desc_t md;
+            size_t scratch_size;
+
+            size_t gws[3];
+            size_t lws[3];
+        } common, edge;
+    } zp_cfg;
 
     // Sub-tiles to split into for the inner A x B multiplication:
     // for i in range(0, a_sub_tiles):
@@ -1284,6 +1342,9 @@ private:
         user_dst_tag = ir_utils::getenv_str("user_dtag", user_dst_tag);
 #endif
 
+        // Set weights layout for compensation kernel
+        zp_cfg.wei_tag = wei_tag;
+
         auto &src_md = *conv_pd->invariant_src_md();
         auto &wei_md = *conv_pd->invariant_wei_md();
         auto &dst_md = *conv_pd->invariant_dst_md();
@@ -1349,6 +1410,27 @@ private:
 
     status_t init_extra_tensor_layouts(const convolution_pd_t *conv_pd) {
         auto *attr = conv_pd->attr();
+        if (zp_cfg.do_src_compensation) {
+            if (zp_cfg.common.run) {
+                auto layout = make_layout(zp_cfg.common.md);
+                tensor_config.add_tensor("src_compensation_common",
+                        /*arg_key=*/-1,
+                        /*is_input=*/true, /*is_output=*/false, layout);
+            }
+            if (zp_cfg.edge.run) {
+                auto layout = make_layout(zp_cfg.edge.md);
+                tensor_config.add_tensor("src_compensation_edge",
+                        /*arg_key=*/-1,
+                        /*is_input=*/true, /*is_output=*/false, layout);
+            }
+        }
+        if (zp_cfg.do_dst_compensation && zp_cfg.is_runtime_dst_zero_points) {
+            std::vector<dim_t> dims = {oc};
+            layout_t zp_layout(type_t::s32(), 0, dims);
+            int arg_key = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST;
+            tensor_config.add_tensor("dst_zero_points", arg_key,
+                    /*is_input=*/true, /*is_output=*/false, zp_layout);
+        }
         bool with_oscales = !attr->output_scales_.has_default_values();
         if (with_oscales) {
             std::vector<dim_t> dims = {attr->output_scales_.count_};
@@ -1383,6 +1465,123 @@ private:
         if (is_stride1()) return false;
         if (iw % sw != 0) return false;
         return true;
+    }
+
+    void init_zero_points_default_config() {
+        zp_cfg.do_src_compensation = false;
+        zp_cfg.do_dst_compensation = false;
+        zp_cfg.is_runtime_src_zero_points = false;
+        zp_cfg.is_runtime_dst_zero_points = false;
+        zp_cfg.is_common_src_zero_point = false;
+        zp_cfg.is_common_dst_zero_point = false;
+        zp_cfg.common_src_zero_point = 0;
+        zp_cfg.common_dst_zero_point = 0;
+    }
+
+    status_t init_zero_points_config(convolution_pd_t *conv_pd) {
+        const auto *attr = conv_pd->attr();
+        zp_cfg.do_src_compensation
+                = !attr->zero_points_.has_default_values(DNNL_ARG_SRC);
+        zp_cfg.do_dst_compensation
+                = !attr->zero_points_.has_default_values(DNNL_ARG_DST);
+        zp_cfg.is_runtime_src_zero_points
+                = !attr->zero_points_.defined(DNNL_ARG_SRC);
+        zp_cfg.is_runtime_dst_zero_points
+                = !attr->zero_points_.defined(DNNL_ARG_DST);
+        zp_cfg.is_common_src_zero_point
+                = attr->zero_points_.common(DNNL_ARG_SRC);
+        zp_cfg.is_common_dst_zero_point
+                = attr->zero_points_.common(DNNL_ARG_DST);
+        zp_cfg.common_src_zero_point = attr->zero_points_.defined(DNNL_ARG_SRC)
+                ? *attr->zero_points_.get(DNNL_ARG_SRC)
+                : 0;
+        zp_cfg.common_dst_zero_point = attr->zero_points_.defined(DNNL_ARG_DST)
+                ? *attr->zero_points_.get(DNNL_ARG_DST)
+                : 0;
+
+        if (zp_cfg.do_src_compensation) {
+            const auto &dst_md = *conv_pd->invariant_dst_md();
+
+            format_tag_t comp_tag;
+            if (zp_cfg.wei_tag == "ABx4a8b8a4b"
+                    || zp_cfg.wei_tag == prepend_groups_to_tag("ABx4a8b8a4b")) {
+                zp_cfg.ic_block = 32;
+                zp_cfg.oc_block = 32;
+                zp_cfg.ic_inner = 4;
+                zp_cfg.oc_inner = 8;
+                zp_cfg.ic_outer = 8;
+                zp_cfg.oc_outer = 4;
+                comp_tag = utils::pick(dst_md.ndims - 3, format_tag::nCw32c,
+                        format_tag::nChw32c, format_tag::nCdhw32c);
+            } else if (zp_cfg.wei_tag == "ABx2a8b16a4b"
+                    || zp_cfg.wei_tag
+                            == prepend_groups_to_tag("ABx2a8b16a4b")) {
+                zp_cfg.ic_block = 32;
+                zp_cfg.oc_block = 32;
+                zp_cfg.ic_inner = 4;
+                zp_cfg.oc_inner = 16;
+                zp_cfg.ic_outer = 8;
+                zp_cfg.oc_outer = 2;
+                comp_tag = utils::pick(dst_md.ndims - 3, format_tag::nCw32c,
+                        format_tag::nChw32c, format_tag::nCdhw32c);
+            } else if (zp_cfg.wei_tag == "ABx8a4b"
+                    || zp_cfg.wei_tag == prepend_groups_to_tag("ABx8a4b")) {
+                zp_cfg.ic_block = zp_cfg.ic_inner = 4;
+                zp_cfg.oc_block = zp_cfg.oc_inner = 8;
+                zp_cfg.ic_outer = zp_cfg.oc_outer = 1;
+                comp_tag = utils::pick(dst_md.ndims - 3, format_tag::nCw8c,
+                        format_tag::nChw8c, format_tag::nCdhw8c);
+            } else {
+                return status::unimplemented;
+            }
+
+            zp_cfg.icb = utils::div_up(ic, zp_cfg.ic_block);
+            zp_cfg.ocb = utils::div_up(oc, zp_cfg.oc_block);
+            zp_cfg.ow_block = 8;
+
+            const bool is_1x1 = (kw * kh * kd == 1)
+                    && (iw == ow && ih == oh && id == od)
+                    && (pw == 0 && ph == 0 && pd == 0);
+            zp_cfg.common.run = true;
+            zp_cfg.common.is_edge = false;
+            zp_cfg.common.md.ndims = dst_md.ndims;
+            zp_cfg.common.md.data_type = data_type::s32;
+            for (int i = 0; i < zp_cfg.common.md.ndims; ++i)
+                zp_cfg.common.md.dims[i] = 1;
+            zp_cfg.common.md.dims[1] = dst_md.dims[1];
+            CHECK(memory_desc_init_by_tag(zp_cfg.common.md, comp_tag));
+            memory_desc_wrapper common_mdw(&zp_cfg.common.md);
+            zp_cfg.common.scratch_size = common_mdw.size();
+            zp_cfg.common.gws[0] = zp_cfg.ocb * simd_size;
+            zp_cfg.common.gws[1] = g;
+            zp_cfg.common.gws[2] = 1;
+            zp_cfg.common.lws[0] = simd_size;
+            zp_cfg.common.lws[1] = 1;
+            zp_cfg.common.lws[2] = 1;
+
+            if (is_1x1) {
+                zp_cfg.edge.run = false;
+            } else {
+                zp_cfg.edge.run = true;
+                zp_cfg.edge.is_edge = true;
+                zp_cfg.edge.md.ndims = dst_md.ndims;
+                zp_cfg.edge.md.data_type = data_type::s32;
+                for (int i = 0; i < zp_cfg.edge.md.ndims; ++i)
+                    zp_cfg.edge.md.dims[i] = dst_md.dims[i];
+                zp_cfg.edge.md.dims[0] = 1;
+                CHECK(memory_desc_init_by_tag(zp_cfg.edge.md, comp_tag));
+                memory_desc_wrapper edge_mdw(&zp_cfg.edge.md);
+                zp_cfg.edge.scratch_size = edge_mdw.size();
+                zp_cfg.edge.gws[0] = ow * oh * od * simd_size;
+                zp_cfg.edge.gws[1] = zp_cfg.ocb;
+                zp_cfg.edge.gws[2] = g;
+                zp_cfg.edge.lws[0] = simd_size;
+                zp_cfg.edge.lws[1] = 1;
+                zp_cfg.edge.lws[2] = 1;
+            }
+        }
+
+        return status::success;
     }
 
     void enable_slm_buffering() {

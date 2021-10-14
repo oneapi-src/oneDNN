@@ -975,7 +975,6 @@ public:
         ra_.claim(getLocalSize(0));
 
         std::vector<std::string> arg_names(kernel_info.nargs());
-        ;
         for (int i = 0; i < kernel_info.nargs(); i++) {
             arg_names[i] = kernel_info.arg_name(i);
             ra_.claim(getArgument(arg_names[i]));
@@ -1075,6 +1074,849 @@ private:
 
 template <ngen::HW hw>
 const int zero_out_kernel_t<hw>::bytes_per_thr = 128;
+
+template <ngen::HW hw = ngen::HW::Unknown>
+class compensation_kernel_t : public jit_generator<hw> {
+public:
+    NGEN_FORWARD_OPENCL(hw);
+
+    ngen::Subregister src_base_ptr, wei_base_ptr, dst_base_ptr;
+
+    int grf_size, grf_simd;
+    int a_size, b_size, c_size;
+    int num_a_regs, num_b_regs, num_c_regs;
+    int num_a_headers;
+    int kdhw;
+
+    ngen::GRFRange b, c;
+    ngen::GRFRange a_headers, b_headers;
+    ngen::GRF a[32];
+    ngen::GRF b_temp[32];
+    ngen::GRF c_temp[32];
+
+    static const int ow_block;
+
+    compensation_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
+            const kernel_info_t &kernel_info, bool is_edge)
+        : cfg(cfg), ra_(hw) {
+        externalName("compensation");
+        requireLocalID(1);
+        requireLocalSize();
+        requireGRF(cfg.regs);
+        requireSIMD(cfg.simd_size);
+        if (cfg.is_dpas_fma()) requireDPAS();
+
+        for (int i = 0; i < kernel_info.nargs(); i++) {
+            auto &name = kernel_info.arg_name(i);
+            auto &type = kernel_info.arg_type(i);
+            if (type.is_ptr()) {
+                newArgument(name, ngen::ExternalArgumentType::GlobalPtr);
+            } else {
+                newArgument(name, to_ngen(type));
+            }
+        }
+
+        finalizeInterface();
+
+        grf_size = ngen::GRF::bytes(hw);
+        grf_simd = grf_size / sizeof(int);
+        kdhw = cfg.kw * cfg.kh * cfg.kd;
+
+        const auto &conf = cfg.zp_cfg;
+        a_size = conf.ic_block * sizeof(int);
+        b_size = conf.ic_block * conf.oc_block * sizeof(char);
+        c_size = conf.oc_block * sizeof(int);
+
+        // Claim registers.
+        ra_.claim(r0);
+        ra_.claim(getLocalID(0));
+        ra_.claim(getLocalSize(0));
+
+        std::vector<std::string> arg_names(kernel_info.nargs());
+        for (int i = 0; i < kernel_info.nargs(); i++) {
+            arg_names[i] = kernel_info.arg_name(i);
+            ra_.claim(getArgument(arg_names[i]));
+        }
+
+        setDefaultNoMask();
+        setDefaultAutoSWSB(true);
+
+        prologue();
+
+        if (emu_strategy.emulate64) {
+            emu_state.temp[0] = ra_.alloc();
+            emu_state.temp[1] = ra_.alloc();
+        }
+
+        src_base_ptr = getArgument("src");
+        wei_base_ptr = getArgument("wei");
+        dst_base_ptr = getArgument("dst");
+
+        if (is_edge)
+            body_edge();
+        else
+            body_common();
+
+        epilogue();
+    }
+
+    void body_edge() {
+        const auto &conf = cfg.zp_cfg;
+        auto sp_idx = r0.ud(1);
+        auto oc_block_idx = r0.ud(6);
+        auto group_idx = r0.ud(7);
+
+        init_abc_regs();
+
+        // zero out c
+        for (int i = 0; i < num_c_regs; ++i)
+            mov(grf_simd, c[i].f(), float(0));
+
+        auto reg_osp = ra_.alloc();
+        auto reg_isp = ra_.alloc();
+        auto reg_isp_init = ra_.alloc();
+        auto reg_k = ra_.alloc();
+        auto ow = reg_osp.d(0);
+        auto oh = reg_osp.d(1);
+        auto od = reg_osp.d(2);
+        auto iw = reg_isp.d(0);
+        auto ih = reg_isp.d(1);
+        auto id = reg_isp.d(2);
+        auto iw_init = reg_isp_init.d(0);
+        auto ih_init = reg_isp_init.d(1);
+        auto id_init = reg_isp_init.d(2);
+        auto kw = reg_k.d(0);
+        auto kh = reg_k.d(1);
+        auto kd = reg_k.d(2);
+        auto do_kw = reg_k.uw(8);
+        auto do_kh = reg_k.uw(10);
+        auto do_kd = reg_k.uw(12);
+
+        auto ohd = ra_.alloc().d(0);
+        eidiv(ohd, ow, sp_idx.d(), int(cfg.ow));
+        eidiv(od, oh, ohd, int(cfg.oh));
+        ra_.release(ngen::GRF(ohd.getBase()));
+
+        mul(1, iw_init.d(), ow.d(), int(cfg.sw));
+        mul(1, ih_init.d(), oh.d(), int(cfg.sh));
+        mul(1, id_init.d(), od.d(), int(cfg.sd));
+        add(1, iw_init.d(), iw_init.d(), int(-cfg.pw));
+        add(1, ih_init.d(), ih_init.d(), int(-cfg.ph));
+        add(1, id_init.d(), id_init.d(), int(-cfg.pd));
+
+        const int iw_max = cfg.iw - cfg.kw * (1 + cfg.dw);
+        const int ih_max = cfg.ih - cfg.kh * (1 + cfg.dh);
+        const int id_max = cfg.id - cfg.kd * (1 + cfg.dd);
+
+        mov(1, f1[1].uw(), int(0));
+        cmp(1 | ge | f1[1], null.d(), iw_init, int(0));
+        cmp(1 | f1[1] | le, null.d(), iw_init, int(iw_max));
+        if (cfg.ndims > 3) {
+            cmp(1 | f1[1] | ge, null.d(), ih_init, int(0));
+            cmp(1 | f1[1] | le, null.d(), ih_init, int(ih_max));
+        }
+        if (cfg.ndims > 4) {
+            cmp(1 | f1[1] | ge, null.d(), id_init, int(0));
+            cmp(1 | f1[1] | le, null.d(), id_init, int(id_max));
+        }
+
+        if (cfg.kd == 1) {
+            mov(1, id, id_init);
+            mov(1, f0[0], int(0));
+            cmp(1 | ge | f0[0], null.d(), id, int(0));
+            cmp(1 | f0[0] | lt, null.d(), id, int(cfg.id));
+            mov(1, do_kd, f0[0].uw());
+        }
+        if (cfg.kh == 1) {
+            mov(1, ih, ih_init);
+            mov(1, f0[1], int(0));
+            cmp(1 | ge | f0[1], null.d(), ih, int(0));
+            cmp(1 | f0[1] | lt, null.d(), ih, int(cfg.ih));
+            mov(1, do_kh, f0[1].uw());
+        }
+        if (cfg.kw == 1) {
+            mov(1, iw, iw_init);
+            mov(1, f1[0], int(0));
+            cmp(1 | ge | f1[0], null.d(), iw, int(0));
+            cmp(1 | f1[0] | lt, null.d(), iw, int(cfg.iw));
+            mov(1, do_kw, f1[0].uw());
+        }
+
+        const bool icb_padded = cfg.ic % conf.ic_block != 0;
+        const int32_t last_icb_size = cfg.ic - (conf.icb - 1) * conf.ic_block;
+        const int32_t last_icb_mask = ~(~0u << last_icb_size);
+
+        ngen::Label icb_loop, skip_loop;
+        fixup_control_flow();
+        if_(16 | ~f1[1] | any16h, skip_loop, skip_loop);
+
+        init_a_headers(group_idx);
+        init_b_headers(oc_block_idx, group_idx);
+
+        zero_out_c_temp();
+
+        auto icb_count = ra_.alloc().d(0);
+        mov(1, icb_count, int(0));
+
+        mark(icb_loop);
+
+        if (icb_padded) {
+            mov(1, f0[1], int(0));
+            mov(1, f1.ud(), uint32_t(~0u));
+            cmp(1 | eq | f0[1], null.d(), icb_count, int(conf.icb - 1));
+            mov(1 | f0[1] | any16h, f1.ud(), uint32_t(last_icb_mask));
+            load_a_masked();
+        } else {
+            load_a_no_mask();
+        }
+
+        ngen::Label kw_loop, kh_loop, kd_loop;
+
+        if (cfg.kd != 1) {
+            mov(1, id, id_init);
+            mov(1, kd, int(0));
+            mark(kd_loop);
+            mov(1, f0[0], int(0));
+            cmp(1 | ge | f0[0], null.d(), id, int(0));
+            cmp(1 | f0[0] | lt, null.d(), id, int(cfg.id));
+            mov(1, do_kd, f0[0]);
+            add(1, id, id, int(1 + cfg.dd));
+        }
+        if (cfg.kh != 1) {
+            mov(1, ih, ih_init);
+            mov(1, kh, int(0));
+            mark(kh_loop);
+            mov(1, f0[1], int(0));
+            cmp(1 | ge | f0[1], null.d(), ih, int(0));
+            cmp(1 | f0[1] | lt, null.d(), ih, int(cfg.ih));
+            mov(1, do_kh, f0[1]);
+            add(1, ih, ih, int(1 + cfg.dh));
+        }
+        if (cfg.kw != 1) {
+            mov(1, iw, iw_init);
+            mov(1, kw, int(0));
+            mark(kw_loop);
+            mov(1, f1[0], int(0));
+            cmp(1 | ge | f1[0], null.d(), iw, int(0));
+            cmp(1 | f1[0] | lt, null.d(), iw, int(cfg.iw));
+            mov(1, do_kw, f1[0]);
+            add(1, iw, iw, int(1 + cfg.dw));
+        }
+
+        ngen::Label skip_mul;
+
+        auto wei_ptr = b_headers[0].uq(0);
+        const int wei_block = conf.ic_block * conf.oc_block * sizeof(char);
+
+        and_(1, f1[1], do_kd, do_kh);
+        and_(1, f1[1], f1[1], do_kw);
+        eadd(1 | f1[1] | any16h, wei_ptr, wei_ptr, int(wei_block));
+
+        fixup_control_flow();
+        if_(16 | ~f1[1] | any16h, skip_mul, skip_mul);
+
+        load_b();
+        multiply();
+
+        mark(skip_mul);
+        endif(16);
+
+        if (cfg.kw != 1) {
+            add(1, kw, kw, int(1));
+            mov(1, f0[1], int(0));
+            cmp(1 | lt | f0[1], null.d(), kw, int(cfg.kw));
+            fixup_control_flow();
+            while_(16 | f0[1] | any16h, kw_loop);
+        }
+        if (cfg.kh != 1) {
+            add(1, kh, kh, int(1));
+            mov(1, f1[0], int(0));
+            cmp(1 | lt | f1[0], null.d(), kh, int(cfg.kh));
+            fixup_control_flow();
+            while_(16 | f1[0] | any16h, kh_loop);
+        }
+        if (cfg.kd != 1) {
+            add(1, kd, kd, int(1));
+            mov(1, f1[1], int(0));
+            cmp(1 | lt | f1[1], null.d(), kd, int(cfg.kd));
+            fixup_control_flow();
+            while_(16 | f1[1] | any16h, kd_loop);
+        }
+
+        add(1, icb_count, icb_count, int(1));
+        mov(1, f1[1], int(0));
+        cmp(1 | lt | f1[1], null.d(), icb_count, int(conf.icb));
+        fixup_control_flow();
+        while_(16 | f1[1] | any16h, icb_loop);
+
+        ra_.release(ngen::GRF(icb_count.getBase()));
+
+        finalize();
+
+        mark(skip_loop);
+        endif(16);
+
+        // store
+        auto dst_header = ra_.alloc();
+        auto dst_ptr = dst_header.uq(0);
+        mov(grf_simd, dst_header.f(), float(0.f));
+
+        const int dst_ow_stride = conf.oc_block * sizeof(int);
+        const int dst_oh_stride = cfg.ow * dst_ow_stride;
+        const int dst_od_stride = cfg.oh * dst_oh_stride;
+        const int dst_ocb_stride = cfg.od * dst_od_stride;
+        const int dst_g_stride
+                = utils::div_up(cfg.oc, conf.oc_block) * dst_ocb_stride;
+
+        auto dst_ow_offset = ra_.alloc().uq(0);
+        auto dst_oh_offset = ra_.alloc().uq(0);
+        auto dst_od_offset = ra_.alloc().uq(0);
+        auto dst_ocb_offset = ra_.alloc().uq(0);
+        auto dst_g_offset = ra_.alloc().uq(0);
+
+        emul(1, dst_ow_offset, ow, int(dst_ow_stride));
+        emul(1, dst_oh_offset, oh, int(dst_oh_stride));
+        emul(1, dst_od_offset, od, int(dst_od_stride));
+        emul(1, dst_ocb_offset, oc_block_idx, int(dst_ocb_stride));
+        emul(1, dst_g_offset, group_idx, int(dst_g_stride));
+        eadd(1, dst_ptr, dst_base_ptr, dst_ow_offset);
+        eadd(1, dst_ptr, dst_ptr, dst_oh_offset);
+        eadd(1, dst_ptr, dst_ptr, dst_od_offset);
+        eadd(1, dst_ptr, dst_ptr, dst_ocb_offset);
+        eadd(1, dst_ptr, dst_ptr, dst_g_offset);
+
+        sync(ngen::SyncFunction::allwr, 0xffff);
+        if (conf.oc_block == 32) {
+            store(16, ngen::block_oword(8), A64, dst_header, c[0]);
+        } else if (conf.oc_block == 8) {
+            store(16, ngen::block_oword(2), A64, dst_header, c[0]);
+        } else {
+            ir_error_not_expected();
+        }
+
+        ra_.release(ngen::GRF(dst_ow_offset.getBase()));
+        ra_.release(ngen::GRF(dst_oh_offset.getBase()));
+        ra_.release(ngen::GRF(dst_od_offset.getBase()));
+        ra_.release(ngen::GRF(dst_ocb_offset.getBase()));
+        ra_.release(ngen::GRF(dst_g_offset.getBase()));
+        ra_.release(reg_osp);
+        ra_.release(reg_isp);
+        ra_.release(reg_isp_init);
+        ra_.release(reg_k);
+    }
+
+    void body_common() {
+        const auto &conf = cfg.zp_cfg;
+        auto oc_block_idx = r0.ud(1);
+        auto group_idx = r0.ud(6);
+
+        init_a_headers(group_idx);
+        init_b_headers(oc_block_idx, group_idx);
+
+        init_abc_regs();
+
+        // zero out c
+        for (int i = 0; i < num_c_regs; ++i)
+            mov(grf_simd, c[i].f(), float(0));
+
+        loop_common();
+
+        finalize();
+
+        // store
+        auto dst_header = ra_.alloc();
+        auto dst_ptr = dst_header.uq(0);
+        mov(grf_simd, dst_header.f(), float(0.f));
+
+        const int dst_ocb_stride = conf.oc_block * sizeof(int);
+        const int dst_g_stride
+                = utils::div_up(cfg.oc, conf.oc_block) * dst_ocb_stride;
+
+        auto dst_ocb_offset = ra_.alloc().uq(0);
+        auto dst_g_offset = ra_.alloc().uq(0);
+
+        emul(1, dst_ocb_offset, oc_block_idx, int(dst_ocb_stride));
+        emul(1, dst_g_offset, group_idx, int(dst_g_stride));
+        eadd(1, dst_ptr, dst_base_ptr, dst_ocb_offset);
+        eadd(1, dst_ptr, dst_ptr, dst_g_offset);
+
+        sync(ngen::SyncFunction::allwr, 0xffff);
+        if (conf.oc_block == 32) {
+            store(16, ngen::block_oword(8), A64, dst_header, c[0]);
+        } else if (conf.oc_block == 8) {
+            store(16, ngen::block_oword(2), A64, dst_header, c[0]);
+        } else {
+            ir_error_not_expected();
+        }
+
+        ra_.release(ngen::GRF(dst_ocb_offset.getBase()));
+        ra_.release(ngen::GRF(dst_g_offset.getBase()));
+    }
+
+    void loop_common() {
+        const auto &conf = cfg.zp_cfg;
+        const bool unroll_ic = (kdhw == 1) && cfg.ic <= 512;
+        const bool unroll_k = kdhw <= 49;
+
+        const bool icb_padded = cfg.ic % conf.ic_block != 0;
+        const int32_t last_icb_size = cfg.ic - (conf.icb - 1) * conf.ic_block;
+        const int32_t last_icb_mask = ~(~0u << last_icb_size);
+
+        zero_out_c_temp();
+
+        if (unroll_ic) {
+            for (int i = 0; i < conf.icb; ++i) {
+                const bool is_last_block = (i == conf.icb - 1);
+                if (is_last_block && icb_padded) {
+                    mov(1, f1.ud(), uint32_t(last_icb_mask));
+                    load_a_masked();
+                } else {
+                    load_a_no_mask();
+                }
+                load_b();
+                multiply();
+            }
+        } else {
+            auto icb_count = ra_.alloc().d(0);
+            mov(1, icb_count, int(0));
+
+            ngen::Label icb_loop;
+            mark(icb_loop);
+
+            if (icb_padded) {
+                mov(1, f0[1], int(0));
+                mov(1, f1.ud(), uint32_t(~0u));
+                cmp(1 | eq | f0[1], null.d(), icb_count, int(conf.icb - 1));
+                mov(1 | f0[1] | any16h, f1.ud(), uint32_t(last_icb_mask));
+                load_a_masked();
+            } else {
+                load_a_no_mask();
+            }
+
+            if (unroll_k) {
+                for (int i = 0; i < kdhw; ++i) {
+                    load_b();
+                    multiply();
+                }
+            } else {
+                auto k_count = ra_.alloc().d(0);
+                mov(1, k_count, int(0));
+
+                ngen::Label k_loop;
+                mark(k_loop);
+
+                load_b();
+                multiply();
+
+                mov(1, f1[0], int(0));
+                add(1, k_count, k_count, int(1));
+                cmp(1 | lt | f1[0], null.d(), k_count, int(kdhw));
+                fixup_control_flow();
+                while_(16 | f1[0] | any16h, k_loop);
+
+                ra_.release(ngen::GRF(k_count.getBase()));
+            }
+
+            mov(1, f1[1], int(0));
+            add(1, icb_count, icb_count, int(1));
+            cmp(1 | lt | f1[1], null.d(), icb_count, int(conf.icb));
+            fixup_control_flow();
+            while_(16 | f1[1] | any16h, icb_loop);
+
+            ra_.release(ngen::GRF(icb_count.getBase()));
+        }
+    }
+
+    void init_a_headers(const ngen::Subregister &group_idx) {
+        const auto &conf = cfg.zp_cfg;
+        if (conf.is_common_src_zero_point || !conf.is_runtime_src_zero_points)
+            return;
+
+        const bool use_a64 = (hw >= ngen::HW::XeHPC);
+        const int addr_size = use_a64 ? sizeof(int64_t) : sizeof(int32_t);
+        num_a_headers = utils::div_up(conf.ic_block * addr_size, grf_size);
+
+        // prepare src headers
+        a_headers = ra_.alloc_range(num_a_headers);
+        auto idx_vec = ra_.alloc().uw();
+        auto g_offset = ra_.alloc().ud();
+        emul(1, g_offset.ud(0), group_idx, int(cfg.ic));
+        mov(8, idx_vec.uw(0), ngen::Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
+        mov(8, idx_vec.uw(8),
+                ngen::Immediate::uv(8, 9, 10, 11, 12, 13, 14, 15));
+        if (use_a64) shl(16, idx_vec, idx_vec, int(2)); // sizeof(int32_t)
+
+        for (int off = 0, exec_size = grf_size / addr_size; off < conf.ic_block;
+                off += exec_size) {
+            const int r = off / exec_size;
+            if (use_a64) {
+                if (off == 0) {
+                    eadd(exec_size, a_headers[r].uq(), src_base_ptr,
+                            g_offset.ud(0));
+                    eadd(exec_size, a_headers[r].uq(), a_headers[r].uq(),
+                            idx_vec);
+                } else
+                    add(exec_size, a_headers[r].uq(), a_headers[0].uq(),
+                            int(off));
+            } else {
+                if (off == 0)
+                    add(exec_size, a_headers[r].ud(), g_offset.ud(0), idx_vec);
+                else
+                    add(exec_size, a_headers[r].ud(), a_headers[0].ud(),
+                            int(off));
+            }
+        }
+
+        ra_.release(idx_vec);
+        ra_.release(g_offset);
+    }
+
+    void init_b_headers(const ngen::Subregister &oc_block_idx,
+            const ngen::Subregister &group_idx) {
+        const auto &conf = cfg.zp_cfg;
+        const int wei_block = conf.ic_block * conf.oc_block;
+        const int wei_g_stride
+                = conf.ocb * conf.icb * kdhw * wei_block * sizeof(char);
+        const int wei_ocb_stride = conf.icb * kdhw * wei_block * sizeof(char);
+
+        b_headers = ra_.alloc_range(1);
+        auto wei_ptr = b_headers[0].uq(0);
+        auto ocb_offset = ra_.alloc().ud();
+        auto g_offset = ra_.alloc().ud();
+        emul(1, ocb_offset.ud(0), oc_block_idx, int(wei_ocb_stride));
+        emul(1, g_offset.ud(0), group_idx, int(wei_g_stride));
+        eadd(1, wei_ptr, wei_base_ptr, ocb_offset.ud(0));
+        eadd(1, wei_ptr, wei_ptr, g_offset.ud(0));
+        ra_.release(ocb_offset);
+        ra_.release(g_offset);
+    }
+
+    void init_abc_regs() {
+        num_a_regs = utils::div_up(a_size, grf_size);
+        num_b_regs = utils::div_up(b_size, grf_size);
+        num_c_regs = utils::div_up(c_size, grf_size);
+
+        c = ra_.alloc_range(num_c_regs, ngen::Bundle(0, ngen::Bundle::any));
+        b = ra_.alloc_range(num_b_regs, ngen::Bundle(1, ngen::Bundle::any));
+
+        const auto &conf = cfg.zp_cfg;
+        const auto num_t_regs = conf.oc_outer * conf.ic_inner;
+        assert(cfg.simd_size == conf.oc_inner);
+
+        for (int r = 0; r < num_t_regs; ++r) {
+            const int bundle_id_c = (r + 7) % ngen::Bundle::bundle_count(hw);
+            const int bundle_id_b = (r + 8) % ngen::Bundle::bundle_count(hw);
+            const auto bundle_c = ngen::Bundle(0, bundle_id_c);
+            const auto bundle_b = ngen::Bundle(1, bundle_id_b);
+            c_temp[r] = ra_.alloc_range(1, bundle_c)[0];
+            b_temp[r] = ra_.alloc_range(1, bundle_b)[0];
+        }
+
+        for (int r = 0; r < num_a_regs; ++r)
+            a[r] = ra_.alloc(ngen::Bundle(0, ngen::Bundle::any));
+    }
+
+    void zero_out_c_temp() {
+        const auto &conf = cfg.zp_cfg;
+        const auto num_t_regs = conf.oc_outer * conf.ic_inner;
+        assert(cfg.simd_size == conf.oc_inner);
+        for (int r = 0; r < num_t_regs; ++r)
+            mov(grf_simd, c_temp[r].f(), float(0));
+    }
+
+    void load_a_no_mask() {
+        const auto &conf = cfg.zp_cfg;
+        if (conf.is_common_src_zero_point) return;
+
+        auto a_surf = Surface(getArgumentSurface("src"));
+        const bool use_a64 = (hw >= ngen::HW::XeHPC);
+        const int elem_size = use_a64 ? sizeof(int32_t) : 1;
+        ngen::AddressBase address_base = use_a64 ? A64 : a_surf;
+
+        if (conf.ic_block == 32) {
+            const int addr_size = use_a64 ? sizeof(int64_t) : sizeof(int32_t);
+            const int data_size = sizeof(int32_t);
+            for (int off = 0; off < conf.ic_block; off += grf_simd) {
+                const auto rd = off * data_size / grf_size;
+                const auto rh = off * addr_size / grf_size;
+                load(grf_simd, a[rd], ngen::scattered_dword(), address_base,
+                        a_headers[rh]);
+                if (use_a64)
+                    eadd(grf_simd, a_headers[rh].uq(), a_headers[rh].uq(),
+                            int(32 * elem_size));
+                else
+                    add(grf_simd, a_headers[rh].ud(), a_headers[rh].ud(),
+                            int(32 * elem_size));
+            }
+        } else if (conf.ic_block == 4) {
+            load(4, a[0], ngen::scattered_dword(), address_base, a_headers[0]);
+            if (use_a64)
+                eadd(grf_simd, a_headers[0].uq(), a_headers[0].uq(),
+                        int(4 * elem_size));
+            else
+                add(grf_simd, a_headers[0].ud(), a_headers[0].ud(),
+                        int(4 * elem_size));
+        } else {
+            ir_error_not_expected();
+        }
+    }
+
+    void load_a_masked() {
+        const auto &conf = cfg.zp_cfg;
+        if (conf.is_common_src_zero_point) return;
+
+        auto a_surf = Surface(getArgumentSurface("src"));
+        const bool use_a64 = (hw >= ngen::HW::XeHPC);
+        const int elem_size = use_a64 ? sizeof(int32_t) : 1;
+        ngen::AddressBase address_base = use_a64 ? A64 : a_surf;
+
+        const int addr_size = use_a64 ? sizeof(int64_t) : sizeof(int32_t);
+        const int data_size = sizeof(int32_t);
+
+        const uint32_t sbid_mask = ~(~0u << (conf.ic_block / grf_simd));
+        sync(ngen::SyncFunction::allwr, sbid_mask);
+
+        if (conf.ic_block == 32) {
+            for (int off = 0, sbid = 0; off < conf.ic_block;
+                    off += grf_simd, sbid++) {
+                const auto rd = off * data_size / grf_size;
+                const auto rh = off * addr_size / grf_size;
+                setDefaultAutoSWSB(false);
+                fixup_control_flow();
+                load(grf_simd | f1[0] | ngen::SBID(sbid), a[rd],
+                        ngen::scattered_dword(), address_base, a_headers[rh]);
+                setDefaultAutoSWSB(true);
+                if (use_a64)
+                    eadd(grf_simd, a_headers[rh].uq(), a_headers[rh].uq(),
+                            int(32 * elem_size));
+                else
+                    add(grf_simd, a_headers[rh].ud(), a_headers[rh].ud(),
+                            int(32 * elem_size));
+                shr(1, f1[0].ud(), f1[0].ud(), 8);
+            }
+        } else if (conf.ic_block == 4) {
+            setDefaultAutoSWSB(false);
+            fixup_control_flow();
+            load(4 | f1[0] | ngen::SBID(0), a[0], ngen::scattered_dword(),
+                    address_base, a_headers[0]);
+            setDefaultAutoSWSB(true);
+            if (use_a64)
+                eadd(grf_simd, a_headers[0].uq(), a_headers[0].uq(),
+                        int(4 * elem_size));
+            else
+                add(grf_simd, a_headers[0].ud(), a_headers[0].ud(),
+                        int(4 * elem_size));
+        } else {
+            ir_error_not_expected();
+        }
+    }
+
+    void load_b() {
+        auto b_ptr = b_headers[0].uq();
+        if (b_size % 128 == 0) {
+            for (int byte_off = 0; byte_off < b_size; byte_off += 128) {
+                load(16, b[byte_off / grf_size], ngen::block_oword(8), A64,
+                        b_headers[0]);
+                eadd(1, b_ptr, b_ptr, int(128));
+            }
+        } else if (b_size == 32) {
+            load(16, b[0], ngen::block_oword(2), A64, b_headers[0]);
+            eadd(1, b_ptr, b_ptr, int(32));
+        } else {
+            ir_error_not_expected();
+        }
+    }
+
+    void reduce_block() {
+        const auto &conf = cfg.zp_cfg;
+        auto tmp = ra_.alloc();
+        mov(grf_simd, tmp.d(), int(0x01010101));
+        for (int ic_outer = 0; ic_outer < conf.ic_outer; ++ic_outer) {
+            for (int oc_outer = 0; oc_outer < conf.oc_outer; ++oc_outer) {
+                dp4a(grf_simd, c[oc_outer].d(), c[oc_outer].d(), tmp.d(),
+                        b[ic_outer + oc_outer * conf.ic_outer].d());
+            }
+        }
+        ra_.release(tmp);
+    }
+
+    void multiply_block() {
+        const auto &conf = cfg.zp_cfg;
+        ir_assert(conf.ic_inner == 4);
+        for (int ic_outer = 0; ic_outer < conf.ic_outer; ++ic_outer) {
+            for (int oc_outer = 0; oc_outer < conf.oc_outer; ++oc_outer) {
+                for (int ic_inner = 0; ic_inner < conf.ic_inner; ++ic_inner) {
+                    const int sx = ic_inner;
+                    const int sy = ic_outer + oc_outer * conf.ic_outer;
+                    const int dx = ic_inner + conf.ic_inner * oc_outer;
+                    const int stride = conf.ic_inner;
+                    mov(grf_simd, b_temp[dx].w(0)(2), b[sy].b(sx)(stride));
+                }
+            }
+            for (int oc_outer = 0; oc_outer < conf.oc_outer; ++oc_outer) {
+                for (int ic_inner = 0; ic_inner < conf.ic_inner; ++ic_inner) {
+                    const int ic = ic_inner + ic_outer * conf.ic_inner;
+                    const int sx = ic % grf_simd;
+                    const int sy = ic / grf_simd;
+                    const int dx = ic_inner + conf.ic_inner * oc_outer;
+                    mad(grf_simd, c_temp[dx].d(), c_temp[dx].d(), a[sy].d(sx),
+                            b_temp[dx].w(0)(2));
+                }
+            }
+        }
+    }
+
+    void multiply() {
+        const auto &conf = cfg.zp_cfg;
+        if (conf.is_common_src_zero_point)
+            reduce_block();
+        else
+            multiply_block();
+    }
+
+    void finalize() {
+        const auto &conf = cfg.zp_cfg;
+        if (conf.is_common_src_zero_point) {
+            // multiply after reduce
+            auto zp_common = a[0].d();
+            if (conf.is_runtime_src_zero_points) {
+                auto header = ra_.alloc();
+                mov(grf_simd, header.f(), float(0.f));
+                emov(1, header.uq(), src_base_ptr);
+                load(1, zp_common, ngen::scattered_dword(), A64, header);
+                ra_.release(header);
+            } else {
+                mov(1, zp_common.d(), int(conf.common_src_zero_point));
+            }
+            for (int i = 0; i < num_c_regs; ++i) {
+                mul(grf_simd, acc0.d(), c[i].d(), zp_common.uw(0));
+                macl(grf_simd, c[i].d(), c[i].d(), zp_common.ud(0));
+            }
+        } else {
+            // sum temp accs
+            ir_assert(conf.ic_inner == 4);
+            for (int oc_outer = 0; oc_outer < conf.oc_outer; ++oc_outer) {
+                const int sx = oc_outer * conf.ic_inner;
+                add(grf_simd, c[oc_outer].d(), c_temp[sx + 0].d(),
+                        c_temp[sx + 1].d());
+                add(grf_simd, acc0.d(), c_temp[sx + 2].d(), c_temp[sx + 3].d());
+                add(grf_simd, c[oc_outer].d(), c[oc_outer].d(), acc0.d());
+            }
+        }
+    }
+
+    void fixup_control_flow() {
+        if (hw >= ngen::HW::XeHPC) return;
+
+        csel(4 | eq | f0[0] | ngen::SWSB<float>(1), r0.w(0)(1), r0.w(0)(1),
+                r0.w(0)(1), r0.w(0)(1));
+        csel(4 | eq | f0[0] | ngen::SWSB<int>(1), r0.f(0)(1), r0.f(0)(1),
+                r0.f(0)(1), r0.f(0)(1));
+    };
+
+    // Adapted version of magicgu function from Hacker's Delight 10-15.
+    static void eidiv_magicgu(uint32_t d, uint32_t &m, uint32_t &p) {
+        uint32_t s32_max = std::numeric_limits<int32_t>::max();
+        ir_assert(d != 0 && d <= s32_max);
+        uint64_t nc = (s32_max / d) * d - 1;
+        for (p = 32; p < 64; p++) {
+            uint64_t _2p = 1LL << p;
+            if (_2p > nc * (d - 1 - (_2p - 1) % d)) {
+                m = (_2p + d - 1 - (_2p - 1) % d) / d;
+                return;
+            }
+        }
+        ir_error_not_expected();
+    }
+
+    // Emulates integer division by a constant.
+    // Requirements:
+    //     0 <= x <= UINT32_MAX
+    //     0 <  y <= INT32_MAX
+    // Computes:
+    //     qot = x / y
+    //     rem = x % y
+    void eidiv(const ngen::RegData &qot, const ngen::RegData &rem,
+            const ngen::RegData &x, uint32_t y) {
+        if (ngen::utils::is_zero_or_pow2(y)) {
+            if (!qot.isInvalid()) shr(1, qot, x, ngen::utils::log2(y));
+            if (!rem.isInvalid()) and_(1, rem, x, y - 1);
+            return;
+        }
+
+        uint32_t m = 0, p = 0;
+        eidiv_magicgu(y, m, p);
+
+        auto _x = ra_.alloc().ud();
+        auto _qot = ra_.alloc().ud();
+        mov(1, _x, x);
+
+        // qot = (x * m) >> p
+        mul(1, acc0.ud(0), _x, m & 0xFFFF);
+        mach(1, _qot, _x, m);
+        shr<uint32_t>(1, _qot, _qot, p - 32);
+        if (!qot.isInvalid()) mov(1, qot, _qot);
+
+        if (!rem.isInvalid()) {
+            // rem = x - qot * y
+            bool y_is_16_bit = (y <= static_cast<uint32_t>(
+                                        std::numeric_limits<int16_t>::max()));
+            if (hw >= ngen::HW::XeLP && y_is_16_bit) {
+                mad(1, rem, x, _qot, -int16_t(y));
+            } else {
+                auto tmp = ra_.alloc_sub<uint64_t>();
+                mul(1, tmp, _qot, y);
+                add(1, rem, x, -tmp.ud(0));
+                ra_.safeRelease(tmp);
+            }
+        }
+
+        ra_.safeRelease(_x);
+        ra_.safeRelease(_qot);
+    }
+
+    friend struct dnnl::impl::gpu::jit::EmulationImplementation;
+
+    template <typename DT = void>
+    void emov(const ngen::InstructionModifier &mod, ngen::RegData dst,
+            ngen::RegData src0) {
+        EmulationImplementation::emov<DT>(*this, mod, dst, src0, emu_strategy);
+    }
+    template <typename DT = void>
+    void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const ngen::RegData &src0, const ngen::RegData &src1) {
+        EmulationImplementation::eadd<DT>(
+                *this, mod, dst, src0, src1, emu_strategy, emu_state);
+    }
+    template <typename DT = void>
+    void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const ngen::RegData &src0, ngen::Immediate src1) {
+        EmulationImplementation::eadd<DT>(
+                *this, mod, dst, src0, src1, emu_strategy, emu_state);
+    }
+    template <typename DT = void>
+    void emul(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const ngen::RegData &src0, const ngen::RegData &src1) {
+        EmulationImplementation::emul<DT>(
+                *this, mod, dst, src0, src1, emu_strategy, emu_state);
+    }
+    template <typename DT = void>
+    void emul(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const ngen::RegData &src0, ngen::Immediate src1) {
+        EmulationImplementation::emul<DT>(
+                *this, mod, dst, src0, src1, emu_strategy, emu_state);
+    }
+
+private:
+    conv_config_t cfg;
+
+    ngen::RegisterAllocator ra_;
+    EmulationStrategy emu_strategy = EmulationStrategy(hw);
+    EmulationState emu_state;
+};
+
+template <ngen::HW hw>
+const int compensation_kernel_t<hw>::ow_block = 8;
 
 // Evaluates expression by emitting instructions with nGEN.
 template <ngen::HW hw>

@@ -256,6 +256,21 @@ public:
         auto c = add_tensor(/*is_input=*/false, /*is_output=*/false, cp_view_,
                 expr_t(), var_t::make(type_t::f32(), "c"));
 
+        // Handle src zero points.
+        const auto &zp_cfg = cfg.zp_cfg;
+        if (zp_cfg.do_src_compensation && zp_cfg.common.run) {
+            auto view = create_view(zp_cfg.common.md);
+            auto buf = kernel_info.find_arg("src_compensation_common");
+            auto in = add_input_tensor(view, buf);
+            post_ops_.emplace_back(c, c - in);
+        }
+        if (zp_cfg.do_src_compensation && zp_cfg.edge.run) {
+            auto view = create_view(zp_cfg.edge.md);
+            auto buf = kernel_info.find_arg("src_compensation_edge");
+            auto in = add_input_tensor(view, buf);
+            post_ops_.emplace_back(c, c + in);
+        }
+
         // Handle bias.
         if ((pd->is_fwd() || pd->is_bwd_d()) && pd->with_bias()) {
             uint32_t mask = normalize_mask(1 << 1); // Per-channel mask.
@@ -309,6 +324,24 @@ public:
                 post_ops_.emplace_back(c, binary_op_t::make(op_kind, c, rhs));
             } else {
                 ir_error_not_expected();
+            }
+        }
+
+        // Handle dst zero points.
+        if (cfg.zp_cfg.do_dst_compensation) {
+            if (cfg.zp_cfg.is_runtime_dst_zero_points) {
+                uint32_t mask = normalize_mask(
+                        cfg.zp_cfg.is_common_dst_zero_point ? 0 : 1 << 1);
+                auto view = create_view(type_t::s32(), mask);
+                auto buf = kernel_info.find_arg("dst_zero_points");
+                auto in = add_input_tensor(view, buf);
+                post_ops_.emplace_back(c, c + in);
+            } else {
+                auto func = eltwise_t::make(alg_kind::eltwise_linear,
+                        /*scale=*/1.f,
+                        /*alpha=*/1.f,
+                        /*beta=*/float(cfg.zp_cfg.common_dst_zero_point));
+                post_ops_.emplace_back(c, c, func);
             }
         }
 
@@ -380,6 +413,13 @@ private:
                 ir_error_not_expected();
             }
         }
+        if (cfg_->zp_cfg.do_src_compensation
+                && pd_->dst_md()->dims[0] != pd_->dst_md()->padded_dims[0])
+            return true;
+        if (cfg_->zp_cfg.do_dst_compensation
+                && cfg_->zp_cfg.is_common_dst_zero_point
+                && pd_->dst_md()->dims[1] != pd_->dst_md()->padded_dims[1])
+            return true;
         return false;
     }
 
