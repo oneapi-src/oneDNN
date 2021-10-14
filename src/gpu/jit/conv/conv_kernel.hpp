@@ -1817,6 +1817,63 @@ public:
         }
     }
 
+    // Returns the biggest common 2D tile that is innermost for both layouts.
+    // The returned tile contains at most max_elems elements. If match_outer is
+    // true, then outer parts of both layouts are required to be equal.
+    // Returns an empty tensor if the requested tile is not found.
+    static tensor_t find_2d_tile(const layout_t &a, const layout_t &b,
+            int max_elems = std::numeric_limits<int>::max(),
+            bool match_outer = false) {
+        std::vector<dim_t> tile_dims(a.ndims(), 1);
+        if (a.blocks().empty() || b.blocks().empty())
+            return tensor_t(tile_dims);
+
+        auto non_one_ndims = [](const tensor_t &t) {
+            int ret = 0;
+            for (dim_t d : t.dims())
+                ret += (d != 1 ? 1 : 0);
+            return ret;
+        };
+
+        layout_iterator_t a_it(a);
+        layout_iterator_t b_it(b);
+
+        tensor_t max_tile;
+        for (;;) {
+            auto a_tile = a_it.tile();
+            auto b_tile = b_it.tile();
+            if (non_one_ndims(a_tile) > 2 || non_one_ndims(b_tile) > 2) break;
+            dim_t a_elems = a_tile.elems();
+            dim_t b_elems = b_tile.elems();
+
+            bool tile_ok = true;
+            if (!a_tile.is_equal(b_tile)) tile_ok = false;
+            if (match_outer) {
+                auto a_outer = a_it.outer_layout();
+                auto b_outer = b_it.outer_layout();
+                if (!a_outer.is_equal(b_outer)) tile_ok = false;
+            }
+            if (tile_ok) {
+                if (a_it.nblocks() > max_tile_blocks) break;
+                if (b_it.nblocks() > max_tile_blocks) break;
+                if (a_tile.elems() > max_elems) break;
+                max_tile = a_tile;
+                if (!a_it.has_next() || !b_it.has_next()) break;
+                ++a_it;
+                ++b_it;
+            } else if (a_elems <= b_elems) {
+                if (!a_it.has_next()) break;
+                ++a_it;
+            } else {
+                if (!b_it.has_next()) break;
+                ++b_it;
+            }
+        }
+        return max_tile;
+    }
+
+    static const int max_tile_blocks = 4;
+
 private:
     // Helper class to incrementally increase a sub-layout of the given layout.
     // One step - adding the minimal factor of the next remaining block. Used
@@ -1863,6 +1920,22 @@ private:
                 dims[b.dim_idx] *= b_block;
             }
             return tensor_t(dims);
+        }
+
+        int nblocks() const { return block_idx + 1; }
+
+        layout_t outer_layout() const {
+            auto &blocks = l.blocks();
+            std::vector<block_t> outer_blocks;
+            if (block > 1) {
+                auto &b = blocks[block_idx];
+                outer_blocks.push_back(b);
+                outer_blocks[0].block = block;
+                outer_blocks[0].stride = b.stride * (b.block / block);
+            }
+            outer_blocks.insert(outer_blocks.end(),
+                    blocks.begin() + block_idx + 1, blocks.end());
+            return layout_t(l.type(), l.ndims(), l.offset(), outer_blocks);
         }
 
         const layout_t &l;
@@ -1976,6 +2049,13 @@ private:
             int min_cost = std::numeric_limits<int>::max();
             for (int i = min_log_bytes; i <= max_log_bytes; i++) {
                 if ((mask & (1 << i)) == 0) continue;
+                if (i > min_log_bytes) {
+                    ir_assert(!layout.blocks().empty());
+                    ir_assert(!v.layout.blocks().empty());
+                    int dim_idx0 = layout.blocks()[0].dim_idx;
+                    int dim_idx1 = v.layout.blocks()[0].dim_idx;
+                    if (dim_idx0 != dim_idx1) continue;
+                }
                 min_cost = cur_cost;
                 type = type_t::u(8 << i);
                 break;
@@ -2004,45 +2084,6 @@ private:
         tensor_t tile; // Tile corresponding to one instruction.
         type_t type; // Registers should be reinterpreted to `type` for reorder.
     };
-
-    // Returns the biggest common 2D tile that is innermost for both layouts.
-    static tensor_t find_2d_tile(const layout_t &a, const layout_t &b) {
-        std::vector<dim_t> tile_dims(a.ndims(), 1);
-        if (a.blocks().empty() || b.blocks().empty())
-            return tensor_t(tile_dims);
-
-        auto non_one_ndims = [](const tensor_t &t) {
-            int ret = 0;
-            for (dim_t d : t.dims())
-                ret += (d != 1 ? 1 : 0);
-            return ret;
-        };
-
-        layout_iterator_t a_it(a);
-        layout_iterator_t b_it(b);
-
-        tensor_t max_tile;
-        for (;;) {
-            auto a_tile = a_it.tile();
-            auto b_tile = b_it.tile();
-            if (non_one_ndims(a_tile) > 2 || non_one_ndims(b_tile) > 2) break;
-            dim_t a_elems = a_tile.elems();
-            dim_t b_elems = b_tile.elems();
-            if (a_tile.is_equal(b_tile)) {
-                max_tile = a_tile;
-                if (!a_it.has_next() || !b_it.has_next()) break;
-                ++a_it;
-                ++b_it;
-            } else if (a_elems <= b_elems) {
-                if (!a_it.has_next()) break;
-                ++a_it;
-            } else {
-                if (!b_it.has_next()) break;
-                ++b_it;
-            }
-        }
-        return max_tile;
-    }
 
     // Extracts dimension sizes and their indices from a multidimensional
     // tensor.
@@ -2102,7 +2143,7 @@ private:
         auto all_layouts = generate_all_layouts(src.type(), tile_a, tile_b);
         for (auto &l : all_layouts) {
             // Skip if too many blocks.
-            if (l.blocks().size() > 4) continue;
+            if (int(l.blocks().size()) > max_tile_blocks) continue;
             int v_idx = int(vertices.size());
             vertices.emplace_back(hw, v_idx, l);
             auto &v = vertices.back();
