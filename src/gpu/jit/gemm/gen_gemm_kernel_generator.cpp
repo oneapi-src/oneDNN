@@ -3084,8 +3084,10 @@ void gemm_kernel_generator_t<hw>::loadMatrix(const GRFMultirange &dest,
         CommonState &state, bool zeroMask) {
     auto nblocks = int(layout.size());
 
-    if (astrategy.prefetch && astrategy.newDP)
-        return prefetchMatrix(layout, atype, astrategy, addrs, strategy, state);
+    if (astrategy.prefetch && astrategy.newDP) {
+        prefetchMatrix(layout, atype, astrategy, addrs, strategy, state);
+        return;
+    }
 
     if (strategy.readSuppressionWA && (hasFlags(layout) || !getDefaultNoMask()))
         doReadSuppressionWA(strategy, state);
