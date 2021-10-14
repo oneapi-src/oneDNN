@@ -13124,6 +13124,133 @@ TEST(int8_subgraph_mode, u8u8f32_bmm_div) {
     strm.wait();
 }
 
+TEST(int8_subgraph_mode, x8x8bf16_bmm) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    if (engine.kind() == impl::engine_kind::gpu) return;
+    std::vector<std::string> dtypes = {"uint8", "int8"};
+
+    std::vector<int64_t> src_shape = {1, 4, 16, 8};
+    std::vector<int64_t> weight_shape = {1, 4, 8, 16};
+    std::vector<int64_t> dst_shape = {1, 4, 16, 16};
+
+    test::vector<uint8_t> src_data(product(src_shape));
+    test::vector<uint8_t> weight_data(product(weight_shape));
+
+    for (auto &src_dtype : dtypes) {
+        for (auto &weight_dtype : dtypes) {
+            auto src_lt_dtype = (src_dtype == "uint8") ? impl::data_type::u8
+                                                       : impl::data_type::s8;
+            auto weight_lt_dtype = (weight_dtype == "uint8")
+                    ? impl::data_type::u8
+                    : impl::data_type::s8;
+            float src_range = (src_dtype == "uint8") ? 255.f : 127.f;
+            float weight_range = (weight_dtype == "uint8") ? 255.f : 127.f;
+            // random generate src, weight data
+            // random seed = 7
+            std::default_random_engine generator(7);
+            std::uniform_real_distribution<float> src_distribution(
+                    0.0f, src_range);
+            std::uniform_real_distribution<float> weight_distribution(
+                    0.0f, weight_range);
+            std::generate(src_data.begin(), src_data.end(),
+                    [&]() { return src_distribution(generator); });
+            std::generate(weight_data.begin(), weight_data.end(),
+                    [&]() { return weight_distribution(generator); });
+            float scale_src = 1 / src_range;
+            float scale_wei = 1 / weight_range;
+            int64_t zp_src = 110;
+            int64_t zp_wei = 114;
+
+            impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
+            dqdata_op.set_attr<std::string>("qtype", "per_tensor");
+            dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
+            dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
+            dqdata_op.set_attr<int64_t>("axis", 0);
+
+            impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
+            dqweight_op.set_attr<std::string>("qtype", "per_tensor");
+            dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
+            dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
+            dqweight_op.set_attr<int64_t>("axis", 1);
+
+            impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
+            impl::op_t tcweight_op {
+                    3, impl::op_kind::TypeCast, "typecast_weight"};
+
+            impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
+            matmul_op.set_attr<bool>("transpose_a", false);
+            matmul_op.set_attr<bool>("transpose_b", false);
+
+            // prepare logical tensor
+            impl::logical_tensor_t src
+                    = utils::logical_tensor_init(0, src_shape, src_lt_dtype);
+            impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                    1, src_shape, impl::data_type::f32);
+            impl::logical_tensor_t src_bf16 = utils::logical_tensor_init(
+                    2, src_shape, impl::data_type::bf16);
+            impl::logical_tensor_t weight = utils::logical_tensor_init(
+                    3, weight_shape, weight_lt_dtype);
+            impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                    4, weight_shape, impl::data_type::f32);
+            impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+                    5, weight_shape, impl::data_type::bf16);
+            impl::logical_tensor_t dst_bf16 = utils::logical_tensor_init(
+                    6, dst_shape, impl::data_type::bf16);
+
+            dqdata_op.add_input(src);
+            dqdata_op.add_output(src_f32_dq);
+
+            dqweight_op.add_input(weight);
+            dqweight_op.add_output(weight_f32_dq);
+
+            tcdata_op.add_input(src_f32_dq);
+            tcdata_op.add_output(src_bf16);
+
+            tcweight_op.add_input(weight_f32_dq);
+            tcweight_op.add_output(weight_bf16);
+
+            matmul_op.add_input(src_bf16);
+            matmul_op.add_input(weight_bf16);
+            matmul_op.add_output(dst_bf16);
+
+            impl::graph_t g;
+            g.add_op(&dqdata_op);
+            g.add_op(&dqweight_op);
+            g.add_op(&matmul_op);
+            g.add_op(&tcdata_op);
+            g.add_op(&tcweight_op);
+            g.build_graph();
+
+            impl::pass::pass_base_ptr apass
+                    = get_pass("x8x8bf16_matmul_fusion");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1);
+            auto part = g.get_partitions()[0];
+
+            // compile
+            impl::partition_t p;
+            p.init(part);
+
+            impl::compiled_partition_t cp(p);
+
+            std::vector<const impl::logical_tensor_t *> lt_ins {&src, &weight};
+            std::vector<const impl::logical_tensor_t *> lt_outs {&dst_bf16};
+
+            p.compile(&cp, lt_ins, lt_outs, &engine);
+
+            test::vector<float> div_src1_data(1);
+            test::vector<float> dst_data(product(dst_shape));
+            impl::tensor_t src_ts(src, &engine, src_data.data());
+            impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+            impl::tensor_t dst_ts(dst_bf16, &engine, dst_data.data());
+            cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
+            strm.wait();
+        }
+    }
+}
+
 TEST(int8_subgraph_mode, x8x8bf16_bmm_div) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
