@@ -2487,29 +2487,25 @@ private:
 
     static bool is_2d_reorder(
             const layout_t &src, const layout_t &dst, int &elems_per_thr) {
+        if (src.type() != dst.type()) return false;
+
         const int hword_bytes = 32;
         const int min_bytes_per_thr = hword_bytes;
-        const int max_bytes_per_thr = 16 * hword_bytes;
+        const int max_bytes_per_thr = 32 * hword_bytes;
 
-        int max_elems_per_thr = max_bytes_per_thr
-                / std::max(src.type().size(), dst.type().size());
+        int type_size = src.type().size();
+        int max_elems_per_thr = max_bytes_per_thr / type_size;
 
-        auto tile
-                = reorder_2d_impl_t::find_2d_tile(src, dst, max_elems_per_thr);
+        auto tile = reorder_2d_impl_t::find_2d_tile(
+                src, dst, max_elems_per_thr, /*match_outer=*/true);
 
         if (tile.is_empty()) return false;
 
         elems_per_thr = tile.elems();
-        int src_bytes_per_thr = elems_per_thr * src.type().size();
-        int dst_bytes_per_thr = elems_per_thr * dst.type().size();
-
-        if (src_bytes_per_thr % hword_bytes != 0) return false;
-        if (dst_bytes_per_thr % hword_bytes != 0) return false;
-
-        if (std::min(src_bytes_per_thr, dst_bytes_per_thr) < min_bytes_per_thr)
-            return false;
-        if (std::max(src_bytes_per_thr, dst_bytes_per_thr) > max_bytes_per_thr)
-            return false;
+        int bytes_per_thr = elems_per_thr * type_size;
+        if (bytes_per_thr % hword_bytes != 0) return false;
+        if (bytes_per_thr < min_bytes_per_thr) return false;
+        if (bytes_per_thr > max_bytes_per_thr) return false;
 
         return true;
     }
