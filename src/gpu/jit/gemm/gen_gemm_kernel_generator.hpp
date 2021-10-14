@@ -330,7 +330,7 @@ private:
 };
 
 struct MatrixAddressingStrategy {
-    AccessType accessType; // Block/scattered/etc. access
+    AccessType accessType = AccessType::Block; // Block/scattered/etc. access
     uint8_t tileR = 0, tileC = 0; // Desired tiling (0 if none) in registers.
     unsigned atomic : 1; // Atomic access? (only relevant for C)
     unsigned address2D : 1; // Use 2D addressing? (media block-style loads)
