@@ -1381,10 +1381,10 @@ private:
         int acc_size = int(types::data_type_size(acc_data_type));
 
         // Registers for C += A * B operation.
-        int a_bytes
-                = utils::div_up(m_thr_blk * k_thr_blk * a_size, a_sub_tiles);
-        int b_bytes
-                = utils::div_up(k_thr_blk * n_thr_blk * b_size, b_sub_tiles);
+        int a_tile_bytes = m_thr_blk * k_thr_blk * a_size;
+        int b_tile_bytes = k_thr_blk * n_thr_blk * b_size;
+        int a_bytes = utils::div_up(a_tile_bytes, a_sub_tiles);
+        int b_bytes = utils::div_up(b_tile_bytes, b_sub_tiles);
         int acc_bytes = m_thr_blk * n_thr_blk * acc_size;
 
         int a_regs = utils::div_up(a_bytes, reg_bytes);
@@ -1392,9 +1392,9 @@ private:
         int acc_regs = utils::div_up(acc_bytes, reg_bytes);
 
         int a_headers = utils::div_up(
-                a_bytes, use_a_slm ? slm_msg_bytes : a_gmem_msg_bytes);
+                a_tile_bytes, use_a_slm ? slm_msg_bytes : a_gmem_msg_bytes);
         int b_headers = utils::div_up(
-                b_bytes, use_b_slm ? slm_msg_bytes : b_gmem_msg_bytes);
+                b_tile_bytes, use_b_slm ? slm_msg_bytes : b_gmem_msg_bytes);
 
         if (fma_kind == fma_kind_t::dpasw) {
             // dpasw reuses registers between fused threads across tg0. M is
