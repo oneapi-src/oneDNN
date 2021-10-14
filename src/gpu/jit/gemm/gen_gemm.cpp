@@ -237,7 +237,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             block_n, nocopy_info_.wg[1] * nocopy_info_.unroll[1]);
     block_k = utils::rnd_up(block_k, nocopy_info_.unroll[2]);
 
-    int32_t k0 = 0;
+    int32_t k0 = 1;
     if (k_parallel) {
         k0 = block_k;
         block_k = k;
