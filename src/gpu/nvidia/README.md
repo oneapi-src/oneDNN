@@ -18,7 +18,7 @@ in-order queue when creating a stream if needed.
 
 These build instructions have been validated with the latest CUDA 11.4 toolkit and DPC++ compiler release 2021.4.0.
 In order that the correct OpenCL headers are used it is necessary to manually specify their path using the OpenCL_INCLUDE_DIR cmake variable.
-The up to date header can be found [here](https://github.com/KhronosGroup/OpenCL-Headers).
+The up to date headers can be found [here](https://github.com/KhronosGroup/OpenCL-Headers).
 
 ```bash
 $ mkdir build
@@ -34,14 +34,16 @@ $ ninja
 ```
 
 The /path/to/cuda/ for a default cuda installation is /usr/local/cuda/
+
 The /path/to/OpenCLlib/ using the 2021.4.0 DPC++ compiler release is /opt/intel/oneapi/compiler/2021.4.0/linux/lib/
+
 The /path/to/DPC++_bin/ using the 2021.4.0 DPC++ compiler release is /opt/intel/oneapi/compiler/2021.4.0/linux/bin/
 
-If you have a manual, non-packaged build of DPC++ in your home directory then it is also necessary to add -DOPENCLROOT=/path/to/OpenCLlib/ to the cmake invocation.
+If you have a manual, non-packaged build of DPC++ in your home directory, then it is also necessary to add `-DOPENCLROOT=/path/to/OpenCLlib/` to the cmake invocation.
 
 ## Running Tests
 
-If you have a manual, non-packaged build of DPC++ in your home directory then it is also necessary to add the path to the dynamic libraries from DPC++ to LD_LIBRARY_PATH:
+If you have a manual, non-packaged build of DPC++ in your home directory, then it is also necessary to add the path to the dynamic libraries from DPC++ to `LD_LIBRARY_PATH`:
 
 ```bash
 export LD_LIBRARY_PATH=/path/to/OpenCLlib/:$LD_LIBRARY_PATH
