@@ -31,13 +31,11 @@ static setting_t<int> itt_task_level {__itt_task_level_high};
 bool get_itt(__itt_task_level level) {
     if (!itt_task_level.initialized()) {
         // Assumes that all threads see the same environment
-        const int len = 2;
-        char val[len] = {2};
-        if (getenv("DNNL_ITT_TASK_LEVEL", val, len) == 1)
-            itt_task_level.set(atoi(val));
-        if (!itt_task_level.initialized()) itt_task_level.set(2);
+        static int val
+                = getenv_int("DNNL_ITT_TASK_LEVEL", itt_task_level.get());
+        itt_task_level.set(val);
     }
-    return (level <= itt_task_level.get()) ? true : false;
+    return level <= itt_task_level.get();
 }
 
 #if defined(DNNL_ENABLE_ITT_TASKS)

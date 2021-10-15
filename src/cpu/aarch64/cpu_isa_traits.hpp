@@ -88,7 +88,7 @@ struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
 template <>
 struct cpu_isa_traits<isa_all> {
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_all;
-    static constexpr const char *user_option_env = "ALL";
+    static constexpr const char *user_option_env = "all";
 };
 
 template <>
@@ -103,7 +103,7 @@ struct cpu_isa_traits<asimd> {
     static constexpr int n_vregs = 32;
     static constexpr dnnl_cpu_isa_t user_option_val
             = static_cast<dnnl_cpu_isa_t>(dnnl_cpu_isa_asimd);
-    static constexpr const char *user_option_env = "ADVANCED_SIMD";
+    static constexpr const char *user_option_env = "advanced_simd";
 };
 
 template <>
@@ -118,7 +118,7 @@ struct cpu_isa_traits<sve_512> {
     static constexpr int n_vregs = 32;
     static constexpr dnnl_cpu_isa_t user_option_val
             = static_cast<dnnl_cpu_isa_t>(dnnl_cpu_isa_sve_512);
-    static constexpr const char *user_option_env = "SVE_512";
+    static constexpr const char *user_option_env = "sve_512";
 };
 
 inline const Xbyak_aarch64::util::Cpu &cpu() {

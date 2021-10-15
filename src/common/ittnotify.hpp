@@ -33,6 +33,7 @@ typedef enum {
 struct itt_task_level_t {
     int level;
 };
+// Returns `true` if requested @p level is less or equal to internal value.
 bool get_itt(__itt_task_level level);
 void primitive_task_start(primitive_kind_t kind);
 primitive_kind_t primitive_task_get_current_kind();
