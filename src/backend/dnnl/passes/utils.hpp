@@ -86,7 +86,8 @@ public:
     status_t run(const std::vector<std::shared_ptr<op_t>> &subgraph,
             const std::string &name_suffix, bool is_layout_sensitive,
             bool is_memory_sensitive = false,
-            std::function<std::string(const value_t *)> mem_info_func = {});
+            const std::function<std::string(const value_t *)> &mem_info_func
+            = {});
 
 private:
     size_t partition_id_;

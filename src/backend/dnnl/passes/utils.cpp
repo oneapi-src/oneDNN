@@ -206,11 +206,11 @@ status_t set_given_inputs_outputs(std::vector<op_ptr> &subgraph,
 
 void set_all_layout_to_any(std::vector<op_ptr> &subgraph) {
     for (auto &cur_op : subgraph) {
-        for (auto val : cur_op->get_input_values()) {
+        for (const auto &val : cur_op->get_input_values()) {
             val->set_layout_type(impl::layout_type::any);
         }
 
-        for (auto val : cur_op->get_output_values()) {
+        for (const auto &val : cur_op->get_output_values()) {
             val->set_layout_type(impl::layout_type::any);
         }
     }
@@ -239,7 +239,7 @@ namespace {
 std::string layout2str(const dnnl::memory::desc &md) {
     std::string str;
 
-    if (md.dims().size() < 1) return "";
+    if (md.dims().empty()) return "";
 
     // format tag
     if (md.data.format_kind == dnnl_blocked) {
@@ -319,7 +319,7 @@ std::string property2str(impl::property_type_t ptype) {
 status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
         const std::string &name_suffix, bool is_layout_sensitive,
         bool is_memory_sensitive,
-        std::function<std::string(const value_t *)> mem_info_func) {
+        const std::function<std::string(const value_t *)> &mem_info_func) {
 #ifdef DNNL_GRAPH_ENABLE_DUMP
     if (!enabled_) return status::success;
 

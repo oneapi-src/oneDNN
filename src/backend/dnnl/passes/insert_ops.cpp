@@ -93,7 +93,7 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
     }
 
     for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(std::move(op));
+        subgraph.emplace_back(op);
 }
 
 void insert_permute(std::vector<op_ptr> &subgraph) {
@@ -190,7 +190,7 @@ void insert_permute(std::vector<op_ptr> &subgraph) {
         }
     }
     for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(std::move(op));
+        subgraph.emplace_back(op);
     for (const auto &op : to_be_removed_ops) {
         auto pos = std::find_if(subgraph.begin(), subgraph.end(),
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
@@ -240,7 +240,7 @@ void insert_to_group_for_conv_or_deconv(std::vector<op_ptr> &subgraph) {
             to_group_op->set_attr<bool>("is_convtranspose", true);
     }
     for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(std::move(op));
+        subgraph.emplace_back(op);
     for (const auto &op : to_be_removed_ops) {
         auto pos = std::find_if(subgraph.begin(), subgraph.end(),
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
@@ -277,7 +277,7 @@ void insert_transpose_for_matmul(std::vector<op_ptr> &subgraph) {
         cur_op->set_attr<bool>("transpose_b", false);
     }
     for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(std::move(op));
+        subgraph.emplace_back(op);
 }
 
 void insert_expand_and_squeeze_for_matmul(std::vector<op_ptr> &subgraph) {
@@ -366,7 +366,7 @@ void insert_expand_and_squeeze_for_matmul(std::vector<op_ptr> &subgraph) {
         }
     }
     for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(std::move(op));
+        subgraph.emplace_back(op);
 }
 
 void insert_u8_to_s8_for_matmul(
@@ -404,7 +404,7 @@ void insert_u8_to_s8_for_matmul(
         to_be_inserted_ops.emplace_back(u8_to_s8_op);
     }
     for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(std::move(op));
+        subgraph.emplace_back(op);
 }
 
 } // namespace dnnl_impl

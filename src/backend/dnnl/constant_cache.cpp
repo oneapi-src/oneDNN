@@ -98,11 +98,10 @@ void constant_cache_t::remove_if_exist(const key_t &key) {
     lock_write();
     if (constant_map_.count(key) == 0) {
         unlock_write();
-        return;
+    } else {
+        constant_map_.erase(key);
+        unlock_write();
     }
-    constant_map_.erase(key);
-    unlock_write();
-    return;
 }
 
 // Get the total size of all cached buffers

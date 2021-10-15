@@ -46,7 +46,7 @@ bool dnnl_layout_id_manager::is_mem_desc_equal(
 }
 
 dnnl_backend::dnnl_backend(const std::string &name, float priority)
-    : backend(std::move(name), priority) {
+    : backend(name, priority) {
     bool ret = register_op_schemas() && register_passes() && register_kernels();
     if (!ret) { throw std::runtime_error(name + " initialize failed"); }
 }

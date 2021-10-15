@@ -163,7 +163,6 @@ void split_quant_dequant(std::vector<op_ptr> &subgraph) {
                 [cur_op](const op_ptr &op) { return *cur_op == *op; });
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
-    return;
 }
 
 void fuse_output_scales(
@@ -907,10 +906,11 @@ void fuse_zero_points(
             int64_t axis = zp_op->get_attr<int64_t>("axis");
             auto zps = zp_op->get_attr<std::vector<int64_t>>("zps");
 
-            int mask = zps.size() == 1 ? 0 : 1 << axis;
-            std::vector<int32_t> int32_zps;
-            for (auto &zp : zps) {
-                int32_zps.emplace_back(static_cast<int32_t>(zp));
+            const size_t num_zps = zps.size();
+            int mask = num_zps == 1 ? 0 : 1 << axis;
+            std::vector<int32_t> int32_zps(num_zps, 0);
+            for (size_t i = 0; i < num_zps; i++) {
+                int32_zps[i] = static_cast<int32_t>(zps[i]);
             }
             prm_attr.set_zero_points(DNNL_ARG_DST, mask, int32_zps);
 
@@ -1120,8 +1120,9 @@ void conv_bwd_data_canonicalization(std::vector<op_ptr> &subgraph) {
     }
 
     for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(std::move(op));
+        subgraph.emplace_back(op);
     }
+
     for (const auto &op : to_be_removed_ops) {
         auto pos = std::find_if(subgraph.begin(), subgraph.end(),
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
