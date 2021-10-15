@@ -16,28 +16,35 @@ in-order queue when creating a stream if needed.
 
 ## Build command
 
-These build instructions have been validated with the latest CUDA 11.4 toolkit.
+These build instructions have been validated with the latest CUDA 11.4 toolkit and DPC++ compiler release 2021.4.0.
+In order that the correct OpenCL headers are used it is necessary to manually specify their path using the OpenCL_INCLUDE_DIR cmake variable.
+The up to date header can be found [here](https://github.com/KhronosGroup/OpenCL-Headers).
 
 ```bash
-mkdir build
-cd build
-cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
--DOpenCL_INCLUDE_DIR=/path/to/DPCPP/build/_deps/ocl-headers-src \
+$ mkdir build
+$ cd build
+$ cmake -DCMAKE_C_COMPILER=/path/to/DPC++_bin/clang -DCMAKE_CXX_COMPILER=/path/to/DPC++_bin/clang++ \
+-DOpenCL_INCLUDE_DIR=/path/to/OpenCL-Headers/ \
 -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP -DDNNL_GPU_VENDOR=NVIDIA \
 -DCUBLAS_LIBRARY=/path/to/cuda/lib64/libcublas.so \
--DCUBLAS_INCLUDE_DIR=/path/to/cuda/include \
--DCUDNN_INCLUDE_DIR=/path/to/cuda/include \
--G Ninja -DOPENCLROOT=/path/to/DPCPP/build/lib ..
+-DCUBLAS_INCLUDE_DIR=/path/to/cuda/include/ \
+-DCUDNN_INCLUDE_DIR=/path/to/cuda/include/ \
+-G Ninja ..
+$ ninja
 ```
 
-The default /path/to/cuda is /usr/local/cuda
+The /path/to/cuda/ for a default cuda installation is /usr/local/cuda/
+The /path/to/OpenCLlib/ using the 2021.4.0 DPC++ compiler release is /opt/intel/oneapi/compiler/2021.4.0/linux/lib/
+The /path/to/DPC++_bin/ using the 2021.4.0 DPC++ compiler release is /opt/intel/oneapi/compiler/2021.4.0/linux/bin/
+
+If you have a manual, non-packaged build of DPC++ in your home directory then it is also necessary to add -DOPENCLROOT=/path/to/OpenCLlib/ to the cmake invocation.
 
 ## Running Tests
 
-Add the path to the dynamic libraries from DPC++ to LD_LIBRARY_PATH:
+If you have a manual, non-packaged build of DPC++ in your home directory then it is also necessary to add the path to the dynamic libraries from DPC++ to LD_LIBRARY_PATH:
 
 ```bash
-export LD_LIBRARY_PATH=/path/to/DPCPP/build/lib/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/path/to/OpenCLlib/:$LD_LIBRARY_PATH
 ```
 
 Run tests:
