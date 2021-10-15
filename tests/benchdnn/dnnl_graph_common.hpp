@@ -55,6 +55,8 @@ void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res);
 void check_graph_eltwise_params(res_t *res,
         const attr_t::post_ops_t::kind_t alg, const float alpha,
         const float beta);
+float get_post_eltwise_scale(
+        const std::vector<attr_t::post_ops_t::entry_t> &post_ops) noexcept;
 dnnl::graph::logical_tensor::data_type convert_dt(
         const dnnl_data_type_t dt) noexcept;
 dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept;
@@ -330,6 +332,7 @@ struct graph_prb_t {
     bool has_post_bia() const noexcept { return has_post_bia_; }
     bool has_post_bin() const noexcept { return has_post_bin_; }
     bool has_post_sum() const noexcept { return has_post_sum_; }
+    bool has_post_eltwise() const noexcept { return has_post_eltwise_; }
 
 protected:
     std::vector<dnnl::graph::op> ops_;
@@ -341,6 +344,7 @@ protected:
     bool has_post_bia_ {false};
     bool has_post_bin_ {false};
     bool has_post_sum_ {false};
+    bool has_post_eltwise_ {false};
 
     friend struct po_handlers_t;
 };
