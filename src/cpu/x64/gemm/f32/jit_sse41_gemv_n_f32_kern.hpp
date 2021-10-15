@@ -80,7 +80,7 @@ private:
 
     // Integer register assignments
     Xbyak::Reg64 M_, N_, A_, LDA_, X_, INCX_, Y_, ALPHA_;
-    Xbyak::Reg64 A1_, A2_, X1_, Y1_, LDA3_, I_;
+    Xbyak::Reg64 A1_, A2_, Y1_, LDA3_, I_;
 
     // Vector register assignments
     Xbyak::Xmm scratch_, alpha_;
