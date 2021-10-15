@@ -541,10 +541,8 @@ jit_avx512_core_gemv_bf16bf16f32_kern::jit_avx512_core_gemv_bf16bf16f32_kern(
     A1_ = r13;
     A2_ = is_windows ? r8 : rdx;
 
-    if (!trans_)
-        Y1_ = r14;
-    else
-        X1_ = r14;
+    Y1_ = r14; // For non-transpose case.
+    X1_ = r14; // For transpose case.
 
     LDA3_ = r15;
 
@@ -590,20 +588,21 @@ jit_avx512_core_gemv_bf16bf16f32_kern::jit_avx512_core_gemv_bf16bf16f32_kern(
     arg_y_ = ptr[rsp + (args_offset + 8)];
     arg_incy_ = ptr[rsp + (args_offset + 16)]; // Assumed 1 for A non-transpose.
 
-    bf16_emu_ = nullptr;
-    if (!bfloat16_) {
-        // Those register are only used if we use bf16 convert instruction
-        // emulation.
-        gpr_ = rbp;
-        one_ = zmm24;
-        even_ = zmm25;
-        selector_ = zmm26;
+    // Those register are only used if we use bf16 convert instructions
+    // emulation.
+    gpr_ = rbp;
+    one_ = zmm24;
+    even_ = zmm25;
+    selector_ = zmm26;
 
-        zmm_tmp0_ = zmm12;
-        zmm_tmp1_ = zmm13;
+    // Temp registers for r_vdpbf16ps.
+    zmm_tmp0_ = zmm12;
+    zmm_tmp1_ = zmm13;
+
+    bf16_emu_ = nullptr;
+    if (!bfloat16_)
         bf16_emu_ = new bf16_emulation_t(
                 this, one_, even_, selector_, gpr_, zmm_tmp0_, zmm_tmp1_);
-    }
 }
 
 jit_avx512_core_gemv_bf16bf16f32_kern::
