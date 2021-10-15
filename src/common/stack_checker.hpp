@@ -280,7 +280,7 @@ private:
 
     static size_t get_stack_size() {
         static const size_t stack_size
-                = getenv_int("DNNL_SC_STACK_SIZE", 1024 * 1024 * 8);
+                = getenv_int_user("SC_STACK_SIZE", 1024 * 1024 * 8);
         if (stack_size % get_page_size() != 0) {
             printf("Stack checker: DNNL_SC_STACK_SIZE is expected to be "
                    "multiple of page size, which is %lu\n",
@@ -292,20 +292,20 @@ private:
     }
 
     static size_t get_hard_stack_limit() {
-        static const size_t hard_stack_limit = getenv_int(
-                "DNNL_SC_HARD_STACK_LIMIT", get_stack_size() / get_page_size());
+        static const size_t hard_stack_limit = getenv_int_user(
+                "SC_HARD_STACK_LIMIT", get_stack_size() / get_page_size());
         return hard_stack_limit;
     }
 
     static size_t get_soft_stack_limit() {
         // Set up the default limit of 5 pages (20480 bytes).
         static const size_t soft_stack_limit
-                = getenv_int("DNNL_SC_SOFT_STACK_LIMIT", 5);
+                = getenv_int_user("SC_SOFT_STACK_LIMIT", 5);
         return soft_stack_limit;
     }
 
     static bool is_trace_enabled() {
-        static const bool is_trace_enabled = getenv_int("DNNL_SC_TRACE", 1);
+        static const bool is_trace_enabled = getenv_int_user("SC_TRACE", 1);
         return is_trace_enabled;
     }
 

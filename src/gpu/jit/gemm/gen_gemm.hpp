@@ -343,7 +343,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         if (get_verbose() >= 2) {
             char tag_s[2] = {pd()->tag_, 0};
-            printf("dnnl_verbose,info,gpu,gemm,kernel:%dx%d,%s\n",
+            printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%s\n",
                     pd()->unroll_m_, pd()->unroll_n_, tag_s);
         }
 

@@ -63,7 +63,7 @@ namespace {
         ze_result_t res_ = (f); \
         if (res_ != ZE_RESULT_SUCCESS) { \
             if (get_verbose()) { \
-                printf("dnnl_verbose,gpu,ze_error,%d\n", (int)(res_)); \
+                printf("onednn_verbose,gpu,ze_error,%d\n", (int)(res_)); \
                 fflush(0); \
             } \
             return status::runtime_error; \
@@ -80,7 +80,7 @@ void *find_ze_symbol(const char *symbol) {
 #endif
     if (!handle) {
         if (get_verbose())
-            printf("dnnl_verbose,gpu,error,cannot find Level Zero loader "
+            printf("onednn_verbose,gpu,error,cannot find Level Zero loader "
                    "library\n");
         assert(!"not expected");
         return nullptr;
@@ -93,7 +93,7 @@ void *find_ze_symbol(const char *symbol) {
 #endif
     if (!f) {
         if (get_verbose())
-            printf("dnnl_verbose,gpu,error,cannot find symbol: %s\n", symbol);
+            printf("onednn_verbose,gpu,error,cannot find symbol: %s\n", symbol);
         assert(!"not expected");
     }
     return f;

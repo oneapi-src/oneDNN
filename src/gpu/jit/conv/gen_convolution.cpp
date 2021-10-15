@@ -142,7 +142,7 @@ public:
             // If verbose is enabled, print the primitive case and rethrow the
             // exception.
             if (get_verbose())
-                printf("dnnl_verbose,error,%s\n",
+                printf("onednn_verbose,error,%s\n",
                         primitive->pd()->info(engine));
             throw;
         }

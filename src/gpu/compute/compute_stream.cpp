@@ -78,7 +78,7 @@ status_t compute_stream_t::zero_pad(
         std::string md_fmt_str = md2fmt_str(memory->md());
         std::string md_dim_str = md2dim_str(memory->md());
 
-        printf("dnnl_verbose%s,exec,%s,%s,undef,%s,,,%s,%g\n", stamp.c_str(),
+        printf("onednn_verbose%s,exec,%s,%s,undef,%s,,,%s,%g\n", stamp.c_str(),
                 "gpu,zero_pad", zero_pad_primitive->pd()->name(),
                 md_fmt_str.c_str(), md_dim_str.c_str(), duration_ms);
 

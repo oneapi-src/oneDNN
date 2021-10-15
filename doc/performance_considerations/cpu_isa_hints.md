@@ -7,23 +7,23 @@ just-in-time (JIT) code generation to prefer or avoid certain CPU ISA features.
 ## Build-time Controls
 
 At build-time, support for this feature is controlled via cmake option
-`DNNL_ENABLE_CPU_ISA_HINTS`.
+`ONEDNN_ENABLE_CPU_ISA_HINTS`.
 
 | CMake Option                | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
-| DNNL_ENABLE_CPU_ISA_HINTS   | **ON**, OFF                         | Enables CPU ISA hints
+| ONEDNN_ENABLE_CPU_ISA_HINTS | **ON**, OFF                         | Enables CPU ISA hints
 
-This results in making oneDNN aware of DNNL_CPU_ISA_HINTS environment variable
+This results in making oneDNN aware of ONEDNN_CPU_ISA_HINTS environment variable
 and corresponding setter utility namely, @ref dnnl::set_cpu_isa_hints routine.
 
 ## Run-time Controls
 
-During run-time the DNNL_CPU_ISA_HINTS environment variable can be used to
+During run-time the ONEDNN_CPU_ISA_HINTS environment variable can be used to
 specify ISA specific hint to enable oneDNN to dispatch appropriate kernel.
 
 | Environment variable | Value            | Description
 | :---                 | :---             | :---
-| DNNL_CPU_ISA_HINTS   | NO_HINTS         | Use default configuration for ISA
+| ONEDNN_CPU_ISA_HINTS | NO_HINTS         | Use default configuration for ISA
 |                      | PREFER_YMM       | Prefer to use YMM registers for vector operations
 
 This feature can also be managed at run-time with the following functions:

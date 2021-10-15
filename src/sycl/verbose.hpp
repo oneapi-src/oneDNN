@@ -40,7 +40,7 @@ void print_verbose_header(engine_kind_t kind) {
         auto s_name = dev_info ? dev_info->name() : "unknown";
         auto s_ver = dev_info ? dev_info->runtime_version().str() : "unknown";
 
-        printf("dnnl_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
+        printf("onednn_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
                "version:%s\n",
                 s_engine_kind, (int)i, s_backend.c_str(), s_name.c_str(),
                 s_ver.c_str());

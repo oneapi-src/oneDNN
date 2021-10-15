@@ -44,5 +44,9 @@ register_exe(${TEST_EXE}_env_vars_dnnl
         "${MAIN_SRC_GTEST};${CMAKE_CURRENT_SOURCE_DIR}/test_env_vars_dnnl.cpp"
         "test" "dnnl_gtest")
 list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_env_vars_dnnl.cpp)
+register_exe(${TEST_EXE}_env_vars_onednn
+        "${MAIN_SRC_GTEST};${CMAKE_CURRENT_SOURCE_DIR}/test_env_vars_onednn.cpp"
+        "test" "dnnl_gtest")
+list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_env_vars_onednn.cpp)
 
 register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")

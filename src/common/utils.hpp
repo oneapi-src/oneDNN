@@ -573,10 +573,16 @@ inline void yield_thread() {}
 // retrieve the length of the environment variable value string.
 //
 int getenv(const char *name, char *buffer, int buffer_size);
-// Reads an integer from the environment
+// Reads an integer from the environment. For internal needs.
 int getenv_int(const char *name, int default_value = 0);
-// Reads a string literal from user environment. Always returns it lowercase.
-std::string getenv_string(const char *name);
+// Reads an integer from user environment. Takes a var name without
+// prefix and checks both supported variants - with "ONEDNN_" (primary) and
+// "DNNL_" (secondary) prefixes.
+int getenv_int_user(const char *name, int default_value = 0);
+// Reads a string literal from user environment. Takes a var name without
+// prefix and checks both supported variants - with "ONEDNN_" (primary) and
+// "DNNL_" (secondary) prefixes.
+std::string getenv_string_user(const char *name);
 
 // Various getter for profiling info
 bool get_jit_dump();

@@ -75,21 +75,22 @@ int get_verbose() {
 #else
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
-        static int val = getenv_int("DNNL_VERBOSE", verbose.get());
+        static int val = getenv_int_user("VERBOSE", verbose.get());
         verbose.set(val);
     }
 
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
     if (verbose.get() > 0 && !version_printed.test_and_set()) {
-        printf("dnnl_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
+        printf("onednn_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-        printf("dnnl_verbose,info,cpu,runtime:%s\n",
+        printf("onednn_verbose,info,cpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->cpu_runtime));
-        printf("dnnl_verbose,info,cpu,isa:%s\n", cpu::platform::get_isa_info());
+        printf("onednn_verbose,info,cpu,isa:%s\n",
+                cpu::platform::get_isa_info());
 #endif
-        printf("dnnl_verbose,info,gpu,runtime:%s\n",
+        printf("onednn_verbose,info,gpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->gpu_runtime));
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         gpu::ocl::print_verbose_header();
@@ -97,7 +98,7 @@ int get_verbose() {
 #ifdef DNNL_WITH_SYCL
         sycl::print_verbose_header();
 #endif
-        printf("dnnl_verbose,info,prim_template:");
+        printf("onednn_verbose,info,prim_template:");
         printf("%soperation,engine,primitive,implementation,prop_"
                "kind,memory_descriptors,attributes,auxiliary,problem_desc,exec_"
                "time\n",
@@ -117,7 +118,7 @@ bool get_verbose_timestamp() {
     if (!verbose_timestamp.initialized()) {
         // Assumes that all threads see the same environment
         static bool val
-                = getenv_int("DNNL_VERBOSE_TIMESTAMP", verbose_timestamp.get());
+                = getenv_int_user("VERBOSE_TIMESTAMP", verbose_timestamp.get());
         verbose_timestamp.set(val);
     }
     return verbose_timestamp.get();

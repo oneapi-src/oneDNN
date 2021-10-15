@@ -132,7 +132,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
             size_t lws = range.local_range()[i];
             if (lws > 0 && gws % lws != 0) {
                 if (get_verbose()) {
-                    printf("dnnl_verbose,gpu,error,Level Zero backend only "
+                    printf("onednn_verbose,gpu,error,Level Zero backend only "
                            "supports uniform work-groups\n");
                     fflush(0);
                 }

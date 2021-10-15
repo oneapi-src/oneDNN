@@ -93,12 +93,33 @@ int getenv_int(const char *name, int default_value) {
     return value;
 }
 
-std::string getenv_string(const char *name) {
-    std::string value;
+int getenv_int_user(const char *name, int default_value) {
+    int value = default_value;
+    // # of digits in the longest 32-bit signed int + sign + terminating null
+    const int len = 12;
+    char value_str[len];
+    for (const auto &prefix : {"ONEDNN_", "DNNL_"}) {
+        std::string name_str = std::string(prefix) + std::string(name);
+        if (getenv(name_str.c_str(), value_str, len) > 0) {
+            value = atoi(value_str);
+            break;
+        }
+    }
+    return value;
+}
+
+std::string getenv_string_user(const char *name) {
     // Random number to fit possible string input.
+    std::string value;
     const int len = 32;
     char value_str[len];
-    if (getenv(name, value_str, len) > 0) value = value_str;
+    for (const auto &prefix : {"ONEDNN_", "DNNL_"}) {
+        std::string name_str = std::string(prefix) + std::string(name);
+        if (getenv(name_str.c_str(), value_str, len) > 0) {
+            value = value_str;
+            break;
+        }
+    }
     std::transform(value.begin(), value.end(), value.begin(), ::tolower);
     return value;
 }
@@ -160,7 +181,7 @@ int32_t fetch_and_add(int32_t *dst, int32_t val) {
 static setting_t<bool> jit_dump {false};
 bool get_jit_dump() {
     if (!jit_dump.initialized()) {
-        static bool val = getenv_int("DNNL_JIT_DUMP", jit_dump.get());
+        static bool val = getenv_int_user("JIT_DUMP", jit_dump.get());
         jit_dump.set(val);
     }
     return jit_dump.get();
@@ -177,7 +198,7 @@ unsigned get_jit_profiling_flags() {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     if (!jit_profiling_flags.initialized()) {
         static unsigned val
-                = getenv_int("DNNL_JIT_PROFILE", jit_profiling_flags.get());
+                = getenv_int_user("JIT_PROFILE", jit_profiling_flags.get());
         jit_profiling_flags.set(val);
     }
     flag = jit_profiling_flags.get();
