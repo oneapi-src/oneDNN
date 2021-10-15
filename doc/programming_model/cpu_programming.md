@@ -133,7 +133,7 @@ g.add_op(end_1);
 ~~~
 
 Then by calling
-[`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1273), users can get
+[`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1272), users can get
 several partitions in topological order.
 
 ~~~cpp
@@ -167,7 +167,7 @@ flag is True, that partition is supported by oneDNN Graph backend. Otherwise,
 that partition is not supported by oneDNN Graph backend and users need to handle
 the computation by themselves.
 
-- [`is_supported()`](../../include/oneapi/dnnl/dnnl_graph.hpp#L1138)
+- [`is_supported()`](../../include/oneapi/dnnl/dnnl_graph.hpp#L1137)
 
 ~~~cpp
 // create the vector to store all compiled partitions
