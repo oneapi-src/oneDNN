@@ -88,6 +88,14 @@ void check_graph_eltwise_params(res_t *res,
     }
 }
 
+float get_post_eltwise_scale(
+        const std::vector<attr_t::post_ops_t::entry_t> &post_ops) noexcept {
+    for (const auto &po : post_ops) {
+        if (po.is_eltwise_kind()) return po.eltwise.scale;
+    }
+    return 1.f;
+}
+
 dnnl::graph::logical_tensor::data_type convert_dt(
         const dnnl_data_type_t dt) noexcept {
     using graph_dt = dnnl::graph::logical_tensor::data_type;

@@ -49,6 +49,7 @@ struct conv_graph_prb_t : public graph_prb_t {
 
         for (const attr_t::post_ops_t::entry_t &po : po_entry) {
             if (po.is_eltwise_kind()) {
+                has_post_eltwise_ = true;
                 ctor_status = handle_elt_(po);
                 if (stop_work(ctor_status)) return;
             } else if (po.is_sum_kind()) {

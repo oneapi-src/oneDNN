@@ -192,9 +192,18 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
     ops_.emplace_back(dequant_wei);
 
     if (with_qdst) {
+        float common_scale = 1.f;
+        if (has_post_eltwise()) {
+            const float post_eltwise_scale
+                    = get_post_eltwise_scale(prb->attr.post_ops.entry);
+            // benchdnn ext. need to convert post relu scale to quant scale to
+            // get same result as benchdnn primitive did
+            common_scale *= 1 / post_eltwise_scale;
+        }
+
         graph::op quant_dst(ops_.size(), graph::op::kind::Quantize,
                 {tensor_descs_[DST]}, {tensor_descs_[QDST]}, "quant");
-        quant_dst.set_attr("scales", std::vector<float> {1.f})
+        quant_dst.set_attr("scales", std::vector<float> {common_scale})
                 .set_attr("zps", dst_zero_points)
                 .set_attr<std::string>("qtype", "per_tensor")
                 .set_attr("out_type", qdst_type)
