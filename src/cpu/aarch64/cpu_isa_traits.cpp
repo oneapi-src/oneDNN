@@ -17,6 +17,7 @@
 
 #include <cstring>
 #include <mutex>
+#include <string>
 
 #include "common/utils.hpp"
 
@@ -33,11 +34,11 @@ namespace {
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
 cpu_isa_t init_max_cpu_isa() {
     cpu_isa_t max_cpu_isa_val = isa_all;
-    char buf[64];
-    if (getenv("DNNL_MAX_CPU_ISA", buf, sizeof(buf)) > 0) {
+    static std::string isa_val = getenv_string("DNNL_MAX_CPU_ISA");
+    if (!isa_val.empty()) {
 
 #define IF_HANDLE_CASE(cpu_isa) \
-    if (std::strcmp(buf, cpu_isa_traits<cpu_isa>::user_option_env) == 0) \
+    if (isa_val.compare(cpu_isa_traits<cpu_isa>::user_option_env) == 0) \
     max_cpu_isa_val = cpu_isa
 #define ELSEIF_HANDLE_CASE(cpu_isa) else IF_HANDLE_CASE(cpu_isa)
 

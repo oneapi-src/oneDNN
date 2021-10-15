@@ -194,7 +194,7 @@ struct palette_config_t {
 template <>
 struct cpu_isa_traits<isa_all> {
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_all;
-    static constexpr const char *user_option_env = "ALL";
+    static constexpr const char *user_option_env = "all";
 };
 
 template <>
@@ -204,7 +204,7 @@ struct cpu_isa_traits<sse41> {
     static constexpr int vlen = 16;
     static constexpr int n_vregs = 16;
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_sse41;
-    static constexpr const char *user_option_env = "SSE41";
+    static constexpr const char *user_option_env = "sse41";
 };
 
 template <>
@@ -214,19 +214,19 @@ struct cpu_isa_traits<avx> {
     static constexpr int vlen = 32;
     static constexpr int n_vregs = 16;
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx;
-    static constexpr const char *user_option_env = "AVX";
+    static constexpr const char *user_option_env = "avx";
 };
 
 template <>
 struct cpu_isa_traits<avx2> : public cpu_isa_traits<avx> {
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx2;
-    static constexpr const char *user_option_env = "AVX2";
+    static constexpr const char *user_option_env = "avx2";
 };
 
 template <>
 struct cpu_isa_traits<avx2_vnni> : public cpu_isa_traits<avx2> {
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx2_vnni;
-    static constexpr const char *user_option_env = "AVX2_VNNI";
+    static constexpr const char *user_option_env = "avx2_vnni";
 };
 
 template <>
@@ -240,41 +240,41 @@ struct cpu_isa_traits<avx512_common> {
 template <>
 struct cpu_isa_traits<avx512_core> : public cpu_isa_traits<avx512_common> {
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx512_core;
-    static constexpr const char *user_option_env = "AVX512_CORE";
+    static constexpr const char *user_option_env = "avx512_core";
 };
 
 template <>
 struct cpu_isa_traits<avx512_mic> : public cpu_isa_traits<avx512_common> {
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx512_mic;
-    static constexpr const char *user_option_env = "AVX512_MIC";
+    static constexpr const char *user_option_env = "avx512_mic";
 };
 
 template <>
 struct cpu_isa_traits<avx512_mic_4ops> : public cpu_isa_traits<avx512_mic> {
     static constexpr dnnl_cpu_isa_t user_option_val
             = dnnl_cpu_isa_avx512_mic_4ops;
-    static constexpr const char *user_option_env = "AVX512_MIC_4OPS";
+    static constexpr const char *user_option_env = "avx512_mic_4ops";
 };
 
 template <>
 struct cpu_isa_traits<avx512_core_vnni> : public cpu_isa_traits<avx512_core> {
     static constexpr dnnl_cpu_isa_t user_option_val
             = dnnl_cpu_isa_avx512_core_vnni;
-    static constexpr const char *user_option_env = "AVX512_CORE_VNNI";
+    static constexpr const char *user_option_env = "avx512_core_vnni";
 };
 
 template <>
 struct cpu_isa_traits<avx512_core_bf16> : public cpu_isa_traits<avx512_core> {
     static constexpr dnnl_cpu_isa_t user_option_val
             = dnnl_cpu_isa_avx512_core_bf16;
-    static constexpr const char *user_option_env = "AVX512_CORE_BF16";
+    static constexpr const char *user_option_env = "avx512_core_bf16";
 };
 
 template <>
 struct cpu_isa_traits<avx512_core_amx> {
     static constexpr dnnl_cpu_isa_t user_option_val
             = dnnl_cpu_isa_avx512_core_amx;
-    static constexpr const char *user_option_env = "AVX512_CORE_AMX";
+    static constexpr const char *user_option_env = "avx512_core_amx";
 };
 
 inline const Xbyak::util::Cpu &cpu() {

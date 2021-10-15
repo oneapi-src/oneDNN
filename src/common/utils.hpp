@@ -575,6 +575,9 @@ inline void yield_thread() {}
 int getenv(const char *name, char *buffer, int buffer_size);
 // Reads an integer from the environment
 int getenv_int(const char *name, int default_value = 0);
+// Reads a string literal from user environment. Always returns it lowercase.
+std::string getenv_string(const char *name);
+
 // Various getter for profiling info
 bool get_jit_dump();
 unsigned get_jit_profiling_flags();

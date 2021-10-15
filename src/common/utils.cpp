@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #endif
 
+#include <algorithm>
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
@@ -92,6 +93,16 @@ int getenv_int(const char *name, int default_value) {
     return value;
 }
 
+std::string getenv_string(const char *name) {
+    std::string value;
+    // Random number to fit possible string input.
+    const int len = 32;
+    char value_str[len];
+    if (getenv(name, value_str, len) > 0) value = value_str;
+    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+    return value;
+}
+
 FILE *fopen(const char *filename, const char *mode) {
 #ifdef _WIN32
     FILE *fp = NULL;
@@ -149,7 +160,8 @@ int32_t fetch_and_add(int32_t *dst, int32_t val) {
 static setting_t<bool> jit_dump {false};
 bool get_jit_dump() {
     if (!jit_dump.initialized()) {
-        jit_dump.set(!!getenv_int("DNNL_JIT_DUMP", jit_dump.get()));
+        static bool val = getenv_int("DNNL_JIT_DUMP", jit_dump.get());
+        jit_dump.set(val);
     }
     return jit_dump.get();
 }
@@ -164,8 +176,9 @@ unsigned get_jit_profiling_flags() {
     unsigned flag = 0;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     if (!jit_profiling_flags.initialized()) {
-        jit_profiling_flags.set(
-                getenv_int("DNNL_JIT_PROFILE", jit_profiling_flags.get()));
+        static unsigned val
+                = getenv_int("DNNL_JIT_PROFILE", jit_profiling_flags.get());
+        jit_profiling_flags.set(val);
     }
     flag = jit_profiling_flags.get();
 #endif
