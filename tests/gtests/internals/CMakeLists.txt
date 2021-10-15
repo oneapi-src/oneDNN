@@ -29,4 +29,20 @@ if(NOT DNNL_TARGET_ARCH STREQUAL "X64" OR DNNL_CPU_RUNTIME STREQUAL "NONE")
     list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_brgemm.cpp)
 endif()
 
+if(DNNL_ENABLE_MAX_CPU_ISA)
+    add_definitions_with_host_compiler(-DDNNL_ENABLE_MAX_CPU_ISA)
+endif()
+
+if(DNNL_ENABLE_CPU_ISA_HINTS)
+    add_definitions_with_host_compiler(-DDNNL_ENABLE_CPU_ISA_HINTS)
+endif()
+
+# Register separate test targets to preserve testing environment and allow
+# desired functionality to be tested properly since env vars are read only once
+# per binary run.
+register_exe(${TEST_EXE}_env_vars_dnnl
+        "${MAIN_SRC_GTEST};${CMAKE_CURRENT_SOURCE_DIR}/test_env_vars_dnnl.cpp"
+        "test" "dnnl_gtest")
+list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_env_vars_dnnl.cpp)
+
 register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")
