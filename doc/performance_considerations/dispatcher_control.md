@@ -9,15 +9,15 @@ debugging purposes or for performance exploration.
 ## Build-time Controls
 
 At build-time, support for this feature is controlled via cmake option
-`DNNL_ENABLE_MAX_CPU_ISA`.
+`ONEDNN_ENABLE_MAX_CPU_ISA`.
 
 | CMake Option                | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
-| DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
+| ONEDNN_ENABLE_MAX_CPU_ISA   | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
 
 ## Run-time Controls
 
-When the feature is enabled at build-time, the `DNNL_MAX_CPU_ISA` environment
+When the feature is enabled at build-time, the `ONEDNN_MAX_CPU_ISA` environment
 variable can be used to limit processor features oneDNN is able to detect to
 certain Instruction Set Architecture (ISA) and older instruction sets. It can
 also be used to enable ISAs with initial support in the library that are
@@ -25,7 +25,7 @@ otherwise disabled by default.
 
 | Environment variable | Value            | Description
 | :---                 | :---             | :---
-| DNNL_MAX_CPU_ISA     | SSE41            | Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)
+| ONEDNN_MAX_CPU_ISA   | SSE41            | Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)
 | \                    | AVX              | Intel Advanced Vector Extensions (Intel AVX)
 | \                    | AVX2             | Intel Advanced Vector Extensions 2 (Intel AVX2)
 | \                    | AVX2_VNNI        | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost)

@@ -10,25 +10,25 @@ Linux perf.
 ## Build-Time Controls
 
 At build-time, support for this feature is controlled via cmake option
-`DNNL_ENABLE_JIT_PROFILING`.
+`ONEDNN_ENABLE_JIT_PROFILING`.
 
 | CMake Option                | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
-| DNNL_ENABLE_JIT_PROFILING   | **ON**, OFF                         | Enables performance profilers integration
+| ONEDNN_ENABLE_JIT_PROFILING | **ON**, OFF                         | Enables performance profilers integration
 
 ## Run-Time Controls
 
-When the feature is enabled at build-time, the `DNNL_JIT_PROFILE` environment
+When the feature is enabled at build-time, the `ONEDNN_JIT_PROFILE` environment
 variable can be used to manage integration with performance profilers.
 
 | Environment variable | Value            | Description                                                            | x64            | AArch64
 | :---                 | :---             | :---                                                                   | :---           | :---
-| DNNL_JIT_PROFILE     | 1                | Enables VTune Amplifier integration                                    | **x(default)** | N/A
+| ONEDNN_JIT_PROFILE   | 1                | Enables VTune Amplifier integration                                    | **x(default)** | N/A
 |                      | 2                | Enables basic Linux perf integration                                   | x              | **x(default)**
 |                      | 6                | Enables Linux perf integration with JIT dump output                    | x              | x
 |                      | 14               | Enables Linux perf integration with JIT dump output and TSC timestamps | x              | N/A
 
-Other valid values for `DNNL_JIT_PROFILE` include integer values representing
+Other valid values for `ONEDNN_JIT_PROFILE` include integer values representing
 a combination of flags accepted by the @ref dnnl_set_jit_profiling_flags
 function.
 
@@ -61,22 +61,22 @@ potential performance issues.
 ##### Build-Time Controls
 
 At build-time, support for this feature is controlled via cmake option
-`DNNL_ENABLE_ITT_TASKS`.
+`ONEDNN_ENABLE_ITT_TASKS`.
 
 | CMake Option                | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
-| DNNL_ENABLE_ITT_TASKS       | **ON**, OFF                         | Enables ITT tagging for primitive execution
+| ONEDNN_ENABLE_ITT_TASKS     | **ON**, OFF                         | Enables ITT tagging for primitive execution
 
 ##### Run-Time Controls
 
-When the feature is enabled at build-time, the `DNNL_ITT_TASK_LEVEL` environment
+When the feature is enabled at build-time, the `ONEDNN_ITT_TASK_LEVEL` environment
 variable can be used to enable different level of ITT tagging.
 
-| Environment variable | Value        | Description
-| :---                 | :---         | :---
-| DNNL_ITT_TASK_LEVEL  | 0            | no ITT event will be triggered
-|                      | 1            | ITT events are only triggered in master thread
-|                      | **2**        | **ITT events are triggered in all OMP/TBB threads**
+| Environment variable  | Value        | Description
+| :---                  | :---         | :---
+| ONEDNN_ITT_TASK_LEVEL | 0            | no ITT event will be triggered
+|                       | 1            | ITT events are only triggered in master thread
+|                       | **2**        | **ITT events are triggered in all OMP/TBB threads**
 
 ## Example: Profiling with VTune Amplifier
 
@@ -101,7 +101,7 @@ tests:5 passed:5 skipped:0 mistrusted:0 unimplemented:0 failed:0 listed:0
 total perf: min(ms):72.6726 avg(ms):83.6142
 ~~~
 
-@note Here, it is not necessary to set the `DNNL_JIT_PROFILE` environment
+@note Here, it is not necessary to set the `ONEDNN_JIT_PROFILE` environment
 variable.
 
 Below are the top 10 function hotspots using the command-line interface:
@@ -222,7 +222,7 @@ current directory by setting environment variable `JITDUMPDIR` to point to the
 current directory.
 
 ~~~sh
-$ JITDUMPDIR=. DNNL_JIT_PROFILE=6 perf record -k1 ./tests/benchdnn/benchdnn --conv --mode=P mb1ic32ih14oc32oh14kh3ph1n"resnet_50:res4a_branch2b*6"
+$ JITDUMPDIR=. ONEDNN_JIT_PROFILE=6 perf record -k1 ./tests/benchdnn/benchdnn --conv --mode=P mb1ic32ih14oc32oh14kh3ph1n"resnet_50:res4a_branch2b*6"
 Output template: perf,%engine%,%name%,%desc%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%
 perf,cpu,resnet_50:res4a_branch2b*6,--conv mb1ic32ih14oc32oh14kh3ph1nresnet_50:res4a_branch2b*6,0.0032768,0,0.0131836,248.551,0.0262988,124.599
 tests:1 passed:0 skipped:0 mistrusted:0 unimplemented:0 failed:0 listed:0

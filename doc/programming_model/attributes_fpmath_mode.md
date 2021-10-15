@@ -33,12 +33,12 @@ integral.
 
 The default floating-point mode is `strict`, which means no implicit
 down-conversion is allowed.  However, this default behavior can be
-changed with the `DNNL_DEFAULT_FPMATH_MODE` environment variable, the
+changed with the `ONEDNN_DEFAULT_FPMATH_MODE` environment variable, the
 @ref dnnl_set_default_fpmath_mode (C API) or the @ref
 dnnl::set_default_fpmath_mode (C++ API) functions.
 
 @note
 For builds where Arm Compute Library is enabled, setting
-`DNNL_DEFAULT_FPMATH_MODE` to `BF16` or `ANY` will instruct Compute Library to
+`ONEDNN_DEFAULT_FPMATH_MODE` to `BF16` or `ANY` will instruct Compute Library to
 dispatch bfloat16 kernels where available, provided the hardware supports
 bfloat16 instructions. _Note: this may introduce a drop in accuracy._

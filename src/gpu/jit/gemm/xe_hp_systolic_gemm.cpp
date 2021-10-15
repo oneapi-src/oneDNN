@@ -307,7 +307,7 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
 
     if (get_verbose() >= 2) {
         char tag_s[2] = {pd()->kernel_tag(), 0};
-        printf("dnnl_verbose,info,gpu,gemm,kernel:%dx%d,%s,new:%c\n",
+        printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%s,new:%c\n",
                 pd()->unroll_m(), pd()->unroll_n(), tag_s,
                 pd()->use_new_kernels() ? 'Y' : 'N');
     }

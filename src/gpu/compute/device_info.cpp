@@ -80,7 +80,7 @@ bool device_info_t::mayiuse_ngen_kernels(engine_t *engine) {
     if (status != status::success) mayiuse_ngen_kernels_ = false;
 
     if (get_verbose())
-        printf("dnnl_verbose,info,gpu,binary_kernels:%s\n",
+        printf("onednn_verbose,info,gpu,binary_kernels:%s\n",
                 mayiuse_ngen_kernels_ ? "enabled" : "disabled");
 
     checked_ngen_kernels_ = true;

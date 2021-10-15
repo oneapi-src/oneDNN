@@ -48,7 +48,7 @@ void acl_thread_bind();
 
 #define MAYBE_REPORT_ACL_ERROR(msg) \
     do { \
-        if (get_verbose()) printf("dnnl_verbose,cpu,error,acl,%s\n", (msg)); \
+        if (get_verbose()) printf("onednn_verbose,cpu,error,acl,%s\n", (msg)); \
     } while (0)
 
 } // namespace acl_common_utils

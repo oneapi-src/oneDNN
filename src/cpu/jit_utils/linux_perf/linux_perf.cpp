@@ -106,7 +106,7 @@ private:
         auto path_len_ok = [&](const std::string &path) {
             if (path.length() >= PATH_MAX) {
                 if (get_verbose())
-                    printf("dnnl_verbose,jit_perf,error,"
+                    printf("onednn_verbose,jit_perf,error,"
                            "dump directory path '%s' is too long\n",
                             path.c_str());
                 return false;
@@ -116,7 +116,7 @@ private:
 
         auto complain = [](const std::string &path) {
             if (get_verbose())
-                printf("dnnl_verbose,jit_perf,error,"
+                printf("onednn_verbose,jit_perf,error,"
                        "cannot create dump directory '%s' (%m)\n",
                         path.c_str());
             return false;
@@ -155,7 +155,7 @@ private:
         fd_ = open(path.c_str(), O_CREAT | O_TRUNC | O_RDWR, 0666);
         if (fd_ == -1) {
             if (get_verbose())
-                printf("dnnl_verbose,jit_perf,error,"
+                printf("onednn_verbose,jit_perf,error,"
                        "cannot open jitdump file '%s' (%m)\n",
                         path.c_str());
             return false;

@@ -6,7 +6,7 @@ for some functions based on input parameters and instruction set supported
 by the system. The library provides a mechanism to save the generated code
 into a file for inspection.
 
-This behavior can be enabled with `DNNL_JIT_DUMP` environment variable
+This behavior can be enabled with `ONEDNN_JIT_DUMP` environment variable
 or @ref dnnl_set_jit_dump function.
 
 | Value           | Behavior
@@ -19,7 +19,7 @@ The function setting takes precedence over the environment variable.
 # Example (CPU)
 
 ~~~sh
-    $ DNNL_JIT_DUMP=1 ./cnn-inference-f32-cpp
+    $ ONEDNN_JIT_DUMP=1 ./cnn-inference-f32-cpp
 ~~~
 
 This will produce the following output files if running on a CPU supporting
@@ -41,7 +41,7 @@ Use any disassembler to view the code. For example:
 # Example (GPU)
 
 ~~~sh
-    $ DNNL_JIT_DUMP=1 ./simple-net-cpp gpu
+    $ ONEDNN_JIT_DUMP=1 ./simple-net-cpp gpu
 ~~~
 
 This will produce the following output files if running on Intel(R) Processor Graphics Gen9:

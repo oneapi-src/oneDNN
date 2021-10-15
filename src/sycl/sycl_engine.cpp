@@ -39,7 +39,7 @@ status_t sycl_engine_factory_t::engine_create(
                 try {
                     std::rethrow_exception(eptr);
                 } catch (const ::sycl::exception &e) {
-                    printf("dnnl_verbose,gpu,sycl_exception,%s\n", e.what());
+                    printf("onednn_verbose,gpu,sycl_exception,%s\n", e.what());
                 }
             } else {
                 std::rethrow_exception(eptr);

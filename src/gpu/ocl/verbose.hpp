@@ -39,7 +39,7 @@ void print_verbose_header() {
         auto s_name = dev_info ? dev_info->name() : "unknown";
         auto s_ver = dev_info ? dev_info->runtime_version().str() : "unknown";
 
-        printf("dnnl_verbose,info,gpu,engine,%d,name:%s,driver_version:%s\n",
+        printf("onednn_verbose,info,gpu,engine,%d,name:%s,driver_version:%s\n",
                 (int)i, s_name.c_str(), s_ver.c_str());
     }
 }

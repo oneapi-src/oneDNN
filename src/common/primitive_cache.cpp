@@ -52,7 +52,7 @@ size_t get_timestamp() {
 primitive_cache_t &primitive_cache() {
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     static const int capacity
-            = getenv_int("DNNL_PRIMITIVE_CACHE_CAPACITY", 1024);
+            = getenv_int_user("PRIMITIVE_CACHE_CAPACITY", 1024);
 #else
     static const int capacity = 0;
 #endif

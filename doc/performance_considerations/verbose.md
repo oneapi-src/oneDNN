@@ -11,24 +11,24 @@ When verbose mode is enabled oneDNN will print out information to `stdout`.
 ## Build-time Controls
 
 At build-time, support for this feature is controlled via cmake option
-`DNNL_VERBOSE`.
+`ONEDNN_VERBOSE`.
 
 | CMake Option                | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
-| DNNL_VERBOSE                | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose)
+| ONEDNN_VERBOSE              | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose)
 
 ## Run-time Controls
 
-When the feature is enabled at build-time, the `DNNL_VERBOSE` environment
+When the feature is enabled at build-time, the `ONEDNN_VERBOSE` environment
 variable can be used to turn verbose mode on and control the level of verbosity.
 
-| Environment variable   | Value | Description
-| :---                   | :---  | :---
-| DNNL_VERBOSE           | **0** | **no verbose output (default)**
-|                        | 1     | primitive information at execution
-|                        | 2     | primitive information at creation and execution
-| DNNL_VERBOSE_TIMESTAMP | **0** | **display timestamps disabled (default)**
-|                        | 1     | display timestamps enabled
+| Environment variable     | Value | Description
+| :---                     | :---  | :---
+| ONEDNN_VERBOSE           | **0** | **no verbose output (default)**
+|                          | 1     | primitive information at execution
+|                          | 2     | primitive information at creation and execution
+| ONEDNN_VERBOSE_TIMESTAMP | **0** | **display timestamps disabled (default)**
+|                          | 1     | display timestamps enabled
 
 This feature can also be managed at run-time with the following functions:
 * @ref dnnl_set_verbose
@@ -37,10 +37,10 @@ The function setting takes precedence over the environment variable.
 
 ## Example
 
-### Enable DNNL_VERBOSE
+### Enable ONEDNN_VERBOSE
 
 ~~~sh
-DNNL_VERBOSE=1 ./benchdnn --conv ic16ih7oc16oh7kh5ph2n"wip"
+ONEDNN_VERBOSE=1 ./benchdnn --conv ic16ih7oc16oh7kh5ph2n"wip"
 ~~~
 
 This produces the following output (the line breaks were added to fit the page width):
@@ -59,10 +59,10 @@ dnnl_verbose,exec,cpu,convolution,jit:avx2,forward_training,src_f32::blocked:aBc
 dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:aBcd8b:f0 dst_f32::blocked:abcd:f0,,,2x16x7x7,0.173096
 ~~~
 
-### Enable DNNL_VERBOSE with timestamps
+### Enable ONEDNN_VERBOSE with timestamps
 
 ~~~sh
-DNNL_VERBOSE=1 DNNL_VERBOSE_TIMESTAMP=1 ./benchdnn --conv ic16ih7oc16oh7kh5ph2n"wip"
+ONEDNN_VERBOSE=1 ONEDNN_VERBOSE_TIMESTAMP=1 ./benchdnn --conv ic16ih7oc16oh7kh5ph2n"wip"
 ~~~
 
 This produces the following output (the line breaks were added to fit the page width):
@@ -92,7 +92,7 @@ enabled.
 Each subsequent line of verbose information is formatted as a comma-separated
 list contains, in order of appearance in the line from left to right:
 * `dnnl_verbose` marker string
-* if `DNNL_VERBOSE_TIMESTAMP=1` is specified, start time of the call. On Linux
+* if `ONEDNN_VERBOSE_TIMESTAMP=1` is specified, start time of the call. On Linux
   this number represents amount of milliseconds since Unix epoch. On Windows
   this number represents amount of milliseconds since the last system start.
 * operation: `create:<cache_hit|cache_miss>` or `exec`
@@ -119,7 +119,7 @@ The information about a particular operation tensors has the following format:
    the \weights tensor for the int8 Winograd convolution.
 
 Please see the profiling example [here](@ref performance_profiling_cpp), as it
-uses DNNL_VERBOSE output to tune oneDNN code to align with
+uses ONEDNN_VERBOSE output to tune oneDNN code to align with
 [best practices](@ref dev_guide_inference).
 
 @note

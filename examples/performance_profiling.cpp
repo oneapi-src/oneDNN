@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -220,8 +220,8 @@ void conv_relu_naive(const memory &user_src, const memory &user_wei,
     ///
     /// *DNNL_VERBOSE output (see configuration notice\*):*
     /// ~~~sh
-    /// dnnl_verbose,exec,cpu,convolution,gemm:jit,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:abcd:f0 bia_undef::undef::f0 dst_f32::blocked:abcd:f0,,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,38.314
-    /// dnnl_verbose,exec,cpu,eltwise,jit:avx512_common,forward_inference,data_f32::blocked:abcd:f0 diff_undef::undef::f0,,alg:eltwise_relu alpha:0 beta:0,128x96x55x55,2.87695
+    /// onednn_verbose,exec,cpu,convolution,gemm:jit,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:abcd:f0 bia_undef::undef::f0 dst_f32::blocked:abcd:f0,,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,38.314
+    /// onednn_verbose,exec,cpu,eltwise,jit:avx512_common,forward_inference,data_f32::blocked:abcd:f0 diff_undef::undef::f0,,alg:eltwise_relu alpha:0 beta:0,128x96x55x55,2.87695
     /// ~~~
     /// In *Blocked format implementation*, we will incorporate the best
     /// practice of letting oneDNN determine the optimal format
@@ -352,10 +352,10 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     ///
     /// *DNNL_VERBOSE output (see configuration notice\*):*
     /// ~~~sh
-    /// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:abcd:f0 dst_f32::blocked:Acdb16a:f0,,,96x3x11x11,0.0310059
-    /// dnnl_verbose,exec,cpu,convolution,jit:avx512_common,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:Acdb16a:f0 bia_undef::undef::f0 dst_f32::blocked:aBcd16b:f0,,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,18.3101
-    /// dnnl_verbose,exec,cpu,eltwise,jit:avx512_common,forward_inference,data_f32::blocked:aBcd16b:f0 diff_undef::undef::f0,,alg:eltwise_relu alpha:0 beta:0,128x96x55x55,2.66895
-    /// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:aBcd16b:f0 dst_f32::blocked:abcd:f0,,,128x96x55x55,4.80396
+    /// onednn_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:abcd:f0 dst_f32::blocked:Acdb16a:f0,,,96x3x11x11,0.0310059
+    /// onednn_verbose,exec,cpu,convolution,jit:avx512_common,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:Acdb16a:f0 bia_undef::undef::f0 dst_f32::blocked:aBcd16b:f0,,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,18.3101
+    /// onednn_verbose,exec,cpu,eltwise,jit:avx512_common,forward_inference,data_f32::blocked:aBcd16b:f0 diff_undef::undef::f0,,alg:eltwise_relu alpha:0 beta:0,128x96x55x55,2.66895
+    /// onednn_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:aBcd16b:f0 dst_f32::blocked:abcd:f0,,,128x96x55x55,4.80396
     /// ~~~
     /// This inference implementation is closer to best practices than
     /// *naive implementation* because it uses oneDNN recommended memory
@@ -467,9 +467,9 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
     ///
     /// *DNNL_VERBOSE output (see configuration notice\*):*
     /// ~~~sh
-    /// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:abcd:f0 dst_f32::blocked:Acdb16a:f0,,,96x3x11x11,0.0148926
-    /// dnnl_verbose,exec,cpu,convolution,jit:avx512_common,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:Acdb16a:f0 bia_undef::undef::f0 dst_f32::blocked:aBcd16b:f0,post_ops:'eltwise_relu;';,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,17.968
-    /// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:aBcd16b:f0 dst_f32::blocked:abcd:f0,,,128x96x55x55,4.66797
+    /// onednn_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:abcd:f0 dst_f32::blocked:Acdb16a:f0,,,96x3x11x11,0.0148926
+    /// onednn_verbose,exec,cpu,convolution,jit:avx512_common,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:Acdb16a:f0 bia_undef::undef::f0 dst_f32::blocked:aBcd16b:f0,post_ops:'eltwise_relu;';,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,17.968
+    /// onednn_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:aBcd16b:f0 dst_f32::blocked:abcd:f0,,,128x96x55x55,4.66797
     /// ~~~
 }
 

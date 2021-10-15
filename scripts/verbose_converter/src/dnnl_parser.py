@@ -276,7 +276,7 @@ class LogParser:
                                         notification_level)
             return entry
 
-        verbose_template = "dnnl_verbose,operation,engine,primitive," + \
+        verbose_template = "onednn_verbose,operation,engine,primitive," + \
             "implementation,prop_kind,memory_descriptors,attributes," + \
             "auxiliary,problem_desc"
 
@@ -285,12 +285,12 @@ class LogParser:
             self.__raw_data.append(line.rstrip())
             l_raw = line.split(",")
             marker = l_raw[0]
-            if marker == "dnnl_verbose":
+            if marker == "onednn_verbose":
                 event = l_raw[1]
                 if event == "info":
                     opt = l_raw[2]
                     if opt == "prim_template":
-                        verbose_template = "dnnl_verbose," + line.split(':')[1]
+                        verbose_template = "onednn_verbose," + line.split(':')[1]
                 if event == "exec":
                     l_converted = convert_primitive(l_raw, verbose_template)
                     if l_converted:

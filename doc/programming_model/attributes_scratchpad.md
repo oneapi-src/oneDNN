@@ -48,9 +48,9 @@ oneDNN supports two modes for handling scratchpads:
    is the **default** behavior which enables user to not worry about the
    scratchpad at all.
    The scratchpad management policy can be configured at compile-time
-   using the DNNL_ENABLE_CONCURRENT_EXEC (@ref dev_guide_build_options)
+   using the ONEDNN_ENABLE_CONCURRENT_EXEC (@ref dev_guide_build_options)
    cmake option.
-   - When DNNL_ENABLE_CONCURRENT_EXEC=OFF (**default**), a global scratchpad
+   - When ONEDNN_ENABLE_CONCURRENT_EXEC=OFF (**default**), a global scratchpad
       memory is  shared across primitives. This mode minimizes the
       amount of memory needed for scratchpads at the application level. The global
       scratchpad is freed when all the primitives referencing it are destroyed.
@@ -60,18 +60,18 @@ oneDNN supports two modes for handling scratchpads:
       in a different thread than the one they were created in will result in
       segmentation fault. If you might execute a primitive in a thread
       different than the one it was created in, consider using
-      #dnnl::scratchpad_mode::user or DNNL_ENABLE_CONCURRENT_EXEC=ON.
-   - When DNNL_ENABLE_CONCURRENT_EXEC=ON, each primitive allocates its own
+      #dnnl::scratchpad_mode::user or ONEDNN_ENABLE_CONCURRENT_EXEC=ON.
+   - When ONEDNN_ENABLE_CONCURRENT_EXEC=ON, each primitive allocates its own
       private scratchpad memory. The scratchpad memory is freed when its
       primitive is destroyed. This mode can lead to larger memory footprint when
-      compared to DNNL_ENABLE_CONCURRENT_EXEC=OFF.
+      compared to ONEDNN_ENABLE_CONCURRENT_EXEC=OFF.
       @warning
       In this mode, primitives can be created in one thread and executed in
       another. Also, different primitives can be run concurrently.
       If the same primitive is run from two different threads concurrently,
       the library will return incorrect results.
       If you might run the same primitive in two threads concurrently, consider
-      using #dnnl::scratchpad_mode::user or DNNL_ENABLE_CONCURRENT_EXEC=OFF.
+      using #dnnl::scratchpad_mode::user or ONEDNN_ENABLE_CONCURRENT_EXEC=OFF.
 2. #dnnl::scratchpad_mode::user.
    A user provides scratchpad memory that has sufficient space at primitive
    execution (using the `DNNL_ARG_SCRATCHPAD` tag). This enables the user to

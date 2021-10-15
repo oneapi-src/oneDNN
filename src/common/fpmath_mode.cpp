@@ -26,7 +26,7 @@ static setting_t<fpmath_mode_t> default_fpmath {fpmath_mode::strict};
 void init_fpmath_mode() {
     if (default_fpmath.initialized()) return;
 
-    static std::string val = getenv_string("DNNL_DEFAULT_FPMATH_MODE");
+    static std::string val = getenv_string_user("DEFAULT_FPMATH_MODE");
     if (!val.empty()) {
         if (val.compare("strict") == 0) default_fpmath.set(fpmath_mode::strict);
         if (val.compare("bf16") == 0) default_fpmath.set(fpmath_mode::bf16);

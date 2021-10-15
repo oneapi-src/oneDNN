@@ -31,7 +31,7 @@ namespace {
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
 cpu_isa_t init_max_cpu_isa() {
     cpu_isa_t max_cpu_isa_val = isa_all;
-    static std::string isa_val = getenv_string("DNNL_MAX_CPU_ISA");
+    static std::string isa_val = getenv_string_user("MAX_CPU_ISA");
     if (!isa_val.empty()) {
 
 #define IF_HANDLE_CASE(cpu_isa) \
@@ -67,7 +67,7 @@ set_once_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
 #ifdef DNNL_ENABLE_CPU_ISA_HINTS
 dnnl_cpu_isa_hints_t init_cpu_isa_hints() {
     dnnl_cpu_isa_hints_t cpu_isa_hints_val = dnnl_cpu_isa_no_hints;
-    static std::string hints_val = getenv_string("DNNL_CPU_ISA_HINTS");
+    static std::string hints_val = getenv_string_user("CPU_ISA_HINTS");
     if (!hints_val.empty()) {
         if (hints_val.compare("prefer_ymm") == 0)
             cpu_isa_hints_val = dnnl_cpu_isa_prefer_ymm;

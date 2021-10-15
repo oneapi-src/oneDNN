@@ -45,8 +45,8 @@ def convert_dir_benchdnn2verbose(dir):
 def generate_verbose(path_to_benchdnn, driver, batch):
     benchdnn_exe = path_to_benchdnn + '/benchdnn'
     sub_env = os.environ.copy()
-    sub_env['DNNL_VERBOSE'] = '1'
-    sub_env['DNNL_PRIMITIVE_CACHE_CAPACITY'] = '0'
+    sub_env['ONEDNN_VERBOSE'] = '1'
+    sub_env['ONEDNN_PRIMITIVE_CACHE_CAPACITY'] = '0'
     sub_args = [
         benchdnn_exe, f"--{driver}", f"--mode=R", f"-v1", f"--batch={batch}"
     ]
@@ -100,7 +100,7 @@ def generate_verbose(path_to_benchdnn, driver, batch):
         # detect driver
         l_s = l.split(',')
         d = benchdnn_gen.convert_driver(l_s[3]) if len(l_s) > 3 else ''
-        if len(l_s) > 3 and l_s[0] == 'dnnl_verbose' and d == driver:
+        if len(l_s) > 3 and l_s[0] == 'onednn_verbose' and d == driver:
             # filter out additional forward calls
             verbose_prop_kind = l_s[5]
             if benchdnn_prop_kind != None and verbose_prop_kind != benchdnn_prop_kind:

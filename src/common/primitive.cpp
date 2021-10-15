@@ -97,7 +97,7 @@ status_t primitive_create(primitive_iface_t **primitive_iface,
         const char *str = p_iface.second ? "cache_hit" : "cache_miss";
         std::string stamp;
         if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
-        printf("dnnl_verbose%s,create:%s,%s,%g\n", stamp.c_str(), str,
+        printf("onednn_verbose%s,create:%s,%s,%g\n", stamp.c_str(), str,
                 p_iface.first->pd()->info(), duration_ms);
         fflush(stdout);
     } else {
@@ -128,7 +128,7 @@ status_t primitive_execute(
         std::string stamp;
         if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
 
-        printf("dnnl_verbose%s,exec,%s,%g\n", stamp.c_str(),
+        printf("onednn_verbose%s,exec,%s,%g\n", stamp.c_str(),
                 primitive_iface->pd()->info(), duration_ms);
         fflush(stdout);
     } else {
