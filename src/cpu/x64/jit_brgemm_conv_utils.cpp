@@ -1844,12 +1844,12 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         dim_t ds = jcp.copy_block_only
                 ? (brg_blocking_t::get_inp_size(jcp.idp, jcp.od_block, jcp.kd,
                            jcp.stride_d, jcp.dilate_d)
-                        + jcp.f_pad + jcp.back_pad)
+                        + nstl::max(0, jcp.f_pad) + nstl::max(0, jcp.back_pad))
                 : jcp.idp;
         dim_t hs = jcp.copy_block_only
                 ? (brg_blocking_t::get_inp_size(jcp.ihp, jcp.oh_block, jcp.kh,
                            jcp.stride_h, jcp.dilate_h)
-                        + jcp.t_pad + jcp.b_pad)
+                        + nstl::max(0, jcp.t_pad) + nstl::max(0, jcp.b_pad))
                 : jcp.ihp;
         if (jcp.is_os_blocking)
             hs = div_up(rnd_up(hs * jcp.iwp, jcp.brgM), jcp.iwp);
