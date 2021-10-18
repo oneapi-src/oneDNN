@@ -3196,14 +3196,11 @@ public:
                 break;
             }
             case op_kind_t::_mad: {
-                auto a_type = real_type(ternary->a);
-                auto b_type = real_type(ternary->b);
-                auto c_type = real_type(ternary->c);
-                bool ok = true;
-                // Allowed form: mad(dword, dword, word).
-                ok &= utils::one_of(a_type, type_t::s32(), type_t::u32());
-                ok &= utils::one_of(b_type, type_t::s32(), type_t::u32());
-                ok &= utils::one_of(c_type, type_t::s16(), type_t::u16());
+                bool ok = false;
+                if (try_int_mad(ternary))
+                    ok = true;
+                else if (try_float_mad(ternary))
+                    ok = true;
                 if (!ok) new_obj = old_obj;
                 break;
             }
@@ -3221,6 +3218,30 @@ private:
         if (int_imm_t::try_shrink_type<int32_t>(imm->value))
             return type_t::s32();
         return type_t::s64();
+    }
+
+    static bool try_int_mad(const ternary_op_t *ternary) {
+        auto a_type = real_type(ternary->a);
+        auto b_type = real_type(ternary->b);
+        auto c_type = real_type(ternary->c);
+        bool ok = true;
+        // Allowed form: mad(dword, dword, word).
+        ok &= utils::one_of(a_type, type_t::s32(), type_t::u32());
+        ok &= utils::one_of(b_type, type_t::s32(), type_t::u32());
+        ok &= utils::one_of(c_type, type_t::s16(), type_t::u16());
+        return ok;
+    }
+
+    static bool try_float_mad(const ternary_op_t *ternary) {
+        auto op_ok = [](const expr_t &e) {
+            if (is_const(e) || is_const_broadcast(e)) return false;
+            if (!e.type().is_f32()) return false;
+            return true;
+        };
+        if (!op_ok(ternary->a)) return false;
+        if (!op_ok(ternary->b)) return false;
+        if (!op_ok(ternary->c)) return false;
+        return true;
     }
 
     static bool add3_type_ok(const expr_t &e) {
