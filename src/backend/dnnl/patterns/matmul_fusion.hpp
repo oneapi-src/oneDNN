@@ -2066,7 +2066,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_sigmoid_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_fusion)
-        .set_priority(10.3f)
+        .set_priority(9.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
