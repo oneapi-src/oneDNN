@@ -352,6 +352,34 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_fusion)
                     matmul->fill_and_connect_input(1, *dequant_weight, 0);
                     quant->fill_and_connect_input(0, *matmul, 0);
                 })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *typecast_data
+                            = apattern->create_op(impl::op_kind::TypeCast);
+                    op_t *typecast_weight
+                            = apattern->create_op(impl::op_kind::TypeCast);
+                    op_t *typecast_dst
+                            = apattern->create_op(impl::op_kind::TypeCast);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    typecast_data->set_attr<bool>("out_bf16_check", true);
+                    typecast_weight->set_attr<bool>("out_bf16_check", true);
+                    typecast_dst->set_attr<bool>("in_bf16_check", true);
+                    op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
+                    typecast_data->fill_and_connect_input(0, *dequant_data, 0);
+                    typecast_weight->fill_and_connect_input(
+                            0, *dequant_weight, 0);
+                    matmul->fill_and_connect_input(0, *typecast_data, 0);
+                    matmul->fill_and_connect_input(1, *typecast_weight, 0);
+                    typecast_dst->fill_and_connect_input(0, *matmul, 0);
+                    quant->fill_and_connect_input(0, *typecast_dst, 0);
+                })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
@@ -387,7 +415,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_matmul_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
-        .set_priority(9.9f)
+        .set_priority(10.5f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
@@ -420,6 +448,34 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
                     bias->fill_and_connect_input(0, *matmul, 0);
                     quant->fill_and_connect_input(0, *bias, 0);
                 })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *typecast_data
+                            = apattern->create_op(impl::op_kind::TypeCast);
+                    op_t *typecast_weight
+                            = apattern->create_op(impl::op_kind::TypeCast);
+                    op_t *typecast_dst
+                            = apattern->create_op(impl::op_kind::TypeCast);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    typecast_data->set_attr<bool>("out_bf16_check", true);
+                    typecast_weight->set_attr<bool>("out_bf16_check", true);
+                    typecast_dst->set_attr<bool>("in_bf16_check", true);
+                    op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
+                    typecast_data->fill_and_connect_input(0, *dequant_data, 0);
+                    typecast_weight->fill_and_connect_input(
+                            0, *dequant_weight, 0);
+                    matmul->fill_and_connect_input(0, *typecast_data, 0);
+                    matmul->fill_and_connect_input(1, *typecast_weight, 0);
+                    typecast_dst->fill_and_connect_input(0, *matmul, 0);
+                    quant->fill_and_connect_input(0, *typecast_dst, 0);
+                })
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
@@ -429,7 +485,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, int8_quant_wei_matmul_bias_fusion)
-        .set_priority(10.0f)
+        .set_priority(10.6f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *dequant_data
