@@ -31,6 +31,10 @@ struct EmulationStrategy {
     bool emulateDWxDW = false;
     // Use 32-bit adds for 64-bit arithmetic, assuming no 2^32 boundaries crossed.
     bool emulate64_add32 = false;
+    // Emulate DW x DW -> QW multiplication (XeHPC)
+    bool emulate64_mul = false;
+    // Emulate QW and/or/xor operations (XeHPC)
+    bool emulate64_logic = false;
 
     EmulationStrategy() = default;
     EmulationStrategy(ngen::HW hw_) {
@@ -39,6 +43,11 @@ struct EmulationStrategy {
         if (hw_ >= HW::Gen11) emulateDWxDW = true;
         if (hw_ == HW::Gen12LP) emulate64 = true;
         if (hw_ == HW::XeHPG) emulate64 = true;
+        // The line below applies to Xe HPC XT B0 and beyond.
+        // if (hw_ == HW::XeHPC) emulate64_mul = emulate64_logic = true;
+
+        // Xe HPC XT A0 only supports QW mov/shifts/rotate.
+        if (hw_ == HW::XeHPC) emulate64 = true;
     }
 };
 
@@ -227,7 +236,7 @@ struct EmulationImplementation {
         bool s0Q = isQW(src0);
 
         if ((dstQ || s0Q) && strategy.emulate64) {
-            if (dstQ != s0Q) stub();
+            if (!dstQ) stub();
 
             RegData dstHi, dstLo;
             Immediate s0Hi = 0, s0Lo = 0;
@@ -508,6 +517,7 @@ struct EmulationImplementation {
         auto mulHiType = (s0Signed || s1Signed) ? DataType::d : DataType::ud;
 
         bool emulate64 = strategy.emulate64;
+        emulate64 |= strategy.emulate64_mul;
 
         if (mod.getExecSize() != 1) stub();
 

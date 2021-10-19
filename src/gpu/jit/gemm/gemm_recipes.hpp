@@ -50,6 +50,12 @@ static gemm_recipe_t::extra_t make_crosspack(int a, int b) {
     result.bCP = b;
     return result;
 }
+static gemm_recipe_t::extra_t make_align(int a, int b) {
+    gemm_recipe_t::extra_t result;
+    result.aAlign = a;
+    result.bAlign = b;
+    return result;
+}
 } // namespace
 
 // clang-format off
@@ -198,6 +204,37 @@ const gemm_recipe_t gemm_recipes[] = {
     {ngen::HW::XeHP, "BBS", "TTN", {}, 8,  32, "sb16 sb16 as cab1 wg 4x4 cs pab", {}, {}},              // DLRM
     {ngen::HW::XeHP, "HHH", "NNN", {}, 32, 16, "ab16/8 as16 ab l4 cab1 wg 4x4 cs di", {}, 'A'},         // BERT
     {ngen::HW::XeHP, "HHH", "NNN", {}, 32, 16, "ab8 ab16 ab l4 ca1 wg 2x8 cs di", {}, 'B'},             // BERT
+    {ngen::HW::XeHPC, "SSS", "NNN", {}, 64, 16, "ab2x2 ab16+s1,32@3 ab cs di wg 2x16 hi sn bk4096", {}, {}},
+    {ngen::HW::XeHPC, "SSS", "NTN", {}, 32, 32, "ab4/2x2 ab4x2 ab cs di wg 4x8 bk2048", {}, {}},
+    {ngen::HW::XeHPC, "SSS", "TNN", {}, 32, 32, "au8 au8 ab cs di wg 4x8 hi bk1536", {}, {}},
+    {ngen::HW::XeHPC, "SSS", "TTN", {}, 16, 64, "ab16+s1,32@3 ab2x2 as cs di wg 16x2 hi sm bk4096", {}, {}},
+    {ngen::HW::XeHPC, "HHS", "ABN", make_crosspack(2, 16), 64, 32, "ab16+b16@3 ab16+b16@3 ab cs di sys grf256 af hi wg 4x8", {}, {}},
+    {ngen::HW::XeHPC, "HHS", "NNN", make_align(64, 64), 64, 32, "av16+v16@2 am16+m16@2 ab sys wg 4x4 k64 grf256", {}, {}},
+    {ngen::HW::XeHPC, "HHS", "NTN", make_align(64, 64), 64, 32, "av16x2+v16@2 av16+v16@2 ab sys wg 4x4 k64 cb1 grf256", {}, {}},
+    {ngen::HW::XeHPC, "HHS", "TNN", make_align(64, 64), 64, 32, "at16x2+t16@2 am16x2+m16@2 ab sys wg 4x4 k64 grf256", {}, {}},
+    {ngen::HW::XeHPC, "HHS", "TTN", make_align(64, 64), 32, 64, "am16x2+m16@2 av16x2+v16@2 au sys wg 4x4 k64 grf256", {}, {}},
+    {ngen::HW::XeHPC, "HHS", "NNN", {}, 48, 32, "ab16 ab16 ab sys grf256 cab2 wg 4x4 sn l4", {}, {}},
+    {ngen::HW::XeHPC, "HHS", "NTN", {}, 48, 32, "ab16 as16 ab sys grf256 cab2 wg 4x4 l4", {}, {}},
+    {ngen::HW::XeHPC, "HHS", "TNN", {}, 48, 32, "as16 ab16 ab sys grf256 cab2 wg 4x4 sn l4", {}, {}},
+    {ngen::HW::XeHPC, "HHS", "TTN", {}, 48, 32, "as16 as16 ab sys grf256 cab2 wg 4x4 l4", {}, {}},
+    {ngen::HW::XeHPC, "BBS", "ABN", make_crosspack(2, 16), 64, 32, "ab16+b16@3 ab16+b16@3 ab cs di sys grf256 af hi wg 4x8", {}, {}},
+    {ngen::HW::XeHPC, "BBS", "NNN", make_align(64, 64), 64, 32, "av16+v16@2 am16+m16@2 ab sys wg 4x4 k64 grf256", {}, {}},
+    {ngen::HW::XeHPC, "BBS", "NTN", make_align(64, 64), 64, 32, "av16x2+v16@2 av16+v16@2 ab sys wg 4x4 k64 cb1 grf256", {}, {}},
+    {ngen::HW::XeHPC, "BBS", "TNN", make_align(64, 64), 64, 32, "at16x2+t16@2 am16x2+m16@2 ab sys wg 4x4 k64 grf256", {}, {}},
+    {ngen::HW::XeHPC, "BBS", "TTN", make_align(64, 64), 32, 64, "am16x2+m16@2 av16x2+v16@2 au sys wg 4x4 k64 grf256", {}, {}},
+    {ngen::HW::XeHPC, "BBS", "NNN", {}, 48, 32, "ab16 ab16 ab sys grf256 cab2 wg 4x4 sn l4", {}, {}},
+    {ngen::HW::XeHPC, "BBS", "NTN", {}, 48, 32, "ab16 as16 ab sys grf256 cab2 wg 4x4 l4", {}, {}},
+    {ngen::HW::XeHPC, "BBS", "TNN", {}, 48, 32, "as16 ab16 ab sys grf256 cab2 wg 4x4 sn l4", {}, {}},
+    {ngen::HW::XeHPC, "BBS", "TTN", {}, 48, 32, "as16 as16 ab sys grf256 cab2 wg 4x4 l4", {}, {}},
+    {ngen::HW::XeHPC, "OOI", "ABN", make_crosspack(4, 32), 64, 32, "ab32+b32@3 ab32+b32@3 ab cs di sys grf256 af hi wg 4x8", {}, {}},
+    {ngen::HW::XeHPC, "OOI", "NNN", make_align(64, 64), 64, 32, "av32+v32@2 am32+m32@2 ab sys wg 4x4 k128 grf256", {}, {}},
+    {ngen::HW::XeHPC, "OOI", "NTN", make_align(64, 64), 64, 32, "av32x2+v32@2 av32+v32@2 ab sys wg 4x4 k128 cb1 grf256", {}, {}},
+    {ngen::HW::XeHPC, "OOI", "TNN", make_align(64, 64), 64, 32, "at32x2+t32@2 am32x2+m32@2 ab sys wg 4x4 k128 grf256", {}, {}},
+    {ngen::HW::XeHPC, "OOI", "TTN", make_align(64, 64), 32, 64, "am32x2+m32@2 av32x2+v32@2 au sys wg 4x4 k128 grf256", {}, {}},
+    {ngen::HW::XeHPC, "OOI", "NNN", {}, 48, 24, "ab32 ab32 ab sys grf256 cab2 wg 4x4 sn ek l4", {}, {}},
+    {ngen::HW::XeHPC, "OOI", "NTN", {}, 48, 16, "ab32 as32 ab sys grf256 cab2 wg 4x4 ek l4", {}, {}},
+    {ngen::HW::XeHPC, "OOI", "TNN", {}, 48, 32, "as32 ab32 ab sys grf256 cab2 wg 4x4 sn ek l4", {}, {}},
+    {ngen::HW::XeHPC, "OOI", "TTN", {}, 48, 32, "as32 as32 ab sys grf256 cab2 wg 4x4 ek l4", {}, {}},
 };
 // clang-format on
 

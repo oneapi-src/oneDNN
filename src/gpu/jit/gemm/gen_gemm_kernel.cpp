@@ -56,6 +56,9 @@ AccessType get_access_type(char c) {
         case 'b': return AccessType::Block;
         case 's': return AccessType::Scattered;
         case 'u': return AccessType::ChannelScattered;
+        case 'm': return AccessType::Block2D;
+        case 't': return AccessType::Block2DTranspose;
+        case 'v': return AccessType::Block2DVNNI;
     }
 }
 
@@ -65,6 +68,11 @@ ngen::AddressBase get_address_base(char c) {
         case 'a': return ngen::AddressBase::createA64(true);
         case 's': return ngen::AddressBase::createBTS(0);
     }
+}
+
+bool is_block_2d(AccessType t) {
+    return utils::one_of(t, AccessType::Block2D, AccessType::Block2DTranspose,
+            AccessType::Block2DVNNI);
 }
 
 } // anonymous namespace
@@ -81,6 +89,7 @@ status_t gen_gemm_kernel_t::complete_strategy() {
 
     problem_.nonuniformWGs = false;
     problem_.fused = (hw_ >= HW::XeLP);
+    problem_.fused &= (hw_ != HW::XeHPC);
     strategy_.emulate = EmulationStrategy(hw_);
     strategy_.checkAdd32 = strategy_.emulate.emulate64;
     strategy_.spf = !problem_.fused;
@@ -188,6 +197,30 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
     strategy_.B_prefetch.accessType = get_access_type(accessBPrefetch);
     strategy_.C_prefetch.accessType = get_access_type(accessCPrefetch);
 
+    strategy_.A.cachingR = ngen::CacheSettingsLSC::L1C_L3C;
+    strategy_.B.cachingR = ngen::CacheSettingsLSC::L1C_L3C;
+    strategy_.C.cachingR = ngen::CacheSettingsLSC::L1C_L3C;
+    strategy_.C.cachingW = ngen::CacheSettingsLSC::L1WB_L3WB;
+
+    strategy_.A.newDP = strategy_.B.newDP = strategy_.C.newDP
+            = strategy_.A_prefetch.newDP = strategy_.B_prefetch.newDP
+            = strategy_.C_prefetch.newDP = (hw_ >= HW::XeHPC);
+
+    strategy_.A.address2D |= is_block_2d(strategy_.A.accessType);
+    strategy_.B.address2D |= is_block_2d(strategy_.B.accessType);
+    strategy_.C.address2D |= is_block_2d(strategy_.C.accessType);
+    strategy_.A_prefetch.address2D
+            |= is_block_2d(strategy_.A_prefetch.accessType);
+    strategy_.B_prefetch.address2D
+            |= is_block_2d(strategy_.B_prefetch.accessType);
+    strategy_.C_prefetch.address2D
+            |= is_block_2d(strategy_.C_prefetch.accessType);
+
+    if (is_block_2d(strategy_.A.accessType))
+        strategy_.remHandling[LoopM] = RemainderHandling::General;
+    if (is_block_2d(strategy_.B.accessType))
+        strategy_.remHandling[LoopN] = RemainderHandling::General;
+
     while (!s.eof()) {
         std::string mod;
         s >> mod;
@@ -227,11 +260,13 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
         else if (mod == "sc")
             strategy_.splitCopy = true;
         else if (mod == "sm")
-            strategy_.slmMBlockSplit = true;
+            strategy_.coopA = CoopSplit::MN;
         else if (mod == "sn")
-            strategy_.slmNBlockSplit = true;
+            strategy_.coopB = CoopSplit::MN;
         else if (mod == "ek")
             strategy_.slmEarlyKMask = true;
+        else if (mod == "af")
+            strategy_.atomicFMA = true;
         else if (mod == "pab")
             problem_.A.padded = problem_.B.padded = true;
         else if (mod == "nmk") {
@@ -337,6 +372,11 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
     if (strategy_.kb_load_masked == 0)
         strategy_.kb_load_masked = strategy_.kb_load;
 
+    if (strategy_.ka_pfStride == 0)
+        strategy_.ka_pfStride = strategy_.ka_prefetch;
+    if (strategy_.kb_pfStride == 0)
+        strategy_.kb_pfStride = strategy_.kb_prefetch;
+
     strategy_.preflight(hw_, problem_);
 
     return status::success;
@@ -434,6 +474,12 @@ cl_kernel gen_gemm_kernel_t::get_kernel(
             ocl_kernel = generator.getKernel(context, device);
             break;
         }
+        case HW::XeHPC: {
+            gemm_kernel_generator_t<HW::XeHPC> generator;
+            generator.gemm(problem_, strategy_, interface_);
+            ocl_kernel = generator.getKernel(context, device);
+            break;
+        }
         default: assert(!"Unsupported architecture"); break;
     }
 
@@ -451,6 +497,7 @@ struct align_req_t {
     int a, b, c;
 
     constexpr align_req_t() : a(1), b(1), c(1) {}
+    constexpr align_req_t(int a_, int b_, int c_) : a(a_), b(b_), c(c_) {}
 };
 
 struct kernel_table_t {
@@ -716,6 +763,102 @@ const kernel_table_t *xe_hp_bf16_nocopy_tables[2][2] = {
     {xe_hp_bf16_nocopy_tn_table, xe_hp_bf16_nocopy_tt_table}
 };
 
+const kernel_table_t xe_hpc_f16_nocopy_nn_table[] = {
+    {{64, 32}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 32}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t xe_hpc_f16_nocopy_nt_table[] = {
+    {{64, 32}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 32}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t xe_hpc_f16_nocopy_tn_table[] = {
+    {{64, 32}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 32}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t xe_hpc_f16_nocopy_tt_table[] = {
+    {{32, 64}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 32}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t *xe_hpc_f16_nocopy_tables[2][2] = {
+    {xe_hpc_f16_nocopy_nn_table, xe_hpc_f16_nocopy_nt_table},
+    {xe_hpc_f16_nocopy_tn_table, xe_hpc_f16_nocopy_tt_table}
+};
+
+const kernel_table_t xe_hpc_f32_nocopy_nn_table[] = {
+    {{64, 16}, {-1, -1}, {0, 0}, {}, {}}
+};
+
+const kernel_table_t xe_hpc_f32_nocopy_nt_table[] = {
+    {{32, 32}, {-1, -1}, {0, 0}, {}, {}}
+};
+
+const kernel_table_t xe_hpc_f32_nocopy_tn_table[] = {
+    {{32, 32}, {-1, -1}, {0, 0}, {}, {}}
+};
+
+const kernel_table_t xe_hpc_f32_nocopy_tt_table[] = {
+    {{16, 64}, {-1, -1}, {0, 0}, {}, {}}
+};
+
+const kernel_table_t *xe_hpc_f32_nocopy_tables[2][2] = {
+    {xe_hpc_f32_nocopy_nn_table, xe_hpc_f32_nocopy_nt_table},
+    {xe_hpc_f32_nocopy_tn_table, xe_hpc_f32_nocopy_tt_table}
+};
+
+const kernel_table_t xe_hpc_x8_nocopy_nn_table[] = {
+    {{64, 32}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 24}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t xe_hpc_x8_nocopy_nt_table[] = {
+    {{64, 32}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 16}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t xe_hpc_x8_nocopy_tn_table[] = {
+    {{64, 32}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 32}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t xe_hpc_x8_nocopy_tt_table[] = {
+    {{32, 64}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 32}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t *xe_hpc_x8_nocopy_tables[2][2] = {
+    {xe_hpc_x8_nocopy_nn_table, xe_hpc_x8_nocopy_nt_table},
+    {xe_hpc_x8_nocopy_tn_table, xe_hpc_x8_nocopy_tt_table}
+};
+
+const kernel_table_t xe_hpc_bf16_nocopy_nn_table[] = {
+    {{64, 32}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 32}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t xe_hpc_bf16_nocopy_nt_table[] = {
+    {{64, 32}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 32}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t xe_hpc_bf16_nocopy_tn_table[] = {
+    {{64, 32}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 32}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t xe_hpc_bf16_nocopy_tt_table[] = {
+    {{32, 64}, { 0,  0}, {0,  0}, {64, 64, 1}, {}},
+    {{48, 32}, {-1, -1}, {0,  0}, {},          {}}
+};
+
+const kernel_table_t *xe_hpc_bf16_nocopy_tables[2][2] = {
+    {xe_hpc_bf16_nocopy_nn_table, xe_hpc_bf16_nocopy_nt_table},
+    {xe_hpc_bf16_nocopy_tn_table, xe_hpc_bf16_nocopy_tt_table}
+};
+
 // clang-format on
 
 } // anonymous namespace
@@ -729,17 +872,19 @@ void gen_gemm_nocopy_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
     unroll_m = unroll_n = 1;
 
     using tables_t = decltype(gen9_f32_nocopy_tables);
-    const tables_t *all_tables[4][3]
-            = {{&gen9_f32_nocopy_tables, &xe_lp_f32_nocopy_tables,
-                       &xe_hp_f32_nocopy_tables},
-                    {&gen9_f16_nocopy_tables, &xe_lp_f16_nocopy_tables,
-                            &xe_hp_f16_nocopy_tables},
-                    {&gen9_bf16_nocopy_tables, &xe_lp_bf16_nocopy_tables,
-                            &xe_hp_bf16_nocopy_tables},
-                    {&gen9_x8_nocopy_tables, &xe_lp_x8_nocopy_tables,
-                            &xe_hp_x8_nocopy_tables}};
+    const tables_t *all_tables[4][4] = {
+            {&gen9_f32_nocopy_tables, &xe_lp_f32_nocopy_tables,
+                    &xe_hp_f32_nocopy_tables, &xe_hpc_f32_nocopy_tables},
+            {&gen9_f16_nocopy_tables, &xe_lp_f16_nocopy_tables,
+                    &xe_hp_f16_nocopy_tables, &xe_hpc_f16_nocopy_tables},
+            {&gen9_bf16_nocopy_tables, &xe_lp_bf16_nocopy_tables,
+                    &xe_hp_bf16_nocopy_tables, &xe_hpc_bf16_nocopy_tables},
+            {&gen9_x8_nocopy_tables, &xe_lp_x8_nocopy_tables,
+                    &xe_hp_x8_nocopy_tables, &xe_hpc_x8_nocopy_tables}};
+
     // clang-format off
     int arch_idx = (arch == compute::gpu_arch_t::xe_lp) ? 1
+                 : (arch == compute::gpu_arch_t::xe_hpc) ? 3
                  : (arch >= compute::gpu_arch_t::xe_hp) ? 2
                  : 0;
     int type_idx = (c_type == data_type::f16) ? 1
@@ -792,17 +937,29 @@ void gen_gemm_nocopy_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
     tag = table->tag;
 }
 
-void gen_gemm_xehp_systolic_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
+void gen_gemm_xe_systolic_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
         int eu_count, data_type_t a_type, data_type_t b_type,
         data_type_t c_type, dim_t m, dim_t n, dim_t k, dim_t batch,
         int &unroll_m, int &unroll_n, char &tag) {
-    if (unroll_m == 0) unroll_m = 32;
-    if (unroll_n == 0) unroll_n = (m * n >= 6144 * eu_count) ? 48 : 32;
 
-    if (unroll_n == 32)
-        tag = '\0';
-    else
-        tag = (m * n >= 13824 * eu_count) ? 'B' : 'A';
+    switch (arch) {
+        case compute::gpu_arch_t::xe_hp:
+        case compute::gpu_arch_t::xe_hpg:
+            if (unroll_m == 0) unroll_m = 32;
+            if (unroll_n == 0) unroll_n = (m * n >= 6144 * eu_count) ? 48 : 32;
+
+            if (unroll_n == 32)
+                tag = '\0';
+            else
+                tag = (m * n >= 13824 * eu_count) ? 'B' : 'A';
+            break;
+        case compute::gpu_arch_t::xe_hpc:
+            unroll_m = 64;
+            unroll_n = 32;
+            tag = 0;
+            break;
+        default: assert(!"Unsupported architecture.");
+    }
 }
 
 } // namespace jit

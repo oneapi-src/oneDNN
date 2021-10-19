@@ -28,6 +28,7 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
+#include "gpu/jit/jit_post_op_injector.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -145,10 +146,13 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (!ok) return status::unimplemented;
 
-            ok &= utils::one_of(arch_, arch_t::gen9, arch_t::xe_lp,
-                    arch_t::xe_hp, arch_t::xe_hpg);
+            ok &= utils::one_of(arch_, arch_t::gen9, arch_t::xe_lp
+
+                    ,
+                    arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc);
 
             bool int8_ok = arch_ < arch_t::xe_hp;
+            int8_ok |= (arch_ == arch_t::xe_hpc && !ab_zp_);
 
             // int8 not enabled on Xe_HP/Xe_HPG for now. bf16 only enabled on Xe_HP+.
             ok &= IMPLICATION(utils::one_of(d->a_type(), s8, u8), int8_ok);
@@ -331,7 +335,11 @@ struct gen_gemm_t : public gpu_gemm_t {
         auto co_type = pd()->with_bias() ? d->bias_type() : c_type;
         auto acc_type = c_type;
 
-        if (acc_type == data_type::bf16) acc_type = data_type::f32;
+        if (acc_type == data_type::bf16)
+            acc_type = data_type::f32;
+        else if (pd()->arch_ == compute::gpu_arch_t::xe_hpc
+                && acc_type == data_type::f16)
+            acc_type = data_type::f32;
 
         if (get_verbose() >= 2) {
             char tag_s[2] = {pd()->tag_, 0};

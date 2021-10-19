@@ -22,7 +22,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/jit/gemm/gemm_walk_orders.hpp"
 #include "gpu/jit/ngen_type_bridge.hpp"
-#include "gpu/ocl/gemm/xe_hp_systolic_gemm_copy_kernel.hpp"
+#include "gpu/ocl/gemm/xe_systolic_gemm_copy_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -98,7 +98,9 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
 
     if (dt_int_ok) attr_skip_mask |= smask_t::zero_points_runtime;
 
-    bool arch_ok = (arch == arch_t::xe_hp) | (arch == arch_t::xe_hpg);
+    bool arch_ok = (arch == arch_t::xe_hp);
+    arch_ok |= (arch == arch_t::xe_hpg);
+    arch_ok |= (arch == arch_t::xe_hpc);
 
     ok = true && limits_ok && (dt_float_ok || dt_int_ok) && arch_ok
             && compute_engine->mayiuse(compute::device_ext_t::
@@ -186,7 +188,7 @@ bool xe_hp_systolic_gemm_t::pd_t::use_fma() {
 
 bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     using namespace format_tag;
-    using new_kernel_t = gen_gemm_xehp_systolic_kernel_t;
+    using new_kernel_t = gen_gemm_xe_systolic_kernel_t;
 
     auto sz = types::data_type_size(dt);
     const auto &d = desc();
@@ -209,6 +211,11 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
                                          : ((sz == 2) ? AB32a16b : AB32a32b);
     format_tag_t unpacked_tag = batch ? abc : ab;
 
+    if (arch == compute::gpu_arch_t::xe_hpc) {
+        a_packed_tag = batch ? ((sz == 2) ? aCB4c8b16c2b : aCB4c8b16c4b)
+                             : ((sz == 2) ? BA4b8a16b2a : BA4b8a16b4a);
+    }
+
     bool a_prepacked = a_mdw.matches_tag(a_packed_tag);
     bool bc_prepacked_32 = b_mdw.matches_tag(b_packed_tag_32)
             || c_mdw.matches_tag(b_packed_tag_32);
@@ -228,6 +235,7 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
         unroll_n_ = 48;
 
     use_new_kernels_ = !c_prepacked && !with_ab_zero_points() && (d->k() >= 64);
+    use_new_kernels_ |= (arch >= compute::gpu_arch_t::xe_hpc);
 
     new_kernel_t::choose_unrolls(arch, dev_info_->eu_count(), d->a_type(),
             d->b_type(), d->c_type(), d->m(), d->n(), d->k(), d->batch(),
@@ -317,19 +325,18 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
             if (clear_sum && !pd()->with_ab_zero_points()) continue;
             if (!copy_b ? pd()->packed_a() : pd()->packed_b()) continue;
 
+            using copy_kernel_t = ocl::xe_systolic_gemm_copy_kernel_t;
             compute::kernel_ctx_t kernel_ctx;
 
             auto trans
                     = !copy_b ? pd()->desc()->transa() : pd()->desc()->transb();
-            auto status
-                    = ocl::xe_hp_systolic_gemm_copy_kernel_t::init_kernel_ctx(
-                            kernel_ctx, !copy_b ? a_type : b_type,
-                            pd()->unroll_n(), copy_b, trans,
-                            pd()->with_ab_zero_points(), clear_sum);
+            auto status = copy_kernel_t::init_kernel_ctx(kernel_ctx, arch_,
+                    !copy_b ? a_type : b_type, pd()->unroll_n(), copy_b, trans,
+                    pd()->with_ab_zero_points(), clear_sum);
             if (status != status::success) return status;
 
             create_kernel(engine, &copy_kernel_[copy_b][clear_sum],
-                    "xe_hp_systolic_gemm_copy", kernel_ctx);
+                    copy_kernel_t::name(arch_), kernel_ctx);
             if (!copy_kernel_[copy_b][clear_sum]) return status::runtime_error;
         }
     }
@@ -450,7 +457,7 @@ status_t xe_hp_systolic_gemm_t::init_compute_old(engine_t *engine) {
 }
 
 status_t xe_hp_systolic_gemm_t::init_compute_new(engine_t *engine) {
-    using kernel_t = gen_gemm_xehp_systolic_kernel_t;
+    using kernel_t = gen_gemm_xe_systolic_kernel_t;
     using offset_t = kernel_t::offset_t;
 
     auto a_type = pd()->desc()->a_type();
@@ -621,7 +628,7 @@ status_t xe_hp_systolic_gemm_t::launch_copy(const gemm_exec_ctx_t &ctx,
         int64_t ld_src, const memory_storage_t &dst, int32_t offset_dst,
         int32_t ld_dst, bool copyb) const {
 
-    using copy_kernel_t = ocl::xe_hp_systolic_gemm_copy_kernel_t;
+    using copy_kernel_t = ocl::xe_systolic_gemm_copy_kernel_t;
 
     if (pd()->with_ab_zero_points()) {
         auto status
@@ -660,10 +667,12 @@ status_t xe_hp_systolic_gemm_t::launch_copy(const gemm_exec_ctx_t &ctx,
 
     auto elt_size = types::data_type_size(pd()->desc()->a_type());
     size_t r_threads = utils::div_up(utils::rnd_up(r, align_r),
-            copy_kernel_t::unroll_r(elt_size, pd()->unroll_n(), copyb, trans));
+            copy_kernel_t::unroll_r(
+                    arch_, elt_size, pd()->unroll_n(), copyb, trans));
     size_t c_threads = utils::div_up(utils::rnd_up(c, align_c),
-            copy_kernel_t::unroll_c(elt_size, pd()->unroll_n(), copyb, trans));
-    size_t sg = copy_kernel_t::subgroup_size(elt_size, copyb, trans);
+            copy_kernel_t::unroll_c(
+                    arch_, elt_size, pd()->unroll_n(), copyb, trans));
+    size_t sg = copy_kernel_t::subgroup_size(arch_, elt_size, copyb, trans);
 
     size_t r_lsz = trans ? 1 : 16;
     size_t c_lsz = trans ? 16 : 1;
@@ -703,8 +712,8 @@ status_t xe_hp_systolic_gemm_t::launch_clear_sum(const gemm_exec_ctx_t &ctx,
     auto elt_size = types::data_type_size(pd()->desc()->a_type());
     size_t threads = !copyb ? utils::div_up(r, pd()->unroll_m())
                             : utils::div_up(c, pd()->unroll_n());
-    size_t sg = ocl::xe_hp_systolic_gemm_copy_kernel_t::subgroup_size_clear_sum(
-            elt_size, copyb);
+    size_t sg = ocl::xe_systolic_gemm_copy_kernel_t::subgroup_size_clear_sum(
+            arch_, elt_size, copyb);
 
     size_t gws[3] = {threads * sg, 1, 1};
     size_t lws[3] = {sg, 1, 1};
