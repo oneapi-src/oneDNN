@@ -210,6 +210,29 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
             op->get_output_value(0)->get_logical_tensor());
 
     dilations = get_compatible_dilates(dilations, src.dims().size());
+
+    // infer dnnl expilicit pad
+    dims new_pads_end(pads_end);
+    bool adj_pad = false;
+    std::string rounding_type = "floor";
+    if (op->has_attr("rounding_type")) {
+        rounding_type = op->get_attr<std::string>("rounding_type");
+    }
+    if (rounding_type == "ceil") {
+        dims src_sp = src.dims();
+        src_sp.erase(src_sp.begin(), src_sp.begin() + 2);
+        dims output_sp = dst.dims();
+        output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
+        for (size_t i = 0; i < kernel.size(); ++i) {
+            dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
+            if (op->get_kind() == impl::op_kind::AvgPool) dilated += 1;
+            dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
+                    - src_sp[i] - pads_begin[i];
+            new_pads_end[i] = cur_pads_end;
+        }
+        adj_pad = true;
+    }
+
     algorithm algo = algorithm::undef;
     if (op->get_kind() == impl::op_kind::MaxPool
             || (op->get_kind() == op_kind::dnnl_pool
@@ -219,8 +242,9 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
             || (op->get_kind() == op_kind::dnnl_pool
                     && op->get_attr<std::string>("kind") == "avgpool")) {
         const bool exclude_pad = op->get_attr<bool>("exclude_pad");
-        algo = exclude_pad ? algorithm::pooling_avg_exclude_padding
-                           : algorithm::pooling_avg_include_padding;
+        algo = (exclude_pad || adj_pad)
+                ? algorithm::pooling_avg_exclude_padding
+                : algorithm::pooling_avg_include_padding;
     } else {
         BACKEND_DNNL_ENFORCE(
                 0, "Currently only int8 MaxPool/AvgPool is supported.");
@@ -228,7 +252,7 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
 
     dnnl::pooling_v2_forward::primitive_desc pd(
             {prop_kind::forward_inference, algo, src, dst, strides, kernel,
-                    dilations, pads_begin, pads_end},
+                    dilations, pads_begin, new_pads_end},
             prm_attr, p_engine);
 
     pd_cache.insert({op.get(), pd});

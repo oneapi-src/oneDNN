@@ -24,6 +24,7 @@ set(API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_stream.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_version.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_compile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_add_op.cpp

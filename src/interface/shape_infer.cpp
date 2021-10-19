@@ -586,6 +586,8 @@ status_t infer_pool_output_shape(op_t *n,
             infer_auto_pad(src_sp[i], strides[i], kernel[i], dilations[i],
                     auto_pad, new_pads_begin[i], new_pads_end[i]);
         }
+        n->set_attr("pads_begin", new_pads_begin);
+        n->set_attr("pads_end", new_pads_end);
     }
 
     dims output_sp;
@@ -600,17 +602,6 @@ status_t infer_pool_output_shape(op_t *n,
         }
         output_sp.push_back(out_value);
     }
-
-    if (rounding_type == "ceil") {
-        for (size_t i = 0; i < src_sp.size(); ++i) {
-            dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
-            dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
-                    - src_sp[i] - pads_begin[i];
-            new_pads_end[i] = cur_pads_end;
-        }
-    }
-    n->set_attr("pads_begin", new_pads_begin);
-    n->set_attr("pads_end", new_pads_end);
 
     dims out_shape = make_data_dims(
             src_format, in0.get_src_n(), in0.get_src_c(src_format), output_sp);

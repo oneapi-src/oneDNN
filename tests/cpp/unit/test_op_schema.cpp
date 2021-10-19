@@ -1504,22 +1504,6 @@ TEST(op_schema_test, maxpool_ceil_mode) {
                     = compute_dense_strides(expected_out_shape);
             EXPECT_EQ(infered_out_strides, expected_out_strides);
         }
-
-        auto infered_pads_begin
-                = pool_op.get_attr<std::vector<int64_t>>("pads_begin");
-        auto infered_pads_end
-                = pool_op.get_attr<std::vector<int64_t>>("pads_end");
-
-        if (rounding_type == "ceil") {
-            const std::vector<int64_t> expected_pads_begin = {0, 0};
-            const std::vector<int64_t> expected_pads_end = {1, 1};
-            EXPECT_EQ(infered_pads_begin, expected_pads_begin);
-            EXPECT_EQ(infered_pads_end, expected_pads_end);
-        } else { // rounding_type = floor
-            const std::vector<int64_t> expected_pads = {0, 0};
-            EXPECT_EQ(infered_pads_begin, expected_pads);
-            EXPECT_EQ(infered_pads_end, expected_pads);
-        }
     }
 }
 
