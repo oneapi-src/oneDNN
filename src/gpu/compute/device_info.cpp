@@ -38,6 +38,7 @@ uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
     switch (gpu_arch) {
         case gpu_arch_t::xe_hp:
         case gpu_arch_t::xe_hpg:
+        case gpu_arch_t::xe_hpc:
             extensions |= (uint64_t)device_ext_t::intel_global_float_atomics;
             extensions |= (uint64_t)
                     device_ext_t::intel_subgroup_matrix_multiply_accumulate;
@@ -63,6 +64,7 @@ inline gpu_arch_t str2gpu_arch(const char *str) {
     CASE(xe_lp);
     CASE(xe_hp);
     CASE(xe_hpg);
+    CASE(xe_hpc);
     return gpu_arch_t::unknown;
 #undef CASE
 }
@@ -87,7 +89,10 @@ bool device_info_t::mayiuse_ngen_kernels(engine_t *engine) {
 }
 
 bool device_info_t::mayiuse_sub_group(int size) const {
-    return utils::one_of(size, 8, 16, 32);
+    switch (gpu_arch()) {
+        case gpu_arch_t::xe_hpc: return utils::one_of(size, 16, 32);
+        default: return utils::one_of(size, 8, 16, 32);
+    }
 }
 
 status_t device_info_t::init_attributes_common(engine_t *engine) {
@@ -105,6 +110,9 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     // Assumption is that HT is likely enabled on client systems.
     llc_cache_size_ = std::thread::hardware_concurrency() * (1 << 20);
 
+    // Runtimes return XeHP-equivalent EU count instead of true EU count on XeHPC.
+    if (gpu_arch_ == gpu::compute::gpu_arch_t::xe_hpc) eu_count_ /= 2;
+
     // Assume 7 threads by default
     int32_t threads_per_eu[2] = {7, 7};
     switch (gpu_arch_) {
@@ -115,6 +123,7 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
             break;
         case gpu::compute::gpu_arch_t::xe_hp:
         case gpu::compute::gpu_arch_t::xe_hpg:
+        case gpu::compute::gpu_arch_t::xe_hpc:
             threads_per_eu[0] = 8; // 128 regs/thread
             threads_per_eu[1] = 4; // 256 regs/thread
             break;
@@ -126,7 +135,8 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
 
     max_eus_per_wg_ = 8;
     switch (gpu_arch_) {
-        case gpu::compute::gpu_arch_t::gen9: max_eus_per_wg_ = 8; break;
+        case gpu::compute::gpu_arch_t::gen9:
+        case gpu::compute::gpu_arch_t::xe_hpc: max_eus_per_wg_ = 8; break;
         case gpu::compute::gpu_arch_t::xe_lp:
         case gpu::compute::gpu_arch_t::xe_hp:
         case gpu::compute::gpu_arch_t::xe_hpg: max_eus_per_wg_ = 16; break;

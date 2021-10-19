@@ -38,6 +38,7 @@ enum class gpu_arch_t {
     xe_lp,
     xe_hp,
     xe_hpg,
+    xe_hpc,
 };
 
 enum class device_ext_t : uint64_t {

@@ -113,6 +113,9 @@ public:
     bool is_xe_hpg() const {
         return device_info_->gpu_arch() == gpu_arch_t::xe_hpg;
     }
+    bool is_xe_hpc() const {
+        return device_info_->gpu_arch() == gpu_arch_t::xe_hpc;
+    }
     bool mayiuse_ngen_kernels() {
         return device_info_->mayiuse_ngen_kernels(this);
     }

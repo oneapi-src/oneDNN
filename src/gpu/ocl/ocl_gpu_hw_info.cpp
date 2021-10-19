@@ -34,6 +34,7 @@ void init_gpu_hw_info(cl_device_id device, cl_context context,
         case HW::XeLP: gpu_arch = compute::gpu_arch_t::xe_lp; break;
         case HW::XeHP: gpu_arch = compute::gpu_arch_t::xe_hp; break;
         case HW::XeHPG: gpu_arch = compute::gpu_arch_t::xe_hpg; break;
+        case HW::XeHPC: gpu_arch = compute::gpu_arch_t::xe_hpc; break;
         default: gpu_arch = compute::gpu_arch_t::unknown; break;
     }
 }
