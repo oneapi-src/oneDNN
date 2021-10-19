@@ -341,6 +341,7 @@ private:
 
     bool try_convert_to_dpasw(
             dpas_info_t &a, dpas_info_t &b, grf_permutator_t &grf_perm) {
+        if (hw_ >= ngen::HW::XeHPC) return false;
 
         // Check if DPAS -> DPASW transformation is possible.
         if (!can_convert_to_dpasw(a, b)) return false;
@@ -422,6 +423,7 @@ private:
     }
 
     bool try_convert_to_dpasw(dpas_info_t &a, grf_permutator_t &grf_perm) {
+        if (hw_ >= ngen::HW::XeHPC) return false;
         if (!can_convert_to_dpasw(a, find_send_info(a.send_producer), tg_idx0_))
             return false;
 
@@ -3593,7 +3595,8 @@ private:
         using namespace ngen_proxy;
         bool is_atomic = (atomic_op_ != AtomicOp::undef);
         Access access_type = (is_load_ ? Access::Read : Access::Write);
-        bool use_stateful_msgs = is_atomic;
+        // TODO: use stateless access on XeHPC until driver fix
+        bool use_stateful_msgs = is_atomic && hw_ < ngen::HW::XeHPC;
         AddressModel address_model
                 = (is_slm() ? AddressModel::ModelSLM
                             : use_stateful_msgs ? AddressModel::ModelBTS

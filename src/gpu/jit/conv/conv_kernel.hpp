@@ -966,6 +966,8 @@ public:
         setDefaultAutoSWSB(true);
 
         bool use_a64 = false;
+        // XXX: Stateful messages don't work on XeHPC.
+        use_a64 = (hw == ngen::HW::XeHPC);
 
         prologue();
 
@@ -1086,6 +1088,8 @@ public:
         setDefaultAutoSWSB(true);
 
         bool use_a64 = false;
+        // XXX: Stateful messages don't work on XeHPC.
+        use_a64 = (hw == ngen::HW::XeHPC);
 
         prologue();
 
@@ -1606,9 +1610,7 @@ struct atomic_helper_t<DataSpecT,
 // Helper to emit send instructions.
 class send_impl_t {
 public:
-    send_impl_t(ngen::HW hw, const send_t &send) : hw_(hw), send_(send) {
-        MAYBE_UNUSED(hw_);
-    }
+    send_impl_t(ngen::HW hw, const send_t &send) : hw_(hw), send_(send) {}
 
     template <typename GeneratorT, typename T>
     void emit(GeneratorT *host, ngen_register_scope_t &scope,
@@ -1665,6 +1667,11 @@ private:
             const ngen::RegData &addr, const ngen::RegData &data) {
         bool is_atomic = (atomic_op != ngen_proxy::AtomicOp::undef);
 
+        if (hw_ == ngen::HW::XeHPC) {
+            if (maybe_promote_to_lsc(host, mod, data, spec, base, addr)) {
+                return;
+            }
+        }
         ir_assert(!send_.is_prefetch) << "Prefetches are not supported.";
 
         if (is_read) {
@@ -1679,6 +1686,38 @@ private:
             }
         }
     }
+
+    template <typename GeneratorT, typename DataSpecT>
+    bool maybe_promote_to_lsc(GeneratorT *host,
+            const ngen::InstructionModifier &mod, const ngen::RegData &data,
+            const DataSpecT &spec, const ngen::AddressBase &base,
+            const ngen::RegData &addr) {
+        if (send_.is_atomic()) return false;
+        if (!send_.is_a64()) return false;
+        if (send_.type != message_type_t::block) return false;
+        if (send_.slots != 1) return false;
+
+        int size = send_.size();
+
+        int lsc_data_size = 4; // Use D32.
+        int lsc_vector_size = size / lsc_data_size;
+        if (lsc_data_size * lsc_vector_size != size) return false;
+
+        if (send_.is_read()) {
+            host->load.ugm(1 | mod, data,
+                    ngen::block(ngen::DataSizeLSC::D32, lsc_vector_size)
+                            | ngen::CacheSettingsLSC::L1C_L3C,
+                    host->A64, addr);
+        } else {
+            host->store.ugm(1 | mod,
+                    ngen::block(ngen::DataSizeLSC::D32, lsc_vector_size)
+                            | ngen::CacheSettingsLSC::L1WB_L3WB,
+                    host->A64, addr, data);
+        }
+
+        return true;
+    }
+
     ngen::HW hw_;
     const send_t &send_;
 };
@@ -2373,7 +2412,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         int step = (width < 16 ? 8 : 16);
 
         // f32 -> bf16 or f32 -> f16: SIMD16 does not support mixed mode move.
-        if (f_to_xf) step = std::min(step, 8);
+        if (hw < ngen::HW::XeHPC)
+            if (f_to_xf) step = std::min(step, 8);
 
         // Max supported stride is 4.
         if (src_stride > 4 || dst_stride > 4) step = 1;

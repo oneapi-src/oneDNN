@@ -40,6 +40,7 @@ static size_t icache_size(ngen::HW arch) {
         case gpu_xe_lp: return 48 * 1024;
         case gpu_xe_hp: return 48 * 1024;
         case gpu_xe_hpg: return 96 * 1024;
+        case gpu_xe_hpc: return 80 * 1024;
         default: return 0;
     }
 }
@@ -79,6 +80,10 @@ compute::kernel_t make_kernel(
             break;
         case gpu_arch_t::xe_hpg:
             jit_kernel = make_generator<KernelT, gpu_xe_hpg>(
+                    std::forward<ArgsT>(args)...);
+            break;
+        case gpu_arch_t::xe_hpc:
+            jit_kernel = make_generator<KernelT, gpu_xe_hpc>(
                     std::forward<ArgsT>(args)...);
             break;
         default: break;

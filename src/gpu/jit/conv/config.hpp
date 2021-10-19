@@ -242,8 +242,11 @@ public:
         if (ic < 16 && !is_dpas_fma() && !is_dw) return status::unimplemented;
 
         auto &src_md = *conv_pd->invariant_src_md();
+        auto &dst_md = *conv_pd->invariant_dst_md();
         bool is_src_nhwc = (orig_src_mdw().is_plain()
                 && src_layout == make_layout(src_md, "axb"));
+        bool is_dst_nhwc = (orig_dst_mdw().is_plain()
+                && dst_layout == make_layout(dst_md, "axb"));
         // Set dispatch and kernel parameters.
         if (is_dw) {
             g_tg_blk = (is_int8_dst() ? 32 : 16);
@@ -299,6 +302,7 @@ public:
                     ? (mb < 16 ? std::min(utils::div_up(mb, mb_thr_blk), 4) : 4)
                     : 1;
             oc_thr_blk = 32;
+            if (hw >= ngen::HW::XeHPC && !is_small_ic()) oc_thr_blk = 64;
             oc_thr_dim = std::min(4, utils::div_up(oc, oc_thr_blk));
             oc_thr_dim = (1 << math::ilog2q(oc_thr_dim));
             if (is_small_ic()) {
@@ -406,9 +410,16 @@ public:
 
         regs = hw <= ngen::HW::XeLP ? 128 : 256;
 
+        // XXX: in case of nhwc or small mb allow reorders on XeHPC
+        // since A/B tile loads may be strided
+        if (hw >= ngen::HW::XeHPC
+                && (mb_thr_blk == 1 || is_src_nhwc || is_dst_nhwc))
+            allow_grf_reorder = true;
+
         if (mb >= 16) {
             // Large batch performance is slightly behind for some cases.
             bool large_batch_ok = false;
+            if (hw >= ngen::HW::XeHPC) large_batch_ok = true;
             if (is_src_nhwc) large_batch_ok = true;
             // TODO: Fix issues with mb zero padding
             if (is_small_ic() && mb % 16 == 0) large_batch_ok = true;
@@ -427,6 +438,7 @@ public:
         // Set dispatch and kernel parameters.
         mb_thr_blk = (mb < 16 ? 1 : 32);
         ic_thr_blk = 32;
+        if (hw >= ngen::HW::XeHPC) ic_thr_blk = 64;
         iw_thr_blk = (mb < 16 ? 16 : 1);
         if (iw < iw_thr_blk) iw_thr_blk = 8;
 
@@ -496,12 +508,22 @@ public:
         if (!try_reduce_grf_usage()) return status::unimplemented;
 
         auto &src_md = *conv_pd->invariant_src_md();
+        auto &dst_md = *conv_pd->invariant_dst_md();
 
         // Validate layouts.
         bool is_src_nhwc = (orig_src_mdw().is_plain()
                 && src_layout == make_layout(src_md, "axb"));
-        // Blocked large batch performance is slightly behind.
-        if (!is_src_nhwc && mb >= 16) return status::unimplemented;
+        bool is_dst_nhwc = (orig_dst_mdw().is_plain()
+                && dst_layout == make_layout(dst_md, "axb"));
+        // XXX: in case of nhwc or small mb allow reorders on XeHPC
+        // since A/B tile loads may be strided
+        if (hw >= ngen::HW::XeHPC
+                && (mb_thr_blk == 1 || is_src_nhwc || is_dst_nhwc))
+            allow_grf_reorder = true;
+
+        if (hw < ngen::HW::XeHPC)
+            // Blocked large batch performance is slightly behind.
+            if (!is_src_nhwc && mb >= 16) return status::unimplemented;
 
         return status::success;
     }
@@ -523,6 +545,7 @@ public:
             ow_thr_blk = mb < 16 ? std::min(16, utils::rnd_up_pow2(ow)) : 1;
         } else if (is_dpas_fma()) {
             oc_thr_blk = (oc <= 16 ? 16 : 32);
+            if (hw >= ngen::HW::XeHPC) oc_thr_blk = (oc <= 16 ? 16 : 64);
             // Value required due to blocking in dpas data format
             int min_ic_thr_blk = is_s32_accumulator() ? 4 : 2;
             ic_thr_blk = (ic <= 16
@@ -552,9 +575,23 @@ public:
 
         kw_tg_dim = utils::div_up(kw, kw_blk);
 
+        int max_oc_thr_dim = 4;
+        int max_ic_thr_dim = 4;
+
+        // Prefer larger thread groups when possible on XeHPC.
+        if (hw >= ngen::HW::XeHPC) {
+            if (oc / oc_thr_blk >= 8) {
+                max_oc_thr_dim = 8;
+            } else {
+                max_ic_thr_dim = 8;
+            }
+        }
+
         regs = 256;
-        tg_grid_dim[0] = std::min(4, utils::div_up(oc, oc_thr_blk));
-        tg_grid_dim[1] = std::min(4, utils::div_up(ic, ic_thr_blk));
+        tg_grid_dim[0]
+                = std::min(max_oc_thr_dim, utils::div_up(oc, oc_thr_blk));
+        tg_grid_dim[1]
+                = std::min(max_ic_thr_dim, utils::div_up(ic, ic_thr_blk));
         tg_grid_dim[2] = 1;
 
         // Round down to a power of 2.
@@ -602,7 +639,7 @@ public:
 
         // Set BWD_W-specific settings.
         do_b_reduction = with_bias;
-        do_loop_unroll = false;
+        do_loop_unroll = (hw >= ngen::HW::XeHPC && is_dpas_fma() && mb_blk > 1);
         allow_grf_reorder = is_dpas_fma();
         zero_out_output = true;
         do_atomic_update = true;
@@ -639,8 +676,10 @@ public:
         od_tg_blk = 1;
         oh_tg_blk = 1;
         ow_tg_blk = ow_thr_blk;
+        bool are_small_large_channels
+                = (std::min(ic, oc) <= 64 && std::max(ic, oc) >= 256);
         int sp_min_blk = 24;
-        int sp_max_blk = 64;
+        int sp_max_blk = (are_small_large_channels ? 100 : 50);
 
         auto get_score = [&](int oh_blk, int ow_blk) {
             int sp_blk = oh_blk * ow_blk;
@@ -652,9 +691,27 @@ public:
             // ohw_eff == 0: no useful computation
             // ohw_eff == 1: all computation is useful
             double ohw_eff = 1 - std::min(extra_work, 1.0);
-            int score = int(ohw_eff * 1000);
+            int score = int(ohw_eff * 10000);
+
             // Prefer [sp_min_blk; sp_max_blk] range for the total spatial size.
-            if (sp_blk >= sp_min_blk && sp_blk <= sp_max_blk) score += 100;
+            bool sp_size_ok = (sp_blk >= sp_min_blk && sp_blk <= sp_max_blk);
+
+            if (hw >= ngen::HW::XeHPC) {
+                bool sp_block_ok = false;
+                // Avoid OH blocking when OW blocking is enabled and big enough (to
+                // avoid code explosion due after mandatory unrolling of inner
+                // iterations). Exception: when OH/OW are fully blocked - even with
+                // code explosion such blocks may give the best performance.
+                sp_block_ok |= (oh_blk == 1 || ow_blk <= 2);
+                sp_block_ok |= (oh_blk == oh && ow_blk == ow);
+                if (sp_size_ok && sp_block_ok) {
+                    double sp_range = sp_max_blk - sp_min_blk;
+                    double sp_score = (sp_blk - sp_min_blk) / sp_range * 100;
+                    score += sp_score;
+                }
+            } else if (sp_size_ok) {
+                score += 100;
+            }
             return score;
         };
 
@@ -1001,6 +1058,7 @@ private:
             case gpu_arch_t::xe_lp: hw = ngen::HW::XeLP; break;
             case gpu_arch_t::xe_hp: hw = ngen::HW::XeHP; break;
             case gpu_arch_t::xe_hpg: hw = ngen::HW::XeHPG; break;
+            case gpu_arch_t::xe_hpc: hw = ngen::HW::XeHPC; break;
             default: return status::unimplemented;
         }
         return status::success;
@@ -1103,7 +1161,8 @@ private:
         std::string wei_tag;
         std::string dst_tag;
 
-        const bool is_wei16aXb = false;
+        const bool is_wei16aXb = hw >= ngen::HW::XeHPC;
+        assert(hw != ngen::HW::Unknown);
         bool is_mb_block = mb >= 16;
 
         // Src/Dst buffers should generally be the same format to avoid reorders
@@ -1264,7 +1323,7 @@ private:
         using namespace ir_utils;
 
         use_prefetch = true;
-        prefetch_bufs = 3;
+        prefetch_bufs = is_bwd_w ? 2 : 3;
 #ifdef GEN_CONV_DEBUG
         use_prefetch = getenv_bool("use_prefetch", use_prefetch);
         prefetch_bufs = getenv_int("prefetch_bufs", prefetch_bufs);
@@ -1289,6 +1348,7 @@ private:
         if (reuse_headers) do_loop_unroll = false;
 
         bool prefer_prefetch = false;
+        if (hw >= ngen::HW::XeHPC) prefer_prefetch = true;
 
         if (use_preload) {
             // Prefetches are only supported with loop unrolling.
@@ -1330,6 +1390,8 @@ private:
         int n_thr_blk = utils::div_up(n_tg_blk, tg_grid_dim[0]);
         int max_b_sub_tiles
                 = std::min((use_b_slm ? 4 : 2), n_thr_blk / simd_size);
+        // XXX: avoid layout mismatch for B loads
+        if (hw >= ngen::HW::XeHPC && is_bwd_w) max_b_sub_tiles = 2;
         while (b_sub_tiles < max_b_sub_tiles) {
             b_sub_tiles *= 2;
             int regs = estimate_register_count();

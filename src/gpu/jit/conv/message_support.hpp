@@ -124,7 +124,10 @@ public:
                 if (data_elems == 16 && !is_slm()) return false;
                 if (data_type == type_t::hword()) {
                     if (is_slm()) return false;
-                    if (is_write()) { return false; }
+                    if (is_write()) {
+                        if (hw == ngen::HW::XeHPC) return true;
+                        return false;
+                    }
                 }
                 return true;
             }
@@ -137,7 +140,8 @@ public:
                 // Only byte was tested with load/store.
                 if (!is_atomic() && (data_type != type_t::byte())) return false;
                 if (is_atomic() && data_elems > 1) return false;
-                if (is_atomic() && is_a64() && (slots != 8)) return false;
+                if (hw < ngen::HW::XeHPC)
+                    if (is_atomic() && is_a64() && (slots != 8)) return false;
                 return true;
             }
             default: ir_error_not_expected();
@@ -164,7 +168,11 @@ public:
 
     mask_granularity_t mask_granularity() const {
         switch (type) {
-            case message_type_t::block: return mask_granularity_t::per_dword;
+            case message_type_t::block:
+                if (hw >= ngen::HW::XeHPC)
+                    return mask_granularity_t::per_slot;
+                else
+                    return mask_granularity_t::per_dword;
             case message_type_t::scattered:
             case message_type_t::atomic: return mask_granularity_t::per_slot;
             default: ir_error_not_expected();
@@ -182,7 +190,10 @@ public:
     int mask_count() const {
         switch (type) {
             case message_type_t::block:
-                return std::min(16, block_size() / int(sizeof(uint32_t)));
+                if (hw >= ngen::HW::XeHPC)
+                    return slots;
+                else
+                    return std::min(16, block_size() / int(sizeof(uint32_t)));
             case message_type_t::scattered:
             case message_type_t::atomic: return slots;
             default: ir_error_not_expected();

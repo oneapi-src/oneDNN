@@ -45,7 +45,10 @@ fma_kind_t fma_kind::from_string(std::string enum_string) {
 fma_kind_t fma_kind::get_supported_kind(
         ngen::HW hw, const type_t &a, const type_t &b, const type_t &c) {
     if (hw >= ngen::HW::XeHP && dpas_t::matches_types(hw, a, b, c)) {
-        return fma_kind_t::dpasw;
+        if (hw >= ngen::HW::XeHPC)
+            return fma_kind_t::dpas;
+        else
+            return fma_kind_t::dpasw;
     }
     if (mad_t::matches_types(hw, a, b, c)) return fma_kind_t::mad;
     return fma_kind_t::unknown;
@@ -55,7 +58,7 @@ int fma_kind::get_simd_size(ngen::HW hw, const fma_kind_t kind, const type_t &a,
         const type_t &b, const type_t &c) {
     switch (kind) {
         case fma_kind_t::dpasw:
-        case fma_kind_t::dpas: return 8;
+        case fma_kind_t::dpas: return hw >= ngen::HW::XeHPC ? 16 : 8;
         case fma_kind_t::mad: return mad_t::get_simd_size(a, b, c);
         default: return 0;
     }
