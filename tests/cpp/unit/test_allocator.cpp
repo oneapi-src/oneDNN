@@ -16,7 +16,13 @@
 
 #include <gtest/gtest.h>
 
+#include <mutex>
+#include <thread>
+
 #include "interface/allocator.hpp"
+#include "interface/c_types_map.hpp"
+
+#include "utils.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
@@ -107,5 +113,79 @@ TEST(allocator_test, sycl_allocator) {
             }
         }
     }
+}
+#endif
+
+#ifndef NDEBUG
+TEST(allocator_test, monitor) {
+    using namespace dnnl::graph::impl;
+
+    const size_t temp_size = 1024, persist_size = 512;
+
+    allocator_t alloc;
+    std::vector<void *> persist_bufs;
+    std::mutex m;
+
+    auto callee = [&]() {
+        // allocate persistent buffer
+        void *p_buf = alloc.allocate(persist_size,
+                allocator_t::attribute {allocator_lifetime::persistent, 4096});
+        {
+            std::lock_guard<std::mutex> lock(m);
+            persist_bufs.emplace_back(p_buf);
+        }
+
+        // allocate temporary buffer
+        void *t_buf = alloc.allocate(temp_size,
+                allocator_t::attribute {allocator_lifetime::temp, 4096});
+        for (size_t i = 0; i < temp_size; i++) {
+            char *ptr = (char *)t_buf + i;
+            *ptr = *ptr + 2;
+        }
+        // deallocate temporary buffer
+        alloc.deallocate(t_buf);
+    };
+
+    // single thread
+    for (size_t iter = 0; iter < 4; iter++) {
+        allocator_t::monitor_t::reset_peak_temp_memory(&alloc);
+        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(&alloc), 0);
+
+        callee(); // call the callee to do memory operation
+
+        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(&alloc),
+                temp_size);
+        ASSERT_EQ(allocator_t::monitor_t::get_total_persist_memory(&alloc),
+                persist_size * (iter + 1));
+    }
+
+    for (auto p_buf : persist_bufs) {
+        alloc.deallocate(p_buf);
+    }
+    persist_bufs.clear();
+
+    // multiple threads
+    auto thread_func = [&]() {
+        allocator_t::monitor_t::reset_peak_temp_memory(&alloc);
+        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(&alloc), 0);
+        callee();
+        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(&alloc),
+                temp_size);
+    };
+
+    std::thread t1(thread_func);
+    std::thread t2(thread_func);
+
+    t1.join();
+    t2.join();
+
+    // two threads allocated persist buffer
+    ASSERT_EQ(allocator_t::monitor_t::get_total_persist_memory(&alloc),
+            persist_size * 2);
+
+    for (auto p_buf : persist_bufs) {
+        alloc.deallocate(p_buf);
+    }
+    persist_bufs.clear();
 }
 #endif

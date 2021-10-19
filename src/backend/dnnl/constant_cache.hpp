@@ -40,7 +40,8 @@ struct constant_buffer_t {
     constant_buffer_t(size_t size, const dnnl::engine &p_engine,
             const impl::allocator_t *alc)
         : size_(size), p_engine_(p_engine), alc_(alc) {
-        data_ = allocator::malloc(size, p_engine, alc);
+        data_ = allocator::malloc(
+                size, p_engine, alc, impl::allocator_lifetime::persistent);
     }
 
     ~constant_buffer_t() { allocator::free(data_, p_engine_, alc_); }

@@ -24,6 +24,9 @@
 #include <cstring>
 #include <functional>
 #include <numeric>
+#include <sstream>
+#include <string>
+#include <thread>
 #include <vector>
 #include <type_traits>
 
@@ -226,6 +229,12 @@ inline int float2int(float x) {
 
 int getenv(const char *name, char *buffer, int buffer_size);
 int getenv_int(const char *name, int default_value);
+
+inline std::string thread_id_to_str(std::thread::id id) {
+    std::stringstream ss;
+    ss << id;
+    return ss.str();
+}
 
 } // namespace utils
 } // namespace impl

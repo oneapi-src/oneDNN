@@ -40,16 +40,15 @@ namespace impl {
 namespace dnnl_impl {
 
 void *allocator::malloc(size_t size, const dnnl::engine &p_engine,
-        const impl::allocator_t *alc) {
+        const impl::allocator_t *alc, allocator_lifetime_t lifetime) {
 #if DNNL_GRAPH_WITH_SYCL
     return alc->allocate(size, dnnl::sycl_interop::get_device(p_engine),
             dnnl::sycl_interop::get_context(p_engine),
-            {impl::allocator_lifetime::persistent, DNNL_SYCL_MEMALIGNMENT});
+            {lifetime, DNNL_SYCL_MEMALIGNMENT});
 #else
-    return p_engine.get_kind() == dnnl::engine::kind::cpu ? alc->allocate(size,
-                   {impl::allocator_lifetime::persistent,
-                           DNNL_CPU_MEMALIGNMENT})
-                                                          : nullptr;
+    return p_engine.get_kind() == dnnl::engine::kind::cpu
+            ? alc->allocate(size, {lifetime, DNNL_CPU_MEMALIGNMENT})
+            : nullptr;
 #endif
 }
 
