@@ -43,6 +43,10 @@
 --dtag=abx,xba
 2x64x3x3
 
+--sdt=f32 --ddt=f32
+--stag=ab,ba --dtag=BA16a16b,BA16a32b,BA16a48b,BA16a64b 89x73
+--dtag=ab,ba --stag=BA16a16b,BA16a32b,BA16a48b,BA16a64b 89x73
+
 # simple nChw{8,16}c impl
 --stag=aBx4b,aBx8b --dtag=aBx16b 2x71x16x16 2x72x16x16 2x73x16x16
 --stag=aBx16b      --dtag=aBx8b  2x71x16x16 2x72x16x16 2x73x16x16
