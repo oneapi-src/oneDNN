@@ -18,17 +18,22 @@
 #define INTERFACE_ALLOCATOR_HPP
 
 #include <cstdlib>
+#include <unordered_map>
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
 #include "interface/c_types_map.hpp"
+
+#include "utils/id.hpp"
+#include "utils/rw_mutex.hpp"
 #include "utils/utils.hpp"
+#include "utils/verbose.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
-struct dnnl_graph_allocator final {
+struct dnnl_graph_allocator final : public dnnl::graph::impl::utils::id_t {
 public:
     /// Allocator attributes
     struct attribute {
@@ -55,6 +60,52 @@ public:
         attribute &operator=(const attribute &other) = default;
     };
 
+    struct mem_info_t {
+        mem_info_t(size_t size, dnnl_graph_allocator_lifetime_t type)
+            : size_(size), type_(type) {}
+        size_t size_;
+        dnnl_graph_allocator_lifetime_t type_;
+    };
+
+    struct monitor_t {
+    private:
+        static std::unordered_map<const dnnl_graph_allocator *, size_t>
+                persist_mem_;
+        static std::unordered_map<const dnnl_graph_allocator *,
+                std::unordered_map<const void *, mem_info_t>>
+                persist_mem_infos_;
+
+        thread_local static std::unordered_map<const dnnl_graph_allocator *,
+                size_t>
+                temp_mem_;
+        thread_local static std::unordered_map<const dnnl_graph_allocator *,
+                size_t>
+                peak_temp_mem_;
+        thread_local static std::unordered_map<const dnnl_graph_allocator *,
+                std::unordered_map<const void *, mem_info_t>>
+                temp_mem_infos_;
+
+        // Since the memory operation will be performaed from multiple threads,
+        // so we use the rw lock to guarantee the thread safety of the global
+        // persistent memory monitoring.
+        static dnnl::graph::impl::utils::rw_mutex_t rw_mutex_;
+
+    public:
+        static void record_allocate(const dnnl_graph_allocator *alloc,
+                const void *buf, size_t size,
+                const dnnl_graph_allocator::attribute &attr);
+
+        static void record_deallocate(
+                const dnnl_graph_allocator *alloc, const void *buf);
+
+        static void reset_peak_temp_memory(const dnnl_graph_allocator *alloc);
+
+        static size_t get_peak_temp_memory(const dnnl_graph_allocator *alloc);
+
+        static size_t get_total_persist_memory(
+                const dnnl_graph_allocator *alloc);
+    };
+
     dnnl_graph_allocator() = default;
 
     dnnl_graph_allocator(dnnl_graph_cpu_allocate_f cpu_malloc,
@@ -68,39 +119,67 @@ public:
 #endif
 
     void *allocate(size_t n, attribute attr = {}) const {
-        return cpu_malloc_(n, attr.data);
+        void *buffer = cpu_malloc_(n, attr.data);
+#ifndef NDEBUG
+        monitor_t::record_allocate(this, buffer, n, attr);
+#endif
+        return buffer;
     }
 
 #if DNNL_GRAPH_WITH_SYCL
     void *allocate(size_t n, const cl::sycl::device &dev,
             const cl::sycl::context &ctx, attribute attr) const {
-        return sycl_malloc_(n, static_cast<const void *>(&dev),
+        void *buffer = sycl_malloc_(n, static_cast<const void *>(&dev),
                 static_cast<const void *>(&ctx), attr.data);
+#ifndef NDEBUG
+        monitor_t::record_allocate(this, buffer, n, attr);
+#endif
+        return buffer;
     }
 #endif
 
     template <typename T>
     T *allocate(size_t num_elem, attribute attr = {}) {
-        return static_cast<T *>(cpu_malloc_(num_elem * sizeof(T), attr.data));
+        T *buffer = static_cast<T *>(
+                cpu_malloc_(num_elem * sizeof(T), attr.data));
+#ifndef NDEBUG
+        monitor_t::record_allocate(this, buffer, num_elem * sizeof(T), attr);
+#endif
+        return buffer;
     }
 
 #if DNNL_GRAPH_WITH_SYCL
     template <typename T>
     T *allocate(size_t num_elem, const cl::sycl::device &dev,
             const cl::sycl::context &ctx, attribute attr = {}) {
-        return static_cast<T *>(sycl_malloc_(num_elem * sizeof(T),
+        T *buffer = static_cast<T *>(sycl_malloc_(num_elem * sizeof(T),
                 static_cast<const void *>(&dev),
                 static_cast<const void *>(&ctx), attr.data));
+#ifndef NDEBUG
+        monitor_t::record_allocate(
+                this, (void *)buffer, num_elem * sizeof(T), attr);
+#endif
+        return buffer;
     }
 #endif
 
     void deallocate(void *buffer) const {
-        if (buffer) cpu_free_(buffer);
+        if (buffer) {
+            cpu_free_(buffer);
+#ifndef NDEBUG
+            monitor_t::record_deallocate(this, buffer);
+#endif
+        }
     }
 
 #if DNNL_GRAPH_WITH_SYCL
     void deallocate(void *buffer, const cl::sycl::context &ctx) const {
-        if (buffer) sycl_free_(buffer, static_cast<const void *>(&ctx));
+        if (buffer) {
+            sycl_free_(buffer, static_cast<const void *>(&ctx));
+#ifndef NDEBUG
+            monitor_t::record_deallocate(this, buffer);
+#endif
+        }
     }
 #endif
 

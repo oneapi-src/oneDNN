@@ -200,7 +200,8 @@ private:
         // copy scale and shift to scale_shift tensor and cache it
         if (disable_cache_data_ || scale_shift_.is_empty()) {
             if (scale_shift_.is_empty())
-                scale_shift_ = tensor {pd_.weights_desc(), p_engine, alc};
+                scale_shift_ = tensor {pd_.weights_desc(), p_engine, alc,
+                        impl::allocator_lifetime::persistent};
             auto *scale_shift_buf
                     = static_cast<char *>(scale_shift_.get_data_handle());
 #if DNNL_GRAPH_WITH_SYCL

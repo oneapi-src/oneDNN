@@ -18,6 +18,7 @@
 #include <cstring>
 #include <limits>
 #include <set>
+#include <thread>
 
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
@@ -296,7 +297,23 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         outs.emplace_back(**(outputs + i));
     }
 
+#ifndef NDEBUG
+    if (utils::get_verbose() >= 3) {
+        allocator_t *alloc = compiled_partition->get_engine().get_allocator();
+        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
+        double ms = utils::get_msec();
+        CHECK(compiled_partition->execute(stream, ins, outs));
+        ms = utils::get_msec() - ms;
+        printf("dnnl_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n",
+                compiled_partition->info(), ms, alloc->id(),
+                utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
+                allocator_t::monitor_t::get_total_persist_memory(alloc),
+                allocator_t::monitor_t::get_peak_temp_memory(alloc));
+        fflush(stdout);
+    } else if (utils::get_verbose()) {
+#else
     if (utils::get_verbose()) {
+#endif
         double ms = utils::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
         ms = utils::get_msec() - ms;
@@ -606,7 +623,20 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
     pre_process(processed_inputs, inputs, backend);
     pre_process(processed_outputs, outputs, backend);
 
-    if (utils::get_verbose()) {
+    if (utils::get_verbose() >= 3) {
+        allocator_t *alloc = this->get_engine().get_allocator();
+        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
+        double ms = utils::get_msec();
+        ret = pimpl_->execute_sycl(
+                astream, processed_inputs, processed_outputs, sycl_event);
+        ms = utils::get_msec() - ms;
+        printf("dnnl_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n", this->info(),
+                ms, alloc->id(),
+                utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
+                allocator_t::monitor_t::get_total_persist_memory(alloc),
+                allocator_t::monitor_t::get_peak_temp_memory(alloc));
+        fflush(stdout);
+    } else if (utils::get_verbose()) {
         double ms = utils::get_msec();
         ret = pimpl_->execute_sycl(
                 astream, processed_inputs, processed_outputs, sycl_event);

@@ -455,9 +455,11 @@ public:
 
     // desc, no buffer
     tensor(const desc &adesc, const dnnl::engine &p_engine,
-            const impl::allocator_t *alc)
+            const impl::allocator_t *alc,
+            impl::allocator_lifetime_t lifetime
+            = impl::allocator_lifetime::temp)
         : memory(adesc, p_engine,
-                allocator::malloc(adesc.get_size(), p_engine, alc))
+                allocator::malloc(adesc.get_size(), p_engine, alc, lifetime))
         , alc_(alc) {
         buffer_.reset(this->get_data_handle(), [p_engine, alc](void *p) {
             allocator::free(p, p_engine, alc);
@@ -473,9 +475,11 @@ public:
 
     // logical tensor, no buffer
     tensor(const impl::logical_tensor_t &lt, const dnnl::engine &p_engine,
-            const impl::allocator_t *alc)
+            const impl::allocator_t *alc,
+            impl::allocator_lifetime_t lifetime
+            = impl::allocator_lifetime::temp)
         : memory(desc(lt), p_engine,
-                allocator::malloc(desc(lt).get_size(), p_engine, alc))
+                allocator::malloc(desc(lt).get_size(), p_engine, alc, lifetime))
         , alc_(alc) {
         buffer_.reset(this->get_data_handle(), [p_engine, alc](void *p) {
             allocator::free(p, p_engine, alc);
