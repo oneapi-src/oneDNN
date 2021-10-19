@@ -43,6 +43,7 @@ constexpr gpu_gen_t gpu_gen11 = ngen::HW::Gen11;
 constexpr gpu_gen_t gpu_xe_lp = ngen::HW::XeLP;
 constexpr gpu_gen_t gpu_xe_hp = ngen::HW::XeHP;
 constexpr gpu_gen_t gpu_xe_hpg = ngen::HW::XeHPG;
+constexpr gpu_gen_t gpu_xe_hpc = ngen::HW::XeHPC;
 
 // nGEN jit generator
 //

@@ -128,7 +128,11 @@ public:
         mark(doWrite);
 
         // Write out results.
-        {
+        if (hw >= HW::XeHPC) {
+            // stateless
+            mov<uint32_t>(2, header, getArgument("ok").d(0)(1));
+            store.ugm(1 | SWSB(sb2, 1), D32(1), A64, header, data);
+        } else {
             // bti surface
             mov<uint32_t>(1, header, uint16_t(0));
             store(1 | SWSB(sb2, 1), scattered_dword(), ok_surface, header,
@@ -164,6 +168,10 @@ public:
                     break;
                 case compute::gpu_arch_t::xe_hpg:
                     kernel = binary_format_kernel_t<HW::XeHPG>::make_kernel(
+                            engine);
+                    break;
+                case compute::gpu_arch_t::xe_hpc:
+                    kernel = binary_format_kernel_t<HW::XeHPC>::make_kernel(
                             engine);
                     break;
                 default: kernel = nullptr; break;
