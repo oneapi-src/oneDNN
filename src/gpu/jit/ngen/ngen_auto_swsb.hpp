@@ -45,14 +45,16 @@ enum {
     PipeMaskF = 2,
     PipeMaskI = 4,
     PipeMaskL = 8,
-    PipeMaskO = 0x10,   // All out-of-order pipes. Not a valid GeneralizedPipe.
+    PipeMaskM = 0x10,
+    PipeMaskO = 0x20,   // All out-of-order pipes. Not a valid GeneralizedPipe.
     PipeBitA = 0,
     PipeBitF = 1,
     PipeBitI = 2,
     PipeBitL = 3,
-    PipeBitO = 4,
+    PipeBitM = 4,
+    PipeBitO = 5,
 };
-static constexpr int NPipes = 4;
+static constexpr int NPipes = 5;
 
 static inline PipeMask toMask(Pipe pipe)   { return (1 << (static_cast<unsigned>(pipe) - 1)); }
 static inline Pipe fromMask(PipeMask mask) { return mask ? static_cast<Pipe>(1 + utils::log2(mask)) : Pipe::Default; }
@@ -103,7 +105,7 @@ struct DependencyRegion {
     uint8_t unspecified : 1;
     uint8_t checkWAW : 1;
     HW hw;
-    std::array<uint32_t, 16> masks;
+    std::array<uint32_t, 32> masks;
 
     DependencyRegion() : DependencyRegion(HW::Unknown) {}
     explicit DependencyRegion(HW hw_) : base(0), size(0), unspecified{true}, checkWAW{false}, hw{hw_} {
@@ -233,6 +235,7 @@ inline PipeMask allPipes(HW hw)
 {
     PipeMask mask = PipeMaskA | PipeMaskO;
     if (hw >= HW::XeHP) mask |= PipeMaskF | PipeMaskI | PipeMaskL;
+    if (hw >= HW::XeHPC) mask |= PipeMaskM;
 
     return mask;
 }
@@ -264,6 +267,8 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
         }
     }
 
+    if (hw >= HW::XeHPC && (op == Opcode::math))
+        return PipeMaskM;
 
     PipeMask mask = PipeMaskNone;
 
@@ -272,7 +277,11 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
     // Exception: if there are any long operands, it's a long pipe instruction.
     if (hw >= HW::XeHP) {
         auto dt = insn.dstTypecode();
+#if !NGEN_XE_HPC_A
+        unsigned lmask = (hw == HW::XeHPC) ? 0b1011 : 0b0011;
+#else
         unsigned lmask = 3;
+#endif
         if ((dt & lmask) == lmask)
             mask |= PipeMaskL;
         else if (dt & 8)
@@ -352,6 +361,18 @@ DependencyRegion::DependencyRegion(HW hw_, int esize, RegData rr)
     };
 
     auto compress = [&](uint64_t m) -> uint32_t {
+        if (hw_ >= HW::XeHPC) {
+            // Regions tracked at word granularity. OR and pack adjacent bits.
+            // If any sub-word writes, need to track WAW dependencies.
+            if ((m ^ (m >> 1)) & 0x5555555555555555)
+                checkWAW = true;
+            m = (m | (m >> 1)) & 0x5555555555555555;
+            m = (m | (m >> 1)) & 0x3333333333333333;
+            m = (m | (m >> 2)) & 0x0F0F0F0F0F0F0F0F;
+            m = (m | (m >> 4)) & 0x00FF00FF00FF00FF;
+            m = (m | (m >> 8)) & 0x0000FFFF0000FFFF;
+            m |= (m >> 16);
+        }
         return uint32_t(m);
     };
 
@@ -446,6 +467,7 @@ inline int timeout(GeneralizedPipe pipe)
         case PipeMaskI: return 11;
         case PipeMaskF: return 11;
         case PipeMaskL: return 15;
+        case PipeMaskM: return 19;
         default:        return std::numeric_limits<int>::max();
     }
 }
@@ -502,6 +524,7 @@ inline bool intersects(const Dependency<false> &dep1, const Dependency<true> &de
         //   * If producer is in-order, is it close enough to require tracking the dependency?
         //   * Do the producer+consumer regions overlap?
         if (dep1.read() && dep2.read())                                                             return false;
+        if (!(dep1.write() && dep2.write() && (dep1.region.checkWAW || dep2.region.checkWAW)))
         if (dep2.write() && (dep1.pipe == dep2.pipe) && (dep1.pipe != GeneralizedPipe::Math()))     return false;
         if (dep1.pipe.inOrder() && (distance(dep1, dep2, dep1.pipe) >= timeout(dep1.pipe)))         return false;
         return intersects(dep1.region, dep2.region);
@@ -748,12 +771,14 @@ inline void dumpPipeMask(PipeMask mask, bool spacers = true)
         std::cerr << char((mask & PipeMaskF) ? 'F' : ' ');
         std::cerr << char((mask & PipeMaskI) ? 'I' : ' ');
         std::cerr << char((mask & PipeMaskL) ? 'L' : ' ');
+        std::cerr << char((mask & PipeMaskM) ? 'M' : ' ');
         std::cerr << char((mask & PipeMaskO) ? 'O' : ' ');
     } else {
         if (mask & PipeMaskA) std::cerr << 'A';
         if (mask & PipeMaskF) std::cerr << 'F';
         if (mask & PipeMaskI) std::cerr << 'I';
         if (mask & PipeMaskL) std::cerr << 'L';
+        if (mask & PipeMaskM) std::cerr << 'M';
         if (mask & PipeMaskO) std::cerr << 'O';
         if (mask == PipeMaskNone) std::cerr << '-';
     }
@@ -781,7 +806,7 @@ void DependencyRegion::dump() const
         if (size > 1)
             std::cerr << "-r" << int(base + size - 1);
 
-    auto fullMask = ~uint32_t(0);
+    auto fullMask = (hw >= HW::XeHPC) ? ~uint64_t(0) : ~uint32_t(0);
         bool partial = false;
         for (int ii = 0; ii < size; ii++)
             partial |= (masks[ii] != fullMask);
@@ -1049,6 +1074,8 @@ inline bool arfNeedsSync(ARFType type)
 // Get preferred SBID for a given GRF.
 inline uint8_t preferredSBID(HW hw, uint8_t base)
 {
+    if (hw >= HW::XeHPC)
+        return (base >> 2) & 0x1F;
     return (base >> 3) & 0xF;
 }
 
@@ -1057,7 +1084,7 @@ template <typename Program>
 inline uint8_t chooseSBID(HW hw, Program &program, int32_t inum, int32_t counterA, const DependencyTable<false> &incoming, const DependencyTable<false> &producers, uint32_t maskDst)
 {
     uint32_t unclaimed = (uint64_t(1) << tokenCount(hw)) - 1;
-    std::array<int32_t, 16> pastExpiration;
+    std::array<int32_t, 32> pastExpiration;
     constexpr int32_t infinite = std::numeric_limits<int32_t>::max();
 
     // Priority 1: choose SBID that is an explicit dst dependency for this instruction, if any.
@@ -1371,6 +1398,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 // If dual dependency (token + pipe) on OOO instruction, use A pipe for send, sync for others.
                 if ((generated.hasToken() || tokenAssigned) && generated.hasDist()) {
                     if (insn.opcode() == Opcode::send || insn.opcode() == Opcode::sendc) {
+                        if (!(hw >= HW::XeHPC && (generated.depPipe == PipeMaskI || generated.depPipe == PipeMaskF)))
                             generated.depPipe = PipeMaskA;
                     } else {
                         auto distGen = generated;
@@ -1395,8 +1423,16 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 bool defaultPipe = generated.pipe.inOrder() && (generated.depPipe == generated.pipe.inOrderPipe())
                                                             && canDefaultPipe(hw, insn);
 
-                bool acceptsSrc = (!tokenAssigned || generated.pipe.inOrder()) && (generated.depPipe == PipeMaskNone);
-                bool acceptsDst = acceptsSrc || defaultPipe;
+                bool acceptsSrc = false, acceptsDst = false;
+                if (generated.pipe.inOrder() || !tokenAssigned) {
+                    if (hw >= HW::XeHPC) {
+                        acceptsSrc = (generated.depPipe == PipeMaskNone || defaultPipe);
+                        acceptsDst = acceptsSrc || (generated.depPipe == PipeMaskA);
+                    } else {
+                        acceptsSrc = (generated.depPipe == PipeMaskNone);
+                        acceptsDst = acceptsSrc || defaultPipe;
+                    }
+                }
 
                 if (tokenMaskDst && acceptsDst) {
                     generated.token = utils::bsr(tokenMaskDst);

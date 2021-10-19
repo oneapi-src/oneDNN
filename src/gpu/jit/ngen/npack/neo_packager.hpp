@@ -174,6 +174,7 @@ inline HW decodeGfxCoreFamily(GfxCoreFamily family)
         case GfxCoreFamily::Gen12:
         case GfxCoreFamily::XeHP:     return HW::XeHP;
         case GfxCoreFamily::XeHPG:    return HW::XeHPG;
+        case GfxCoreFamily::XeHPC:    return HW::XeHPC;
         default:                      return HW::Unknown;
     }
 }
@@ -187,6 +188,7 @@ inline GfxCoreFamily encodeGfxCoreFamily(HW hw)
         case HW::Gen12LP: return GfxCoreFamily::Gen12LP;
         case HW::XeHP:    return GfxCoreFamily::XeHP;
         case HW::XeHPG:   return GfxCoreFamily::XeHPG;
+        case HW::XeHPC:   return GfxCoreFamily::XeHPC;
         default:          return GfxCoreFamily::Unknown;
     }
 }
@@ -199,6 +201,7 @@ inline HW decodeProductFamily(ProductFamily family)
     if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return HW::Gen12LP;
     if (family == ProductFamily::XE_HP_SDV) return HW::XeHP;
     if (family == ProductFamily::DG2) return HW::XeHPG;
+    if (family == ProductFamily::XE_HPC) return HW::XeHPC;
     return HW::Unknown;
 }
 

@@ -44,6 +44,7 @@ protected:
 
     void require32BitBuffers()                                           { interface_.require32BitBuffers(); }
     void requireBarrier()                                                { interface_.requireBarrier(); }
+    void requireBarriers(int nbarriers)                                  { interface_.requireBarriers(nbarriers); }
     void requireDPAS()                                                   { interface_.requireDPAS(); }
     void requireGlobalAtomics()                                          { interface_.requireGlobalAtomics(); }
     void requireGRF(int grfs)                                            { interface_.requireGRF(grfs); }
@@ -261,7 +262,8 @@ NGEN_FORWARD_ELF_EXTRA2
 template <typename... Targs> void requireDPAS(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireDPAS(std::forward<Targs>(args)...); } \
 void prologue() { ngen::ELFCodeGenerator<hw>::prologue(); }
 
-#define NGEN_FORWARD_ELF_EXTRA2
+#define NGEN_FORWARD_ELF_EXTRA2 \
+template <typename... Targs> void requireBarriers(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireBarriers(std::forward<Targs>(args)...); }
 
 
 template <HW hw>

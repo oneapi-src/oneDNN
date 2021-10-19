@@ -142,7 +142,7 @@ public:
 
 protected:
     static constexpr int max_regs = 256;
-    using mtype = uint8_t;
+    using mtype = uint16_t;
 
     HW hw;                              // HW generation.
     uint8_t free_whole[max_regs / 8];   // Bitmap of free whole GRFs.

@@ -455,7 +455,28 @@ PREFIX constexpr ngen::CacheSettingsLSC CG::L1WT_L3WB; \
 PREFIX constexpr ngen::CacheSettingsLSC CG::L1S_L3WB; \
 PREFIX constexpr ngen::CacheSettingsLSC CG::L1WB_L3WB;
 
-#define NGEN_REGISTER_DECL_EXTRA3(CG,PREFIX)
+#define NGEN_REGISTER_DECL_EXTRA3(CG,PREFIX) \
+PREFIX constexpr ngen::PredCtrl CG::any; \
+PREFIX constexpr ngen::PredCtrl CG::all; \
+PREFIX constexpr ngen::FlagRegister CG::f2; \
+PREFIX constexpr ngen::FlagRegister CG::f3; \
+PREFIX constexpr ngen::SBID CG::sb16; \
+PREFIX constexpr ngen::SBID CG::sb17; \
+PREFIX constexpr ngen::SBID CG::sb18; \
+PREFIX constexpr ngen::SBID CG::sb19; \
+PREFIX constexpr ngen::SBID CG::sb20; \
+PREFIX constexpr ngen::SBID CG::sb21; \
+PREFIX constexpr ngen::SBID CG::sb22; \
+PREFIX constexpr ngen::SBID CG::sb23; \
+PREFIX constexpr ngen::SBID CG::sb24; \
+PREFIX constexpr ngen::SBID CG::sb25; \
+PREFIX constexpr ngen::SBID CG::sb26; \
+PREFIX constexpr ngen::SBID CG::sb27; \
+PREFIX constexpr ngen::SBID CG::sb28; \
+PREFIX constexpr ngen::SBID CG::sb29; \
+PREFIX constexpr ngen::SBID CG::sb30; \
+PREFIX constexpr ngen::SBID CG::sb31; \
+PREFIX constexpr ngen::DataSpecLSC CG::vnni;
 
 #ifndef NGEN_SHORT_NAMES
 #define NGEN_REGISTER_DECL_EXTRA4(CG,PREFIX)
@@ -487,5 +508,6 @@ template class ngen::BinaryCodeGenerator<ngen::HW::Gen11>;
 template class ngen::BinaryCodeGenerator<ngen::HW::Gen12LP>;
 template class ngen::BinaryCodeGenerator<ngen::HW::XeHP>;
 template class ngen::BinaryCodeGenerator<ngen::HW::XeHPG>;
+template class ngen::BinaryCodeGenerator<ngen::HW::XeHPC>;
 
 #endif /* (defined(NGEN_CPP11) || defined(NGEN_CPP14)) && !defined(NGEN_GLOBAL_REGS) */

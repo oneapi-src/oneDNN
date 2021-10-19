@@ -331,6 +331,7 @@ bool AsmInstruction::getOperandRegion(autoswsb::DependencyRegion &region, int op
                 MessageDescriptor desc;
                 desc.all = static_cast<uint64_t>(src[3].imm);
                 len = (opNum < 0) ? desc.parts.responseLen : desc.parts.messageLen;
+                if (len == 31) len++;       // 32 GRF responses are encoded as 31. Conservatively use the higher value.
             } else
                 len = -1;
         } else if (opNum == 1) {
@@ -551,11 +552,11 @@ protected:
     }
     template <typename DT = void>
     void addc(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
-        opX(Opcode::addc, getDataType<DT>(), mod | AccWrEn, dst, src0, src1);
+        opX(Opcode::addc, getDataType<DT>(), (hardware >= HW::XeHPC) ? mod : (mod | AccWrEn), dst, src0, src1);
     }
     template <typename DT = void>
     void addc(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const Immediate &src1) {
-        opX(Opcode::addc, getDataType<DT>(), mod | AccWrEn, dst, src0, src1);
+        opX(Opcode::addc, getDataType<DT>(), (hardware >= HW::XeHPC) ? mod : (mod | AccWrEn), dst, src0, src1);
     }
     template <typename DT = void>
     void add3(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &src2) {
@@ -908,25 +909,25 @@ protected:
     }
     template <typename DT = void>
     void mach(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
-        opX(Opcode::mach, getDataType<DT>(), mod | AccWrEn, dst, src0, src1);
+        opX(Opcode::mach, getDataType<DT>(), (hardware >= HW::XeHPC) ? mod : (mod | AccWrEn), dst, src0, src1);
     }
     template <typename DT = void>
     void mach(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const Immediate &src1) {
-        opX(Opcode::mach, getDataType<DT>(), mod | AccWrEn, dst, src0, src1);
+        opX(Opcode::mach, getDataType<DT>(), (hardware >= HW::XeHPC) ? mod : (mod | AccWrEn), dst, src0, src1);
     }
     template <typename DT = void>
     void macl(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
 #ifdef NGEN_SAFE
         if (hardware < HW::Gen10) unsupported();
 #endif
-        opX(Opcode::mach, getDataType<DT>(), mod, dst, src0, src1);
+        opX((hardware >= HW::XeHPC) ? Opcode::macl : Opcode::mach, getDataType<DT>(), mod, dst, src0, src1);
     }
     template <typename DT = void>
     void macl(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const Immediate &src1) {
 #ifdef NGEN_SAFE
         if (hardware < HW::Gen10) unsupported();
 #endif
-        opX(Opcode::mach, getDataType<DT>(), mod, dst, src0, src1);
+        opX((hardware >= HW::XeHPC) ? Opcode::macl : Opcode::mach, getDataType<DT>(), mod, dst, src0, src1);
     }
     template <typename DT = void>
     void mad(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &src2) {
@@ -1267,12 +1268,20 @@ protected:
         opX(isGen12 ? Opcode::smov_gen12 : Opcode::smov, getDataType<DT>(), mod, dst, src0, src1);
     }
     template <typename DT = void>
+    void srnd(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
+        opX(Opcode::srnd, getDataType<DT>(), mod, dst, src0, src1);
+    }
+    template <typename DT = void>
+    void srnd(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const Immediate &src1) {
+        opX(Opcode::srnd, getDataType<DT>(), mod, dst, src0, src1);
+    }
+    template <typename DT = void>
     void subb(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
-        opX(Opcode::subb, getDataType<DT>(), mod | AccWrEn, dst, src0, src1);
+        opX(Opcode::subb, getDataType<DT>(), (hardware >= HW::XeHPC) ? mod : (mod | AccWrEn), dst, src0, src1);
     }
     template <typename DT = void>
     void subb(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const Immediate &src1) {
-        opX(Opcode::subb, getDataType<DT>(), mod | AccWrEn, dst, src0, src1);
+        opX(Opcode::subb, getDataType<DT>(), (hardware >= HW::XeHPC) ? mod : (mod | AccWrEn), dst, src0, src1);
     }
     void wait(const InstructionModifier &mod, const RegData &nreg) {
         opX(Opcode::wait, mod, NoOperand(), nreg);
@@ -1359,6 +1368,18 @@ private:
         }
         void bar(const InstructionModifier &mod = InstructionModifier()) {
             this->operator()(SyncFunction::bar, mod);
+        }
+        void bar(const InstructionModifier &mod, uint32_t src0) {
+            this->operator()(SyncFunction::bar, mod, src0);
+        }
+        void bar(const InstructionModifier &mod, const RegData &src0) {
+            this->operator()(SyncFunction::bar, mod, src0);
+        }
+        void bar(uint32_t src0) {
+            this->operator()(SyncFunction::bar, InstructionModifier(), src0);
+        }
+        void bar(const RegData &src0) {
+            this->operator()(SyncFunction::bar, InstructionModifier(), src0);
         }
         void host(const InstructionModifier &mod = InstructionModifier()) {
             this->operator()(SyncFunction::host, mod);

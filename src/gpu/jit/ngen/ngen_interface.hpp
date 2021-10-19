@@ -88,6 +88,7 @@ public:
 
     void require32BitBuffers()                           { allow64BitBuffers = false; }
     void requireBarrier()                                { barrierCount = 1; }
+    void requireBarriers(int nBarriers)                  { barrierCount = nBarriers; }
     void requireDPAS()                                   { needDPAS = true; }
     void requireGlobalAtomics()                          { needGlobalAtomics = true; }
     void requireGRF(int grfs)                            { needGRF = grfs; }
@@ -321,6 +322,11 @@ void InterfaceHandler::generateDummyCL(std::ostream &stream) const
     if (needLocalID)        stream << "    (void) ____[get_local_id(0)];\n";
     if (needLocalSize)      stream << "    (void) ____[get_enqueued_local_size(0)];\n";
     if (barrierCount > 0)   stream << "    barrier(CLK_GLOBAL_MEM_FENCE);\n";
+    for (int i = 1; i < barrierCount; i++) {
+        stream << "    local NamedBarrier_t *bar" << i << ";\n"
+                  "    bar" << i << " = named_barrier_init(1);\n"
+                  "    work_group_named_barrier(bar" << i << ", 0);\n";
+    }
     if (needDPAS)           stream << dpasDummy;
     if (needGlobalAtomics)  stream << "    atomic_inc(____);\n";
     if (scratchSize > 0)    stream << "    volatile char scratch[" << scratchSize << "] = {0};\n";
@@ -462,6 +468,9 @@ void InterfaceHandler::generatePrologue(CodeGenerator &generator, const GRF &tem
 #else
     if (needLocalID)
         generator.loadlid(getCrossthreadGRFs(), needLocalID, simd, temp, 12*16);
+    if (hw >= HW::XeHPC)
+        generator.loadargs(getCrossthreadBase(), getCrossthreadGRFs(), temp);
+    else
     if (getCrossthreadGRFs() > 1)
         generator.loadargs(getCrossthreadBase().advance(1), getCrossthreadGRFs() - 1, temp);
 #endif

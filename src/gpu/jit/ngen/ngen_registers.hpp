@@ -73,6 +73,7 @@ static constexpr_reg SpecialAccumulatorRegister nomme = SpecialAccumulatorRegist
 static constexpr_reg SpecialAccumulatorRegister noacc = nomme;
 static constexpr_reg FlagRegister f0{0}, f1{1};
 static constexpr_reg FlagRegister f0_0{0,0}, f0_1{0,1}, f1_0{1,0}, f1_1{1,1};
+static constexpr_reg FlagRegister f2{2}, f3{3};
 static constexpr_reg ChannelEnableRegister ce0{0};
 static constexpr_reg StackPointerRegister sp{0};
 static constexpr_reg StateRegister sr0{0}, sr1{1};
@@ -122,6 +123,8 @@ static constexpr_reg PredCtrl any16h = PredCtrl::any16h;
 static constexpr_reg PredCtrl all16h = PredCtrl::all16h;
 static constexpr_reg PredCtrl any32h = PredCtrl::any32h;
 static constexpr_reg PredCtrl all32h = PredCtrl::all32h;
+static constexpr_reg PredCtrl any = PredCtrl::any;
+static constexpr_reg PredCtrl all = PredCtrl::all;
 
 static constexpr_reg InstructionModifier x_repl = InstructionModifier{PredCtrl::x};
 static constexpr_reg InstructionModifier y_repl = InstructionModifier{PredCtrl::y};
@@ -155,6 +158,8 @@ static inline InstructionModifier M(int off) { return ExecutionOffset(off); }
 
 static constexpr_reg SBID sb0{0}, sb1{1}, sb2{2}, sb3{3}, sb4{4}, sb5{5}, sb6{6}, sb7{7};
 static constexpr_reg SBID sb8{8}, sb9{9}, sb10{10}, sb11{11}, sb12{12}, sb13{13}, sb14{14}, sb15{15};
+static constexpr_reg SBID sb16{16}, sb17{17}, sb18{18}, sb19{19}, sb20{20}, sb21{21}, sb22{22}, sb23{23};
+static constexpr_reg SBID sb24{24}, sb25{25}, sb26{16}, sb27{27}, sb28{28}, sb29{29}, sb30{30}, sb31{31};
 
 static constexpr_reg AddressBase A32 = AddressBase::createA32(true);
 static constexpr_reg AddressBase A32NC = AddressBase::createA32(false);
@@ -203,6 +208,7 @@ static constexpr_reg DataSpecLSC V32T = DataSpecLSC::createV(32,6) | DataSpecLSC
 static constexpr_reg DataSpecLSC V64T = DataSpecLSC::createV(64,7) | DataSpecLSC::createTranspose();
 
 static constexpr_reg DataSpecLSC transpose = DataSpecLSC::createTranspose();
+static constexpr_reg DataSpecLSC vnni = DataSpecLSC::createVNNI();
 
 static constexpr_reg CacheSettingsLSC L1UC_L3UC = CacheSettingsLSC::L1UC_L3UC;
 static constexpr_reg CacheSettingsLSC L1UC_L3C  = CacheSettingsLSC::L1UC_L3C;
