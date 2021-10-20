@@ -507,6 +507,7 @@ struct jit_deconv_call_s {
      * src1 tensors
      */
     const void *post_ops_binary_rhs_arg_vec;
+    const void *dst_orig; /* pointer to dst memory (no offset) */
     /*
      * logical (# of elems) offset to the processed output channel
      * (for broadcasting [1,OC,1,1])
@@ -696,6 +697,7 @@ struct jit_pool_call_s {
     const void *dst_prf;
     const void *indices_prf;
     const void *post_ops_binary_rhs_arg_vec;
+    const void *dst_orig;
     size_t c_elem_off;
     size_t zero_ih;
     size_t zero_id;
@@ -763,6 +765,7 @@ struct jit_resampling_call_s {
     const void *indices = nullptr;
     const void *weights = nullptr;
     const void *post_ops_binary_rhs_arg_vec = nullptr;
+    const void *dst_orig = nullptr;
 
     size_t c_offset = 0;
 
@@ -958,6 +961,7 @@ struct jit_binary_conf_t {
     bool do_scale_src1 = false;
     bool do_sum = false;
     bool with_eltwise = false;
+    bool with_binary = false;
     bool with_postops = false;
     float sum_scale = 0.f;
     bool use_stride_src1 = false;
@@ -982,9 +986,8 @@ struct jit_binary_call_s {
     const float *scales_src0, *scales_src1;
     size_t spat_offt_count;
     const void *post_ops_binary_rhs_arg_vec;
-    size_t oc_l_off;
     size_t src1_stride_range;
-    size_t l_off;
+    const void *dst_orig;
 };
 
 struct jit_reduction_conf_t {

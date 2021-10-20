@@ -424,6 +424,7 @@ status_t jit_uni_resampling_fwd_t::interpolate_nearest(const uint8_t *src,
             jit_resampling_call_s args = jit_resampling_call_s();
             args.src = src + src_off;
             args.dst = dst + dst_off;
+            args.dst_orig = dst;
             args.indices = &indices_h[0];
             args.post_ops_binary_rhs_arg_vec = post_ops_args.data();
             args.c_offset = static_cast<size_t>(c);
@@ -445,6 +446,7 @@ status_t jit_uni_resampling_fwd_t::interpolate_nearest(const uint8_t *src,
             args.batch_of_sp_points_to_process = OW;
             args.src = src + src_off;
             args.dst = dst + dst_off;
+            args.dst_orig = dst;
             args.indices = &indices_w[0];
             args.post_ops_binary_rhs_arg_vec = post_ops_args.data();
             args.c_offset = static_cast<size_t>(cb * inner_stride);
@@ -485,6 +487,7 @@ status_t jit_uni_resampling_fwd_t::interpolate_linear(const uint8_t *src,
             args.batch_of_sp_points_to_process = OW * OH * OD;
             args.src = src + src_off;
             args.dst = dst + dst_off;
+            args.dst_orig = dst;
             args.indices = &indices_[0];
             args.weights = &weights_[0];
             args.post_ops_binary_rhs_arg_vec = post_ops_args.data();
@@ -515,6 +518,7 @@ status_t jit_uni_resampling_fwd_t::interpolate_linear(const uint8_t *src,
             args.batch_of_sp_points_to_process = OW;
             args.src = src + src_off;
             args.dst = dst + dst_off;
+            args.dst_orig = dst;
             args.indices = &indices_[0];
             args.weights = &weights_[0];
             args.post_ops_binary_rhs_arg_vec = post_ops_args.data();

@@ -95,8 +95,8 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
         const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
                 helper_vmm_idx, reserved_eltwise_gpr, r14, preserve_gpr,
                 preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
-                memory_desc_wrapper(pd->dst_md()), tail_size, kreg_rem_mask,
-                use_exact_tail_scalar_bcast};
+                PARAM_OFF(dst_orig), memory_desc_wrapper(pd->dst_md()),
+                tail_size, kreg_rem_mask, use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t binary_static_params {
                 this->reg_param, rhs_arg_static_params};
         static constexpr bool save_state = true;
@@ -134,31 +134,15 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
 
 template <data_type_t dst_data_type>
 void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::apply_postops(
-        const bool apply_mask, const int out_offset, const int vmm_idx) {
+        const bool apply_mask, const size_t out_offset, const int vmm_idx) {
 #define PARAM_OFF(x) offsetof(ker_args, x)
     if (jcp_.with_eltwise || jcp_.with_binary) {
-        static constexpr int offset = 0;
         if (jcp_.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-            rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                    vmm_idx, ptr[reg_param + PARAM_OFF(g_oc_offset)]);
-            rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(vmm_idx, offset);
-            rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                    vmm_idx, oc_off_oprnd);
+            rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_dst);
             rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
-                    vmm_idx, out_offset);
-            rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
-                    vmm_idx, out_off_oprnd);
+                    vmm_idx, out_offset * sizeof(dst_data_t));
             if (apply_mask) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
-
-            const injector_utils::register_preserve_guard_t register_guard(
-                    this, {oc_off_oprnd, out_off_oprnd});
-            mov(oc_off_oprnd,
-                    ptr[rsp + reg_binary_post_op_acc_off
-                            + register_guard.stack_space_occupied()]);
-            mov(out_off_oprnd, reg_dst);
-            sub(out_off_oprnd, ptr[reg_param + PARAM_OFF(dst_orig)]);
-            shr(out_off_oprnd, std::log2(sizeof(dst_data_t)));
 
             postops_injector_->compute_vector(vmm_idx, rhs_arg_params);
         } else

@@ -370,6 +370,7 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
                 = brdgmm_kernels_[jcp.chb_tail_idx].get();
         brgemm_post_ops_data_t post_ops_data;
         post_ops_data.binary_post_ops_rhs = post_ops_binary_rhs_arg_vec.data();
+        post_ops_data.data_C_ptr_ = dst;
 
         while (iwork < end) {
             nd_iterator_init(iwork, n, jcp.mb, oh, jcp.oh, owb, jcp.nb_ow, chb,

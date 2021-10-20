@@ -326,8 +326,8 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
         const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
                 helper_vmm_idx, eltwise_reserved_gpr_, r14, preserve_gpr,
                 preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
-                dst_md_wrapper, tail_size, opmask_binary, reg_tmp,
-                use_exact_tail_scalar_bcast};
+                PARAM_OFF(dst_orig), dst_md_wrapper, tail_size, opmask_binary,
+                reg_tmp, use_exact_tail_scalar_bcast};
         static const bcast_set_t enabled_bcast_strategy
                 = {broadcasting_strategy_t::scalar,
                         broadcasting_strategy_t::per_oc,
@@ -444,36 +444,14 @@ void jit_pp_kernel_t<isa>::apply_postops(const bool apply_mask,
     if (this->do_eltwise_ || this->do_binary_) {
         if (this->do_binary_) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-            if (any_binary_postop_is_per_oc_bcast_type_
-                    || any_binary_postop_is_per_oc_sp_bcast_type_) {
-                const auto oc_off_oprnd = reg_tmp_comp;
-                mov(oc_off_oprnd, ptr[rsp + reg_binary_post_op_oc_off_]);
-                rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                        vmm_idx, oc_off_oprnd);
-                if (any_binary_postop_is_per_oc_bcast_type_)
-                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                            vmm_idx, static_cast<int>(offset));
-            }
-
             if (apply_mask) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
             rhs_arg_params.tail_load_mode = runtime_tail_mask
                     ? binary_injector::tail_lode_mode_t::DYNAMIC
                     : binary_injector::tail_lode_mode_t::DEFAULT;
 
-            if (any_binary_postop_is_no_bcast_type_) {
-                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
-                        vmm_idx, static_cast<int>(offset));
-                rhs_arg_params.vmm_idx_to_out_elem_off_addr.emplace(vmm_idx,
-                        ptr[reg_stack_frame_ - stack_space_needed_
-                                + reg_binary_post_op_offset_]);
-            }
-            if (any_binary_postop_is_oc_bcast_type_) {
-                rhs_arg_params.vmm_idx_to_sp_elem_off_val.emplace(
-                        vmm_idx, static_cast<int>(offset));
-                rhs_arg_params.vmm_idx_to_sp_elem_off_addr.emplace(vmm_idx,
-                        ptr[reg_stack_frame_ - stack_space_needed_
-                                + reg_binary_post_op_sp_off_]);
-            }
+            rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_dst);
+            rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(vmm_idx, offset);
+
             postops_injector_->compute_vector(vmm_idx, rhs_arg_params);
         } else
             postops_injector_->compute_vector(vmm_idx);
@@ -795,7 +773,8 @@ void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
                 uni_vaddps(vreg_dst_, vreg_dst_, vreg_prev_dst_);
         }
 
-        apply_postops(!!tail, dst_idx, offset, is_needed_runtime_tail_process);
+        apply_postops(!!tail, dst_idx, offset * this->dst_data_type_size_,
+                is_needed_runtime_tail_process);
 
         if (this->do_dst_zero_points_)
             uni_vaddps(vreg_dst_, vreg_dst_, vreg_dst_zero_points);

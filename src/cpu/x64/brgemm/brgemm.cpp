@@ -128,6 +128,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.BS = bs;
     brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
     brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
+    brgemm_p.data_C_ptr_ = post_ops_data.data_C_ptr_;
     brgemm_p.dst_row_logical_off = post_ops_data.dst_row_logical_off;
     brgemm_p.first_mb_matrix_addr_off = post_ops_data.first_mb_matrix_addr_off;
 

@@ -57,7 +57,7 @@ jit_avx512_core_bf16_1x1_conv_kernel::jit_avx512_core_bf16_1x1_conv_kernel(
 
         const rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx,
                 r14, r15, preserve_gpr, preserve_vmm,
-                GET_OFF(post_ops_binary_rhs_arg_vec),
+                GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, k_load_dim_tail_mask,
                 use_exact_tail_scalar_bcast};
         const static_params_t static_params {
@@ -195,19 +195,12 @@ void jit_avx512_core_bf16_1x1_conv_kernel::apply_postops(
                             const int i_ur) {
                         const int aux_output_l_off
                                 = get_output_offset(i_load, i_ur);
-                        const int oc_l_offset = i_load * jcp.oc_block;
                         const auto vmm_idx
                                 = vreg_accum_idx(load_loop_blk, i_load, i_ur);
                         vmm_idxs.emplace(vmm_idx);
 
-                        rhs_arg_params_tail.vmm_idx_to_oc_elem_off_addr.emplace(
-                                vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
-                        rhs_arg_params_tail.vmm_idx_to_oc_elem_off_val.emplace(
-                                vmm_idx, oc_l_offset);
-                        rhs_arg_params_tail.vmm_idx_to_oc_off_oprnd.emplace(
-                                vmm_idx, oc_off_oprnd);
-                        rhs_arg_params_tail.vmm_idx_to_out_off_oprnd.emplace(
-                                vmm_idx, out_off_oprnd);
+                        rhs_arg_params_tail.vmm_idx_to_out_reg.emplace(
+                                vmm_idx, aux_reg_output_data);
                         rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
                                 vmm_idx, aux_output_l_off);
                         if (mask_flag)
@@ -217,39 +210,27 @@ void jit_avx512_core_bf16_1x1_conv_kernel::apply_postops(
             rhs_arg_params.vmm_tail_idx_.clear();
 
             const injector_utils::register_preserve_guard_t register_guard(
-                    this, {oc_off_oprnd, out_off_oprnd});
+                    this, {reg_tmp});
             const size_t reg_guard_stack_occupied
                     = register_guard.stack_space_occupied();
+
             mov(abi_param1,
                     EVEX_compress_addr(rsp,
                             reg_abi_param1_backup + reg_guard_stack_occupied));
-            mov(out_off_oprnd, aux_reg_output_data);
-            sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
-            shr(out_off_oprnd, std::log2(types::data_type_size(jcp.dst_dt)));
 
             Label postops_done;
             if (mask_tail) {
                 Label postops_no_tail;
-                const auto tmp_reg = oc_off_oprnd;
-                mov(tmp_reg,
+                mov(reg_tmp,
                         ptr[rsp + reg_load_loop_work_off
                                 + reg_guard_stack_occupied]);
-                cmp(tmp_reg, jcp.oc_block * load_loop_blk);
+                cmp(reg_tmp, jcp.oc_block * load_loop_blk);
                 jge(postops_no_tail, T_NEAR);
-
-                mov(oc_off_oprnd,
-                        EVEX_compress_addr(rsp,
-                                reg_binary_post_op_acc_off
-                                        + reg_guard_stack_occupied));
                 postops_injector_->compute_vector_range(
                         vmm_idxs, rhs_arg_params_tail);
                 jmp(postops_done, T_NEAR);
                 L(postops_no_tail);
             }
-            mov(oc_off_oprnd,
-                    EVEX_compress_addr(rsp,
-                            reg_binary_post_op_acc_off
-                                    + reg_guard_stack_occupied));
             postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
             L(postops_done);
 

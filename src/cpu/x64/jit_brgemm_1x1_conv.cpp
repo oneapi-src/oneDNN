@@ -391,7 +391,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
                     static_cast<const void *>(bias_w),
                     &oscales[jcp.is_oc_scale * g_oc],
                     post_ops_binary_rhs_arg_vec.data(),
-                    static_cast<size_t>(g_oc)};
+                    static_cast<size_t>(g_oc), 0, dst};
 
             brgemm_kernel_execute_postops(brg_ker, n_ic_blocks, brg_batch,
                     (void *)ptr_C, (void *)ptr_D, post_ops_data,

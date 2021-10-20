@@ -56,10 +56,10 @@ jit_uni_resampling_kernel_t<isa, Vmm>::jit_uni_resampling_kernel_t(
         static constexpr bool use_exact_tail_scalar_bcast = true;
 
         const binary_injector::rhs_arg_static_params_t rhs_sp {
-                static_cast<size_t>(vmm_post_op_helper_.getIdx()), reg_src_,
-                reg_tmp_, preserve_gpr, preserve_vmm,
-                GET_OFF(post_ops_binary_rhs_arg_vec), dst_d, tail_size_,
-                k_tail_mask_, use_exact_tail_scalar_bcast};
+                static_cast<size_t>(vmm_post_op_helper_.getIdx()), r14, r15,
+                preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig), dst_d,
+                tail_size_, k_tail_mask_, use_exact_tail_scalar_bcast};
 
         const bcast_set_t accepted_broadcasts
                 = {broadcasting_strategy_t::scalar,
@@ -287,22 +287,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::apply_postops(
     if (conf_.with_binary) {
         if (any_binary_postop_is_per_oc_bcast_type_
                 || any_binary_postop_is_per_oc_sp_bcast_type_) {
-            if (conf_.tag_kind == tag_kind::blocked) {
-                // If simd width is lower than block size then we
-                // need to add the current offset of the processed
-                // block to global c_offset. However, it is important
-                // to reverse this operation after compute_vector
-                // because this can mess up the next post_op operations.
-                update_c_offset = conf_.inner_stride > simd_w_;
-                rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                        data_idx, reg_c_offset);
-            } else if (conf_.tag_kind == tag_kind::ncsp) {
-                rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                        data_idx, reg_c_offset);
-            } else {
-                rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                        data_idx, *reg_c);
-            }
+            rhs_arg_params.vmm_idx_to_out_reg.emplace(data_idx, reg_dst_);
         }
         if (is_tail) { rhs_arg_params.vmm_tail_idx_.emplace(data_idx); }
     }

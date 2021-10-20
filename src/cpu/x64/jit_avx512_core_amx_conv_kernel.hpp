@@ -324,9 +324,6 @@ private:
     const Xbyak::Reg64 &reg_oc_blocks = rax;
     const Xbyak::Reg64 &reg_tmp = r8;
 
-    /* binary post-ops operand */
-    const Xbyak::Reg64 &out_off_oprnd = reg_tmp;
-
     const Xbyak::Opmask &ktail_mask = k2;
 
     const Xbyak::Zmm &zmm_bias = zmm31;
@@ -390,7 +387,7 @@ private:
             const bool mask_flag);
     void apply_postops(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
             const int32_t *p_sum_zp, const Xbyak::Address &addr,
-            const bool mask_flag, const size_t off, const int ocb);
+            const size_t off, const bool mask_flag);
     void store_output_vector_bf16(
             const Xbyak::Zmm &zmm_out, int ocb, int h, int w);
     void store_output_vector_int8(const Xbyak::Zmm &zmm_out, int ocb, int h,

@@ -53,7 +53,7 @@ jit_avx512_core_amx_1x1_fwd_kernel_t::jit_avx512_core_amx_1x1_fwd_kernel_t(
 
         const rhs_arg_static_params_t rhs_arg_static_params {31, rhs_addr_reg,
                 rhs_helper_reg, preserve_gpr, preserve_vmm,
-                GET_OFF(post_ops_binary_rhs_arg_vec),
+                GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, ktail_mask,
                 use_exact_tail_scalar_bcast};
         const static_params_t static_params {
@@ -224,8 +224,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_sum(const Zmm &zmm_out,
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
         const float *p_sum_scale, const int32_t *p_sum_zp,
-        const Xbyak::Address &addr, const bool mask_flag, const size_t off,
-        const int ocb) {
+        const Xbyak::Address &addr, const size_t off, const bool mask_flag) {
     if (jcp.with_eltwise || jcp.with_binary
             || (jcp.with_sum && p_sum_scale != nullptr)) {
         apply_sum(zmm_out, p_sum_scale, p_sum_zp, addr, mask_flag);
@@ -233,22 +232,10 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
         const auto vmm_idx = zmm_out.getIdx();
         if (jcp.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-            const int oc_l_offset = ocb * jcp.oc_block;
-            rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                    vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
-            rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                    vmm_idx, oc_l_offset);
-            rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
-                    vmm_idx, out_off_oprnd);
-            rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
-                    vmm_idx, static_cast<int>(off) / jcp.typesize_out);
+            rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, out_ptr);
+            rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(vmm_idx, off);
             if (mask_flag) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
 
-            const injector_utils::register_preserve_guard_t register_guard(
-                    this, {out_off_oprnd});
-            mov(out_off_oprnd, out_ptr);
-            sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
-            shr(out_off_oprnd, std::log2(types::data_type_size(jcp.dst_dt)));
             postops_injector_->compute_vector(vmm_idx, rhs_arg_params);
         } else {
             postops_injector_->compute_vector(vmm_idx);
@@ -443,7 +430,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
     vmulps(zmm_out_msk, zmm_out,
             EVEX_compress_addr(reg_ptr_scales, scale_offset));
 
-    apply_postops(zmm_out, p_sum_scale, p_sum_zp, addr, mask_flag, off, ocb);
+    apply_postops(zmm_out, p_sum_scale, p_sum_zp, addr, off, mask_flag);
 
     if (jcp.dst_zero_point) { vaddps(zmm_out, zmm_out, zmm_dst_zp); }
 
@@ -552,7 +539,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_bf16(
 
     static constexpr auto skip_sum_in_injection = nullptr;
     apply_postops(zmm_out, skip_sum_in_injection, skip_sum_in_injection, addr,
-            mask_flag, off, ocb);
+            off, mask_flag);
 
     if (jcp.dst_dt == data_type::bf16) {
         Ymm ymm_out = Ymm(zmm_out.getIdx());

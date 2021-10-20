@@ -109,7 +109,7 @@ _jit_avx512_common_conv_fwd_kernel<Vmm>::_jit_avx512_common_conv_fwd_kernel(
 
         const binary_injector::rhs_arg_static_params_t rhs_args_static_params {
                 helper_vmm_idx, reg_tmp, r15, preserve_gpr, preserve_vmm,
-                GET_OFF(post_ops_binary_rhs_arg_vec),
+                GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, postops_mask,
                 use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t static_params {
@@ -159,30 +159,18 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::apply_postops(int ur_w) {
         const bool oc_blk_is_smaller_than_vmm = jcp.oc_block < isa_simd_width_;
         iterate(jcp.nb_oc_blocking, ur_w, mask_tail, oc_blk_is_smaller_than_vmm,
                 [&](const bool mask_flag, const int i_load, const int i_ur) {
-                    const int aux_output_l_off = get_output_offset(i_ur, i_load)
-                            / jcp.typesize_out;
+                    const size_t aux_output_l_off
+                            = get_output_offset(i_ur, i_load);
                     const auto vmm_idx = vmm_out_idx(i_ur, i_load);
                     vmm_idxs.emplace(vmm_idx);
 
-                    rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                            vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
-                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                            vmm_idx, i_load * jcp.oc_block);
-                    rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
-                            vmm_idx, temp_offset_reg);
+                    rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_out);
                     rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
                             vmm_idx, aux_output_l_off);
                     if (mask_flag) {
                         rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
                     }
                 });
-
-        // get_rhs_arg_broadcasting_strategy
-        const injector_utils::register_preserve_guard_t register_guard(
-                this, {temp_offset_reg});
-        mov(temp_offset_reg, reg_out);
-        sub(temp_offset_reg, ptr[param1 + GET_OFF(dst_orig)]);
-        shr(temp_offset_reg, std::log2(sizeof(float)));
 
         postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
     } else {

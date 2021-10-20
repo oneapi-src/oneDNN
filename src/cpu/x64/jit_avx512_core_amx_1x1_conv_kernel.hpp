@@ -95,9 +95,6 @@ private:
     const Xbyak::Reg64 &reg_src_zero_point = reg_oc_blocks;
     const Xbyak::Reg64 &reg_dst_zero_point = rax;
 
-    /* binary post-ops operand */
-    const Xbyak::Reg64 &out_off_oprnd = reg_tmp;
-
     const Xbyak::Zmm &zmm_bias = zmm31;
     const Xbyak::Zmm &zmm_saturation = zmm_bias;
     const Xbyak::Zmm &zmm_zero = zmm30;
@@ -150,7 +147,7 @@ private:
             const bool mask_flag);
     void apply_postops(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
             const int32_t *p_sum_zp, const Xbyak::Address &addr,
-            const bool mask_flag, const size_t off, const int ocb);
+            const size_t off, const bool mask_flag);
     static bool is_fast_postops(const jit_conv_conf_t &jcp);
     void store_output_vectors_int8(int ocb, int osb);
     void store_output_vector_int8(

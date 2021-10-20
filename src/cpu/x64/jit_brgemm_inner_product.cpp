@@ -252,7 +252,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                         static_cast<const void *>(ptr_bias),
                         &oscales[jbgp.is_oc_scale * oc],
                         post_ops_binary_rhs_arg_vec.data(),
-                        static_cast<size_t>(oc)};
+                        static_cast<size_t>(oc), 0, dst};
 
                 brgemm_kernel_execute_postops(brg_kernel_ic_tail, 1, addr_batch,
                         (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);

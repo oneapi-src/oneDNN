@@ -54,7 +54,7 @@ _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::_jit_uni_x8s8s32x_1x1_conv_kernel(
         static constexpr bool preserve_vmm = true;
         rhs_arg_static_params_t rhs_arg_static_params {15, r13, r14,
                 preserve_gpr, preserve_vmm,
-                GET_OFF(post_ops_binary_rhs_arg_vec),
+                GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md)};
         static_params_t static_params {this->param1, rhs_arg_static_params};
 
@@ -198,31 +198,17 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
                 const int ur_stride = jcp.with_dw_conv
                         ? jcp.nb_load_blocking * jcp.oc_block * i_ur
                         : jcp.oc_without_padding * jcp.ngroups * i_ur;
-                const int aux_output_offset
-                        = (ur_stride + i_load * jcp.load_block);
+                const size_t aux_output_offset = jcp.typesize_out
+                        * (ur_stride + i_load * jcp.load_block);
                 const auto vmm_idx
                         = vreg_accum_idx(load_loop_blk, i_load, i_ur);
                 vmm_idxs.emplace(vmm_idx);
-                rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                        vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
-                rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                        vmm_idx, i_load * jcp.load_block);
-                rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                        vmm_idx, oc_off_oprnd);
-                rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
-                        vmm_idx, out_off_oprnd);
+
+                rhs_arg_params.vmm_idx_to_out_reg.emplace(
+                        vmm_idx, aux_reg_output_data);
                 rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
                         vmm_idx, aux_output_offset);
             });
-
-            const injector_utils::register_preserve_guard_t register_guard(
-                    this, {oc_off_oprnd, out_off_oprnd});
-            mov(oc_off_oprnd,
-                    ptr[rsp + reg_binary_post_op_acc_off
-                            + register_guard.stack_space_occupied()]);
-            mov(out_off_oprnd, aux_reg_output_data);
-            sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
-            shr(out_off_oprnd, std::log2(types::data_type_size(jcp.dst_dt)));
 
             postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
         } else {

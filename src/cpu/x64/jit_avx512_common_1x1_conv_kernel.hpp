@@ -75,10 +75,6 @@ private:
     reg64_t reg_bcast_loop_work = aux1_reg_bcast_data;
     reg64_t reg_load_dim_tail_mask = aux_reg_load_data;
 
-    /* binary post-ops operands */
-    reg64_t oc_off_oprnd = r12;
-    reg64_t out_off_oprnd = r13;
-
     Xbyak::Zmm vreg_bcast = Xbyak::Zmm(31);
     Xbyak::Opmask k_load_dim_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_load_dim_tail_mask = Xbyak::Opmask(3);
@@ -99,7 +95,7 @@ private:
                 : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) * jcp.load_block;
         const size_t i_ur_shift
                 = is_out_layout_nxc ? jcp.load_dim : jcp.load_block;
-        return (i_load * i_load_shift + i_ur * i_ur_shift);
+        return jcp.typesize_out * (i_load * i_load_shift + i_ur * i_ur_shift);
     }
 
     Xbyak::Address output_ptr(

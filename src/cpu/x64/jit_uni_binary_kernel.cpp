@@ -119,7 +119,7 @@ void jit_uni_binary_kernel_t<isa>::init() {
 
 template <cpu_isa_t isa>
 void jit_uni_binary_kernel_t<isa>::init_post_ops_injector() {
-    const memory_desc_wrapper src0_d(pd_->src_md(0));
+    const memory_desc_wrapper dst_d(pd_->dst_md(0));
     const auto &po = pd_->attr()->post_ops_;
 
     const eltwise_injector::static_params_t esp(true /*save_state*/,
@@ -127,8 +127,8 @@ void jit_uni_binary_kernel_t<isa>::init_post_ops_injector() {
             false /*use_dst*/);
     const binary_injector::rhs_arg_static_params_t rhs_arg_bsp {10, reg_tmp_,
             reg_elt_inj_table_, true /*preserve gpr*/, true /*preserve vmm*/,
-            PARAM_OFF(post_ops_binary_rhs_arg_vec), src0_d, tail_size_,
-            tail_opmask_, false /*use_exact_tail_scalar_bcast*/};
+            PARAM_OFF(post_ops_binary_rhs_arg_vec), PARAM_OFF(dst_orig), dst_d,
+            tail_size_, tail_opmask_, false /*use_exact_tail_scalar_bcast*/};
     const binary_injector::static_params_t bsp(this->param1,
             get_supported_postops_bcast_strategies(), rhs_arg_bsp);
 
@@ -139,35 +139,6 @@ void jit_uni_binary_kernel_t<isa>::init_post_ops_injector() {
 
 template <cpu_isa_t isa>
 void jit_uni_binary_kernel_t<isa>::apply_postops(int unroll, bool tail) {
-    binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-
-    mov(reg_off_rhs_postops_, reg_offt_src0_);
-    const auto dt_size = types::data_type_size(conf_.src0_type);
-    if (dt_size == 4)
-        shr(reg_off_rhs_postops_, 0x2);
-    else if (dt_size == 2)
-        shr(reg_off_rhs_postops_, 0x1);
-
-    for (int vmm_idx = 1; vmm_idx < unroll + vmm_start_idx_; vmm_idx++) {
-        rhs_arg_params.vmm_idx_to_out_elem_off_addr.emplace(
-                vmm_idx, ptr[param1 + PARAM_OFF(l_off)]);
-        rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
-                vmm_idx, reg_off_rhs_postops_);
-        rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(vmm_idx,
-                (vmm_idx - vmm_start_idx_) * static_cast<int>(simd_w_));
-
-        if (utils::one_of(conf_.op_type, op_t::c_blocked, op_t::n_c_spatial)) {
-            rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                    vmm_idx, ptr[param1 + PARAM_OFF(oc_l_off)]);
-        } else if (conf_.op_type == op_t::n_spatial_c) {
-            rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                    vmm_idx, reg_off_rhs_postops_);
-            rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(vmm_idx,
-                    (vmm_idx - vmm_start_idx_) * static_cast<int>(simd_w_));
-        }
-        if (tail) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
-    }
-
     const auto sum_injector = [&]() {
         for (int i = 0; i < unroll; i++) {
             const int offt = simd_w_ * i;
@@ -187,8 +158,28 @@ void jit_uni_binary_kernel_t<isa>::apply_postops(int unroll, bool tail) {
         postops_injector_->set_lambda_injector(
                 primitive_kind::sum, sum_injector);
 
-    postops_injector_->compute_vector_range(
-            1, unroll + vmm_start_idx_, rhs_arg_params);
+    if (conf_.with_binary) {
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+        const Reg64 &reg_offt_dst
+                = conf_.is_i8 ? reg_offt_dst_ : reg_offt_src0_;
+
+        const injector_utils::register_preserve_guard_t register_guard {
+                this, {reg_tmp1_}};
+
+        mov(reg_tmp1_, reg_dst_);
+        add(reg_tmp1_, reg_offt_dst);
+
+        for (int vmm_idx = 1; vmm_idx < unroll + vmm_start_idx_; vmm_idx++) {
+            rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_tmp1_);
+            rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(vmm_idx,
+                    (vmm_idx - vmm_start_idx_) * simd_w_
+                            * types::data_type_size(conf_.dst_type));
+            if (tail) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
+        }
+        postops_injector_->compute_vector_range(
+                1, unroll + vmm_start_idx_, rhs_arg_params);
+    } else
+        postops_injector_->compute_vector_range(1, unroll + vmm_start_idx_);
 }
 
 template <cpu_isa_t isa>

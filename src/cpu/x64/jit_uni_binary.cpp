@@ -158,8 +158,9 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
     const auto sum_idx = po.find(primitive_kind::sum);
     conf_.do_sum = sum_idx != -1 && po.entry_[sum_idx].sum.scale != 0.f;
     conf_.with_eltwise = po.find(primitive_kind::eltwise) != -1;
-    const bool with_binary = po.find(primitive_kind::binary) != -1;
-    conf_.with_postops = with_binary || conf_.with_eltwise || conf_.do_sum;
+    conf_.with_binary = po.find(primitive_kind::binary) != -1;
+    conf_.with_postops
+            = conf_.with_binary || conf_.with_eltwise || conf_.do_sum;
     conf_.sum_scale = conf_.do_sum ? po.entry_[sum_idx].sum.scale : 0.f;
     const auto &bcast_dims = broadcast_dims();
     conf_.bcast_type = is_tensor_op() ? bcast_t::none
@@ -635,7 +636,7 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
                     p.scales_src1 = scale1;
                     p.post_ops_binary_rhs_arg_vec
                             = post_ops_binary_rhs_arg_vec.data();
-                    p.l_off = start + batch_off;
+                    p.dst_orig = dst;
                     (*kernel)(&p);
                 });
     } else {
@@ -668,7 +669,7 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
-            p.l_off = start * simd_w;
+            p.dst_orig = dst;
             (*kernel)(&p);
         });
     }
@@ -718,6 +719,7 @@ void jit_uni_binary_t::execute_bcast_per_batch_strategy(const data_t *src0,
         p.scales_src0 = scale0;
         p.scales_src1 = scale1;
         p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+        p.dst_orig = dst;
         (*kernel)(&p);
     });
 }
@@ -788,11 +790,10 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
             p.src1 = src1 + src1_off(mb, C_blk, off) * src1_type_size;
-            p.oc_l_off = C_blk * simd_w;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
-            p.l_off = off;
+            p.dst_orig = dst;
             kernel_blocked(&p, C_blk);
         });
     } else if (op_type == op_t::n_spatial_c) {
@@ -813,11 +814,10 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
             p.src1 = src1 + src1_off(mb, sp, off) * src1_type_size;
-            p.oc_l_off = 0;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
-            p.l_off = off;
+            p.dst_orig = dst;
             (*kernel)(&p);
         });
     } else if (op_type == op_t::n_c_spatial) {
@@ -839,11 +839,10 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
             p.src1 = src1 + src1_off(mb, c, off) * src1_type_size;
-            p.oc_l_off = c;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
-            p.l_off = off;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            p.dst_orig = dst;
             (*kernel)(&p);
         });
     }
@@ -917,11 +916,11 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
                             ? sp * simd_w
                             : (mb * SP_no_bcast + sp) * simd_w;
                     p.src1 = src1 + src1_off * src1_type_size;
-                    p.oc_l_off = C_blk * simd_w;
                     p.scales_src0 = scale0;
                     p.scales_src1 = scale1;
                     p.post_ops_binary_rhs_arg_vec
                             = post_ops_binary_rhs_arg_vec.data();
+                    p.dst_orig = dst;
                     kernel_blocked(&p, C_blk);
                 });
     } else if (op_type == op_t::n_spatial_c) {
@@ -939,11 +938,10 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
             const dim_t src1_off
                     = bcast_dims[0] == 1 ? sp : mb * SP_no_bcast + sp;
             p.src1 = src1 + src1_off * src1_type_size;
-            p.oc_l_off = 0;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
-            p.l_off = off;
+            p.dst_orig = dst;
             (*kernel)(&p);
         });
     } else if (op_type == op_t::n_c_spatial) {
@@ -961,11 +959,10 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
             p.src0 = src0 + off * src0_type_size;
             const dim_t src1_off = bcast_dims[0] == 1 ? 0 : mb * SP_no_bcast;
             p.src1 = src1 + src1_off * src1_type_size;
-            p.oc_l_off = c;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
-            p.l_off = off;
+            p.dst_orig = dst;
             (*kernel)(&p);
         });
     }

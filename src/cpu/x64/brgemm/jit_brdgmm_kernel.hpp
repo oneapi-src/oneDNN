@@ -81,7 +81,6 @@ private:
     const reg64_t reg_aux_scales = reg_table_base;
     const reg64_t reg_binary_po_stack_frame = reg_BS_loop;
     const reg64_t reg_binary_params = abi_param1; // default for binary ops
-    const reg64_t reg_binary_rhs = reg_aux_A;
     const reg64_t reg_ptr_sum_scale = reg_aux_A_vpad_top;
     const reg64_t reg_ptr_sum_zp = reg_aux_A_vpad_bottom;
 

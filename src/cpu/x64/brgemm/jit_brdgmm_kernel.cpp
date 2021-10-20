@@ -41,7 +41,7 @@ jit_brdgmm_kernel_base_t::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
 
     if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 
-        static constexpr bool preserve_gpr = false;
+        static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
         static constexpr bool use_exact_tail_scalar_bcast = false;
         const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md);
@@ -50,9 +50,9 @@ jit_brdgmm_kernel_base_t::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
                 = {broadcasting_strategy_t::scalar,
                         broadcasting_strategy_t::per_oc};
         const binary_injector::rhs_arg_static_params_t rhs_sp {
-                static_cast<size_t>(vmm_b().getIdx()), reg_binary_rhs, reg_tmp,
-                preserve_gpr, preserve_vmm,
-                GET_OFF(post_ops_binary_rhs_arg_vec), dst_md_wrapper,
+                static_cast<size_t>(vmm_b().getIdx()), r14, r15, preserve_gpr,
+                preserve_vmm, GET_OFF(post_ops_binary_rhs_arg_vec),
+                GET_OFF(data_C_ptr_), dst_md_wrapper,
                 static_cast<size_t>(n_vlen_tail()), k_mask,
                 use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t bsp {
@@ -208,12 +208,10 @@ void jit_brdgmm_kernel_base_t::apply_post_ops(
             for (int n_i = 0; n_i < n_blocks; n_i++) {
                 const auto vmm_idx
                         = accm(m_blocks, n_blocks, m_i, n_i).getIdx();
-                rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(vmm_idx,
-                        ptr[reg_binary_po_stack_frame
-                                + reg_binary_postops_oc_l_offs_]);
-                if (with_binary_per_oc_bcast_)
-                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                            vmm_idx, oc_logical_offset(n_i));
+
+                rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_aux_D);
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        vmm_idx, D_offset(m_i, n_i));
                 if (n_i + 1 == n_blocks && has_n_tail)
                     rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
             }

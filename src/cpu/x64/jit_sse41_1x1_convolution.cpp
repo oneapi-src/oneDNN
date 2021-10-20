@@ -171,7 +171,7 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
         par_conv.oc_l_off = _ocb * jcp.oc_block;
         par_conv.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
-        par_conv.dst_orig = dst;
+        par_conv.dst_orig = jcp.with_dw_conv ? pbuf : dst;
 
         (*kernel_)(&par_conv);
     };

@@ -166,9 +166,9 @@ private:
     void ker_trans(brgemm_thread_ctx_t &btc, char *inp_buffer) const;
     void ker_vpad(brgemm_thread_ctx_t &btc) const;
 
-    void perform_outwork(char *dst_base, char *c_buffer, const char *bias_w,
-            int od, int oh, int ow, int g_oc, bool is_oc_tail, int ker_ow_s,
-            int ker_ow_f, int kd_l, int kh_l,
+    void perform_outwork(char *dst_base, char *dst, char *c_buffer,
+            const char *bias_w, int od, int oh, int ow, int g_oc,
+            bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l, int kh_l,
             const void *post_ops_binary_rhs_arg_vec, bool maybe_do_init,
             bool do_postwork) const;
 

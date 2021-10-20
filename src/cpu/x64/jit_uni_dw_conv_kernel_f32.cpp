@@ -49,7 +49,7 @@ jit_uni_dw_conv_fwd_kernel_f32<isa>::jit_uni_dw_conv_fwd_kernel_f32(
                 % (cpu_isa_traits<isa>::vlen / sizeof(float));
         rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx, r14, r15,
                 preserve_gpr, preserve_vmm,
-                GET_OFF(post_ops_binary_rhs_arg_vec),
+                GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, k_oc_tail_mask,
                 use_exact_tail_scalar_bcast};
         static_params_t static_params {this->param1, rhs_arg_static_params};
@@ -279,13 +279,6 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
                     rhs_arg_params_tail;
             const auto dst_layout_nxc = is_dst_layout_nxc();
-            const bool preserve_reg_needed
-                    = IMPLICATION(jcp.with_binary_per_oc_bcast, dst_layout_nxc)
-                    || jcp.with_binary_no_bcast;
-            const injector_utils::conditional_register_preserve_guard_t
-                    register_guard(preserve_reg_needed, this,
-                            {oc_off_oprnd, out_off_oprnd});
-
             const auto ch_blk = jcp.ch_block;
             const auto ocb_stride
                     = dst_layout_nxc ? ch_blk : jcp.oh * jcp.ow * ch_blk;
@@ -303,50 +296,29 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
                         if ((ch + 1 == ur_ch_blocks) && is_ch_tail
                                 && c_tail <= r * vlen)
                             return;
-                        const int o_off
-                                = (ch * ocb_stride + ow * ow_stride + r * vlen);
+                        const size_t o_off = jcp.typesize_out
+                                * (ch * ocb_stride + ow * ow_stride + r * vlen);
                         const auto vmm_idx = get_acc_reg_idx(
                                 r * ur_ch_blocks * ur_w + ch * ur_w + ow);
                         vmm_idxs.emplace(vmm_idx);
 
-                        if (jcp.with_binary_per_oc_bcast) {
-                            rhs_arg_params_tail.vmm_idx_to_oc_elem_off_addr
-                                    .emplace(vmm_idx,
-                                            ptr[param1 + GET_OFF(oc_l_off)]);
-                            rhs_arg_params_tail.vmm_idx_to_oc_elem_off_val
-                                    .emplace(vmm_idx,
-                                            (ch * repeats + r) * jcp.ch_block
-                                                    / repeats);
-                            if (dst_layout_nxc)
-                                rhs_arg_params_tail.vmm_idx_to_oc_off_oprnd
-                                        .emplace(vmm_idx, oc_off_oprnd);
-                        }
-                        if (jcp.with_binary_no_bcast) {
-                            rhs_arg_params_tail.vmm_idx_to_out_off_oprnd
-                                    .emplace(vmm_idx, out_off_oprnd);
-                            rhs_arg_params_tail.vmm_idx_to_out_elem_off_val
-                                    .emplace(vmm_idx, o_off);
-                        }
+                        rhs_arg_params_tail.vmm_idx_to_out_reg.emplace(
+                                vmm_idx, reg_output);
+                        rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
+                                vmm_idx, o_off);
                         if (mask_flag_blocked_layout || is_tail_load)
                             rhs_arg_params_tail.vmm_tail_idx_.emplace(vmm_idx);
                     });
-            if (jcp.with_binary_no_bcast) {
-                sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
-                sar(out_off_oprnd, std::log2(jcp.typesize_out));
-            }
-            if (jcp.with_binary_per_oc_bcast && dst_layout_nxc)
-                sub(oc_off_oprnd, aux_reg_ch_blocks);
-
             rhs_arg_params = rhs_arg_params_tail;
             rhs_arg_params.vmm_tail_idx_.clear();
+
             Label postops_done;
             if (mask_tail_blocked_layout) {
                 // mask_tail_blocked_layout approach of dynamic tail handling is
                 // used in blocked layout only. TODO: may be unify?
                 Label postops_no_tail;
-                const auto reg_tail = oc_off_oprnd;
-                mov(reg_tail, ptr[param1 + GET_OFF(load_work)]);
-                cmp(reg_tail, jcp.nb_ch_blocking * jcp.ch_block);
+                mov(reg_tmp, ptr[param1 + GET_OFF(load_work)]);
+                cmp(reg_tmp, jcp.nb_ch_blocking * jcp.ch_block);
                 jge(postops_no_tail, T_NEAR);
                 postops_injector_->compute_vector_range(
                         vmm_idxs, rhs_arg_params_tail);

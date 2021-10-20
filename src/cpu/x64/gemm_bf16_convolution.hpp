@@ -189,10 +189,6 @@ private:
         Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(30);
         Xbyak::Zmm bf16_emu_reserv_6 = Xbyak::Zmm(31);
 
-        /* binary post-ops operands */
-        Xbyak::Reg64 oc_off_oprnd = r12;
-        Xbyak::Reg64 out_off_oprnd = r13;
-
         constexpr static int reg64_size = sizeof(int64_t);
         constexpr static int reg_binary_post_op_acc_off = 0;
         constexpr static int stack_space_needed = reg64_size;
@@ -207,8 +203,8 @@ private:
         std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
                 postops_injector_;
 
-        void apply_postops(
-                const bool apply_mask, const int out_offset, const int vmm_idx);
+        void apply_postops(const bool apply_mask, const size_t out_offset,
+                const int vmm_idx);
         void generate() override;
         int vreg_dst_idx(int iter) {
             int idx = data_reg_base_idx_ + iter * compute_reg_step_ + 0;

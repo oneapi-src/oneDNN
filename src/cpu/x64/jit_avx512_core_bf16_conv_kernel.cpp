@@ -114,7 +114,7 @@ _jit_avx512_core_bf16_fwd_kernel<Vmm>::_jit_avx512_core_bf16_fwd_kernel(
 
         const rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx,
                 r14, r15, preserve_gpr, preserve_vmm,
-                GET_OFF(post_ops_binary_rhs_arg_vec),
+                GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, postops_mask,
                 use_exact_tail_scalar_bcast};
         const static_params_t static_params {
@@ -180,17 +180,12 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::apply_postops(int ur_w) {
             iterate(jcp.nb_oc_blocking, ur_w, mask_tail,
                     oc_blk_is_smaller_than_vmm,
                     [&](const bool mask_flag, const int k, const int j) {
-                        const int aux_output_l_off
-                                = get_dst_offset(j, k) / jcp.typesize_out;
+                        const size_t aux_output_l_off = get_dst_offset(j, k);
                         const auto vmm_idx = vmm_dst_idx(j, k);
                         vmm_idxs.emplace(vmm_idx);
 
-                        rhs_arg_params_tail.vmm_idx_to_oc_elem_off_addr.emplace(
-                                vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
-                        rhs_arg_params_tail.vmm_idx_to_oc_elem_off_val.emplace(
-                                vmm_idx, k * jcp.oc_block);
-                        rhs_arg_params_tail.vmm_idx_to_out_off_oprnd.emplace(
-                                vmm_idx, temp_offset_reg);
+                        rhs_arg_params_tail.vmm_idx_to_out_reg.emplace(
+                                vmm_idx, reg_dst);
                         rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
                                 vmm_idx, aux_output_l_off);
                         if (mask_flag)
@@ -198,12 +193,6 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::apply_postops(int ur_w) {
                     });
             rhs_arg_params = rhs_arg_params_tail;
             rhs_arg_params.vmm_tail_idx_.clear();
-
-            const injector_utils::register_preserve_guard_t register_guard(
-                    this, {temp_offset_reg});
-            mov(temp_offset_reg, reg_dst);
-            sub(temp_offset_reg, ptr[param1 + GET_OFF(dst_orig)]);
-            shr(temp_offset_reg, std::log2(types::data_type_size(jcp.dst_dt)));
 
             Label postops_done;
             if (mask_tail || oc_blk_is_smaller_than_vmm) {

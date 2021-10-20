@@ -72,10 +72,6 @@ private:
     const Xbyak::Reg64 reg_dst_zero_point = reg_src_zero_point;
     const Xbyak::Reg64 reg_load_dim_tail_mask = reg_scratch;
 
-    /* binary post-ops operands */
-    const Xbyak::Reg64 oc_off_oprnd = reg_scratch;
-    const Xbyak::Reg64 out_off_oprnd = r12;
-
     const Xbyak::Opmask k_load_dim_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask k_load_dim_tail_mask = Xbyak::Opmask(3);
     const Xbyak::Opmask postops_mask = Xbyak::Opmask(4);

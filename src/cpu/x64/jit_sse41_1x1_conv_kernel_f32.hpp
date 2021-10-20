@@ -68,10 +68,6 @@ private:
     reg64_t reg_bias_data = r12;
     reg64_t reg_diff_bias_data = bcast_loop_iter;
 
-    /* binary post-ops operands */
-    reg64_t oc_off_oprnd = r12;
-    reg64_t out_off_oprnd = r15;
-
     constexpr static int reg64_size_ = sizeof(int64_t);
     constexpr static int reg_diff_bias_data_stack_offt = 0;
     constexpr static int reg_binary_post_op_acc_off = 1 * reg64_size_;

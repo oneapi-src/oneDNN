@@ -50,7 +50,7 @@ jit_sse41_conv_fwd_kernel_f32::jit_sse41_conv_fwd_kernel_f32(
 
         const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
                 helper_vmm_idx, r14, r15, preserve_gpr, preserve_vmm,
-                GET_OFF(post_ops_binary_rhs_arg_vec),
+                GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size,
                 use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t static_params {
@@ -161,29 +161,18 @@ void jit_sse41_conv_fwd_kernel_f32::apply_postops(
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         iterate(oc_blocks, ur_w,
                 [&](const bool mask_flag, const int i, const int j) {
-                    const int o_off = get_output_offset(i, j) / sizeof(float);
+                    const size_t o_off = get_output_offset(i, j);
                     const auto vmm_idx = get_xmm_idx(ur_w, i, j);
                     vmm_idxs.emplace(vmm_idx);
 
-                    rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                            vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
-                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                            vmm_idx, i * jcp.oc_block);
+                    rhs_arg_params.vmm_idx_to_out_reg.emplace(
+                            vmm_idx, reg_output);
                     rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
                             vmm_idx, o_off);
-                    rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                            vmm_idx, oc_off_oprnd);
-                    rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
-                            vmm_idx, out_off_oprnd);
                     if (mask_flag)
                         rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
                 });
-        const injector_utils::register_preserve_guard_t register_guard(
-                this, {oc_off_oprnd, out_off_oprnd});
-        imul(oc_off_oprnd, simd_iter, simd_w_);
-        mov(out_off_oprnd, reg_output);
-        sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
-        shr(out_off_oprnd, std::log2(sizeof(float)));
+
         postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
     } else {
         iterate(oc_blocks, ur_w, [&](const bool, const int i, const int j) {

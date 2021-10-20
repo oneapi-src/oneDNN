@@ -187,7 +187,7 @@ jit_pp_ker_t::jit_pp_ker_t(
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
         const rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx,
                 r13, r14, preserve_gpr, preserve_vmm,
-                PARAM_OFF(post_ops_binary_rhs_arg_vec),
+                PARAM_OFF(post_ops_binary_rhs_arg_vec), PARAM_OFF(dst_orig),
                 memory_desc_wrapper(pd->dst_md()), tail_size, opmask_binary,
                 use_exact_tail_scalar_bcast};
 #undef PARAM_OFF
@@ -329,23 +329,12 @@ void jit_pp_ker_t::apply_postops(const Xbyak::Reg64 &reg_dst, const int idx) {
     if (jcp_.with_eltwise || jcp_.with_binary) {
         if (jcp_.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-            const auto dst_offset_reg = reg_dst;
             const auto vmm_idx = vreg_dst_idx(idx);
-            rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                    vmm_idx, ptr[reg_param_ + PARAM_OFF(g_oc_offset)]);
-            rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                    vmm_idx, reg_g_oc_off_);
-            rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
-                    vmm_idx, dst_offset_reg);
-            rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
-                    vmm_idx, dst_l_offset_);
-            rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
 
-            const injector_utils::register_preserve_guard_t register_guard(
-                    this, {dst_offset_reg});
-            sub(dst_offset_reg, ptr[reg_param_ + PARAM_OFF(dst_orig)]);
-            const auto size = types::data_type_size(jcp_.dst_data_type);
-            if (size) shr(dst_offset_reg, std::log2(size));
+            rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_dst);
+            rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(vmm_idx,
+                    dst_l_offset_ * types::data_type_size(jcp_.dst_data_type));
+            rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
 
             postops_injector_->compute_vector(
                     vreg_dst_idx(idx), rhs_arg_params);

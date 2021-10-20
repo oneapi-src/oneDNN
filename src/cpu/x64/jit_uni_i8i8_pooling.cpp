@@ -54,6 +54,7 @@ using namespace alg_kind;
 struct call_params_t {
     const char *src_i8;
     const char *dst_i8;
+    const char *dst_orig;
     const void *post_ops_binary_rhs_arg_vec;
     size_t kd_range;
     size_t kh_range;
@@ -164,6 +165,24 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
         mmx_msk_base_reg = 3
     };
 
+    inline size_t get_offset_dst(int jj, int ll) const {
+        size_t offset = 0;
+        switch (jpp.alg) {
+            case pooling_max: {
+                offset = jj * jpp.c_block * sizeof_dst_dt();
+                break;
+            }
+            case pooling_avg_include_padding:
+            case pooling_avg_exclude_padding: {
+                offset = (ll * (jpp.c_block / max_num_ll) + jj * jpp.c_block)
+                        * sizeof_dst_dt();
+                break;
+            }
+            default: assert(!"unsupported pooling algorithm");
+        }
+        return offset;
+    }
+
     Vmm vreg_src_s32(int jj, int ll) {
         return avg_base_vr(3 * max_num_ll * jj + ll + 0 * max_num_ll);
     } // ll: 0..4 [0..3]
@@ -236,8 +255,8 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
             static constexpr std::size_t tmp_vmm_injector = 0u;
 
             const binary_injector::rhs_arg_static_params_t rhs_sp {
-                    tmp_vmm_injector, rax, r14, preserve_gpr, preserve_vmm,
-                    GET_OFF(post_ops_binary_rhs_arg_vec),
+                    tmp_vmm_injector, r14, r15, preserve_gpr, preserve_vmm,
+                    GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                     memory_desc_wrapper(*dst_md), c_tail_elems,
                     mask(post_op_tail_opmask_idx_),
                     use_exact_tail_scalar_bcast};
@@ -969,18 +988,6 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
         jl(l_kd, T_NEAR);
     }
 
-    static constexpr int vlen_size_elem
-            = cpu_isa_traits<isa>::vlen / sizeof(float);
-    const auto reg_tmp_postops = r15;
-    const injector_utils::register_preserve_guard_t reg_guard(this,
-            jpp.with_binary
-                    ? std::initializer_list<Xbyak::Reg64> {reg_tmp_postops}
-                    : std::initializer_list<Xbyak::Reg64> {},
-            {});
-    if (jpp.with_binary) {
-        imul(reg_tmp_postops, c_iter, ur_c * num_ll * vlen_size_elem);
-    }
-
     for (int jj = 0; jj < ur_c; jj++) {
         for (int ll = 0; ll < num_ll; ll++) {
             const bool masked = jj == ur_c - 1 && c_tail;
@@ -994,16 +1001,10 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
                 if (jpp.with_postops) {
                     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
                     if (jpp.with_binary) {
-                        rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                                reg_dst_f32.getIdx(), reg_tmp_postops);
-                        rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                                reg_dst_f32.getIdx(),
-                                ll * vlen_size_elem + jj * vlen_size_elem);
-                        rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                                reg_dst_f32.getIdx(), reg_tmp_postops);
-                        rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                                reg_dst_f32.getIdx(),
-                                ll * vlen_size_elem + jj * vlen_size_elem);
+                        rhs_arg_params.vmm_idx_to_out_reg.emplace(
+                                reg_dst_f32.getIdx(), reg_ptr_dst_i8);
+                        rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                                reg_dst_f32.getIdx(), get_offset_dst(jj, ll));
                         const bool tail = ll == post_op_tail_opmask_idx_;
                         if (tail && masked)
                             rhs_arg_params.vmm_tail_idx_.emplace(
@@ -1472,6 +1473,7 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
                         * src_d.data_type_size()];
                 p.dst_i8 = &dst_i8[get_offset(dst_d, n, 0, od, oh, ow)
                         * dst_d.data_type_size()];
+                p.dst_orig = dst_i8;
                 p.kd_range = kd_end - kd_start;
                 p.kh_range = kh_end - kh_start;
                 p.kw_range = kw_end - kw_start;

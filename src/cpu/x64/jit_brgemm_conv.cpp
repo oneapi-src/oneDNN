@@ -726,7 +726,7 @@ status_t brgemm_convolution_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
 }
 
 template <cpu_isa_t isa>
-void brgemm_convolution_fwd_t<isa>::perform_outwork(char *dst_base,
+void brgemm_convolution_fwd_t<isa>::perform_outwork(char *dst_base, char *dst,
         char *c_buffer, const char *bias_w, int od, int oh, int ow, int g_oc,
         bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l, int kh_l,
         const void *post_ops_binary_rhs_arg_vec, bool maybe_do_init,
@@ -754,7 +754,7 @@ void brgemm_convolution_fwd_t<isa>::perform_outwork(char *dst_base,
         p.ptr_bias = (void *)(bias_w);
         p.ptr_scales = (void *)(&oscales[jcp.is_oc_scale * g_oc]);
         p.ptr_binary_post_ops_rhs = post_ops_binary_rhs_arg_vec;
-        p.oc_l_offset = g_oc;
+        p.dst_orig = dst;
     }
 
     auto call_outwork_ker = [&](bool is_postwork, int ow_pw_s, int ow_pw_l) {
@@ -822,7 +822,7 @@ void brgemm_convolution_fwd_t<isa>::call_brgemm_kernel(brgemm_thread_ctx_t &btc,
         const brgemm_post_ops_data_t post_ops_data {
                 static_cast<const char *>(bias_w),
                 &oscales[jcp.is_oc_scale * g_oc], binary_post_ops_rhs,
-                static_cast<size_t>(g_oc)};
+                static_cast<size_t>(g_oc), 0, btc.brgemm_ctx.dst};
 
         brgemm_kernel_execute_postops(brg_ker, batch_size, btc.brg_batch, ptr_C,
                 ptr_D, post_ops_data, static_cast<void *>(btc.wsp_tile));
@@ -1124,7 +1124,7 @@ void brgemm_convolution_fwd_t<isa>::ker_base(brgemm_thread_ctx_t &btc) const {
                 call_brgemm(brg_ic_tail_idx, nb_ic_b, 1, do_postwork);
             }
         }
-        perform_outwork(dst_base, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
+        perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
                 g_oc, is_oc_tail, ow_b, ow_e, kd_l, kh_l,
                 post_ops_binary_rhs_arg_vec.data(), do_init, do_postwork);
     };
@@ -1176,7 +1176,7 @@ void brgemm_convolution_fwd_t<isa>::ker_base(brgemm_thread_ctx_t &btc) const {
     } else {
         const auto do_init = btc.icc == 0;
         const auto do_postwork = need_postwork && btc.icc == (ic_chunks - 1);
-        perform_outwork(dst_base, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
+        perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
                 g_oc, is_oc_tail, ow, ow, kd_l, kh_l,
                 post_ops_binary_rhs_arg_vec.data(), do_init, do_postwork);
     }
@@ -1322,7 +1322,7 @@ void brgemm_convolution_fwd_t<isa>::ker_trans(
     } else {
         const auto do_init = btc.icc == 0;
         const auto do_postwork = need_postwork && btc.icc == (ic_chunks - 1);
-        perform_outwork(dst_base, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
+        perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
                 g_oc, is_oc_tail, ow, ow, kd_l, kh_l,
                 post_ops_binary_rhs_arg_vec.data(), do_init, do_postwork);
     }
@@ -1455,7 +1455,7 @@ void brgemm_convolution_fwd_t<isa>::ker_vpad(brgemm_thread_ctx_t &btc) const {
     } else {
         const auto do_init = btc.icc == 0;
         const auto do_postwork = need_postwork && btc.icc == (ic_chunks - 1);
-        perform_outwork(dst_base, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
+        perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
                 g_oc, is_oc_tail, ow, ow, kd_l, kh_l,
                 post_ops_binary_rhs_arg_vec.data(), do_init, do_postwork);
     }

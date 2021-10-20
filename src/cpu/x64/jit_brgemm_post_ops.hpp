@@ -261,6 +261,7 @@ struct brgemm_kernel_post_ops_t {
     void *ptr_scales;
     const void *ptr_binary_post_ops_rhs;
     size_t oc_l_offset;
+    const void *dst_orig;
 };
 
 struct jit_brgemm_kernel_post_ops : public jit_generator {
@@ -283,9 +284,9 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
             static constexpr bool use_exact_tail_scalar_bcast = false;
 
             const binary_injector::rhs_arg_static_params_t rhs_sp {
-                    static_cast<size_t>(Xbyak::Zmm(28).getIdx()), this->rax,
-                    this->r11, preserve_gpr, preserve_vmm,
-                    GET_OFF(ptr_binary_post_ops_rhs),
+                    static_cast<size_t>(Xbyak::Zmm(28).getIdx()), this->r14,
+                    this->r15, preserve_gpr, preserve_vmm,
+                    GET_OFF(ptr_binary_post_ops_rhs), GET_OFF(dst_orig),
                     memory_desc_wrapper(brg.dst_md),
                     static_cast<size_t>(brg.load_dim % brg.ld_block),
                     k_tail_mask, use_exact_tail_scalar_bcast};
@@ -447,11 +448,12 @@ private:
             for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
                 const auto zmm_idx = vector(m, n, n_block).getIdx();
+                const size_t aux_output_offset
+                        = out_typesize_ * (m * LDD_ + n * brg.ld_block);
 
-                rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                        zmm_idx, aux_reg_oc_l_offset_);
-                rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                        zmm_idx, n * brg.ld_block);
+                rhs_arg_params.vmm_idx_to_out_reg.emplace(zmm_idx, aux_reg_out);
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        zmm_idx, aux_output_offset);
                 if (tail) rhs_arg_params.vmm_tail_idx_.emplace(zmm_idx);
             }
         }
