@@ -33,7 +33,7 @@ namespace dnnl_impl {
 
 class scratchpad_t {
 public:
-    virtual ~scratchpad_t() {}
+    virtual ~scratchpad_t() = default;
     virtual char *get_buffer() const = 0;
     virtual size_t size() const = 0;
 };

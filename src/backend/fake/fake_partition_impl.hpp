@@ -42,7 +42,7 @@ public:
     fake_partition_impl_t(impl::engine_kind_t engine_kind)
         : impl::partition_impl_t(engine_kind) {}
 
-    virtual ~fake_partition_impl_t() {}
+    virtual ~fake_partition_impl_t() = default;
 
     // deep copy
     fake_partition_impl_t(const fake_partition_impl_t &other)

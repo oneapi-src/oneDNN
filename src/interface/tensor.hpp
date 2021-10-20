@@ -28,7 +28,7 @@
 
 struct dnnl_graph_tensor {
 public:
-    dnnl_graph_tensor() {}
+    dnnl_graph_tensor() = default;
 
     dnnl_graph_tensor(const dnnl::graph::impl::logical_tensor_t &lt,
             const dnnl::graph::impl::engine_t *eng, void *handle)
@@ -76,7 +76,6 @@ private:
             return dnnl::graph::impl::data_type::undef;
     }
 
-private:
     dnnl::graph::impl::logical_tensor_t tensor_desc_;
     const dnnl::graph::impl::engine_t *eng_ {nullptr};
     void *data_handle_ {nullptr};

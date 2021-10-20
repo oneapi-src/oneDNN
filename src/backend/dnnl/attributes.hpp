@@ -32,7 +32,7 @@ using post_ops = dnnl::post_ops;
 
 /// Attribute class for extra information into computations
 struct attr_t : public dnnl::primitive_attr {
-    attr_t() {}
+    attr_t() = default;
 
     // Helper factory
     static attr_t fuse_sum(float scale = 1.0) {

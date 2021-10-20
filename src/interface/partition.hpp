@@ -57,8 +57,7 @@ public:
     dnnl_graph_partition() = default;
 
     // deep copy
-    dnnl_graph_partition(const dnnl_graph_partition &other)
-        : impl::utils::id_t(other), pimpl_(other.pimpl_) {}
+    dnnl_graph_partition(const dnnl_graph_partition &other) = default;
 
     // disable assign
     dnnl_graph_partition &operator=(const dnnl_graph_partition &other) = delete;

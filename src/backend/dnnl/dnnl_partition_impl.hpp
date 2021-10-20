@@ -208,7 +208,7 @@ public:
     dnnl_partition_impl_t(impl::engine_kind_t engine_kind)
         : impl::partition_impl_t(engine_kind) {};
 
-    virtual ~dnnl_partition_impl_t() {};
+    virtual ~dnnl_partition_impl_t() = default;
 
     // deep copy
     dnnl_partition_impl_t(const dnnl_partition_impl_t &other)

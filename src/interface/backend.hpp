@@ -43,7 +43,7 @@ public:
     backend(const std::string &name, float priority)
         : name_(name), priority_(priority), id_(get_counter()) {}
 
-    virtual ~backend() {}
+    virtual ~backend() = default;
 
     const std::string &get_name() const { return name_; };
     size_t get_id() const { return id_; }

@@ -54,7 +54,7 @@ public:
         using data_type = typename memory::data_type;
         using format_tag = typename memory::format_tag;
 
-        desc() : memory::desc() {}
+        desc() = default;
 
         // copy ctor
         desc(const desc &adesc) : memory::desc(adesc.data) { set_g(adesc.g()); }
@@ -444,7 +444,7 @@ public:
     }
 
     // Constructs an tensor with no buffer and zero memory description
-    tensor() : dnnl::memory() {}
+    tensor() = default;
 
     // desc, buffer
     tensor(const desc &adesc, const dnnl::engine &p_engine,
@@ -512,11 +512,7 @@ public:
     }
 
     /// Copy constructor
-    tensor(const tensor &t)
-        : memory(t)
-        , workspace_(t.workspace_)
-        , buffer_(t.buffer_)
-        , alc_(t.alc_) {}
+    tensor(const tensor &t) = default;
 
     /// Move constructor
     tensor(tensor &&t)
@@ -527,6 +523,8 @@ public:
 
     /// Assignment operator
     tensor &operator=(const tensor &t) {
+        if (this == &t) return *this;
+
         memory::operator=(t);
         buffer_ = t.buffer_;
         workspace_ = t.workspace_;

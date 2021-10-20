@@ -80,11 +80,10 @@ public:
 private:
     static void default_destroy_allocator(
             dnnl::graph::impl::allocator_t *alloc) {
-        if (alloc) delete alloc;
+        delete alloc;
     }
-    static void dummy_destroy_allocator(dnnl::graph::impl::allocator_t *) {
-        return;
-    }
+
+    static void dummy_destroy_allocator(dnnl::graph::impl::allocator_t *) {}
 
     void *device_handle_ {};
     dnnl::graph::impl::engine_kind_t kind_ {};

@@ -307,7 +307,7 @@ inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
 }
 
 struct op_executable {
-    virtual ~op_executable() {}
+    virtual ~op_executable() = default;
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const = 0;
 };

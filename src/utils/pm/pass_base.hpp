@@ -117,7 +117,7 @@ public:
         , backend_(std::move(pbackend))
         , name_(std::move(pname)) {}
 
-    pass_base() {};
+    pass_base() = default;
 
     // the criteria of pass execution
     virtual void run(graph &agraph) { UNUSED(agraph); }

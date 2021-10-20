@@ -123,7 +123,7 @@ public:
 
 private:
     struct any_vtable {
-        virtual ~any_vtable() {}
+        virtual ~any_vtable() = default;
         virtual const std::type_info &type() = 0;
         virtual std::shared_ptr<any_vtable> get_vtable() = 0;
     };

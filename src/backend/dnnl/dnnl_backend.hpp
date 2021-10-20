@@ -47,8 +47,8 @@ class dnnl_partition_impl_t;
 
 class layout_id_manager {
 public:
-    layout_id_manager() {};
-    virtual ~layout_id_manager() {}
+    layout_id_manager() = default;
+    virtual ~layout_id_manager() = default;
 
     /*! \brief Set a backend memory descriptor to manager and get a
     * corresponding layout id
@@ -114,7 +114,7 @@ class dnnl_layout_id_manager : public layout_id_manager {
     friend class dnnl_backend;
 
     // private, only can be created in dnnl_backend
-    dnnl_layout_id_manager() {}
+    dnnl_layout_id_manager() = default;
 
     bool is_mem_desc_equal(const impl::utils::any &mem_desc1,
             const impl::utils::any &mem_desc2) const override;
@@ -221,7 +221,7 @@ struct enum_hash {
 };
 
 struct kernel_base {
-    virtual ~kernel_base() {}
+    virtual ~kernel_base() = default;
 
     template <typename T>
     impl::status_t compile(const T *op_or_part, const impl::engine_t *aengine,
@@ -307,7 +307,7 @@ public:
     using ptr = std::shared_ptr<kernel_registry>;
 
     kernel_registry() = default;
-    virtual ~kernel_registry() {}
+    virtual ~kernel_registry() = default;
 
     template <typename kernel_type>
     static kernel_ptr create_kernel() {

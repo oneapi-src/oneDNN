@@ -60,12 +60,11 @@ class backend;
 class partition_impl_t : public std::enable_shared_from_this<partition_impl_t> {
 public:
     partition_impl_t(impl::engine_kind_t engine_kind)
-        : std::enable_shared_from_this<partition_impl_t>()
-        , engine_kind_(engine_kind) {};
+        : engine_kind_(engine_kind) {};
 
     partition_impl_t(const partition_impl_t &other);
 
-    virtual ~partition_impl_t() {};
+    virtual ~partition_impl_t() = default;
 
     /// disable assign
     partition_impl_t &operator=(const partition_impl_t &other) = delete;
@@ -245,7 +244,7 @@ public:
         , outputs_(outputs)
         , inplace_pairs_(inplace_pairs) {};
 
-    virtual ~compiled_partition_impl_t() {};
+    virtual ~compiled_partition_impl_t() = default;
 
     /// The getters for engine_, which is used in C API implementation
     const impl::engine_t &get_engine() const { return engine_; }
