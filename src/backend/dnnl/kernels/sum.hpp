@@ -26,7 +26,7 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-struct sum : public dnnl::sum {
+struct sum_t : public dnnl::sum {
     using super = dnnl::sum;
 
     static void compute(const scale_t &scales,

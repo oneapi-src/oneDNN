@@ -67,7 +67,7 @@ public:
             std::vector<impl::pass::FCreatePattern> pfuncs
                     = get_attr<impl::pass::FCreatePattern>("FCreatePattern");
 
-            pattern_utils pu;
+            pattern_utils_t pu;
             for (auto &pfunc : pfuncs) {
                 impl::pass::pattern original_pattern;
                 pfunc(&original_pattern);
@@ -97,7 +97,7 @@ public:
                             "FCreateV2FusedOp")[0];
             std::shared_ptr<op_t> fused_op_ptr = optfunc();
             op_t fused_op = *fused_op_ptr;
-            pattern_utils pu;
+            pattern_utils_t pu;
             for (auto &pfunc : pfuncs) {
                 std::shared_ptr<impl::utils::pm::pb_graph> pgraph
                         = make_shared<impl::utils::pm::pb_graph>("pgraph");

@@ -45,7 +45,7 @@ using pattern_pair = impl::utils::pm::pattern_pair;
 /**
  * Operators set for checking number of op inputs
  */
-struct op_set {
+struct op_set_t {
     /**
      * Check if operator inputs are commutative.
      *
@@ -106,7 +106,7 @@ void special_case_handle(op_t *graph_op, op_t *pattern_op, indegree in_degree,
     const auto gin_deg = in_degree(graph_op);
     const auto expected_deg = 2;
 
-    if (op_set::check_inputs_commutativity(pattern_op->get_kind())
+    if (op_set_t::check_inputs_commutativity(pattern_op->get_kind())
             && expected_deg == pin_deg && pin_deg == gin_deg) {
         if (should_swap_inputs(graph_op, pattern_op, get_input)) {
             pattern_op->swap_input_values(0, 1);
@@ -311,7 +311,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
                         = noutput->find_consumer(i,
                                 pconsumers[i].get_op().get_kind(),
                                 pconsumers[i].get_offset(),
-                                op_set::check_inputs_commutativity(
+                                op_set_t::check_inputs_commutativity(
                                         pconsumers[i].get_op().get_kind()));
                 if (!corresponding_offset.has_value()) { return false; }
                 noutput->swap_consumer(i, corresponding_offset.value());
@@ -392,7 +392,7 @@ inline bool per_op_comp(op_t *graph_op, op_t *pattern_op,
             });
 }
 
-class pattern_utils {
+class pattern_utils_t {
 public:
     inline void reorder_matched_list(std::vector<pattern_pair> &matched_pairs);
 
@@ -420,10 +420,10 @@ public:
         per_op_comp(op_pattern, op_pattern, pattern_vector, selected);
         return pattern_vector;
     }
-    pattern_utils() = default;
-    pattern_utils(const pattern_utils &) = delete;
-    pattern_utils(pattern_utils &&) = delete;
-    pattern_utils &operator=(const pattern_utils &) = delete;
+    pattern_utils_t() = default;
+    pattern_utils_t(const pattern_utils_t &) = delete;
+    pattern_utils_t(pattern_utils_t &&) = delete;
+    pattern_utils_t &operator=(const pattern_utils_t &) = delete;
 };
 
 // function to reorder the matched list into topo order
@@ -431,7 +431,7 @@ public:
 // which is not confirmed by v2 matcher, so need to reorder
 // the op_list firstly.
 // can be removed after subgraph mode finished.
-inline void pattern_utils::reorder_matched_list(
+inline void pattern_utils_t::reorder_matched_list(
         std::vector<pattern_pair> &matched_pairs) {
     std::vector<pattern_pair> reordered_pairs;
     std::deque<pattern_pair> dq;
@@ -520,7 +520,7 @@ inline void pattern_utils::reorder_matched_list(
 }
 
 // function to do pattern matching
-inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
+inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
         op_t *op_pattern, std::vector<std::vector<op_t *>> &fusion_ops) {
     std::unordered_set<op_t *> selected;
     // dfs_visit graph, do pattern matching
@@ -538,7 +538,7 @@ inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
 }
 
 // function to do v2 pattern matching
-inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
+inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
         std::shared_ptr<impl::utils::pm::pb_graph> pgraph,
         std::vector<std::vector<pattern_pair>> &matched_pairs_list) {
     // dfs_visit graph, do pattern matching
@@ -562,7 +562,7 @@ inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
 }
 
 // function to do graph rewriting
-inline void pattern_utils::rewrite(dnnl::graph::impl::graph_t &backend_graph,
+inline void pattern_utils_t::rewrite(dnnl::graph::impl::graph_t &backend_graph,
         op_t *origin_pattern, op_t *optimized_pattern,
         std::vector<std::vector<op_t *>> &fusion_ops) {
     std::vector<op_t *> pattern_vec = pattern2vector(origin_pattern);
@@ -614,7 +614,7 @@ inline void pattern_utils::rewrite(dnnl::graph::impl::graph_t &backend_graph,
 }
 
 // function to do fusion but not rewrite the graph
-inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
+inline void pattern_utils_t::fuse(dnnl::graph::impl::graph_t &backend_graph,
         op_t *origin_pattern, op_t *opt_pattern,
         std::vector<std::vector<op_t *>> &fusion_ops) {
     std::vector<op_t *> pattern_vec = pattern2vector(origin_pattern);
@@ -689,7 +689,7 @@ inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
 }
 
 //do fuse with v2 pattern language
-inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
+inline void pattern_utils_t::fuse(dnnl::graph::impl::graph_t &backend_graph,
         std::vector<std::vector<pattern_pair>> &matched_pairs_list,
         op_t &fused_op) {
     std::vector<pattern_pair> fusion_ops_set;

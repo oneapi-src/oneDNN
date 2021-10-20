@@ -49,7 +49,7 @@ namespace impl {
 namespace dnnl_impl {
 
 template <bool quantized>
-struct convtranspose_fwd : public kernel_base_t {
+struct convtranspose_fwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;
@@ -75,7 +75,7 @@ private:
     pd_cache_t pd_cache_;
 
 public:
-    ~convtranspose_fwd() override {
+    ~convtranspose_fwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
@@ -299,8 +299,8 @@ public:
     }
 };
 
-using float_convtranspose_fwd = convtranspose_fwd</* quantized */ false>;
-using quantized_convtranspose = convtranspose_fwd</* quantized */ true>;
+using float_convtranspose_fwd = convtranspose_fwd_t</* quantized */ false>;
+using quantized_convtranspose = convtranspose_fwd_t</* quantized */ true>;
 
 } // namespace dnnl_impl
 } // namespace impl

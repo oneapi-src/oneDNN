@@ -412,9 +412,9 @@ private:
         compute_impl(src, scale, shift, dst, mean, variance, momentum, epsilon,
                 alc, p_stream);
         // running_mean, running_mean's buffer can be empty
-        sum::compute({momentum, 1 - momentum}, {running_mean, mean},
+        sum_t::compute({momentum, 1 - momentum}, {running_mean, mean},
                 running_mean, p_engine_, alc, p_stream);
-        sum::compute({momentum, 1 - momentum}, {running_var, variance},
+        sum_t::compute({momentum, 1 - momentum}, {running_var, variance},
                 running_var, p_engine_, alc, p_stream);
         // copy data
         batch_mean.reinit_if_possible(p_stream, mean.get_desc());

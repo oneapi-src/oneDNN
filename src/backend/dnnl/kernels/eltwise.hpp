@@ -34,7 +34,7 @@ enum eltwise_inputs { kSrc };
 enum eltwise_outputs { kDst };
 } // namespace eltwise
 
-struct eltwise_fusion_set {
+struct eltwise_fusion_set_t {
     static bool with_binary(op_kind_t kind) {
         static const std::unordered_set<op_kind_t, enum_hash_t>
                 with_binary_set {op_kind::relu_add};
@@ -87,7 +87,7 @@ public:
 
         args.insert({DNNL_ARG_SRC, src});
         args.insert({DNNL_ARG_DST, expected_dst});
-        if (eltwise_fusion_set::with_binary(kind_))
+        if (eltwise_fusion_set_t::with_binary(kind_))
             args.insert({DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
                     post_src});
 
@@ -144,7 +144,7 @@ public:
 
             default: BACKEND_DNNL_ENFORCE(0, "Unsupported eltwise op.");
         }
-        if (!eltwise_fusion_set::with_binary(kind_))
+        if (!eltwise_fusion_set_t::with_binary(kind_))
             pd_ = primitive_desc(
                     {prop_kind_, algo_, src, alpha_, beta_}, p_engine_);
         else {
@@ -167,7 +167,7 @@ public:
                     return impl::status::compile_fail;
             }
 
-            if (eltwise_fusion_set::get_binary_algo(kind_, post_alg_)) {
+            if (eltwise_fusion_set_t::get_binary_algo(kind_, post_alg_)) {
                 attr_ = attr_t::fuse_binary(post_src, post_alg_);
                 pd_ = primitive_desc({prop_kind_, algo_, src, alpha_, beta_},
                         attr_, p_engine_);
@@ -193,7 +193,7 @@ public:
                 p_engine_, alc, inputs.at(eltwise::kSrc).get_data_handle()};
         dnnl_tensor_t y {outputs.at(eltwise::kDst).get_logical_tensor(),
                 p_engine_, alc, outputs.at(eltwise::kDst).get_data_handle()};
-        const dnnl_tensor_t post_src = eltwise_fusion_set::with_binary(kind_)
+        const dnnl_tensor_t post_src = eltwise_fusion_set_t::with_binary(kind_)
                 ? dnnl_tensor_t {inputs.back().get_logical_tensor(), p_engine_,
                         alc, inputs.back().get_data_handle()}
                 : dnnl_tensor_t {};

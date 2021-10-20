@@ -45,7 +45,7 @@ namespace impl {
 namespace dnnl_impl {
 
 template <bool quantized>
-struct matmul : public kernel_base_t {
+struct matmul_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;
@@ -71,7 +71,7 @@ private:
     pd_cache_t pd_cache_;
 
 public:
-    ~matmul() override {
+    ~matmul_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
@@ -346,8 +346,8 @@ public:
     }
 };
 
-using float_matmul = matmul</* quantized */ false>;
-using quantized_matmul = matmul</* quantized */ true>;
+using float_matmul = matmul_t</* quantized */ false>;
+using quantized_matmul = matmul_t</* quantized */ true>;
 
 } // namespace dnnl_impl
 } // namespace impl

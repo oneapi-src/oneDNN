@@ -232,7 +232,7 @@ public:
     }
 };
 
-struct layer_normalization_backward
+struct layer_normalization_backward_t
     : public dnnl::layer_normalization_backward {
     static void compute() {}
 };

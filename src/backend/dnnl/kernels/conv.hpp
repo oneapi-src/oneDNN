@@ -48,7 +48,7 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-struct conv_base : public kernel_base_t {
+struct conv_base_t : public kernel_base_t {
 protected:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;
@@ -74,7 +74,7 @@ protected:
     pd_cache_t pd_cache_;
 
 public:
-    ~conv_base() override {
+    ~conv_base_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
@@ -174,7 +174,7 @@ public:
 };
 
 template <bool quantized>
-struct conv_fwd : public conv_base {
+struct conv_fwd_t : public conv_base_t {
 public:
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
@@ -354,7 +354,7 @@ public:
     }
 };
 
-struct conv_bwd_data : public conv_base {
+struct conv_bwd_data : public conv_base_t {
 public:
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
@@ -724,8 +724,8 @@ private:
     }
 };
 
-using float_conv_fwd = conv_fwd</* quantized */ false>;
-using quantized_conv = conv_fwd</* quantized */ true>;
+using float_conv_fwd = conv_fwd_t</* quantized */ false>;
+using quantized_conv = conv_fwd_t</* quantized */ true>;
 
 } // namespace dnnl_impl
 } // namespace impl

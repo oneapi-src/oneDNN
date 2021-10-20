@@ -58,7 +58,7 @@ enum maxpool_bwd_inputs { kSrc, kIndices, kDiff_dst };
 } // namespace pool_bwd_with_indices
 
 template <bool quantized>
-struct pooling_fwd : public kernel_base_t {
+struct pooling_fwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;
@@ -77,7 +77,7 @@ private:
     pd_cache_t pd_cache_;
 
 public:
-    ~pooling_fwd() override {
+    ~pooling_fwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
@@ -223,8 +223,8 @@ public:
     }
 };
 
-using float_pooling_fwd = pooling_fwd</* quantized */ false>;
-using quantized_pooling = pooling_fwd</* quantized */ true>;
+using float_pooling_fwd = pooling_fwd_t</* quantized */ false>;
+using quantized_pooling = pooling_fwd_t</* quantized */ true>;
 
 struct pooling_backward : public dnnl::pooling_v2_backward,
                           public kernel_base_t {
