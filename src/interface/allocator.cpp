@@ -77,7 +77,7 @@ utils::rw_mutex_t dnnl_graph_allocator::monitor_t::rw_mutex_;
 
 void dnnl_graph_allocator::monitor_t::record_allocate(
         const dnnl_graph_allocator *alloc, const void *buf, size_t size,
-        const dnnl_graph_allocator::attribute &attr) {
+        const dnnl_graph_allocator::attribute_t &attr) {
     if (attr.data.type == allocator_lifetime::persistent) {
         rw_mutex_.lock_write();
         persist_mem_[alloc] += size;

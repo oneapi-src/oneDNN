@@ -459,10 +459,11 @@ public:
             impl::allocator_lifetime_t lifetime
             = impl::allocator_lifetime::temp)
         : memory(adesc, p_engine,
-                allocator::malloc(adesc.get_size(), p_engine, alc, lifetime))
+                dnnl_allocator_t::malloc(
+                        adesc.get_size(), p_engine, alc, lifetime))
         , alc_(alc) {
         buffer_.reset(this->get_data_handle(), [p_engine, alc](void *p) {
-            allocator::free(p, p_engine, alc);
+            dnnl_allocator_t::free(p, p_engine, alc);
         });
     }
 
@@ -479,10 +480,11 @@ public:
             impl::allocator_lifetime_t lifetime
             = impl::allocator_lifetime::temp)
         : memory(desc(lt), p_engine,
-                allocator::malloc(desc(lt).get_size(), p_engine, alc, lifetime))
+                dnnl_allocator_t::malloc(
+                        desc(lt).get_size(), p_engine, alc, lifetime))
         , alc_(alc) {
         buffer_.reset(this->get_data_handle(), [p_engine, alc](void *p) {
-            allocator::free(p, p_engine, alc);
+            dnnl_allocator_t::free(p, p_engine, alc);
         });
     }
 

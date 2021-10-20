@@ -36,28 +36,28 @@
 struct dnnl_graph_allocator final : public dnnl::graph::impl::utils::id_t {
 public:
     /// Allocator attributes
-    struct attribute {
+    struct attribute_t {
         friend struct dnnl_graph_allocator;
 
         dnnl::graph::impl::allocator_attr_t data;
 
         /// Default constructor for an uninitialized attribute
-        attribute() {
+        attribute_t() {
             data.type = dnnl::graph::impl::allocator_lifetime::persistent;
             data.alignment = 0;
         }
 
-        attribute(dnnl::graph::impl::allocator_lifetime_t type,
+        attribute_t(dnnl::graph::impl::allocator_lifetime_t type,
                 size_t alignment) {
             data.type = type;
             data.alignment = alignment;
         }
 
         /// Copy constructor
-        attribute(const attribute &other) = default;
+        attribute_t(const attribute_t &other) = default;
 
         /// Assign operator
-        attribute &operator=(const attribute &other) = default;
+        attribute_t &operator=(const attribute_t &other) = default;
     };
 
     struct mem_info_t {
@@ -93,7 +93,7 @@ public:
     public:
         static void record_allocate(const dnnl_graph_allocator *alloc,
                 const void *buf, size_t size,
-                const dnnl_graph_allocator::attribute &attr);
+                const dnnl_graph_allocator::attribute_t &attr);
 
         static void record_deallocate(
                 const dnnl_graph_allocator *alloc, const void *buf);
@@ -118,7 +118,7 @@ public:
         : sycl_malloc_(sycl_malloc), sycl_free_(sycl_free) {}
 #endif
 
-    void *allocate(size_t n, attribute attr = {}) const {
+    void *allocate(size_t n, attribute_t attr = {}) const {
         void *buffer = cpu_malloc_(n, attr.data);
 #ifndef NDEBUG
         monitor_t::record_allocate(this, buffer, n, attr);
@@ -128,7 +128,7 @@ public:
 
 #if DNNL_GRAPH_WITH_SYCL
     void *allocate(size_t n, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx, attribute attr) const {
+            const cl::sycl::context &ctx, attribute_t attr) const {
         void *buffer = sycl_malloc_(n, static_cast<const void *>(&dev),
                 static_cast<const void *>(&ctx), attr.data);
 #ifndef NDEBUG
@@ -139,7 +139,7 @@ public:
 #endif
 
     template <typename T>
-    T *allocate(size_t num_elem, attribute attr = {}) {
+    T *allocate(size_t num_elem, attribute_t attr = {}) {
         T *buffer = static_cast<T *>(
                 cpu_malloc_(num_elem * sizeof(T), attr.data));
 #ifndef NDEBUG
@@ -151,7 +151,7 @@ public:
 #if DNNL_GRAPH_WITH_SYCL
     template <typename T>
     T *allocate(size_t num_elem, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx, attribute attr = {}) {
+            const cl::sycl::context &ctx, attribute_t attr = {}) {
         T *buffer = static_cast<T *>(sycl_malloc_(num_elem * sizeof(T),
                 static_cast<const void *>(&dev),
                 static_cast<const void *>(&ctx), attr.data));
@@ -185,15 +185,15 @@ public:
 
 private:
     dnnl_graph_cpu_allocate_f cpu_malloc_ {
-            dnnl::graph::impl::utils::cpu_allocator::malloc};
+            dnnl::graph::impl::utils::cpu_allocator_t::malloc};
     dnnl_graph_cpu_deallocate_f cpu_free_ {
-            dnnl::graph::impl::utils::cpu_allocator::free};
+            dnnl::graph::impl::utils::cpu_allocator_t::free};
 
 #if DNNL_GRAPH_WITH_SYCL
     dnnl_graph_sycl_allocate_f sycl_malloc_ {
-            dnnl::graph::impl::utils::sycl_allocator::malloc};
+            dnnl::graph::impl::utils::sycl_allocator_t::malloc};
     dnnl_graph_sycl_deallocate_f sycl_free_ {
-            dnnl::graph::impl::utils::sycl_allocator::free};
+            dnnl::graph::impl::utils::sycl_allocator_t::free};
 #endif
 };
 

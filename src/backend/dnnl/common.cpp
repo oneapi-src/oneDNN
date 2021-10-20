@@ -39,7 +39,7 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-void *allocator::malloc(size_t size, const dnnl::engine &p_engine,
+void *dnnl_allocator_t::malloc(size_t size, const dnnl::engine &p_engine,
         const impl::allocator_t *alc, allocator_lifetime_t lifetime) {
 #if DNNL_GRAPH_WITH_SYCL
     return alc->allocate(size, dnnl::sycl_interop::get_device(p_engine),
@@ -52,7 +52,7 @@ void *allocator::malloc(size_t size, const dnnl::engine &p_engine,
 #endif
 }
 
-void allocator::free(
+void dnnl_allocator_t::free(
         void *p, const dnnl::engine &p_engine, const impl::allocator_t *alc) {
 #if DNNL_GRAPH_WITH_SYCL
     return alc->deallocate(p, dnnl::sycl_interop::get_context(p_engine));

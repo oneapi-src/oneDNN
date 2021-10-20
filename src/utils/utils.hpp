@@ -144,7 +144,7 @@ inline size_t lcm(size_t a, size_t b) {
 /// Default allocator for CPU
 /// now only support the allocation of persistent memory, that means
 /// we need to manually free the buffer allocated by this allocator
-class cpu_allocator {
+class cpu_allocator_t {
 public:
     constexpr static size_t DEFAULT_ALIGNMENT = 4096;
 
@@ -174,7 +174,7 @@ public:
 /// Default allocator for SYCL device
 /// now only support the allocation of persistent memory, that means
 /// we need to manually free the buffer allocated by this allocator.
-class sycl_allocator {
+class sycl_allocator_t {
 public:
     constexpr static size_t DEFAULT_ALIGNMENT = 16;
 

@@ -387,7 +387,7 @@ private:
 public:
     ~bias_add() override {
         if (expected_dst_buf_)
-            allocator::free(expected_dst_buf_, p_engine_, g_alloc_);
+            dnnl_allocator_t::free(expected_dst_buf_, p_engine_, g_alloc_);
     }
 
     impl::status_t compile_impl(const impl::op_t *op,
@@ -447,8 +447,9 @@ public:
         // to check this and alloc new memory for optiminal dst
         if (pd_.dst_desc() != dst.get_desc()) {
             if (!expected_dst_) {
-                expected_dst_buf_ = allocator::malloc(pd_.dst_desc().get_size(),
-                        p_engine_, g_alloc_, impl::allocator_lifetime::temp);
+                expected_dst_buf_ = dnnl_allocator_t::malloc(
+                        pd_.dst_desc().get_size(), p_engine_, g_alloc_,
+                        impl::allocator_lifetime::temp);
                 expected_dst_
                         = memory(pd_.dst_desc(), p_engine_, expected_dst_buf_);
             }

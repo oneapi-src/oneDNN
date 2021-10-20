@@ -31,7 +31,7 @@
 TEST(allocator_test, default_cpu_allocator) {
     dnnl::graph::impl::allocator_t alloc {};
 
-    dnnl::graph::impl::allocator_t::attribute attr {
+    dnnl::graph::impl::allocator_t::attribute_t attr {
             dnnl::graph::impl::allocator_lifetime::persistent, 4096};
     void *mem_ptr = alloc.allocate(static_cast<size_t>(16));
     ASSERT_NE(mem_ptr, nullptr);
@@ -39,7 +39,7 @@ TEST(allocator_test, default_cpu_allocator) {
 }
 
 TEST(allocator_test, create_attr) {
-    dnnl::graph::impl::allocator_t::attribute attr {
+    dnnl::graph::impl::allocator_t::attribute_t attr {
             dnnl::graph::impl::allocator_lifetime::output, 1024};
 
     ASSERT_EQ(attr.data.alignment, 1024);
@@ -53,7 +53,7 @@ TEST(allocator_test, default_sycl_allocator) {
     impl::allocator_t alloc {};
     sycl::queue q {sycl::gpu_selector {}, sycl::property::queue::in_order {}};
 
-    impl::allocator_t::attribute attr {
+    impl::allocator_t::attribute_t attr {
             impl::allocator_lifetime::persistent, 4096};
     void *mem_ptr = alloc.allocate(
             static_cast<size_t>(16), q.get_device(), q.get_context(), attr);
@@ -92,7 +92,7 @@ TEST(allocator_test, sycl_allocator) {
     std::unique_ptr<sycl::context> sycl_ctx;
 
     auto platform_list = sycl::platform::get_platforms();
-    dnnl::graph::impl::allocator_t::attribute alloc_attr {
+    dnnl::graph::impl::allocator_t::attribute_t alloc_attr {
             dnnl::graph::impl::allocator_lifetime::persistent, 1024};
     ASSERT_EQ(alloc_attr.data.type,
             dnnl::graph::impl::allocator_lifetime::persistent);
@@ -129,7 +129,8 @@ TEST(allocator_test, monitor) {
     auto callee = [&]() {
         // allocate persistent buffer
         void *p_buf = alloc.allocate(persist_size,
-                allocator_t::attribute {allocator_lifetime::persistent, 4096});
+                allocator_t::attribute_t {
+                        allocator_lifetime::persistent, 4096});
         {
             std::lock_guard<std::mutex> lock(m);
             persist_bufs.emplace_back(p_buf);
@@ -137,7 +138,7 @@ TEST(allocator_test, monitor) {
 
         // allocate temporary buffer
         void *t_buf = alloc.allocate(temp_size,
-                allocator_t::attribute {allocator_lifetime::temp, 4096});
+                allocator_t::attribute_t {allocator_lifetime::temp, 4096});
         for (size_t i = 0; i < temp_size; i++) {
             char *ptr = (char *)t_buf + i;
             *ptr = *ptr + 2;

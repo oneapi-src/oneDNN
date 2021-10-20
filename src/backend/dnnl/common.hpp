@@ -53,7 +53,7 @@ using query = dnnl::query;
 using scale_t = std::vector<float>;
 using exec_args = std::unordered_map<int, memory>;
 
-struct allocator {
+struct dnnl_allocator_t {
     static void *malloc(size_t size, const dnnl::engine &p_engine,
             const impl::allocator_t *alc, allocator_lifetime_t lifetime);
 
