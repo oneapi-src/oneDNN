@@ -206,8 +206,8 @@ using tensor_t = dnnl_graph_tensor;
 namespace std {
 template <>
 struct hash<dnnl::graph::impl::op_kind_t> {
-    typedef dnnl::graph::impl::op_kind_t argument_type;
-    typedef size_t result_type;
+    using argument_type = dnnl::graph::impl::op_kind_t;
+    using result_type = size_t;
 
     result_type operator()(const argument_type &x) const {
         using type = typename std::underlying_type<argument_type>::type;

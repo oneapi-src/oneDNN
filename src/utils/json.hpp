@@ -206,12 +206,12 @@ private:
 
 template <typename then, typename other>
 struct if_else_type<true, then, other> {
-    typedef then type;
+    using type = then;
 };
 
 template <typename then, typename other>
 struct if_else_type<false, then, other> {
-    typedef other type;
+    using type = other;
 };
 
 template <typename valuetype>
@@ -262,7 +262,7 @@ struct array_json {
         writer->end_array();
     }
     inline static void read(json_reader *reader, CT *array) {
-        typedef typename CT::value_type elemtype;
+        using elemtype = typename CT::value_type;
         array->clear();
         reader->begin_array();
         while (reader->next_array_item()) {
@@ -294,13 +294,13 @@ struct json_handler<std::list<T>> : public array_json<std::list<T>> {};
 template <typename T>
 struct json_handler {
     inline static void write(json_writer *writer, const T &data) {
-        typedef typename if_else_type<std::is_arithmetic<T>::value, num_json<T>,
-                common_json<T>>::type Tjson;
+        using Tjson = typename if_else_type<std::is_arithmetic<T>::value,
+                num_json<T>, common_json<T>>::type;
         Tjson::write(writer, data);
     }
     inline static void read(json_reader *reader, T *data) {
-        typedef typename if_else_type<std::is_arithmetic<T>::value, num_json<T>,
-                common_json<T>>::type Tjson;
+        using Tjson = typename if_else_type<std::is_arithmetic<T>::value,
+                num_json<T>, common_json<T>>::type;
         Tjson::read(reader, data);
     }
 };

@@ -147,7 +147,7 @@ private:
 
 template <typename T>
 T *any_cast(any *v) {
-    typedef typename std::remove_cv<T>::type value_type;
+    using value_type = typename std::remove_cv<T>::type;
     return v && v->type() == typeid(T)
             ? &static_cast<any::vtable<value_type> *>(v->avtable_.get())->value_
             : nullptr;
@@ -160,11 +160,11 @@ inline const T *any_cast(const any *v) {
 
 template <typename T>
 inline T any_cast(any &v) {
-    typedef typename std::remove_reference<T>::type nonref;
+    using nonref = typename std::remove_reference<T>::type;
     auto val = any_cast<nonref>(&v);
     if (val) {
-        typedef typename std::conditional<std::is_reference<T>::value, T,
-                typename std::add_lvalue_reference<T>::type>::type ref_type;
+        using ref_type = typename std::conditional<std::is_reference<T>::value,
+                T, typename std::add_lvalue_reference<T>::type>::type;
         return static_cast<ref_type>(*val);
     } else {
         throw bad_any_cast {};
