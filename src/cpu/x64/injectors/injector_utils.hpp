@@ -50,6 +50,19 @@ struct vmm_size_t<Xbyak::Xmm> {
     static constexpr std::size_t bytes = 16u;
 };
 
+enum class layout_t { ncsp, c_blocked, nspc, cspn, unsupported };
+
+inline layout_t get_layout_type(const memory_desc_wrapper &dst_d) {
+    const auto strides = dst_d.blocking_desc().strides;
+    if (!dst_d.is_plain()) return layout_t::c_blocked;
+    if (strides[0] >= strides[1]
+            && IMPLICATION(dst_d.ndims() >= 3, strides[1] >= strides[2]))
+        return layout_t::ncsp;
+    if (strides[1] == 1) return layout_t::nspc;
+    if (strides[0] == 1) return layout_t::cspn;
+    return layout_t::unsupported;
+}
+
 /*
  * Scope guard for general purpose register and vector registers preservation.
  * Pushes registers to stack during construction and pops during destruction.
