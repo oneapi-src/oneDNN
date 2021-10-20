@@ -209,7 +209,7 @@ bool op_schema::verify_param_dtype(
 }
 
 bool op_schema::verify_attributes(
-        const std::unordered_map<std::string, utils::attribute_value>
+        const std::unordered_map<std::string, utils::attribute_value_t>
                 &actual_attrs,
         const std::unordered_map<std::string, attribute> &expected_attrs)
         const {
@@ -233,8 +233,8 @@ bool op_schema::verify_attributes(
 }
 
 void op_schema::set_default_attribute(op_t *l_op) const {
-    const std::unordered_map<std::string, utils::attribute_value> &actual_attrs
-            = l_op->get_attributes();
+    const std::unordered_map<std::string, utils::attribute_value_t>
+            &actual_attrs = l_op->get_attributes();
     const std::unordered_map<std::string, op_schema::attribute> &expected_attrs
             = this->get_attrs();
     for (auto iter = expected_attrs.begin(); iter != expected_attrs.end();
@@ -242,7 +242,7 @@ void op_schema::set_default_attribute(op_t *l_op) const {
         // if default attribute not set in op, set it to default value
         if (iter->second.has_default_value_
                 && actual_attrs.count(iter->first) == 0) {
-            utils::attribute_value value = iter->second.attr_;
+            utils::attribute_value_t value = iter->second.attr_;
             const std::string &name = iter->first;
             l_op->set_attr(name, value);
         }

@@ -71,7 +71,7 @@ public:
     using logical_tensor_t = dnnl::graph::impl::logical_tensor_t;
     using attribute_kind_t = dnnl::graph::impl::attribute_kind_t;
     using status_t = dnnl::graph::impl::status_t;
-    using attribute_value_t = dnnl::graph::impl::utils::attribute_value;
+    using attribute_value_t = dnnl::graph::impl::utils::attribute_value_t;
     using value_t = dnnl::graph::impl::value_t;
     using pair_t = std::pair<size_t, size_t>; // <op_id, input/output offset>
 

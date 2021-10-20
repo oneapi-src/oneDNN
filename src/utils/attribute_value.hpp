@@ -83,23 +83,23 @@ constexpr attribute_kind_t get_attribute_kind() {
 }
 
 template <typename value_type>
-class attribute_value_cell_imp;
+class attribute_value_cell_imp_t;
 
 // Interface to cells the hold specific C++ types
-class attribute_value_cell {
+class attribute_value_cell_t {
 protected:
     template <typename value_type>
-    using imp_class = attribute_value_cell_imp<base_value_type<value_type>>;
+    using imp_class = attribute_value_cell_imp_t<base_value_type<value_type>>;
 
 public:
-    virtual ~attribute_value_cell() = default;
+    virtual ~attribute_value_cell_t() = default;
     virtual attribute_kind_t get_kind() const = 0;
     // Copy the underlying value
-    virtual std::unique_ptr<attribute_value_cell> duplicate() const = 0;
-    virtual bool operator==(const attribute_value_cell &other) const = 0;
+    virtual std::unique_ptr<attribute_value_cell_t> duplicate() const = 0;
+    virtual bool operator==(const attribute_value_cell_t &other) const = 0;
 
     template <typename value_type>
-    attribute_value_cell &operator=(value_type &&value) {
+    attribute_value_cell_t &operator=(value_type &&value) {
         if (get_kind() == get_attribute_kind<value_type>()) {
             static_cast<imp_class<value_type> &>(*this).set(
                     std::forward<value_type>(value));
@@ -131,22 +131,22 @@ public:
     }
 };
 
-// Type-specific instantiations of attribute_value_cell API
+// Type-specific instantiations of attribute_value_cell_t API
 template <typename value_type>
-class attribute_value_cell_imp : public attribute_value_cell {
+class attribute_value_cell_imp_t : public attribute_value_cell_t {
 public:
-    attribute_value_cell_imp(const value_type &value) : value_(value) {}
-    attribute_value_cell_imp(value_type &&value) : value_(std::move(value)) {}
+    attribute_value_cell_imp_t(const value_type &value) : value_(value) {}
+    attribute_value_cell_imp_t(value_type &&value) : value_(std::move(value)) {}
     attribute_kind_t get_kind() const override {
         return get_attribute_kind<value_type>();
     }
-    std::unique_ptr<attribute_value_cell> duplicate() const override {
-        return std::unique_ptr<attribute_value_cell>(
-                new attribute_value_cell_imp<value_type>(value_));
+    std::unique_ptr<attribute_value_cell_t> duplicate() const override {
+        return std::unique_ptr<attribute_value_cell_t>(
+                new attribute_value_cell_imp_t<value_type>(value_));
     }
-    bool operator==(const attribute_value_cell &other) const override {
+    bool operator==(const attribute_value_cell_t &other) const override {
         return (other.get_kind() == get_kind())
-                && static_cast<const attribute_value_cell_imp<value_type> &>(
+                && static_cast<const attribute_value_cell_imp_t<value_type> &>(
                            other)
                            .value_
                 == value_;
@@ -160,47 +160,47 @@ protected:
     value_type value_;
 };
 
-// Wrapper for a unique_ptr to an attribute_value_cell
-class attribute_value {
+// Wrapper for a unique_ptr to an attribute_value_cell_t
+class attribute_value_t {
 public:
-    attribute_value() = default;
+    attribute_value_t() = default;
 
     template <typename value_type>
-    attribute_value(const value_type &value)
-        : value_cell_(new attribute_value_cell_imp<value_type>(value)) {}
+    attribute_value_t(const value_type &value)
+        : value_cell_(new attribute_value_cell_imp_t<value_type>(value)) {}
 
-    attribute_value(attribute_value &&orig)
+    attribute_value_t(attribute_value_t &&orig)
         : value_cell_(std::move(orig.value_cell_)) {}
 
-    attribute_value(const attribute_value &orig) {
+    attribute_value_t(const attribute_value_t &orig) {
         if (orig.value_cell_) {
             this->value_cell_ = orig.value_cell_->duplicate();
         }
     }
 
     template <typename value_type>
-    attribute_value &operator=(value_type &&value) {
+    attribute_value_t &operator=(value_type &&value) {
         *value_cell_ = std::forward<value_type>(value);
         return *this;
     }
 
-    attribute_value &operator=(attribute_value &&orig) {
+    attribute_value_t &operator=(attribute_value_t &&orig) {
         value_cell_ = std::move(orig.value_cell_);
         return *this;
     }
 
-    attribute_value &operator=(const attribute_value &orig) {
+    attribute_value_t &operator=(const attribute_value_t &orig) {
         if (orig.value_cell_) {
             this->value_cell_ = orig.value_cell_->duplicate();
         }
         return *this;
     }
 
-    bool operator==(const attribute_value &value) const {
+    bool operator==(const attribute_value_t &value) const {
         return *value_cell_ == *value.value_cell_;
     }
 
-    bool operator!=(const attribute_value &value) const {
+    bool operator!=(const attribute_value_t &value) const {
         return !operator==(value);
     }
 
@@ -217,7 +217,7 @@ public:
     }
 
 private:
-    std::unique_ptr<attribute_value_cell> value_cell_;
+    std::unique_ptr<attribute_value_cell_t> value_cell_;
 };
 } // namespace utils
 } // namespace impl

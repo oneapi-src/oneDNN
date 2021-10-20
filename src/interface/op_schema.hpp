@@ -86,7 +86,7 @@ public:
         // constructor for optional attributes which need to have default value
         attribute(const std::string &name, std::string &&description,
                 bool required, attribute_kind_t attr_kind,
-                utils::attribute_value value)
+                utils::attribute_value_t value)
             : name_(name)
             , description_(std::move(description))
             , required_(false)
@@ -127,7 +127,7 @@ public:
         attribute_kind_t attr_kind_;
 
         // default value for the attribute
-        utils::attribute_value attr_;
+        utils::attribute_value_t attr_;
     };
 
     enum class param_num_option { fixed, optional, variadic };
@@ -252,7 +252,7 @@ private:
             const std::vector<op_parameter> &expected_params,
             param_num_option option) const;
     bool verify_attributes(
-            const std::unordered_map<std::string, utils::attribute_value>
+            const std::unordered_map<std::string, utils::attribute_value_t>
                     &actual_attrs,
             const std::unordered_map<std::string, attribute> &expected_attrs)
             const;
