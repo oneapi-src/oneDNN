@@ -33,7 +33,7 @@ enum reorder_input { kSrc };
 enum reorder_output { kDst };
 } // namespace
 
-struct reorder : public dnnl::reorder, public kernel_base {
+struct reorder : public dnnl::reorder, public kernel_base_t {
     using super = dnnl::reorder;
 
 private:

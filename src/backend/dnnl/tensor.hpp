@@ -38,15 +38,15 @@ namespace dnnl_impl {
 
 namespace impl = dnnl::graph::impl;
 
-class tensor : public memory {
+class dnnl_tensor_t : public memory {
 public:
     using dim_t = dnnl_dim_t;
     using dims_t = dnnl_dims_t;
     using format_kind_t = dnnl_format_kind_t;
     using blocking_desc_t = dnnl_blocking_desc_t;
 
-    struct desc : public memory::desc {
-        friend class tensor;
+    struct desc_t : public memory::desc {
+        friend class dnnl_tensor_t;
 
         // avoid conflicts with function desc::dims() and desc::data_type()
         using dim = typename memory::dim;
@@ -54,39 +54,41 @@ public:
         using data_type = typename memory::data_type;
         using format_tag = typename memory::format_tag;
 
-        desc() = default;
+        desc_t() = default;
 
         // copy ctor
-        desc(const desc &adesc) : memory::desc(adesc.data) { set_g(adesc.g()); }
+        desc_t(const desc_t &adesc) : memory::desc(adesc.data) {
+            set_g(adesc.g());
+        }
 
         // supplement group info for memory::desc
-        desc(const memory::desc &adesc, dim groups = 1)
+        desc_t(const memory::desc &adesc, dim groups = 1)
             : memory::desc(adesc.data) {
             set_g(groups);
         }
 
-        desc &operator=(const desc &adesc) {
+        desc_t &operator=(const desc_t &adesc) {
             memory::desc::operator=(adesc);
             set_g(adesc.g());
             return *this;
         }
 
-        desc(const dnnl_memory_desc_t &adata) : memory::desc(adata) {}
+        desc_t(const dnnl_memory_desc_t &adata) : memory::desc(adata) {}
 
-        desc(const dims &adims, data_type adata_type, format_tag aformat_tag)
+        desc_t(const dims &adims, data_type adata_type, format_tag aformat_tag)
             : memory::desc(adims, adata_type, aformat_tag) {
             set_g(1);
         }
 
-        desc(const dims &adims, data_type adata_type)
-            : desc(adims, adata_type, get_default_format(adims)) {}
+        desc_t(const dims &adims, data_type adata_type)
+            : desc_t(adims, adata_type, get_default_format(adims)) {}
 
-        desc(const dims &adims, data_type adata_type, const dims &astrides)
+        desc_t(const dims &adims, data_type adata_type, const dims &astrides)
             : memory::desc(adims, adata_type, astrides) {
             set_g(1);
         }
 
-        desc(const impl::logical_tensor_t &lt)
+        desc_t(const impl::logical_tensor_t &lt)
             : memory::desc(make_dnnl_memory_desc(lt)) {}
 
         /// public ndims
@@ -283,48 +285,49 @@ public:
                     && blk.inner_blks[0] == 4;
         }
 
-        desc to_format(format_tag aformat_tag) const {
-            auto ret = desc(get_internal_dims(), get_data_type(), aformat_tag);
+        desc_t to_format(format_tag aformat_tag) const {
+            auto ret
+                    = desc_t(get_internal_dims(), get_data_type(), aformat_tag);
             ret.set_g(g());
             return ret;
         }
 
-        desc to_format_any() const {
-            auto ret = desc(
+        desc_t to_format_any() const {
+            auto ret = desc_t(
                     get_internal_dims(), get_data_type(), format_tag::any);
             ret.set_g(g());
             return ret;
         }
 
-        desc to_default_format() const {
-            auto ret = desc(get_internal_dims(), get_data_type());
+        desc_t to_default_format() const {
+            auto ret = desc_t(get_internal_dims(), get_data_type());
             ret.set_g(g());
             return ret;
         }
 
-        desc clone() const { return desc(*this); }
+        desc_t clone() const { return desc_t(*this); }
 
-        desc to_type(data_type atype) const {
+        desc_t to_type(data_type atype) const {
             auto ret = clone();
             ret.data.data_type = static_cast<dnnl_data_type_t>(atype);
             ret.set_g(g());
             return ret;
         }
 
-        desc to_grouped(dim groups, bool is_deconv = false) const {
+        desc_t to_grouped(dim groups, bool is_deconv = false) const {
             UNUSED(is_deconv);
             auto grouped_dims = group_dims(get_internal_dims(), groups);
-            auto grouped_desc = desc(this->reshape(grouped_dims), groups);
+            auto grouped_desc = desc_t(this->reshape(grouped_dims), groups);
             return grouped_desc;
         }
 
-        bool has_same_shape_as(const desc &that) const {
+        bool has_same_shape_as(const desc_t &that) const {
             if (data.ndims != that.data.ndims) return false;
             return std::equal(
                     data.dims, data.dims + data.ndims, that.data.dims);
         }
 
-        desc transpose(dim dim0, dim dim1) const {
+        desc_t transpose(dim dim0, dim dim1) const {
             std::vector<int> axes(static_cast<std::size_t>(data.ndims));
             std::iota(axes.begin(), axes.end(), 0);
             axes[static_cast<std::size_t>(dim0)] = dim1;
@@ -336,7 +339,7 @@ public:
         /** inits descriptor with logical dimensions adims and keep the current
         * blocking structure
         */
-        desc to_dims(const dims &adims) const {
+        desc_t to_dims(const dims &adims) const {
             BACKEND_DNNL_ENFORCE(
                     adims.size() == data.ndims, "Rank mismatched.");
 
@@ -387,7 +390,7 @@ public:
 
             md.extra = dnnl_memory_extra_desc_t();
 
-            return desc(md);
+            return desc_t(md);
         }
 
         inline bool is_grouped() const { return g() > 1; }
@@ -436,25 +439,25 @@ public:
         dim group_ {1};
     };
 
-    desc get_desc() const {
+    desc_t get_desc() const {
         const dnnl_memory_desc_t *cdesc;
         error::wrap_c_api(dnnl_memory_get_memory_desc(get(), &cdesc),
                 "could not get memory descriptor from a memory");
-        return desc(*cdesc);
+        return desc_t(*cdesc);
     }
 
     // Constructs an tensor with no buffer and zero memory description
-    tensor() = default;
+    dnnl_tensor_t() = default;
 
     // desc, buffer
-    tensor(const desc &adesc, const dnnl::engine &p_engine,
+    dnnl_tensor_t(const desc_t &adesc, const dnnl::engine &p_engine,
             const impl::allocator_t *alc, void *ahandle)
         : memory(adesc, p_engine, ahandle), alc_(alc) {
         buffer_.reset();
     }
 
     // desc, no buffer
-    tensor(const desc &adesc, const dnnl::engine &p_engine,
+    dnnl_tensor_t(const desc_t &adesc, const dnnl::engine &p_engine,
             const impl::allocator_t *alc,
             impl::allocator_lifetime_t lifetime
             = impl::allocator_lifetime::temp)
@@ -468,20 +471,21 @@ public:
     }
 
     // logical tensor, buffer
-    tensor(const impl::logical_tensor_t &lt, const dnnl::engine &p_engine,
-            const impl::allocator_t *alc, void *ahandle)
-        : memory(desc(lt), p_engine, ahandle), alc_(alc) {
+    dnnl_tensor_t(const impl::logical_tensor_t &lt,
+            const dnnl::engine &p_engine, const impl::allocator_t *alc,
+            void *ahandle)
+        : memory(desc_t(lt), p_engine, ahandle), alc_(alc) {
         buffer_.reset();
     }
 
     // logical tensor, no buffer
-    tensor(const impl::logical_tensor_t &lt, const dnnl::engine &p_engine,
-            const impl::allocator_t *alc,
+    dnnl_tensor_t(const impl::logical_tensor_t &lt,
+            const dnnl::engine &p_engine, const impl::allocator_t *alc,
             impl::allocator_lifetime_t lifetime
             = impl::allocator_lifetime::temp)
-        : memory(desc(lt), p_engine,
+        : memory(desc_t(lt), p_engine,
                 dnnl_allocator_t::malloc(
-                        desc(lt).get_size(), p_engine, alc, lifetime))
+                        desc_t(lt).get_size(), p_engine, alc, lifetime))
         , alc_(alc) {
         buffer_.reset(this->get_data_handle(), [p_engine, alc](void *p) {
             dnnl_allocator_t::free(p, p_engine, alc);
@@ -489,16 +493,16 @@ public:
     }
 
     // dnnl_graph::tensor
-    tensor(const impl::tensor_t &impl_tensor, const dnnl::engine &p_engine,
-            const impl::allocator_t *alc)
-        : memory(desc(impl_tensor.get_logical_tensor()), p_engine,
+    dnnl_tensor_t(const impl::tensor_t &impl_tensor,
+            const dnnl::engine &p_engine, const impl::allocator_t *alc)
+        : memory(desc_t(impl_tensor.get_logical_tensor()), p_engine,
                 impl_tensor.get_data_handle())
         , alc_(alc) {
         buffer_.reset();
     }
 
     bool reinit_if_possible(
-            const dnnl::stream &p_stream, const desc &expected_desc) {
+            const dnnl::stream &p_stream, const desc_t &expected_desc) {
         if (is_empty()) return false;
 
         dnnl::memory::desc curr_desc = get_desc();
@@ -506,7 +510,8 @@ public:
             if (curr_desc.dims() == expected_desc.get_dims()) {
                 to_format(p_stream, expected_desc);
             } else {
-                tensor tmp {expected_desc, get_engine(), get_allocator()};
+                dnnl_tensor_t tmp {
+                        expected_desc, get_engine(), get_allocator()};
                 *this = std::move(tmp);
             }
         }
@@ -514,17 +519,17 @@ public:
     }
 
     /// Copy constructor
-    tensor(const tensor &t) = default;
+    dnnl_tensor_t(const dnnl_tensor_t &t) = default;
 
     /// Move constructor
-    tensor(tensor &&t)
+    dnnl_tensor_t(dnnl_tensor_t &&t)
         : memory(std::move(t))
         , workspace_(std::move(t.workspace_))
         , buffer_(std::move(t.buffer_))
         , alc_(t.alc_) {}
 
     /// Assignment operator
-    tensor &operator=(const tensor &t) {
+    dnnl_tensor_t &operator=(const dnnl_tensor_t &t) {
         if (this == &t) return *this;
 
         memory::operator=(t);
@@ -535,7 +540,7 @@ public:
     }
 
     /// Move assignment operator
-    tensor &operator=(tensor &&t) {
+    dnnl_tensor_t &operator=(dnnl_tensor_t &&t) {
         memory::operator=(std::move(t));
         buffer_ = std::move(t.buffer_);
         workspace_ = std::move(t.workspace_);
@@ -590,19 +595,20 @@ public:
         }
     }
 
-    tensor reorder_if_differ_in(const dnnl::stream &p_stream,
-            const desc &expected_desc, const attr_t &aattr = attr_t()) const {
+    dnnl_tensor_t reorder_if_differ_in(const dnnl::stream &p_stream,
+            const desc_t &expected_desc, const attr_t &aattr = attr_t()) const {
         if (expected_desc == get_desc()) {
             return *this;
         } else {
-            tensor dst {expected_desc, get_engine(), get_allocator()};
+            dnnl_tensor_t dst {expected_desc, get_engine(), get_allocator()};
             reorder_to(p_stream, dst, aattr);
             return dst;
         }
     }
 
     // no data copy
-    tensor make_grouped_weights(dim groups, bool is_deconv = false) const {
+    dnnl_tensor_t make_grouped_weights(
+            dim groups, bool is_deconv = false) const {
         if (groups <= 1) return *this;
 
         auto old_desc = get_desc();
@@ -622,7 +628,7 @@ public:
     }
 
     /// Return an new tensor with new shape
-    tensor &reshape(const dnnl::stream &p_stream, const dims &adims) {
+    dnnl_tensor_t &reshape(const dnnl::stream &p_stream, const dims &adims) {
         BACKEND_DNNL_ENFORCE(
                 has_same_volume(adims), "reshape to incompatible shape");
 
@@ -663,20 +669,22 @@ public:
         set_desc(get_desc().to_type(adata_type));
     }
 
-    inline void reorder_from(const dnnl::stream &p_stream, const tensor &src) {
+    inline void reorder_from(
+            const dnnl::stream &p_stream, const dnnl_tensor_t &src) {
         dnnl::reorder(src, *this)
-                .execute(p_stream, const_cast<tensor &>(src), *this);
+                .execute(p_stream, const_cast<dnnl_tensor_t &>(src), *this);
     }
 
-    inline void reorder_to(const dnnl::stream &p_stream, tensor &dst,
+    inline void reorder_to(const dnnl::stream &p_stream, dnnl_tensor_t &dst,
             const attr_t &aattr = attr_t()) const {
         auto pd = dnnl::reorder::primitive_desc(*this, dst, aattr);
-        dnnl::reorder(pd).execute(p_stream, const_cast<tensor &>(*this), dst);
+        dnnl::reorder(pd).execute(
+                p_stream, const_cast<dnnl_tensor_t &>(*this), dst);
     }
 
     /// Convert the tensor to public format, and f32 data type by default
-    tensor to_public(const dnnl::stream &p_stream, void *buffer = nullptr,
-            data_type dst_type = data_type::f32) const {
+    dnnl_tensor_t to_public(const dnnl::stream &p_stream,
+            void *buffer = nullptr, data_type dst_type = data_type::f32) const {
         auto dst_desc = get_desc();
 
         // If we get a non-plain blocking format, say `Acdb16A`, we may not be
@@ -689,56 +697,57 @@ public:
         }
 
         auto dst = buffer
-                ? tensor(dst_desc, get_engine(), get_allocator(), buffer)
-                : tensor(dst_desc, get_engine(), get_allocator());
+                ? dnnl_tensor_t(dst_desc, get_engine(), get_allocator(), buffer)
+                : dnnl_tensor_t(dst_desc, get_engine(), get_allocator());
 
         this->reorder_to(p_stream, dst);
 
         return dst;
     }
 
-    void init_workspace(const desc &desc) {
-        auto workspace = new tensor(desc, get_engine(), get_allocator());
+    void init_workspace(const desc_t &desc) {
+        auto workspace = new dnnl_tensor_t(desc, get_engine(), get_allocator());
         workspace_.reset(workspace);
     }
 
     /// Return extra packed tensor
-    tensor &get_workspace() const { return *workspace_; }
+    dnnl_tensor_t &get_workspace() const { return *workspace_; }
 
     /// Decide wether there is an extra tensor packed in
     bool has_workspace() const { return workspace_ != nullptr; }
 
-    tensor &permute_(const std::vector<int> &permute_axes = {}) {
+    dnnl_tensor_t &permute_(const std::vector<int> &permute_axes = {}) {
         return set_desc(get_desc().permute_axes(permute_axes));
     }
 
-    tensor permute(const dnnl::stream &p_stream,
+    dnnl_tensor_t permute(const dnnl::stream &p_stream,
             const std::vector<int> &permute_axes = {}) const {
         auto src_mask = *this;
         src_mask.permute_(permute_axes);
-        auto dst = tensor(src_mask.get_desc().to_default_format(), get_engine(),
-                get_allocator());
+        auto dst = dnnl_tensor_t(src_mask.get_desc().to_default_format(),
+                get_engine(), get_allocator());
         src_mask.reorder_to(p_stream, dst);
         return dst;
     }
 
-    tensor &transpose_(dim dim0, dim dim1) {
+    dnnl_tensor_t &transpose_(dim dim0, dim dim1) {
         return set_desc(get_desc().transpose(dim0, dim1));
     }
 
-    tensor transpose(const dnnl::stream &p_stream, dim dim0, dim dim1) const {
+    dnnl_tensor_t transpose(
+            const dnnl::stream &p_stream, dim dim0, dim dim1) const {
         auto src_mask = *this;
         src_mask.transpose_(dim0, dim1);
-        auto dst = tensor(src_mask.get_desc().to_default_format(), get_engine(),
-                get_allocator());
+        auto dst = dnnl_tensor_t(src_mask.get_desc().to_default_format(),
+                get_engine(), get_allocator());
         src_mask.reorder_to(p_stream, dst);
         return dst;
     }
 
 private:
-    inline void to_format(const dnnl::stream &p_stream, const desc &adesc) {
+    inline void to_format(const dnnl::stream &p_stream, const desc_t &adesc) {
         if (get_desc() != adesc) {
-            auto dst = tensor(adesc, get_engine(), get_allocator());
+            auto dst = dnnl_tensor_t(adesc, get_engine(), get_allocator());
             this->reorder_to(p_stream, dst);
             *this = std::move(dst);
         }
@@ -756,12 +765,13 @@ private:
     /// Set a descriptor into tensor to replace the older one, keep buffer
     /// It is caller's responsibility to make sure the original buffer is large
     /// enough for specified descriptor
-    tensor &set_desc(const desc &new_desc) {
+    dnnl_tensor_t &set_desc(const desc_t &new_desc) {
         // Keep the original management
         auto buf = std::move(buffer_);
         auto ws = std::move(workspace_);
 
-        tensor tmp {new_desc, get_engine(), get_allocator(), get_data_handle()};
+        dnnl_tensor_t tmp {
+                new_desc, get_engine(), get_allocator(), get_data_handle()};
         *this = std::move(tmp);
 
         buffer_ = std::move(buf);
@@ -769,7 +779,7 @@ private:
         return *this;
     }
 
-    std::shared_ptr<tensor> workspace_;
+    std::shared_ptr<dnnl_tensor_t> workspace_;
     std::shared_ptr<void> buffer_;
     const impl::allocator_t *alc_ {};
 };

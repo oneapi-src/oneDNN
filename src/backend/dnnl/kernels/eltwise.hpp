@@ -36,13 +36,13 @@ enum eltwise_outputs { kDst };
 
 struct eltwise_fusion_set {
     static bool with_binary(op_kind_t kind) {
-        static const std::unordered_set<op_kind_t, enum_hash> with_binary_set {
-                op_kind::relu_add};
+        static const std::unordered_set<op_kind_t, enum_hash_t>
+                with_binary_set {op_kind::relu_add};
         return with_binary_set.find(kind) != with_binary_set.end();
     }
 
     static bool get_binary_algo(op_kind_t kind, algorithm &alg) {
-        static const std::unordered_set<op_kind_t, enum_hash> add_set {
+        static const std::unordered_set<op_kind_t, enum_hash_t> add_set {
                 op_kind::relu_add};
         if (add_set.find(kind) != add_set.end()) {
             alg = algorithm::binary_add;
@@ -52,7 +52,7 @@ struct eltwise_fusion_set {
     }
 };
 
-struct eltwise_forward : public dnnl::eltwise_forward, public kernel_base {
+struct eltwise_forward : public dnnl::eltwise_forward, public kernel_base_t {
     using super = dnnl::eltwise_forward;
 
 private:
@@ -63,7 +63,7 @@ private:
     attr_t attr_;
     op_kind_t kind_;
 
-    tensor expected_dst_;
+    dnnl_tensor_t expected_dst_;
 
     float alpha_ = 0.f;
     float beta_ = 0.f;
@@ -71,12 +71,13 @@ private:
     dnnl::engine p_engine_;
 
 public:
-    void compute(const tensor &src, tensor &dst, const tensor &post_src,
-            impl::allocator_t *alc, const dnnl::stream &p_stream) const {
-        tensor expected_dst;
+    void compute(const dnnl_tensor_t &src, dnnl_tensor_t &dst,
+            const dnnl_tensor_t &post_src, impl::allocator_t *alc,
+            const dnnl::stream &p_stream) const {
+        dnnl_tensor_t expected_dst;
         if (dst.get_desc() != pd_.dst_desc()) {
             if (expected_dst.is_empty()) {
-                expected_dst = tensor {pd_.dst_desc(), p_engine_, alc};
+                expected_dst = dnnl_tensor_t {pd_.dst_desc(), p_engine_, alc};
             }
         } else {
             expected_dst = dst;
@@ -102,7 +103,7 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = tensor::desc;
+        using desc = dnnl_tensor_t::desc_t;
         // prepare engine and the inputs' tensors' descs
         const desc src {inputs.at(eltwise::kSrc)};
         const desc dst {outputs.at(eltwise::kDst)};
@@ -148,7 +149,7 @@ public:
                     {prop_kind_, algo_, src, alpha_, beta_}, p_engine_);
         else {
             //eltwise op only support binary post_ops
-            tensor::desc post_src {inputs.back()};
+            dnnl_tensor_t::desc_t post_src {inputs.back()};
 
             // post binary only supports per tensor and per channel
             // broadcast, which means the expand shape of post src should
@@ -173,7 +174,7 @@ public:
             }
         }
         prim_ = super(pd_);
-        const tensor::desc optimal_dst_desc {pd_.dst_desc()};
+        const dnnl_tensor_t::desc_t optimal_dst_desc {pd_.dst_desc()};
         impl::logical_tensor_t *dst_lt = const_cast<impl::logical_tensor_t *>(
                 &outputs.at(eltwise::kDst));
         fill_layout_info(dst_lt, optimal_dst_desc);
@@ -188,20 +189,20 @@ public:
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor x {inputs.at(eltwise::kSrc).get_logical_tensor(), p_engine_, alc,
-                inputs.at(eltwise::kSrc).get_data_handle()};
-        tensor y {outputs.at(eltwise::kDst).get_logical_tensor(), p_engine_,
-                alc, outputs.at(eltwise::kDst).get_data_handle()};
-        const tensor post_src = eltwise_fusion_set::with_binary(kind_)
-                ? tensor {inputs.back().get_logical_tensor(), p_engine_, alc,
-                        inputs.back().get_data_handle()}
-                : tensor {};
+        dnnl_tensor_t x {inputs.at(eltwise::kSrc).get_logical_tensor(),
+                p_engine_, alc, inputs.at(eltwise::kSrc).get_data_handle()};
+        dnnl_tensor_t y {outputs.at(eltwise::kDst).get_logical_tensor(),
+                p_engine_, alc, outputs.at(eltwise::kDst).get_data_handle()};
+        const dnnl_tensor_t post_src = eltwise_fusion_set::with_binary(kind_)
+                ? dnnl_tensor_t {inputs.back().get_logical_tensor(), p_engine_,
+                        alc, inputs.back().get_data_handle()}
+                : dnnl_tensor_t {};
         compute(x, y, post_src, alc, p_stream);
         return impl::status::success;
     }
 };
 
-struct eltwise_backward : public dnnl::eltwise_backward, public kernel_base {
+struct eltwise_backward : public dnnl::eltwise_backward, public kernel_base_t {
     using super = dnnl::eltwise_backward;
     using eltwise_argpack = std::tuple<algorithm, float, float>;
 
@@ -218,7 +219,7 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = tensor::desc;
+        using desc = dnnl_tensor_t::desc_t;
         // prepare the input's and output's desc
         const desc src {inputs.at(eltwise::kSrc + 1)};
 
@@ -243,9 +244,9 @@ public:
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor x1 {inputs.at(eltwise::kSrc + 1), p_engine_, alc};
-        tensor x2 {inputs.at(eltwise::kDst), p_engine_, alc};
-        tensor y {outputs.at(eltwise::kSrc), p_engine_, alc};
+        dnnl_tensor_t x1 {inputs.at(eltwise::kSrc + 1), p_engine_, alc};
+        dnnl_tensor_t x2 {inputs.at(eltwise::kDst), p_engine_, alc};
+        dnnl_tensor_t y {outputs.at(eltwise::kSrc), p_engine_, alc};
         compute(x1, x2, y, p_engine_, alc, p_stream_);
         return impl::status::success;
     }
@@ -253,9 +254,9 @@ public:
 private:
     // If grady and x had different format, performance is bad.
     // TODO(xxx): Seeking a single shot solution.
-    void compute(const tensor &src, const tensor &diff_dst, tensor &diff_src,
-            const dnnl::engine &aengine, impl::allocator_t *alc,
-            const dnnl::stream &p_stream) {
+    void compute(const dnnl_tensor_t &src, const dnnl_tensor_t &diff_dst,
+            dnnl_tensor_t &diff_src, const dnnl::engine &aengine,
+            impl::allocator_t *alc, const dnnl::stream &p_stream) {
         UNUSED(alc);
         UNUSED(aengine);
         auto expected_diff_dst
@@ -269,7 +270,7 @@ private:
                         {DNNL_ARG_DIFF_SRC, diff_src}});
     }
 
-    primitive_desc get_config(const tensor::desc &src, op_kind_t kind,
+    primitive_desc get_config(const dnnl_tensor_t::desc_t &src, op_kind_t kind,
             const dnnl::engine &p_engine, float alpha = 0.0, float beta = 0.0) {
         switch (kind) {
             case impl::op_kind::ReLUBackprop:

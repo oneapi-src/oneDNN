@@ -41,7 +41,7 @@ namespace cat {
 enum mem_keys { kBase };
 } // namespace cat
 
-struct concat : public dnnl::concat, public kernel_base {
+struct concat : public dnnl::concat, public kernel_base_t {
     using super = dnnl::concat;
 
 private:

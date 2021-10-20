@@ -49,7 +49,7 @@ namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = impl::dnnl_impl;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-static dnnl_impl::kernel_registry &get_dnnl_kernel_registry() {
+static dnnl_impl::kernel_registry_t &get_dnnl_kernel_registry() {
     return dnnl_impl::dnnl_backend::get_singleton().get_kernel_registry();
 }
 

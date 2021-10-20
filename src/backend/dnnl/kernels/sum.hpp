@@ -29,11 +29,12 @@ namespace dnnl_impl {
 struct sum : public dnnl::sum {
     using super = dnnl::sum;
 
-    static void compute(const scale_t &scales, const std::vector<tensor> &srcs,
-            tensor &dst, const dnnl::engine &p_engine, impl::allocator_t *alc,
+    static void compute(const scale_t &scales,
+            const std::vector<dnnl_tensor_t> &srcs, dnnl_tensor_t &dst,
+            const dnnl::engine &p_engine, impl::allocator_t *alc,
             const dnnl::stream &p_stream) {
         UNUSED(alc);
-        auto src_descs = utils::fmap(srcs, [](const tensor &t) {
+        auto src_descs = utils::fmap(srcs, [](const dnnl_tensor_t &t) {
             // "upcast" vector<tensor::desc> to vector<memory::desc>
             return static_cast<memory::desc>(t.get_desc());
         });

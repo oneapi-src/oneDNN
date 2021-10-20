@@ -28,7 +28,7 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-struct quantize_dequantize : public dnnl::reorder, public kernel_base {
+struct quantize_dequantize : public dnnl::reorder, public kernel_base_t {
     using super = dnnl::reorder;
 
 private:

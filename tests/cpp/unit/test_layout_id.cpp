@@ -32,7 +32,7 @@ TEST(layout_id_test, opaque_md_layout_id_mapping) {
     using data_type = dnnl_impl::data_type;
     using format_tag = dnnl_impl::format_tag;
 
-    dnnl_impl::dnnl_layout_id_manager &mgr
+    dnnl_impl::dnnl_layout_id_manager_t &mgr
             = impl::dnnl_impl::dnnl_backend::get_singleton()
                       .get_layout_id_manager();
 

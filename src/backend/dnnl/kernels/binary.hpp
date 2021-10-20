@@ -56,7 +56,7 @@ enum mem_keys {
 // - When iterating over the dimension sizes, starting at the trailing
 //   dimension, the dimension sizes must either be equal, one of them is 1, or
 //   one of them does not exist.
-struct binary : public dnnl::binary, public kernel_base {
+struct binary : public dnnl::binary, public kernel_base_t {
     using super = dnnl::binary;
 
 private:
@@ -113,7 +113,7 @@ private:
      * @return whether the operator fused add
      */
     static bool fuse_add(op_kind_t kind) {
-        static const std::unordered_set<op_kind_t, enum_hash> with_add_set {
+        static const std::unordered_set<op_kind_t, enum_hash_t> with_add_set {
                 op_kind::multiply_add, op_kind::maximum_add,
                 op_kind::minimum_add};
         return with_add_set.find(kind) != with_add_set.end();
@@ -126,8 +126,8 @@ private:
      * @return whether the operator fused binary
      */
     static bool fuse_binary(op_kind_t kind) {
-        static const std::unordered_set<op_kind_t, enum_hash> with_binary_set {
-                op_kind::add_multiply};
+        static const std::unordered_set<op_kind_t, enum_hash_t>
+                with_binary_set {op_kind::add_multiply};
         return with_binary_set.find(kind) != with_binary_set.end();
     }
 
@@ -363,7 +363,7 @@ public:
     }
 };
 
-struct bias_add : public dnnl::binary, public kernel_base {
+struct bias_add : public dnnl::binary, public kernel_base_t {
     using super = dnnl::binary;
 
 private:

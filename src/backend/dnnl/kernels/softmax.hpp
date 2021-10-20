@@ -36,7 +36,7 @@ enum softmax_bwd_inputs { kDiff_dst, kDst };
 enum softmax_bwd_outputs { kDiff_src };
 } // namespace softmax_bwd
 
-struct softmax_forward : public dnnl::softmax_forward, public kernel_base {
+struct softmax_forward : public dnnl::softmax_forward, public kernel_base_t {
     using super = dnnl::softmax_forward;
 
 private:
@@ -46,12 +46,13 @@ private:
     dnnl::engine p_engine_;
 
 public:
-    void compute(const tensor &src, tensor &dst, const dnnl::engine &p_engine,
-            impl::allocator_t *alc, const dnnl::stream &p_stream) {
+    void compute(const dnnl_tensor_t &src, dnnl_tensor_t &dst,
+            const dnnl::engine &p_engine, impl::allocator_t *alc,
+            const dnnl::stream &p_stream) {
         auto expected_src = src.reorder_if_differ_in(p_stream, pd_.src_desc());
-        tensor expected_dst = dst;
+        dnnl_tensor_t expected_dst = dst;
         if (pd_.dst_desc() != dst.get_desc()) {
-            expected_dst = tensor {pd_.dst_desc(), p_engine, alc};
+            expected_dst = dnnl_tensor_t {pd_.dst_desc(), p_engine, alc};
         }
 
         prim_.execute(p_stream,
@@ -67,7 +68,7 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = tensor::desc;
+        using desc = dnnl_tensor_t::desc_t;
         // prepare the inputs and outputs' tensors' descs
         const desc src {inputs.at(softmax::kSrc)};
         impl::logical_tensor_t *dst_lt
@@ -82,7 +83,7 @@ public:
         pd_ = primitive_desc(
                 {prop_kind::forward, src, static_cast<int>(axis_)}, p_engine_);
         prim_ = super(pd_);
-        const tensor::desc optimal_dst_desc {pd_.dst_desc()};
+        const dnnl_tensor_t::desc_t optimal_dst_desc {pd_.dst_desc()};
         fill_layout_info(dst_lt, optimal_dst_desc);
         return impl::status::success;
     }
@@ -95,14 +96,14 @@ public:
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor src_ts {inputs.at(softmax::kSrc), p_engine_, alc};
-        tensor dst_ts {outputs.at(softmax::kDst), p_engine_, alc};
+        dnnl_tensor_t src_ts {inputs.at(softmax::kSrc), p_engine_, alc};
+        dnnl_tensor_t dst_ts {outputs.at(softmax::kDst), p_engine_, alc};
         softmax_forward::compute(src_ts, dst_ts, p_engine_, alc, p_stream);
         return impl::status::success;
     }
 };
 
-struct softmax_backward : public dnnl::softmax_backward, public kernel_base {
+struct softmax_backward : public dnnl::softmax_backward, public kernel_base_t {
     using super = dnnl::softmax_backward;
 
 private:
@@ -112,8 +113,9 @@ private:
     dnnl::stream p_stream_;
 
 public:
-    void compute(const tensor &dst, const tensor &diff_dst, tensor &diff_src,
-            impl::allocator_t *alc, const dnnl::stream &p_stream) {
+    void compute(const dnnl_tensor_t &dst, const dnnl_tensor_t &diff_dst,
+            dnnl_tensor_t &diff_src, impl::allocator_t *alc,
+            const dnnl::stream &p_stream) {
         UNUSED(alc);
         auto expected_dst = dst.reorder_if_differ_in(p_stream, pd_.dst_desc());
         auto expected_diff_dst
@@ -136,7 +138,7 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = tensor::desc;
+        using desc = dnnl_tensor_t::desc_t;
         // prepare the outputs' tensors' descs
         const desc dst {inputs.at(softmax_bwd::kDst)};
         const desc diff_dst {inputs.at(softmax_bwd::kDiff_dst)};
@@ -156,7 +158,7 @@ public:
         pd_ = primitive_desc({diff_dst, dst, static_cast<int>(axis_)},
                 p_engine_, forward_hints);
 
-        const tensor::desc optimal_diff_src_desc {pd_.diff_src_desc()};
+        const dnnl_tensor_t::desc_t optimal_diff_src_desc {pd_.diff_src_desc()};
         fill_layout_info(diff_src_lt, optimal_diff_src_desc);
         return impl::status::success;
     }
@@ -169,9 +171,11 @@ public:
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor dst {inputs.at(softmax_bwd::kDst), p_engine_, alc};
-        tensor diff_dst {inputs.at(softmax_bwd::kDiff_dst), p_engine_, alc};
-        tensor diff_src {outputs.at(softmax_bwd::kDiff_src), p_engine_, alc};
+        dnnl_tensor_t dst {inputs.at(softmax_bwd::kDst), p_engine_, alc};
+        dnnl_tensor_t diff_dst {
+                inputs.at(softmax_bwd::kDiff_dst), p_engine_, alc};
+        dnnl_tensor_t diff_src {
+                outputs.at(softmax_bwd::kDiff_src), p_engine_, alc};
 
         softmax_backward::compute(dst, diff_dst, diff_src, alc, p_stream_);
         return impl::status::success;

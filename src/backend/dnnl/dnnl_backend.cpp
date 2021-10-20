@@ -38,7 +38,7 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-bool dnnl_layout_id_manager::is_mem_desc_equal(
+bool dnnl_layout_id_manager_t::is_mem_desc_equal(
         const impl::utils::any_t &mem_desc1,
         const impl::utils::any_t &mem_desc2) const {
     auto &md1 = impl::utils::any_cast<const memory::desc &>(mem_desc1);
@@ -82,8 +82,8 @@ bool dnnl_backend::register_kernels() {
 
 #define DNNL_REGISTER_KERNEL(op_kind_, kernel_class_) \
     DECLARE_KERNEL(kernel_class_, __COUNTER__) \
-            = kernel_registry_.register_kernel( \
-                    op_kind_, &kernel_registry::create_kernel<kernel_class_>);
+            = kernel_registry_.register_kernel(op_kind_, \
+                    &kernel_registry_t::create_kernel<kernel_class_>);
 
     // concat
     DNNL_REGISTER_KERNEL(impl::op_kind::Concat, concat);

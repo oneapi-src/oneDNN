@@ -45,10 +45,10 @@ namespace dnnl_impl {
 
 class dnnl_partition_impl_t;
 
-class layout_id_manager {
+class layout_id_manager_t {
 public:
-    layout_id_manager() = default;
-    virtual ~layout_id_manager() = default;
+    layout_id_manager_t() = default;
+    virtual ~layout_id_manager_t() = default;
 
     /*! \brief Set a backend memory descriptor to manager and get a
     * corresponding layout id
@@ -111,11 +111,11 @@ private:
             const impl::utils::any_t &mem_desc2) const = 0;
 };
 
-class dnnl_layout_id_manager : public layout_id_manager {
+class dnnl_layout_id_manager_t : public layout_id_manager_t {
     friend class dnnl_backend;
 
     // private, only can be created in dnnl_backend
-    dnnl_layout_id_manager() = default;
+    dnnl_layout_id_manager_t() = default;
 
     bool is_mem_desc_equal(const impl::utils::any_t &mem_desc1,
             const impl::utils::any_t &mem_desc2) const override;
@@ -203,7 +203,7 @@ public:
             if (!(layout_id > 0 && layout_id < dnnl_format_tag_last)
                     || (md.data.extra.flags != dnnl_memory_extra_flag_none)) {
                 size_t layout_id
-                        = layout_id_manager::set_mem_desc(mem_desc).value();
+                        = layout_id_manager_t::set_mem_desc(mem_desc).value();
                 return layout_id + LAST_TAG;
             };
         }
@@ -214,15 +214,15 @@ public:
 };
 
 // gcc4.8.5 can 't support enum class as key
-struct enum_hash {
+struct enum_hash_t {
     template <typename T>
     size_t operator()(const T &t) const {
         return static_cast<size_t>(t);
     }
 };
 
-struct kernel_base {
-    virtual ~kernel_base() = default;
+struct kernel_base_t {
+    virtual ~kernel_base_t() = default;
 
     template <typename T>
     impl::status_t compile(const T *op_or_part, const impl::engine_t *aengine,
@@ -300,15 +300,15 @@ struct kernel_base {
     std::vector<impl::inplace_pair_t> inplace_pairs_;
 };
 
-using kernel_ptr = std::shared_ptr<kernel_base>;
+using kernel_ptr = std::shared_ptr<kernel_base_t>;
 
-class kernel_registry {
+class kernel_registry_t {
 public:
     using kernel_creator_f = kernel_ptr (*)();
-    using ptr = std::shared_ptr<kernel_registry>;
+    using ptr = std::shared_ptr<kernel_registry_t>;
 
-    kernel_registry() = default;
-    virtual ~kernel_registry() = default;
+    kernel_registry_t() = default;
+    virtual ~kernel_registry_t() = default;
 
     template <typename kernel_type>
     static kernel_ptr create_kernel() {
@@ -348,13 +348,14 @@ public:
 
 private:
     // Disable assignment and copy
-    kernel_registry(const kernel_registry &) = delete;
-    kernel_registry(kernel_registry &&) = delete;
-    kernel_registry &operator=(const kernel_registry &) = delete;
-    kernel_registry &operator=(kernel_registry &&) = delete;
+    kernel_registry_t(const kernel_registry_t &) = delete;
+    kernel_registry_t(kernel_registry_t &&) = delete;
+    kernel_registry_t &operator=(const kernel_registry_t &) = delete;
+    kernel_registry_t &operator=(kernel_registry_t &&) = delete;
 
     mutable struct {
-        std::unordered_map<impl::op_kind_t, kernel_creator_f, enum_hash> data_;
+        std::unordered_map<impl::op_kind_t, kernel_creator_f, enum_hash_t>
+                data_;
         mutable std::mutex m_;
     } kernel_creator_f_map_;
 };
@@ -374,11 +375,11 @@ public:
     impl::utils::optional<impl::utils::any_t> get_mem_desc(
             const size_t &layout_id) const;
 
-    kernel_registry &get_kernel_registry() { return kernel_registry_; }
+    kernel_registry_t &get_kernel_registry() { return kernel_registry_; }
 
     impl::pass::pass_registry &get_pass_registry() { return pass_registry_; }
 
-    dnnl_layout_id_manager &get_layout_id_manager() {
+    dnnl_layout_id_manager_t &get_layout_id_manager() {
         return layout_id_manager_;
     }
 
@@ -423,8 +424,8 @@ private:
     bool register_kernels();
     bool register_op_schemas();
 
-    dnnl_layout_id_manager layout_id_manager_;
-    kernel_registry kernel_registry_;
+    dnnl_layout_id_manager_t layout_id_manager_;
+    kernel_registry_t kernel_registry_;
     impl::pass::pass_registry pass_registry_;
     impl::op_schema_registry_t op_schema_registry_;
 };

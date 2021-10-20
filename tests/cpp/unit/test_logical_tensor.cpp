@@ -156,9 +156,8 @@ TEST(logical_tensor_test, identical_and_similar) {
 
 TEST(logical_tensor_test, implicit_equal_layout) {
     using ltw = impl::logical_tensor_wrapper_t;
-    using tensor = dnnl_impl::tensor;
-    using data_type = dnnl_impl::tensor::desc::data_type;
-    using format_tag = dnnl_impl::tensor::desc::format_tag;
+    using data_type = dnnl_impl::dnnl_tensor_t::desc_t::data_type;
+    using format_tag = dnnl_impl::dnnl_tensor_t::desc_t::format_tag;
 
     dnnl_impl::memory::desc md({1, 2, 3, 4}, data_type::f32, format_tag::nchw);
     auto layout_idx = dnnl_impl::dnnl_backend::get_singleton().set_mem_desc(md);

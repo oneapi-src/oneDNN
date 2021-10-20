@@ -24,11 +24,11 @@
 namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = dnnl::graph::impl::dnnl_impl;
 
-using tensor = dnnl_impl::tensor;
-using dim = dnnl_impl::tensor::desc::dim;
-using dims = dnnl_impl::tensor::desc::dims;
-using data_type = dnnl_impl::tensor::desc::data_type;
-using format_tag = dnnl_impl::tensor::desc::format_tag;
+using dnnl_tensor_t = dnnl_impl::dnnl_tensor_t;
+using dim = dnnl_impl::dnnl_tensor_t::desc_t::dim;
+using dims = dnnl_impl::dnnl_tensor_t::desc_t::dims;
+using data_type = dnnl_impl::dnnl_tensor_t::desc_t::data_type;
+using format_tag = dnnl_impl::dnnl_tensor_t::desc_t::format_tag;
 
 TEST(dnnl_tensor, create) {
     impl::engine_t graph_eng = get_engine();
@@ -40,13 +40,13 @@ TEST(dnnl_tensor, create) {
     const format_tag aformat_tag = format_tag::abcd;
 
     // create tensor without buffer (alloc internal)
-    tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng, alc};
+    dnnl_tensor_t::desc_t td {adims, adata_type, aformat_tag};
+    dnnl_tensor_t t1 {td, dnnl_eng, alc};
     ASSERT_FALSE(t1.is_empty());
 
     // create tensor with buffer
     test::vector<float> buffer(td.get_size());
-    tensor t2 {td, dnnl_eng, alc, buffer.data()};
+    dnnl_tensor_t t2 {td, dnnl_eng, alc, buffer.data()};
     ASSERT_FALSE(t2.is_empty());
 }
 
@@ -61,21 +61,21 @@ TEST(dnnl_tensor, reinit) {
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::abcd;
 
-    tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng, alc};
+    dnnl_tensor_t::desc_t td {adims, adata_type, aformat_tag};
+    dnnl_tensor_t t1 {td, dnnl_eng, alc};
 
     // empty tensor have no engine, so can't be
     // reinit through this method
-    tensor t3;
+    dnnl_tensor_t t3;
     bool ret = t3.reinit_if_possible(s, td);
     graph_stream.wait();
     ASSERT_FALSE(ret);
 
     // if expected desc is different from this desc,
     // reinit method will alloc new memory
-    tensor::desc td4 {adims, adata_type, format_tag::abdc};
+    dnnl_tensor_t::desc_t td4 {adims, adata_type, format_tag::abdc};
     test::vector<float> buffer(td4.get_size());
-    tensor t4(td4, dnnl_eng, alc, buffer.data());
+    dnnl_tensor_t t4(td4, dnnl_eng, alc, buffer.data());
     t4.reinit_if_possible(s, td);
     graph_stream.wait();
     ASSERT_NE(buffer.data(), t4.get_data_handle());
@@ -92,11 +92,11 @@ TEST(dnnl_tensor, reorder) {
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::abcd;
 
-    tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng, alc};
+    dnnl_tensor_t::desc_t td {adims, adata_type, aformat_tag};
+    dnnl_tensor_t t1 {td, dnnl_eng, alc};
 
-    tensor::desc td2 {adims, adata_type, format_tag::abdc};
-    tensor t2 = t1.reorder_if_differ_in(s, td2);
+    dnnl_tensor_t::desc_t td2 {adims, adata_type, format_tag::abdc};
+    dnnl_tensor_t t2 = t1.reorder_if_differ_in(s, td2);
     graph_stream.wait();
     ASSERT_FALSE(t2.is_empty());
 }
@@ -110,11 +110,11 @@ TEST(dnnl_tensor, make_grouped_weight) {
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::abcd;
 
-    tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng, alc};
+    dnnl_tensor_t::desc_t td {adims, adata_type, aformat_tag};
+    dnnl_tensor_t t1 {td, dnnl_eng, alc};
 
     dim groups = 2;
-    tensor t2 = t1.make_grouped_weights(groups);
+    dnnl_tensor_t t2 = t1.make_grouped_weights(groups);
     ASSERT_FALSE(t2.is_empty());
 }
 
@@ -129,8 +129,8 @@ TEST(dnnl_tensor, reshape) {
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::abcd;
 
-    tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng, alc};
+    dnnl_tensor_t::desc_t td {adims, adata_type, aformat_tag};
+    dnnl_tensor_t t1 {td, dnnl_eng, alc};
 
     const dims new_shape = {16, 16, 2, 8};
 
@@ -150,8 +150,8 @@ TEST(dnnl_tensor, to_format) {
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::abcd;
 
-    tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng, alc};
+    dnnl_tensor_t::desc_t td {adims, adata_type, aformat_tag};
+    dnnl_tensor_t t1 {td, dnnl_eng, alc};
 
     t1.to_format(s, format_tag::abdc);
     graph_stream.wait();
@@ -169,19 +169,20 @@ TEST(dnnl_tensor, to_public) {
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::aBcd8b;
 
-    tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng, alc};
+    dnnl_tensor_t::desc_t td {adims, adata_type, aformat_tag};
+    dnnl_tensor_t t1 {td, dnnl_eng, alc};
 
-    tensor t2 = t1.to_public(s);
+    dnnl_tensor_t t2 = t1.to_public(s);
     graph_stream.wait();
     ASSERT_TRUE(t2.is_public_format());
 }
 
 TEST(dnnl_tensor_desc, to_grouped) {
-    tensor::desc td {dims {64, 8, 7, 7}, data_type::f32, format_tag::cdba};
+    dnnl_tensor_t::desc_t td {
+            dims {64, 8, 7, 7}, data_type::f32, format_tag::cdba};
 
     dim groups = 4;
-    tensor::desc grouped_td = td.to_grouped(groups);
+    dnnl_tensor_t::desc_t grouped_td = td.to_grouped(groups);
     ASSERT_TRUE(grouped_td.is_grouped());
 
     ASSERT_EQ(grouped_td.data.ndims, 5);
@@ -199,10 +200,11 @@ TEST(dnnl_tensor_desc, to_grouped) {
 }
 
 TEST(dnnl_tensor_desc, transpose) {
-    tensor::desc td {{64, 3, 7, 7}, data_type::f32, format_tag::abcd};
-    tensor::desc new_desc = td.transpose(0, 1);
+    dnnl_tensor_t::desc_t td {{64, 3, 7, 7}, data_type::f32, format_tag::abcd};
+    dnnl_tensor_t::desc_t new_desc = td.transpose(0, 1);
 
-    tensor::desc truth {{3, 64, 7, 7}, data_type::f32, format_tag::bacd};
+    dnnl_tensor_t::desc_t truth {
+            {3, 64, 7, 7}, data_type::f32, format_tag::bacd};
 
     ASSERT_EQ(new_desc.data.ndims, 4);
     ASSERT_EQ(new_desc.data.dims[0], truth.data.dims[0]);

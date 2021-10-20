@@ -58,7 +58,7 @@ enum maxpool_bwd_inputs { kSrc, kIndices, kDiff_dst };
 } // namespace pool_bwd_with_indices
 
 template <bool quantized>
-struct pooling_fwd : public kernel_base {
+struct pooling_fwd : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;
@@ -226,7 +226,8 @@ public:
 using float_pooling_fwd = pooling_fwd</* quantized */ false>;
 using quantized_pooling = pooling_fwd</* quantized */ true>;
 
-struct pooling_backward : public dnnl::pooling_v2_backward, public kernel_base {
+struct pooling_backward : public dnnl::pooling_v2_backward,
+                          public kernel_base_t {
     using super = dnnl::pooling_v2_backward;
 
 private:
@@ -238,17 +239,19 @@ private:
     dnnl::stream p_stream_;
 
 public:
-    void compute(const tensor &diff_dst, const tensor &src, tensor &diff_src,
-            const dnnl::engine &p_engine, impl::allocator_t *alc,
-            const dnnl::stream &p_stream, tensor indices = tensor {}) {
-        // generate indices tensor from src when it's needed
+    void compute(const dnnl_tensor_t &diff_dst, const dnnl_tensor_t &src,
+            dnnl_tensor_t &diff_src, const dnnl::engine &p_engine,
+            impl::allocator_t *alc, const dnnl::stream &p_stream,
+            dnnl_tensor_t indices = dnnl_tensor_t {}) {
+        // generate indices dnnl_tensor_t from src when it's needed
         // but can't get from function parameters
         if (kind_ == impl::op_kind::MaxPoolBackprop && indices.is_empty()) {
             auto expected_src = src.reorder_if_differ_in(
                     p_stream, forward_hints_.src_desc());
             auto expected_dst
-                    = tensor {forward_hints_.dst_desc(), p_engine, alc};
-            indices = tensor {forward_hints_.workspace_desc(), p_engine, alc};
+                    = dnnl_tensor_t {forward_hints_.dst_desc(), p_engine, alc};
+            indices = dnnl_tensor_t {
+                    forward_hints_.workspace_desc(), p_engine, alc};
             exec_args args {{DNNL_ARG_SRC, expected_src},
                     {DNNL_ARG_DST, expected_dst},
                     {DNNL_ARG_WORKSPACE, indices}};
@@ -280,7 +283,7 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = tensor::desc;
+        using desc = dnnl_tensor_t::desc_t;
         // prepare the inputs and outputs' tensors' descs
         const desc src {inputs.at(pool_bwd::kSrc)};
         const desc diff_dst {inputs.at(pool_bwd::kDiff_dst)};
@@ -322,7 +325,7 @@ public:
                                      pads_begin, pads_end},
                 p_engine_, forward_hints_);
 
-        const tensor::desc optimal_diff_src_desc {pd_.diff_src_desc()};
+        const dnnl_tensor_t::desc_t optimal_diff_src_desc {pd_.diff_src_desc()};
         fill_layout_info(diff_src_lt, optimal_diff_src_desc);
         return impl::status::success;
     }
@@ -334,20 +337,23 @@ public:
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor src {inputs.at(pool_bwd::kSrc), p_engine_, alc};
-        tensor diff_dst {};
-        tensor indices {};
+        dnnl_tensor_t src {inputs.at(pool_bwd::kSrc), p_engine_, alc};
+        dnnl_tensor_t diff_dst {};
+        dnnl_tensor_t indices {};
         if (op->get_kind() == impl::op_kind::MaxPoolBackprop
                 && inputs.size() > pool_bwd_with_indices::kDiff_dst) {
-            diff_dst = tensor {inputs.at(pool_bwd_with_indices::kDiff_dst),
-                    p_engine_, alc};
-            indices = tensor {
+            diff_dst = dnnl_tensor_t {
+                    inputs.at(pool_bwd_with_indices::kDiff_dst), p_engine_,
+                    alc};
+            indices = dnnl_tensor_t {
                     inputs.at(pool_bwd_with_indices::kIndices), p_engine_, alc};
         } else {
-            diff_dst = tensor {inputs.at(pool_bwd::kDiff_dst), p_engine_, alc};
+            diff_dst = dnnl_tensor_t {
+                    inputs.at(pool_bwd::kDiff_dst), p_engine_, alc};
         }
 
-        tensor diff_src {outputs.at(pool_bwd::kDiff_src), p_engine_, alc};
+        dnnl_tensor_t diff_src {
+                outputs.at(pool_bwd::kDiff_src), p_engine_, alc};
         pooling_backward::compute(
                 diff_dst, src, diff_src, p_engine_, alc, p_stream_, indices);
         return impl::status::success;

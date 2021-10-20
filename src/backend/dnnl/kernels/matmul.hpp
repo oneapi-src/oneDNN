@@ -45,7 +45,7 @@ namespace impl {
 namespace dnnl_impl {
 
 template <bool quantized>
-struct matmul : public kernel_base {
+struct matmul : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;

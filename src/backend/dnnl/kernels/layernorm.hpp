@@ -33,7 +33,7 @@ enum layernorm_outputs { kDst, kMean, kVariance };
 } // namespace layernorm
 
 struct layer_normalization_forward : public dnnl::layer_normalization_forward,
-                                     public kernel_base {
+                                     public kernel_base_t {
     using super = dnnl::layer_normalization_forward;
 
 private:
@@ -48,15 +48,18 @@ private:
     dnnl::engine p_engine_;
 
 public:
-    void compute(tensor &scale, tensor &shift, impl::allocator_t *alc,
-            const dnnl::stream &p_stream, const tensor &expected_src,
-            const tensor &expected_dst, const tensor &expected_mean,
-            const tensor &expected_variance) const {
-        tensor scale_shift;
+    void compute(dnnl_tensor_t &scale, dnnl_tensor_t &shift,
+            impl::allocator_t *alc, const dnnl::stream &p_stream,
+            const dnnl_tensor_t &expected_src,
+            const dnnl_tensor_t &expected_dst,
+            const dnnl_tensor_t &expected_mean,
+            const dnnl_tensor_t &expected_variance) const {
+        dnnl_tensor_t scale_shift;
 
         if (use_affine_) {
             if (scale_shift.is_empty()) {
-                scale_shift = tensor {pd_.weights_desc(), p_engine_, alc};
+                scale_shift
+                        = dnnl_tensor_t {pd_.weights_desc(), p_engine_, alc};
             }
 
             auto *scale_shift_buf
@@ -92,7 +95,7 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = tensor::desc;
+        using desc = dnnl_tensor_t::desc_t;
         // prepare the inputs and outputs' tensors' descs
         const desc src {inputs.at(layernorm::kSrc)};
         const desc dst {outputs.at(layernorm::kDst)};
@@ -119,7 +122,7 @@ public:
                     {prop_kind::forward_inference, src, epsilon_, flags},
                     p_engine_);
         prim_ = super(pd_);
-        const tensor::desc optimal_dst_desc {pd_.dst_desc()};
+        const dnnl_tensor_t::desc_t optimal_dst_desc {pd_.dst_desc()};
 
         impl::logical_tensor_t *ori_dst_lt
                 = const_cast<impl::logical_tensor_t *>(
@@ -131,13 +134,13 @@ public:
                 BACKEND_DNNL_ENFORCE(
                         0, "Wrong output number for layernorm compile");
             }
-            const tensor::desc optimal_mean_desc {pd_.mean_desc()};
+            const dnnl_tensor_t::desc_t optimal_mean_desc {pd_.mean_desc()};
             impl::logical_tensor_t *ori_mean_lt
                     = const_cast<impl::logical_tensor_t *>(
                             &outputs.at(layernorm::kMean));
             fill_layout_info(ori_mean_lt, optimal_mean_desc);
 
-            const tensor::desc optimal_var_desc {pd_.variance_desc()};
+            const dnnl_tensor_t::desc_t optimal_var_desc {pd_.variance_desc()};
             impl::logical_tensor_t *ori_var_lt
                     = const_cast<impl::logical_tensor_t *>(
                             &outputs.at(layernorm::kVariance));
@@ -154,35 +157,37 @@ public:
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor expected_src, expected_dst;
-        tensor expected_mean, expected_variance;
+        dnnl_tensor_t expected_src, expected_dst;
+        dnnl_tensor_t expected_mean, expected_variance;
 
-        tensor src {inputs.at(layernorm::kSrc), p_engine_, alc};
+        dnnl_tensor_t src {inputs.at(layernorm::kSrc), p_engine_, alc};
         if (src.get_desc() != pd_.src_desc()) {
             if (expected_src.is_empty()) {
-                expected_src = tensor {pd_.src_desc(), p_engine_, alc};
+                expected_src = dnnl_tensor_t {pd_.src_desc(), p_engine_, alc};
             }
             src.reorder_to(p_stream, expected_src);
         } else {
             expected_src = src;
         }
 
-        tensor scale;
-        tensor shift;
+        dnnl_tensor_t scale;
+        dnnl_tensor_t shift;
         if (use_affine_) {
             if (inputs.size() < 3) {
                 BACKEND_DNNL_ENFORCE(
                         0, "Wrong input number for layernorm execute");
             }
-            scale = tensor {inputs.at(layernorm::kScale), p_engine_, alc};
-            shift = tensor {inputs.at(layernorm::kShift), p_engine_, alc};
+            scale = dnnl_tensor_t {
+                    inputs.at(layernorm::kScale), p_engine_, alc};
+            shift = dnnl_tensor_t {
+                    inputs.at(layernorm::kShift), p_engine_, alc};
         }
-        tensor dst {outputs.at(layernorm::kDst), p_engine_, alc};
-        tensor mean;
-        tensor variance;
+        dnnl_tensor_t dst {outputs.at(layernorm::kDst), p_engine_, alc};
+        dnnl_tensor_t mean;
+        dnnl_tensor_t variance;
         if (dst.get_desc() != pd_.dst_desc()) {
             if (expected_dst.is_empty()) {
-                expected_dst = tensor {pd_.dst_desc(), p_engine_, alc};
+                expected_dst = dnnl_tensor_t {pd_.dst_desc(), p_engine_, alc};
             }
         } else
             expected_dst = dst;
@@ -192,20 +197,22 @@ public:
                 BACKEND_DNNL_ENFORCE(
                         0, "Wrong output number for layernorm execute");
             }
-            mean = tensor {outputs.at(layernorm::kMean), p_engine_, alc};
-            variance
-                    = tensor {outputs.at(layernorm::kVariance), p_engine_, alc};
+            mean = dnnl_tensor_t {outputs.at(layernorm::kMean), p_engine_, alc};
+            variance = dnnl_tensor_t {
+                    outputs.at(layernorm::kVariance), p_engine_, alc};
 
             if (mean.get_desc() != pd_.mean_desc()) {
                 if (expected_mean.is_empty()) {
-                    expected_mean = tensor {pd_.dst_desc(), p_engine_, alc};
+                    expected_mean
+                            = dnnl_tensor_t {pd_.dst_desc(), p_engine_, alc};
                 }
             } else
                 expected_mean = mean;
 
             if (variance.get_desc() != pd_.variance_desc()) {
                 if (expected_variance.is_empty()) {
-                    expected_variance = tensor {pd_.dst_desc(), p_engine_, alc};
+                    expected_variance
+                            = dnnl_tensor_t {pd_.dst_desc(), p_engine_, alc};
                 }
             } else
                 expected_variance = variance;

@@ -63,7 +63,7 @@ enum batch_normalization_bwd_outputs { kDiff_src, kDiff_scale, kDiff_shift };
 
 struct batch_normalization_forward_inference
     : public dnnl::batch_normalization_forward,
-      public kernel_base {
+      public kernel_base_t {
 
     using super = dnnl::batch_normalization_forward;
     using dims_t = std::vector<dnnl::graph::impl::dim_t>;
@@ -73,9 +73,9 @@ private:
     dnnl::batch_normalization_forward prim_;
     float epsilon_;
 
-    tensor scale_shift_;
-    tensor expected_mean_;
-    tensor expected_var_;
+    dnnl_tensor_t scale_shift_;
+    dnnl_tensor_t expected_mean_;
+    dnnl_tensor_t expected_var_;
 
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
@@ -102,7 +102,7 @@ public:
                              .reorder_data_dims_strides();
         }
 
-        using desc = tensor::desc;
+        using desc = dnnl_tensor_t::desc_t;
         // prepare the inputs and outputs tensors' descs
         desc src {src_lt};
         const bool use_stats = inputs.size() > batch_normalization::kMean;
@@ -123,7 +123,7 @@ public:
                 {prop_kind::forward_inference, src, epsilon_, flags},
                 p_engine_);
         prim_ = super(pd_);
-        const tensor::desc optimal_dst_desc {pd_.dst_desc()};
+        const dnnl_tensor_t::desc_t optimal_dst_desc {pd_.dst_desc()};
         impl::logical_tensor_t *ori_dst_lt
                 = const_cast<impl::logical_tensor_t *>(
                         &outputs.at(batch_normalization::kDst));
@@ -151,20 +151,23 @@ public:
 
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor x {src_lt, p_engine_, alc,
+        dnnl_tensor_t x {src_lt, p_engine_, alc,
                 inputs.at(batch_normalization::kSrc).get_data_handle()};
-        tensor y {dst_lt, p_engine_, alc,
+        dnnl_tensor_t y {dst_lt, p_engine_, alc,
                 outputs.at(batch_normalization::kDst).get_data_handle()};
-        tensor w {inputs.at(batch_normalization::kScale), p_engine_, alc};
-        tensor b {inputs.at(batch_normalization::kShift), p_engine_, alc};
+        dnnl_tensor_t w {
+                inputs.at(batch_normalization::kScale), p_engine_, alc};
+        dnnl_tensor_t b {
+                inputs.at(batch_normalization::kShift), p_engine_, alc};
 
         auto channels = x.get_dims()[1];
         if (channels != w.get_dims()[0]) {
             throw std::runtime_error("channel mismatch");
         }
         if (inputs.size() > batch_normalization::kMean) {
-            tensor m {inputs.at(batch_normalization::kMean), p_engine_, alc};
-            tensor v {
+            dnnl_tensor_t m {
+                    inputs.at(batch_normalization::kMean), p_engine_, alc};
+            dnnl_tensor_t v {
                     inputs.at(batch_normalization::kVariance), p_engine_, alc};
             compute(x, m, v, w, b, y, epsilon_, p_engine_, alc, p_stream_);
         } else {
@@ -175,32 +178,35 @@ public:
     }
 
 private:
-    void compute(const tensor &src, const tensor &scale, const tensor &shift,
-            tensor &dst, float epsilon, const dnnl::engine &p_engine,
-            impl::allocator_t *alc, const dnnl::stream &p_stream) {
-        static tensor dummy;
+    void compute(const dnnl_tensor_t &src, const dnnl_tensor_t &scale,
+            const dnnl_tensor_t &shift, dnnl_tensor_t &dst, float epsilon,
+            const dnnl::engine &p_engine, impl::allocator_t *alc,
+            const dnnl::stream &p_stream) {
+        static dnnl_tensor_t dummy;
         compute_impl</*use_stats=*/false>(src, dummy, dummy, scale, shift, dst,
                 epsilon, p_engine, alc, p_stream);
     }
 
-    void compute(const tensor &src, const tensor &mean, const tensor &variance,
-            const tensor &scale, const tensor &shift, tensor &dst,
-            float epsilon, const dnnl::engine &p_engine, impl::allocator_t *alc,
+    void compute(const dnnl_tensor_t &src, const dnnl_tensor_t &mean,
+            const dnnl_tensor_t &variance, const dnnl_tensor_t &scale,
+            const dnnl_tensor_t &shift, dnnl_tensor_t &dst, float epsilon,
+            const dnnl::engine &p_engine, impl::allocator_t *alc,
             const dnnl::stream &p_stream) {
         compute_impl</*use_stats=*/true>(src, mean, variance, scale, shift, dst,
                 epsilon, p_engine, alc, p_stream);
     }
 
     template <bool use_stats>
-    void compute_impl(const tensor &src, const tensor &mean,
-            const tensor &variance, const tensor &scale, const tensor &shift,
-            tensor &dst, float epsilon, const dnnl::engine &p_engine,
-            impl::allocator_t *alc, const dnnl::stream &p_stream) {
+    void compute_impl(const dnnl_tensor_t &src, const dnnl_tensor_t &mean,
+            const dnnl_tensor_t &variance, const dnnl_tensor_t &scale,
+            const dnnl_tensor_t &shift, dnnl_tensor_t &dst, float epsilon,
+            const dnnl::engine &p_engine, impl::allocator_t *alc,
+            const dnnl::stream &p_stream) {
         UNUSED(epsilon);
-        // copy scale and shift to scale_shift tensor and cache it
+        // copy scale and shift to scale_shift dnnl_tensor_t and cache it
         if (disable_cache_data_ || scale_shift_.is_empty()) {
             if (scale_shift_.is_empty())
-                scale_shift_ = tensor {pd_.weights_desc(), p_engine, alc,
+                scale_shift_ = dnnl_tensor_t {pd_.weights_desc(), p_engine, alc,
                         impl::allocator_lifetime::persistent};
             auto *scale_shift_buf
                     = static_cast<char *>(scale_shift_.get_data_handle());
@@ -220,9 +226,9 @@ private:
 
         auto expected_src = src.reorder_if_differ_in(p_stream, pd_.src_desc());
 
-        tensor expected_dst = dst;
+        dnnl_tensor_t expected_dst = dst;
         if (pd_.dst_desc() != dst.get_desc()) {
-            expected_dst = tensor {pd_.dst_desc(), p_engine, alc};
+            expected_dst = dnnl_tensor_t {pd_.dst_desc(), p_engine, alc};
         }
 
         if (use_stats) {
@@ -257,7 +263,7 @@ private:
 
 struct batch_normalization_forward_training
     : public dnnl::batch_normalization_forward,
-      public kernel_base {
+      public kernel_base_t {
 
     using super = dnnl::batch_normalization_forward;
 
@@ -266,8 +272,8 @@ private:
     float mom_;
     primitive_desc pd_;
 
-    tensor scale_shift_;
-    tensor original_dst_;
+    dnnl_tensor_t scale_shift_;
+    dnnl_tensor_t original_dst_;
 
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
@@ -277,7 +283,7 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = tensor::desc;
+        using desc = dnnl_tensor_t::desc_t;
         epsilon_ = op->get_attr<float>("epsilon");
         mom_ = op->get_attr<float>("momentum");
         std::string data_format = op->get_attr<std::string>("data_format");
@@ -309,9 +315,9 @@ public:
         p_engine_ = make_dnnl_engine(*g_engine);
         pd_ = primitive_desc(
                 {prop_kind::forward_training, src, epsilon_, flags}, p_engine_);
-        const tensor::desc optimal_dst_desc {pd_.dst_desc()};
-        const tensor::desc optimal_rm_desc {pd_.mean_desc()};
-        const tensor::desc optimal_rv_desc {pd_.variance_desc()};
+        const dnnl_tensor_t::desc_t optimal_dst_desc {pd_.dst_desc()};
+        const dnnl_tensor_t::desc_t optimal_rm_desc {pd_.mean_desc()};
+        const dnnl_tensor_t::desc_t optimal_rv_desc {pd_.variance_desc()};
         fill_layout_info(&dst_lt, optimal_dst_desc);
         fill_layout_info(&rm_lt, optimal_rm_desc);
         fill_layout_info(&rv_lt, optimal_rv_desc);
@@ -337,37 +343,40 @@ public:
             dst_lt = impl::logical_tensor_wrapper_t(dst_lt)
                              .reorder_data_dims_strides();
         }
-        tensor x {src_lt, p_engine_, alc,
+        dnnl_tensor_t x {src_lt, p_engine_, alc,
                 inputs.at(batch_normalization::kSrc).get_data_handle()};
-        tensor w {inputs.at(batch_normalization::kScale), p_engine_, alc};
-        tensor b {inputs.at(batch_normalization::kShift), p_engine_, alc};
-        tensor y {dst_lt, p_engine_, alc,
+        dnnl_tensor_t w {
+                inputs.at(batch_normalization::kScale), p_engine_, alc};
+        dnnl_tensor_t b {
+                inputs.at(batch_normalization::kShift), p_engine_, alc};
+        dnnl_tensor_t y {dst_lt, p_engine_, alc,
                 outputs.at(batch_normalization::kDst).get_data_handle()};
-        tensor m {inputs.at(batch_normalization::kMean), p_engine_, alc};
-        tensor v {inputs.at(batch_normalization::kVariance), p_engine_, alc};
-        tensor rm {
+        dnnl_tensor_t m {inputs.at(batch_normalization::kMean), p_engine_, alc};
+        dnnl_tensor_t v {
+                inputs.at(batch_normalization::kVariance), p_engine_, alc};
+        dnnl_tensor_t rm {
                 outputs.at(batch_normalization::kRunning_mean), p_engine_, alc};
-        tensor rv {outputs.at(batch_normalization::kRunning_variance),
+        dnnl_tensor_t rv {outputs.at(batch_normalization::kRunning_variance),
                 p_engine_, alc};
-        tensor bm {
+        dnnl_tensor_t bm {
                 outputs.at(batch_normalization::kBatch_mean), p_engine_, alc};
-        tensor bv {outputs.at(batch_normalization::kBatch_variance), p_engine_,
-                alc};
+        dnnl_tensor_t bv {outputs.at(batch_normalization::kBatch_variance),
+                p_engine_, alc};
         compute(x, w, b, y, m, v, rm, rv, bm, bv, mom_, epsilon_, alc,
                 p_stream_);
         return impl::status::success;
     }
 
 private:
-    void compute_impl(tensor &src, const tensor &scale, const tensor &shift,
-            tensor &dst, tensor &mean, tensor &variance, float momentum,
-            float epsilon, impl::allocator_t *alc,
-            const dnnl::stream &p_stream) {
+    void compute_impl(dnnl_tensor_t &src, const dnnl_tensor_t &scale,
+            const dnnl_tensor_t &shift, dnnl_tensor_t &dst, dnnl_tensor_t &mean,
+            dnnl_tensor_t &variance, float momentum, float epsilon,
+            impl::allocator_t *alc, const dnnl::stream &p_stream) {
         UNUSED(momentum);
         UNUSED(epsilon);
 
         original_dst_ = dst;
-        scale_shift_ = tensor {pd_.weights_desc(), p_engine_, alc};
+        scale_shift_ = dnnl_tensor_t {pd_.weights_desc(), p_engine_, alc};
         auto *scale_shift_buf
                 = static_cast<char *>(scale_shift_.get_data_handle());
 #if DNNL_GRAPH_WITH_SYCL
@@ -394,11 +403,12 @@ private:
         }
     }
 
-    void compute(tensor &src, const tensor &scale, const tensor &shift,
-            tensor &dst, tensor &mean, tensor &variance, tensor &running_mean,
-            tensor &running_var, tensor &batch_mean, tensor &batch_var,
-            float momentum, float epsilon, impl::allocator_t *alc,
-            const dnnl::stream &p_stream) {
+    void compute(dnnl_tensor_t &src, const dnnl_tensor_t &scale,
+            const dnnl_tensor_t &shift, dnnl_tensor_t &dst, dnnl_tensor_t &mean,
+            dnnl_tensor_t &variance, dnnl_tensor_t &running_mean,
+            dnnl_tensor_t &running_var, dnnl_tensor_t &batch_mean,
+            dnnl_tensor_t &batch_var, float momentum, float epsilon,
+            impl::allocator_t *alc, const dnnl::stream &p_stream) {
         compute_impl(src, scale, shift, dst, mean, variance, momentum, epsilon,
                 alc, p_stream);
         // running_mean, running_mean's buffer can be empty
@@ -425,15 +435,15 @@ private:
 };
 
 struct batch_normalization_backward : public dnnl::batch_normalization_backward,
-                                      public kernel_base {
+                                      public kernel_base_t {
     using super = dnnl::batch_normalization_backward;
 
 private:
     primitive_desc pd_;
     float epsilon_;
 
-    tensor diff_scale_shift_;
-    tensor original_diff_src_;
+    dnnl_tensor_t diff_scale_shift_;
+    dnnl_tensor_t original_diff_src_;
 
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
@@ -443,7 +453,7 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = tensor::desc;
+        using desc = dnnl_tensor_t::desc_t;
         epsilon_ = op->get_attr<float>("epsilon");
         std::string data_format = op->get_attr<std::string>("data_format");
 
@@ -477,8 +487,9 @@ public:
                                      src, epsilon_, flags},
                 p_engine_, forward_hints);
 
-        diff_scale_shift_ = tensor(pd_.diff_weights_desc(), p_engine_, alc);
-        const tensor::desc optimal_diff_src_desc {pd_.diff_src_desc()};
+        diff_scale_shift_
+                = dnnl_tensor_t(pd_.diff_weights_desc(), p_engine_, alc);
+        const dnnl_tensor_t::desc_t optimal_diff_src_desc {pd_.diff_src_desc()};
         fill_layout_info(&diff_src_lt, optimal_diff_src_desc);
         return impl::status::success;
     }
@@ -508,20 +519,24 @@ public:
             diff_src_lt = impl::logical_tensor_wrapper_t(diff_src_lt)
                                   .reorder_data_dims_strides();
         }
-        tensor x {src_lt, p_engine_, alc,
+        dnnl_tensor_t x {src_lt, p_engine_, alc,
                 inputs.at(batch_normalization_bwd::kSrc).get_data_handle()};
-        tensor w {inputs.at(batch_normalization_bwd::kScale), p_engine_, alc};
-        tensor m {inputs.at(batch_normalization_bwd::kMean), p_engine_, alc};
-        tensor v {
+        dnnl_tensor_t w {
+                inputs.at(batch_normalization_bwd::kScale), p_engine_, alc};
+        dnnl_tensor_t m {
+                inputs.at(batch_normalization_bwd::kMean), p_engine_, alc};
+        dnnl_tensor_t v {
                 inputs.at(batch_normalization_bwd::kVariance), p_engine_, alc};
-        tensor diff_dst {diff_dst_lt, p_engine_, alc,
+        dnnl_tensor_t diff_dst {diff_dst_lt, p_engine_, alc,
                 inputs.at(batch_normalization_bwd::kDiff_dst)
                         .get_data_handle()};
-        tensor diff_scale {outputs.at(batch_normalization_bwd::kDiff_scale),
-                p_engine_, alc};
-        tensor diff_shift {outputs.at(batch_normalization_bwd::kDiff_shift),
-                p_engine_, alc};
-        tensor diff_src {diff_src_lt, p_engine_, alc,
+        dnnl_tensor_t diff_scale {
+                outputs.at(batch_normalization_bwd::kDiff_scale), p_engine_,
+                alc};
+        dnnl_tensor_t diff_shift {
+                outputs.at(batch_normalization_bwd::kDiff_shift), p_engine_,
+                alc};
+        dnnl_tensor_t diff_src {diff_src_lt, p_engine_, alc,
                 outputs.at(batch_normalization_bwd::kDiff_src)
                         .get_data_handle()};
         compute(x, m, v, diff_dst, w, diff_src, diff_scale, diff_shift,
@@ -530,8 +545,9 @@ public:
     }
 
 private:
-    void compute_impl(tensor &src, tensor &mean, tensor &variance,
-            tensor &diff_dst, const tensor &scale, tensor &diff_src,
+    void compute_impl(dnnl_tensor_t &src, dnnl_tensor_t &mean,
+            dnnl_tensor_t &variance, dnnl_tensor_t &diff_dst,
+            const dnnl_tensor_t &scale, dnnl_tensor_t &diff_src,
             const dnnl::engine &p_engine, impl::allocator_t *alc,
             const dnnl::stream &p_stream) {
         UNUSED(alc);
@@ -558,10 +574,12 @@ private:
         }
     }
 
-    void compute(tensor &src, tensor &mean, tensor &variance, tensor &diff_dst,
-            const tensor &scale, tensor &diff_src, tensor &diff_scale,
-            tensor &diff_shift, const dnnl::engine &p_engine,
-            impl::allocator_t *alc, const dnnl::stream &p_stream) {
+    void compute(dnnl_tensor_t &src, dnnl_tensor_t &mean,
+            dnnl_tensor_t &variance, dnnl_tensor_t &diff_dst,
+            const dnnl_tensor_t &scale, dnnl_tensor_t &diff_src,
+            dnnl_tensor_t &diff_scale, dnnl_tensor_t &diff_shift,
+            const dnnl::engine &p_engine, impl::allocator_t *alc,
+            const dnnl::stream &p_stream) {
         compute_impl(src, mean, variance, diff_dst, scale, diff_src, p_engine,
                 alc, p_stream);
         diff_scale.reinit_if_possible(p_stream, scale.get_desc());
