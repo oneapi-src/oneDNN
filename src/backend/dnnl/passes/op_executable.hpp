@@ -38,7 +38,7 @@ namespace dnnl_impl {
 
 inline dnnl::convolution_forward::primitive_desc create_conv_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
+        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return static_cast<dnnl::convolution_forward::primitive_desc &>(
@@ -90,7 +90,7 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
 
 inline dnnl::deconvolution_forward::primitive_desc create_deconv_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
+        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return static_cast<dnnl::deconvolution_forward::primitive_desc &>(
@@ -142,7 +142,7 @@ inline dnnl::deconvolution_forward::primitive_desc create_deconv_pd(
 
 inline dnnl::matmul::primitive_desc create_matmul_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
+        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return static_cast<dnnl::matmul::primitive_desc &>(
@@ -180,7 +180,7 @@ inline dnnl::matmul::primitive_desc create_matmul_pd(
 
 inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
+        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return static_cast<dnnl::pooling_v2_forward::primitive_desc &>(
@@ -264,7 +264,7 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
 
 inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr &prm_attr_mgr, pd_cache_t &pd_cache) {
+        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return static_cast<dnnl::convolution_backward_data::primitive_desc &>(
@@ -308,13 +308,13 @@ inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
     return pd;
 }
 
-struct op_executable {
-    virtual ~op_executable() = default;
+struct op_executable_t {
+    virtual ~op_executable_t() = default;
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const = 0;
 };
 
-struct memory_reparser : public op_executable {
+struct memory_reparser_t : public op_executable_t {
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         UNUSED(stream);
@@ -324,9 +324,9 @@ struct memory_reparser : public op_executable {
     }
 };
 
-struct conv_fwd_executable : public op_executable {
-    conv_fwd_executable(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+struct conv_fwd_executable_t : public op_executable_t {
+    conv_fwd_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
         pd_ = create_conv_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::convolution_forward(pd_);
@@ -357,9 +357,9 @@ private:
     bool with_sum_ {false};
 };
 
-struct deconv_fwd_executable : public op_executable {
-    deconv_fwd_executable(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+struct deconv_fwd_executable_t : public op_executable_t {
+    deconv_fwd_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
         pd_ = create_deconv_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::deconvolution_forward(pd_);
@@ -379,9 +379,9 @@ private:
     dnnl::deconvolution_forward prim_;
 };
 
-struct matmul_executable : public op_executable {
-    matmul_executable(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+struct matmul_executable_t : public op_executable_t {
+    matmul_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
         pd_ = create_matmul_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::matmul(pd_);
@@ -426,9 +426,9 @@ private:
     bool with_sum_ {false};
 };
 
-struct pool_executable : public op_executable {
-    pool_executable(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+struct pool_executable_t : public op_executable_t {
+    pool_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
         pd_ = create_pool_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::pooling_v2_forward(pd_);
@@ -444,9 +444,9 @@ private:
     dnnl::pooling_v2_forward prim_;
 };
 
-struct reorder_executable : public op_executable {
-    reorder_executable(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+struct reorder_executable_t : public op_executable_t {
+    reorder_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
         auto in_md = make_dnnl_memory_desc(
                 op->get_input_value(0)->get_logical_tensor());
         auto out_md = make_dnnl_memory_desc(
@@ -502,8 +502,9 @@ private:
     dnnl::reorder prim_;
 };
 
-struct bn_folding : public op_executable {
-    bn_folding(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine) {
+struct bn_folding_t : public op_executable_t {
+    bn_folding_t(
+            std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine) {
         epsilon_ = op->get_attr<float>("epsilon");
         data_format_ = op->get_attr<std::string>("data_format");
         filter_format_ = op->get_attr<std::string>("filter_format");
@@ -713,9 +714,9 @@ private:
     bool with_bias_ {false};
 };
 
-struct conv_bwd_data_executable : public op_executable {
-    conv_bwd_data_executable(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+struct conv_bwd_data_executable_t : public op_executable_t {
+    conv_bwd_data_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
         pd_ = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::convolution_backward_data(pd_);

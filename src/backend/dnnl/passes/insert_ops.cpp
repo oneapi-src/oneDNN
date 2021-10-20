@@ -370,7 +370,7 @@ void insert_expand_and_squeeze_for_matmul(std::vector<op_ptr> &subgraph) {
 }
 
 void insert_u8_to_s8_for_matmul(
-        std::vector<op_ptr> &subgraph, primitive_attr_mgr &prm_attr_mgr) {
+        std::vector<op_ptr> &subgraph, primitive_attr_mgr_t &prm_attr_mgr) {
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != impl::op_kind::MatMul) continue;

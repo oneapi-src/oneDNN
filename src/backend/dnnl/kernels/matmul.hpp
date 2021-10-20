@@ -50,11 +50,11 @@ private:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;
 
-    primitive_attr_mgr prm_attr_mgr_;
-    executable_mgr exec_mgr_;
+    primitive_attr_mgr_t prm_attr_mgr_;
+    executable_mgr_t exec_mgr_;
     memory_planner_t memory_planner_;
 
-    std::vector<op_executable *> execs_;
+    std::vector<op_executable_t *> execs_;
 
     std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
 

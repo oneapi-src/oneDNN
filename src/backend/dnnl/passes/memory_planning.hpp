@@ -284,7 +284,7 @@ public:
     impl::status_t run(std::vector<std::shared_ptr<impl::op_t>> &subgraph,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr);
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr);
 
     std::string get_memory_info(const value_t *val) const {
         std::string str;
@@ -353,20 +353,20 @@ private:
             const std::unordered_map<value_t *, size_t> &edge_ref_count);
 
     void prepare_args_for_conv_and_matmul(op_t *op,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr);
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr);
 
     void prepare_args_for_siso_op(op_t *op, const dnnl::engine &p_engine,
-            primitive_attr_mgr &prm_attr_mgr, bool need_scratchpad = false,
+            primitive_attr_mgr_t &prm_attr_mgr, bool need_scratchpad = false,
             bool need_workspace = false);
 
     void bind_memory_for_bn_folding(op_t *op, const dnnl::engine &p_engine);
 
     void bind_memory_for_conv_bwd_data(op_t *op, const dnnl::engine &p_engine,
-            primitive_attr_mgr &prm_attr_mgr);
+            primitive_attr_mgr_t &prm_attr_mgr);
 
     impl::status_t prepare_execution_args_set(
             const std::vector<std::shared_ptr<impl::op_t>> &subgraph,
-            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr);
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr);
 
     execution_args_set_t exec_args_set_;
 

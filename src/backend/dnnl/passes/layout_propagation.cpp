@@ -52,7 +52,7 @@ static value_ptr insert_workspace(op_ptr &op) {
 }
 
 static bool layout_propagation_for_conv(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache) {
     std::shared_ptr<impl::value_t> src, wei, bias, dst;
     src = op->get_input_value(0);
@@ -92,7 +92,7 @@ static bool layout_propagation_for_conv(op_ptr &op,
 }
 
 static bool layout_propagation_for_deconv(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache) {
     std::shared_ptr<impl::value_t> src, wei, bias, dst;
     src = op->get_input_value(0);
@@ -154,7 +154,7 @@ static void get_expected_input_layout(
 }
 
 static bool layout_propagation_for_matmul(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache) {
     std::shared_ptr<impl::value_t> src, wei, bias, dst;
     src = op->get_input_value(0);
@@ -192,7 +192,7 @@ static bool layout_propagation_for_matmul(op_ptr &op,
 }
 
 static bool layout_propagation_for_pool(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache) {
     bool changed = true;
     value_ptr src = op->get_input_value(0);
@@ -433,17 +433,17 @@ static bool layout_propagation_for_bn_folding(
         }
     }
 
-    auto prm = std::make_shared<bn_folding>(op, p_engine);
+    auto prm = std::make_shared<bn_folding_t>(op, p_engine);
     // make scratchpad as bn_folding's last inputs
     auto val = insert_scratchpad(op);
     fill_layout_info(
-            val, dynamic_cast<bn_folding *>(prm.get())->scratchpad_desc());
+            val, dynamic_cast<bn_folding_t *>(prm.get())->scratchpad_desc());
 
     return changed;
 }
 
 static bool layout_propagation_for_conv_bwd_data(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache) {
     std::shared_ptr<impl::value_t> diff_dst, wei, bias, diff_src;
     diff_dst = op->get_input_value(0);
@@ -527,7 +527,7 @@ static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
 /// support propagating layout both from inputs to outputs and from outputs to
 /// inputs. See the following figure for example:
 impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache) {
     auto need_prop = [&](op_t *op) {
         for (const auto &in : op->get_input_values()) {

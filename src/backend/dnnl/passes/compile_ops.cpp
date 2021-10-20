@@ -37,35 +37,35 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 /// complete shape/dtype/layout information. We can create executable for these
 /// ops.
 impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
-        executable_mgr &exec_mgr, pd_cache_t &pd_cache) {
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        executable_mgr_t &exec_mgr, pd_cache_t &pd_cache) {
     for (auto &cur_op : subgraph) {
         if (cur_op->has_attr("executable_key")) continue; // already compiled
 
         int64_t key = exec_mgr.init_executable();
         cur_op->set_attr<int64_t>("executable_key", key);
-        std::shared_ptr<op_executable> &prm = exec_mgr.get_executable(key);
+        std::shared_ptr<op_executable_t> &prm = exec_mgr.get_executable(key);
 
         if (cur_op->get_kind() == impl::op_kind::Convolution
                 || cur_op->get_kind() == op_kind::dnnl_convolution) {
-            prm = std::make_shared<conv_fwd_executable>(
+            prm = std::make_shared<conv_fwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose
                 || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
-            prm = std::make_shared<deconv_fwd_executable>(
+            prm = std::make_shared<deconv_fwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
-            prm = std::make_shared<matmul_executable>(
+            prm = std::make_shared<matmul_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::MaxPool
                 || cur_op->get_kind() == impl::op_kind::AvgPool
                 || cur_op->get_kind() == op_kind::dnnl_pool) {
-            prm = std::make_shared<pool_executable>(
+            prm = std::make_shared<pool_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::mul_scales
                 || cur_op->get_kind() == impl::op_kind::Reorder
                 || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
-            prm = std::make_shared<reorder_executable>(
+            prm = std::make_shared<reorder_executable_t>(
                     cur_op, p_engine, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group
@@ -73,11 +73,11 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
                 || cur_op->get_kind() == op_kind::squeeze) {
             // For preprocess ops. The memory_reparser will not do
             // computation, it only re-parses the existing buffer.
-            prm = std::make_shared<memory_reparser>();
+            prm = std::make_shared<memory_reparser_t>();
         } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
-            prm = std::make_shared<bn_folding>(cur_op, p_engine);
+            prm = std::make_shared<bn_folding_t>(cur_op, p_engine);
         } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
-            prm = std::make_shared<conv_bwd_data_executable>(
+            prm = std::make_shared<conv_bwd_data_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else {
             assertm(false, "unimplemented op, can't compile it");

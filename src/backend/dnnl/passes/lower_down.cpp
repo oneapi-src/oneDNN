@@ -166,7 +166,7 @@ void split_quant_dequant(std::vector<op_ptr> &subgraph) {
 }
 
 void fuse_output_scales(
-        std::vector<op_ptr> &subgraph, primitive_attr_mgr &prm_attr_mgr) {
+        std::vector<op_ptr> &subgraph, primitive_attr_mgr_t &prm_attr_mgr) {
     std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
     std::set<op_t *> visited;
@@ -576,7 +576,7 @@ void fuse_to_int8_pool(std::vector<op_ptr> &subgraph) {
 }
 
 status_t fuse_post_ops(
-        std::vector<op_ptr> &subgraph, primitive_attr_mgr &prm_attr_mgr) {
+        std::vector<op_ptr> &subgraph, primitive_attr_mgr_t &prm_attr_mgr) {
     const std::set<op_kind_t> post_ops_kinds {impl::op_kind::ReLU,
             impl::op_kind::GELU, impl::op_kind::Sigmoid, impl::op_kind::Elu,
             impl::op_kind::HardTanh, impl::op_kind::Abs, impl::op_kind::Sqrt,
@@ -602,7 +602,7 @@ status_t fuse_post_ops(
 
     // lambda function to fuse one post op into base primitive
     auto fuse_post_ops_func = [&](std::vector<op_ptr> &subgraph,
-                                      primitive_attr_mgr &prm_attr_mgr,
+                                      primitive_attr_mgr_t &prm_attr_mgr,
                                       bool &changed) -> impl::status_t {
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
@@ -828,7 +828,7 @@ status_t fuse_post_ops(
 }
 
 void fuse_zero_points(
-        std::vector<op_ptr> &subgraph, primitive_attr_mgr &prm_attr_mgr) {
+        std::vector<op_ptr> &subgraph, primitive_attr_mgr_t &prm_attr_mgr) {
     std::vector<op_t *> zp_ops;
 
     std::set<op_t *> visited;

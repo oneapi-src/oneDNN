@@ -68,7 +68,7 @@ void insert_expand_and_squeeze_for_matmul(
 /// Only valid for below scenarios:
 /// src and weight's dtype are both uint8
 void insert_u8_to_s8_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph,
-        primitive_attr_mgr &prm_attr_mgr);
+        primitive_attr_mgr_t &prm_attr_mgr);
 
 } // namespace dnnl_impl
 } // namespace impl

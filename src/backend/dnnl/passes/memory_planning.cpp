@@ -115,7 +115,7 @@ void execution_args_set_t::clear() {
 }
 
 void memory_planner_t::prepare_args_for_conv_and_matmul(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
     exec_args args;
 
     memory mem;
@@ -166,7 +166,7 @@ void memory_planner_t::prepare_args_for_conv_and_matmul(op_t *op,
 
 // for single-input-single-output op
 void memory_planner_t::prepare_args_for_siso_op(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         bool need_scratchpad, bool need_workspace) {
     exec_args args;
 
@@ -244,7 +244,7 @@ void memory_planner_t::bind_memory_for_bn_folding(
 }
 
 void memory_planner_t::bind_memory_for_conv_bwd_data(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
     memory mem;
     size_t index = 0;
     exec_args args;
@@ -456,7 +456,7 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
 
 impl::status_t memory_planner_t::prepare_execution_args_set(
         const std::vector<op_ptr> &subgraph, const dnnl::engine &p_engine,
-        primitive_attr_mgr &prm_attr_mgr) {
+        primitive_attr_mgr_t &prm_attr_mgr) {
     // bind memory object to each value
     for (value_t *in : impl::graph_t(subgraph).get_input_values()) {
         exec_args_set_.add_value_mem_map({in,
@@ -564,7 +564,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
 impl::status_t memory_planner_t::run(std::vector<op_ptr> &subgraph,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
     status_t ret;
 
     clear(); // clear state to make the method be reentrant

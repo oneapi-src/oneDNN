@@ -29,15 +29,15 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-class primitive_attr_mgr {
+class primitive_attr_mgr_t {
 public:
-    primitive_attr_mgr() = default;
+    primitive_attr_mgr_t() = default;
 
     // Disable assignment and copy
-    primitive_attr_mgr(const primitive_attr_mgr &) = delete;
-    primitive_attr_mgr(primitive_attr_mgr &&) = delete;
-    primitive_attr_mgr &operator=(const primitive_attr_mgr &) = delete;
-    primitive_attr_mgr &operator=(primitive_attr_mgr &&) = delete;
+    primitive_attr_mgr_t(const primitive_attr_mgr_t &) = delete;
+    primitive_attr_mgr_t(primitive_attr_mgr_t &&) = delete;
+    primitive_attr_mgr_t &operator=(const primitive_attr_mgr_t &) = delete;
+    primitive_attr_mgr_t &operator=(primitive_attr_mgr_t &&) = delete;
 
     int64_t init_attr() {
         auto ret = data_.insert({counter++, dnnl::primitive_attr()});
@@ -66,13 +66,13 @@ void fuse_to_int8_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 void fuse_to_int8_pool(std::vector<std::shared_ptr<op_t>> &subgraph);
 
 void fuse_output_scales(std::vector<std::shared_ptr<op_t>> &subgraph,
-        primitive_attr_mgr &prm_attr_mgr);
+        primitive_attr_mgr_t &prm_attr_mgr);
 
 status_t fuse_post_ops(std::vector<std::shared_ptr<op_t>> &subgraph,
-        primitive_attr_mgr &prm_attr_mgr);
+        primitive_attr_mgr_t &prm_attr_mgr);
 
 void fuse_zero_points(std::vector<std::shared_ptr<op_t>> &subgraph,
-        primitive_attr_mgr &prm_attr_mgr);
+        primitive_attr_mgr_t &prm_attr_mgr);
 
 void fuse_mul_scales_add_zps(std::vector<std::shared_ptr<op_t>> &subgraph);
 

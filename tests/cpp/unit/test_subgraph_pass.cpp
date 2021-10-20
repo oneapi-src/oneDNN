@@ -199,7 +199,7 @@ TEST(pass_test, int8_conv_lower_down_pass) {
             scales[0] * scales[0]);
 
     // 3. fuse output mul_scales op to conv's output scale
-    dnnl_impl::primitive_attr_mgr prm_attr_mgr;
+    dnnl_impl::primitive_attr_mgr_t prm_attr_mgr;
     dnnl_impl::fuse_output_scales(subgraph, prm_attr_mgr);
 
     // 4. fuse post ops to int8 conv
@@ -317,7 +317,7 @@ TEST(pass_test, int8_matmul_lower_down_pass) {
             scales[0] * scales[0]);
 
     // 3. fuse output mul_scales op to matmul's output scale
-    dnnl_impl::primitive_attr_mgr prm_attr_mgr;
+    dnnl_impl::primitive_attr_mgr_t prm_attr_mgr;
     dnnl_impl::fuse_output_scales(subgraph, prm_attr_mgr);
 
     // 4. fuse post ops to int8 matmul
@@ -488,7 +488,7 @@ TEST(pass_test, subgraph_passes) {
     weight_f32.property = impl::property_type::constant;
     bias_f32.property = impl::property_type::constant;
 
-    dnnl_impl::primitive_attr_mgr prm_attr_mgr;
+    dnnl_impl::primitive_attr_mgr_t prm_attr_mgr;
     dnnl_impl::memory_planner_t memory_planner;
     std::vector<std::shared_ptr<impl::op_t>> subgraph = part->get_ops();
 
@@ -750,7 +750,7 @@ TEST_P(int8_matmul_pass_test, int8_matmul_layout_propagation) {
     dnnl_impl::split_quant_dequant(subgraph);
     dnnl_impl::fuse_to_int8_matmul(subgraph);
     dnnl_impl::folding_mul_scales(subgraph);
-    dnnl_impl::primitive_attr_mgr prm_attr_mgr;
+    dnnl_impl::primitive_attr_mgr_t prm_attr_mgr;
     dnnl_impl::fuse_output_scales(subgraph, prm_attr_mgr);
     dnnl_impl::fuse_post_ops(subgraph, prm_attr_mgr);
     dnnl_impl::fuse_zero_points(subgraph, prm_attr_mgr);
@@ -1028,7 +1028,7 @@ TEST(pass_test, memory_planning) {
     std::vector<logical_tensor_t> outputs = {val7, val9};
 
     // the prm_attr_mgr is dummy here
-    dnnl_impl::primitive_attr_mgr prm_attr_mgr;
+    dnnl_impl::primitive_attr_mgr_t prm_attr_mgr;
     dnnl_impl::memory_planner_t memory_planner;
 
     ASSERT_EQ(

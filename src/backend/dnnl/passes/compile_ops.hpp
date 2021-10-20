@@ -31,33 +31,34 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-class executable_mgr {
+class executable_mgr_t {
 public:
-    executable_mgr() = default;
+    executable_mgr_t() = default;
 
     // Disable assignment and copy
-    executable_mgr(const executable_mgr &) = delete;
-    executable_mgr(executable_mgr &&) = delete;
-    executable_mgr &operator=(const executable_mgr &) = delete;
-    executable_mgr &operator=(executable_mgr &&) = delete;
+    executable_mgr_t(const executable_mgr_t &) = delete;
+    executable_mgr_t(executable_mgr_t &&) = delete;
+    executable_mgr_t &operator=(const executable_mgr_t &) = delete;
+    executable_mgr_t &operator=(executable_mgr_t &&) = delete;
 
     int64_t init_executable() {
-        auto ret = data_.insert({counter++, std::shared_ptr<op_executable>()});
+        auto ret
+                = data_.insert({counter++, std::shared_ptr<op_executable_t>()});
         return ret.first->first;
     }
 
-    std::shared_ptr<op_executable> &get_executable(int64_t key) {
+    std::shared_ptr<op_executable_t> &get_executable(int64_t key) {
         return data_[key];
     }
 
 private:
-    std::unordered_map<int64_t, std::shared_ptr<op_executable>> data_;
+    std::unordered_map<int64_t, std::shared_ptr<op_executable_t>> data_;
     int64_t counter {0};
 };
 
 impl::status_t compile_ops(std::vector<std::shared_ptr<impl::op_t>> &subgraph,
-        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr,
-        executable_mgr &exec_mgr, pd_cache_t &pd_cache);
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        executable_mgr_t &exec_mgr, pd_cache_t &pd_cache);
 
 } // namespace dnnl_impl
 } // namespace impl
