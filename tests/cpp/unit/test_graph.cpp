@@ -304,7 +304,7 @@ TEST(graph_test, get_input_output_edges) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
-    using ltw = dnnl::graph::impl::logical_tensor_wrapper;
+    using ltw = dnnl::graph::impl::logical_tensor_wrapper_t;
 
     graph_t agraph;
     op_t op0 {0, Convolution, std::string("conv0")};
@@ -379,7 +379,7 @@ TEST(graph_pass_test, infer_shape) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
-    using ltw = dnnl::graph::impl::logical_tensor_wrapper;
+    using ltw = dnnl::graph::impl::logical_tensor_wrapper_t;
 
     std::vector<int64_t> src_shape {8, 3, 227, 227};
     std::vector<int64_t> weight_shape {96, 3, 11, 11};

@@ -51,8 +51,8 @@ bool logical_tensor_sanity_check(
             id_to_lts[lt.id] = lt;
         } else {
             // compare two tensors with the same id;
-            if (dnnl::graph::impl::logical_tensor_wrapper(id_search->second)
-                    != dnnl::graph::impl::logical_tensor_wrapper(lt)) {
+            if (dnnl::graph::impl::logical_tensor_wrapper_t(id_search->second)
+                    != dnnl::graph::impl::logical_tensor_wrapper_t(lt)) {
                 return false;
             }
         }

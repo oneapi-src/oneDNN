@@ -61,7 +61,7 @@ public:
     impl::status_t compile_impl(const op_t *op, const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using ltw = impl::logical_tensor_wrapper;
+        using ltw = impl::logical_tensor_wrapper_t;
         p_engine_ = make_dnnl_engine(*g_engine);
         memory::desc src = make_dnnl_memory_desc(inputs[0]);
         memory::desc dst;

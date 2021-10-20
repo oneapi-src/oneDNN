@@ -180,7 +180,7 @@ public:
         os << "  [ inputs: ";
         const char *delimer = "";
         for (const auto &i : inputs_) {
-            const impl::logical_tensor_wrapper v(i);
+            const impl::logical_tensor_wrapper_t v(i);
             os << delimer << "(ID: " << v.id() << "("
                << type_to_string(v.data_type()) << ":"
                << dims_to_string(v.vdims());
@@ -191,7 +191,7 @@ public:
         os << "  [ outputs: ";
         delimer = "";
         for (const auto &o : outputs_) {
-            const impl::logical_tensor_wrapper v(o);
+            const impl::logical_tensor_wrapper_t v(o);
             os << delimer << "(ID: " << v.id() << "("
                << type_to_string(v.data_type()) << ":"
                << dims_to_string(v.vdims());

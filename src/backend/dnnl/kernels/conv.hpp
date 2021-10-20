@@ -339,8 +339,8 @@ public:
                 }
             }
 
-            const logical_tensor_wrapper post_src_lt(inputs[idx]);
-            const logical_tensor_wrapper dst_lt(outputs[0]);
+            const logical_tensor_wrapper_t post_src_lt(inputs[idx]);
+            const logical_tensor_wrapper_t dst_lt(outputs[0]);
             // TODO(qun) we didn't report iplace pair if two lts have different
             // layout type because of frontend users didn't process this
             // situation at this moment. In the future, we need to fix this for
@@ -486,16 +486,16 @@ public:
 
         // "NXC"
         if (data_format == "NXC") {
-            diff_dst_lt = logical_tensor_wrapper(
+            diff_dst_lt = logical_tensor_wrapper_t(
                     &inputs.at(conv_bwd_filter::kDiffdst))
                                   .reorder_data_dims_strides();
-            src_lt = impl::logical_tensor_wrapper(
+            src_lt = impl::logical_tensor_wrapper_t(
                     &inputs.at(conv_bwd_filter::kSrc))
                              .reorder_data_dims_strides();
         }
         // "XIO"
         if (filter_format == "XIO") {
-            diff_weight_lt = impl::logical_tensor_wrapper(
+            diff_weight_lt = impl::logical_tensor_wrapper_t(
                     &outputs.at(conv_bwd_filter::kDiffweight))
                                      .reorder_weight_dims_strides();
         }
@@ -600,14 +600,14 @@ public:
 
         // "NXC"
         if (op->get_attr<std::string>("data_format") == "NXC") {
-            diff_dst_lt = impl::logical_tensor_wrapper(diff_dst_lt)
+            diff_dst_lt = impl::logical_tensor_wrapper_t(diff_dst_lt)
                                   .reorder_data_dims_strides();
-            src_lt = impl::logical_tensor_wrapper(src_lt)
+            src_lt = impl::logical_tensor_wrapper_t(src_lt)
                              .reorder_data_dims_strides();
         }
         // "XIO"
         if (op->get_attr<std::string>("filter_format") == "XIO") {
-            diff_weights_lt = impl::logical_tensor_wrapper(diff_weights_lt)
+            diff_weights_lt = impl::logical_tensor_wrapper_t(diff_weights_lt)
                                       .reorder_data_dims_strides();
         }
         const tensor src {src_lt, p_engine_, alc,
@@ -620,7 +620,7 @@ public:
                                         : tensor {};
 
         auto diff_weights_dims
-                = impl::logical_tensor_wrapper(diff_weights_lt).vdims();
+                = impl::logical_tensor_wrapper_t(diff_weights_lt).vdims();
         conv_backward_weights_impl(src, diff_dst, diff_weights, diff_b,
                 diff_weights_dims, alc, p_stream_);
         return impl::status::success;

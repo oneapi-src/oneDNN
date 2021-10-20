@@ -40,7 +40,7 @@ namespace dnnl_impl {
 using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
-using ltw = impl::logical_tensor_wrapper;
+using ltw = impl::logical_tensor_wrapper_t;
 
 // this function fuse a op to its successor.
 // you should guarantee that the op has only one successor
@@ -381,7 +381,7 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
         };
 
         auto lt = val->get_logical_tensor();
-        auto ltw = impl::logical_tensor_wrapper(lt);
+        auto ltw = impl::logical_tensor_wrapper_t(lt);
         std::string str
                 = std::string(impl::utils::data_type2str(ltw.data_type())) + ":"
                 + ((ltw.id() < std::numeric_limits<size_t>::max())

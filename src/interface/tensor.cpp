@@ -49,7 +49,7 @@ status_t DNNL_GRAPH_API dnnl_graph_tensor_set_data_handle(
 status_t DNNL_GRAPH_API dnnl_graph_tensor_get_element_num(
         const tensor_t *tensor, int64_t *num) {
     auto lt = tensor->get_logical_tensor();
-    *num = logical_tensor_wrapper(lt).nelems();
+    *num = logical_tensor_wrapper_t(lt).nelems();
     return status::success;
 }
 

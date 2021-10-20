@@ -25,7 +25,7 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 using op_t = impl::op_t;
-using ltw = impl::logical_tensor_wrapper;
+using ltw = impl::logical_tensor_wrapper_t;
 
 /// This function is used to infer dtype for the internal edges of a subgraph.
 /// The dtype of entire subgraph's in/outputs should be given before infer type.

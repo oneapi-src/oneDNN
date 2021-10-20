@@ -48,7 +48,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_create(partition_t **partition) {
 /// should be the same as partitioning a normal user graph.
 status_t DNNL_GRAPH_API dnnl_graph_partition_create_with_op(
         partition_t **partition, const op_t *op, engine_kind_t ekind) {
-    using ltw = logical_tensor_wrapper;
+    using ltw = logical_tensor_wrapper_t;
     // new an empty partition
     *partition = new partition_t();
     if (utils::any_null(*partition, op)) return status::invalid_argument;
@@ -400,7 +400,7 @@ impl::status_t dnnl_graph_partition::infer_shape(
     auto pos = std::find_if(outputs.begin(), outputs.end(),
             [&](const std::vector<logical_tensor_t *>::value_type &out)
                     -> bool {
-                return logical_tensor_wrapper(out).is_shape_unknown();
+                return logical_tensor_wrapper_t(out).is_shape_unknown();
             });
     if (pos == outputs.end()) { return status::success; }
 
@@ -409,7 +409,7 @@ impl::status_t dnnl_graph_partition::infer_shape(
 
 static status_t pre_process(std::vector<logical_tensor_t> &dst,
         std::vector<const logical_tensor_t *> &src, const backend *abackend) {
-    using ltw = logical_tensor_wrapper;
+    using ltw = logical_tensor_wrapper_t;
     dst.reserve(src.size());
     for (size_t i = 0; i < src.size(); i++) {
         dst.emplace_back(*src[i]);
@@ -429,7 +429,7 @@ static status_t pre_process(std::vector<logical_tensor_t> &dst,
 
 static status_t post_process(std::vector<logical_tensor_t> &dst,
         std::vector<logical_tensor_t> &src, const backend *abackend) {
-    using ltw = logical_tensor_wrapper;
+    using ltw = logical_tensor_wrapper_t;
     UNUSED(src);
 
     for (size_t i = 0; i < dst.size(); i++) {
@@ -444,7 +444,7 @@ static status_t post_process(std::vector<logical_tensor_t> &dst,
 
 static status_t pre_process(std::vector<tensor_t> &dst,
         const std::vector<tensor_t> &src, const backend *abackend) {
-    using ltw = logical_tensor_wrapper;
+    using ltw = logical_tensor_wrapper_t;
     dst.reserve(src.size());
     for (size_t i = 0; i < src.size(); i++) {
         dst.emplace_back(src[i]);

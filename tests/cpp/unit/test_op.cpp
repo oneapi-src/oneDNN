@@ -225,12 +225,12 @@ TEST(op_test, get_input) {
     matmul.add_input(lt1);
 
     auto value0 = matmul.get_input_value(0);
-    ASSERT_EQ(logical_tensor_wrapper(value0->get_logical_tensor()),
-            logical_tensor_wrapper(lt0));
+    ASSERT_EQ(logical_tensor_wrapper_t(value0->get_logical_tensor()),
+            logical_tensor_wrapper_t(lt0));
 
     auto value1 = matmul.get_input_value(1);
-    ASSERT_EQ(logical_tensor_wrapper(value1->get_logical_tensor()),
-            logical_tensor_wrapper(lt1));
+    ASSERT_EQ(logical_tensor_wrapper_t(value1->get_logical_tensor()),
+            logical_tensor_wrapper_t(lt1));
 }
 
 TEST(op_test, get_input_values) {
@@ -245,10 +245,10 @@ TEST(op_test, get_input_values) {
 
     auto values = matmul.get_input_values();
     ASSERT_EQ(values.size(), 2);
-    ASSERT_EQ(logical_tensor_wrapper(values[0]->get_logical_tensor()),
-            logical_tensor_wrapper(lt0));
-    ASSERT_EQ(logical_tensor_wrapper(values[1]->get_logical_tensor()),
-            logical_tensor_wrapper(lt1));
+    ASSERT_EQ(logical_tensor_wrapper_t(values[0]->get_logical_tensor()),
+            logical_tensor_wrapper_t(lt0));
+    ASSERT_EQ(logical_tensor_wrapper_t(values[1]->get_logical_tensor()),
+            logical_tensor_wrapper_t(lt1));
 }
 
 TEST(op_test, set_input_op) {
@@ -299,8 +299,8 @@ TEST(op_test, get_output) {
     matmul.add_output(lt);
 
     auto value = matmul.get_output_value(0);
-    ASSERT_EQ(logical_tensor_wrapper(value->get_logical_tensor()),
-            logical_tensor_wrapper(lt));
+    ASSERT_EQ(logical_tensor_wrapper_t(value->get_logical_tensor()),
+            logical_tensor_wrapper_t(lt));
 }
 
 TEST(op_test, get_output_values) {
@@ -313,8 +313,8 @@ TEST(op_test, get_output_values) {
 
     auto values = matmul.get_output_values();
     ASSERT_EQ(values.size(), 1);
-    ASSERT_EQ(logical_tensor_wrapper(values[0]->get_logical_tensor()),
-            logical_tensor_wrapper(lt));
+    ASSERT_EQ(logical_tensor_wrapper_t(values[0]->get_logical_tensor()),
+            logical_tensor_wrapper_t(lt));
 }
 
 TEST(op_test, set_attribute_b) {

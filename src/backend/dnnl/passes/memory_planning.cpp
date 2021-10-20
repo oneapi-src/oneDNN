@@ -35,7 +35,7 @@ namespace impl {
 namespace dnnl_impl {
 using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
-using ltw = impl::logical_tensor_wrapper;
+using ltw = impl::logical_tensor_wrapper_t;
 
 std::shared_ptr<execution_args_set_t> execution_args_set_t::clone() const {
     auto ret = std::make_shared<execution_args_set_t>();

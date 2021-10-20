@@ -22,7 +22,7 @@
 
 using namespace dnnl::graph::impl;
 
-size_t logical_tensor_wrapper::size() const {
+size_t logical_tensor_wrapper_t::size() const {
     if (is_strided()) {
         size_t max_size = 0;
         for (int d = 0; d < ndims(); ++d) {
@@ -51,7 +51,7 @@ size_t logical_tensor_wrapper::size() const {
 }
 
 // Every bit should be same
-bool logical_tensor_wrapper::is_identical(
+bool logical_tensor_wrapper_t::is_identical(
         const logical_tensor_t &lhs, const logical_tensor_t &rhs) const {
     bool equal = (lhs.id == rhs.id) && (lhs.ndims == rhs.ndims)
             && (lhs.data_type == rhs.data_type)
@@ -81,7 +81,7 @@ bool logical_tensor_wrapper::is_identical(
 // Check if underlying layouts of two logical tensors are the same. Need to
 // involve backend. By default it will check id and data type since `check_id`
 // and `check_dtype` are set to true.
-bool logical_tensor_wrapper::is_similar(const logical_tensor_t &lhs,
+bool logical_tensor_wrapper_t::is_similar(const logical_tensor_t &lhs,
         const logical_tensor_t &rhs, bool check_id, bool check_dtype) const {
     bool equal = check_id ? (lhs.id == rhs.id) : true;
     equal = equal && (check_dtype ? lhs.data_type == rhs.data_type : true);
@@ -142,7 +142,7 @@ bool logical_tensor_wrapper::is_similar(const logical_tensor_t &lhs,
     return false;
 }
 
-size_t logical_tensor_wrapper::hash() const noexcept {
+size_t logical_tensor_wrapper_t::hash() const noexcept {
     size_t seed = 0;
     seed = utils::hash_combine(seed, this->id());
     const int32_t nd = this->ndims();
@@ -263,7 +263,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_get_mem_size(
         const logical_tensor_t *logical_tensor, size_t *size) {
     if (utils::any_null(logical_tensor, size)) return status::invalid_argument;
 
-    *size = logical_tensor_wrapper(logical_tensor).size();
+    *size = logical_tensor_wrapper_t(logical_tensor).size();
     return status::success;
 }
 
@@ -272,8 +272,8 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_has_same_layout(
         uint8_t *is_same) {
     if (utils::any_null(lt1, lt2)) return status::invalid_argument;
 
-    logical_tensor_wrapper ltw1 {lt1};
-    logical_tensor_wrapper ltw2 {lt2};
+    logical_tensor_wrapper_t ltw1 {lt1};
+    logical_tensor_wrapper_t ltw2 {lt2};
 
     *is_same = 0;
     // Here, firstly we will check if these two logical tensors have the same
@@ -293,5 +293,5 @@ int DNNL_GRAPH_API dnnl_graph_logical_tensor_equal(
         const logical_tensor_t *lhs, const logical_tensor_t *rhs) {
     if (lhs == rhs) return 1;
     if (utils::any_null(lhs, rhs)) return 0;
-    return logical_tensor_wrapper(lhs) == logical_tensor_wrapper(rhs);
+    return logical_tensor_wrapper_t(lhs) == logical_tensor_wrapper_t(rhs);
 }

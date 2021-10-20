@@ -111,7 +111,7 @@ TEST(logical_tensor_test, push_to_vector) {
 }
 
 TEST(logical_tensor_test, identical_and_similar) {
-    using ltw = impl::logical_tensor_wrapper;
+    using ltw = impl::logical_tensor_wrapper_t;
 
     // unknown dims and strides
     impl::logical_tensor_t lt1 = utils::logical_tensor_init(
@@ -155,7 +155,7 @@ TEST(logical_tensor_test, identical_and_similar) {
 }
 
 TEST(logical_tensor_test, implicit_equal_layout) {
-    using ltw = impl::logical_tensor_wrapper;
+    using ltw = impl::logical_tensor_wrapper_t;
     using tensor = dnnl_impl::tensor;
     using data_type = dnnl_impl::tensor::desc::data_type;
     using format_tag = dnnl_impl::tensor::desc::format_tag;

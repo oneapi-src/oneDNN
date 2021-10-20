@@ -35,7 +35,7 @@ namespace dnnl_impl {
 using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
-using ltw = impl::logical_tensor_wrapper;
+using ltw = impl::logical_tensor_wrapper_t;
 
 static bool has_optional_bias(op_kind_t kind) {
     std::set<op_kind_t> ops {impl::op_kind::Convolution, impl::op_kind::MatMul,
@@ -757,7 +757,7 @@ status_t fuse_post_ops(
                     } else {
                         // use binary post-ops for broadcast add
                         auto dst_lt = dst->get_logical_tensor();
-                        const logical_tensor_wrapper dst_ltw(dst_lt);
+                        const logical_tensor_wrapper_t dst_ltw(dst_lt);
                         int dst_ndims = dst_ltw.ndims();
                         memory::desc post_src = make_dnnl_memory_desc(
                                 other_in->get_logical_tensor());

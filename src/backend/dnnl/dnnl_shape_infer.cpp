@@ -25,10 +25,10 @@ namespace dnnl_impl {
 status_t infer_dnnl_conv_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    using ltw = impl::logical_tensor_wrapper;
+    using ltw = impl::logical_tensor_wrapper_t;
 
     auto backup = *inputs[1];
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
     bool out_shape_unknown = out0.is_shape_unknown();
     if (n->get_attr<int64_t>("groups") > 1) {
         auto ndims = ltw(inputs[1]).ndims() - 1;
@@ -51,10 +51,10 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
 status_t infer_dnnl_convtranspose_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    using ltw = impl::logical_tensor_wrapper;
+    using ltw = impl::logical_tensor_wrapper_t;
 
     auto backup = *inputs[1];
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
     bool out_shape_unknown = out0.is_shape_unknown();
     if (n->get_attr<int64_t>("groups") > 1) {
         // [g, O/g, I/g, H, W]
@@ -79,7 +79,7 @@ status_t infer_dnnl_pool_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     bool out_shape_unknown
-            = logical_tensor_wrapper(outputs[0]).is_shape_unknown();
+            = logical_tensor_wrapper_t(outputs[0]).is_shape_unknown();
     infer_pool_output_shape(n, inputs, outputs);
     return status::success;
 }
@@ -87,7 +87,7 @@ status_t infer_dnnl_pool_output_shape(op_t *n,
 status_t infer_permute_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    using ltw = logical_tensor_wrapper;
+    using ltw = logical_tensor_wrapper_t;
     auto out0 = ltw(outputs[0]);
 
     // this permute is actually a transpose
@@ -140,8 +140,8 @@ status_t infer_permute_output_shape(op_t *n,
 status_t infer_to_group_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto out0 = logical_tensor_wrapper(outputs[0]);
-    auto in0 = logical_tensor_wrapper(inputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
     if (!out0.is_shape_unknown()) return status::success;
 
     auto groups = n->get_attr<int64_t>("groups");
@@ -165,7 +165,7 @@ status_t infer_to_group_output_shape(op_t *n,
 status_t infer_expand_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    using ltw = logical_tensor_wrapper;
+    using ltw = logical_tensor_wrapper_t;
     if (!ltw(outputs[0]).is_shape_unknown()) return status::success;
 
     auto in_dims = ltw(inputs[0]).vdims();
@@ -192,7 +192,7 @@ status_t infer_expand_output_shape(op_t *n,
 status_t infer_squeeze_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    using ltw = logical_tensor_wrapper;
+    using ltw = logical_tensor_wrapper_t;
     if (!ltw(outputs[0]).is_shape_unknown()) return status::success;
 
     auto in_dims = ltw(inputs[0]).vdims();
@@ -226,10 +226,10 @@ status_t infer_squeeze_output_shape(op_t *n,
 status_t infer_bn_folding_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto out0 = logical_tensor_wrapper(outputs[0]);
-    auto out1 = logical_tensor_wrapper(outputs[1]);
-    auto in0 = logical_tensor_wrapper(inputs[0]);
-    auto in1 = logical_tensor_wrapper(inputs[1]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    auto out1 = logical_tensor_wrapper_t(outputs[1]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    auto in1 = logical_tensor_wrapper_t(inputs[1]);
 
     if (!out0.is_shape_unknown() && !out1.is_shape_unknown())
         return status::success;
@@ -258,10 +258,10 @@ status_t infer_bn_folding_output_shape(op_t *n,
 status_t infer_dnnl_conv_bwd_data_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    using ltw = impl::logical_tensor_wrapper;
+    using ltw = impl::logical_tensor_wrapper_t;
 
     auto backup = *inputs[1];
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
     bool out_shape_unknown = out0.is_shape_unknown();
     if (n->get_attr<int64_t>("groups") > 1) {
         auto ndims = ltw(inputs[1]).ndims() - 1;

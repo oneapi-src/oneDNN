@@ -292,7 +292,7 @@ public:
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
             const impl::engine_t *g_engine) const override {
-        using ltw = impl::logical_tensor_wrapper;
+        using ltw = impl::logical_tensor_wrapper_t;
 
         static std::set<op_kind_t> subgraph_patterns {op_kind::int8_conv_relu,
                 op_kind::int8_conv, op_kind::int8_conv_bias_relu,
@@ -533,7 +533,7 @@ public:
         os << "  [ inputs: ";
         const char *delimer = "";
         for (const auto &i : inputs_) {
-            const impl::logical_tensor_wrapper v(i);
+            const impl::logical_tensor_wrapper_t v(i);
             os << delimer << "(ID: " << v.id() << "("
                << type_to_string(v.data_type()) << ":"
                << dims_to_string(v.vdims());
@@ -544,7 +544,7 @@ public:
         os << "  [ outputs: ";
         delimer = "";
         for (const auto &o : outputs_) {
-            const impl::logical_tensor_wrapper v(o);
+            const impl::logical_tensor_wrapper_t v(o);
             os << delimer << "(ID: " << v.id() << "("
                << type_to_string(v.data_type()) << ":"
                << dims_to_string(v.vdims());

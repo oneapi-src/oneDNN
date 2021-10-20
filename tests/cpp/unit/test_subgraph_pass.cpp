@@ -547,12 +547,12 @@ TEST(pass_test, subgraph_passes) {
 
     for (auto &val : impl::graph_t(subgraph).get_input_values()) {
         auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper(lt).is_shape_unknown());
+        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
     for (auto &val : impl::graph_t(subgraph).get_output_values()) {
         auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper(lt).is_shape_unknown());
+        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
     // infer shape/type, layout propagation and memory binding
@@ -568,7 +568,7 @@ TEST(pass_test, subgraph_passes) {
     for (auto &cur_op : subgraph) {
         for (auto &val : cur_op->get_input_values()) {
             auto lt = val->get_logical_tensor();
-            impl::logical_tensor_wrapper ltw(lt);
+            impl::logical_tensor_wrapper_t ltw(lt);
             ASSERT_FALSE(ltw.is_shape_unknown());
             ASSERT_NE(ltw.layout_type(), layout_type::undef);
             ASSERT_NE(ltw.layout_type(), layout_type::any);
@@ -577,7 +577,7 @@ TEST(pass_test, subgraph_passes) {
         size_t idx = 0;
         for (auto &val : cur_op->get_output_values()) {
             auto lt = val->get_logical_tensor();
-            impl::logical_tensor_wrapper ltw(lt);
+            impl::logical_tensor_wrapper_t ltw(lt);
 
             // skip shape and dtype check for conv's scratchpad output
             if (!(cur_op->get_kind() == dnnl_impl::op_kind::dnnl_convolution
@@ -766,12 +766,12 @@ TEST_P(int8_matmul_pass_test, int8_matmul_layout_propagation) {
 
     for (auto &val : impl::graph_t(subgraph).get_input_values()) {
         auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper(lt).is_shape_unknown());
+        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
     for (auto &val : impl::graph_t(subgraph).get_output_values()) {
         auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper(lt).is_shape_unknown());
+        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
     impl::graph_t g(subgraph);

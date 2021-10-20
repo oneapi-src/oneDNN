@@ -51,8 +51,8 @@ TEST(value_test, get_logical_tensor) {
     impl::value_t val {matmul, 0, lt};
 
     auto lt1 = val.get_logical_tensor();
-    ASSERT_TRUE(impl::logical_tensor_wrapper(lt)
-            == impl::logical_tensor_wrapper(lt1));
+    ASSERT_TRUE(impl::logical_tensor_wrapper_t(lt)
+            == impl::logical_tensor_wrapper_t(lt1));
 }
 TEST(value_test, get_producer) {
     impl::op_t matmul {0, impl::op_kind::MatMul, std::string("matmul")};

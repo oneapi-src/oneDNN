@@ -96,7 +96,7 @@ template <>
 inline size_t get_array_hash<logical_tensor_t>(
         size_t seed, const logical_tensor_t *v, size_t size) {
     for (size_t i = 0; i < size; i++) {
-        seed = utils::hash_combine(seed, logical_tensor_wrapper(v[i]).hash());
+        seed = utils::hash_combine(seed, logical_tensor_wrapper_t(v[i]).hash());
     }
     return seed;
 }
@@ -121,7 +121,7 @@ template <>
 inline size_t get_unordered_array_hash<std::unordered_set<logical_tensor_t>>(
         size_t seed, const std::unordered_set<logical_tensor_t> &array) {
     for (auto &&e : array) {
-        seed = utils::hash_combine(seed, logical_tensor_wrapper(e).hash());
+        seed = utils::hash_combine(seed, logical_tensor_wrapper_t(e).hash());
     }
     return seed;
 }

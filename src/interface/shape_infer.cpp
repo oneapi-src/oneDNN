@@ -133,7 +133,7 @@ inline dims get_dense_strides(const dims &shape) {
 inline bool every_shape_is_known(const std::vector<logical_tensor_t *> &lts) {
     bool ret = std::all_of(
             lts.cbegin(), lts.cend(), [](const logical_tensor_t *const lt) {
-                return !logical_tensor_wrapper(lt).is_shape_unknown();
+                return !logical_tensor_wrapper_t(lt).is_shape_unknown();
             });
     return ret;
 }
@@ -142,7 +142,7 @@ inline bool verify_shapes_in_range(const std::vector<logical_tensor_t *> &lts,
         const size_t begin, const size_t end,
         const std::function<bool(const dims)> &validator) {
     for (size_t idx = begin; idx < end; ++idx) {
-        const dims ltx_dims = logical_tensor_wrapper(lts[idx]).vdims();
+        const dims ltx_dims = logical_tensor_wrapper_t(lts[idx]).vdims();
         if (!validator(ltx_dims)) return false;
     }
 
@@ -153,7 +153,7 @@ void set_shape_and_strides(logical_tensor_t &lt, const dims &shape) {
     utils::array_copy(lt.dims, shape.data(), shape.size());
     lt.ndims = static_cast<int32_t>(shape.size());
 
-    auto ltw = logical_tensor_wrapper(lt);
+    auto ltw = logical_tensor_wrapper_t(lt);
     // don't overwrite strides provided by users
     if (ltw.is_strided() && ltw.is_stride_unknown()) {
         const dims strides = get_dense_strides(shape);
@@ -236,9 +236,9 @@ inline void infer_conv_ncx_oix(const dims &src_dims, const dims &fil_dims,
 status_t infer_conv_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto in0 = logical_tensor_wrapper(inputs[0]); // src
-    auto in1 = logical_tensor_wrapper(inputs[1]); // filter
-    auto out0 = logical_tensor_wrapper(outputs[0]); // output
+    auto in0 = logical_tensor_wrapper_t(inputs[0]); // src
+    auto in1 = logical_tensor_wrapper_t(inputs[1]); // filter
+    auto out0 = logical_tensor_wrapper_t(outputs[0]); // output
 
     // get attr value
     const dim_t g = n->get_attr<dim_t>("groups");
@@ -305,9 +305,9 @@ status_t infer_conv_output_shape(op_t *n,
 status_t infer_conv_bprop_data_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto in0 = logical_tensor_wrapper(inputs[0]); // data
-    auto in1 = logical_tensor_wrapper(inputs[1]); // filter
-    auto out0 = logical_tensor_wrapper(outputs[0]); // output
+    auto in0 = logical_tensor_wrapper_t(inputs[0]); // data
+    auto in1 = logical_tensor_wrapper_t(inputs[1]); // filter
+    auto out0 = logical_tensor_wrapper_t(outputs[0]); // output
 
     // get attr value
     const dim_t g = n->get_attr<dim_t>("groups");
@@ -365,7 +365,8 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
     // third input - output_shape is optional.
     // When output_shape is specified pads_begin and pads_end are ignored,
     // and auto_pad defines how to distribute padding amount around the tensor.
-    if (inputs.size() == 3 && logical_tensor_wrapper(inputs[2]).ndims() != -1) {
+    if (inputs.size() == 3
+            && logical_tensor_wrapper_t(inputs[2]).ndims() != -1) {
         // Since we have no access to the data of the third input
         // (output_shape), we cannot set output spatial shape.
         return status::unsupported;
@@ -390,9 +391,9 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
 status_t infer_conv_bprop_filters_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto in0 = logical_tensor_wrapper(inputs[0]);
-    auto in2 = logical_tensor_wrapper(inputs[2]);
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    auto in2 = logical_tensor_wrapper_t(inputs[2]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
 
     // get attr value
     const auto &strides = n->get_attr<dims>("strides");
@@ -466,9 +467,9 @@ status_t infer_conv_bprop_filters_output_shape(op_t *n,
 status_t infer_convtranspose_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto in0 = logical_tensor_wrapper(inputs[0]);
-    auto in1 = logical_tensor_wrapper(inputs[1]);
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    auto in1 = logical_tensor_wrapper_t(inputs[1]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
 
     // get attr value
     const dim_t g = n->get_attr<dim_t>("groups");
@@ -545,8 +546,8 @@ status_t infer_convtranspose_output_shape(op_t *n,
 status_t infer_pool_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto in0 = logical_tensor_wrapper(inputs[0]);
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
 
     // get attr value
     const dims &strides = n->get_attr<dims>("strides");
@@ -618,9 +619,9 @@ status_t infer_pool_output_shape(op_t *n,
 status_t infer_matmul_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto in0 = logical_tensor_wrapper(inputs[0]);
-    auto in1 = logical_tensor_wrapper(inputs[1]);
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    auto in1 = logical_tensor_wrapper_t(inputs[1]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
 
     // check if output shape is already known
     if (!out0.is_shape_unknown()) return status::success;
@@ -714,8 +715,8 @@ status_t infer_matmul_output_shape(op_t *n,
 status_t infer_identity_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto out0 = logical_tensor_wrapper(outputs[0]);
-    auto in0 = logical_tensor_wrapper(inputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
     if (!out0.is_shape_unknown()) return status::success;
 
     // check if partial set shape aligns with inferred shape
@@ -748,10 +749,10 @@ status_t identity_output_shape_on_pos(op_t *n,
 status_t infer_bias_backprop_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto out = logical_tensor_wrapper(outputs[0]);
+    auto out = logical_tensor_wrapper_t(outputs[0]);
     if (!out.is_shape_unknown()) return status::success;
 
-    auto in = logical_tensor_wrapper(inputs[0]);
+    auto in = logical_tensor_wrapper_t(inputs[0]);
     dims input_dims = in.vdims();
     if (input_dims.size() < 4) {
         // bias add backprop: input should have at least 4 dims.
@@ -772,16 +773,16 @@ status_t infer_bias_backprop_output_shape(op_t *n,
 status_t infer_bias_add_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto out = logical_tensor_wrapper(outputs[0]);
+    auto out = logical_tensor_wrapper_t(outputs[0]);
     if (!out.is_shape_unknown()) return status::success;
 
-    auto in = logical_tensor_wrapper(inputs[0]);
+    auto in = logical_tensor_wrapper_t(inputs[0]);
     dims input_dims = in.vdims();
     if (input_dims.size() < 4) {
         // bias add: input should have at least 4 dims.
         return status::invalid_shape;
     }
-    auto bias = logical_tensor_wrapper(inputs[1]);
+    auto bias = logical_tensor_wrapper_t(inputs[1]);
     dims bias_dims = bias.vdims();
     if (bias_dims.size() != 1) {
         // bias add: bias should have exactly 1 dimension.
@@ -813,15 +814,15 @@ status_t infer_norm_output_shape(op_t *n,
             : false;
     if (!keep_stats) return status::success;
 
-    auto in0 = logical_tensor_wrapper(inputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
     const dims input0_dims = in0.vdims();
 
     const dim_t begin_norm_axis = n->has_attr("begin_norm_axis")
             ? n->get_attr<dim_t>("begin_norm_axis")
             : -1;
 
-    auto out1 = logical_tensor_wrapper(outputs[1]);
-    auto out2 = logical_tensor_wrapper(outputs[2]);
+    auto out1 = logical_tensor_wrapper_t(outputs[1]);
+    auto out2 = logical_tensor_wrapper_t(outputs[2]);
     dims output_dims(input0_dims);
 
     auto norm_starting_position
@@ -858,10 +859,10 @@ status_t infer_norm_bprop_output_shape(op_t *n,
 status_t infer_elemwise_arithmetic_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto in0 = logical_tensor_wrapper(inputs[0]);
-    auto in1 = logical_tensor_wrapper(inputs[1]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    auto in1 = logical_tensor_wrapper_t(inputs[1]);
     // check if output shape is already known
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
     if (!out0.is_shape_unknown()) return status::success;
 
     const std::string broadcast_attr_name = "auto_broadcast";
@@ -905,7 +906,7 @@ status_t infer_bn_fwd_train_output_shape(op_t *n,
 
     if (every_shape_is_known(outputs)) return status::success;
 
-    const auto in = logical_tensor_wrapper(inputs[0]);
+    const auto in = logical_tensor_wrapper_t(inputs[0]);
     cvec_int64 input_dims = in.vdims();
     if (input_dims.size() < 4) return status::invalid_shape;
 
@@ -933,9 +934,9 @@ status_t infer_bn_bwd_output_shape(op_t *n,
 
     if (every_shape_is_known(outputs)) return status::success;
 
-    const auto in = logical_tensor_wrapper(inputs[0]);
+    const auto in = logical_tensor_wrapper_t(inputs[0]);
     cvec_int64 input_dims = in.vdims();
-    const auto out_delta = logical_tensor_wrapper(inputs[1]);
+    const auto out_delta = logical_tensor_wrapper_t(inputs[1]);
     cvec_int64 out_delta_dims = out_delta.vdims();
     if (input_dims.size() < 4 || out_delta_dims.size() < 4)
         return status::invalid_shape;
@@ -960,7 +961,7 @@ status_t infer_bn_bwd_output_shape(op_t *n,
 status_t infer_concat_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
     if (!out0.is_shape_unknown()) return status::success;
 
     // if only one tensor to concat, out_shape is same as input_shape
@@ -968,7 +969,7 @@ status_t infer_concat_output_shape(op_t *n,
         infer_identity_output_shape(n, inputs, outputs);
         return status::success;
     }
-    auto in0 = logical_tensor_wrapper(inputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
     auto data_type = in0.data_type();
     if (data_type != out0.data_type()) return status::unsupported;
 
@@ -983,7 +984,7 @@ status_t infer_concat_output_shape(op_t *n,
 
     int64_t sum = 0;
     for (auto iter = inputs.cbegin(); iter != inputs.cend(); iter++) {
-        auto lt_inN = logical_tensor_wrapper(*iter);
+        auto lt_inN = logical_tensor_wrapper_t(*iter);
         const auto &lt_inN_dims = lt_inN.vdims();
         if (lt_inN.ndims() != ndims) { return status::invalid_shape; }
         if (lt_inN.data_type() != data_type) { return status::unsupported; }
@@ -1010,7 +1011,7 @@ status_t infer_unsupported_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs) {
     UNUSED(n);
     UNUSED(inputs);
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
     if (out0.is_shape_unknown()) return status::unsupported;
     return status::success;
 }
@@ -1020,10 +1021,10 @@ status_t infer_exponent_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     UNUSED(n);
-    auto out0 = logical_tensor_wrapper(outputs[0]); // exponent_delta
+    auto out0 = logical_tensor_wrapper_t(outputs[0]); // exponent_delta
     if (!out0.is_shape_unknown()) return status::success;
 
-    auto in = logical_tensor_wrapper(inputs[3]); // exponent
+    auto in = logical_tensor_wrapper_t(inputs[3]); // exponent
     auto dims = in.vdims();
     set_shape_and_strides(*outputs[0], dims);
     return status::success;
@@ -1034,7 +1035,7 @@ status_t infer_reduce_sum_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs) {
     UNUSED(n);
     UNUSED(inputs);
-    auto out0 = logical_tensor_wrapper(outputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
     // check if output shape is already known
     if (!out0.is_shape_unknown()) return status::success;
 

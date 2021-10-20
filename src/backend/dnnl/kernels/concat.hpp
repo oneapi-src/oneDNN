@@ -128,7 +128,7 @@ public:
         }
 
         res_desc_.opt_dst_ = pd_.dst_desc();
-        if (impl::logical_tensor_wrapper(outputs.at(0)).is_any()) {
+        if (impl::logical_tensor_wrapper_t(outputs.at(0)).is_any()) {
             res_desc_.cvt_dst_ = res_desc_.opt_dst_;
         }
 

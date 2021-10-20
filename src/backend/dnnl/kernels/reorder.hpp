@@ -51,7 +51,7 @@ public:
     impl::status_t compile_impl(const op_t *op, const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using ltw = logical_tensor_wrapper;
+        using ltw = logical_tensor_wrapper_t;
 
         // check same shape between input and output
         const dims &src_lt_dims = ltw(inputs[reorder_input::kSrc]).vdims();

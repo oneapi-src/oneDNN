@@ -86,8 +86,8 @@ public:
     bool is_internal() const { return internal_; }
 
     bool operator==(const value_t &rhs) const {
-        bool equal = logical_tensor_wrapper(this->val_)
-                == logical_tensor_wrapper(rhs.val_);
+        bool equal = logical_tensor_wrapper_t(this->val_)
+                == logical_tensor_wrapper_t(rhs.val_);
 
         return equal && (this->producer_ == rhs.producer_)
                 && (this->offset_ == rhs.offset_)

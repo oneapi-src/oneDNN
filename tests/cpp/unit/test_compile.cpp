@@ -75,7 +75,7 @@ impl::status_t run_graph(impl::graph_t &agraph,
         const std::vector<impl::tensor_t> &g_in_ts,
         const std::vector<impl::tensor_t> &g_out_ts, impl::engine_t &eng,
         impl::stream_t &strm) {
-    using ltw = impl::logical_tensor_wrapper;
+    using ltw = impl::logical_tensor_wrapper_t;
     impl::status_t ret;
     impl::graph_t copied(agraph);
     auto ops = copied.get_ops();

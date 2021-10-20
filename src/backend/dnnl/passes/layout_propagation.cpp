@@ -33,7 +33,7 @@ namespace dnnl_impl {
 using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
-using ltw = impl::logical_tensor_wrapper;
+using ltw = impl::logical_tensor_wrapper_t;
 
 static value_ptr insert_scratchpad(op_ptr &op) {
     logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();

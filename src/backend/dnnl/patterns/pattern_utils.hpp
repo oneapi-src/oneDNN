@@ -259,8 +259,8 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
                                   ->get_logical_tensor();
                 logical_tensor_t dst
                         = nfront->get_output_value(0)->get_logical_tensor();
-                auto no_post_src_ltw = logical_tensor_wrapper(no_post_src);
-                auto dst_ltw = logical_tensor_wrapper(dst);
+                auto no_post_src_ltw = logical_tensor_wrapper_t(no_post_src);
+                auto dst_ltw = logical_tensor_wrapper_t(dst);
 
                 // unsupported case1: no ndims
                 if (no_post_src_ltw.ndims() == -1 || dst_ltw.ndims() == -1)

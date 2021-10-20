@@ -116,7 +116,7 @@ dnnl::stream make_dnnl_stream(
 }
 
 dnnl::memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt) {
-    const impl::logical_tensor_wrapper ltw(lt);
+    const impl::logical_tensor_wrapper_t ltw(lt);
     const auto dtype = static_cast<dnnl::memory::data_type>(ltw.data_type());
 
     if (ltw.is_opaque()) {
@@ -288,7 +288,7 @@ memory::desc to_default_format(const memory::desc &adesc) {
 }
 
 void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td) {
-    const impl::logical_tensor_wrapper ltw(lt);
+    const impl::logical_tensor_wrapper_t ltw(lt);
     if (ltw.is_any()) { // we only reset any format
 #ifdef DNNL_GRAPH_LAYOUT_DEBUG
         const int ndims = td.data.ndims;
@@ -310,7 +310,7 @@ void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td) {
 void fill_layout_info(
         std::shared_ptr<impl::value_t> &val, const memory::desc &td) {
     impl::logical_tensor_t lt = val->get_logical_tensor();
-    const impl::logical_tensor_wrapper ltw(lt);
+    const impl::logical_tensor_wrapper_t ltw(lt);
     if (ltw.is_any()) { // we only reset any format
 #ifdef DNNL_GRAPH_LAYOUT_DEBUG
         const int ndims = td.data.ndims;

@@ -35,7 +35,7 @@ namespace impl {
 namespace dnnl_impl {
 using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
-using ltw = impl::logical_tensor_wrapper;
+using ltw = impl::logical_tensor_wrapper_t;
 
 namespace {
 inline bool has_scratchpad(impl::op_kind_t kind) {
@@ -105,7 +105,7 @@ void constant_propagation(std::vector<op_ptr> &subgraph, bool with_scratchpad) {
 
 std::vector<value_t *> get_constant_block_output_values(
         const std::vector<op_ptr> &subgraph) {
-    using ltw = impl::logical_tensor_wrapper;
+    using ltw = impl::logical_tensor_wrapper_t;
     std::vector<value_t *> ret;
     for (auto &cur_op : subgraph) {
         auto out_vals = cur_op->get_output_values();

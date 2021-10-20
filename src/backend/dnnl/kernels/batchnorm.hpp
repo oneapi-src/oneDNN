@@ -97,7 +97,7 @@ public:
 
         // "NXC"
         if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper(
+            src_lt = impl::logical_tensor_wrapper_t(
                     &inputs.at(batch_normalization::kSrc))
                              .reorder_data_dims_strides();
         }
@@ -143,9 +143,9 @@ public:
                 outputs.at(batch_normalization::kDst).get_logical_tensor());
         // "NXC"
         if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper(src_lt)
+            src_lt = impl::logical_tensor_wrapper_t(src_lt)
                              .reorder_data_dims_strides();
-            dst_lt = impl::logical_tensor_wrapper(dst_lt)
+            dst_lt = impl::logical_tensor_wrapper_t(dst_lt)
                              .reorder_data_dims_strides();
         }
 
@@ -285,7 +285,7 @@ public:
         impl::logical_tensor_t src_lt = inputs.at(batch_normalization::kSrc);
         // "NXC"
         if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper(
+            src_lt = impl::logical_tensor_wrapper_t(
                     &inputs.at(batch_normalization::kSrc))
                              .reorder_data_dims_strides();
         }
@@ -332,9 +332,9 @@ public:
                 outputs.at(batch_normalization::kDst).get_logical_tensor());
         // "NXC"
         if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper(src_lt)
+            src_lt = impl::logical_tensor_wrapper_t(src_lt)
                              .reorder_data_dims_strides();
-            dst_lt = impl::logical_tensor_wrapper(dst_lt)
+            dst_lt = impl::logical_tensor_wrapper_t(dst_lt)
                              .reorder_data_dims_strides();
         }
         tensor x {src_lt, p_engine_, alc,
@@ -452,7 +452,7 @@ public:
                 = outputs.at(batch_normalization_bwd::kDiff_src);
         // "NXC"
         if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper(&src_lt)
+            src_lt = impl::logical_tensor_wrapper_t(&src_lt)
                              .reorder_data_dims_strides();
         }
         // prepare the inputs and outputs tensors' descs
@@ -501,11 +501,11 @@ public:
                         .get_logical_tensor());
         // "NXC"
         if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper(src_lt)
+            src_lt = impl::logical_tensor_wrapper_t(src_lt)
                              .reorder_data_dims_strides();
-            diff_dst_lt = impl::logical_tensor_wrapper(diff_dst_lt)
+            diff_dst_lt = impl::logical_tensor_wrapper_t(diff_dst_lt)
                                   .reorder_data_dims_strides();
-            diff_src_lt = impl::logical_tensor_wrapper(diff_src_lt)
+            diff_src_lt = impl::logical_tensor_wrapper_t(diff_src_lt)
                                   .reorder_data_dims_strides();
         }
         tensor x {src_lt, p_engine_, alc,

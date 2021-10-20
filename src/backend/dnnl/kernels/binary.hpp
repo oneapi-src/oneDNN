@@ -182,8 +182,8 @@ private:
             size_t input_idx = idx_src1_ + 1;
             constexpr size_t output_idx = 0;
 
-            const logical_tensor_wrapper post_src_lt(inputs[input_idx]);
-            const logical_tensor_wrapper dst_lt(outputs[output_idx]);
+            const logical_tensor_wrapper_t post_src_lt(inputs[input_idx]);
+            const logical_tensor_wrapper_t dst_lt(outputs[output_idx]);
             // TODO(qun) we didn't report iplace pair if two lts have different
             // layout type because of frontend users didn't process this
             // situation at this moment. In the future, we need to fix this for
@@ -207,7 +207,7 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using ltw = impl::logical_tensor_wrapper;
+        using ltw = impl::logical_tensor_wrapper_t;
         using desc = dnnl::memory::desc;
 
         if (!doable(ltw(inputs[idx_src0_]).vdims(),
@@ -284,7 +284,7 @@ public:
         res_desc_.opt_src_ = pd_.src0_desc();
         res_desc_.opt_src1_ = pd_.src1_desc();
         res_desc_.opt_dst_ = pd_.dst_desc();
-        if (impl::logical_tensor_wrapper(outputs.at(idx_dst_)).is_any()) {
+        if (impl::logical_tensor_wrapper_t(outputs.at(idx_dst_)).is_any()) {
             res_desc_.cvt_dst_ = pd_.dst_desc();
         }
 

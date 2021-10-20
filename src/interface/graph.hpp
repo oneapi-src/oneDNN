@@ -47,7 +47,7 @@ struct dnnl_graph_graph : public impl::utils::id_t {
     using op_ptr = std::shared_ptr<op_t>;
     using value_ptr = std::shared_ptr<value_t>;
     using logical_tensor_t = impl::logical_tensor_t;
-    using logical_tensor_wrapper = impl::logical_tensor_wrapper;
+    using logical_tensor_wrapper_t = impl::logical_tensor_wrapper_t;
     using op_schema = impl::op_schema;
     using op_schema_registry = impl::op_schema_registry;
     using id_t = impl::utils::id_t;
@@ -241,7 +241,7 @@ public:
         // Check inputs shape
         for (value_t *in : get_input_values()) {
             logical_tensor_t lt = in->get_logical_tensor();
-            if (logical_tensor_wrapper(lt).is_shape_unknown())
+            if (logical_tensor_wrapper_t(lt).is_shape_unknown())
                 return impl::status::invalid_shape;
         }
 

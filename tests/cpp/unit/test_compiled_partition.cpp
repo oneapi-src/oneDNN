@@ -63,8 +63,8 @@ TEST(compiled_partition, relu) {
 
     size_t size_in = 0, size_out = 0;
     cp.query_logical_tensor(lt_in.id, &query_in_lt);
-    size_in = impl::logical_tensor_wrapper(query_in_lt).size();
-    size_out = impl::logical_tensor_wrapper(query_out_lt).size();
+    size_in = impl::logical_tensor_wrapper_t(query_in_lt).size();
+    size_out = impl::logical_tensor_wrapper_t(query_out_lt).size();
     ASSERT_EQ(size_in, 9 * sizeof(float));
     ASSERT_EQ(size_in, size_out);
 
@@ -162,8 +162,8 @@ TEST(compiled_partition, search_required_inputs_outputs) {
 
     size_t size_in = 0, size_out = 0;
     cp.query_logical_tensor(lt_in.id, &query_lt_in);
-    size_in = impl::logical_tensor_wrapper(query_lt_in).size();
-    size_out = impl::logical_tensor_wrapper(query_lt_out).size();
+    size_in = impl::logical_tensor_wrapper_t(query_lt_in).size();
+    size_out = impl::logical_tensor_wrapper_t(query_lt_out).size();
     ASSERT_EQ(size_in, 9 * sizeof(float));
     ASSERT_EQ(size_in, size_out);
 
@@ -242,8 +242,8 @@ TEST(compiled_partition, allow_repeated_inputs) {
     ASSERT_EQ(query_lt_out.layout_type, impl::layout_type::opaque);
 
     size_t size_in = 0, size_out = 0;
-    size_in = impl::logical_tensor_wrapper(lt_in1).size();
-    size_out = impl::logical_tensor_wrapper(query_lt_out).size();
+    size_in = impl::logical_tensor_wrapper_t(lt_in1).size();
+    size_out = impl::logical_tensor_wrapper_t(query_lt_out).size();
     ASSERT_EQ(size_in, 9 * sizeof(float));
     ASSERT_EQ(size_in, size_out);
 

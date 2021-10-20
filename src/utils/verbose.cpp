@@ -187,7 +187,7 @@ int logical_tensor2dim_str(char *str, size_t str_len,
 
     int written_len = 0;
 
-    auto lt = impl::logical_tensor_wrapper(logical_tenosr);
+    auto lt = impl::logical_tensor_wrapper_t(logical_tenosr);
     const int32_t ndim = lt.ndims();
     const auto dims = lt.dims();
 
@@ -206,7 +206,7 @@ int logical_tensor2layout_str(char *str, size_t str_len,
 
     int written_len = 0;
 
-    auto lt = impl::logical_tensor_wrapper(logical_tensor);
+    auto lt = impl::logical_tensor_wrapper_t(logical_tensor);
     const int32_t ndim = lt.ndims();
 
     PUTS(":");

@@ -83,12 +83,12 @@ void verify_shape_infer_for_arithmetic_op_no_broadcast(
         status_t ret = op_schema_->shape_infer(&op_, in, out);
         EXPECT_EQ(ret, status::success);
         const std::vector<int64_t> infered_out_shape
-                = logical_tensor_wrapper(lt_out).vdims();
+                = logical_tensor_wrapper_t(lt_out).vdims();
         const std::vector<int64_t> expected_out_shape = {1, 3, 416, 416};
         EXPECT_EQ(infered_out_shape, expected_out_shape);
 
         const std::vector<int64_t> infered_out_strides
-                = logical_tensor_wrapper(lt_out).vstrides();
+                = logical_tensor_wrapper_t(lt_out).vstrides();
         const std::vector<int64_t> expected_out_strides
                 = compute_dense_strides(expected_out_shape);
         EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -135,11 +135,11 @@ void verify_shape_infer_for_arithmetic_op_with_broadcast(
         // should be enabled by default
         op_schema_->shape_infer(&op_, in, out);
         const std::vector<int64_t> infered_out_shape
-                = logical_tensor_wrapper(lt_out).vdims();
+                = logical_tensor_wrapper_t(lt_out).vdims();
         EXPECT_EQ(infered_out_shape, expected_out_shape);
 
         const std::vector<int64_t> infered_out_strides
-                = logical_tensor_wrapper(lt_out).vstrides();
+                = logical_tensor_wrapper_t(lt_out).vstrides();
         const std::vector<int64_t> expected_out_strides
                 = compute_dense_strides(expected_out_shape);
         EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -153,11 +153,11 @@ void verify_shape_infer_for_arithmetic_op_with_broadcast(
 
         op_schema_->shape_infer(&op_, in, out_expl);
         const std::vector<int64_t> infered_out_shape_expl
-                = logical_tensor_wrapper(lt_out_expl).vdims();
+                = logical_tensor_wrapper_t(lt_out_expl).vdims();
         EXPECT_EQ(infered_out_shape_expl, expected_out_shape);
 
         const std::vector<int64_t> infered_out_strides2
-                = logical_tensor_wrapper(lt_out).vstrides();
+                = logical_tensor_wrapper_t(lt_out).vstrides();
         EXPECT_EQ(infered_out_strides2, expected_out_strides);
     }
 }
@@ -224,7 +224,7 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
     // should be enabled by default
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_out).vdims();
+            = logical_tensor_wrapper_t(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
@@ -267,7 +267,7 @@ void verify_shape_infer_for_convtranspose(const op_kind_t op_kind_,
 
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_out).vdims();
+            = logical_tensor_wrapper_t(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
@@ -312,7 +312,7 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
     // should be enabled by default
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_out).vdims();
+            = logical_tensor_wrapper_t(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
@@ -356,7 +356,7 @@ void verify_shape_infer_for_conv_bprop_data(const op_kind_t op_kind_,
     // should be enabled by default
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_out).vdims();
+            = logical_tensor_wrapper_t(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
@@ -377,12 +377,12 @@ void verify_identity_shape_infer_(const op_kind_t op_kind_,
 
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_out).vdims();
+            = logical_tensor_wrapper_t(lt_out).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 3, 224, 224};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_out).vstrides();
+            = logical_tensor_wrapper_t(lt_out).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -553,7 +553,7 @@ TEST(op_schema_test, convtranspose_bias_infer_shape_auto_pad) {
     std::vector<logical_tensor_t *> lt_out {&lt_o};
     a_op_schema->shape_infer(&a_op, lt_in, lt_out);
 
-    const auto infered_out_shape = logical_tensor_wrapper(lt_o).vdims();
+    const auto infered_out_shape = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape {1, 1, 5, 5};
     ASSERT_EQ(infered_out_shape, expected_out_shape);
 }
@@ -682,11 +682,11 @@ TEST(op_schema_test, conv_bias_infer_shape) {
     EXPECT_EQ(unchanged_pads_end, pads_end);
 
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
+            = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
+            = logical_tensor_wrapper_t(lt_o).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -717,7 +717,7 @@ TEST(op_schema_test, conv_bias_infer_shape_auto_pad) {
     std::vector<logical_tensor_t *> lt_out {&lt_o};
     a_op_schema->shape_infer(&a_op, lt_in, lt_out);
 
-    const auto infered_out_shape = logical_tensor_wrapper(lt_o).vdims();
+    const auto infered_out_shape = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape {1, 1, 5, 5};
     ASSERT_EQ(infered_out_shape, expected_out_shape);
 }
@@ -747,7 +747,7 @@ TEST(op_schema_test, conv_auto_pad_with_non_default_strides) {
     std::vector<logical_tensor_t *> lt_out {&lt_o};
     a_op_schema->shape_infer(&a_op, lt_in, lt_out);
 
-    const auto infered_out_shape = logical_tensor_wrapper(lt_o).vdims();
+    const auto infered_out_shape = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape {1, 1, 3, 3};
     ASSERT_EQ(infered_out_shape, expected_out_shape);
 }
@@ -786,11 +786,11 @@ TEST(op_schema_test, conv3d_bias_infer_shape) {
     EXPECT_EQ(unchanged_pads_end, pads_end);
 
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
+            = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33, 33};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
+            = logical_tensor_wrapper_t(lt_o).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -862,12 +862,12 @@ TEST(op_schema_test, conv_bias_add_infer_shape) {
     EXPECT_EQ(unchanged_pads_end, pads_end);
 
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
+            = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
+            = logical_tensor_wrapper_t(lt_o).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -929,7 +929,7 @@ TEST(op_schema_test, squeeze_infer_shape) {
         EXPECT_EQ(ret, status::success);
 
         const std::vector<int64_t> infered_out_shape
-                = logical_tensor_wrapper(lt_out).vdims();
+                = logical_tensor_wrapper_t(lt_out).vdims();
         const std::vector<int64_t> expected_out_shape = dst_shapes[i];
         EXPECT_EQ(infered_out_shape, expected_out_shape);
     }
@@ -1129,11 +1129,11 @@ void infer_conv_shape(op_kind_t kind) {
 
     const std::vector<int64_t> expect_output_shape = {1, 111, 111, 16};
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
+            = logical_tensor_wrapper_t(lt_o).vdims();
     EXPECT_EQ(infered_out_shape, expect_output_shape);
 
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
+            = logical_tensor_wrapper_t(lt_o).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expect_output_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -1380,12 +1380,12 @@ TEST(op_schema_test, exponent_infer_shape) {
     exponent_op_schema->shape_infer(&exponent_op, lt_in, lt_out1);
 
     const std::vector<int64_t> infered_out_shape1
-            = logical_tensor_wrapper(lt_o1).vdims();
+            = logical_tensor_wrapper_t(lt_o1).vdims();
     const std::vector<int64_t> expected_out_shape1 = {64};
     EXPECT_EQ(infered_out_shape1, expected_out_shape1);
 
     const std::vector<int64_t> infered_out_strides1
-            = logical_tensor_wrapper(lt_o1).vstrides();
+            = logical_tensor_wrapper_t(lt_o1).vstrides();
     const std::vector<int64_t> expected_out_strides1
             = compute_dense_strides(expected_out_shape1);
     EXPECT_EQ(infered_out_strides1, expected_out_strides1);
@@ -1436,12 +1436,12 @@ TEST(op_schema_test, maxpool_infer_shape) {
     // if output shape is unknown, infer output shape
     pool_op_schema->shape_infer(&pool_op, lt_in, lt_out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
+            = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 3, 112, 112};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
+            = logical_tensor_wrapper_t(lt_o).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -1488,9 +1488,9 @@ TEST(op_schema_test, maxpool_ceil_mode) {
         // if output shape is unknown, infer output shape
         pool_op_schema->shape_infer(&pool_op, lt_in, lt_out);
         const std::vector<int64_t> infered_out_shape
-                = logical_tensor_wrapper(lt_o).vdims();
+                = logical_tensor_wrapper_t(lt_o).vdims();
         const std::vector<int64_t> infered_out_strides
-                = logical_tensor_wrapper(lt_o).vstrides();
+                = logical_tensor_wrapper_t(lt_o).vstrides();
         if (rounding_type == "ceil") {
             const std::vector<int64_t> expected_out_shape = {1, 3, 112, 112};
             EXPECT_EQ(infered_out_shape, expected_out_shape);
@@ -1622,12 +1622,12 @@ TEST(op_schema_test, matmul_infer_shape) {
     matmul_op_schema->shape_infer(&matmul_op, lt_in, lt_out1);
 
     const std::vector<int64_t> infered_out_shape1
-            = logical_tensor_wrapper(lt_o1).vdims();
+            = logical_tensor_wrapper_t(lt_o1).vdims();
     const std::vector<int64_t> expected_out_shape1 = {64, 1000};
     EXPECT_EQ(infered_out_shape1, expected_out_shape1);
 
     const std::vector<int64_t> infered_out_strides1
-            = logical_tensor_wrapper(lt_o1).vstrides();
+            = logical_tensor_wrapper_t(lt_o1).vstrides();
     const std::vector<int64_t> expected_out_strides1
             = compute_dense_strides(expected_out_shape1);
     EXPECT_EQ(infered_out_strides1, expected_out_strides1);
@@ -1654,12 +1654,12 @@ TEST(op_schema_test, matmul_infer_shape) {
     matmul_op_schema->shape_infer(&matmul_op, lt_in, lt_out3);
 
     const std::vector<int64_t> infered_out_shape3
-            = logical_tensor_wrapper(lt_o3).vdims();
+            = logical_tensor_wrapper_t(lt_o3).vdims();
     const std::vector<int64_t> expected_out_shape3 = {3, 5, 10, 64, 1000};
     EXPECT_EQ(infered_out_shape3, expected_out_shape3);
 
     const std::vector<int64_t> infered_out_strides3
-            = logical_tensor_wrapper(lt_o3).vstrides();
+            = logical_tensor_wrapper_t(lt_o3).vstrides();
     const std::vector<int64_t> expected_out_strides3
             = compute_dense_strides(expected_out_shape3);
     EXPECT_EQ(infered_out_strides3, expected_out_strides3);
@@ -1688,7 +1688,7 @@ TEST(op_schema_test, matmul_bias_infer_shape) {
     matmul_op_schema->shape_infer(&matmul_op, lt_in, lt_out1);
 
     const std::vector<int64_t> infered_out_shape1
-            = logical_tensor_wrapper(lt_o1).vdims();
+            = logical_tensor_wrapper_t(lt_o1).vdims();
     const std::vector<int64_t> expected_out_shape1 = {64, 1000};
     EXPECT_EQ(infered_out_shape1, expected_out_shape1);
 
@@ -1712,7 +1712,7 @@ TEST(op_schema_test, matmul_bias_infer_shape) {
     matmul_op_schema->shape_infer(&matmul_op, lt_in, lt_out3);
 
     const std::vector<int64_t> infered_out_shape3
-            = logical_tensor_wrapper(lt_o3).vdims();
+            = logical_tensor_wrapper_t(lt_o3).vdims();
     const std::vector<int64_t> expected_out_shape3 = {3, 5, 10, 64, 1000};
     EXPECT_EQ(infered_out_shape3, expected_out_shape3);
 }
@@ -1742,7 +1742,7 @@ TEST(op_schema_test, matmul_bias_add_infer_shape) {
     matmul_op_schema->shape_infer(&matmul_op, lt_in, lt_out1);
 
     const std::vector<int64_t> infered_out_shape1
-            = logical_tensor_wrapper(lt_o1).vdims();
+            = logical_tensor_wrapper_t(lt_o1).vdims();
     const std::vector<int64_t> expected_out_shape1 = {64, 1000};
     EXPECT_EQ(infered_out_shape1, expected_out_shape1);
 
@@ -1768,7 +1768,7 @@ TEST(op_schema_test, matmul_bias_add_infer_shape) {
     matmul_op_schema->shape_infer(&matmul_op, lt_in, lt_out3);
 
     const std::vector<int64_t> infered_out_shape3
-            = logical_tensor_wrapper(lt_o3).vdims();
+            = logical_tensor_wrapper_t(lt_o3).vdims();
     const std::vector<int64_t> expected_out_shape3 = {3, 5, 10, 64, 1000};
     EXPECT_EQ(infered_out_shape3, expected_out_shape3);
 }
@@ -1801,12 +1801,12 @@ TEST(op_schema_test, BatchNormInference_infer_shape) {
 
         bn_op_schema->shape_infer(&bn_op, lt_in, lt_out);
         const std::vector<int64_t> infered_out_shape
-                = logical_tensor_wrapper(lt_o).vdims();
+                = logical_tensor_wrapper_t(lt_o).vdims();
         const std::vector<int64_t> expected_out_shape = {1, 256, 64, 64};
         EXPECT_EQ(infered_out_shape, expected_out_shape);
 
         const std::vector<int64_t> infered_out_strides
-                = logical_tensor_wrapper(lt_o).vstrides();
+                = logical_tensor_wrapper_t(lt_o).vstrides();
         const std::vector<int64_t> expected_out_strides
                 = compute_dense_strides(expected_out_shape);
         EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -1856,12 +1856,12 @@ TEST(op_schema_test, conv_bn_infer_shape) {
     EXPECT_EQ(unchanged_pads_end, pads_end);
 
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
+            = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
+            = logical_tensor_wrapper_t(lt_o).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -1912,12 +1912,12 @@ TEST(op_schema_test, conv_bn_add_infer_shape) {
     EXPECT_EQ(infered_pads_end[1], 2);
 
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
+            = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
+            = logical_tensor_wrapper_t(lt_o).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -1965,12 +1965,12 @@ TEST(op_schema_test, conv_bn_relu_infer_shape) {
     EXPECT_EQ(unchanged_pads_end, pads_end);
 
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
+            = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
+            = logical_tensor_wrapper_t(lt_o).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -2025,12 +2025,12 @@ TEST(op_schema_test, conv_bias_bn_infer_shape) {
         EXPECT_EQ(unchanged_pads_end, pads_end);
 
         const std::vector<int64_t> infered_out_shape
-                = logical_tensor_wrapper(lt_o).vdims();
+                = logical_tensor_wrapper_t(lt_o).vdims();
         const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
         EXPECT_EQ(infered_out_shape, expected_out_shape);
 
         const std::vector<int64_t> infered_out_strides
-                = logical_tensor_wrapper(lt_o).vstrides();
+                = logical_tensor_wrapper_t(lt_o).vstrides();
         const std::vector<int64_t> expected_out_strides
                 = compute_dense_strides(expected_out_shape);
         EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -2082,12 +2082,12 @@ TEST(op_schema_test, conv_bn_add_relu_infer_shape) {
     EXPECT_EQ(infered_pads_end[1], 2);
 
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
+            = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
+            = logical_tensor_wrapper_t(lt_o).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -2139,12 +2139,12 @@ TEST(op_schema_test, conv_bias_bn_add_relu_infer_shape) {
     EXPECT_EQ(infered_pads_end[1], 2);
 
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
+            = logical_tensor_wrapper_t(lt_o).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
+            = logical_tensor_wrapper_t(lt_o).vstrides();
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -2218,18 +2218,18 @@ TEST(op_schema_test, BatchNormForwardTraining_infer_shape) {
     op_.set_attr<float>("epsilon", 0.01f);
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape0
-            = logical_tensor_wrapper(lt_out).vdims();
+            = logical_tensor_wrapper_t(lt_out).vdims();
     const std::vector<int64_t> expected_out_shape0 = {1, 3, 224, 224};
     EXPECT_EQ(infered_out_shape0, expected_out_shape0);
 
     const std::vector<int64_t> infered_out_shape1
-            = logical_tensor_wrapper(lt_r_mean).vdims();
+            = logical_tensor_wrapper_t(lt_r_mean).vdims();
     const std::vector<int64_t> infered_out_shape2
-            = logical_tensor_wrapper(lt_r_var).vdims();
+            = logical_tensor_wrapper_t(lt_r_var).vdims();
     const std::vector<int64_t> infered_out_shape3
-            = logical_tensor_wrapper(lt_b_mean).vdims();
+            = logical_tensor_wrapper_t(lt_b_mean).vdims();
     const std::vector<int64_t> infered_out_shape4
-            = logical_tensor_wrapper(lt_b_var).vdims();
+            = logical_tensor_wrapper_t(lt_b_var).vdims();
     const std::vector<int64_t> expected_out_shape_1D = {224};
     EXPECT_EQ(infered_out_shape1, expected_out_shape_1D);
     EXPECT_EQ(infered_out_shape2, expected_out_shape_1D);
@@ -2277,7 +2277,7 @@ TEST(op_schema_test, BatchNormTrainingBackprop_infer_shape) {
     op_.set_attr<float>("epsilon", 0.01f);
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape0
-            = logical_tensor_wrapper(lt_input_delta).vdims();
+            = logical_tensor_wrapper_t(lt_input_delta).vdims();
     const std::vector<int64_t> expected_out_shape0 = {1, 3, 224, 224};
     EXPECT_EQ(infered_out_shape0, expected_out_shape0);
 
@@ -2293,9 +2293,9 @@ TEST(op_schema_test, BatchNormTrainingBackprop_infer_shape) {
     op_schema_->shape_infer(&op_, in_with_options, out_with_options);
     const std::vector<int64_t> expected_out_shape_1D = {224};
     const std::vector<int64_t> infered_out_shape1
-            = logical_tensor_wrapper(lt_gamma_delta).vdims();
+            = logical_tensor_wrapper_t(lt_gamma_delta).vdims();
     const std::vector<int64_t> infered_out_shape2
-            = logical_tensor_wrapper(lt_beta_delta).vdims();
+            = logical_tensor_wrapper_t(lt_beta_delta).vdims();
     EXPECT_EQ(infered_out_shape1, expected_out_shape_1D);
     EXPECT_EQ(infered_out_shape2, expected_out_shape_1D);
 }
@@ -2325,7 +2325,7 @@ TEST(op_schema_test, BiasAdd_infer_shape) {
 
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_out).vdims();
+            = logical_tensor_wrapper_t(lt_out).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 3, 224, 224};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
@@ -2363,7 +2363,7 @@ TEST(op_schema_test, BiasAddBackprop_nxc_infer_shape) {
     // no need to set attribute, NXC value should be default
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_out).vdims();
+            = logical_tensor_wrapper_t(lt_out).vdims();
     const std::vector<int64_t> expected_out_shape = {channels};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
@@ -2375,7 +2375,7 @@ TEST(op_schema_test, BiasAddBackprop_nxc_infer_shape) {
 
     op_schema_->shape_infer(&op_, in, out_expl);
     const std::vector<int64_t> infered_out_shape_expl
-            = logical_tensor_wrapper(lt_out_expl).vdims();
+            = logical_tensor_wrapper_t(lt_out_expl).vdims();
     EXPECT_EQ(infered_out_shape_expl, expected_out_shape);
 }
 
@@ -2395,7 +2395,7 @@ TEST(op_schema_test, BiasAddBackprop_ncx_infer_shape) {
 
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_out).vdims();
+            = logical_tensor_wrapper_t(lt_out).vdims();
     const std::vector<int64_t> expected_out_shape = {channels};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 }
@@ -2587,7 +2587,7 @@ TEST(op_schema_test, ConvolutionBackpropFilters_infer_shape) {
 
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_out).vdims();
+            = logical_tensor_wrapper_t(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 }
 
@@ -2856,12 +2856,12 @@ TEST(op_schema_test, LayerNorm_infer_shape) {
             op_schema_->shape_infer(&op_, in, out);
 
             const std::vector<int64_t> infered_out_shape
-                    = logical_tensor_wrapper(lt_out).vdims();
+                    = logical_tensor_wrapper_t(lt_out).vdims();
             const std::vector<int64_t> expected_out_shape = {1, 3, 416, 416};
             EXPECT_EQ(infered_out_shape, expected_out_shape);
 
             const std::vector<int64_t> infered_out_strides
-                    = logical_tensor_wrapper(lt_out).vstrides();
+                    = logical_tensor_wrapper_t(lt_out).vstrides();
             const std::vector<int64_t> expected_out_strides
                     = compute_dense_strides(expected_out_shape);
             EXPECT_EQ(infered_out_strides, expected_out_strides);
@@ -2869,24 +2869,24 @@ TEST(op_schema_test, LayerNorm_infer_shape) {
             if (keep_stats) {
                 // check infered shape and strides for mean
                 const std::vector<int64_t> infered_mean_shape
-                        = logical_tensor_wrapper(lt_mean).vdims();
+                        = logical_tensor_wrapper_t(lt_mean).vdims();
                 const std::vector<int64_t> expected_mean_shape = {1, 3, 416};
                 EXPECT_EQ(infered_mean_shape, expected_mean_shape);
 
                 const std::vector<int64_t> infered_mean_strides
-                        = logical_tensor_wrapper(lt_mean).vstrides();
+                        = logical_tensor_wrapper_t(lt_mean).vstrides();
                 const std::vector<int64_t> expected_mean_strides
                         = compute_dense_strides(expected_mean_shape);
                 EXPECT_EQ(infered_mean_strides, expected_mean_strides);
 
                 // check infered shape and strides for var
                 const std::vector<int64_t> infered_var_shape
-                        = logical_tensor_wrapper(lt_var).vdims();
+                        = logical_tensor_wrapper_t(lt_var).vdims();
                 const std::vector<int64_t> expected_var_shape = {1, 3, 416};
                 EXPECT_EQ(infered_var_shape, expected_var_shape);
 
                 const std::vector<int64_t> infered_var_strides
-                        = logical_tensor_wrapper(lt_var).vstrides();
+                        = logical_tensor_wrapper_t(lt_var).vstrides();
                 const std::vector<int64_t> expected_var_strides
                         = compute_dense_strides(expected_var_shape);
                 EXPECT_EQ(infered_var_strides, expected_var_strides);
@@ -2946,39 +2946,39 @@ TEST(op_schema_test, LayerNormBackprop_infer_shape) {
             op_schema_->shape_infer(&op_, lt_in, lt_out);
 
             const std::vector<int64_t> infered_in_delta_shape
-                    = logical_tensor_wrapper(lt_in_delta).vdims();
+                    = logical_tensor_wrapper_t(lt_in_delta).vdims();
             const std::vector<int64_t> expected_in_delta_shape
                     = {1, 256, 64, 64};
             EXPECT_EQ(infered_in_delta_shape, expected_in_delta_shape);
 
             const std::vector<int64_t> infered_in_delta_strides
-                    = logical_tensor_wrapper(lt_in_delta).vstrides();
+                    = logical_tensor_wrapper_t(lt_in_delta).vstrides();
             const std::vector<int64_t> expected_in_delta_strides
                     = compute_dense_strides(expected_in_delta_shape);
             EXPECT_EQ(infered_in_delta_strides, expected_in_delta_strides);
 
             if (use_affine) {
                 const std::vector<int64_t> infered_gamma_delta_shape
-                        = logical_tensor_wrapper(lt_gamma_delta).vdims();
+                        = logical_tensor_wrapper_t(lt_gamma_delta).vdims();
                 const std::vector<int64_t> expected_gamma_delta_shape
                         = {1, 256};
                 EXPECT_EQ(
                         infered_gamma_delta_shape, expected_gamma_delta_shape);
 
                 const std::vector<int64_t> infered_gamma_delta_strides
-                        = logical_tensor_wrapper(lt_gamma_delta).vstrides();
+                        = logical_tensor_wrapper_t(lt_gamma_delta).vstrides();
                 const std::vector<int64_t> expected_gamma_delta_strides
                         = compute_dense_strides(expected_gamma_delta_shape);
                 EXPECT_EQ(infered_gamma_delta_strides,
                         expected_gamma_delta_strides);
 
                 const std::vector<int64_t> infered_beta_delta_shape
-                        = logical_tensor_wrapper(lt_beta_delta).vdims();
+                        = logical_tensor_wrapper_t(lt_beta_delta).vdims();
                 const std::vector<int64_t> expected_beta_delta_shape = {1, 256};
                 EXPECT_EQ(infered_beta_delta_shape, expected_beta_delta_shape);
 
                 const std::vector<int64_t> infered_beta_delta_strides
-                        = logical_tensor_wrapper(lt_beta_delta).vstrides();
+                        = logical_tensor_wrapper_t(lt_beta_delta).vstrides();
                 const std::vector<int64_t> expected_beta_delta_strides
                         = compute_dense_strides(expected_beta_delta_shape);
                 EXPECT_EQ(infered_beta_delta_strides,
@@ -3179,7 +3179,7 @@ TEST(op_schema_test, PowBackprop_infer_shape) {
 
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_in_delta).vdims();
+            = logical_tensor_wrapper_t(lt_in_delta).vdims();
     const std::vector<int64_t> expected_out_shape = {1, 3, 224, 224};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 }

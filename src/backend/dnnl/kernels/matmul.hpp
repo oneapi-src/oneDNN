@@ -331,8 +331,8 @@ public:
                 }
             }
 
-            const logical_tensor_wrapper post_src_lt(inputs[idx]);
-            const logical_tensor_wrapper dst_lt(outputs[0]);
+            const logical_tensor_wrapper_t post_src_lt(inputs[idx]);
+            const logical_tensor_wrapper_t dst_lt(outputs[0]);
             // TODO(qun) we didn't report iplace pair if two lts have different
             // layout type because of frontend users didn't process this
             // situation at this moment. In the future, we need to fix this for

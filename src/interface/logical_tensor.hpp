@@ -45,13 +45,13 @@ inline logical_tensor_t empty_logical_tensor_with_default_id() {
     return empty;
 }
 
-struct logical_tensor_wrapper {
+struct logical_tensor_wrapper_t {
     const logical_tensor_t *lt;
 
     // constructor
-    logical_tensor_wrapper(const logical_tensor_t *other) : lt(other) {}
-    logical_tensor_wrapper(const logical_tensor_t &other)
-        : logical_tensor_wrapper(&other) {}
+    logical_tensor_wrapper_t(const logical_tensor_t *other) : lt(other) {}
+    logical_tensor_wrapper_t(const logical_tensor_t &other)
+        : logical_tensor_wrapper_t(&other) {}
 
     // getter
     size_t id() const { return lt->id; }
@@ -113,23 +113,23 @@ struct logical_tensor_wrapper {
     }
 
     // every bit should be same
-    bool is_identical(const logical_tensor_wrapper &rhs) const {
+    bool is_identical(const logical_tensor_wrapper_t &rhs) const {
         return is_identical(*(this->lt), *(rhs.lt));
     }
 
     // layout info may implicit same in backend's perspective
     // other info should be the same like id, data type
-    bool operator==(const logical_tensor_wrapper &rhs) const {
+    bool operator==(const logical_tensor_wrapper_t &rhs) const {
         return is_similar(*(this->lt), *(rhs.lt), /* check_id = */ true,
                 /* check_dtype = */ true);
     }
 
-    bool operator!=(const logical_tensor_wrapper &rhs) const {
+    bool operator!=(const logical_tensor_wrapper_t &rhs) const {
         return !operator==(rhs);
     }
 
     bool operator==(const logical_tensor_t &rhs) const {
-        return operator==(logical_tensor_wrapper(rhs));
+        return operator==(logical_tensor_wrapper_t(rhs));
     }
 
     bool operator!=(const logical_tensor_t &rhs) const {
@@ -137,7 +137,7 @@ struct logical_tensor_wrapper {
     }
 
     // equal, but may have different id
-    bool is_similar(const logical_tensor_wrapper &rhs) const {
+    bool is_similar(const logical_tensor_wrapper_t &rhs) const {
         return is_similar(*(this->lt), *(rhs.lt), /* check_id = */ false,
                 /* check_dtype = */ true);
     }
@@ -264,13 +264,13 @@ struct logical_tensor_wrapper {
         return cweight;
     }
 
-    bool has_same_shape_as(const logical_tensor_wrapper &rhs) const {
+    bool has_same_shape_as(const logical_tensor_wrapper_t &rhs) const {
         if (ndims() != rhs.ndims()) return false;
         return std::equal(dims(), dims() + ndims(), rhs.dims());
     }
 
     // layout info is same while data type maybe not the same
-    bool has_same_layout_as(const logical_tensor_wrapper &rhs) const {
+    bool has_same_layout_as(const logical_tensor_wrapper_t &rhs) const {
         return is_similar(*(this->lt), *(rhs.lt), /* check_id = */ true,
                 /* check_dtype = */ false);
     }
@@ -296,7 +296,7 @@ struct hash<dnnl::graph::impl::logical_tensor_t> {
     using result_type = std::size_t;
     result_type operator()(const argument_type &lt) const {
         using namespace dnnl::graph::impl;
-        return logical_tensor_wrapper(lt).hash();
+        return logical_tensor_wrapper_t(lt).hash();
     }
 };
 
@@ -308,8 +308,8 @@ struct equal_to<dnnl::graph::impl::logical_tensor_t> {
     result_type operator()(const first_argument_type &lhs,
             const second_argument_type &rhs) const {
         using namespace dnnl::graph::impl;
-        const logical_tensor_wrapper lhs_wrapper {lhs};
-        const logical_tensor_wrapper rhs_wrapper {rhs};
+        const logical_tensor_wrapper_t lhs_wrapper {lhs};
+        const logical_tensor_wrapper_t rhs_wrapper {rhs};
         return lhs_wrapper == rhs_wrapper;
     }
 };
