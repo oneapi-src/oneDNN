@@ -163,7 +163,7 @@ TEST(logical_tensor_test, implicit_equal_layout) {
     auto layout_idx = dnnl_impl::dnnl_backend::get_singleton().set_mem_desc(md);
     ASSERT_TRUE(layout_idx.has_value());
     auto backend_idx = dnnl_impl::dnnl_backend::get_singleton().get_id();
-    auto id = impl::backend_registry::get_singleton().encode_layout_id(
+    auto id = impl::backend_registry_t::get_singleton().encode_layout_id(
             layout_idx.value(), backend_idx);
 
     impl::logical_tensor_t lt1 = utils::logical_tensor_init(

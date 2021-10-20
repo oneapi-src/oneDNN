@@ -117,10 +117,10 @@ private:
     size_t id_;
 };
 
-class backend_registry {
+class backend_registry_t {
 public:
-    static backend_registry &get_singleton() {
-        static backend_registry inst;
+    static backend_registry_t &get_singleton() {
+        static backend_registry_t inst;
         return inst;
     }
 
@@ -180,11 +180,11 @@ public:
     static size_t extract_backend_id(size_t layout_id);
 
 private:
-    backend_registry() = default;
-    backend_registry(const backend_registry &) = delete;
-    backend_registry(backend_registry &&) = delete;
-    backend_registry &operator=(const backend_registry &) = delete;
-    backend_registry &operator=(backend_registry &&) = delete;
+    backend_registry_t() = default;
+    backend_registry_t(const backend_registry_t &) = delete;
+    backend_registry_t(backend_registry_t &&) = delete;
+    backend_registry_t &operator=(const backend_registry_t &) = delete;
+    backend_registry_t &operator=(backend_registry_t &&) = delete;
 
     std::mutex m_;
 

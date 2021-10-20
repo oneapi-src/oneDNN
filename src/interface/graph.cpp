@@ -304,7 +304,7 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_filter(
 
     // Get partition_impl by calling each backends
     std::vector<const backend *> &backends
-            = backend_registry::get_singleton().get_registered_backends();
+            = backend_registry_t::get_singleton().get_registered_backends();
     for (auto cbkd : backends) {
         backend *bkd = const_cast<backend *>(cbkd);
         status = bkd->get_partitions(*graph, policy);

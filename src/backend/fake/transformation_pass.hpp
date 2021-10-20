@@ -55,7 +55,7 @@ public:
     void run(impl::graph_t &agraph) override {
         impl::pass::FCreateV2Pattern pfunc
                 = get_attr<impl::pass::FCreateV2Pattern>("FCreateV2Pattern")[0];
-        pattern_utils pu;
+        pattern_utils_t pu;
         std::shared_ptr<utils::pm::pb_graph> pgraph
                 = make_shared<utils::pm::pb_graph>("pgraph");
         pfunc(pgraph);

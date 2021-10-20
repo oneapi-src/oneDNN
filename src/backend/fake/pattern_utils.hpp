@@ -38,21 +38,21 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 namespace fake_impl {
-class pattern_utils {
+class pattern_utils_t {
 public:
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
             shared_ptr<utils::pm::pb_graph> pgraph,
             std::vector<op_t *> &matched_op_list);
     inline void fuse(dnnl::graph::impl::graph_t &backend_graph,
             std::vector<op_t *> &matched_op_list);
-    pattern_utils() = default;
-    pattern_utils(const pattern_utils &) = delete;
-    pattern_utils(pattern_utils &&) = delete;
-    pattern_utils &operator=(const pattern_utils &) = delete;
+    pattern_utils_t() = default;
+    pattern_utils_t(const pattern_utils_t &) = delete;
+    pattern_utils_t(pattern_utils_t &&) = delete;
+    pattern_utils_t &operator=(const pattern_utils_t &) = delete;
 };
 
 // function to do pattern matching
-inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
+inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
         std::shared_ptr<utils::pm::pb_graph> pgraph,
         std::vector<op_t *> &matched_op_list) {
     std::unordered_set<op_t *> selected;
@@ -71,7 +71,7 @@ inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
 }
 
 // function to do fusion but not rewrite the graph
-inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
+inline void pattern_utils_t::fuse(dnnl::graph::impl::graph_t &backend_graph,
         std::vector<op_t *> &matched_op_list) {
     for (auto &matched_op : matched_op_list) {
         std::shared_ptr<op_t> partition_fused_op(
