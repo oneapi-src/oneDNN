@@ -79,10 +79,11 @@ class to generate unique id according to the given name. It requires the 1:1
 mapping between id and the given name.
 
 **Note**: These examples create logical tensors with complete shape information
-and use them in the partition compilation. Currently, the library also supports
-an API to infer the output shapes according to input shapes. We don't leverage
-this API here as it's planned to be deprecated in the future so the compilation
-can accept incomplete output shapes.
+and use them in the partition compilation. Currently, oneDNN Graph also supports
+the output logical tensors with incomplete shape information (containing -1).
+oneDNN Graph implementation will calculate the output shapes according to given
+input shapes and schema of the OP. After compilation finished, users can query
+the compiled partition for the output logical tensors and get the shapes.
 
 Next step is to create a `Convolution` op with the above inputs and outputs.
 

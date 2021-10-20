@@ -79,6 +79,15 @@ passed as a parameter for partition compilation. A `stream` abstracts hardware
 execution resources of a target device. It is required to execute a compiled
 partition.
 
+oneDNN Graph API provides low precision support including both int8, bf16, and
+fp16. For int8, oneDNN Graph API supports quantized model with static
+quantization. For bf16 or fp16, oneDNN Graph supports deep learning framework’s
+auto mixed precision mechanism. In both cases, oneDNN Graph API expects users to
+convert the computation graph to low precision representation and specify the
+data’s precision and quantization parameters. oneDNN Graph API implementation
+should strictly respect the numeric precision of the computation. More details
+can be found at [specification](https://spec.oneapi.io/onednn-graph/latest/programming_model.html#low-precision-support).
+
 ## Relation to oneDNN primitives programming model
 
 The Graph API is an addition to oneDNN’s current primitives programming model.

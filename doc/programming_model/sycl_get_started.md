@@ -8,14 +8,14 @@ latest version.
 This is an example to demonstrate how to build a simple graph and run on CPU/GPU
 with SYCL extension APIs.
 
-In this example, you will learn the below things about oneDNN graph.
+In this example, you will learn the below things about oneDNN Graph.
 
 - How to build a graph and get several partitions
 - How to create engine, allocator and stream
 - How to compile a partition
 - How to execute a compiled partition with input tensors on a specific stream
 
-**Note**: currently, oneDNN graph has limited support for direct programming
+**Note**: currently, oneDNN Graph has limited support for direct programming
 model. For example, users need to know how many inputs/outputs of a self-defined
 pattern or partition.
 
@@ -24,7 +24,7 @@ The full example code can be found at
 
 ## Public headers
 
-To start using oneDNN graph, users should include the
+To start using oneDNN Graph, users should include the
 [dnnl_graph.hpp](../../include/oneapi/dnnl/dnnl_graph.hpp) header file in the
 application. If a user wants to run on a SYCL device like this example, he/she
 also need include
@@ -55,7 +55,7 @@ graph g(engine_kind);
 ~~~
 
 To build a graph, the connection relationship of different ops must be known. In
-oneDNN graph, the `id` of
+oneDNN Graph, the `id` of
 [`dnnl::graph::logical_tensor`](../../include/oneapi/dnnl/dnnl_graph.hpp#L290)
 is used to express such relationship. Besides that, a logical tensor describes
 the metadata of a tensor, like element data type, number of dimensions, size for
@@ -127,7 +127,7 @@ auto partitions = g.get_partitions();
 
 ### Compile partitions
 
-In the real world, frameworks will provide device info for oneDNN graph. For
+In the real world, frameworks will provide device info for oneDNN Graph. For
 example, they may provide a `sycl::queue` like below:
 
 ~~~cpp
@@ -140,7 +140,7 @@ Based on the above `sycl::queue`, users can create a
 `sycl_malloc_wrapper` and `sycl_free_wrapper` are call-back functions and also
 provided by frameworks.
 
-In oneDNN graph, SYCL extension APIs reside in the namespace
+In oneDNN Graph, SYCL extension APIs reside in the namespace
 `dnnl::graph::sycl_interop`, which are defined at
 [dnnl_graph_sycl.hpp](../../include/oneapi/dnnl/dnnl_graph_sycl.hpp).
 
@@ -179,9 +179,9 @@ auto cp1 = partitions[1].compile({relu0_dst_desc_plain, conv1_weight_desc_plain,
 
 ### Execute the compiled partitions
 
-In oneDNN graph, a
+In oneDNN Graph, a
 [dnnl::grap::stream](../../include/oneapi/dnnl/dnnl_graph.hpp#L239) is the
-logical abstraction for execution units. It is created on top of oneDNN graph
+logical abstraction for execution units. It is created on top of oneDNN Graph
 engine. For SYCL device, it also contains an opencl queue.
 
 ~~~cpp
