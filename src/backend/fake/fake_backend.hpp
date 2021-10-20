@@ -45,15 +45,13 @@ public:
 
     impl::pass::pass_registry &get_pass_registry() { return pass_registry_; }
 
-    virtual size_t get_mem_size(
-            const impl::logical_tensor_t &lt) const override {
+    size_t get_mem_size(const impl::logical_tensor_t &lt) const override {
         UNUSED(lt);
         return static_cast<size_t>(-1);
     }
 
-    virtual status_t get_partitions(impl::graph_t &agraph,
-            impl::partition_policy_t policy
-            = impl::partition_policy::fusion) override {
+    status_t get_partitions(
+            impl::graph_t &agraph, impl::partition_policy_t policy) override {
         impl::pass::pass_manager pm(get_pass_registry());
         pm.run_passes(agraph, "", policy);
         return status::success;

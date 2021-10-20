@@ -52,14 +52,14 @@ public:
         size_ = size;
     }
 
-    ~temporary_scratchpad_t() {
+    ~temporary_scratchpad_t() override {
         allocator::free(buffer_, *eng_, alloc_);
         size_ = 0;
     }
 
-    virtual char *get_buffer() const override { return buffer_; }
+    char *get_buffer() const override { return buffer_; }
 
-    virtual size_t size() const override { return size_; }
+    size_t size() const override { return size_; }
 
 private:
     char *buffer_;

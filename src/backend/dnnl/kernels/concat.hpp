@@ -58,7 +58,7 @@ private:
     f32_concat_resource_t::desc_t res_desc_;
 
 public:
-    ~concat() {
+    ~concat() override {
         thread_local_cache_t<f32_concat_resource_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }

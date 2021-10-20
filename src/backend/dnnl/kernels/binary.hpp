@@ -198,7 +198,7 @@ private:
     }
 
 public:
-    ~binary() {
+    ~binary() override {
         thread_local_cache_t<f32_kernel_resource_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
@@ -385,7 +385,7 @@ private:
     impl::allocator_t *g_alloc_;
 
 public:
-    ~bias_add() {
+    ~bias_add() override {
         if (expected_dst_buf_)
             allocator::free(expected_dst_buf_, p_engine_, g_alloc_);
     }

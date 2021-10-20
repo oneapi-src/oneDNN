@@ -42,7 +42,7 @@ public:
     fake_partition_impl_t(impl::engine_kind_t engine_kind)
         : impl::partition_impl_t(engine_kind) {}
 
-    virtual ~fake_partition_impl_t() = default;
+    ~fake_partition_impl_t() override = default;
 
     // deep copy
     fake_partition_impl_t(const fake_partition_impl_t &other)
@@ -113,23 +113,20 @@ public:
 
     /////////////// the followings are the implementation of interface
 
-    virtual bool is_initialized() const override {
-        return fused_op_ != nullptr;
-    }
+    bool is_initialized() const override { return fused_op_ != nullptr; }
 
-    virtual std::shared_ptr<impl::partition_impl_t> clone() override {
+    std::shared_ptr<impl::partition_impl_t> clone() override {
         return std::make_shared<fake_partition_impl_t>(*this);
     }
 
-    virtual const impl::backend *get_assigned_backend() const override {
+    const impl::backend *get_assigned_backend() const override {
         return &fake_backend::get_singleton();
     }
 
-    virtual impl::status_t compile(
-            impl::compiled_partition_t *compiled_partition,
+    impl::status_t compile(impl::compiled_partition_t *compiled_partition,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::engine_t *g_engine = nullptr) const override {
+            const impl::engine_t *g_engine) const override {
         UNUSED(compiled_partition);
         UNUSED(inputs);
         UNUSED(outputs);
@@ -137,7 +134,7 @@ public:
         return status::unsupported;
     }
 
-    virtual impl::status_t infer_shape(
+    impl::status_t infer_shape(
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<impl::logical_tensor_t *> &outputs) const override {
         UNUSED(inputs);
@@ -145,7 +142,7 @@ public:
         return status::unsupported;
     }
 
-    virtual std::string to_string() const override {
+    std::string to_string() const override {
         std::ostringstream os;
 
         const auto type_to_string = [](impl::data_type_t t) {

@@ -385,15 +385,13 @@ public:
         return kernel_registry_.create_kernel(aop);
     }
 
-    virtual size_t get_mem_size(
-            const impl::logical_tensor_t &lt) const override;
+    size_t get_mem_size(const impl::logical_tensor_t &lt) const override;
 
-    virtual bool compare_logical_tensor(const impl::logical_tensor_t &lhs,
+    bool compare_logical_tensor(const impl::logical_tensor_t &lhs,
             const impl::logical_tensor_t &rhs) const override;
 
-    virtual status_t get_partitions(impl::graph_t &agraph,
-            impl::partition_policy_t policy
-            = impl::partition_policy::fusion) override {
+    status_t get_partitions(
+            impl::graph_t &agraph, impl::partition_policy_t policy) override {
         impl::pass::pass_manager pm(get_pass_registry());
 #ifdef DNNL_GRAPH_ENABLE_DUMP
         std::string pass_config_json = "dnnl_graph_passes.json";

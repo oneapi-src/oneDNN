@@ -153,7 +153,7 @@ public:
             impl::compiled_partition_t *compiled_partition,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::engine_t *aengine = nullptr) const = 0;
+            const impl::engine_t *aengine) const = 0;
 
     // dump a partition to string
     virtual std::string to_string() const = 0;

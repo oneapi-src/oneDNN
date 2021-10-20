@@ -74,7 +74,7 @@ protected:
     pd_cache_t pd_cache_;
 
 public:
-    virtual ~conv_base() {
+    ~conv_base() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
@@ -84,7 +84,7 @@ public:
         }
     }
 
-    virtual impl::status_t execute_impl(const dnnl_partition_impl_t *part,
+    impl::status_t execute_impl(const dnnl_partition_impl_t *part,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
@@ -176,7 +176,7 @@ public:
 template <bool quantized>
 struct conv_fwd : public conv_base {
 public:
-    virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
@@ -303,8 +303,7 @@ public:
         return impl::status::success;
     }
 
-    virtual impl::status_t prepare_inplace_pairs_impl(
-            const impl::engine_t *g_engine,
+    impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         UNUSED(g_engine);
@@ -357,7 +356,7 @@ public:
 
 struct conv_bwd_data : public conv_base {
 public:
-    virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {

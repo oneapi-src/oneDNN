@@ -315,7 +315,7 @@ struct op_executable {
 };
 
 struct memory_reparser : public op_executable {
-    virtual void execute(const stream &stream,
+    void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         UNUSED(stream);
         assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
@@ -336,7 +336,7 @@ struct conv_fwd_executable : public op_executable {
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
 
-    virtual void execute(const stream &stream,
+    void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         if (with_sum_) {
             const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
@@ -367,7 +367,7 @@ struct deconv_fwd_executable : public op_executable {
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
 
-    virtual void execute(const stream &stream,
+    void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         const std::unordered_map<int, memory> &cached_args = args;
 
@@ -404,7 +404,7 @@ struct matmul_executable : public op_executable {
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
 
-    virtual void execute(const stream &stream,
+    void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         if (with_sum_) {
             memory &dst_mem
@@ -434,7 +434,7 @@ struct pool_executable : public op_executable {
         prim_ = dnnl::pooling_v2_forward(pd_);
     }
 
-    virtual void execute(const stream &stream,
+    void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
@@ -492,7 +492,7 @@ struct reorder_executable : public op_executable {
         prim_ = dnnl::reorder(pd_);
     }
 
-    virtual void execute(const stream &stream,
+    void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
@@ -608,7 +608,7 @@ struct bn_folding : public op_executable {
 
     const memory::desc &scratchpad_desc() const { return scratchpad_desc_; }
 
-    virtual void execute(const stream &stream,
+    void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         UNUSED(args);
 
@@ -723,7 +723,7 @@ struct conv_bwd_data_executable : public op_executable {
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
 
-    virtual void execute(const stream &stream,
+    void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }

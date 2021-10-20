@@ -33,7 +33,7 @@ namespace utils {
 
 class bad_any_cast : public std::bad_cast {
 public:
-    virtual const char *what() const noexcept { return "bad any_cast"; }
+    const char *what() const noexcept override { return "bad any_cast"; }
 };
 
 template <bool B, class T = void>

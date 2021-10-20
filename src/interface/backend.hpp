@@ -98,8 +98,7 @@ public:
     /// @param agraph The graph to be partitioned
     /// @param policy The partition policy
     /// @return The status code
-    virtual status_t get_partitions(graph_t &agraph,
-            partition_policy_t policy = partition_policy::fusion)
+    virtual status_t get_partitions(graph_t &agraph, partition_policy_t policy)
             = 0;
 
     /// Register the pointer of created backend instance to oneDNN Graph

@@ -442,7 +442,7 @@ public:
     impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) {
+            const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
         epsilon_ = op->get_attr<float>("epsilon");
         std::string data_format = op->get_attr<std::string>("data_format");
@@ -486,7 +486,7 @@ public:
     impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs) {
+            const std::vector<impl::tensor_t> &outputs) override {
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
