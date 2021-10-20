@@ -68,7 +68,7 @@ inline static size_t size_of(data_type_t dtype) {
 }
 
 inline static size_t prod(const std::vector<dim_t> &shape) {
-    if (shape.size() == 0) return 0;
+    if (shape.empty()) return 0;
 
     size_t p = (std::accumulate(
             shape.begin(), shape.end(), size_t(1), std::multiplies<dim_t>()));

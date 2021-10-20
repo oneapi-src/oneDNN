@@ -350,7 +350,7 @@ inline void json_writer::begin_array(bool multi_line) {
 }
 
 inline void json_writer::end_array() {
-    if (scope_count_.size() != 0 && scope_multi_line_.size() != 0) {
+    if (!scope_count_.empty() && !scope_multi_line_.empty()) {
         bool newline = scope_multi_line_.back();
         size_t nelem = scope_count_.back();
         scope_multi_line_.pop_back();
@@ -373,7 +373,7 @@ inline void json_writer::write_array_item(const valuetype &value) {
 }
 
 inline void json_writer::end_object() {
-    if (scope_count_.size() != 0) {
+    if (!scope_count_.empty()) {
         size_t nelem = scope_count_.back();
         scope_count_.pop_back();
         if (nelem != 0) write_seperator();
@@ -382,7 +382,7 @@ inline void json_writer::end_object() {
 }
 
 inline void json_writer::write_seperator() {
-    if (scope_multi_line_.size() == 0 || scope_multi_line_.back()) {
+    if (scope_multi_line_.empty() || scope_multi_line_.back()) {
         *os_ << '\n';
         *os_ << std::string(scope_multi_line_.size() * 2, ' ');
     }
