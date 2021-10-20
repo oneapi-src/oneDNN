@@ -223,7 +223,7 @@ struct logical_tensor_wrapper {
         }
     }
 
-    logical_tensor_t reorder_data_dims_strides() {
+    logical_tensor_t reorder_data_dims_strides() const {
         assert(lt->ndims != -1 && "data dims haven't be uninitialized.");
         // update input tensor's dims NXC
         // keep HW order
@@ -239,7 +239,7 @@ struct logical_tensor_wrapper {
         return cdata;
     }
 
-    logical_tensor_t reorder_weight_dims_strides() { // XIO->OIX
+    logical_tensor_t reorder_weight_dims_strides() const { // XIO->OIX
         assert(lt->ndims != -1 && "data dims haven't be uninitialized.");
         logical_tensor_t cweight = *lt;
         int32_t i = 0, j = cweight.ndims - 1;

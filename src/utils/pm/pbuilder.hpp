@@ -188,8 +188,8 @@ public:
     repetition() = delete;
     pb_graph *get_body();
     port_maps get_port_maps();
-    int64_t get_min_rep() { return m_min_rep; }
-    int64_t get_max_rep() { return m_max_rep; }
+    int64_t get_min_rep() const { return m_min_rep; }
+    int64_t get_max_rep() const { return m_max_rep; }
 
 protected:
     friend class pb_graph;

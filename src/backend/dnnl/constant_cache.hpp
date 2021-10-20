@@ -73,7 +73,7 @@ struct constant_cache_t {
     void remove_if_exist(const key_t &key);
 
 private:
-    void evict(size_t n);
+    void evict(size_t n) const;
     value_t get(const key_t &key);
     void add(const key_t &key, const value_t &constant);
     size_t get_size() const;

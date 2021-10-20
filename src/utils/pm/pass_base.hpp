@@ -161,9 +161,9 @@ public:
         priority_ = priority;
         return *this;
     }
-    float get_priority() { return priority_; }
+    float get_priority() const { return priority_; }
 
-    bool get_enable() { return enable_; }
+    bool get_enable() const { return enable_; }
     /*!
     * \brief Register additional attributes.
     * \param attr_name The name of the attribute.

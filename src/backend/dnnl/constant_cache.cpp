@@ -142,7 +142,7 @@ value_t constant_cache_t::get(const key_t &key) {
 }
 
 // Evict n size of cached buffers
-void constant_cache_t::evict(size_t n) {
+void constant_cache_t::evict(size_t n) const {
     if (n == capacity_) {
         constant_map_.clear();
         return;
