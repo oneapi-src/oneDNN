@@ -37,11 +37,11 @@
 #endif
 
 #ifndef UNUSED
-#define UNUSED(x) ((void)x)
+#define UNUSED(x) ((void)(x))
 #endif
 
 #ifndef assertm
-#define assertm(exp, msg) assert(((void)msg, exp))
+#define assertm(exp, msg) assert(((void)(msg), (exp)))
 #endif
 
 namespace dnnl {

@@ -29,7 +29,7 @@
 #include "backend/dnnl/passes/lower_down.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
-#define DNNL_GRAPH_ARG_POST_SRC -1
+#define DNNL_GRAPH_ARG_POST_SRC (-1)
 
 namespace dnnl {
 namespace graph {

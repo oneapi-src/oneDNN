@@ -51,7 +51,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(conv_fusion)
 
 #define SET_NUM_INPUTS_CHECK(n) \
     append_decision_function([](op_t *graph_op) -> bool { \
-        return graph_op->num_inputs() == n; \
+        return graph_op->num_inputs() == (n); \
     })
 
 #define SET_S8_CHECK() \

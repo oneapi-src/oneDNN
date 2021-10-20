@@ -317,7 +317,7 @@ op_schema get_op_schema();
     template <> \
     op_schema \
     get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opkind, version)>() { \
-        return impl.set_op_kind(op_kind::opkind).since_version(version); \
+        return (impl).set_op_kind(op_kind::opkind).since_version(version); \
     }
 
 #define SET_MATMUL_COMMON_ATTRS \

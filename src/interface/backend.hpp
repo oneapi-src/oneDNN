@@ -205,7 +205,7 @@ private:
 #define DNNL_GRAPH_REGISTER_BACKEND(backend_ins_) \
     DNNL_GRAPH_STR_CONCAT(DNNL_GRAPH_BACKEND_REG_VAR_DEF, __COUNTER__) \
             = impl::backend::register_backend( \
-                    static_cast<impl::backend *>(&backend_ins_));
+                    static_cast<impl::backend *>(&(backend_ins_)));
 
 // Backend API used by each backend to check the constant cache enabling status
 bool is_constant_cache_enabled();
