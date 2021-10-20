@@ -38,7 +38,7 @@ namespace dnnl_impl {
 
 namespace {
 
-impl::status_t get_ordered_inputs_outputs(const impl::op_t *work_op,
+inline impl::status_t get_ordered_inputs_outputs(const impl::op_t *work_op,
         const std::vector<impl::logical_tensor_t> &expected,
         const std::vector<impl::logical_tensor_t> &given,
         std::vector<impl::logical_tensor_t> &ordered,

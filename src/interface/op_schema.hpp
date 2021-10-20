@@ -315,7 +315,7 @@ op_schema get_op_schema();
 #define DNNL_GRAPH_OP_SCHEMA(opkind, version, impl) \
     class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opkind, version); \
     template <> \
-    op_schema \
+    inline op_schema \
     get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opkind, version)>() { \
         return (impl).set_op_kind(op_kind::opkind).since_version(version); \
     }

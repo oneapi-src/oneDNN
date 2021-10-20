@@ -91,7 +91,7 @@ public:
                     &transformation_pass::create)
 
 #define FAKE_BACKEND_REGISTER_PASSES_DEF_BEGIN(passes_class_) \
-    void register_##passes_class_(impl::pass::pass_registry &registry) {
+    inline void register_##passes_class_(impl::pass::pass_registry &registry) {
 #define FAKE_BACKEND_REGISTER_PASSES_DEF_END }
 
 #define FAKE_BACKEND_REGISTER_PASSES_CALL(passes_class_, pass_registry_) \
