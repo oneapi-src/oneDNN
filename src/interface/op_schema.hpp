@@ -92,7 +92,7 @@ public:
             , required_(false)
             , has_default_value_(true)
             , attr_kind_(attr_kind)
-            , attr_(value) {
+            , attr_(std::move(value)) {
             assertm(!required,
                     "this attribute should be an optional attribute "
                     "since default value is provided");

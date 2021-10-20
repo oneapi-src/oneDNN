@@ -135,7 +135,7 @@ public:
     size_t num_inputs() const { return inputs_.size(); }
 
     // add an input value to the op
-    void add_input(std::shared_ptr<value_t> value) {
+    void add_input(const std::shared_ptr<value_t> &value) {
         // setup the input_tensor_map_
         const size_t offset = inputs_.size();
         input_tensor_map_[offset] = std::make_pair(id_, offset);
@@ -168,7 +168,7 @@ public:
         connect_input(index, op.get_output_value(offset));
     }
 
-    void connect_input(size_t index, std::shared_ptr<value_t> output) {
+    void connect_input(size_t index, const std::shared_ptr<value_t> &output) {
         output->add_consumer(*this, index);
         if (inputs_.size() <= index) { inputs_.resize(index + 1); }
         inputs_[index] = output;
@@ -188,7 +188,7 @@ public:
     // output values
     size_t num_outputs() const { return outputs_.size(); }
 
-    void add_output(std::shared_ptr<value_t> value) {
+    void add_output(const std::shared_ptr<value_t> &value) {
         const size_t offset = outputs_.size();
         output_tensor_map_[offset] = std::make_pair(id_, offset);
 

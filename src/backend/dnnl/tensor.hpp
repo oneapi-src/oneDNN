@@ -523,7 +523,7 @@ public:
         : memory(std::move(t))
         , workspace_(std::move(t.workspace_))
         , buffer_(std::move(t.buffer_))
-        , alc_(std::move(t.alc_)) {}
+        , alc_(t.alc_) {}
 
     /// Assignment operator
     tensor &operator=(const tensor &t) {
@@ -539,7 +539,7 @@ public:
         memory::operator=(std::move(t));
         buffer_ = std::move(t.buffer_);
         workspace_ = std::move(t.workspace_);
-        alc_ = std::move(t.alc_);
+        alc_ = t.alc_;
         return *this;
     }
 
@@ -590,7 +590,7 @@ public:
         }
     }
 
-    tensor reorder_if_differ_in(const dnnl::stream p_stream,
+    tensor reorder_if_differ_in(const dnnl::stream &p_stream,
             const desc &expected_desc, const attr_t &aattr = attr_t()) const {
         if (expected_desc == get_desc()) {
             return *this;

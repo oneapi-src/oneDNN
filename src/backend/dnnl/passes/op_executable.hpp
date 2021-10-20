@@ -367,7 +367,7 @@ struct deconv_fwd_executable : public op_executable {
 
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        std::unordered_map<int, memory> cached_args = args;
+        const std::unordered_map<int, memory> &cached_args = args;
 
         prim_.execute(stream, cached_args);
     }

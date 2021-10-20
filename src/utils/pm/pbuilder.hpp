@@ -93,7 +93,7 @@ public:
     decision_function get_decision_function(size_t index);
     pb_node_kind get_node_kind() { return m_node_kind; };
     virtual string get_name() { return m_debug_string; };
-    virtual void set_name(string name) { m_debug_string = name; };
+    virtual void set_name(string name) { m_debug_string = std::move(name); };
 
 protected:
     friend class pb_graph;

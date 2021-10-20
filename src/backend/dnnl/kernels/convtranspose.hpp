@@ -255,7 +255,7 @@ public:
                             constant_key_, c_promise.get_future());
             bool is_from_cache = cached_value.valid();
             if (is_from_cache) {
-                constant_cache_t::cached_t c_buffer = cached_value.get();
+                const constant_cache_t::cached_t &c_buffer = cached_value.get();
                 grantor_t c_grantor
                         = memory_planner_.internal_persistent_grantor(
                                 c_buffer->data<char>());

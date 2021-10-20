@@ -117,7 +117,7 @@ public:
         size_t offset_;
     };
 
-    const std::vector<consumer_t> get_consumers() const { return consumers_; }
+    const std::vector<consumer_t> &get_consumers() const { return consumers_; }
 
     void add_consumer(op_t &op, size_t offset) {
         const consumer_t c {op, offset};

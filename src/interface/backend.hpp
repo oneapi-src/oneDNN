@@ -41,7 +41,7 @@ namespace impl {
 class backend {
 public:
     backend(const std::string &name, float priority)
-        : name_(std::move(name)), priority_(priority), id_(get_counter()) {}
+        : name_(name), priority_(priority), id_(get_counter()) {}
 
     virtual ~backend() {}
 

@@ -27,7 +27,7 @@ namespace impl {
 
 class opset_v1 {
 public:
-    static void for_each_schema(std::function<void(op_schema &&)> fn) {
+    static void for_each_schema(const std::function<void(op_schema &&)> &fn) {
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Abs, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(AvgPool, 1)>());

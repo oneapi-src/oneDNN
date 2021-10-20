@@ -37,7 +37,7 @@ FAKE_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
     FAKE_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name) \
             .set_priority(p) \
             .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
-                    [](std::shared_ptr<pb_graph> pgraph) -> void { \
+                    [](const std::shared_ptr<pb_graph> &pgraph) -> void { \
                         pgraph->append_op(op_kind::Wildcard); \
                     });
 

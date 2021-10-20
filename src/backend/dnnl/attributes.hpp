@@ -73,7 +73,7 @@ struct attr_t : public dnnl::primitive_attr {
 
     static attr_t attr_post_ops(post_ops po) {
         attr_t attr;
-        attr.set_post_ops(po);
+        attr.set_post_ops(std::move(po));
         return attr;
     }
 

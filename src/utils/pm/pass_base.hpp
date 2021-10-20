@@ -53,7 +53,7 @@ using FCreatePattern = std::function<void(pattern *apattern)>;
 // FCreateV2Pattern: a function for defining pattern.
 // One pass can have several FCreateV2Pattern functions.
 using FCreateV2Pattern
-        = std::function<void(std::shared_ptr<pb_graph> pattern_graph)>;
+        = std::function<void(const std::shared_ptr<pb_graph> &pattern_graph)>;
 
 // FCreateOptPattern: a function for defining optimized pattern,
 // which is used in the graph rewriting part to rewrite the pattern
