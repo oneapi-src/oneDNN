@@ -59,13 +59,14 @@ public:
     * convert a md to layout id
     */
     virtual impl::utils::optional<size_t> set_mem_desc(
-            const impl::utils::any &mem_desc) {
+            const impl::utils::any_t &mem_desc) {
         std::lock_guard<std::mutex> lock(mem_descs_.m_);
 
-        auto pos = std::find_if(mem_descs_.data_.begin(),
-                mem_descs_.data_.end(), [&](const impl::utils::any &m) -> bool {
-                    return is_mem_desc_equal(m, mem_desc);
-                });
+        auto pos
+                = std::find_if(mem_descs_.data_.begin(), mem_descs_.data_.end(),
+                        [&](const impl::utils::any_t &m) -> bool {
+                            return is_mem_desc_equal(m, mem_desc);
+                        });
 
         size_t layout_id;
         if (pos != mem_descs_.data_.end()) {
@@ -87,7 +88,7 @@ public:
     * is a cached memory descriptor; otherwise, the return value will
     * be a utils::nullopt
     */
-    virtual impl::utils::optional<impl::utils::any> get_mem_desc(
+    virtual impl::utils::optional<impl::utils::any_t> get_mem_desc(
             size_t layout_id) const {
         std::lock_guard<std::mutex> lock(mem_descs_.m_);
         if (layout_id >= mem_descs_.data_.size()) return {};
@@ -96,7 +97,7 @@ public:
 
 protected:
     mutable struct {
-        std::vector<impl::utils::any> data_;
+        std::vector<impl::utils::any_t> data_;
         mutable std::mutex m_;
     } mem_descs_;
 
@@ -106,8 +107,8 @@ private:
     * \param mem_desc2
     * \return bool
     */
-    virtual bool is_mem_desc_equal(const impl::utils::any &mem_desc1,
-            const impl::utils::any &mem_desc2) const = 0;
+    virtual bool is_mem_desc_equal(const impl::utils::any_t &mem_desc1,
+            const impl::utils::any_t &mem_desc2) const = 0;
 };
 
 class dnnl_layout_id_manager : public layout_id_manager {
@@ -116,15 +117,15 @@ class dnnl_layout_id_manager : public layout_id_manager {
     // private, only can be created in dnnl_backend
     dnnl_layout_id_manager() = default;
 
-    bool is_mem_desc_equal(const impl::utils::any &mem_desc1,
-            const impl::utils::any &mem_desc2) const override;
+    bool is_mem_desc_equal(const impl::utils::any_t &mem_desc1,
+            const impl::utils::any_t &mem_desc2) const override;
 
 #ifdef DNNL_GRAPH_LAYOUT_DEBUG
     static const size_t LAST_TAG
             = static_cast<size_t>(dnnl::memory::format_tag::format_tag_last);
 
 public:
-    impl::utils::optional<impl::utils::any> get_mem_desc(
+    impl::utils::optional<impl::utils::any_t> get_mem_desc(
             size_t layout_id) const override {
         std::lock_guard<std::mutex> lock(mem_descs_.m_);
         layout_id -= LAST_TAG;
@@ -133,7 +134,7 @@ public:
     }
 
     impl::utils::optional<size_t> set_mem_desc(
-            const impl::utils::any &mem_desc) override {
+            const impl::utils::any_t &mem_desc) override {
         auto &md = impl::utils::any_cast<const memory::desc &>(mem_desc);
         size_t layout_id = 0;
         {
@@ -141,7 +142,7 @@ public:
 
             auto pos = std::find_if(mem_descs_.data_.begin(),
                     mem_descs_.data_.end(),
-                    [&](const impl::utils::any &m) -> bool {
+                    [&](const impl::utils::any_t &m) -> bool {
                         return is_mem_desc_equal(m, mem_desc);
                     });
             if (pos != mem_descs_.data_.end()) {
@@ -369,8 +370,8 @@ public:
 
     // Used by DNNL backend to cache memory descriptor and get layout id
     impl::utils::optional<size_t> set_mem_desc(
-            const impl::utils::any &mem_desc);
-    impl::utils::optional<impl::utils::any> get_mem_desc(
+            const impl::utils::any_t &mem_desc);
+    impl::utils::optional<impl::utils::any_t> get_mem_desc(
             const size_t &layout_id) const;
 
     kernel_registry &get_kernel_registry() { return kernel_registry_; }

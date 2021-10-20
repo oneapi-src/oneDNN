@@ -39,8 +39,8 @@ namespace impl {
 namespace dnnl_impl {
 
 bool dnnl_layout_id_manager::is_mem_desc_equal(
-        const impl::utils::any &mem_desc1,
-        const impl::utils::any &mem_desc2) const {
+        const impl::utils::any_t &mem_desc1,
+        const impl::utils::any_t &mem_desc2) const {
     auto &md1 = impl::utils::any_cast<const memory::desc &>(mem_desc1);
     auto &md2 = impl::utils::any_cast<const memory::desc &>(mem_desc2);
     return md1 == md2;
@@ -350,11 +350,11 @@ bool dnnl_backend::compare_logical_tensor(const impl::logical_tensor_t &lhs,
 }
 
 impl::utils::optional<size_t> dnnl_backend::set_mem_desc(
-        const impl::utils::any &mem_desc) {
+        const impl::utils::any_t &mem_desc) {
     return layout_id_manager_.set_mem_desc(mem_desc);
 }
 
-impl::utils::optional<impl::utils::any> dnnl_backend::get_mem_desc(
+impl::utils::optional<impl::utils::any_t> dnnl_backend::get_mem_desc(
         const size_t &layout_id) const {
     return layout_id_manager_.get_mem_desc(layout_id);
 }

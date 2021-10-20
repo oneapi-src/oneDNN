@@ -31,7 +31,7 @@ namespace graph {
 namespace impl {
 namespace utils {
 
-class bad_any_cast : public std::bad_cast {
+class bad_any_cast_t : public std::bad_cast {
 public:
     const char *what() const noexcept override { return "bad any_cast"; }
 };
@@ -57,44 +57,44 @@ using first_argument = typename std::decay<decltype(
 
 // any structure
 // now we only use this any struct for the project.
-class any {
+class any_t {
 public:
-    any() = default;
-    any(any &&v) {
+    any_t() = default;
+    any_t(any_t &&v) {
         clear();
         avtable_ = v.avtable_;
         v.avtable_ = nullptr;
     }
-    any(const any &v) { avtable_ = v.avtable_; }
+    any_t(const any_t &v) { avtable_ = v.avtable_; }
 
     template <typename T,
-            typename = enable_if_t<!std::is_same<T, any &>::value>>
-    any(T &&v) {
+            typename = enable_if_t<!std::is_same<T, any_t &>::value>>
+    any_t(T &&v) {
         clear();
         using value_type = typename std::decay<
                 typename std::remove_reference<T>::type>::type;
-        avtable_ = std::make_shared<vtable<value_type>>(std::forward<T>(v));
+        avtable_ = std::make_shared<vtable_t<value_type>>(std::forward<T>(v));
     }
 
-    any &operator=(const any &v) {
-        any(v).swap(*this);
+    any_t &operator=(const any_t &v) {
+        any_t(v).swap(*this);
         return *this;
     }
-    any &operator=(any &&v) {
+    any_t &operator=(any_t &&v) {
         v.swap(*this);
-        any().swap(v);
+        any_t().swap(v);
         return *this;
     }
     template <typename T>
-    any &operator=(T &&v) {
-        any(std::forward<T>(v)).swap(*this);
+    any_t &operator=(T &&v) {
+        any_t(std::forward<T>(v)).swap(*this);
         return *this;
     }
 
     void clear() {
         if (avtable_) { avtable_ = nullptr; }
     }
-    void swap(any &v) { std::swap(avtable_, v.avtable_); }
+    void swap(any_t &v) { std::swap(avtable_, v.avtable_); }
     bool empty() { return avtable_ == nullptr; }
     const std::type_info &type() const {
         return avtable_ ? avtable_->type() : typeid(void);
@@ -104,7 +104,7 @@ public:
     bool match(T defaults, T1 func1, Args &&... args) const {
         using MatchedT = first_argument<T1>;
         if (type() == typeid(MatchedT)) {
-            func1(static_cast<vtable<MatchedT> *>(avtable_.get())->value_);
+            func1(static_cast<vtable_t<MatchedT> *>(avtable_.get())->value_);
             return true;
         }
         return match(std::forward<T>(defaults), std::forward<Args>(args)...);
@@ -114,7 +114,7 @@ public:
     bool match(T defaults, T1 func1) const {
         using MatchedT = first_argument<T1>;
         if (type() == typeid(MatchedT)) {
-            func1(static_cast<vtable<MatchedT> *>(avtable_.get())->value_);
+            func1(static_cast<vtable_t<MatchedT> *>(avtable_.get())->value_);
             return true;
         }
         defaults();
@@ -122,44 +122,45 @@ public:
     }
 
 private:
-    struct any_vtable {
-        virtual ~any_vtable() = default;
+    struct any_vtable_t {
+        virtual ~any_vtable_t() = default;
         virtual const std::type_info &type() = 0;
-        virtual std::shared_ptr<any_vtable> get_vtable() = 0;
+        virtual std::shared_ptr<any_vtable_t> get_vtable() = 0;
     };
     template <typename T>
-    struct vtable : public any_vtable {
-        vtable(const T &value) : value_(value) {}
-        vtable(T &&value) : value_(std::forward<T>(value)) {}
-        vtable &operator=(const vtable &) = delete;
+    struct vtable_t : public any_vtable_t {
+        vtable_t(const T &value) : value_(value) {}
+        vtable_t(T &&value) : value_(std::forward<T>(value)) {}
+        vtable_t &operator=(const vtable_t &) = delete;
         const std::type_info &type() override { return typeid(T); }
-        std::shared_ptr<any_vtable> get_vtable() override {
-            return std::make_shared<vtable>(value_);
+        std::shared_ptr<any_vtable_t> get_vtable() override {
+            return std::make_shared<vtable_t>(value_);
         }
         T value_;
     };
 
-    std::shared_ptr<any_vtable> avtable_ = nullptr;
+    std::shared_ptr<any_vtable_t> avtable_ = nullptr;
 
     template <typename T>
-    friend T *any_cast(any *v);
+    friend T *any_cast(any_t *v);
 };
 
 template <typename T>
-T *any_cast(any *v) {
+T *any_cast(any_t *v) {
     using value_type = typename std::remove_cv<T>::type;
     return v && v->type() == typeid(T)
-            ? &static_cast<any::vtable<value_type> *>(v->avtable_.get())->value_
+            ? &static_cast<any_t::vtable_t<value_type> *>(v->avtable_.get())
+                       ->value_
             : nullptr;
 }
 
 template <typename T>
-inline const T *any_cast(const any *v) {
-    return any_cast<T>(const_cast<any *>(v));
+inline const T *any_cast(const any_t *v) {
+    return any_cast<T>(const_cast<any_t *>(v));
 }
 
 template <typename T>
-inline T any_cast(any &v) {
+inline T any_cast(any_t &v) {
     using nonref = typename std::remove_reference<T>::type;
     auto val = any_cast<nonref>(&v);
     if (val) {
@@ -167,17 +168,17 @@ inline T any_cast(any &v) {
                 T, typename std::add_lvalue_reference<T>::type>::type;
         return static_cast<ref_type>(*val);
     } else {
-        throw bad_any_cast {};
+        throw bad_any_cast_t {};
     }
 }
 
 template <typename T>
-inline T any_cast(const any &v) {
-    return any_cast<T>(const_cast<any &>(v));
+inline T any_cast(const any_t &v) {
+    return any_cast<T>(const_cast<any_t &>(v));
 }
 
 template <typename T>
-inline T any_cast(any &&v) {
+inline T any_cast(any_t &&v) {
     static_assert(std::is_rvalue_reference<T &&>::value
                     || std::is_const<
                             typename std::remove_reference<T>::type>::value,
@@ -203,43 +204,43 @@ struct nullopt_t {
 constexpr const nullopt_t nullopt {nullopt_t::_construct::_token};
 
 template <typename T>
-class optional_impl {
+class optional_impl_t {
 public:
-    optional_impl() : is_null_(true) {}
-    optional_impl(const T &value) {
+    optional_impl_t() : is_null_(true) {}
+    optional_impl_t(const T &value) {
         is_null_ = false;
         new (&value_) T(value);
     }
 
-    optional_impl(const optional_impl<T> &opt) {
+    optional_impl_t(const optional_impl_t<T> &opt) {
         is_null_ = opt.is_null_;
         if (!is_null_) { new (&value_) T(opt.value()); }
     }
 
-    optional_impl(nullopt_t) : is_null_(true) {}
+    optional_impl_t(nullopt_t) : is_null_(true) {}
 
-    ~optional_impl() {
+    ~optional_impl_t() {
         // explicitly deconstructor
         if (!is_null_) { reinterpret_cast<T *>(&value_)->~T(); }
     }
 
-    void swap(optional_impl<T> &another) {
+    void swap(optional_impl_t<T> &another) {
         std::swap(value_, another.value_);
         std::swap(is_null_, another.is_null_);
     }
 
-    optional_impl<T> &operator=(const optional_impl<T> &another) {
-        (optional_impl<T>(another)).swap(*this);
+    optional_impl_t<T> &operator=(const optional_impl_t<T> &another) {
+        (optional_impl_t<T>(another)).swap(*this);
         return *this;
     }
 
-    optional_impl<T> &operator=(const T &value) {
-        (optional_impl<T>(value)).swap(*this);
+    optional_impl_t<T> &operator=(const T &value) {
+        (optional_impl_t<T>(value)).swap(*this);
         return *this;
     }
 
-    optional_impl<T> &operator=(nullopt_t) {
-        (optional_impl<T>()).swap(*this);
+    optional_impl_t<T> &operator=(nullopt_t) {
+        (optional_impl_t<T>()).swap(*this);
         return *this;
     }
 
@@ -254,7 +255,7 @@ public:
         return *reinterpret_cast<const T *>(&value_);
     }
 
-    bool operator==(const optional_impl<T> &other) const {
+    bool operator==(const optional_impl_t<T> &other) const {
         return this->is_null_ == other.is_null_
                 && (this->is_null_ == true || this->value() == other.value());
     }
@@ -267,7 +268,7 @@ private:
 };
 
 template <typename T>
-using optional = optional_impl<T>;
+using optional = optional_impl_t<T>;
 #endif // DNNL_GRAPH_SUPPORT_CXX17
 
 } // namespace utils

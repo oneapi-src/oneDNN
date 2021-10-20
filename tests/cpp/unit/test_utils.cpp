@@ -22,10 +22,10 @@
 #ifndef DNNL_GRAPH_SUPPORT_CXX17
 TEST(utils_test, optional) {
     //init, copy constructor
-    dnnl::graph::impl::utils::optional_impl<int64_t> o1, o2 = 2, o3 = o2;
+    dnnl::graph::impl::utils::optional_impl_t<int64_t> o1, o2 = 2, o3 = o2;
     ASSERT_EQ(*o2, 2);
     ASSERT_EQ(*o3, 2);
-    dnnl::graph::impl::utils::optional_impl<float> o4(
+    dnnl::graph::impl::utils::optional_impl_t<float> o4(
             dnnl::graph::impl::utils::nullopt),
             o5 = dnnl::graph::impl::utils::nullopt;
     ASSERT_EQ(o4.has_value(), false);
@@ -36,7 +36,7 @@ TEST(utils_test, optional) {
 #endif
 
 TEST(utils_test, any) {
-    dnnl::graph::impl::utils::any a = 1;
+    dnnl::graph::impl::utils::any_t a = 1;
     ASSERT_EQ(dnnl::graph::impl::utils::any_cast<int>(a), 1);
     int *i = dnnl::graph::impl::utils::any_cast<int>(&a);
     ASSERT_NE(i, nullptr);
@@ -45,10 +45,10 @@ TEST(utils_test, any) {
     ASSERT_EQ(dnnl::graph::impl::utils::any_cast<double>(a), 3.14);
     a = true;
     ASSERT_EQ(dnnl::graph::impl::utils::any_cast<bool>(a), true);
-    dnnl::graph::impl::utils::any b;
+    dnnl::graph::impl::utils::any_t b;
     ASSERT_EQ(b.empty(), true);
     EXPECT_THROW(dnnl::graph::impl::utils::any_cast<int>(b),
-            dnnl::graph::impl::utils::bad_any_cast);
+            dnnl::graph::impl::utils::bad_any_cast_t);
 }
 
 TEST(utils_test, sizeoftype) {

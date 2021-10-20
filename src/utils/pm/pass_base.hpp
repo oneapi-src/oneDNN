@@ -204,7 +204,7 @@ public:
     }
 
 protected:
-    std::unordered_multimap<std::string, impl::utils::any> attrs_;
+    std::unordered_multimap<std::string, impl::utils::any_t> attrs_;
 
 private:
     pass_type type_ {};
