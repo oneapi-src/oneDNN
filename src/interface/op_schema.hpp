@@ -40,26 +40,26 @@ using opset_version = size_t;
 using shape_infer_fn = std::function<status_t(op_t *,
         std::vector<logical_tensor_t *> &, std::vector<logical_tensor_t *> &)>;
 
-class op_schema {
+class op_schema_t {
 public:
-    op_schema();
-    op_schema(op_kind_t op_name, opset_version version);
+    op_schema_t();
+    op_schema_t(op_kind_t op_name, opset_version version);
 
     /*! @brief op parameter representation, including input/output name,
      *  and description.
      */
-    class op_parameter {
+    class op_parameter_t {
     public:
-        op_parameter() = default;
+        op_parameter_t() = default;
 
-        explicit op_parameter(std::string &&name, std::string &&description,
+        explicit op_parameter_t(std::string &&name, std::string &&description,
                 data_type_t dtype)
             : name_(std::move(name))
             , description_(std::move(description))
             , allowed_dtypes_({dtype})
             , is_initialized(true) {}
 
-        explicit op_parameter(std::string &&name, std::string &&description,
+        explicit op_parameter_t(std::string &&name, std::string &&description,
                 std::set<data_type_t> &&dtype)
             : name_(std::move(name))
             , description_(std::move(description))
@@ -79,12 +79,12 @@ public:
         bool is_initialized = false;
     };
 
-    class attribute {
+    class attribute_t {
     public:
-        attribute() = default;
+        attribute_t() = default;
 
         // constructor for optional attributes which need to have default value
-        attribute(const std::string &name, std::string &&description,
+        attribute_t(const std::string &name, std::string &&description,
                 bool required, attribute_kind_t attr_kind,
                 utils::attribute_value_t value)
             : name_(name)
@@ -101,7 +101,7 @@ public:
 
         // constructor for required attributes or special optional attributes
         // that have no default value.
-        attribute(const std::string &name, std::string &&description,
+        attribute_t(const std::string &name, std::string &&description,
                 bool required, attribute_kind_t attr_kind)
             : name_(name)
             , description_(std::move(description))
@@ -135,13 +135,13 @@ public:
     op_kind_t get_op_kind() const;
 
     /*! @brief Set the op_kind of this op schema. */
-    op_schema &set_op_kind(op_kind_t kind);
+    op_schema_t &set_op_kind(op_kind_t kind);
 
     /*! @brief Returns the docstring of this op schema. */
     const std::string &get_doc() const;
 
     /*! @brief Set the docstring of this op schema. */
-    op_schema &set_doc(std::string &&doc);
+    op_schema_t &set_doc(std::string &&doc);
 
     /*! @brief Returns the since version of this op schema. */
     opset_version get_since_version() const;
@@ -149,77 +149,77 @@ public:
     /*! \brief The earliest operator set version which this
      * operator was present in.
      */
-    op_schema &since_version(opset_version n);
+    op_schema_t &since_version(opset_version n);
 
     /*! @brief Set num of inputs of the op schema. */
-    op_schema &set_num_inputs(size_t input_num);
+    op_schema_t &set_num_inputs(size_t input_num);
 
     /*! @brief Set num of inputs of the op schema for optional and variadic
      * inputs.
      */
-    op_schema &set_num_inputs(std::set<size_t> &&input_num);
+    op_schema_t &set_num_inputs(std::set<size_t> &&input_num);
 
     /*! @brief Get num of inputs of the op schema. */
     std::set<size_t> get_num_inputs() const;
 
     /*! @brief Set num of outputs of the op schema. */
-    op_schema &set_num_outputs(size_t output_num);
+    op_schema_t &set_num_outputs(size_t output_num);
 
     /*! @brief Set num of outputs of the op schema for optional and variadic
      * outputs.
      */
-    op_schema &set_num_outputs(std::set<size_t> &&output_num);
+    op_schema_t &set_num_outputs(std::set<size_t> &&output_num);
 
     /*! @brief Get num of outputs of the op schema. */
     std::set<size_t> get_num_outputs() const;
 
     /*! @brief Set a particular input of the op schema. */
-    op_schema &set_input(size_t in_offset, std::string &&in_name,
+    op_schema_t &set_input(size_t in_offset, std::string &&in_name,
             std::string &&in_description, data_type_t dtype = data_type::f32);
 
-    op_schema &set_input(size_t in_offset, std::string &&in_name,
+    op_schema_t &set_input(size_t in_offset, std::string &&in_name,
             std::string &&in_description, std::set<data_type_t> &&dtype);
 
     /*! @brief Set a particular output of the op schema. */
-    op_schema &set_output(size_t out_offset, std::string &&out_name,
+    op_schema_t &set_output(size_t out_offset, std::string &&out_name,
             std::string &&out_description, data_type_t dtype = data_type::f32);
 
-    op_schema &set_output(size_t out_offset, std::string &&out_name,
+    op_schema_t &set_output(size_t out_offset, std::string &&out_name,
             std::string &&out_description, std::set<data_type_t> &&dtype);
 
     /*! @brief Set a particular attribute of the op schema. */
-    op_schema &set_attr(const std::string &name, std::string &&description,
+    op_schema_t &set_attr(const std::string &name, std::string &&description,
             bool required, attribute_kind_t attr_kind);
 
     /*! @brief Set a particular attribute of the op schema. */
     template <typename T>
-    op_schema &set_attr(const std::string &name, std::string &&description,
+    op_schema_t &set_attr(const std::string &name, std::string &&description,
             bool required, attribute_kind_t attr_kind, T value) {
         assertm(attributes_.count(name) == 0,
                 "provided attribute has already been set");
-        attributes_[name] = attribute(
+        attributes_[name] = attribute_t(
                 name, std::move(description), required, attr_kind, {value});
         return *this;
     }
 
     /*! @brief Set a particular attribute of the op schema. */
-    op_schema &set_attr(const std::string &name, std::string &&description,
+    op_schema_t &set_attr(const std::string &name, std::string &&description,
             bool required, attribute_kind_t attr_kind, const char *value);
 
     /*! @brief Set shape inference function of the op schema. */
-    op_schema &set_shape_inference_function(shape_infer_fn fn);
+    op_schema_t &set_shape_inference_function(shape_infer_fn fn);
 
     /*! @brief Get shape inference function of the op schema. */
     shape_infer_fn get_shape_inference_function() const;
 
     /*! @brief Get inputs of the op schema. */
-    const std::vector<op_parameter> &get_inputs() const;
+    const std::vector<op_parameter_t> &get_inputs() const;
 
     /*! @brief Get outputs of the op schema. */
-    const std::vector<op_parameter> &get_outputs() const;
+    const std::vector<op_parameter_t> &get_outputs() const;
 
     /*! @brief Get attributes of the op schema. */
-    const std::unordered_map<std::string, attribute> &get_attrs() const;
+    const std::unordered_map<std::string, attribute_t> &get_attrs() const;
 
     /*! @brief Verify the op schema. */
     bool verify(const op_t *l_op) const;
@@ -229,13 +229,13 @@ public:
             std::vector<logical_tensor_t *> &outputs) const;
 
     /*! @brief Set inputs param option: fixed, optional and variadic. */
-    op_schema &set_inputs_option(param_num_option option);
+    op_schema_t &set_inputs_option(param_num_option option);
 
     /*! @brief Get inputs param option: fixed, optional and variadic. */
     param_num_option get_inputs_option() const;
 
     /*! @brief Set outputs param option: fixed, optional and variadic. */
-    op_schema &set_outputs_option(param_num_option option);
+    op_schema_t &set_outputs_option(param_num_option option);
 
     /*! @brief Get outputs param option: fixed, optional and variadic. */
     param_num_option get_outputs_option() const;
@@ -249,12 +249,12 @@ private:
             param_num_option option) const;
     bool verify_param_dtype(
             const std::vector<std::shared_ptr<value_t>> &actual_values,
-            const std::vector<op_parameter> &expected_params,
+            const std::vector<op_parameter_t> &expected_params,
             param_num_option option) const;
     bool verify_attributes(
             const std::unordered_map<std::string, utils::attribute_value_t>
                     &actual_attrs,
-            const std::unordered_map<std::string, attribute> &expected_attrs)
+            const std::unordered_map<std::string, attribute_t> &expected_attrs)
             const;
     size_t get_max_valid_param_num(
             const std::set<size_t> &param_num, param_num_option option) const;
@@ -268,24 +268,24 @@ private:
     std::set<size_t> outputs_offset;
     param_num_option inputs_option = param_num_option::fixed;
     param_num_option outputs_option = param_num_option::fixed;
-    std::vector<op_parameter> inputs_;
-    std::vector<op_parameter> outputs_;
-    std::unordered_map<std::string, attribute> attributes_;
+    std::vector<op_parameter_t> inputs_;
+    std::vector<op_parameter_t> outputs_;
+    std::unordered_map<std::string, attribute_t> attributes_;
     shape_infer_fn tensor_inference_function_;
 };
 
 using op_kind_version_schema_map
-        = std::unordered_map<op_kind_t, std::map<opset_version, op_schema>>;
+        = std::unordered_map<op_kind_t, std::map<opset_version, op_schema_t>>;
 
-class op_schema_registry {
+class op_schema_registry_t {
 public:
-    class op_schema_registry_once {
+    class op_schema_registry_once_t {
     public:
-        op_schema_registry_once(op_schema &&schema);
+        op_schema_registry_once_t(op_schema_t &&schema);
     };
 
     /*! @brief Get the latest schema for an op. */
-    static const op_schema *get_op_schema(op_kind_t a_op_kind);
+    static const op_schema_t *get_op_schema(op_kind_t a_op_kind);
 
 private:
     /* !@brief Returns the static op_kind_version_schema_map.*/
@@ -299,7 +299,7 @@ private:
 #define DNNL_GRAPH_UNUSED
 #endif // GNUC
 
-void register_schema(op_schema &&schema);
+void register_schema(op_schema_t &&schema);
 
 template <class T>
 void register_opset_schema() {
@@ -307,7 +307,7 @@ void register_opset_schema() {
 }
 
 template <typename T>
-op_schema get_op_schema();
+op_schema_t get_op_schema();
 
 #define DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opkind, version) \
     _dnnl_graph_op_schema_##opkind##_##version##_
@@ -315,7 +315,7 @@ op_schema get_op_schema();
 #define DNNL_GRAPH_OP_SCHEMA(opkind, version, impl) \
     class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opkind, version); \
     template <> \
-    inline op_schema \
+    inline op_schema_t \
     get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(opkind, version)>() { \
         return (impl).set_op_kind(op_kind::opkind).since_version(version); \
     }

@@ -38,7 +38,8 @@ namespace {
 void verify_op_schema(const op_kind_t op_kind_, const size_t expected_in_size,
         const size_t expected_out_size, const size_t expected_attr_size,
         const std::map<std::string, bool> &attrs_data) {
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     EXPECT_TRUE(nullptr != op_schema_);
 
     const std::set<size_t> input_size = op_schema_->get_num_inputs();
@@ -60,7 +61,8 @@ void verify_op_schema(const op_kind_t op_kind_, const size_t expected_in_size,
 
 void verify_shape_infer_for_arithmetic_op_no_broadcast(
         const op_kind_t op_kind_) {
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
     const std::string no_broadcast_attr_val = "none";
     op_.set_attr("auto_broadcast", no_broadcast_attr_val);
@@ -108,7 +110,8 @@ void verify_shape_infer_for_arithmetic_op_no_broadcast(
 #define for_ for
 void verify_shape_infer_for_arithmetic_op_with_broadcast(
         const op_kind_t op_kind_) {
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     const std::vector<layout_type_t> layout_types
@@ -197,7 +200,8 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
         const std::vector<int64_t> &in_data,
         const std::vector<int64_t> &in_weight,
         const std::vector<int64_t> &expected_out_shape) {
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     std::vector<int64_t> strides;
@@ -240,7 +244,8 @@ void verify_shape_infer_for_convtranspose(const op_kind_t op_kind_,
         const std::vector<int64_t> &in_data,
         const std::vector<int64_t> &in_weight,
         const std::vector<int64_t> &expected_out_shape) {
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     std::vector<int64_t> strides;
@@ -284,7 +289,8 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
         const std::vector<int64_t> &in_weight,
         const std::vector<int64_t> &in_bias,
         const std::vector<int64_t> &expected_out_shape) {
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     std::vector<int64_t> strides;
@@ -329,7 +335,8 @@ void verify_shape_infer_for_conv_bprop_data(const op_kind_t op_kind_,
         const std::vector<int64_t> &in_weight,
         const std::vector<int64_t> &in_output_shape,
         const std::vector<int64_t> &expected_out_shape) {
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     std::vector<int64_t> strides = {2, 2};
@@ -368,7 +375,8 @@ void verify_shape_infer_for_conv_bprop_data(const op_kind_t op_kind_,
 
 void verify_identity_shape_infer_(const op_kind_t op_kind_,
         const size_t out_lt_id, std::vector<logical_tensor_t *> &in) {
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     logical_tensor_t lt_out = logical_tensor_init(
@@ -418,7 +426,7 @@ void verify_two_ins_identity_shape_infer(const op_kind_t op_kind_) {
 #ifndef NDEBUG
 
 TEST(op_schema_test, duplicated_attribute) {
-    EXPECT_DEATH(op_schema()
+    EXPECT_DEATH(op_schema_t()
                          .set_attr("kernel", "size of each filter", true,
                                  attribute_kind::b)
                          .set_attr("kernel", "size of each filter", true,
@@ -427,7 +435,7 @@ TEST(op_schema_test, duplicated_attribute) {
 }
 
 TEST(op_schema_test, duplicated_input) {
-    EXPECT_DEATH(op_schema()
+    EXPECT_DEATH(op_schema_t()
                          .set_num_inputs(5)
                          .set_input(3, "mean", "value for mean normalization")
                          .set_input(3, "mean", "value for mean normalization"),
@@ -435,7 +443,7 @@ TEST(op_schema_test, duplicated_input) {
 }
 
 TEST(op_schema_test, duplicated_output) {
-    EXPECT_DEATH(op_schema()
+    EXPECT_DEATH(op_schema_t()
                          .set_num_outputs(1)
                          .set_output(0, "output", "output tensor")
                          .set_output(0, "output", "output tensor"),
@@ -443,21 +451,21 @@ TEST(op_schema_test, duplicated_output) {
 }
 
 TEST(op_schema_test, set_input_before_num_inputs) {
-    EXPECT_DEATH(op_schema()
+    EXPECT_DEATH(op_schema_t()
                          .set_input(0, "a", "first input tensor")
                          .set_num_inputs(2),
             "input set before setting num_inputs_");
 }
 
 TEST(op_schema_test, set_output_before_num_outputs) {
-    EXPECT_DEATH(op_schema()
+    EXPECT_DEATH(op_schema_t()
                          .set_output(0, "output", "output tensor")
                          .set_num_outputs(1),
             "output set before setting num_outputs_");
 }
 
 TEST(op_schema_test, exceeded_num_inputs) {
-    EXPECT_DEATH(op_schema()
+    EXPECT_DEATH(op_schema_t()
                          .set_num_inputs(1)
                          .set_input(0, "a", "first input tensor")
                          .set_input(1, "b", "second input tensor"),
@@ -465,7 +473,7 @@ TEST(op_schema_test, exceeded_num_inputs) {
 }
 
 TEST(op_schema_test, exceeded_num_outputs) {
-    EXPECT_DEATH(op_schema()
+    EXPECT_DEATH(op_schema_t()
                          .set_num_outputs(1)
                          .set_output(0, "a", "first output tensor")
                          .set_output(1, "b", "second output tensor"),
@@ -527,8 +535,8 @@ TEST(op_schema_test, ConvTranspose) {
 }
 
 TEST(op_schema_test, convtranspose_bias_infer_shape_auto_pad) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::ConvTranspose);
+    const op_schema_t *a_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::ConvTranspose);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {op_kind::ConvTranspose, op_t::kind2str(op_kind::ConvTranspose)};
     std::vector<int64_t> strides = {1, 1};
@@ -559,8 +567,8 @@ TEST(op_schema_test, convtranspose_bias_infer_shape_auto_pad) {
 }
 
 TEST(op_schema_test, convtranspose_bias_infer_shape_with_output_shape) {
-    const op_schema *a_op_schema
-            = op_schema_registry::get_op_schema(op_kind::ConvTranspose);
+    const op_schema_t *a_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::ConvTranspose);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {op_kind::ConvTranspose, op_t::kind2str(op_kind::ConvTranspose)};
     std::vector<int64_t> strides = {1, 1};
@@ -649,7 +657,7 @@ TEST(op_schema_test, int8_matmul) {
 }
 
 TEST(op_schema_test, conv_bias_infer_shape) {
-    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {impl::dnnl_impl::op_kind::conv_bias,
@@ -693,7 +701,7 @@ TEST(op_schema_test, conv_bias_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bias_infer_shape_auto_pad) {
-    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {impl::dnnl_impl::op_kind::conv_bias,
@@ -723,7 +731,7 @@ TEST(op_schema_test, conv_bias_infer_shape_auto_pad) {
 }
 
 TEST(op_schema_test, conv_auto_pad_with_non_default_strides) {
-    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {impl::dnnl_impl::op_kind::conv_bias,
@@ -753,7 +761,7 @@ TEST(op_schema_test, conv_auto_pad_with_non_default_strides) {
 }
 
 TEST(op_schema_test, conv3d_bias_infer_shape) {
-    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_node {impl::dnnl_impl::op_kind::conv_bias,
@@ -825,7 +833,7 @@ TEST(op_schema_test, Conv_bias_add_relu6) {
 }
 
 TEST(op_schema_test, conv_bias_add_infer_shape) {
-    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias_add_elu);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {impl::dnnl_impl::op_kind::conv_bias_add_elu,
@@ -907,7 +915,7 @@ TEST(op_schema_test, Conv_bias_hardtanh) {
 
 TEST(op_schema_test, squeeze_infer_shape) {
     const op_kind_t kind = impl::dnnl_impl::op_kind::squeeze;
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(kind);
+    const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);
     std::vector<std::vector<int64_t>> axes_list {{1}, {1, 2}, {-1}, {-1, -2}};
     std::vector<std::vector<int64_t>> src_shapes {
             {3, 1, 4, 5}, {3, 1, 1, 4, 5}, {3, 4, 5, 1}, {3, 4, 5, 1, 1}};
@@ -936,8 +944,8 @@ TEST(op_schema_test, squeeze_infer_shape) {
 }
 
 TEST(op_schema_test, generate_default_attrib) {
-    const op_schema *matmul_op_schema
-            = op_schema_registry::get_op_schema(op_kind::MatMul);
+    const op_schema_t *matmul_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::MatMul);
     op_t matmul_op {0, kMatMul, std::string("matmul")};
     logical_tensor_t lt_data_a = logical_tensor_init(0, data_type::f32);
     logical_tensor_t lt_data_b = logical_tensor_init(1, data_type::f32);
@@ -971,8 +979,8 @@ TEST(op_schema_test, generate_default_attrib) {
 }
 
 TEST(op_schema_test, verify_function) {
-    const op_schema *conv_op_schema
-            = op_schema_registry::get_op_schema(op_kind::Convolution);
+    const op_schema_t *conv_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::Convolution);
 
     op_t conv_op {0, kConvolution, std::string("convolution")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
@@ -1085,7 +1093,8 @@ TEST(op_schema_test, conv3d_ncx_oix_infer_shape) {
 
 void infer_conv_shape(op_kind_t kind) {
     using namespace dnnl::graph::impl;
-    const op_schema *conv_op_schema = op_schema_registry::get_op_schema(kind);
+    const op_schema_t *conv_op_schema
+            = op_schema_registry_t::get_op_schema(kind);
 
     op_t conv_op {kind, op_t::kind2str(kind)};
     std::vector<int64_t> strides = {2, 2};
@@ -1359,8 +1368,8 @@ TEST(op_schema_test, PowBackpropExponent) {
 }
 
 TEST(op_schema_test, exponent_infer_shape) {
-    const op_schema *exponent_op_schema
-            = op_schema_registry::get_op_schema(op_kind::PowBackpropExponent);
+    const op_schema_t *exponent_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::PowBackpropExponent);
 
     op_t exponent_op {op_kind::PowBackpropExponent,
             op_t::kind2str(op_kind::PowBackpropExponent)};
@@ -1406,8 +1415,8 @@ TEST(op_schema_test, MaxPool) {
 }
 
 TEST(op_schema_test, maxpool_infer_shape) {
-    const op_schema *pool_op_schema
-            = op_schema_registry::get_op_schema(op_kind::MaxPool);
+    const op_schema_t *pool_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::MaxPool);
 
     op_t pool_op {op_kind::MaxPool, op_t::kind2str(op_kind::MaxPool)};
     std::vector<int64_t> strides = {2, 2};
@@ -1458,8 +1467,8 @@ TEST(op_schema_test, maxpool_infer_shape) {
 }
 
 TEST(op_schema_test, maxpool_ceil_mode) {
-    const op_schema *pool_op_schema
-            = op_schema_registry::get_op_schema(op_kind::MaxPool);
+    const op_schema_t *pool_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::MaxPool);
 
     std::set<std::string> rounding_types = {"ceil", "floor"};
     for (auto &rounding_type : rounding_types) {
@@ -1602,8 +1611,8 @@ TEST(op_schema_test, MatMul_bias_hardtanh) {
 }
 
 TEST(op_schema_test, matmul_infer_shape) {
-    const op_schema *matmul_op_schema
-            = op_schema_registry::get_op_schema(op_kind::MatMul);
+    const op_schema_t *matmul_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::MatMul);
 
     op_t matmul_op {op_kind::MatMul, op_t::kind2str(op_kind::MatMul)};
     bool transpose_a = true;
@@ -1666,7 +1675,7 @@ TEST(op_schema_test, matmul_infer_shape) {
 }
 
 TEST(op_schema_test, matmul_bias_infer_shape) {
-    const op_schema *matmul_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *matmul_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::matmul_bias);
 
     op_t matmul_op {impl::dnnl_impl::op_kind::matmul_bias,
@@ -1718,7 +1727,7 @@ TEST(op_schema_test, matmul_bias_infer_shape) {
 }
 
 TEST(op_schema_test, matmul_bias_add_infer_shape) {
-    const op_schema *matmul_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *matmul_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::matmul_bias_add);
 
     op_t matmul_op {impl::dnnl_impl::op_kind::matmul_bias_add,
@@ -1777,8 +1786,8 @@ TEST(op_schema_test, BatchNormInference_infer_shape) {
     std::set<op_kind_t> bn_kinds
             = {op_kind::BatchNormInference, impl::dnnl_impl::op_kind::bn_relu};
     for (auto cur_kind : bn_kinds) {
-        const op_schema *bn_op_schema
-                = op_schema_registry::get_op_schema(cur_kind);
+        const op_schema_t *bn_op_schema
+                = op_schema_registry_t::get_op_schema(cur_kind);
         EXPECT_TRUE(nullptr != bn_op_schema);
         op_t bn_op {cur_kind, op_t::kind2str(cur_kind)};
         bn_op.set_attr<float>("epsilon", 0.001f);
@@ -1814,7 +1823,7 @@ TEST(op_schema_test, BatchNormInference_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bn_infer_shape) {
-    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bn);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {impl::dnnl_impl::op_kind::conv_bn,
@@ -1868,7 +1877,7 @@ TEST(op_schema_test, conv_bn_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bn_add_infer_shape) {
-    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bn_add);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {impl::dnnl_impl::op_kind::conv_bn_add,
@@ -1924,7 +1933,7 @@ TEST(op_schema_test, conv_bn_add_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bn_relu_infer_shape) {
-    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bn_relu);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {impl::dnnl_impl::op_kind::conv_bn_relu,
@@ -1980,8 +1989,8 @@ TEST(op_schema_test, conv_bias_bn_infer_shape) {
     std::set<op_kind_t> op_kinds = {impl::dnnl_impl::op_kind::conv_bias_bn,
             impl::dnnl_impl::op_kind::conv_bias_bn_relu};
     for (auto a_op_kind : op_kinds) {
-        const op_schema *a_op_schema
-                = op_schema_registry::get_op_schema(a_op_kind);
+        const op_schema_t *a_op_schema
+                = op_schema_registry_t::get_op_schema(a_op_kind);
         EXPECT_TRUE(nullptr != a_op_schema);
         op_t a_op {a_op_kind, op_t::kind2str(a_op_kind)};
         std::vector<int64_t> strides = {2, 2};
@@ -2038,7 +2047,7 @@ TEST(op_schema_test, conv_bias_bn_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bn_add_relu_infer_shape) {
-    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bn_add_relu);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {impl::dnnl_impl::op_kind::conv_bn_add_relu,
@@ -2094,7 +2103,7 @@ TEST(op_schema_test, conv_bn_add_relu_infer_shape) {
 }
 
 TEST(op_schema_test, conv_bias_bn_add_relu_infer_shape) {
-    const op_schema *a_op_schema = op_schema_registry::get_op_schema(
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias_bn_add_relu);
     EXPECT_TRUE(nullptr != a_op_schema);
     op_t a_op {impl::dnnl_impl::op_kind::conv_bias_bn_add_relu,
@@ -2198,7 +2207,8 @@ TEST(op_schema_test, BatchNormForwardTraining) {
 
 TEST(op_schema_test, BatchNormForwardTraining_infer_shape) {
     const op_kind_t op_kind_ = op_kind::BatchNormForwardTraining;
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     logical_tensor_t lt_in
@@ -2259,7 +2269,8 @@ TEST(op_schema_test, BatchNormTrainingBackprop) {
 
 TEST(op_schema_test, BatchNormTrainingBackprop_infer_shape) {
     const op_kind_t op_kind_ = op_kind::BatchNormTrainingBackprop;
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     logical_tensor_t lt_in
@@ -2313,7 +2324,8 @@ TEST(op_schema_test, BiasAdd) {
 
 TEST(op_schema_test, BiasAdd_infer_shape) {
     const op_kind_t op_kind_ = op_kind::BiasAdd;
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     logical_tensor_t lt_in
@@ -2350,7 +2362,8 @@ TEST(op_schema_test, BiasAddBackprop) {
 
 TEST(op_schema_test, BiasAddBackprop_nxc_infer_shape) {
     const op_kind_t op_kind_ = op_kind::BiasAddBackprop;
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     const int64_t channels = 16;
@@ -2381,7 +2394,8 @@ TEST(op_schema_test, BiasAddBackprop_nxc_infer_shape) {
 
 TEST(op_schema_test, BiasAddBackprop_ncx_infer_shape) {
     const op_kind_t op_kind_ = op_kind::BiasAddBackprop;
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     const int64_t channels = 16;
@@ -2569,7 +2583,8 @@ TEST(op_schema_test, ConvolutionBackpropFilters_infer_shape) {
     const std::vector<int64_t> &expected_out_shape = {4, 4, 3, 16};
     const std::vector<int64_t> &in_output_delta = {1, 16, 111, 111};
 
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     set_conv_common_attr(op_, strides, pads_begin, pads_end, dilations,
@@ -2649,8 +2664,8 @@ TEST(op_schema_test, EluBackprop_infer_shape) {
 }
 
 TEST(op_schema_test, End) {
-    const op_schema *op_schema
-            = op_schema_registry::get_op_schema(op_kind::End);
+    const op_schema_t *op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::End);
 
     op_t end_op {0, op_kind::End, "end"};
     logical_tensor_t lt_in_0 = logical_tensor_init(0, data_type::f32);
@@ -2794,7 +2809,8 @@ TEST(op_schema_test, Index) {
 
 TEST(op_schema_test, Index_infer_shape_unsupported) {
     const op_kind_t op_kind_ = op_kind::Index;
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     logical_tensor_t lt_in
@@ -2823,8 +2839,8 @@ TEST(op_schema_test, LayerNorm) {
 }
 
 TEST(op_schema_test, LayerNorm_infer_shape) {
-    const op_schema *op_schema_
-            = op_schema_registry::get_op_schema(op_kind::LayerNorm);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind::LayerNorm);
     op_t op_ {op_kind::LayerNorm, op_t::kind2str(op_kind::LayerNorm)};
 
     const std::vector<layout_type_t> layout_types
@@ -2908,8 +2924,8 @@ TEST(op_schema_test, LayerNormBackprop) {
 }
 
 TEST(op_schema_test, LayerNormBackprop_infer_shape) {
-    const op_schema *op_schema_
-            = op_schema_registry::get_op_schema(op_kind::LayerNormBackprop);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind::LayerNormBackprop);
     op_t op_ {op_kind::LayerNormBackprop,
             op_t::kind2str(op_kind::LayerNormBackprop)};
 
@@ -3164,7 +3180,8 @@ TEST(op_schema_test, PowBackprop) {
 
 TEST(op_schema_test, PowBackprop_infer_shape) {
     const op_kind_t op_kind_ = op_kind::PowBackprop;
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     logical_tensor_t lt_in
@@ -3197,7 +3214,8 @@ TEST(op_schema_test, ReduceSum) {
 
 TEST(op_schema_test, ReduceSum_infer_shape) {
     const op_kind_t op_kind_ = op_kind::ReduceSum;
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     logical_tensor_t lt_in
@@ -3449,11 +3467,12 @@ TEST(op_schema_test, TanhBackprop_infer_shape) {
 }
 
 TEST(op_schema_test, Wildcard) {
-    const op_schema *op_schema = op_schema_registry::get_op_schema(kWildcard);
+    const op_schema_t *op_schema
+            = op_schema_registry_t::get_op_schema(kWildcard);
     auto inputs_option = op_schema->get_inputs_option();
     auto outputs_option = op_schema->get_outputs_option();
-    EXPECT_TRUE(inputs_option == op_schema::param_num_option::variadic);
-    EXPECT_TRUE(outputs_option == op_schema::param_num_option::variadic);
+    EXPECT_TRUE(inputs_option == op_schema_t::param_num_option::variadic);
+    EXPECT_TRUE(outputs_option == op_schema_t::param_num_option::variadic);
 
     op_t wildcard_op {0, kWildcard, std::string("wildcard")};
     logical_tensor_t lt_in_0 = logical_tensor_init(0, data_type::f32);
@@ -3473,7 +3492,8 @@ TEST(op_schema_test, Wildcard) {
 
 TEST(op_schema_test, Wildcard_infer_shape) {
     const op_kind_t op_kind_ = op_kind::Wildcard;
-    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
     logical_tensor_t lt_in = logical_tensor_init(0, data_type::f32);
@@ -3486,12 +3506,12 @@ TEST(op_schema_test, Wildcard_infer_shape) {
 }
 
 TEST(op_schema_test, optional_input) {
-    const op_schema *bn_op_schema
-            = op_schema_registry::get_op_schema(kBatchNormForwardTraining);
+    const op_schema_t *bn_op_schema
+            = op_schema_registry_t::get_op_schema(kBatchNormForwardTraining);
     auto inputs_option = bn_op_schema->get_inputs_option();
     auto outputs_option = bn_op_schema->get_outputs_option();
-    EXPECT_TRUE(inputs_option == op_schema::param_num_option::optional);
-    EXPECT_TRUE(outputs_option == op_schema::param_num_option::fixed);
+    EXPECT_TRUE(inputs_option == op_schema_t::param_num_option::optional);
+    EXPECT_TRUE(outputs_option == op_schema_t::param_num_option::fixed);
 
     op_t bn_op {0, kBatchNormForwardTraining, std::string("bn")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
@@ -3528,12 +3548,12 @@ TEST(op_schema_test, optional_input) {
 }
 
 TEST(op_schema_test, variadic_input) {
-    const op_schema *concat_op_schema
-            = op_schema_registry::get_op_schema(kConcat);
+    const op_schema_t *concat_op_schema
+            = op_schema_registry_t::get_op_schema(kConcat);
     auto inputs_option = concat_op_schema->get_inputs_option();
     auto outputs_option = concat_op_schema->get_outputs_option();
-    EXPECT_TRUE(inputs_option == op_schema::param_num_option::variadic);
-    EXPECT_TRUE(outputs_option == op_schema::param_num_option::fixed);
+    EXPECT_TRUE(inputs_option == op_schema_t::param_num_option::variadic);
+    EXPECT_TRUE(outputs_option == op_schema_t::param_num_option::fixed);
 
     op_t concat_op {0, kConcat, std::string("concat")};
     logical_tensor_t lt_data_0 = logical_tensor_init(0, data_type::f32);
@@ -3551,8 +3571,8 @@ TEST(op_schema_test, variadic_input) {
 }
 
 TEST(op_schema_test, variadic_input_negative) {
-    const op_schema *concat_op_schema
-            = op_schema_registry::get_op_schema(kConcat);
+    const op_schema_t *concat_op_schema
+            = op_schema_registry_t::get_op_schema(kConcat);
 
     op_t concat_op {0, kConcat, std::string("concat")};
     logical_tensor_t lt_output = logical_tensor_init(3, data_type::f32);
@@ -3564,12 +3584,12 @@ TEST(op_schema_test, variadic_input_negative) {
 }
 
 TEST(op_schema_test, test_layernorm_optional_inputs) {
-    const op_schema *ln_op_schema
-            = op_schema_registry::get_op_schema(kLayerNorm);
+    const op_schema_t *ln_op_schema
+            = op_schema_registry_t::get_op_schema(kLayerNorm);
     auto inputs_option = ln_op_schema->get_inputs_option();
     auto outputs_option = ln_op_schema->get_outputs_option();
-    EXPECT_TRUE(inputs_option == op_schema::param_num_option::optional);
-    EXPECT_TRUE(outputs_option == op_schema::param_num_option::optional);
+    EXPECT_TRUE(inputs_option == op_schema_t::param_num_option::optional);
+    EXPECT_TRUE(outputs_option == op_schema_t::param_num_option::optional);
 
     op_t ln_op {0, kLayerNorm, std::string("ln")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
@@ -3608,7 +3628,7 @@ TEST(op_schema_test, test_add_default_attributes) {
     op_kind_t tmp_op_kind = kAdd;
     op_t tmp_op {0, tmp_op_kind, std::string("add")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3621,7 +3641,7 @@ TEST(op_schema_test, test_avgpool_default_attributes) {
     op_kind_t tmp_op_kind = kAvgPool;
     op_t tmp_op {0, tmp_op_kind, std::string("avgpool")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3662,7 +3682,7 @@ TEST(op_schema_test, test_avgpoolbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kAvgPoolBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("avgpool_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3678,7 +3698,7 @@ TEST(op_schema_test, test_batchnorminference_default_attributes) {
     op_kind_t tmp_op_kind = kBatchNormInference;
     op_t tmp_op {0, tmp_op_kind, std::string("bn_inference")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3691,7 +3711,7 @@ TEST(op_schema_test, test_batchnormforwardtraining_default_attributes) {
     op_kind_t tmp_op_kind = kBatchNormForwardTraining;
     op_t tmp_op {0, tmp_op_kind, std::string("bn_fwd_training")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3704,7 +3724,7 @@ TEST(op_schema_test, test_batchnormtrainingbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kBatchNormTrainingBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("bn_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3721,7 +3741,7 @@ TEST(op_schema_test, test_biasadd_default_attributes) {
     op_kind_t tmp_op_kind = kBiasAdd;
     op_t tmp_op {0, tmp_op_kind, std::string("bias_add")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3734,7 +3754,7 @@ TEST(op_schema_test, test_biasaddbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kBiasAddBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("bias_add_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3747,7 +3767,7 @@ TEST(op_schema_test, test_convolution_default_attributes) {
     op_kind_t tmp_op_kind = kConvolution;
     op_t tmp_op {0, tmp_op_kind, std::string("conv")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3771,7 +3791,7 @@ TEST(op_schema_test, test_convolutionbackpropdata_default_attributes) {
     op_kind_t tmp_op_kind = kConvolutionBackpropData;
     op_t tmp_op {0, tmp_op_kind, std::string("conv_bpd")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3800,7 +3820,7 @@ TEST(op_schema_test, test_convolutionbackpropfilter_default_attributes) {
     op_kind_t tmp_op_kind = kConvolutionBackpropFilters;
     op_t tmp_op {0, tmp_op_kind, std::string("conv_bpf")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3824,7 +3844,7 @@ TEST(op_schema_test, test_divide_default_attributes) {
     op_kind_t tmp_op_kind = kDivide;
     op_t tmp_op {0, tmp_op_kind, std::string("divide")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3837,7 +3857,7 @@ TEST(op_schema_test, test_interpolate_default_attributes) {
     op_kind_t tmp_op_kind = kInterpolate;
     op_t tmp_op {0, tmp_op_kind, std::string("interpolate")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3870,7 +3890,7 @@ TEST(op_schema_test, test_interpolatebackprop_default_attributes) {
     op_kind_t tmp_op_kind = kInterpolateBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("interpolate_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3903,7 +3923,7 @@ TEST(op_schema_test, test_layernorm_default_attributes) {
     op_kind_t tmp_op_kind = kLayerNorm;
     op_t tmp_op {0, tmp_op_kind, std::string("ln")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3929,7 +3949,7 @@ TEST(op_schema_test, test_layernormbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kLayerNormBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("ln_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3955,7 +3975,7 @@ TEST(op_schema_test, test_logsoftmax_default_attributes) {
     op_kind_t tmp_op_kind = kLogSoftmax;
     op_t tmp_op {0, tmp_op_kind, std::string("log_softmax")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3969,7 +3989,7 @@ TEST(op_schema_test, test_logsoftmaxbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kLogSoftmaxBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("log_softmax_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3983,7 +4003,7 @@ TEST(op_schema_test, test_matmul_default_attributes) {
     op_kind_t tmp_op_kind = kMatMul;
     op_t tmp_op {0, tmp_op_kind, std::string("matmul")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -3999,7 +4019,7 @@ TEST(op_schema_test, test_maxpool_default_attributes) {
     op_kind_t tmp_op_kind = kMaxPool;
     op_t tmp_op {0, tmp_op_kind, std::string("max_pool")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4023,7 +4043,7 @@ TEST(op_schema_test, test_maxpoolbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kMaxPoolBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("max_pool_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4044,7 +4064,7 @@ TEST(op_schema_test, test_maximum_default_attributes) {
     op_kind_t tmp_op_kind = kMaximum;
     op_t tmp_op {0, tmp_op_kind, std::string("max")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4057,7 +4077,7 @@ TEST(op_schema_test, test_minimum_default_attributes) {
     op_kind_t tmp_op_kind = kMinimum;
     op_t tmp_op {0, tmp_op_kind, std::string("min")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4070,7 +4090,7 @@ TEST(op_schema_test, test_multiply_default_attributes) {
     op_kind_t tmp_op_kind = kMultiply;
     op_t tmp_op {0, tmp_op_kind, std::string("mul")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4083,7 +4103,7 @@ TEST(op_schema_test, test_pow_default_attributes) {
     op_kind_t tmp_op_kind = kPow;
     op_t tmp_op {0, tmp_op_kind, std::string("pow")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4096,7 +4116,7 @@ TEST(op_schema_test, test_reducesum_default_attributes) {
     op_kind_t tmp_op_kind = kReduceSum;
     op_t tmp_op {0, tmp_op_kind, std::string("reduce_sum")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4109,7 +4129,7 @@ TEST(op_schema_test, test_sigmoidbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kSigmoidBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("sig_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4122,7 +4142,7 @@ TEST(op_schema_test, test_softmax_default_attributes) {
     op_kind_t tmp_op_kind = kSoftMax;
     op_t tmp_op {0, tmp_op_kind, std::string("softmax")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4136,7 +4156,7 @@ TEST(op_schema_test, test_softmaxbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kSoftMaxBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("softmax_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4150,7 +4170,7 @@ TEST(op_schema_test, test_softplus_default_attributes) {
     op_kind_t tmp_op_kind = kSoftPlus;
     op_t tmp_op {0, tmp_op_kind, std::string("softplus")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4164,7 +4184,7 @@ TEST(op_schema_test, test_softplusbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kSoftPlusBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("softplus_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4178,7 +4198,7 @@ TEST(op_schema_test, test_sqrtbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kSqrtBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("sqrt_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4191,7 +4211,7 @@ TEST(op_schema_test, test_tanhbackprop_default_attributes) {
     op_kind_t tmp_op_kind = kTanhBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("tanh_bp")};
 
-    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
@@ -4201,8 +4221,8 @@ TEST(op_schema_test, test_tanhbackprop_default_attributes) {
 }
 
 TEST(op_schema_test, test_type_constraints) {
-    const op_schema *matmul_op_schema
-            = op_schema_registry::get_op_schema(op_kind::MatMul);
+    const op_schema_t *matmul_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::MatMul);
     op_t matmul_op {0, kMatMul, std::string("matmul")};
     logical_tensor_t lt_data_a = logical_tensor_init(0, data_type::f32);
     logical_tensor_t lt_data_b = logical_tensor_init(1, data_type::f32);
@@ -4216,8 +4236,8 @@ TEST(op_schema_test, test_type_constraints) {
 }
 
 TEST(op_schema_test, test_quant) {
-    const op_schema *quant_op_schema
-            = op_schema_registry::get_op_schema(op_kind::Quantize);
+    const op_schema_t *quant_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::Quantize);
     op_t quant_op {0, kQuantize, std::string("quantize")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
     logical_tensor_t lt_out = logical_tensor_init(1, data_type::s8);
@@ -4230,8 +4250,8 @@ TEST(op_schema_test, test_quant) {
 }
 
 TEST(op_schema_test, test_quant_fail_case) {
-    const op_schema *quant_op_schema
-            = op_schema_registry::get_op_schema(op_kind::Quantize);
+    const op_schema_t *quant_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::Quantize);
     op_t quant_op {0, kQuantize, std::string("quantize")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
     logical_tensor_t lt_out = logical_tensor_init(1, data_type::s8);
@@ -4246,8 +4266,8 @@ TEST(op_schema_test, test_quant_fail_case) {
 }
 
 TEST(op_schema_test, test_dequant) {
-    const op_schema *dequant_op_schema
-            = op_schema_registry::get_op_schema(op_kind::Dequantize);
+    const op_schema_t *dequant_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::Dequantize);
     op_t dequant_op {0, kDequantize, std::string("dequantize")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t lt_out = logical_tensor_init(1, data_type::f32);
@@ -4260,7 +4280,7 @@ TEST(op_schema_test, test_dequant) {
 }
 
 TEST(op_schema_test, layernorm_bf16) {
-    const op_schema *schema = op_schema_registry::get_op_schema(kLayerNorm);
+    const op_schema_t *schema = op_schema_registry_t::get_op_schema(kLayerNorm);
 
     op_t lnorm {0, kLayerNorm, std::string("layer_norm")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
@@ -4277,7 +4297,7 @@ TEST(op_schema_test, layernorm_bf16) {
 }
 
 TEST(op_schema_test, layernorm_bf16_gamma) {
-    const op_schema *schema = op_schema_registry::get_op_schema(kLayerNorm);
+    const op_schema_t *schema = op_schema_registry_t::get_op_schema(kLayerNorm);
 
     op_t lnorm {0, kLayerNorm, std::string("layer_norm")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
@@ -4295,7 +4315,7 @@ TEST(op_schema_test, layernorm_bf16_gamma) {
 }
 
 TEST(op_schema_test, softmax_bf16) {
-    const op_schema *schema = op_schema_registry::get_op_schema(kSoftMax);
+    const op_schema_t *schema = op_schema_registry_t::get_op_schema(kSoftMax);
 
     op_t softmax {0, kSoftMax, std::string("softmax")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
@@ -4309,7 +4329,8 @@ TEST(op_schema_test, softmax_bf16) {
 }
 
 TEST(op_schema_test, logsoftmax_bf16) {
-    const op_schema *schema = op_schema_registry::get_op_schema(kLogSoftmax);
+    const op_schema_t *schema
+            = op_schema_registry_t::get_op_schema(kLogSoftmax);
 
     op_t logsoftmax {0, kLogSoftmax, std::string("logsoftmax")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);

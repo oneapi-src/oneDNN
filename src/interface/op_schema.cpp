@@ -25,146 +25,148 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 
-op_schema::op_schema() : op_kind_(op_kind::LastSymbol), version_(0) {}
+op_schema_t::op_schema_t() : op_kind_(op_kind::LastSymbol), version_(0) {}
 
-op_schema::op_schema(op_kind_t kind, opset_version version)
+op_schema_t::op_schema_t(op_kind_t kind, opset_version version)
     : op_kind_(kind), version_(version) {}
 
 // the rvalue reference design is based on the fact that these
 // functions are only called internally with rvalue intputs.
-op_schema &op_schema::set_op_kind(op_kind_t kind) {
+op_schema_t &op_schema_t::set_op_kind(op_kind_t kind) {
     op_kind_ = kind;
     return *this;
 }
 
-op_kind_t op_schema::get_op_kind() const {
+op_kind_t op_schema_t::get_op_kind() const {
     return op_kind_;
 }
 
-op_schema &op_schema::set_doc(std::string &&doc) {
+op_schema_t &op_schema_t::set_doc(std::string &&doc) {
     doc_ = std::move(doc);
     return *this;
 }
 
-const std::string &op_schema::get_doc() const {
+const std::string &op_schema_t::get_doc() const {
     return doc_;
 }
 
-op_schema &op_schema::since_version(opset_version n) {
+op_schema_t &op_schema_t::since_version(opset_version n) {
     version_ = n;
     return *this;
 }
 
-opset_version op_schema::get_since_version() const {
+opset_version op_schema_t::get_since_version() const {
     return version_;
 }
 
-op_schema &op_schema::set_num_inputs(std::set<size_t> &&input_num) {
+op_schema_t &op_schema_t::set_num_inputs(std::set<size_t> &&input_num) {
     num_inputs_ = std::move(input_num);
     return *this;
 }
 
-op_schema &op_schema::set_num_inputs(size_t input_num) {
+op_schema_t &op_schema_t::set_num_inputs(size_t input_num) {
     num_inputs_.insert(input_num);
     return *this;
 }
 
-std::set<size_t> op_schema::get_num_inputs() const {
+std::set<size_t> op_schema_t::get_num_inputs() const {
     return num_inputs_;
 }
 
-op_schema &op_schema::set_num_outputs(std::set<size_t> &&output_num) {
+op_schema_t &op_schema_t::set_num_outputs(std::set<size_t> &&output_num) {
     num_outputs_ = std::move(output_num);
     return *this;
 }
 
-op_schema &op_schema::set_num_outputs(size_t output_num) {
+op_schema_t &op_schema_t::set_num_outputs(size_t output_num) {
     num_outputs_.insert(output_num);
     return *this;
 }
 
-std::set<size_t> op_schema::get_num_outputs() const {
+std::set<size_t> op_schema_t::get_num_outputs() const {
     return num_outputs_;
 }
 
-op_schema &op_schema::set_input(size_t in_offset, std::string &&in_name,
+op_schema_t &op_schema_t::set_input(size_t in_offset, std::string &&in_name,
         std::string &&in_description, data_type_t dtype) {
     verify_input_(in_offset);
-    inputs_.emplace_back(
-            op_parameter(std::move(in_name), std::move(in_description), dtype));
+    inputs_.emplace_back(op_parameter_t(
+            std::move(in_name), std::move(in_description), dtype));
 
     return *this;
 }
 
-op_schema &op_schema::set_input(size_t in_offset, std::string &&in_name,
+op_schema_t &op_schema_t::set_input(size_t in_offset, std::string &&in_name,
         std::string &&in_description, std::set<data_type_t> &&dtypes) {
     verify_input_(in_offset);
-    inputs_.emplace_back(op_parameter(
+    inputs_.emplace_back(op_parameter_t(
             std::move(in_name), std::move(in_description), std::move(dtypes)));
 
     return *this;
 }
 
-const std::vector<op_schema::op_parameter> &op_schema::get_inputs() const {
+const std::vector<op_schema_t::op_parameter_t> &
+op_schema_t::get_inputs() const {
     return inputs_;
 }
 
-op_schema &op_schema::set_output(size_t out_offset, std::string &&out_name,
+op_schema_t &op_schema_t::set_output(size_t out_offset, std::string &&out_name,
         std::string &&out_description, data_type_t dtype) {
     verify_output_(out_offset);
-    outputs_.emplace_back(op_parameter(
+    outputs_.emplace_back(op_parameter_t(
             std::move(out_name), std::move(out_description), dtype));
 
     return *this;
 }
 
-op_schema &op_schema::set_output(size_t out_offset, std::string &&out_name,
+op_schema_t &op_schema_t::set_output(size_t out_offset, std::string &&out_name,
         std::string &&out_description, std::set<data_type_t> &&dtype) {
     verify_output_(out_offset);
-    outputs_.emplace_back(op_parameter(
+    outputs_.emplace_back(op_parameter_t(
             std::move(out_name), std::move(out_description), std::move(dtype)));
 
     return *this;
 }
 
-const std::vector<op_schema::op_parameter> &op_schema::get_outputs() const {
+const std::vector<op_schema_t::op_parameter_t> &
+op_schema_t::get_outputs() const {
     return outputs_;
 }
 
-op_schema &op_schema::set_attr(const std::string &name,
+op_schema_t &op_schema_t::set_attr(const std::string &name,
         std::string &&description, bool required, attribute_kind_t attr_kind) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
     attributes_[name]
-            = attribute(name, std::move(description), required, attr_kind);
+            = attribute_t(name, std::move(description), required, attr_kind);
     return *this;
 }
 
-op_schema &op_schema::set_attr(const std::string &name,
+op_schema_t &op_schema_t::set_attr(const std::string &name,
         std::string &&description, bool required, attribute_kind_t attr_kind,
         const char *value) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
-    attributes_[name] = attribute(name, std::move(description), required,
+    attributes_[name] = attribute_t(name, std::move(description), required,
             attr_kind, {std::string(value)});
     return *this;
 }
 
-const std::unordered_map<std::string, op_schema::attribute> &
-op_schema::get_attrs() const {
+const std::unordered_map<std::string, op_schema_t::attribute_t> &
+op_schema_t::get_attrs() const {
     return attributes_;
 }
 
-op_schema &op_schema::set_shape_inference_function(shape_infer_fn fn) {
+op_schema_t &op_schema_t::set_shape_inference_function(shape_infer_fn fn) {
     tensor_inference_function_ = std::move(fn);
     return *this;
 }
 
-shape_infer_fn op_schema::get_shape_inference_function() const {
+shape_infer_fn op_schema_t::get_shape_inference_function() const {
     return tensor_inference_function_;
 }
 
-bool op_schema::verify_param_num(size_t actual_num,
+bool op_schema_t::verify_param_num(size_t actual_num,
         const std::set<size_t> &expected_num, param_num_option option) const {
     switch (option) {
         case param_num_option::fixed: {
@@ -190,9 +192,9 @@ bool op_schema::verify_param_num(size_t actual_num,
     return true;
 }
 
-bool op_schema::verify_param_dtype(
+bool op_schema_t::verify_param_dtype(
         const std::vector<std::shared_ptr<value_t>> &actual_values,
-        const std::vector<op_schema::op_parameter> &expected_params,
+        const std::vector<op_schema_t::op_parameter_t> &expected_params,
         param_num_option option) const {
     size_t offset = 0;
     for (auto &v : actual_values) {
@@ -208,10 +210,10 @@ bool op_schema::verify_param_dtype(
     return true;
 }
 
-bool op_schema::verify_attributes(
+bool op_schema_t::verify_attributes(
         const std::unordered_map<std::string, utils::attribute_value_t>
                 &actual_attrs,
-        const std::unordered_map<std::string, attribute> &expected_attrs)
+        const std::unordered_map<std::string, attribute_t> &expected_attrs)
         const {
     // check if required attributes are not provided
     for (const auto &elem : expected_attrs) {
@@ -232,11 +234,11 @@ bool op_schema::verify_attributes(
     return true;
 }
 
-void op_schema::set_default_attribute(op_t *l_op) const {
+void op_schema_t::set_default_attribute(op_t *l_op) const {
     const std::unordered_map<std::string, utils::attribute_value_t>
             &actual_attrs = l_op->get_attributes();
-    const std::unordered_map<std::string, op_schema::attribute> &expected_attrs
-            = this->get_attrs();
+    const std::unordered_map<std::string, op_schema_t::attribute_t>
+            &expected_attrs = this->get_attrs();
     for (auto iter = expected_attrs.begin(); iter != expected_attrs.end();
             ++iter) {
         // if default attribute not set in op, set it to default value
@@ -249,7 +251,7 @@ void op_schema::set_default_attribute(op_t *l_op) const {
     }
 }
 
-bool op_schema::verify(const op_t *l_op) const {
+bool op_schema_t::verify(const op_t *l_op) const {
     size_t actual_num_inputs = l_op->num_inputs();
     std::set<size_t> expected_num_inputs = get_num_inputs();
     bool param_num_verify_result = verify_param_num(
@@ -273,14 +275,14 @@ bool op_schema::verify(const op_t *l_op) const {
     return attr_verify_result;
 }
 
-status_t op_schema::shape_infer(op_t *n,
+status_t op_schema_t::shape_infer(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) const {
     shape_infer_fn fn = get_shape_inference_function();
     return fn(n, inputs, outputs);
 }
 
-size_t op_schema::get_max_valid_param_num(
+size_t op_schema_t::get_max_valid_param_num(
         const std::set<size_t> &param_num, param_num_option option) const {
     size_t max_valid_num = 0;
     if (option == param_num_option::fixed
@@ -293,7 +295,7 @@ size_t op_schema::get_max_valid_param_num(
     return max_valid_num;
 }
 
-void op_schema::verify_input_(size_t in_offset) {
+void op_schema_t::verify_input_(size_t in_offset) {
     assertm(inputs_offset.find(in_offset) == inputs_offset.end(),
             "provided `in_offset` has already been set");
 
@@ -305,7 +307,7 @@ void op_schema::verify_input_(size_t in_offset) {
     UNUSED(max_valid_num);
 }
 
-void op_schema::verify_output_(size_t out_offset) {
+void op_schema_t::verify_output_(size_t out_offset) {
     assertm(outputs_offset.find(out_offset) == outputs_offset.end(),
             "provided `out_offset` has already been set");
 
@@ -318,43 +320,43 @@ void op_schema::verify_output_(size_t out_offset) {
     UNUSED(max_valid_num);
 }
 
-op_schema &op_schema::set_inputs_option(param_num_option option) {
+op_schema_t &op_schema_t::set_inputs_option(param_num_option option) {
     inputs_option = option;
     return *this;
 }
 
-op_schema::param_num_option op_schema::get_inputs_option() const {
+op_schema_t::param_num_option op_schema_t::get_inputs_option() const {
     return inputs_option;
 }
 
-op_schema &op_schema::set_outputs_option(param_num_option option) {
+op_schema_t &op_schema_t::set_outputs_option(param_num_option option) {
     outputs_option = option;
     return *this;
 }
 
-op_schema::param_num_option op_schema::get_outputs_option() const {
+op_schema_t::param_num_option op_schema_t::get_outputs_option() const {
     return outputs_option;
 }
 
-op_schema_registry::op_schema_registry_once::op_schema_registry_once(
-        op_schema &&schema) {
+op_schema_registry_t::op_schema_registry_once_t::op_schema_registry_once_t(
+        op_schema_t &&schema) {
     op_kind_version_schema_map &op_map
             = get_map_without_ensuring_registration();
 
     const op_kind_t kind = schema.get_op_kind();
     opset_version op_version = schema.get_since_version();
 
-    op_map[kind].insert(std::pair<opset_version, op_schema &&>(
+    op_map[kind].insert(std::pair<opset_version, op_schema_t &&>(
             op_version, std::move(schema)));
 }
 
 op_kind_version_schema_map &
-op_schema_registry::get_map_without_ensuring_registration() {
+op_schema_registry_t::get_map_without_ensuring_registration() {
     static op_kind_version_schema_map op_map;
     return op_map;
 }
 
-op_kind_version_schema_map &op_schema_registry::get_map() {
+op_kind_version_schema_map &op_schema_registry_t::get_map() {
     op_kind_version_schema_map &op_map
             = get_map_without_ensuring_registration();
     class register_opset_t {
@@ -366,7 +368,7 @@ op_kind_version_schema_map &op_schema_registry::get_map() {
     return op_map;
 }
 
-const op_schema *op_schema_registry::get_op_schema(op_kind_t kind) {
+const op_schema_t *op_schema_registry_t::get_op_schema(op_kind_t kind) {
     auto &op_map = get_map();
     if (op_map.count(kind)) {
         return &op_map[kind].rbegin()->second;
@@ -375,9 +377,9 @@ const op_schema *op_schema_registry::get_op_schema(op_kind_t kind) {
     }
 }
 
-void register_schema(op_schema &&schema) {
-    op_schema_registry::op_schema_registry_once DNNL_GRAPH_UNUSED registration(
-            std::move(schema));
+void register_schema(op_schema_t &&schema) {
+    op_schema_registry_t::op_schema_registry_once_t DNNL_GRAPH_UNUSED
+            registration(std::move(schema));
 }
 
 } // namespace impl

@@ -28,7 +28,7 @@ namespace graph {
 namespace impl {
 
 DNNL_GRAPH_OP_SCHEMA(Abs, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -38,7 +38,7 @@ DNNL_GRAPH_OP_SCHEMA(Abs, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor",
@@ -55,7 +55,7 @@ DNNL_GRAPH_OP_SCHEMA(Add, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -83,7 +83,7 @@ DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
                 .set_shape_inference_function(infer_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(AvgPoolBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input_shape", "the dimensions of original input")
@@ -111,7 +111,7 @@ DNNL_GRAPH_OP_SCHEMA(AvgPoolBackprop, 1,
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(5)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -138,8 +138,8 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({3, 4, 5}))
                 .set_num_outputs(5)
                 .set_input(0, "input", "input tensor")
@@ -169,10 +169,10 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
                 .set_shape_inference_function(infer_bn_fwd_train_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({4, 5, 6}))
-                .set_outputs_option(op_schema::param_num_option::optional)
+                .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({1, 2, 3}))
                 .set_input(0, "input", "input tensor")
                 .set_input(1, "output_delta", "the gradient w.r.t. the output")
@@ -209,7 +209,7 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
                 .set_shape_inference_function(infer_bn_bwd_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BiasAdd, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "data tensor",
@@ -225,7 +225,7 @@ DNNL_GRAPH_OP_SCHEMA(BiasAdd, 1,
                 .set_shape_inference_function(infer_bias_add_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BiasAddBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(
@@ -237,7 +237,7 @@ DNNL_GRAPH_OP_SCHEMA(BiasAddBackprop, 1,
                 .set_shape_inference_function(infer_bias_backprop_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Clamp, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -251,7 +251,7 @@ DNNL_GRAPH_OP_SCHEMA(Clamp, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(ClampBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(
@@ -266,8 +266,8 @@ DNNL_GRAPH_OP_SCHEMA(ClampBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Concat, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::variadic)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
                 .set_num_inputs(std::set<size_t>(
                         {1, std::numeric_limits<size_t>::max()}))
                 .set_num_outputs(1)
@@ -281,8 +281,8 @@ DNNL_GRAPH_OP_SCHEMA(Concat, 1,
                 .set_shape_inference_function(infer_concat_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Convolution, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -297,8 +297,8 @@ DNNL_GRAPH_OP_SCHEMA(Convolution, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvolutionBackpropData, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -317,7 +317,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackpropData, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvolutionBackpropFilters, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -333,8 +333,8 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackpropFilters, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvTranspose, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -354,7 +354,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvTranspose, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(Divide, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor",
@@ -371,7 +371,7 @@ DNNL_GRAPH_OP_SCHEMA(Divide, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Elu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -383,7 +383,7 @@ DNNL_GRAPH_OP_SCHEMA(Elu, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(EluBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "result_forward", "result of forward")
@@ -396,11 +396,11 @@ DNNL_GRAPH_OP_SCHEMA(EluBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(End, 1,
-        op_schema().set_num_inputs(1).set_num_outputs(0).set_input(
+        op_schema_t().set_num_inputs(1).set_num_outputs(0).set_input(
                 0, "input", "input tensor"))
 
 DNNL_GRAPH_OP_SCHEMA(Erf, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -410,7 +410,7 @@ DNNL_GRAPH_OP_SCHEMA(Erf, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Exp, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -420,7 +420,7 @@ DNNL_GRAPH_OP_SCHEMA(Exp, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(GELU, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -430,7 +430,7 @@ DNNL_GRAPH_OP_SCHEMA(GELU, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(GELUBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input_forward", "input of forward")
@@ -441,7 +441,7 @@ DNNL_GRAPH_OP_SCHEMA(GELUBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(HardTanh, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -455,7 +455,7 @@ DNNL_GRAPH_OP_SCHEMA(HardTanh, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(HardTanhBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(
@@ -469,7 +469,7 @@ DNNL_GRAPH_OP_SCHEMA(HardTanhBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Index, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -479,8 +479,8 @@ DNNL_GRAPH_OP_SCHEMA(Index, 1,
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Interpolate, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({3, 4}))
                 .set_num_outputs(1)
                 .set_input(
@@ -526,8 +526,8 @@ DNNL_GRAPH_OP_SCHEMA(Interpolate, 1,
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({4, 5}))
                 .set_num_outputs(std::set<size_t>({1, 2}))
                 .set_input(
@@ -579,10 +579,10 @@ DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 1,
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 3}))
-                .set_outputs_option(op_schema::param_num_option::optional)
+                .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({1, 3}))
                 .set_input(0, "input", "input tensor",
                         {data_type::f32, data_type::bf16, data_type::f16})
@@ -616,10 +616,10 @@ DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
                 .set_shape_inference_function(infer_norm_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(LayerNormBackprop, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 3, 5}))
-                .set_outputs_option(op_schema::param_num_option::optional)
+                .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({1, 3}))
                 .set_input(0, "input", "input tensor")
                 .set_input(1, "gamma",
@@ -656,7 +656,7 @@ DNNL_GRAPH_OP_SCHEMA(LayerNormBackprop, 1,
                 .set_shape_inference_function(infer_norm_bprop_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Log, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -666,7 +666,7 @@ DNNL_GRAPH_OP_SCHEMA(Log, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(LogSoftmax, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -679,7 +679,7 @@ DNNL_GRAPH_OP_SCHEMA(LogSoftmax, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(LogSoftmaxBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(
@@ -693,8 +693,8 @@ DNNL_GRAPH_OP_SCHEMA(LogSoftmaxBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(MatMul, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor",
@@ -709,7 +709,7 @@ DNNL_GRAPH_OP_SCHEMA(MatMul, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(Maximum, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor",
@@ -726,7 +726,7 @@ DNNL_GRAPH_OP_SCHEMA(Maximum, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -757,8 +757,8 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
                 .set_shape_inference_function(infer_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -790,7 +790,7 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor",
@@ -807,7 +807,7 @@ DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor",
@@ -824,7 +824,7 @@ DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Pow, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor",
@@ -841,7 +841,7 @@ DNNL_GRAPH_OP_SCHEMA(Pow, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(PowBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input_forward", "input of forward")
@@ -853,7 +853,7 @@ DNNL_GRAPH_OP_SCHEMA(PowBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(PowBackpropExponent, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input_forward", "input of forward")
@@ -866,7 +866,7 @@ DNNL_GRAPH_OP_SCHEMA(PowBackpropExponent, 1,
                 .set_shape_inference_function(infer_exponent_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(ReduceSum, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -880,7 +880,7 @@ DNNL_GRAPH_OP_SCHEMA(ReduceSum, 1,
                 .set_shape_inference_function(infer_reduce_sum_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(ReLU, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -890,7 +890,7 @@ DNNL_GRAPH_OP_SCHEMA(ReLU, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(ReLUBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(
@@ -902,7 +902,7 @@ DNNL_GRAPH_OP_SCHEMA(ReLUBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Reshape, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "data", "multidimensional input tensor")
@@ -913,7 +913,7 @@ DNNL_GRAPH_OP_SCHEMA(Reshape, 1,
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Round, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -923,7 +923,7 @@ DNNL_GRAPH_OP_SCHEMA(Round, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -933,7 +933,7 @@ DNNL_GRAPH_OP_SCHEMA(Sigmoid, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SigmoidBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input",
@@ -948,7 +948,7 @@ DNNL_GRAPH_OP_SCHEMA(SigmoidBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SoftMax, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -960,7 +960,7 @@ DNNL_GRAPH_OP_SCHEMA(SoftMax, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SoftMaxBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(
@@ -973,7 +973,7 @@ DNNL_GRAPH_OP_SCHEMA(SoftMaxBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SoftPlus, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -985,7 +985,7 @@ DNNL_GRAPH_OP_SCHEMA(SoftPlus, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SoftPlusBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input_forward", "input of forward")
@@ -998,7 +998,7 @@ DNNL_GRAPH_OP_SCHEMA(SoftPlusBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Sqrt, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1008,7 +1008,7 @@ DNNL_GRAPH_OP_SCHEMA(Sqrt, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SqrtBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(
@@ -1025,7 +1025,7 @@ DNNL_GRAPH_OP_SCHEMA(SqrtBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Square, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1035,7 +1035,7 @@ DNNL_GRAPH_OP_SCHEMA(Square, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Tanh, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1045,7 +1045,7 @@ DNNL_GRAPH_OP_SCHEMA(Tanh, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(TanhBackprop, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input of forward")
@@ -1059,7 +1059,7 @@ DNNL_GRAPH_OP_SCHEMA(TanhBackprop, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Transpose, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "data", "the tensor to be transposed")
@@ -1071,11 +1071,11 @@ DNNL_GRAPH_OP_SCHEMA(Transpose, 1,
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Wildcard, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::variadic)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
                 .set_num_inputs(std::set<size_t>(
                         {0, std::numeric_limits<size_t>::max()}))
-                .set_outputs_option(op_schema::param_num_option::variadic)
+                .set_outputs_option(op_schema_t::param_num_option::variadic)
                 .set_num_outputs(std::set<size_t>(
                         {0, std::numeric_limits<size_t>::max()}))
                 .set_input(0, "input", "input tensor",
@@ -1089,7 +1089,7 @@ DNNL_GRAPH_OP_SCHEMA(Wildcard, 1,
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Quantize, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", " fp32 tensor to be quantized",
@@ -1109,7 +1109,7 @@ DNNL_GRAPH_OP_SCHEMA(Quantize, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Dequantize, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "quantized tensor to be dequantized",
@@ -1129,7 +1129,7 @@ DNNL_GRAPH_OP_SCHEMA(Dequantize, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Reorder, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1141,7 +1141,7 @@ DNNL_GRAPH_OP_SCHEMA(Reorder, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(TypeCast, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",

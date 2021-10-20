@@ -38,7 +38,7 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 /// forward declaration
-class op_schema;
+class op_schema_t;
 class partition_impl_t;
 } // namespace impl
 } // namespace graph
@@ -124,7 +124,7 @@ public:
     op_kind_t get_kind() const { return kind_; }
     size_t get_id() const { return id_; }
     const std::string &get_name() const { return name_; }
-    const dnnl::graph::impl::op_schema *get_schema() const { return schema_; }
+    const dnnl::graph::impl::op_schema_t *get_schema() const { return schema_; }
     bool is_internal() const { return internal_; }
 
     // verify the op against the schema
@@ -388,7 +388,7 @@ private:
     std::vector<std::shared_ptr<value_t>> outputs_ {};
     std::unordered_map<std::string, attribute_value_t> attributes_;
 
-    const dnnl::graph::impl::op_schema *schema_;
+    const dnnl::graph::impl::op_schema_t *schema_;
     dnnl::graph::impl::partition_impl_t *partition_ {nullptr};
     bool internal_ {false};
 

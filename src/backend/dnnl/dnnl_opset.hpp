@@ -31,7 +31,7 @@ namespace dnnl_impl {
 
 class dnnl_opset {
 public:
-    static void for_each_schema(const std::function<void(op_schema &&)> &fn) {
+    static void for_each_schema(const std::function<void(op_schema_t &&)> &fn) {
         // fusion ops
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(conv_bias, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(conv_bias_abs, 1)>());

@@ -48,8 +48,8 @@ struct dnnl_graph_graph : public impl::utils::id_t {
     using value_ptr = std::shared_ptr<value_t>;
     using logical_tensor_t = impl::logical_tensor_t;
     using logical_tensor_wrapper_t = impl::logical_tensor_wrapper_t;
-    using op_schema = impl::op_schema;
-    using op_schema_registry = impl::op_schema_registry;
+    using op_schema_t = impl::op_schema_t;
+    using op_schema_registry_t = impl::op_schema_registry_t;
     using id_t = impl::utils::id_t;
 
 private:
@@ -94,8 +94,9 @@ public:
                     [&l_n](const std::vector<op_ptr>::value_type &op) {
                         return op->get_id() == l_n->get_id();
                     })) {
-            const impl::op_schema *opm
-                    = impl::op_schema_registry::get_op_schema(l_n->get_kind());
+            const impl::op_schema_t *opm
+                    = impl::op_schema_registry_t::get_op_schema(
+                            l_n->get_kind());
             op_t tmp_ln = *l_n;
             if (opm != nullptr) {
                 opm->set_default_attribute(&tmp_ln);
@@ -265,8 +266,8 @@ public:
                 tmp_outputs_ptr.emplace_back(&tmp_outputs.back());
             }
 
-            const op_schema *opm
-                    = op_schema_registry::get_op_schema(op->get_kind());
+            const op_schema_t *opm
+                    = op_schema_registry_t::get_op_schema(op->get_kind());
             // can't infer shape for cur op: no schema
             if (!opm) return impl::status::invalid_op;
 

@@ -444,8 +444,8 @@ public:
             for (auto &out : ordered_outputs) {
                 tmp_outputs.emplace_back(&out);
             }
-            const op_schema *cur_op_schema
-                    = op_schema_registry::get_op_schema(fused_op->get_kind());
+            const op_schema_t *cur_op_schema
+                    = op_schema_registry_t::get_op_schema(fused_op->get_kind());
             if (cur_op_schema) {
                 ret = cur_op_schema->shape_infer(
                         fused_op.get(), tmp_inputs, tmp_outputs);
@@ -479,8 +479,8 @@ public:
                 fused_op_.get(), outputs_, outputs, ordered_outputs);
         if (impl::status::success != ret) return ret;
 
-        const impl::op_schema *cur_op_schema
-                = impl::op_schema_registry::get_op_schema(
+        const impl::op_schema_t *cur_op_schema
+                = impl::op_schema_registry_t::get_op_schema(
                         fused_op_->get_kind());
 
         if (cur_op_schema) {

@@ -31,10 +31,10 @@ namespace impl {
 namespace dnnl_impl {
 
 template <typename T>
-op_schema get_op_schema();
+op_schema_t get_op_schema();
 
 DNNL_GRAPH_OP_SCHEMA(add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -48,7 +48,7 @@ DNNL_GRAPH_OP_SCHEMA(add_relu, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(add_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -62,7 +62,7 @@ DNNL_GRAPH_OP_SCHEMA(add_sigmoid, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(add_multiply, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -77,7 +77,7 @@ DNNL_GRAPH_OP_SCHEMA(add_multiply, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(maximum_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -92,7 +92,7 @@ DNNL_GRAPH_OP_SCHEMA(maximum_add, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(maximum_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -106,7 +106,7 @@ DNNL_GRAPH_OP_SCHEMA(maximum_relu, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(maximum_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -120,7 +120,7 @@ DNNL_GRAPH_OP_SCHEMA(maximum_sigmoid, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(avgpool_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -153,7 +153,7 @@ DNNL_GRAPH_OP_SCHEMA(avgpool_add, 1,
                 .set_shape_inference_function(infer_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(maxpool_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -189,7 +189,7 @@ DNNL_GRAPH_OP_SCHEMA(maxpool_add, 1,
                 .set_shape_inference_function(infer_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(int8_maxpool, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -231,7 +231,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_maxpool, 1,
                 .set_shape_inference_function(infer_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(int8_avgpool, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -270,7 +270,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_avgpool, 1,
                 .set_shape_inference_function(infer_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(minimum_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -285,7 +285,7 @@ DNNL_GRAPH_OP_SCHEMA(minimum_add, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(minimum_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -299,7 +299,7 @@ DNNL_GRAPH_OP_SCHEMA(minimum_relu, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(minimum_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -313,7 +313,7 @@ DNNL_GRAPH_OP_SCHEMA(minimum_sigmoid, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(multiply_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -328,7 +328,7 @@ DNNL_GRAPH_OP_SCHEMA(multiply_add, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(multiply_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -342,7 +342,7 @@ DNNL_GRAPH_OP_SCHEMA(multiply_relu, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(multiply_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
@@ -356,7 +356,7 @@ DNNL_GRAPH_OP_SCHEMA(multiply_sigmoid, 1,
                         infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(relu_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -371,7 +371,7 @@ DNNL_GRAPH_OP_SCHEMA(relu_add, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -390,7 +390,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_abs, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -401,7 +401,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_abs, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -423,7 +423,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_add, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_add_elu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -437,7 +437,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_add_elu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -449,7 +449,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_add_relu6, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -467,7 +467,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_add_relu6, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -478,7 +478,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_add, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_add_elu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -491,7 +491,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_add_elu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -502,7 +502,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_add_relu6, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -519,7 +519,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_add_relu6, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_elu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -532,7 +532,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_elu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_hardtanh, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -547,7 +547,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_hardtanh, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -558,7 +558,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_relu6, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -575,7 +575,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_relu6, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -586,7 +586,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_sigmoid, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_sqrt, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -597,7 +597,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_sqrt, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_square, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -608,7 +608,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_square, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_tanh, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -619,7 +619,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_tanh, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bn, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(6)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -638,7 +638,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bn, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_bn, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(7)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -658,7 +658,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_bn, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bn_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(7)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -678,7 +678,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bn_add, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bn_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(6)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -697,7 +697,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bn_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_bn_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(7)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -717,7 +717,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_bn_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bn_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(7)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -737,7 +737,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bn_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias_bn_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(8)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -758,7 +758,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_bn_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(conv_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -774,7 +774,7 @@ DNNL_GRAPH_OP_SCHEMA(conv_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(bn_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(5)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -795,7 +795,7 @@ DNNL_GRAPH_OP_SCHEMA(bn_relu, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(matmul_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -806,7 +806,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_bias, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -817,7 +817,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_add, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_add_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -828,7 +828,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_add_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -839,7 +839,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_add_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_bias_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -851,7 +851,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_bias_add, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_bias_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -863,7 +863,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_bias_add_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_bias_bn, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(7)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -883,7 +883,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_bias_bn, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_bias_elu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -896,7 +896,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_bias_elu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_bias_hardtanh, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -911,7 +911,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_bias_hardtanh, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_bias_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -922,7 +922,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_bias_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_bias_relu6, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -939,7 +939,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_bias_relu6, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_bias_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -950,7 +950,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_bias_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_bias_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -961,7 +961,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_bias_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_add_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -972,7 +972,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_add_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -982,7 +982,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_elu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -992,7 +992,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_elu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -1002,7 +1002,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_hardtanh, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -1012,7 +1012,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_hardtanh, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(matmul_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
@@ -1022,7 +1022,7 @@ DNNL_GRAPH_OP_SCHEMA(matmul_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_conv, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1046,7 +1046,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1069,7 +1069,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_conv_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1094,7 +1094,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_bias, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_conv_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1118,7 +1118,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1141,7 +1141,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_conv_bias_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1168,7 +1168,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_bias_add, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_conv_bias_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1193,7 +1193,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_bias_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_conv_bias_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1220,7 +1220,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_bias_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_conv_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1246,7 +1246,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1271,7 +1271,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_bias_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1297,7 +1297,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_bias_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_bias_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1321,7 +1321,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_bias_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1345,7 +1345,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_bias, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1367,7 +1367,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1390,7 +1390,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_bias, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1412,7 +1412,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_bias_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1435,7 +1435,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_bias_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_bias_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1460,7 +1460,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_bias_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1484,7 +1484,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1506,7 +1506,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1529,7 +1529,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_bias, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1551,7 +1551,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_bias_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1574,7 +1574,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_bias_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_bias_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1599,7 +1599,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_bias_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_add_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1623,7 +1623,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_add_relu, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(convtranspose_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1647,7 +1647,7 @@ DNNL_GRAPH_OP_SCHEMA(convtranspose_bias, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_convtranspose, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1665,7 +1665,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_convtranspose, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_convtranspose_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1684,7 +1684,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_convtranspose_bias, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1708,7 +1708,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1731,7 +1731,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1756,7 +1756,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1780,7 +1780,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1804,7 +1804,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1827,7 +1827,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1852,7 +1852,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1878,7 +1878,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1902,7 +1902,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1925,7 +1925,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1950,7 +1950,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -1976,7 +1976,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2000,7 +2000,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2023,7 +2023,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2048,7 +2048,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2072,7 +2072,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8x8float_matmul, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2096,7 +2096,7 @@ DNNL_GRAPH_OP_SCHEMA(x8x8float_matmul, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2120,7 +2120,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_bias, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2143,7 +2143,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2167,7 +2167,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2190,7 +2190,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2214,7 +2214,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2237,7 +2237,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2261,7 +2261,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2287,7 +2287,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_add, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2312,7 +2312,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_add, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2339,7 +2339,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_add, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2366,7 +2366,7 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_add, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2391,7 +2391,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_add, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8x8float_matmul_div, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2417,7 +2417,7 @@ DNNL_GRAPH_OP_SCHEMA(x8x8float_matmul_div, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_bias_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2443,7 +2443,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_bias_add, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2466,7 +2466,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2490,7 +2490,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2513,7 +2513,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_relu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2537,7 +2537,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_relu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2560,7 +2560,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_sigmoid, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2584,7 +2584,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_sigmoid, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2607,7 +2607,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_gelu, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2631,7 +2631,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2655,7 +2655,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_add, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_add, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2680,7 +2680,7 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_add, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(mul_scales, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor",
@@ -2695,7 +2695,7 @@ DNNL_GRAPH_OP_SCHEMA(mul_scales, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(add_zps, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor",
@@ -2711,7 +2711,7 @@ DNNL_GRAPH_OP_SCHEMA(add_zps, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(permute, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor",
@@ -2733,7 +2733,7 @@ DNNL_GRAPH_OP_SCHEMA(permute, 1,
                 .set_shape_inference_function(infer_permute_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(to_group, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor",
@@ -2750,7 +2750,7 @@ DNNL_GRAPH_OP_SCHEMA(to_group, 1,
                 .set_shape_inference_function(infer_to_group_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(expand, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor",
@@ -2766,7 +2766,7 @@ DNNL_GRAPH_OP_SCHEMA(expand, 1,
                 .set_shape_inference_function(infer_expand_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(squeeze, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor",
@@ -2782,8 +2782,8 @@ DNNL_GRAPH_OP_SCHEMA(squeeze, 1,
                 .set_shape_inference_function(infer_squeeze_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2804,8 +2804,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2832,7 +2832,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose, 1,
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
@@ -2861,7 +2861,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
                 .set_shape_inference_function(infer_dnnl_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_u8_to_s8, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor", impl::data_type::u8)
@@ -2869,8 +2869,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_u8_to_s8, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_bn_folding, 1,
-        op_schema()
-                .set_inputs_option(op_schema::param_num_option::optional)
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({5, 6}))
                 .set_num_outputs(2)
                 .set_input(0, "weight", "weight tensor",
@@ -2909,7 +2909,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_bn_folding, 1,
                         false, attribute_kind::s, "NXC"))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",
@@ -2942,7 +2942,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
                         infer_dnnl_conv_bwd_data_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_swish, 1,
-        op_schema()
+        op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor",

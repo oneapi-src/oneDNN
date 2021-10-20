@@ -28,7 +28,7 @@ dnnl_graph_op::dnnl_graph_op(
     : id_ {id}
     , kind_ {kind}
     , name_ {std::move(name)}
-    , schema_ {op_schema_registry::get_op_schema(kind)}
+    , schema_ {op_schema_registry_t::get_op_schema(kind)}
     , internal_ {internal} {
     if (name_.empty()) { name_ = kind2str(kind_) + "_" + std::to_string(id_); }
 }
