@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2018-2021 Intel Corporation
+* Copyright 2021 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -358,6 +359,15 @@ void compute_ref_bwd_bias(const prb_t *prb, const args_t &args);
 void compute_wino_ref_fwd(const prb_t *prb, const args_t &args);
 void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args);
 void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args);
+
+template <typename T, typename P>
+constexpr bool one_of(T val, P item) {
+    return val == item;
+}
+template <typename T, typename P, typename... Args>
+constexpr bool one_of(T val, P item, Args... item_others) {
+    return val == item || one_of(val, item_others...);
+}
 
 int compare_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *res);
