@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,8 +47,10 @@ protected:
                 "GPU takes a lot of time to complete this test.");
 
         bool has_bf16 = false;
+        bool has_f16 = false;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
         has_bf16 = dnnl::impl::cpu::platform::has_data_type_support(dnnl_bf16);
+        has_f16 = dnnl::impl::cpu::platform::has_data_type_support(dnnl_f16);
 #endif
 
 #if DNNL_X64 && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
@@ -58,7 +60,6 @@ protected:
 #else
         bool has_int8_zp_support = false;
 #endif
-        bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
 
         memory::dims SP1D = {2};
         memory::dims SP2D = {2, 2};
@@ -75,8 +76,7 @@ protected:
         std::vector<memory::dims> v_dims = {SP1D, SP2D, SP3D, SP4D, SP5D, SP6D,
                 SP7D, SP8D, SP9D, SP10D, SP11D, SP12D};
 
-        // first one is f16 which is not supported on cpu
-        unsigned start_dt = 1 + is_cpu;
+        unsigned start_dt = 1;
         unsigned end_dt = 7;
 
         unsigned start_tag = static_cast<unsigned>(tag::any) + 1;
@@ -114,6 +114,7 @@ protected:
         for (unsigned i_dt = start_dt; i_dt < end_dt; i_dt++) {
             in_dt = static_cast<dt>(i_dt);
             if (in_dt == dt::bf16 && !has_bf16) continue;
+            if (in_dt == dt::f16 && !has_f16) continue;
             if ((in_dt == dt::s8 || in_dt == dt::u8) && !has_int8_zp_support)
                 continue;
 
@@ -134,6 +135,7 @@ protected:
                 for (unsigned o_dt = start_dt; o_dt < end_dt; o_dt++) {
                     out_dt = static_cast<dt>(o_dt);
                     if (out_dt == dt::bf16 && !has_bf16) continue;
+                    if (out_dt == dt::f16 && !has_f16) continue;
 
                     for_(unsigned o_tag = start_tag; o_tag < end_tag; o_tag++)
                     for (const auto &i_extra : extra) {

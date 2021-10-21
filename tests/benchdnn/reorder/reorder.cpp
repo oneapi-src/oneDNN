@@ -232,13 +232,12 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 
     if (is_cpu()) {
-        // CPU reorder doesn't support bf16<-->s32/f16 combinations.
-        const bool bf16_src_ok = IMPLICATION(
-                sdt == dnnl_bf16, ddt != dnnl_s32 && ddt != dnnl_f16);
-        const bool bf16_dst_ok = IMPLICATION(
-                ddt == dnnl_bf16, sdt != dnnl_s32 && sdt != dnnl_f16);
-
-        if (!bf16_src_ok || !bf16_dst_ok) {
+        // CPU reorder doesn't support bf16/f16<-->s32 combinations.
+        const bool s32_src_ok = IMPLICATION(
+                sdt == dnnl_s32, ddt != dnnl_bf16 && ddt != dnnl_f16);
+        const bool s32_dst_ok = IMPLICATION(
+                ddt == dnnl_s32, sdt != dnnl_bf16 && sdt != dnnl_f16);
+        if (!s32_src_ok || !s32_dst_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }

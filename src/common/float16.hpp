@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@
 
 namespace dnnl {
 namespace impl {
-namespace f16_support {
 
 struct float16_t {
     uint16_t raw;
@@ -125,9 +124,8 @@ inline float16_t::operator float() const {
     return utils::bit_cast<float>(f);
 }
 
-} // namespace f16_support
-
-using f16_support::float16_t;
+void cvt_float_to_float16(float16_t *out, const float *inp, size_t nelems);
+void cvt_float16_to_float(float *out, const float16_t *inp, size_t nelems);
 
 } // namespace impl
 } // namespace dnnl

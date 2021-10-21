@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,31 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/reorder/cpu_reorder.hpp"
+#include "common/float16.hpp"
+#include "common/dnnl_thread.hpp"
+
+#include "cpu/platform.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace cpu {
 
-// clang-format off
-
-const impl_list_map_t &regular_f16_impl_list_map() {
-    static const impl_list_map_t the_map = REG_REORDER_P({
-        // f16 ->
-        {{f16, data_type::undef, 0}, {
-            REG_SR(f16, any, f16, any, fmt_order::any, spec::reference)
-            REG_SR(f16, any, f32, any, fmt_order::any, spec::reference)
-            REG_SR(f16, any, s8, any, fmt_order::any, spec::reference)
-            REG_SR(f16, any, u8, any, fmt_order::any, spec::reference)
-
-            nullptr,
-        }},
-    });
-    return the_map;
+void cvt_float_to_float16(float16_t *out, const float *inp, size_t nelems) {
+    PRAGMA_OMP_SIMD()
+    for (size_t i = 0; i < nelems; ++i)
+        out[i] = static_cast<float16_t>(inp[i]);
 }
 
-// clang-format on
+void cvt_float16_to_float(float *out, const float16_t *inp, size_t nelems) {
+    PRAGMA_OMP_SIMD()
+    for (size_t i = 0; i < nelems; ++i)
+        out[i] = inp[i];
+}
 
-} // namespace cpu
 } // namespace impl
 } // namespace dnnl

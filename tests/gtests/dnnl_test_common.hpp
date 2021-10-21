@@ -63,7 +63,7 @@
 #define for_ for
 
 using dnnl::impl::bfloat16_t;
-using dnnl::impl::f16_support::float16_t;
+using dnnl::impl::float16_t;
 
 #ifdef DNNL_ENABLE_MEM_DEBUG
 #define DNNL_CHECK(f) \
