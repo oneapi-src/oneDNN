@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include "dnnl.h"
 #include "oneapi/dnnl/dnnl_graph.h"
 
 #include "test_api_common.h"
@@ -1016,6 +1017,9 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
     // `opt_sum_input1` is of plain format, while `opaque_sum_output` is of
     // blocked format. Though they are both opaque tensor, in-place operation
     // is not supported as the different formats they are.
+    // skip the test on AArch64 or some older machine without avx support
+    SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx,
+            "skip on machine without AVX");
     num_inplace_pairs = 10;
     EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       *(compiled_partition + 1), &num_inplace_pairs,
