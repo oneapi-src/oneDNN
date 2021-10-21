@@ -26,6 +26,7 @@
 #include "common/primitive_attr.hpp"
 #include "common/utils.hpp"
 #include "gpu/jit/conv/config.hpp"
+#include "gpu/jit/conv/gemm_schedule.hpp"
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/kernel_info.hpp"
 #include "gpu/jit/conv/tensor.hpp"
@@ -113,83 +114,114 @@ private:
         : alg_kind(alg_kind), scale(scale), alpha(alpha), beta(beta) {}
 };
 
+class post_op_tensor_info_t {
+public:
+    post_op_tensor_info_t() = default;
+
+    post_op_tensor_info_t(bool is_input, bool is_output, const view_t &view,
+            const expr_t &buf, uint32_t mask, const expr_t &op_var, float scale)
+        : is_input_(is_input)
+        , is_output_(is_output)
+        , view_(view)
+        , buf_(buf)
+        , mask_(mask)
+        , op_var_(op_var)
+        , scale_(scale) {
+        if (op_var_.is_empty())
+            op_var_ = var_t::make(type_t::f32(), make_op_var_name(buf));
+        if (scale != 1)
+            ir_assert(is_output_)
+                    << "Scale is supported with output tensors only.";
+    }
+
+    bool is_input() const { return is_input_; }
+
+    bool is_output() const { return is_output_; }
+
+    bool needs_masked_update() const { return needs_masked_update_; }
+
+    const view_t &view() const { return view_; }
+
+    const expr_t &buf() const { return buf_; }
+
+    const uint32_t &mask() const { return mask_; }
+
+    const expr_t &op_var() const { return op_var_; }
+
+    float scale() const { return scale_; }
+
+    post_op_tensor_info_t create_sub_tensor(const tensor_t &tile) const {
+        auto ret = *this;
+        ret.view_ = ret.view_.create_sub_view(tile);
+        return ret;
+    }
+
+    void require_masked_update() { needs_masked_update_ = true; }
+
+private:
+    static std::string make_op_var_name(const expr_t &buf) {
+        auto *var = buf.as_ptr<var_t>();
+        if (var) return var->name;
+
+        auto *ptr = buf.as_ptr<ptr_t>();
+        if (ptr) {
+            auto prefix = make_op_var_name(ptr->base);
+            ir_assert(is_const(ptr->off));
+            int off = to_cpp<int>(ptr->off);
+            return prefix + "_" + std::to_string(off);
+        }
+
+        ir_error_not_expected() << "Can't generate op var name: " << buf;
+        return "unknown";
+    }
+    bool is_input_;
+    bool is_output_;
+    bool needs_masked_update_ = false;
+    view_t view_;
+    expr_t buf_;
+    uint32_t mask_;
+    expr_t op_var_;
+    float scale_;
+};
+
+// There are two types of post-ops:
+// - Eltwise:          lhs = eltwise(rhs) and rhs must be equal lhs
+//   Eltwise is supported via special IR function eltwise_t
+// - Generic post-op:  lhs = rhs
+// Left-hand side (lhs) represetns a single post-op tensor. Right-hand side
+// tensor (rhs) is an IR expression over post-op tensors and constants.
+//
+// Post-op tensors support broadcast (when used from rhs) and reduction (when
+// used from lhs) semantics.
+//
+// If lhs is (a x 1) tensor and rhs is (a x b) tensor thenrhs is reduced:
+//     lhs(i, 0) = sum over j rhs(i, j)
+//
+// If lhs is (a x b) tensor and rhs is (a x 1) tensor then rhs is broadcasted:
+//     lhs(i, j) = rhs(i, 0)
 class post_op_t {
 public:
     post_op_t() = default;
 
-    post_op_t(const view_t &rhs_view, const expr_t &rhs_buf, uint32_t rhs_mask,
-            float rhs_scale, op_kind_t op_kind)
-        : rhs_view_(rhs_view)
-        , rhs_buf_(rhs_buf)
-        , rhs_mask_(rhs_mask)
-        , rhs_scale_(rhs_scale)
-        , op_kind_(op_kind) {}
+    post_op_t(const expr_t &lhs, const expr_t &rhs,
+            const func_t &eltwise = func_t())
+        : lhs_(lhs), rhs_(simplify_rewrite(rhs)), eltwise_(eltwise) {}
 
-    post_op_t(const func_t &eltwise) : eltwise_(eltwise) {}
+    const expr_t &lhs() const { return lhs_; }
 
-    const view_t &rhs_view() const { return rhs_view_; }
-
-    const expr_t &rhs_buf() const { return rhs_buf_; }
-
-    uint32_t rhs_mask() const { return rhs_mask_; }
-
-    float rhs_scale() const { return rhs_scale_; }
-
-    op_kind_t op_kind() const { return op_kind_; }
+    const expr_t &rhs() const { return rhs_; }
 
     const func_t &eltwise() const { return eltwise_; }
 
-    bool has_rhs() const { return !rhs_view_.is_empty(); }
-
-    bool needs_load() const {
-        if (!has_rhs()) return false;
-        if (!rhs_buf_.type().is_ptr()) return false;
-        return true;
-    }
-
-    bool is_broadcast_dim(int dim_idx) const {
-        return (rhs_mask() & (1 << dim_idx)) == 0;
-    }
-
-    tensor_t apply_mask(const tensor_t &tile, bool update_dims = true,
-            bool update_start = true) const {
-        ir_assert(has_rhs());
-        ir_assert(tile.ndims() == rhs_view_.nvdims())
-                << "Incompatible dimensions.";
-        auto tile_dims
-                = (update_dims ? apply_mask(tile.dims(), 1) : tile.dims());
-        auto tile_start
-                = (update_start ? apply_mask(tile.start(), 0) : tile.start());
-        return tensor_t(tile_dims, tile_start);
-    }
-
-    template <typename T, typename U>
-    std::vector<T> apply_mask(
-            const std::vector<T> &v, const U &mask0_value) const {
-        ir_assert(has_rhs());
-        ir_assert(int(v.size()) == rhs_view_.nvdims())
-                << "Incompatible dimensions.";
-        auto ret = v;
-        for (int i = 0; i < int(v.size()); i++) {
-            if ((rhs_mask_ & (1 << i)) == 0) { ret[i] = mask0_value; }
-        }
-        return ret;
-    }
-
-    post_op_t create_sub_post_op(const tensor_t &tile) const {
-        if (!has_rhs()) return *this;
-
-        auto ret = *this;
-        ret.rhs_view_ = ret.rhs_view_.create_sub_view(apply_mask(tile));
-        return ret;
+    bool uses(const expr_t &op_var) const {
+        if (contains_object(lhs_, op_var)) return true;
+        if (contains_object(rhs_, op_var)) return true;
+        return false;
     }
 
 private:
-    view_t rhs_view_;
-    expr_t rhs_buf_;
-    uint32_t rhs_mask_ = 0;
-    float rhs_scale_ = 1;
-    op_kind_t op_kind_ = op_kind_t::undef;
+    expr_t lhs_;
+    expr_t rhs_;
     func_t eltwise_;
 };
 
@@ -217,17 +249,20 @@ public:
     post_op_context_t() = default;
 
     post_op_context_t(const convolution_pd_t *pd, const conv_config_t &cfg,
-            const view_t &lhs_view, const kernel_info_t &kernel_info)
-        : pd_(pd), cfg_(&cfg), lhs_view_(lhs_view) {
+            const gemm_schedule_t &gemm_schedule,
+            const kernel_info_t &kernel_info)
+        : pd_(pd), cfg_(&cfg), cp_view_(gemm_schedule.c_view()) {
+
+        auto c = add_tensor(/*is_input=*/false, /*is_output=*/false, cp_view_,
+                expr_t(), var_t::make(type_t::f32(), "c"));
 
         // Handle bias.
         if ((pd->is_fwd() || pd->is_bwd_d()) && pd->with_bias()) {
-            uint32_t rhs_mask = convert_rhs_mask(2); // Per-channel mask.
-            auto rhs_view = create_rhs_view(
-                    pd->invariant_bia_md()->data_type, rhs_mask);
-            auto rhs_buf = kernel_info.find_arg("bia");
-            post_ops_.emplace_back(
-                    rhs_view, rhs_buf, rhs_mask, 1, op_kind_t::_add);
+            uint32_t mask = normalize_mask(1 << 1); // Per-channel mask.
+            auto view = create_view(pd->invariant_bia_md()->data_type, mask);
+            auto buf = kernel_info.find_arg("bia");
+            auto bia = add_input_tensor(view, buf);
+            post_ops_.emplace_back(c, c + bia);
         }
 
         auto *attr = pd->attr();
@@ -235,63 +270,85 @@ public:
         // Handle output scales.
         bool with_oscales = !attr->output_scales_.has_default_values();
         if (with_oscales) {
-            uint32_t mask = convert_rhs_mask(attr->output_scales_.mask_);
-            auto oscales_buf = kernel_info.find_arg("oscales");
-            auto oscales_view = create_rhs_view(type_t::f32(), mask);
-            post_ops_.emplace_back(
-                    oscales_view, oscales_buf, mask, 1, op_kind_t::_mul);
+            uint32_t mask = normalize_mask(attr->output_scales_.mask_);
+            auto view = create_view(type_t::f32(), mask);
+            auto buf = kernel_info.find_arg("oscales");
+            auto oscales = add_input_tensor(view, buf);
+            post_ops_.emplace_back(c, c * oscales);
         }
 
         // Handle post-ops.
         for (int i = 0; i < attr->post_ops_.len(); i++) {
             auto &po = attr->post_ops_.entry_[i];
             if (po.is_eltwise()) {
-                post_ops_.emplace_back(eltwise_t::make(po.eltwise.alg,
-                        po.eltwise.scale, po.eltwise.alpha, po.eltwise.beta));
+                auto func = eltwise_t::make(po.eltwise.alg, po.eltwise.scale,
+                        po.eltwise.alpha, po.eltwise.beta);
+                post_ops_.emplace_back(c, c, func);
             } else if (po.is_sum(/*require_scale_one=*/false)) {
                 float scale = po.sum.scale;
-                uint32_t rhs_mask = 0xFFFFFFFF;
-                auto rhs_buf
-                        = kernel_info.find_arg(pd->is_fwd() ? "dst" : "src");
-                auto rhs_view = lhs_view_;
+                if (pd->is_bwd_w()) {
+                    ir_assert(scale == 1) << "BWD_W doesn't support "
+                                             "non-default scale for sum.";
+                    ir_assert(cfg.do_atomic_update)
+                            << "Sum post-op with BWD_W requires atomic "
+                               "updates.";
+                    continue;
+                }
+                auto view = cp_view_;
                 if (po.sum.dt != data_type::undef)
-                    rhs_view = rhs_view.retype(po.sum.dt);
-                post_ops_.emplace_back(
-                        rhs_view, rhs_buf, rhs_mask, scale, op_kind_t::_add);
+                    view = view.retype(po.sum.dt);
+                auto buf = kernel_info.find_arg(pd->is_fwd() ? "dst" : "src");
+                auto c_old = add_input_tensor(view, buf);
+                post_ops_.emplace_back(c, c + scale * c_old);
             } else if (po.is_binary()) {
-                uint32_t rhs_mask = 0;
-                auto rhs_view = create_rhs_view(po.binary.src1_desc, rhs_mask);
                 auto buf_name = "binary_rhs_" + std::to_string(i);
-                auto rhs_buf = kernel_info.find_arg(buf_name);
-                post_ops_.emplace_back(rhs_view, rhs_buf, rhs_mask, 1,
-                        alg_kind_to_op_kind(po.binary.alg));
+                auto view = create_view(po.binary.src1_desc);
+                auto buf = kernel_info.find_arg(buf_name);
+                auto rhs = add_input_tensor(view, buf);
+                auto op_kind = alg_kind_to_op_kind(po.binary.alg);
+                post_ops_.emplace_back(c, binary_op_t::make(op_kind, c, rhs));
             } else {
                 ir_error_not_expected();
             }
         }
+
+        need_to_restore_zero_padding_ = init_need_to_restore_zero_padding(pd);
+
+        // Require masked updates when needed.
+        for (auto &info : tensor_infos_) {
+            if (!info.is_output()) continue;
+
+            if (need_to_restore_zero_padding_) {
+                info.require_masked_update();
+                continue;
+            }
+
+            for (int i = 0; i < cp_ndims(); i++) {
+                if ((info.mask() & (1 << i)) != 0) continue;
+                if (is_spurious_spatial(gemm_schedule, i)) {
+                    info.require_masked_update();
+                    break;
+                }
+            }
+        }
     }
+
+    const view_t &cp_view() const { return cp_view_; }
 
     const std::vector<post_op_t> &post_ops() const { return post_ops_; }
 
-    int lhs_ndims() const { return lhs_view_.nvdims(); }
-
-    dim_t lhs_dim(int idx) const { return lhs_view_.vdims()[idx]; }
-
-    dim_t lhs_padded_dim(int idx) const { return lhs_view_.tlayout().dim(idx); }
-
-    bool has_lhs_mask(int idx) const { return lhs_view_.has_tmask(idx); }
-
-    bool is_lhs_dim_zero_padded(int idx) const {
-        if (has_lhs_mask(idx)) return true;
-        if (lhs_dim(idx) != lhs_padded_dim(idx)) return true;
-        return false;
+    const std::vector<post_op_tensor_info_t> &post_op_tensor_infos() const {
+        return tensor_infos_;
     }
 
     bool need_to_restore_zero_padding() const {
+        return need_to_restore_zero_padding_;
+    }
+
+private:
+    bool init_need_to_restore_zero_padding(const convolution_pd_t *pd) const {
         auto *attr = pd_->attr();
-        if (pd_->with_bias() && pd_->is_fwd()
-                && pd_->dst_md()->dims[0] != pd_->dst_md()->padded_dims[0])
-            return true;
+        if (cfg_->with_bias) return true;
         for (int i = 0; i < attr->post_ops_.len(); i++) {
             auto &po = attr->post_ops_.entry_[i];
             if (po.is_eltwise()) {
@@ -300,8 +357,8 @@ public:
             } else if (po.is_sum(/*require_scale_one=*/false)) {
                 // Preserves zero padding.
             } else if (po.is_binary()) {
-                for (int j = 0; j < lhs_ndims(); j++) {
-                    if (!is_lhs_dim_zero_padded(j)) continue;
+                for (int j = 0; j < cp_ndims(); j++) {
+                    if (!is_cp_dim_zero_padded(j)) continue;
                     // Check if binary preserves zeros: (0 op X == 0) or (0 op 0 == 0).
                     bool zero_op_x_ok = utils::one_of(po.binary.alg,
                             alg_kind::binary_mul, alg_kind::binary_div);
@@ -313,8 +370,8 @@ public:
                                     alg_kind::binary_ne);
 
                     uint32_t rhs_mask
-                            = utils::get_dims_mask(lhs_view_.vdims().data(),
-                                    po.binary.src1_desc.dims, lhs_ndims());
+                            = utils::get_dims_mask(cp_view_.vdims().data(),
+                                    po.binary.src1_desc.dims, cp_ndims());
                     if ((rhs_mask & (1 << j)) == 0 && !zero_op_x_ok)
                         return true;
                     if (!zero_op_zero_ok) return true;
@@ -326,74 +383,162 @@ public:
         return false;
     }
 
-private:
+    // Checks if convolution computes output elements that are out of bound in
+    // the output tensor. This can happen due to spatial padding.
+    //
+    // For example for forward convolution OW is padded to OW_PADDED. Then if
+    // ow >= OW (out of bounds) and iw = ow * SW - PW + kw * (DW + 1) < IW (in
+    // bounds) convolution computes an out-of-bound element which is not
+    // generally zero. This requires special handling if there are post-ops
+    // followed the convolution.
+    bool is_spurious_spatial(
+            const gemm_schedule_t &gemm_schedule, int dim_idx) const {
+        auto &var = cp_view_.vvars()[dim_idx].as<var_t>();
+
+        int sp_idx = -1;
+        if (utils::one_of(var.name, "od", "id")) {
+            sp_idx = 0;
+        } else if (utils::one_of(var.name, "oh", "ih")) {
+            sp_idx = 1;
+        } else if (utils::one_of(var.name, "ow", "iw")) {
+            sp_idx = 2;
+        } else {
+            return false;
+        }
+
+        int p = utils::pick(sp_idx, cfg_->pd, cfg_->ph, cfg_->pw);
+        int s = utils::pick(sp_idx, cfg_->sd, cfg_->sh, cfg_->sw);
+        int k = utils::pick(sp_idx, cfg_->kd, cfg_->kh, cfg_->kw);
+        int d = utils::pick(sp_idx, cfg_->dd, cfg_->dh, cfg_->dw);
+
+        if (cfg_->is_fwd) {
+            int o_value = utils::pick(sp_idx, cfg_->od, cfg_->oh, cfg_->ow);
+            int o_bound = gemm_schedule.var_bound(var);
+            int i = utils::pick(sp_idx, cfg_->id, cfg_->ih, cfg_->iw);
+
+            for (int o = o_value; o < o_bound; o++) {
+                int i_min = o * s - p;
+                if (i_min < i) return true;
+            }
+            return false;
+        }
+
+        if (cfg_->is_bwd_d) {
+            int i_value = utils::pick(sp_idx, cfg_->id, cfg_->ih, cfg_->iw);
+            int i_bound = gemm_schedule.var_bound(var);
+            int o = utils::pick(sp_idx, cfg_->od, cfg_->oh, cfg_->ow);
+
+            for (int i = i_value; i < i_bound; i++) {
+                int os_min = i - (k - 1) * (d + 1) + p;
+                if (os_min < o * s) return true;
+            }
+            return false;
+        }
+
+        return false;
+    }
+
+    int cp_ndims() const { return cp_view_.nvdims(); }
+
+    dim_t cp_dim(int idx) const { return cp_view_.vdims()[idx]; }
+
+    dim_t cp_padded_dim(int idx) const { return cp_view_.tlayout().dim(idx); }
+
+    bool has_cp_mask(int idx) const { return cp_view_.has_tmask(idx); }
+
+    bool is_cp_dim_zero_padded(int idx) const {
+        return cp_view_.is_masked_vdim(idx);
+    }
+
+    const expr_t &add_input_tensor(const view_t &view, const expr_t &buf) {
+        return add_tensor(/*is_input=*/true, /*is_output=*/false, view, buf);
+    }
+
+    const expr_t &add_output_tensor(
+            const view_t &view, const expr_t &buf, float scale = 1.0f) {
+        return add_tensor(/*is_input=*/false, /*is_output=*/true, view, buf,
+                expr_t(), scale);
+    }
+
+    const expr_t &add_tensor(bool is_input, bool is_output, const view_t &view,
+            const expr_t &buf, const expr_t &op_var = expr_t(),
+            float scale = 1.0f) {
+        ir_assert(view.nvdims() == cp_view_.nvdims());
+        uint32_t mask = compute_mask(view);
+        tensor_infos_.emplace_back(
+                is_input, is_output, view, buf, mask, op_var, scale);
+        return tensor_infos_.back().op_var();
+    }
+
+    uint32_t compute_mask(const view_t &view) const {
+        ir_assert(cp_view_.nvdims() == view.nvdims());
+        uint32_t mask = 0;
+        for (int i = 0; i < view.nvdims(); i++) {
+            if (cp_view_.vdims()[i] == view.vdims()[i]) mask |= (1 << i);
+        }
+        return mask;
+    }
+
     // rhs tensor has plain layout.
-    view_t create_rhs_view(const type_t &type, uint32_t rhs_mask) const {
-        std::vector<dim_t> rhs_dims = lhs_view_.vdims();
+    view_t create_view(const type_t &type, uint32_t rhs_mask) const {
+        std::vector<dim_t> rhs_dims = cp_view_.vdims();
         uint32_t bound_check_mask = 0;
-        for (int i = 0; i < lhs_ndims(); i++) {
+        for (int i = 0; i < cp_ndims(); i++) {
             if ((rhs_mask & (1 << i)) == 0) {
                 // Broadcast dimension.
                 rhs_dims[i] = 1;
-            } else if (lhs_padded_dim(i) != lhs_dim(i)) {
-                bound_check_mask |= (1 << i);
-            } else if (has_lhs_mask(i)) {
+            } else if (is_cp_dim_zero_padded(i)) {
                 bound_check_mask |= (1 << i);
             }
         }
         return view_t(layout_t(type, 0, rhs_dims, /*do_normalize=*/false),
-                lhs_view_.vvars(), bound_check_mask);
+                cp_view_.vvars(), bound_check_mask);
     }
 
-    // rhs tensor layout is defined by rhs_md.
-    view_t create_rhs_view(
-            const memory_desc_t &rhs_md, uint32_t &rhs_mask) const {
+    // rhs tensor layout is defined by md memory descriptor.
+    view_t create_view(const memory_desc_t &md /*, uint32_t &rhs_mask*/) const {
         bool add_groups
-                = (lhs_ndims() == 6); // Add groups to match ngcdhw layout.
-        layout_t rhs_layout(rhs_md, /*do_normalize=*/false);
-        std::vector<dim_t> rhs_dims(rhs_md.dims, rhs_md.dims + rhs_md.ndims);
-        std::vector<dim_t> rhs_padded_dims(
-                rhs_md.padded_dims, rhs_md.padded_dims + rhs_md.ndims);
-        maybe_reshape_rhs_dims(
-                cfg_->ndims, rhs_layout, rhs_dims, rhs_padded_dims);
-        rhs_layout = normalize_conv_layout(rhs_layout, /*with_groups=*/false,
-                cfg_->g, cfg_->is_dw, cfg_->reduced_to_1d, add_groups,
+                = (cp_ndims() == 6); // Add groups to match ngcdhw layout.
+        layout_t layout(md, /*do_normalize=*/false);
+        std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
+        std::vector<dim_t> padded_dims(
+                md.padded_dims, md.padded_dims + md.ndims);
+        maybe_reshape_dims(cfg_->ndims, layout, dims, padded_dims);
+        layout = normalize_conv_layout(layout, /*with_groups=*/false, cfg_->g,
+                cfg_->is_dw, cfg_->reduced_to_1d, add_groups,
                 /*is_wei=*/false);
-        rhs_dims = normalize_conv_dims(rhs_dims, /*with_groups=*/false, cfg_->g,
+        dims = normalize_conv_dims(dims, /*with_groups=*/false, cfg_->g,
                 cfg_->is_dw, cfg_->reduced_to_1d, add_groups, /*is_wei=*/false);
-        rhs_padded_dims = normalize_conv_dims(rhs_padded_dims,
+        padded_dims = normalize_conv_dims(padded_dims,
                 /*with_groups=*/false, cfg_->g, cfg_->is_dw,
                 cfg_->reduced_to_1d, add_groups, /*is_wei=*/false);
-        ir_assert(rhs_layout.ndims() == lhs_ndims())
-                << "Incompatible dimensions.";
+        ir_assert(layout.ndims() == cp_ndims()) << "Incompatible dimensions.";
         uint32_t bound_check_mask = 0;
-        for (int i = 0; i < lhs_ndims(); i++) {
-            if (rhs_dims[i] == 1) continue; // Broadcast, no bound check needed.
-            if (rhs_padded_dims[i] != lhs_padded_dim(i)) {
+        for (int i = 0; i < cp_ndims(); i++) {
+            if (dims[i] == 1) continue; // Broadcast, no bound check needed.
+            if (padded_dims[i] != cp_padded_dim(i)) {
                 bound_check_mask |= (1 << i);
-            } else if (has_lhs_mask(i)) {
+            } else if (has_cp_mask(i)) {
                 bound_check_mask |= (1 << i);
             }
         }
-        rhs_mask = utils::get_dims_mask(
-                lhs_view_.vdims().data(), rhs_dims.data(), lhs_ndims());
-        return view_t(rhs_layout, lhs_view_.vvars(), bound_check_mask);
+        return view_t(layout, cp_view_.vvars(), dims, bound_check_mask);
     }
 
-    static void maybe_reshape_rhs_dims(int ndims, layout_t &rhs_layout,
-            std::vector<dim_t> &rhs_dims, std::vector<dim_t> &rhs_padded_dims) {
-        ir_assert(rhs_layout.ndims() == int(rhs_dims.size()));
-        if (rhs_layout.ndims() < ndims) {
-            rhs_layout = layout_t(rhs_layout.type(), ndims, rhs_layout.offset(),
-                    rhs_layout.blocks(), /*do_normalize=*/false);
-            rhs_dims.resize(ndims, 1);
-            rhs_padded_dims.resize(ndims, 1);
+    static void maybe_reshape_dims(int ndims, layout_t &layout,
+            std::vector<dim_t> &dims, std::vector<dim_t> &padded_dims) {
+        ir_assert(layout.ndims() == int(dims.size()));
+        if (layout.ndims() < ndims) {
+            layout = layout_t(layout.type(), ndims, layout.offset(),
+                    layout.blocks(), /*do_normalize=*/false);
+            dims.resize(ndims, 1);
+            padded_dims.resize(ndims, 1);
         }
     }
 
-    uint32_t convert_rhs_mask(uint32_t orig_mask) const {
+    uint32_t normalize_mask(uint32_t orig_mask) const {
         bool add_groups
-                = (lhs_ndims() == 6); // Add groups to match ngcdhw layout.
+                = (cp_ndims() == 6); // Add groups to match ngcdhw layout.
         int orig_ndims
                 = 2 + cfg_->ndims; // number of dimensions before normalization.
         std::vector<dim_t> dummy_dims(orig_ndims, 1);
@@ -406,10 +551,10 @@ private:
                 /*is_wei=*/false);
         // Split channels into groups and channels to match ngcdhw layout.
         if (add_groups) cvt_dims.insert(cvt_dims.begin() + 1, cvt_dims[1]);
-        ir_assert(int(cvt_dims.size()) == lhs_ndims());
+        ir_assert(int(cvt_dims.size()) == cp_ndims());
 
         uint32_t mask = 0;
-        for (int i = 0; i < lhs_ndims(); i++) {
+        for (int i = 0; i < cp_ndims(); i++) {
             if (cvt_dims[i] == mask_set_value) mask = mask | (1 << i);
         }
         return mask;
@@ -417,8 +562,12 @@ private:
 
     const convolution_pd_t *pd_;
     const conv_config_t *cfg_;
-    view_t lhs_view_;
+
+    bool need_to_restore_zero_padding_ = false;
+
+    view_t cp_view_;
     std::vector<post_op_t> post_ops_;
+    std::vector<post_op_tensor_info_t> tensor_infos_;
 };
 
 } // namespace jit

@@ -1315,7 +1315,9 @@ private:
 
         for (int i = 0; i < attr->post_ops_.len(); i++) {
             auto &po = attr->post_ops_.entry_[i];
-            if (po.is_binary()) {
+            if (po.is_eltwise() || po.is_sum(/*require_scale_one=*/false)) {
+                // No extra tensors.
+            } else if (po.is_binary()) {
                 auto layout = make_layout(po.binary.src1_desc);
                 int arg_key
                         = DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1;

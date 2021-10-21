@@ -781,6 +781,9 @@ private:
     object_map_t<expr_t, std::vector<modulus_info_t>> modulus_infos_;
 };
 
+// Simplifies expression using rewriting rules.
+expr_t simplify_rewrite(const expr_t &e);
+
 // Simplifies expression or statement. An optional constraint set is used to
 // pass known equalities and inequalities which may be used for simplification.
 object_t simplify(const object_t &obj, const constraint_set_t &cset = {});

@@ -1231,8 +1231,12 @@ public:
     explicit view_t(const layout_t &layout,
             const std::vector<expr_t> &_vvars = {},
             uint32_t bound_check_mask = 0)
+        : view_t(layout, _vvars, layout.dims(), bound_check_mask) {}
+
+    view_t(const layout_t &layout, const std::vector<expr_t> &_vvars,
+            const std::vector<dim_t> &_vdims, uint32_t bound_check_mask)
         : vvars_(_vvars)
-        , vdims_(layout.dims())
+        , vdims_(_vdims)
         , vstart_(layout.ndims(), 0)
         , tdims_(layout.ndims())
         , tlayout_(layout) {
@@ -1364,6 +1368,16 @@ public:
         auto ret = *this;
         ret.tlayout_ = tlayout_.make_dense();
         return ret;
+    }
+
+    bool is_masked_vdim(int vidx) const {
+        ir_assert(vidx >= 0 && vidx < ntdims());
+        ir_assert(tdims_[vidx].expr().is_equal(vvars_[vidx]));
+        ir_assert(has_zero_vstart())
+                << "Can't be reliably determined if the view is a sub-view.";
+        if (has_tmask(vidx)) return true;
+        if (vdims_[vidx] != tlayout_.dim(vidx)) return true;
+        return false;
     }
 
     bool can_convert_to_vlayout() const {

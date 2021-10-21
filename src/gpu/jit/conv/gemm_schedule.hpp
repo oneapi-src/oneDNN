@@ -458,6 +458,10 @@ public:
         return c_tg_tile_.create_sub_tensor(c_thr_tile_);
     }
 
+    int var_bound(const expr_t &var) const {
+        return to_cpp<int>(find_loop(var).bound());
+    }
+
     // Splits loop defined by `var` into two new loops based on `factor`.
     // Before:
     //     for (int var = 0; var < I; var++) { ... }

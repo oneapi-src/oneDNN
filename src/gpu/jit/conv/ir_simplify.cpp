@@ -367,7 +367,6 @@ public:
     }
 };
 
-// Simplifies expression using rewriting rules.
 expr_t simplify_rewrite(const expr_t &e) {
     expr_t ret;
     if (is_const(e) || is_var(e)) {

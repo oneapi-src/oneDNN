@@ -3533,16 +3533,33 @@ stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
     return func.call({dst_buf, src_buf});
 }
 
-stmt_t create_zero_out_stmt(ngen::HW hw, const expr_t &buf, int size) {
+// Performs the following operation:
+//     buf = alpha * buf + beta
+stmt_t create_mul_add_stmt(ngen::HW hw, const expr_t &buf, int size,
+        const type_t &type, float alpha, float beta) {
+    if (alpha == 1 && beta == 0) return stmt_t();
+
     stmt_t ret;
     int step_bytes = 2 * ngen::GRF::bytes(hw);
     for (int i = 0; i < size; i += step_bytes) {
-        int cur_step_bytes = std::min(step_bytes, size - i);
-        ret = ret.append(store_t::make(buf, i,
-                shuffle_t::make_broadcast(
-                        expr_t(0.0f), cur_step_bytes / sizeof(float))));
+        auto elems = std::min(step_bytes, size - i) / type.size();
+        auto e_alpha = shuffle_t::make_broadcast(alpha, elems);
+        auto e_beta = shuffle_t::make_broadcast(beta, elems);
+        auto e = load_t::make(type.with_elems(elems), buf, i);
+        // Avoid extra IR expressions when not needed.
+        if (alpha == 0)
+            e = shuffle_t::make_broadcast(expr_t(0.0f), elems);
+        else if (alpha != 1)
+            e *= e_alpha;
+        if (beta != 0) e += e_beta;
+        ir_assert(e.type().scalar() == type);
+        ret = ret.append(store_t::make(buf, i, e));
     }
     return ret;
+}
+
+stmt_t create_zero_out_stmt(ngen::HW hw, const expr_t &buf, int size) {
+    return create_mul_add_stmt(hw, buf, size, type_t::f32(), 0, 0);
 }
 
 // Generates loads or stores to move data between memory (global or SLM) and
@@ -3715,11 +3732,11 @@ class slm_reduce_builder_t {
 public:
     slm_reduce_builder_t() = default;
 
-    slm_reduce_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
+    slm_reduce_builder_t(const ngen::HW &hw, ir_context_t &ir_ctx,
             const constraint_set_t &cset, const grid_info_t &tg_grid,
             const expr_t &reg_buf, const layout_t &reg_layout,
             const tensor_t &thr_tile, int dim = 2)
-        : hw_(cfg.hw)
+        : hw_(hw)
         , tg_grid_(tg_grid)
         , reg_buf_(reg_buf)
         , reg_layout_(reg_layout)
@@ -3863,56 +3880,54 @@ private:
 // Zero pads a register buffer of f32 type.
 class zero_pad_builder_t {
 public:
+    zero_pad_builder_t() = default;
+
     zero_pad_builder_t(const constraint_set_t &cset,
-            const post_op_context_t &post_op_ctx, const view_t &mem_view,
-            const layout_t &reg_layout, const expr_t &reg_buf)
-        : cset_(cset)
-        , post_op_ctx_(post_op_ctx)
-        , mem_view_(mem_view)
-        , reg_layout_(reg_layout)
-        , reg_buf_(reg_buf) {
-        ir_assert(mem_view_.nvdims() == reg_layout_.ndims())
-                << "Incompatible view/layout.";
-        build();
-    }
+            const view_t &full_mem_view, const view_t &mem_view)
+        : cset_(&cset), full_mem_view_(full_mem_view), mem_view_(mem_view) {}
 
-    const stmt_t &stmt() const { return stmt_; }
+    bool is_empty() const { return mem_view_.is_empty(); }
 
-    expr_t create_mask(const tensor_t &tile) const {
-        auto layout = reg_layout_.map(tile);
+    expr_t create_mask(const layout_t &reg_layout, const tensor_t &tile) const {
+        ir_assert(!is_empty());
+        auto layout = reg_layout.map(tile);
         auto view = mem_view_.create_sub_view(tile);
         mask_tensor_t mask_tensor(layout);
         std::vector<dim_t> args(layout.ndims());
         fill_mask_impl(mask_tensor, 0, args, view, layout);
-        mask_tensor.simplify(cset_);
+        mask_tensor.simplify(*cset_);
         return mask_tensor.to_expr(tile.elems());
     }
 
-private:
-    void build() {
+    stmt_t build_stmt(const layout_t &reg_layout, const expr_t &reg_buf) const {
+        ir_assert(mem_view_.nvdims() == reg_layout.ndims())
+                << "Incompatible view/layout.";
         int max_step = 16; // Handle 16 elements at most in one step.
-        auto base_tile = reg_layout_.split_into_max_tile(
+        auto base_tile = reg_layout.split_into_max_tile(
                 max_step, /*is_dense_tile=*/true);
-        reg_layout_.for_each_tile(
+        stmt_t stmt;
+        reg_layout.for_each_tile(
                 base_tile, [&](const std::vector<dim_t> &start) {
                     tensor_t tile(base_tile.dims(), start);
-                    int off = reg_layout_(start) * reg_layout_.type().size();
-                    auto mask = create_mask(tile);
-                    auto store = store_t::make(reg_buf_, off,
+                    int off = reg_layout(start) * reg_layout.type().size();
+                    auto mask = create_mask(reg_layout, tile);
+                    auto store = store_t::make(reg_buf, off,
                             shuffle_t::make_broadcast(0.0f, tile.elems()),
                             store_t::default_stride, -mask);
-                    stmt_ = stmt_.append(store);
+                    stmt = stmt.append(store);
                 });
+        return stmt;
     }
 
+private:
     void fill_mask_impl(mask_tensor_t &mask_tensor, int idx,
             std::vector<dim_t> &args, const view_t &view,
             const layout_t &layout) const {
         if (idx == layout.ndims()) {
             expr_t mask = bool_imm_t::make(true);
             for (int i = 0; i < layout.ndims(); i++) {
-                if (!post_op_ctx_.is_lhs_dim_zero_padded(i)) continue;
-                mask &= (view.vstart(i) + args[i] < post_op_ctx_.lhs_dim(i));
+                if (!full_mem_view_.is_masked_vdim(i)) continue;
+                mask &= (view.vstart(i) + args[i] < full_mem_view_.vdims()[i]);
             }
             auto off = layout.offset(args, /*ignore_offset=*/true);
             mask_tensor.set_mask(off, mask);
@@ -3925,332 +3940,559 @@ private:
         }
     }
 
-    const constraint_set_t &cset_;
-    const post_op_context_t &post_op_ctx_;
+    const constraint_set_t *cset_;
 
+    view_t full_mem_view_;
     view_t mem_view_;
-    layout_t reg_layout_;
-    expr_t reg_buf_;
 
     stmt_t stmt_;
 };
 
-// Generates loads to the post-op buffer and applies a single post-op.
-// There are two types of post-ops:
-// - Eltwise: lhs = F(lhs)
-// - Binary:  lhs = F(lhs, rhs)
-// Binary requires rhs load which may be either:
-// - Pre-loaded and used for all updates (preferred approach)
-// - Loaded for every tile
-// Right-hand side tensor supports implicit broadcasting: value is broadcasted
-// across a size one dimension.
-class post_op_builder_t {
+// Represents the state of a post-op tensor.
+//
+// There are three kinds of tensors:
+// - C tensor converted to f32
+//   - Never loaded or stored to global memory
+// - Input tensor
+//   - No store, only load
+// - Output tensor
+//   - No load, only store
+//
+// Post-op tensors that are both input/output are not expected/supported as
+// they doesn't occur in convolution. Post-op tensors with global reduction
+// (like lhs += rhs) are treated as output-only and handled via atomic stores.
+//
+// A post-op tensor optionally requires:
+// - Conversion to f32 (post-ops are done in f32)
+// - Reduction
+//   - For output tensors with broadcast dimensions
+// - Masking during post-ops
+//   - When a post-op is not zero preserving
+class post_op_tensor_t {
 public:
-    post_op_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const post_op_t &post_op,
-            int &available_pre_load_size)
-        : hw_(hw), ir_ctx_(ir_ctx), cset_(cset), post_op_(post_op) {
-        if (!post_op_.needs_load()) return;
-
-        // Estimate buffer size required to load full rhs, do not do pre-load
-        // if it requires too much GRF memory.
-        int estimated_rhs_bytes = 0;
-
-        estimated_rhs_bytes
-                += int(post_op.rhs_view().create_dense_vlayout().size());
-
-        if (needs_rhs_convert()) {
-            estimated_rhs_bytes += int(post_op.rhs_view()
-                                               .create_dense_vlayout()
-                                               .retype(type_t::f32())
-                                               .size());
-        }
-
-        if (estimated_rhs_bytes <= available_pre_load_size) {
-            available_pre_load_size -= estimated_rhs_bytes;
-            do_preload_ = true;
+    post_op_tensor_t(ngen::HW hw, ir_context_t &ir_ctx,
+            const constraint_set_t &cset, const post_op_tensor_info_t &info)
+        : hw_(hw), ir_ctx_(&ir_ctx), cset_(&cset), info_(info) {
+        if (!mem_buf().is_empty()) {
+            auto &type = mem_buf().type();
+            if (!type.is_ptr()) {
+                ir_assert(type.is_f32()) << "Expected f32: " << mem_buf();
+                reg_buf_ = mem_buf();
+                reg_layout_ = layout_t(
+                        type, 0, std::vector<dim_t>(mem_view().nvdims(), 1));
+            }
         }
     }
 
-    // Pre-loads rhs data for the whole update.
-    stmt_t build_pre_load() {
-        if (!do_preload_) return stmt_t();
+    const view_t &mem_view() const { return info_.view(); }
 
-        auto rhs_load_reg_buf = make_tmp_rhs_buffer();
-        read_builder_t read(hw_, ir_ctx_, cset_, post_op_.rhs_view(),
-                post_op_.rhs_buf(), rhs_load_reg_buf, /*is_slm=*/false);
-        pre_load_rhs_reg_buf_ = rhs_load_reg_buf;
-        pre_load_rhs_reg_layout_ = read.reg_layout();
-        if (!needs_rhs_convert()) rhs_reg_buf_ = rhs_load_reg_buf;
-        update_rhs_buf_size(rhs_load_reg_buf, read.reg_buf_size());
+    const expr_t &mem_buf() const { return info_.buf(); }
+
+    // Bitmask with broadcast information for the tensor:
+    // - (mask() & (1 << idx)) == 0 -> idx is a brodcast dimension (equal to 1)
+    // - (mask() & (1 << idx)) != 0 -> idx dimension matches the C dimension
+    uint32_t mask() const { return info_.mask(); }
+
+    // Placeholder variable to represent the tensor in post-op expressions.
+    const expr_t &op_var() const { return info_.op_var(); }
+
+    const layout_t &reg_layout() const { return reg_layout_; }
+
+    const expr_t &reg_buf() const { return reg_buf_; }
+
+    post_op_tensor_t create_sub_tensor(const tensor_t &_tile) const {
+        auto ret = *this;
+        auto tile = apply_mask(_tile);
+        ret.info_ = ret.info_.create_sub_tensor(tile);
+        if (!reg_layout_.is_empty()) {
+            if (needs_reduction()) {
+                tensor_t reduce_tile(_tile.dims(), tile.start());
+                ret.reg_layout_ = ret.reg_layout_.map(reduce_tile);
+            } else {
+                ret.reg_layout_ = ret.reg_layout_.map(tile);
+            }
+        }
+        ret.allocs_.clear();
+        return ret;
+    }
+
+    bool needs_load() const {
+        if (!info_.is_input()) return false;
+        if (!mem_buf().type().is_ptr()) return false;
+        return true;
+    }
+
+    bool needs_store() const { return info_.is_output(); }
+
+    bool needs_masked_update() const { return info_.needs_masked_update(); }
+
+    bool needs_f32_convert() const { return !mem_view().type().is_f32(); }
+
+    bool needs_reduction() const {
+        if (!info_.is_output()) return false;
+
+        for (int i = 0; i < mem_view().nvdims(); i++) {
+            if ((mask() & (1 << i)) == 0) {
+                if (reg_layout_.dims()[i] != 1) return true;
+            }
+        }
+        return false;
+    }
+
+    bool is_broadcast_dim(int dim_idx) const {
+        ir_assert(dim_idx >= 0 && dim_idx < mem_view().nvdims());
+        return (mask() & (1 << dim_idx)) == 0;
+    }
+
+    int estimate_grf_consumption() const {
+        int elems = int(mem_view().create_dense_vlayout().elems());
+
+        int ret = 0;
+        ret += elems * mem_view().type().size();
+        if (needs_f32_convert()) ret += elems * type_t::f32().size();
+        return ret;
+    }
+
+    void set_reg_layout(const layout_t &layout) { reg_layout_ = layout; }
+
+    void set_reg_buf(const expr_t &buf) { reg_buf_ = buf; }
+
+    void set_preload(bool value = true) { do_preload_ = value; }
+
+    bool do_preload() const { return do_preload_; }
+
+    tensor_t apply_mask(const tensor_t &tile) const {
+        ir_assert(mem_view().nvdims() == tile.ndims());
+
+        auto start = tile.start();
+        auto dims = tile.dims();
+
+        for (int i = 0; i < tile.ndims(); i++) {
+            if (mem_view().vdims()[i] != 1) continue;
+            start[i] = expr_t(0);
+            dims[i] = 1;
+        }
+        return tensor_t(dims, start);
+    }
+
+    void init_output_buffer(const tensor_t &tile) {
+        ir_assert(needs_store());
+
+        ir_assert(reg_layout_.is_empty());
+        ir_assert(reg_buf_.is_empty());
+
+        reg_buf_ = make_tmp_reg_buffer();
+
+        reg_layout_ = mem_view().create_dense_vlayout();
+        reg_layout_ = reg_layout_.retype(type_t::f32());
+
+        // If this is output and there are masked dimensions then this buffer
+        // is computed via reduction. Extend layout to cover full masked_tile
+        // and apply the final reduction after all tiles.
+        auto masked_tile = apply_mask(tile);
+        for (int i = 0; i < masked_tile.ndims(); i++) {
+            if (masked_tile(i) >= tile(i)) continue;
+            ir_assert(masked_tile(i) == 1) << "Unexpected output tensor shape.";
+            reg_layout_ = reg_layout_.add_outer_block(i, tile(i));
+        }
+        register_buffer(reg_buf_, reg_layout_.size());
+    }
+
+    stmt_t build_load_stmt() {
+        ir_assert(needs_load());
+        ir_assert(reg_buf_.is_empty());
+
+        reg_buf_ = make_tmp_reg_buffer();
+        read_builder_t read(hw_, *ir_ctx_, *cset_, mem_view(), mem_buf(),
+                reg_buf_, /*is_slm=*/false);
+        reg_layout_ = read.reg_layout();
+        register_buffer(reg_buf_, read.reg_buf_size());
         return read.stmt();
     }
 
-    // Converts the pre-loaded rhs data to f32.
-    stmt_t build_pre_convert() {
-        if (!do_preload_ || !needs_rhs_convert()) return stmt_t();
+    stmt_t build_convert_stmt() {
+        if (!needs_load() || !needs_f32_convert()) return stmt_t();
 
-        auto rhs_f32_reg_buf = make_tmp_rhs_buffer();
-        auto f32_layout
-                = pre_load_rhs_reg_layout_.make_dense().retype(type_t::f32());
-        update_rhs_buf_size(rhs_f32_reg_buf, int(f32_layout.size()));
+        auto f32_buf = make_tmp_reg_buffer();
+        auto f32_layout = reg_layout_.retype(type_t::f32()).make_dense();
+
+        register_buffer(f32_buf, f32_layout.size());
 
         // Reorder to f32.
-        auto ret = create_reorder_stmt(pre_load_rhs_reg_layout_, f32_layout,
-                pre_load_rhs_reg_buf_, rhs_f32_reg_buf);
+        auto ret = create_reorder_stmt(
+                reg_layout_, f32_layout, reg_buf_, f32_buf);
 
-        // Now rhs is converted to f32.
-        pre_load_rhs_reg_layout_ = f32_layout;
-        rhs_reg_buf_ = rhs_f32_reg_buf;
+        // Assign new f32 layout and buffer.
+        reg_layout_ = f32_layout;
+        reg_buf_ = f32_buf;
 
         return ret;
     }
 
-    // Loads rhs data for one tile.
-    stmt_t build_tile_load(const tensor_t &tile) {
-        if (!post_op_.needs_load()) return stmt_t();
+    stmt_t build_zero_out_stmt() const {
+        ir_assert(needs_store());
+        return create_zero_out_stmt(hw_, reg_buf_, reg_layout_.size());
+    }
+
+    stmt_t build_reduce_stmt() {
+        ir_assert(needs_store());
 
         stmt_t stmt;
-        auto rhs_tile = post_op_.apply_mask(tile);
-        if (post_op_.needs_load() && !do_preload_) {
-            // Load and convert now.
-            auto po = post_op_.create_sub_post_op(rhs_tile);
-            auto rhs_load_reg_buf = make_tmp_rhs_buffer();
-            read_builder_t read(hw_, ir_ctx_, cset_, po.rhs_view(),
-                    po.rhs_buf(), rhs_load_reg_buf,
-                    /*is_slm=*/false);
-            stmt = stmt.append(read.stmt());
 
-            update_rhs_buf_size(rhs_load_reg_buf, read.reg_buf_size());
+        if (needs_reduction()) {
+            auto reduced_layout = mem_view().create_dense_vlayout();
+            ir_assert(reduced_layout.size() <= reg_layout_.size());
 
-            if (needs_rhs_convert()) {
-                auto rhs_f32_reg_buf = make_tmp_rhs_buffer();
-                auto f32_layout
-                        = read.reg_layout().make_dense().retype(type_t::f32());
-                update_rhs_buf_size(rhs_f32_reg_buf, int(f32_layout.size()));
-                // Reorder to f32.
-                stmt = stmt.append(create_reorder_stmt(read.reg_layout(),
-                        f32_layout, rhs_load_reg_buf, rhs_f32_reg_buf));
-
-                // Now rhs is converted to f32.
-                rhs_reg_layout_ = f32_layout;
-                rhs_reg_buf_ = rhs_f32_reg_buf;
-            } else {
-                rhs_reg_layout_ = read.reg_layout();
-                rhs_reg_buf_ = rhs_load_reg_buf;
-            }
-        } else {
-            // Already pre-loaded and pre-converted.
-            rhs_reg_layout_ = pre_load_rhs_reg_layout_.map(rhs_tile);
+            stmt = stmt.append(
+                    create_reduce_stmt(reg_layout_, reduced_layout, reg_buf_,
+                            reg_buf_, tensor_t(), mask(), /*drop_dims=*/false));
+            reg_layout_ = reduced_layout;
         }
+
+        // Apply optional scaling.
+        stmt = stmt.append(create_mul_add_stmt(hw_, reg_buf_,
+                reg_layout_.size(), reg_layout_.type(), info_.scale(), 0));
+
         return stmt;
     }
 
-    // Applies post-op for a single tile.
-    stmt_t build_tile_stmt(const tensor_t &tile, const layout_t &lhs_reg_layout,
-            const expr_t &lhs_buf) {
-        auto po = post_op_.create_sub_post_op(tile);
-        if (!po.has_rhs()) {
-            // Apply eltwise post-op.
-            int lhs_size = lhs_reg_layout.size();
-            int lhs_elems = lhs_size / int(sizeof(float));
-            return po.eltwise().call({expr_t(lhs_elems), lhs_buf});
-        }
-
-        auto lhs_layout = lhs_reg_layout;
-        auto rhs_layout = (po.needs_load()
-                        ? rhs_reg_layout_
-                        : lhs_layout.map(
-                                tensor_t(std::vector<dim_t>(tile.ndims(), 1))));
-
-        int inner_dim_idx = lhs_layout.blocks().front().dim_idx;
-        bool do_broadcast = po.is_broadcast_dim(inner_dim_idx);
-        if (!do_broadcast) layout_t::align_layouts(lhs_layout, rhs_layout);
-
-        auto lhs_blocks = lhs_layout.blocks();
-        auto rhs_blocks = rhs_layout.blocks();
-
-        auto &lhs0 = lhs_blocks[0];
-
-        ir_assert(lhs0.dim_idx == inner_dim_idx);
-        ir_assert(dim_t(lhs0.stride) == 1);
-
-        if (!do_broadcast) {
-            auto &rhs0 = rhs_blocks[0];
-            ir_assert(lhs0.dim_idx == rhs0.dim_idx);
-            ir_assert(lhs0.block == rhs0.block);
-            MAYBE_UNUSED(rhs0);
-        }
-
-        std::vector<dim_t> inner_tile_dims(tile.ndims(), 1);
-        inner_tile_dims[inner_dim_idx] = lhs0.block;
-
-        auto &lhs_type = lhs_layout.type();
-        auto &rhs_type = rhs_layout.type();
-        ir_assert(lhs_type == type_t::f32());
-        ir_assert(rhs_type == type_t::f32());
-
-        // Handle one inner tile at a time. Inner tile covers a single block
-        // with a single dimension.
-        stmt_t stmt;
-        lhs_layout.for_each_tile(tensor_t(inner_tile_dims),
-                [&](const std::vector<dim_t> &lhs_start) {
-                    auto rhs_start = po.apply_mask(lhs_start, 0);
-                    int lhs_off0 = lhs_layout(lhs_start) * lhs_type.size();
-                    int rhs_off0 = rhs_layout(rhs_start) * rhs_type.size();
-
-                    int elems = lhs0.block;
-                    int step = (elems < 16 ? 8 : 16);
-                    for (int i = 0; i < elems; i += step) {
-                        int cur_elems = std::min(step, elems - i);
-                        ir_assert(math::is_pow2(cur_elems));
-                        auto lhs_vec_type = lhs_type.with_elems(cur_elems);
-                        auto rhs_vec_type = rhs_type.with_elems(
-                                do_broadcast ? 1 : cur_elems);
-
-                        int lhs_off = lhs_off0 + i * lhs_type.size();
-                        int rhs_off = rhs_off0;
-                        if (!do_broadcast) rhs_off += i * rhs_type.size();
-
-                        auto lhs = load_t::make(lhs_vec_type, lhs_buf, lhs_off);
-                        expr_t rhs;
-                        if (po.needs_load()) {
-                            int stride
-                                    = (do_broadcast ? load_t::default_stride
-                                                    : int(rhs_blocks[0].stride)
-                                                            * rhs_type.size());
-                            rhs = load_t::make(rhs_vec_type, rhs_reg_buf_,
-                                    rhs_off, stride);
-                        } else {
-                            // rhs is scalar and passed in the kernel arguments.
-                            rhs = po.rhs_buf();
-                            ir_assert(rhs.type().is_scalar());
-                        }
-
-                        if (rhs.type().elems() != cur_elems) {
-                            rhs = shuffle_t::make_broadcast(rhs, cur_elems);
-                        }
-
-                        if (po.rhs_scale() != 1) {
-                            // Scale rhs first.
-                            rhs = binary_op_t::make(op_kind_t::_mul, rhs,
-                                    shuffle_t::make_broadcast(
-                                            po.rhs_scale(), cur_elems));
-                        }
-
-                        auto new_lhs
-                                = binary_op_t::make(po.op_kind(), lhs, rhs);
-                        if (new_lhs.type().is_bool()) {
-                            // Apply bool -> f32 cast when binary is a comparison op.
-                            new_lhs = cast(new_lhs, type_t::f32(cur_elems));
-                        }
-                        auto store = store_t::make(lhs_buf, lhs_off, new_lhs);
-                        stmt = stmt.append(store);
-                    }
-                });
-
-        // Reset rhs layout.
-        rhs_reg_layout_ = layout_t();
-        return stmt;
+    stmt_t build_slm_store_stmt(const grid_info_t &tg_grid) {
+        ir_assert(needs_store());
+        tensor_t tile(mem_view().vdims());
+        slm_reduce_builder_ = slm_reduce_builder_t(
+                hw_, *ir_ctx_, *cset_, tg_grid, reg_buf_, reg_layout_, tile, 1);
+        return slm_reduce_builder_.store_stmt();
     }
 
-    std::vector<stmt_t> allocs() const {
-        std::vector<stmt_t> allocs;
-        for (auto &kv : rhs_bufs_)
-            allocs.push_back(
-                    alloc_t::make(kv.first, kv.second, alloc_kind_t::grf));
-        return allocs;
+    stmt_t build_slm_load_stmt() {
+        ir_assert(needs_store());
+        ir_assert(!slm_reduce_builder_.is_empty());
+
+        reg_layout_ = slm_reduce_builder_.reg_layout();
+
+        auto new_tile = slm_reduce_builder_.thr_tile();
+        info_ = info_.create_sub_tensor(new_tile);
+
+        auto &slm_allocs = slm_reduce_builder_.allocs();
+        allocs_.insert(allocs_.end(), slm_allocs.begin(), slm_allocs.end());
+
+        return slm_reduce_builder_.load_stmt();
     }
+
+    stmt_t build_store_stmt() const {
+        ir_assert(needs_store());
+
+        write_builder_t write(hw_, *ir_ctx_, *cset_, mem_view(), mem_buf(),
+                reg_buf(), /*is_slm=*/false, ngen_proxy::AtomicOp::fadd);
+        ir_assert(write.reg_layout() == reg_layout());
+
+        return write.stmt();
+    }
+
+    expr_t load_expr(const tensor_t &tile, int dim_idx) const {
+        auto &type = reg_layout_.type();
+        int elems = is_broadcast_dim(dim_idx) ? 1 : tile.elems();
+        int off = reg_layout_.offset_in_bytes(expr_cast<dim_t>(tile.start()));
+        auto ret = (reg_buf_.type().is_ptr()
+                        ? load_t::make(type.with_elems(elems), reg_buf_, off)
+                        : reg_buf_);
+        if (elems != tile.elems())
+            ret = shuffle_t::make_broadcast(ret, tile.elems());
+        return ret;
+    }
+
+    stmt_t store_stmt(const tensor_t &tile, int dim_idx, const expr_t &_value,
+            const expr_t &mask = expr_t()) const {
+        auto value = _value;
+        ir_assert(!is_broadcast_dim(dim_idx));
+        ir_assert(value.type().elems() == tile.elems());
+        // Add cast for booleans for comparison ops.
+        if (value.type().is_bool()) {
+            value = cast(value, reg_layout_.type().with_elems(tile.elems()));
+        }
+        int off = reg_layout_.offset_in_bytes(expr_cast<dim_t>(tile.start()));
+        auto ret = store_t::make(
+                reg_buf_, off, value, store_t::default_stride, mask);
+        return ret;
+    }
+
+    const std::vector<stmt_t> &allocs() const { return allocs_; }
 
 private:
-    expr_t make_tmp_rhs_buffer() const {
-        auto &rhs_name = post_op_.rhs_buf().as<var_t>().name;
-        return ir_ctx_.create_tmp_var(type_t::byte_ptr(), "tmp_" + rhs_name);
+    expr_t make_tmp_reg_buffer() {
+        auto *var = mem_buf().as_ptr<var_t>();
+        if (!var) {
+            auto *ptr = mem_buf().as_ptr<ptr_t>();
+            if (ptr) var = ptr->base.as_ptr<var_t>();
+        }
+        ir_assert(var) << "Can't extract variable from buffer: " << mem_buf();
+        auto &name = var->name;
+        return ir_ctx_->create_tmp_var(type_t::byte_ptr(), "tmp_" + name);
     }
 
-    void update_rhs_buf_size(const expr_t &buf, int size) {
-        rhs_bufs_[buf] = std::max(rhs_bufs_[buf], size);
-    }
-
-    bool needs_rhs_convert() const {
-        if (!post_op_.has_rhs()) return false;
-        return post_op_.rhs_view().type() != type_t::f32();
+    void register_buffer(const expr_t &buf, int size) {
+        for (auto &_a : allocs_) {
+            auto &a = _a.as<alloc_t>();
+            if (a.buf.is_same(buf)) {
+                if (size > a.size) {
+                    _a = alloc_t::make(a.buf, a.size, a.kind, a.attr);
+                }
+                return;
+            }
+        }
+        allocs_.push_back(alloc_t::make(buf, size, alloc_kind_t::grf));
     }
 
     ngen::HW hw_;
-    ir_context_t &ir_ctx_;
-    const constraint_set_t &cset_;
-    post_op_t post_op_;
+    ir_context_t *ir_ctx_;
+    const constraint_set_t *cset_;
+
+    post_op_tensor_info_t info_;
+
+    layout_t reg_layout_;
+    expr_t reg_buf_;
 
     bool do_preload_ = false;
 
-    expr_t pre_load_rhs_reg_buf_;
-    layout_t pre_load_rhs_reg_layout_;
+    std::vector<stmt_t> allocs_;
 
-    expr_t rhs_reg_buf_;
-    layout_t rhs_reg_layout_;
-
-    object_map_t<expr_t, int> rhs_bufs_;
+    slm_reduce_builder_t slm_reduce_builder_;
 };
 
-// Performs the following steps after the computation:
-// - Conversion
-// - Applying post-ops
-// - GRF reorder to match the memory layout
-// - Store to the destination
+// Applies substitutions and broadcasts to generate the final post-op
+// expression.
+class post_op_bcast_mutator_t : public ir_mutator_t {
+public:
+    post_op_bcast_mutator_t(
+            int elems, const object_map_t<object_t, object_t> &from2to)
+        : elems_(elems), from2to_(from2to) {}
+
+    object_t _mutate(const float_imm_t &obj) override {
+        return make_bcast(obj);
+    }
+
+    object_t _mutate(const int_imm_t &obj) override {
+        return make_bcast(float_imm_t::make(obj.value));
+    }
+
+    object_t _mutate(const var_t &obj) override {
+        auto it = from2to_.find(obj);
+        if (it != from2to_.end()) return make_bcast(it->second);
+
+        ir_error_not_expected() << "Unknown variable.";
+        return obj;
+    }
+
+private:
+    object_t make_bcast(const expr_t &e) const {
+        if (e.type().elems() == elems_) return e;
+        ir_assert(e.type().elems() == 1);
+        return shuffle_t::make_broadcast(e, elems_);
+    }
+
+    int elems_;
+    object_map_t<object_t, object_t> from2to_;
+};
+
+// Builds statements to apply a post-op for a given tile.
+class post_op_builder_t {
+public:
+    post_op_builder_t(ngen::HW hw, const post_op_t &post_op)
+        : hw_(hw), post_op_(post_op) {}
+
+    const post_op_t &post_op() const { return post_op_; }
+
+    // Applies post-op for a single tile.
+    stmt_t build_tile_stmt(const tensor_t &tile,
+            const object_map_t<expr_t, post_op_tensor_t *> &args,
+            const zero_pad_builder_t &zero_pad_builder) const {
+        auto &lhs_tensor = *args.at(post_op_.lhs());
+        if (!post_op_.eltwise().is_empty()) {
+            // Apply eltwise post-op.
+            ir_assert(post_op_.lhs().is_equal(post_op_.rhs()))
+                    << "Only supported form is lhs = eltwise(lhs).";
+            int lhs_size = lhs_tensor.reg_layout().size();
+            int lhs_elems = lhs_size / int(sizeof(float));
+            return post_op_.eltwise().call(
+                    {expr_t(lhs_elems), lhs_tensor.reg_buf()});
+        }
+
+        int inner_dim_idx = -1;
+        auto base_inner_tile = find_1d_tile(args, inner_dim_idx);
+        auto inner_layout = lhs_tensor.reg_layout().map(base_inner_tile);
+        ir_assert(inner_dim_idx != -1);
+
+        // All post-ops are performed in f32.
+        for (auto &kv : args) {
+            ir_assert(kv.second->reg_layout().type().is_f32());
+        }
+
+        // Handle one inner tile at a time. Inner tile covers a single block
+        // within a single dimension.
+        stmt_t stmt;
+        lhs_tensor.reg_layout().for_each_tile(
+                base_inner_tile, [&](const std::vector<dim_t> &lhs_start) {
+                    tensor_t inner_tile(base_inner_tile.dims(), lhs_start);
+                    auto rhs_value = compute_post_op_expr(
+                            post_op_.rhs(), inner_tile, inner_dim_idx, args);
+                    auto &t = *args.at(post_op_.lhs());
+                    expr_t store_mask;
+                    if (lhs_tensor.needs_masked_update()) {
+                        store_mask = zero_pad_builder.create_mask(
+                                inner_layout, inner_tile);
+                    }
+                    auto inner_stmt = t.store_stmt(
+                            inner_tile, inner_dim_idx, rhs_value, store_mask);
+                    stmt = stmt.append(inner_stmt);
+                });
+
+        return stmt;
+    }
+
+private:
+    // Returns a 1D tile corresponding to an instruction to partially apply the
+    // post-op.
+    tensor_t find_1d_tile(const object_map_t<expr_t, post_op_tensor_t *> &args,
+            int &inner_dim_idx) const {
+        auto &lhs_tensor = *args.at(post_op_.lhs());
+
+        int ndims = lhs_tensor.mem_view().nvdims();
+
+        ir_assert(!lhs_tensor.reg_layout().is_empty());
+        ir_assert(!lhs_tensor.reg_layout().blocks().empty());
+        auto &b0 = lhs_tensor.reg_layout().blocks()[0];
+        ir_assert(dim_t(b0.stride) == 1);
+        inner_dim_idx = b0.dim_idx;
+
+        int inner_block = b0.block;
+        int max_step = (hw_ >= ngen::HW::XeHPC ? 32 : 16);
+        inner_block = math::gcd(inner_block, max_step);
+        ir_assert(inner_block >= 8) << "At least SIMD8 is expected.";
+
+        for (auto &kv : args) {
+            auto &t = *kv.second;
+            if (t.is_broadcast_dim(b0.dim_idx)) continue;
+
+            auto &l = t.reg_layout();
+            ir_assert(!l.is_empty());
+            ir_assert(!l.blocks().empty());
+            auto &lb0 = l.blocks()[0];
+            ir_assert(lb0.dim_idx == b0.dim_idx);
+            ir_assert(dim_t(lb0.stride) == 1);
+            inner_block = math::gcd(int(lb0.block), inner_block);
+        }
+
+        std::vector<dim_t> dims(ndims, 1);
+        dims[b0.dim_idx] = inner_block;
+
+        return tensor_t(dims);
+    }
+
+    expr_t compute_post_op_expr(const expr_t &expr, const tensor_t &tile,
+            int dim_idx,
+            const object_map_t<expr_t, post_op_tensor_t *> &args) const {
+        object_map_t<object_t, object_t> sub_map;
+        for (auto &kv : args) {
+            auto &t = *kv.second;
+            auto te = t.load_expr(tile, dim_idx);
+            sub_map.insert({t.op_var(), te});
+        }
+        post_op_bcast_mutator_t bcast_mutator(tile.elems(), sub_map);
+        return bcast_mutator.mutate(expr);
+    }
+
+    ngen::HW hw_;
+    post_op_t post_op_;
+};
+
+// Epilogue consists of the following steps after the main computation (C += A * B):
+// - C GRF reorder to match the memory layout for global memory store
+// - C conversion to f32 (if there are post-ops)
+// - Applying post-ops (if there are any)
+// - C conversion to the memory layout data type
+// - C store to global memory
+// - Reduction and storing output post-op tensors
+//
+// In general C tensor is updated/transformed following the C stages described
+// blow. Each C stage is associated with GRF buffer and its layout.
+//   Multiplication ->
+//     M_x -> [R_f32] -> [P0_f32] -> ... -> [Pn_f32] -> [Z_f32] -> S_y ->
+//   GMEM
+//
+// Where:
+// - x      is data type after multiplication
+// - y      is destination data type
+// - M_x    is the stage after multiplication
+// - R_f32  is the stage after reordering from M_x to f32 (optional)
+// - Pi_f32 is tha stage after applying Pi post-op (optional)
+// - Z_f32  is tha stage after restoring zero padding (optional)
+// - S_y    is tha stage before storing C to global memory
 class epilogue_builder_t {
 public:
     epilogue_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const post_op_context_t &post_op_ctx,
-            const tensor_t &tile, const view_t &mem_view,
-            const layout_t &reg_layout, const expr_t &mem_buf,
-            const expr_t &reg_buf)
+            const constraint_set_t &cset, const gemm_schedule_t &gemm_schedule,
+            const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
+            const view_t &c_mem_view, const layout_t &c_reg_layout,
+            const expr_t &c_mem_buf, const expr_t &c_reg_buf)
         : cfg_(cfg)
         , ir_ctx_(ir_ctx)
         , cset_(cset)
         , post_op_ctx_(post_op_ctx)
-        , mem_view_(mem_view)
-        , reg_layout_(reg_layout)
-        , mem_buf_(mem_buf)
-        , reg_buf_(reg_buf) {
+        , c_mem_view_(c_mem_view)
+        , c_mem_buf_(c_mem_buf)
+        , tg_grid_(gemm_schedule.tg_grid()) {
 
-        int pre_load_size = pre_load_max_size_;
-        for (auto &po : post_op_ctx_.post_ops()) {
-            auto sub_po = po.create_sub_post_op(tile);
-            post_op_builders_.emplace_back(
-                    cfg.hw, ir_ctx, cset_, sub_po, pre_load_size);
+        int tensor_idx = 0;
+        for (auto &po_tensor_info : post_op_ctx_.post_op_tensor_infos()) {
+            post_op_tensor_t po_tensor(cfg_.hw, ir_ctx_, cset_, po_tensor_info);
+            po_tensor = po_tensor.create_sub_tensor(thr_tile);
+            if (po_tensor_info.buf().is_empty()) {
+                // C tensor.
+                ir_assert(c_po_idx_ == -1);
+                c_po_idx_ = tensor_idx;
+            }
+            post_op_tensors_.push_back(po_tensor);
+            tensor_idx++;
         }
-        build();
+
+        restore_zero_padding_ = post_op_ctx_.need_to_restore_zero_padding();
+
+        for (auto &po : post_op_ctx_.post_ops()) {
+            post_op_builders_.emplace_back(cfg.hw, po);
+        }
+
+        // Estimate buffer sizes required to load the full tensor, do not do
+        // preload if it requires too much GRF memory.
+        int available_size = pre_load_max_size_;
+        for (auto &t : post_op_tensors_) {
+            if (!t.needs_load()) continue;
+            int required_size = t.estimate_grf_consumption();
+            if (required_size > available_size) continue;
+            available_size -= required_size;
+            t.set_preload();
+        }
+
+        build(c_reg_layout, c_reg_buf);
     }
 
     const stmt_t &stmt() const { return stmt_; }
 
 private:
-    // Represents one stage in the flow between multiplication and storing the
-    // updated result to memory.
-    //
-    // Flow with post-ops:
-    //   Multiplication ->
-    //     M_x -> [R_f32] -> P0_f32 -> ... -> Pn_f32 -> [Z_f32] -> S_y ->
-    //   GMEM
-    // Flow without post-ops:
-    //   Multiplication ->
-    //     M_x -> S_y ->
-    //   GMEM
-    // Where:
-    // - x      is data type after multiplication
-    // - y      is destination data type
-    // - M_x    is a stage after multiplication
-    // - R_f32  is a stage after reordering from M_x to f32 (optional)
-    // - Pi_f32 is a stage after applying Pi post-op
-    // - Z_f32  is a stage after restoring zero padding (optional)
-    // - S_y    is a stage before storing data to destination
-    struct stage_t {
-        stage_t(const layout_t &layout, const expr_t &buf,
+    void register_buffer(const expr_t &buf, int size) {
+        buf_sizes_[buf] = std::max(buf_sizes_[buf], size);
+    }
+
+    expr_t make_c_tmp_buffer() const {
+        return ir_ctx_.create_tmp_var(type_t::byte_ptr(), "c_tmp");
+    }
+
+    // Represents a GRF buffer and layout to store C tensor.
+    struct c_stage_t {
+        c_stage_t(const layout_t &layout, const expr_t &buf,
                 const stmt_t &stmt = stmt_t())
             : layout(layout), buf(buf), stmt(stmt) {}
 
-        void set_next(ngen::HW hw, ir_context_t &ir_ctx, stage_t *next,
+        void set_next(ngen::HW hw, ir_context_t &ir_ctx, c_stage_t *next,
                 bool force_reorder) {
             if (!next) return;
             bool do_reorder
@@ -4294,128 +4536,189 @@ private:
 
         layout_t layout;
         expr_t buf;
-        stmt_t stmt;
+        stmt_t stmt; // Statement to emit after the stage.
     };
 
-    void build() {
-        for (auto &po_builder : post_op_builders_) {
-            stmt_ = stmt_.append(po_builder.build_pre_load());
-        }
-
-        for (auto &po_builder : post_op_builders_) {
-            stmt_ = stmt_.append(po_builder.build_pre_convert());
-        }
-
-        auto tmp_type = (post_op_builders_.empty() ? mem_view_.type()
+    void build(const layout_t &c_reg_layout, const expr_t &c_reg_buf) {
+        auto tmp_type = (post_op_builders_.empty() ? c_mem_view_.type()
                                                    : type_t::f32());
         int tmp_buf_elems = tmp_buf_size_ / tmp_type.size();
-        auto base_tile = mem_view_.split_into_max_tile(
+        auto base_tile = c_mem_view_.split_into_max_tile(
                 tmp_buf_elems, /*is_dense=*/false);
-        mem_view_.for_each_tile(
+
+        // Generate preload statements.
+        for (auto &t : post_op_tensors_) {
+            if (!t.do_preload()) continue;
+            stmt_ = stmt_.append(t.build_load_stmt());
+        }
+
+        // Generate f32 convert statements.
+        for (auto &t : post_op_tensors_) {
+            if (!t.do_preload()) continue;
+            if (!t.needs_f32_convert()) continue;
+            stmt_ = stmt_.append(t.build_convert_stmt());
+        }
+
+        // Initialize buffers for output post-op tensors.
+        for (auto &t : post_op_tensors_) {
+            if (!t.needs_store()) continue;
+            t.init_output_buffer(base_tile);
+        }
+
+        // Generate zero-out statements for output post-op tensors.
+        for (auto &t : post_op_tensors_) {
+            if (!t.needs_store()) continue;
+            stmt_ = stmt_.append(t.build_zero_out_stmt());
+        }
+
+        // Iterate by tiles and apply post-ops.
+        c_mem_view_.for_each_tile(
                 base_tile, [&](const std::vector<dim_t> &start) {
-                    build_tile(tensor_t(base_tile.dims(), start));
+                    tensor_t tile(base_tile.dims(), start);
+                    auto c_tile_layout = c_reg_layout.map(tile);
+                    build_tile(tile, c_tile_layout, c_reg_buf);
                 });
 
-        // Generate alloc statements for rhs post-op buffers.
+        // TODO: Generalize the condition. Iterate through output tensor masks
+        // and ensure C is distributed accordingly in thread group.
+        bool use_slm_reduction = (tg_grid_.dim(1) > 1);
+
+        // Generate reduce and store statements for output post-op tensors.
+        stmt_t thr_reduce_stmt;
+        stmt_t slm_store_stmt;
+        stmt_t slm_load_stmt;
+        stmt_t mem_store_stmt;
+        for (auto &t : post_op_tensors_) {
+            if (!t.needs_store()) continue;
+
+            thr_reduce_stmt = thr_reduce_stmt.append(t.build_reduce_stmt());
+            if (use_slm_reduction) {
+                auto store_stmt = t.build_slm_store_stmt(tg_grid_);
+                auto load_stmt = t.build_slm_load_stmt();
+                slm_store_stmt = slm_store_stmt.append(store_stmt);
+                slm_load_stmt = slm_load_stmt.append(load_stmt);
+            }
+            mem_store_stmt = mem_store_stmt.append(t.build_store_stmt());
+        }
+
+        stmt_ = stmt_.append(thr_reduce_stmt);
+        if (!slm_store_stmt.is_empty()) {
+            stmt_ = stmt_.append(funcs::barrier());
+            stmt_ = stmt_.append(slm_store_stmt);
+            stmt_ = stmt_.append(funcs::barrier());
+            stmt_ = stmt_.append(slm_load_stmt);
+        }
+
+        stmt_ = stmt_.append(mem_store_stmt);
+
+        // Generate alloc statements for post-op tensors.
         std::vector<stmt_t> allocs;
-        for (auto &po_builder : post_op_builders_) {
-            auto po_allocs = po_builder.allocs();
-            allocs.insert(allocs.end(), po_allocs.begin(), po_allocs.end());
+        for (auto &t : post_op_tensors_) {
+            auto t_allocs = t.allocs();
+            allocs.insert(allocs.end(), t_allocs.begin(), t_allocs.end());
         }
         stmt_ = jit::inject_alloc_stmts(stmt_, allocs, /*put_innermost=*/true);
     }
 
-    // Builds statements for a tile iterating through all stages (see stage_t
-    // description).
-    void build_tile(const tensor_t &tile) {
-        auto mem_sub_view = mem_view_.create_sub_view(tile);
-        auto reg_sub_layout = reg_layout_.map(tile);
+    // Builds statements for a tile iterating through all post-ops.
+    void build_tile(const tensor_t &tile, const layout_t &c_tile_layout,
+            const expr_t &c_reg_buf) {
+        auto c_mem_tile_view = c_mem_view_.create_sub_view(tile);
+        auto tmp_reg_buf = make_c_tmp_buffer();
 
-        auto tmp_reg_buf = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "c_tmp");
-        bool restore_zero_padding = post_op_ctx_.need_to_restore_zero_padding();
+        bool create_zero_pad_builder = restore_zero_padding_;
+        for (auto &t : post_op_tensors_) {
+            if (t.needs_masked_update()) {
+                create_zero_pad_builder = true;
+                break;
+            }
+        }
+        if (create_zero_pad_builder) {
+            zero_pad_builder_ = zero_pad_builder_t(
+                    cset_, post_op_ctx_.cp_view(), c_mem_tile_view);
+        }
 
         // S_y -> GMEM.
         ngen_proxy::AtomicOp atomic_op
                 = (cfg_.do_atomic_update ? ngen_proxy::AtomicOp::fadd
                                          : ngen_proxy::AtomicOp::undef);
-        write_builder_t r2g(cfg_.hw, ir_ctx_, cset_, mem_sub_view, mem_buf_,
-                tmp_reg_buf,
+        write_builder_t r2g(cfg_.hw, ir_ctx_, cset_, c_mem_tile_view,
+                c_mem_buf_, tmp_reg_buf,
                 /*is_slm=*/false, /*atomic_op=*/atomic_op);
 
-        // Initialize stages.
-        std::vector<stage_t> stages;
-        stages.emplace_back(reg_sub_layout, reg_buf_); // M_x
-        if (!post_op_builders_.empty()) {
-            auto po_layout
-                    = r2g.reg_layout().retype(type_t::f32()).make_dense();
-            for (int i = 0; i < int(post_op_builders_.size()); i++) {
-                auto buf = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "c_tmp");
-                stages.emplace_back(po_layout, buf); // Pi_f32
-            }
-            if (restore_zero_padding) {
-                auto &last = stages.back();
-                stages.emplace_back(last.layout, last.buf); // Z_f32.
-            }
-        }
-        stages.emplace_back(r2g.reg_layout(), tmp_reg_buf, r2g.stmt()); // S_y
+        // Initialize C stages.
+        std::vector<c_stage_t> c_stages;
 
-        int nstages = int(stages.size());
+        auto c_f32_layout = r2g.reg_layout().retype(type_t::f32()).make_dense();
+        bool with_post_ops = !post_op_builders_.empty();
         int npost_ops = int(post_op_builders_.size());
 
+        int c_f32_stage_idx = -1;
+        int c_zero_pad_stage_idx = -1;
+
+        c_stages.emplace_back(c_tile_layout, c_reg_buf); // M_x
+        if (with_post_ops) {
+            c_f32_stage_idx = int(c_stages.size());
+            c_stages.emplace_back(c_f32_layout, make_c_tmp_buffer()); // R_f32
+        }
+        if (restore_zero_padding_) {
+            c_zero_pad_stage_idx = int(c_stages.size());
+            c_stages.emplace_back(c_f32_layout, make_c_tmp_buffer()); // Z_f32
+        }
+        c_stages.emplace_back(r2g.reg_layout(), tmp_reg_buf, r2g.stmt()); // S_y
+
+        int nstages = int(c_stages.size());
         bool is_dpasw = (cfg_.fma_kind == fma_kind_t::dpasw);
 
-        // Generate reorders between stages and create buffers.
+        // Generate reorders between C stages if needed.
         for (int i = 0; i < nstages; i++) {
-            auto *next_stage = (i + 1 < nstages ? &stages[i + 1] : nullptr);
+            auto *next_stage = (i + 1 < nstages ? &c_stages[i + 1] : nullptr);
             // Always perform reorder when dpasw is used. This is to ensure
             // that C is properly restored and permuted after dpasw.
-            stages[i].set_next(cfg_.hw, ir_ctx_, next_stage,
+            c_stages[i].set_next(cfg_.hw, ir_ctx_, next_stage,
                     /*force_reorder=*/i == 0 && is_dpasw);
         }
 
-        std::vector<stmt_t> tile_load_stmts;
-        for (int i = 0; i < npost_ops; i++) {
-            auto &po_builder = post_op_builders_[i];
-            // Generate load for post-op.
-            tile_load_stmts.push_back(po_builder.build_tile_load(tile));
-
-            // Generate post-op statement.
-            auto &s = stages[i + 1];
-            s.prepend_stmt(po_builder.build_tile_stmt(tile, s.layout, s.buf));
+        // Restore zero padding if needed.
+        if (c_zero_pad_stage_idx != -1) {
+            auto &s = c_stages[c_zero_pad_stage_idx];
+            s.prepend_stmt(zero_pad_builder_.build_stmt(s.layout, s.buf));
         }
 
-        // Restore zero padding if needed.
-        if (restore_zero_padding) {
-            auto &s = stages[nstages - 2];
-            zero_pad_builder_t builder(
-                    cset_, post_op_ctx_, mem_sub_view, s.layout, s.buf);
-            s.prepend_stmt(builder.stmt());
+        // Create sub-tensors for post-ops.
+        std::vector<post_op_tensor_t> sub_po_tensors;
+        for (auto &t : post_op_tensors_)
+            sub_po_tensors.push_back(t.create_sub_tensor(tile));
+
+        // Set C tensor layout and buffer to use for post-ops.
+        if (c_f32_stage_idx != -1) {
+            auto &s = c_stages[c_f32_stage_idx];
+            sub_po_tensors[c_po_idx_].set_reg_layout(s.layout);
+            sub_po_tensors[c_po_idx_].set_reg_buf(s.buf);
         }
 
         stmt_t tile_stmt;
 
-        // Add stage statements. Emit stages in blocks to reduce GRF
-        // consumption.
-        int stage_blk = 8;
-        for (int i = 0; i < nstages; i += stage_blk) {
-            int stage_beg = i;
-            int stage_end = std::min(nstages, i + stage_blk);
-            int po_beg = std::max(0, i - 1);
-            int po_end = std::min(npost_ops, i + stage_blk - 1);
-            stmt_t blk_stmt;
-            for (int j = po_beg; j < po_end; j++) {
-                blk_stmt = blk_stmt.append(tile_load_stmts[j]);
+        // Add C stage statements and post-op statements.
+        for (int i = 0; i < nstages; i++) {
+            if (with_post_ops && i == c_f32_stage_idx) {
+                // Emit post-ops in blocks to reduce GRF consumption.
+                const int po_blk = 8;
+                for (int j = 0; j < npost_ops; j += po_blk) {
+                    int k_beg = j;
+                    int k_end = std::min(npost_ops, j + po_blk);
+                    auto blk_stmt = build_post_op_block_stmt(
+                            tile, sub_po_tensors, k_beg, k_end);
+                    tile_stmt = tile_stmt.append(blk_stmt);
+                }
             }
-            for (int j = stage_beg; j < stage_end; j++) {
-                blk_stmt = blk_stmt.append(stages[j].stmt);
-            }
-            tile_stmt = tile_stmt.append(blk_stmt);
+            tile_stmt = tile_stmt.append(c_stages[i].stmt);
         }
 
-        // Generate alloc statements for stage buffers.
+        // Generate alloc statements for C stage buffers.
         object_set_t<expr_t> seen;
         for (int i = 0; i < nstages; i++) {
-            auto &s = stages[i];
+            auto &s = c_stages[i];
             auto &buf = s.buf_base();
             auto ret = seen.insert(buf);
             if (i == 0 || !ret.second) continue;
@@ -4426,24 +4729,88 @@ private:
         stmt_ = stmt_.append(tile_stmt);
     }
 
+    stmt_t build_post_op_block_stmt(const tensor_t &tile,
+            std::vector<post_op_tensor_t> &sub_po_tensors, int po_beg,
+            int po_end) const {
+        // Collect post-op inputs/outputs.
+        object_map_t<expr_t, post_op_tensor_t *> args;
+        for (int i = po_beg; i < po_end; i++) {
+            auto &po_builder = post_op_builders_[i];
+            for (auto &t : sub_po_tensors) {
+                if (po_builder.post_op().uses(t.op_var())) {
+                    args.insert({t.op_var(), &t});
+                }
+            }
+        }
+
+        // Generate load and convert statements for the post-op.
+        stmt_t load_stmt;
+        stmt_t convert_stmt;
+        for (auto &kv : args) {
+            auto &t = *kv.second;
+            if (!t.needs_load()) continue;
+            if (t.do_preload()) continue;
+            load_stmt = load_stmt.append(t.build_load_stmt());
+            if (t.needs_f32_convert()) {
+                convert_stmt = convert_stmt.append(t.build_convert_stmt());
+            }
+        }
+
+        stmt_t stmt;
+        stmt = stmt.append(load_stmt);
+        stmt = stmt.append(convert_stmt);
+
+        for (int i = po_beg; i < po_end; i++) {
+            auto &po_builder = post_op_builders_[i];
+            auto po_stmt
+                    = po_builder.build_tile_stmt(tile, args, zero_pad_builder_);
+            stmt = stmt.append(po_stmt);
+        }
+
+        // Generate alloc statements for post-op tensors.
+        std::vector<stmt_t> allocs;
+        for (auto &kv : args) {
+            auto &t = *kv.second;
+            if (!t.needs_load()) continue;
+            if (t.do_preload()) continue;
+            auto t_allocs = t.allocs();
+            allocs.insert(allocs.end(), t_allocs.begin(), t_allocs.end());
+        }
+        stmt = jit::inject_alloc_stmts(stmt, allocs);
+
+        return stmt;
+    }
+
     const conv_config_t &cfg_;
     ir_context_t &ir_ctx_;
     const constraint_set_t &cset_;
     const post_op_context_t &post_op_ctx_;
 
-    view_t mem_view_;
-    layout_t reg_layout_;
+    // C view in global memory.
+    view_t c_mem_view_;
+    expr_t c_mem_buf_;
 
-    expr_t mem_buf_;
-    expr_t reg_buf_;
+    // C layout after the main loop.
+    layout_t c_reg_layout_;
+    expr_t c_reg_buf_;
+
+    const grid_info_t &tg_grid_;
+
+    bool restore_zero_padding_;
+
+    zero_pad_builder_t zero_pad_builder_;
 
     // Tile size in bytes. The tile data type is:
     // - the destination data type without post-ops
     // - f32 with post-ops
     static const int tmp_buf_size_ = 128;
-    static const int pre_load_max_size_ = 256;
+    static const int pre_load_max_size_ = 512;
 
     std::vector<post_op_builder_t> post_op_builders_;
+    std::vector<post_op_tensor_t> post_op_tensors_;
+    int c_po_idx_ = -1;
+
+    object_map_t<expr_t, int> buf_sizes_;
 
     stmt_t stmt_;
 };
@@ -5462,7 +5829,7 @@ public:
         auto thr_tile = gemm_schedule_.c_thr_tile(/*is_relative=*/false);
 
         if (gemm_schedule_.with_thread_group_k_slicing()) {
-            slm_reduce_builder_t slm_reduce_builder(cfg_, ir_ctx_, cset_,
+            slm_reduce_builder_t slm_reduce_builder(cfg_.hw, ir_ctx_, cset_,
                     gemm_schedule_.tg_grid(), c_buf, c_thr_reg_layout,
                     thr_tile);
             c_store_stmt_ = c_store_stmt_.append(slm_reduce_builder.stmt());
@@ -5471,8 +5838,9 @@ public:
         }
 
         auto c_thr_mem_view = gemm_schedule_.c_view().create_sub_view(thr_tile);
-        epilogue_builder_t c_m2g(cfg_, ir_ctx_, cset_, post_op_ctx_, thr_tile,
-                c_thr_mem_view, c_thr_reg_layout, cp_buf_, c_buf);
+        epilogue_builder_t c_m2g(cfg_, ir_ctx_, cset_, gemm_schedule_,
+                post_op_ctx_, thr_tile, c_thr_mem_view, c_thr_reg_layout,
+                cp_buf_, c_buf);
         ir_trace() << "C GRF to GMEM store:\n" << c_m2g.stmt() << std::endl;
 
         c_zero_out_stmt_ = stmt_group_t::make(stmt_label_t::c_zero_out(),
@@ -5915,8 +6283,7 @@ void kernel_builder_t::build() {
 
     gemm_schedule.finalize();
 
-    post_op_context_t post_op_ctx(
-            pd_, cfg_, gemm_schedule.c_view(), kernel_info_);
+    post_op_context_t post_op_ctx(pd_, cfg_, gemm_schedule, kernel_info_);
     compute_builder_t cb(cfg_, ir_ctx, init_cset);
 
     cb.set_gemm_schedule(gemm_schedule);
