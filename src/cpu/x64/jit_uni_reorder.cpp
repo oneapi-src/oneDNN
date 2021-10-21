@@ -1266,10 +1266,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             const int tail_size = prb_.tail(curr_node_id) / unroll_factor;
             const int node_size = prb_.n(curr_node_id) / unroll_factor;
             const Reg64 &reg_loop_cnt = reg_cnt[jit_loop - 1];
-
+            const bool curr_node_has_tail = prb_.tail(curr_node_id) != 0;
             Label loop, if_no_tail, if_end;
 
-            if (prb_.tail(curr_node_id) != 0) {
+            if (curr_node_has_tail) {
                 if (prb_.nodes[curr_node_id].is_parent_empty()) {
                     mov(reg_loop_cnt, tail_size);
                     // Put info that node is being processed with tail.
@@ -1292,13 +1292,14 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     push(reg_tmp_);
                     L(if_end);
                 }
-
-                L(loop);
-            } else {
-                loop_begin(loop, reg_loop_cnt, node_size);
             }
 
             if (prb_.is_tail_in_one_of_child_nodes(curr_node_id)) {
+                if (!curr_node_has_tail) {
+                    mov(reg_loop_cnt, node_size);
+                    mov(data_chunk_addr(curr_node_id), reg_loop_cnt);
+                }
+                L(loop);
                 if (!prb_.nodes[curr_node_id].is_parent_empty()) {
                     Label if_no_tail_in_child_node;
                     mov(reg_tmp_, data_chunk_addr(parent_node_id));
@@ -1309,6 +1310,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 } else {
                     mov(data_chunk_addr(curr_node_id), reg_loop_cnt);
                 }
+            } else if (curr_node_has_tail) {
+                L(loop);
+            } else {
+                loop_begin(loop, reg_loop_cnt, node_size);
             }
 
             create_loops(desc, reg_cnt, jit_loop - 1);
