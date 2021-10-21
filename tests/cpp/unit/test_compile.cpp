@@ -9971,6 +9971,9 @@ TEST(operator_kernel, interpolate_backward_linear) {
 }
 
 TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
+    // skip the test on AArch64 or some older machine without avx support
+    SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx,
+            "skip on machine without AVX");
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -12503,6 +12506,9 @@ TEST(int8_subgraph_mode, int8_matmul_2dx3d_with_transpose) {
 }
 
 TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
+    // skip the test on AArch64 or some older machine without avx support
+    SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx,
+            "skip on machine without AVX");
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
