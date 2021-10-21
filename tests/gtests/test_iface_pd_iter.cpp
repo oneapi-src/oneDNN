@@ -48,11 +48,9 @@ TEST_F(pd_iter_test_t, TestReLUImpls) {
             ok);
 
     dnnl_primitive_desc_iterator_t it;
-    dnnl_status_t rc;
-
-    ASSERT_EQ(rc = dnnl_primitive_desc_iterator_create(
-                      &it, &ed, nullptr, engine, nullptr),
-            ok); /* there should be at least one impl */
+    dnnl_status_t rc = dnnl_primitive_desc_iterator_create(
+            &it, &ed, nullptr, engine, nullptr);
+    ASSERT_EQ(rc, ok); /* there should be at least one impl */
 
     dnnl_primitive_desc_t pd;
     ASSERT_NE(pd = dnnl_primitive_desc_iterator_fetch(it), nullptr);
