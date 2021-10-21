@@ -168,12 +168,13 @@ protected:
                         src_md_);
             } else {
                 format_tag_t weights_tag = get_tag(weights_md_);
-                if (allow_all_tags && weights_tag == undef)
+                if (allow_all_tags && weights_tag == undef) {
                     INIT_MEM_BY_TAG(
                             utils::pick(ndims() - 2, ab, abc, abcd, abcde),
                             src_md_);
-                else
+                } else {
                     INIT_MEM_BY_TAG(weights_tag, src_md_);
+                }
                 // transpose weights to improve efficiency of non-copy kernels
                 if (src_md_.format_desc.blocking.strides[0] == 1)
                     transpose_md(src_md_);
@@ -183,11 +184,12 @@ protected:
 
         auto set_default_weights = [&]() {
             format_tag_t src_tag = get_tag(src_md_);
-            if (allow_all_tags && src_tag == undef)
+            if (allow_all_tags && src_tag == undef) {
                 INIT_MEM_BY_TAG(utils::pick(ndims() - 2, ab, abc, abcd, abcde),
                         weights_md_);
-            else
+            } else {
                 INIT_MEM_BY_TAG(src_tag, weights_md_);
+            }
             /* with batch = 1, no transpose to use the faster gemv kernels */
             /* otherwise, we transpose the weights to improve efficiency of
              * no-copy kernels */
@@ -220,12 +222,13 @@ protected:
                         diff_src_md_);
             } else {
                 format_tag_t weights_tag = get_tag(weights_md_);
-                if (allow_all_tags && weights_tag == undef)
+                if (allow_all_tags && weights_tag == undef) {
                     INIT_MEM_BY_TAG(
                             utils::pick(ndims() - 2, ab, abc, abcd, abcde),
                             diff_src_md_);
-                else
+                } else {
                     INIT_MEM_BY_TAG(weights_tag, diff_src_md_);
+                }
                 if (diff_src_md_.format_desc.blocking.strides[0] == 1)
                     transpose_md(diff_src_md_);
             }
@@ -234,11 +237,12 @@ protected:
 
         auto set_default_weights = [&]() {
             format_tag_t diff_src_tag = get_tag(diff_src_md_);
-            if (allow_all_tags && diff_src_tag == undef)
+            if (allow_all_tags && diff_src_tag == undef) {
                 INIT_MEM_BY_TAG(utils::pick(ndims() - 2, ab, abc, abcd, abcde),
                         weights_md_);
-            else
+            } else {
                 INIT_MEM_BY_TAG(diff_src_tag, weights_md_);
+            }
             /* with batch = 1, no transpose to use the faster gemv kernels */
             /* otherwise, we transpose the weights to improve efficiency of
              * no-copy kernels */
@@ -271,12 +275,13 @@ protected:
                         src_md_);
             } else {
                 format_tag_t diff_weights_tag = get_tag(diff_weights_md_);
-                if (allow_all_tags && diff_weights_tag == undef)
+                if (allow_all_tags && diff_weights_tag == undef) {
                     INIT_MEM_BY_TAG(
                             utils::pick(ndims() - 2, ab, abc, abcd, abcde),
                             src_md_);
-                else
+                } else {
                     INIT_MEM_BY_TAG(diff_weights_tag, src_md_);
+                }
                 if (src_md_.format_desc.blocking.strides[0] == 1)
                     transpose_md(src_md_);
             }
@@ -285,11 +290,12 @@ protected:
 
         auto set_default_diff_weights = [&]() {
             format_tag_t src_tag = get_tag(src_md_);
-            if (allow_all_tags && src_tag == undef)
+            if (allow_all_tags && src_tag == undef) {
                 INIT_MEM_BY_TAG(utils::pick(ndims() - 2, ab, abc, abcd, abcde),
                         diff_weights_md_);
-            else
+            } else {
                 INIT_MEM_BY_TAG(src_tag, diff_weights_md_);
+            }
             // Here, we want diff_weights layout to match the fwd weights layout
             if (MB() > 1 && transpose_leading_dim(OC(), MB()))
                 transpose_md(diff_weights_md_);
