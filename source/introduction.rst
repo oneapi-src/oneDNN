@@ -2,6 +2,8 @@
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
+.. _`open source implementation`: https://github.com/oneapi-src/oneDNN/tree/dev-graph
+
 ============
 Introduction
 ============
@@ -35,3 +37,7 @@ performance and coordinating with the application’s control of hardware
 resources. As the partition size can range from single op to the full graph, it
 satisfies the different needs of graph size for compilation and execution on
 different AI hardware.
+
+This specification provides high-level descriptions for oneDNN Graph programming
+model and operation set. More implementation-specific details can be found at
+`open source implementation`_.

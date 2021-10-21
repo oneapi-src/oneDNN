@@ -78,10 +78,11 @@ A partition needs to be compiled before execution. The compilation lowers down
 the compute logic to hardware ISA level and generates binary code. The generated
 code is specialized for the input and output tensor’s metadata. Users must
 create new logical tensors to pass complete metadata with the compilation API.
-The logical tensors should fully specify id, data type, shape, and layout, the
-compilation should succeed. The logical tensors passed during compilation time
-must match IDs with partition’s ports. The logical tensors must have same data
-types with the ports with the port of the same ID.
+The logical tensors should fully specify id, data type, shape (can be incomplete
+for outputs), and layout, the compilation should succeed. The logical tensors
+passed during compilation time must match IDs with partition’s ports. The
+logical tensors must have same data types with the ports with the port of the
+same ID.
 
 For the output logical tensors, users must either specify a public layout using
 size and stride for each tensor dimension or request oneDNN Graph implementation
@@ -139,7 +140,7 @@ information in the framework graph as it progresses toward execution. As a
 logical tensor is not mutable, users must create a new logical tensor with the
 same ID to pass any new additional information to oneDNN Graph implementation.
 Users should guarantee that the logical tensor ID is unique within the graph
-which the logcial tensor belongs to.
+which the logical tensor belongs to.
 
 .. literalinclude:: code_snippets/logical_tensor.hpp
    :language: cpp
@@ -197,16 +198,18 @@ Users must create a graph, add op, and get partition in the same thread.
 Partition
 ---------
 
-*Partition* represents a collection of OPS identified by oneDNN Graph
+*Partition* represents a collection of OPs identified by oneDNN Graph
 implementation as the basic unit for compilation and execution. It contains a
 list of OP, input ports, output ports, and a flag indicating whether the
 partition is supported. When a partition is created, it's assigned with an ID.
 oneDNN Graph implementation should guarantee the partition ID is globally unique.
 
-Partition can infer the output logical tensor’s shape according to the input
-logical tensor shape. Users may create input and output logical tensors and pass
-them as parameters of the shape inference API. After calling the shape inference
-API, users can get the shape information from the output logical tensor.
+Users can pass the output logical tensors with incomplete shape information
+(containing -1) to partition compilation API. oneDNN Graph implementation needs
+calculate the output shapes according to the given input shapes and schema of
+the OP. After compilation finished, a compiled partition will be generated with
+full shape information for the input and output logical tensors. Users can query
+the compiled partition for the output logical tensors and get the shapes.
 
 Partition can be compiled to generate hardware ISA level binary code specialized
 for input and output tensors’ metadata. Users must pass as much tensor metadata
@@ -241,11 +244,11 @@ Tensor
 ------
 
 *Tensor* is an abstraction for multidimensional input and output data needed in
-the execution of a compiled partition. A tensor contains a logical tensor and a
-data buffer.
+the execution of a compiled partition. A tensor contains a logical tensor，an
+engine and a data handle.
 
-Framework integration code is responsible for managing the tensor’s lifecycle,
-e.g. free the resource allocated, when it is not used anymore.
+Users are responsible for managing the tensor’s lifecycle, e.g. free the
+resource allocated, when it is not used anymore.
 
 .. literalinclude:: code_snippets/tensor.hpp
    :language: cpp
@@ -328,6 +331,58 @@ for execution.
 
 .. literalinclude:: code_snippets/stream.hpp
    :language: cpp
+
+-----------------------
+Low Precision Support
+-----------------------
+
+oneDNN Graph provides low precision support including both int8 (signed/unsigned
+8-bit integer),
+`bf16 <https://en.wikipedia.org/wiki/Bfloat16_floating-point_format>`__, and
+`fp16 <https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16>`__.
+For int8, oneDNN Graph API supports quantized model with static quantization.
+For bf16 or fp16, oneDNN Graph supports deep learning framework’s auto mixed
+precision mechanism. In both cases, oneDNN Graph API expects users to convert
+the computation graph to low precision representation and specify the data's
+precision and quantization parameters. oneDNN Graph API implementation should
+strictly respect the numeric precision of the computation.
+
+For int8, oneDNN Graph API provides two operations:
+`Dequantize <https://spec.oneapi.io/onednn-graph/latest/ops/lower_precision/Dequantize_1.html>`__
+and `Quantize <https://spec.oneapi.io/onednn-graph/latest/ops/lower_precision/Quantize_1.html>`__.
+Dequantize takes integer tensor with its associated scale and zero point and
+returns fp32 tensor. Quantize takes fp32 tensor, scale, zero point, and returns
+integer tensor. The scale and zero point are single dimension tensors, which
+could contain one value for the per-tensor quantization case or multiple values
+for the per-channel quantization case. The integer tensor could be represented
+in both unsigned int8 or signed int8. Zero point could be zero for symmetric
+quantization scheme, and a non-zero value for asymmetric quantization scheme.
+
+Users should insert Dequantize and Quantize in the graph as part of quantization
+process before passing to oneDNN Graph. oneDNN Graph honors the data type passed
+from user and faithfully follows the numeric semantics. For example, if the
+graph has a Quantize followed by Dequantize with exact same scale and zero point,
+oneDNN Graph implementation should not eliminate them since that implicitly
+changes the numeric precision.
+
+oneDNN Graph partitioning API may return a partition containing the Dequantize,
+Quantize, and Convolution operations in the between. Users don't need to
+recognize the subgraph pattern explicitly and convert to fused op. Depending on
+oneDNN Graph implementation capability, the partition may include more or fewer
+operations.
+
+.. image:: resources/int8_programming.PNG
+
+For bf16, oneDNN Graph provides `TypeCast
+<https://spec.oneapi.io/onednn-graph/latest/ops/lower_precision/TypeCast_1.html>`__
+operation, which can convert a fp32 tensor to bf16 or fp16, and vice versa. All
+oneDNN Graph operations support bf16 and fp16. It is user's responsibility to
+insert TypeCast to clearly indicate the numeric precision. oneDNN Graph
+implementation fully honors the user-specified numeric precision. If users first
+typecast from fp32 to bf16 and convert back, oneDNN Graph implementation does
+the exact data type conversions underneath. 
+
+.. image:: resources/bf16_programming.PNG
 
 -----------------
 General API notes
