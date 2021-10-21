@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,15 +49,23 @@ struct ref_matmul_t : public primitive_t {
             const auto bia_type = weights_md(1)->data_type;
             const auto dst_type = dst_md(0)->data_type;
 
-            bool ok = utils::one_of(src_type, f32, bf16)
-                    && utils::one_of(wei_type, f32, bf16)
-                    && utils::one_of(dst_type, f32, bf16)
+            bool ok = utils::one_of(src_type, f32, bf16, f16)
+                    && utils::one_of(wei_type, f32, bf16, f16)
+                    && utils::one_of(dst_type, f32, bf16, f16)
                     && src_type == wei_type
                     && IMPLICATION(src_type == f32, dst_type == f32)
+                    && IMPLICATION(src_type == bf16,
+                            utils::one_of(dst_type, f32, bf16))
+                    && IMPLICATION(
+                            src_type == f16, utils::one_of(dst_type, f32, f16))
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, bf16)
+                            utils::one_of(bia_type, f32, bf16, f16)
                                     && IMPLICATION(
-                                            src_type == f32, bia_type == f32))
+                                            src_type == f32, bia_type == f32)
+                                    && IMPLICATION(src_type == f16,
+                                            utils::one_of(bia_type, f32, f16))
+                                    && IMPLICATION(src_type == bf16,
+                                            utils::one_of(bia_type, f32, bf16)))
                     && platform::has_data_type_support(src_type)
                     && attr()->has_default_values(smask_t::oscale_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,

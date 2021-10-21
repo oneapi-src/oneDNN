@@ -593,8 +593,8 @@ static auto cases_f = [](memory::data_type dt) {
     return ::testing::ValuesIn(cases);
 };
 
-GPU_INSTANTIATE_TEST_SUITE_P(Generic_f16, iface, cases_f(data_type::f16));
-GPU_INSTANTIATE_TEST_SUITE_P(Generic_bf16, iface, cases_f(data_type::bf16));
+INSTANTIATE_TEST_SUITE_P(Generic_f16, iface, cases_f(data_type::f16));
+INSTANTIATE_TEST_SUITE_P(Generic_bf16, iface, cases_f(data_type::bf16));
 INSTANTIATE_TEST_SUITE_P(Generic_f32, iface, cases_f(data_type::f32));
 
 static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
@@ -713,6 +713,9 @@ INSTANTIATE_TEST_SUITE_P(TensorDims, attr_test_t,
                         memory::data_type::f32, 4),
                 std::make_tuple(memory::dims {2, 10, 10, 10},
                         memory::dims {2, 10, 10, 10}, tag::abcd,
-                        memory::data_type::bf16, 4)));
+                        memory::data_type::bf16, 4),
+                std::make_tuple(memory::dims {2, 10, 10, 10},
+                        memory::dims {2, 10, 10, 10}, tag::abcd,
+                        memory::data_type::f16, 4)));
 
 } // namespace dnnl
