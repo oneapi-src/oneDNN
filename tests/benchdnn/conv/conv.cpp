@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2017-2021 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
+* Copyright 2021 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -667,6 +668,47 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     if (prb->alg == WINO) {
         if (is_cpu()) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if DNNL_AARCH64
+            bool pad_ok_f32 = prb->pw <= 1 && prb->ph <= 1 && prb->pw_r <= 1
+                    && prb->ph_r <= 1;
+            bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
+                    && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
+                    && prb->dh == 0 && prb->dw == 0 && !prb->has_groups
+                    && pad_ok_f32;
+
+            const bool dir_ok = (prb->dir & FLAG_FWD);
+
+            const auto &po = prb->attr.post_ops;
+
+            // "true" here stands for eltwise.scale == 1.f check
+            const auto is_eltwise
+                    = [&](int idx) { return po.entry[idx].is_eltwise_kind(); };
+            auto is_sum = [&](int idx) { return po.entry[idx].is_sum_kind(); };
+
+            const bool sum_with_eltwise
+                    = (po.len() == 2) && is_sum(0) && is_eltwise(1);
+            const bool eltwise_only = (po.len() == 1) ? is_eltwise(0) : false;
+            bool eltwise_ok = false;
+
+            // Compute Library supports only one eltwise post-op or
+            // sum+eltwise post-ops
+            if (eltwise_only || sum_with_eltwise) {
+                const auto act_type = po.entry[sum_with_eltwise].eltwise.alg;
+                eltwise_ok
+                        = one_of(act_type, dnnl_eltwise_relu, dnnl_eltwise_tanh,
+                                dnnl_eltwise_elu, dnnl_eltwise_square,
+                                dnnl_eltwise_abs, dnnl_eltwise_sqrt,
+                                dnnl_eltwise_linear, dnnl_eltwise_bounded_relu,
+                                dnnl_eltwise_soft_relu, dnnl_eltwise_logistic);
+            }
+
+            const bool post_ops_ok = eltwise_ok || (po.len() == 0);
+
+            if (!shape_ok || !dir_ok || !post_ops_ok) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
+            }
+#else
             static auto isa = dnnl_get_effective_cpu_isa();
             static bool has_avx512_bw
                     = dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core);
@@ -716,6 +758,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
                 return;
             }
+#endif
 #endif
         } else if (is_gpu()) {
             bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
