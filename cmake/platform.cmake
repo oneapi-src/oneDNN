@@ -89,7 +89,9 @@ if(DNNL_WITH_SYCL)
     # very upset. Tell it that it's okay and that we love it
     # unconditionally.
     append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
-
+    # Suppress self-comparison warning to avoid false positives in macros such
+    # as JIT_IMPL_NAME_HELPER. 
+    append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-tautological-compare")
     if(WIN32)
         # XXX: SYCL does not like __thiscall convention coming from TBB,
         # suppress warnings for now.
