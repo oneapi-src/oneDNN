@@ -1938,6 +1938,10 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     CHECK(init_jcp(
             jcp, isa, cd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
 
+    // Maybe fall back to direct jit impl for small batch sizes
+    // TODO: eliminate performance degradation and remove this constraint
+    if (is_amx(isa) && jcp.mb == 1) return status::unimplemented;
+
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
