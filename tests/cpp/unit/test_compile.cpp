@@ -57,7 +57,7 @@ namespace {
 dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     auto &backend_ptr
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager(
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     auto &passes = pm.get_passes();
     auto find = std::find_if(passes.begin(), passes.end(),

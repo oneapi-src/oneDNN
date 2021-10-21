@@ -23,7 +23,7 @@ namespace impl {
 using namespace utils;
 namespace pass {
 // register a pass
-pass_base &pass_registry::register_pass(const std::string &backend_name,
+pass_base &pass_registry_t::register_pass(const std::string &backend_name,
         const std::string &pass_name, pass_create_fn fn) {
     // create new pass
     auto find = std::find_if(passes_.begin(), passes_.end(),
@@ -40,19 +40,19 @@ pass_base &pass_registry::register_pass(const std::string &backend_name,
     }
 }
 
-void pass_registry::sort_passes() {
+void pass_registry_t::sort_passes() {
     passes_.sort([](const pass_base_ptr &first, const pass_base_ptr &second) {
         return first->get_priority() > second->get_priority();
     });
 }
 
-void pass_manager::print_passes(const std::string &pass_config_json) {
+void pass_manager_t::print_passes(const std::string &pass_config_json) {
     std::ofstream of(pass_config_json);
     assert(of && "can't open file");
     print_passes(&of);
 }
 
-void pass_manager::print_passes(std::ostream *os) {
+void pass_manager_t::print_passes(std::ostream *os) {
     auto passes = get_passes();
     json::json_writer write(os);
     write.begin_object();
@@ -66,7 +66,7 @@ void pass_manager::print_passes(std::ostream *os) {
     write.end_object();
 }
 
-void pass_manager::run_passes(
+void pass_manager_t::run_passes(
         graph &agraph, std::istream *fs, impl::partition_policy_t policy) {
     UNUSED(policy);
     if (*fs) {
@@ -118,7 +118,7 @@ void pass_manager::run_passes(
         }
     }
 }
-void pass_manager::run_passes(graph &agraph,
+void pass_manager_t::run_passes(graph &agraph,
         const std::string &pass_config_json, impl::partition_policy_t policy) {
     std::ifstream fs(pass_config_json.c_str());
     run_passes(agraph, &fs, policy);

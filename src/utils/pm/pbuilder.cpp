@@ -168,30 +168,30 @@ void pb_op::allow_internal_inputs(const std::vector<iport_t> &p_ports) {
 }
 
 vector<shared_ptr<unordered_set<shared_ptr<consumer_t>>>>
-pb_graph::get_inner_consumers() {
+pb_graph_t::get_inner_consumers() {
     return m_inner_consumers;
 }
 
-vector<shared_ptr<producer_t>> pb_graph::get_inner_producers() {
+vector<shared_ptr<producer_t>> pb_graph_t::get_inner_producers() {
     return m_inner_producers;
 }
 
-shared_ptr<unordered_set<shared_ptr<consumer_t>>> pb_graph::get_inner_consumer(
-        iport_t i_t) {
+shared_ptr<unordered_set<shared_ptr<consumer_t>>>
+pb_graph_t::get_inner_consumer(iport_t i_t) {
     if (i_t < 0) { return nullptr; }
     uint64_t index = static_cast<uint64_t>(i_t);
     if (m_inner_consumers.size() <= index) { return nullptr; }
     return m_inner_consumers[index];
 }
 
-shared_ptr<producer_t> pb_graph::get_inner_producer(oport_t o_t) {
+shared_ptr<producer_t> pb_graph_t::get_inner_producer(oport_t o_t) {
     if (o_t < 0) { return nullptr; }
     uint64_t index = static_cast<uint64_t>(o_t);
     if (m_inner_producers.size() <= index) { return nullptr; }
     return m_inner_producers[index];
 }
 
-bool pb_graph::create_input_port(
+bool pb_graph_t::create_input_port(
         iport_t p_port, const shared_ptr<consumer_t> &p_consumer) {
     if (p_port < 0) { return false; }
     uint64_t index = static_cast<uint64_t>(p_port);
@@ -215,7 +215,7 @@ bool pb_graph::create_input_port(
     return true;
 }
 
-bool pb_graph::create_output_port(
+bool pb_graph_t::create_output_port(
         oport_t p_port, shared_ptr<producer_t> p_producer) {
     if (p_port < 0) { return false; }
     uint64_t index = static_cast<uint64_t>(p_port);
@@ -227,17 +227,17 @@ bool pb_graph::create_output_port(
     return true;
 }
 
-bool pb_graph::create_input_port(
+bool pb_graph_t::create_input_port(
         iport_t p_port, const pb_node_ptr &p_int_node, iport_t p_int_port) {
     return create_input_port(p_port, consumer(p_int_node, p_int_port));
 }
 
-bool pb_graph::create_output_port(
+bool pb_graph_t::create_output_port(
         oport_t p_port, const pb_node_ptr &p_int_node, oport_t p_int_port) {
     return create_output_port(p_port, producer(p_int_node, p_int_port));
 }
 
-bool pb_graph::connect_edges(
+bool pb_graph_t::connect_edges(
         const pb_node_ptr &p_node, const in_edges_t &p_in_edges) {
     if (!p_in_edges.empty()) {
         for (auto const &i : p_in_edges) {
@@ -248,7 +248,7 @@ bool pb_graph::connect_edges(
     return true;
 }
 
-vector<pb_node_ptr> pb_graph::get_nodes() {
+vector<pb_node_ptr> pb_graph_t::get_nodes() {
     vector<pb_node_ptr> retval;
     for (auto const &i : m_nodes) {
         retval.push_back(i.get());
@@ -256,11 +256,11 @@ vector<pb_node_ptr> pb_graph::get_nodes() {
     return retval;
 }
 
-pb_graph::pb_graph(string name) {
+pb_graph_t::pb_graph_t(string name) {
     m_debug_string = move(name);
 }
 
-pb_op *pb_graph::append_op(const decision_function &p_fn,
+pb_op *pb_graph_t::append_op(const decision_function &p_fn,
         const in_edges_t &p_in_edges, string name) {
     shared_ptr<pb_op> p_op(new pb_op(p_fn));
     p_op->set_name(move(name));
@@ -269,76 +269,77 @@ pb_op *pb_graph::append_op(const decision_function &p_fn,
     return p_op.get();
 }
 
-pb_op *pb_graph::append_op(const decision_function &p_fn, string name) {
+pb_op *pb_graph_t::append_op(const decision_function &p_fn, string name) {
     return append_op(p_fn, {}, move(name));
 }
 
-pb_op *pb_graph::append_op(dnnl::graph::impl::op_kind_t p_kind,
+pb_op *pb_graph_t::append_op(dnnl::graph::impl::op_kind_t p_kind,
         const in_edges_t &p_in_edges, string name) {
     return append_op(kind(p_kind), p_in_edges, move(name));
 }
 
-pb_op *pb_graph::append_op(dnnl::graph::impl::op_kind_t p_kind, string name) {
+pb_op *pb_graph_t::append_op(dnnl::graph::impl::op_kind_t p_kind, string name) {
     return append_op(kind(p_kind), {}, move(name));
 }
 
-pb_op *pb_graph::append_alternation(
+pb_op *pb_graph_t::append_alternation(
         const vector<dnnl::graph::impl::op_kind_t> &p_kind,
         const in_edges_t &p_in_edges, string name) {
     return append_op(one_of_kind(p_kind), p_in_edges, move(name));
 }
 
-pb_op *pb_graph::append_alternation(
+pb_op *pb_graph_t::append_alternation(
         const vector<dnnl::graph::impl::op_kind_t> &p_kind, string name) {
     return append_op(one_of_kind(p_kind), {}, move(name));
 }
 
-alternation *pb_graph::append_alternation(vector<shared_ptr<pb_graph>> p_nodes,
-        const in_edges_t &p_in_edges, string name) {
-    shared_ptr<alternation> p_alternation(new alternation(move(p_nodes)));
+alternation_t *pb_graph_t::append_alternation(
+        vector<shared_ptr<pb_graph_t>> p_nodes, const in_edges_t &p_in_edges,
+        string name) {
+    shared_ptr<alternation_t> p_alternation(new alternation_t(move(p_nodes)));
     p_alternation->set_name(move(name));
     connect_edges(p_alternation.get(), p_in_edges);
     m_nodes.push_back(dynamic_pointer_cast<pb_node>(p_alternation));
     return p_alternation.get();
 }
 
-alternation *pb_graph::append_alternation(
-        vector<shared_ptr<pb_graph>> p_nodes, string name) {
+alternation_t *pb_graph_t::append_alternation(
+        vector<shared_ptr<pb_graph_t>> p_nodes, string name) {
     return append_alternation(move(p_nodes), {}, move(name));
 }
 
-repetition *pb_graph::append_repetition(shared_ptr<pb_graph> p_node,
+repetition_t *pb_graph_t::append_repetition(shared_ptr<pb_graph_t> p_node,
         port_maps p_maps, int64_t min_rep, int64_t max_rep,
         const in_edges_t &p_in_edges, string name) {
-    shared_ptr<repetition> p_repetition(
-            new repetition(move(p_node), move(p_maps), min_rep, max_rep));
+    shared_ptr<repetition_t> p_repetition(
+            new repetition_t(move(p_node), move(p_maps), min_rep, max_rep));
     p_repetition->set_name(move(name));
     connect_edges(p_repetition.get(), p_in_edges);
     m_nodes.push_back(dynamic_pointer_cast<pb_node>(p_repetition));
     return p_repetition.get();
 }
 
-repetition *pb_graph::append_repetition(shared_ptr<pb_graph> p_node,
+repetition_t *pb_graph_t::append_repetition(shared_ptr<pb_graph_t> p_node,
         port_maps p_maps, int64_t min_rep, int64_t max_rep, string name) {
     return append_repetition(
             move(p_node), move(p_maps), min_rep, max_rep, {}, move(name));
 }
 
-repetition *pb_graph::append_optional(shared_ptr<pb_graph> p_node,
+repetition_t *pb_graph_t::append_optional(shared_ptr<pb_graph_t> p_node,
         const in_edges_t &p_in_edges, string name) {
-    shared_ptr<repetition> p_repetition(new repetition(move(p_node)));
+    shared_ptr<repetition_t> p_repetition(new repetition_t(move(p_node)));
     p_repetition->set_name(move(name));
     connect_edges(p_repetition.get(), p_in_edges);
     m_nodes.push_back(dynamic_pointer_cast<pb_node>(p_repetition));
     return p_repetition.get();
 }
 
-repetition *pb_graph::append_optional(
-        shared_ptr<pb_graph> p_node, string name) {
+repetition_t *pb_graph_t::append_optional(
+        shared_ptr<pb_graph_t> p_node, string name) {
     return append_optional(move(p_node), {}, move(name));
 }
 
-bool pb_graph::set_edge(const shared_ptr<consumer_t> &p_consumer,
+bool pb_graph_t::set_edge(const shared_ptr<consumer_t> &p_consumer,
         const shared_ptr<producer_t> &p_producer) {
     auto con = p_consumer->first;
     con->set_producer(p_consumer->second, p_producer);
@@ -347,7 +348,7 @@ bool pb_graph::set_edge(const shared_ptr<consumer_t> &p_consumer,
     return true;
 }
 
-bool pb_graph::has_edge(const shared_ptr<consumer_t> &p_consumer,
+bool pb_graph_t::has_edge(const shared_ptr<consumer_t> &p_consumer,
         const shared_ptr<producer_t> &p_producer) {
     bool retval = true;
     auto con = p_consumer->first;
@@ -363,20 +364,20 @@ bool pb_graph::has_edge(const shared_ptr<consumer_t> &p_consumer,
     return retval;
 }
 
-alternation::alternation(vector<shared_ptr<pb_graph>> p_nodes)
+alternation_t::alternation_t(vector<shared_ptr<pb_graph_t>> p_nodes)
     : m_alternatives {move(p_nodes)} {
     m_node_kind = pb_node_kind::PB_NODE_KIND_ALTERNATION;
 }
 
-vector<pb_graph *> alternation::get_alternatives() {
-    vector<pb_graph *> retval;
+vector<pb_graph_t *> alternation_t::get_alternatives() {
+    vector<pb_graph_t *> retval;
     for (auto const &i : m_alternatives) {
         retval.push_back(i.get());
     }
     return retval;
 }
 
-repetition::repetition(shared_ptr<pb_graph> p_node, port_maps p_maps,
+repetition_t::repetition_t(shared_ptr<pb_graph_t> p_node, port_maps p_maps,
         int64_t min_rep, int64_t max_rep)
     : m_body {move(p_node)}
     , m_port_maps {move(p_maps)}
@@ -385,15 +386,15 @@ repetition::repetition(shared_ptr<pb_graph> p_node, port_maps p_maps,
     m_node_kind = pb_node_kind::PB_NODE_KIND_REPETITION;
 }
 
-repetition::repetition(shared_ptr<pb_graph> p_node)
+repetition_t::repetition_t(shared_ptr<pb_graph_t> p_node)
     : m_body {move(p_node)}, m_min_rep {0}, m_max_rep {2} {
     m_node_kind = pb_node_kind::PB_NODE_KIND_REPETITION;
 }
 
-pb_graph *repetition::get_body() {
+pb_graph_t *repetition_t::get_body() {
     return m_body.get();
 }
 
-port_maps repetition::get_port_maps() {
+port_maps repetition_t::get_port_maps() {
     return m_port_maps;
 }

@@ -43,7 +43,7 @@ public:
         return ins;
     }
 
-    impl::pass::pass_registry &get_pass_registry() { return pass_registry_; }
+    impl::pass::pass_registry_t &get_pass_registry() { return pass_registry_; }
 
     size_t get_mem_size(const impl::logical_tensor_t &lt) const override {
         UNUSED(lt);
@@ -52,7 +52,7 @@ public:
 
     status_t get_partitions(
             impl::graph_t &agraph, impl::partition_policy_t policy) override {
-        impl::pass::pass_manager pm(get_pass_registry());
+        impl::pass::pass_manager_t pm(get_pass_registry());
         pm.run_passes(agraph, "", policy);
         return status::success;
     }
@@ -60,7 +60,7 @@ public:
 private:
     fake_backend(const std::string &name, float priority);
     bool register_passes();
-    impl::pass::pass_registry pass_registry_;
+    impl::pass::pass_registry_t pass_registry_;
 };
 
 } // namespace fake_impl

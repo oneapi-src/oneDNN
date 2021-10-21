@@ -99,8 +99,8 @@ public:
             op_t fused_op = *fused_op_ptr;
             pattern_utils_t pu;
             for (auto &pfunc : pfuncs) {
-                std::shared_ptr<impl::utils::pm::pb_graph> pgraph
-                        = make_shared<impl::utils::pm::pb_graph>("pgraph");
+                std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph
+                        = make_shared<impl::utils::pm::pb_graph_t>("pgraph");
                 pfunc(pgraph);
 
                 // for each pattern. match it
@@ -138,7 +138,8 @@ public:
                     &transformation_pass::create)
 
 #define DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(passes_class_) \
-    inline void register_##passes_class_(impl::pass::pass_registry &registry) {
+    inline void register_##passes_class_( \
+            impl::pass::pass_registry_t &registry) {
 #define DNNL_BACKEND_REGISTER_PASSES_DEF_END }
 
 #define DNNL_BACKEND_REGISTER_PASSES_CALL(passes_class_, pass_registry_) \

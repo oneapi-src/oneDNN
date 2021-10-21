@@ -43,7 +43,7 @@ namespace pass {
 
 namespace pm = impl::utils::pm;
 using in_edges_t = pm::in_edges_t;
-using pb_graph = impl::utils::pm::pb_graph;
+using pb_graph_t = impl::utils::pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
@@ -62,7 +62,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(quantize_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_quantize_fusion)
         .set_priority(8.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](std::shared_ptr<pb_graph> pgraph) -> void {
+                [](std::shared_ptr<pb_graph_t> pgraph) -> void {
                     pm::pb_op *typecast
                             = pgraph->append_op(impl::op_kind::TypeCast);
                     // check it is a bf16->f32 typecast

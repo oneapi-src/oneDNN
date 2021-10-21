@@ -377,7 +377,7 @@ public:
 
     kernel_registry_t &get_kernel_registry() { return kernel_registry_; }
 
-    impl::pass::pass_registry &get_pass_registry() { return pass_registry_; }
+    impl::pass::pass_registry_t &get_pass_registry() { return pass_registry_; }
 
     dnnl_layout_id_manager_t &get_layout_id_manager() {
         return layout_id_manager_;
@@ -394,7 +394,7 @@ public:
 
     status_t get_partitions(
             impl::graph_t &agraph, impl::partition_policy_t policy) override {
-        impl::pass::pass_manager pm(get_pass_registry());
+        impl::pass::pass_manager_t pm(get_pass_registry());
 #ifdef DNNL_GRAPH_ENABLE_DUMP
         std::string pass_config_json = "dnnl_graph_passes.json";
         std::ifstream fs(pass_config_json.c_str());
@@ -426,7 +426,7 @@ private:
 
     dnnl_layout_id_manager_t layout_id_manager_;
     kernel_registry_t kernel_registry_;
-    impl::pass::pass_registry pass_registry_;
+    impl::pass::pass_registry_t pass_registry_;
     impl::op_schema_registry_t op_schema_registry_;
 };
 

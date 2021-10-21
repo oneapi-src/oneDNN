@@ -28,7 +28,7 @@ namespace pm {
 
 using std::find;
 
-binding::binding(node_bind_kind p_kind, op_ptr p_op, int64_t p_op_port,
+binding_t::binding_t(node_bind_kind p_kind, op_ptr p_op, int64_t p_op_port,
         pb_node_ptr p_node, int64_t p_port, int64_t p_idx)
     : bind_op {p_op}
     , bind_node {p_node}
@@ -37,7 +37,7 @@ binding::binding(node_bind_kind p_kind, op_ptr p_op, int64_t p_op_port,
     , bind_op_port {p_op_port}
     , bind_port_user_idx {p_idx} {}
 
-node_tracker::node_tracker(const binding &bind_arg)
+node_tracker_t::node_tracker_t(const binding_t &bind_arg)
     : m_node {bind_arg.bind_node}, m_op {bind_arg.bind_op} {
     vector<pair<iport_t, producer_t>> vinputs = m_node->get_inputs();
     iport_pair ipair = m_node->get_commutative_pair();
@@ -50,7 +50,7 @@ node_tracker::node_tracker(const binding &bind_arg)
         while (!inputs.empty()) {
             iport_t port = inputs.front();
             inputs.pop_front();
-            input_match_task itask;
+            input_match_task_t itask;
             if (port == ipair.first) {
                 itask.port = ipair.first;
                 itask.additional_port = ipair.second;
@@ -73,7 +73,7 @@ node_tracker::node_tracker(const binding &bind_arg)
         }
     } else {
         for (auto const &i : vinputs) {
-            input_match_task itask;
+            input_match_task_t itask;
             itask.match_kind = INPUT_MATCH_KIND_NORMAL;
             itask.port = i.first;
             itask.additional_port = -1;
@@ -83,7 +83,7 @@ node_tracker::node_tracker(const binding &bind_arg)
 
     vector<pair<oport_t, consumers_t>> outputs = m_node->get_outputs();
     for (auto const &j : outputs) {
-        output_match_task otask;
+        output_match_task_t otask;
         otask.port = j.first;
         otask.num_consumers = static_cast<int64_t>(j.second.size());
         dst_to_visit.push_back(otask);
@@ -128,7 +128,7 @@ static node_tracker_ptr find_node_tracker(op_ptr op, match_context_ptr ctx) {
     return nullptr;
 }
 
-bool register_node_tracker(const binding &bind_arg, match_context_ptr ctx) {
+bool register_node_tracker(const binding_t &bind_arg, match_context_ptr ctx) {
     // Workflow
     // Check if op bind_arg.bind_op is already matched by some other pattern.
     // Find op in node_tracker_map up the context chain.
@@ -144,7 +144,7 @@ bool register_node_tracker(const binding &bind_arg, match_context_ptr ctx) {
     }
     node_tracker_ptr n_tracker = find_node_tracker(bind_arg.bind_op, ctx);
     if (n_tracker == nullptr) {
-        n_tracker = make_shared<node_tracker>(bind_arg);
+        n_tracker = make_shared<node_tracker_t>(bind_arg);
         ctx->ops_to_visit.push_back(bind_arg.bind_op);
         ctx->node_tracker_map.insert(
                 pair<op_ptr, node_tracker_ptr> {bind_arg.bind_op, n_tracker});
@@ -162,7 +162,7 @@ bool register_node_tracker(const binding &bind_arg, match_context_ptr ctx) {
                     bind_arg.bind_op_port)]
                     = false;
             for (size_t i = 0; i < n_tracker->src_to_visit.size(); i++) {
-                input_match_task &itask = n_tracker->src_to_visit[i];
+                input_match_task_t &itask = n_tracker->src_to_visit[i];
                 switch (itask.match_kind) {
                     case INPUT_MATCH_KIND_NORMAL:
                         // Check if task is for this bind port
@@ -251,7 +251,7 @@ bool register_node_tracker(const binding &bind_arg, match_context_ptr ctx) {
                     bind_arg.bind_op_port)]
                     = v;
             for (size_t i = 0; i < n_tracker->dst_to_visit.size(); i++) {
-                output_match_task &otask = n_tracker->dst_to_visit[i];
+                output_match_task_t &otask = n_tracker->dst_to_visit[i];
                 // If match task is for this bind_port
                 if (otask.port == bind_arg.bind_port) {
                     if (bind_arg.bind_op_port != bind_arg.bind_port) {
@@ -297,7 +297,7 @@ static bool bind_node_input(op_ptr op, int64_t in_offset, op_ptr prod_op,
     auto vals = prod_op->get_output_values();
     auto it = find(vals.begin(), vals.end(), val);
     int64_t prod_op_port = distance(vals.begin(), it);
-    binding b {BIND_OUT, prod_op, prod_op_port, prod_node, out_offset, idx};
+    binding_t b {BIND_OUT, prod_op, prod_op_port, prod_node, out_offset, idx};
     ctx->node_tracker_map[op]
             ->op_unhandled_input[static_cast<size_t>(in_offset)]
             = false;
@@ -313,7 +313,7 @@ static bool bind_node_input(op_ptr op, int64_t in_offset, op_ptr prod_op,
 // 3. input_match_task (matched node in port and alt in port)
 // 4. producer_t prod and alt_prod (if input is commutative)
 static bool match_input(op_ptr op, match_context_ptr ctx,
-        input_match_task itask, const shared_ptr<producer_t> &prod,
+        input_match_task_t itask, const shared_ptr<producer_t> &prod,
         const shared_ptr<producer_t> &alt_prod) {
     node_tracker_ptr n_tracker = ctx->node_tracker_map[op];
     auto o_num_inputs = op->num_inputs();
@@ -337,8 +337,8 @@ static bool match_input(op_ptr op, match_context_ptr ctx,
             auto vals = prod_op->get_output_values();
             int64_t prod_op_port = distance(
                     vals.begin(), find(vals.begin(), vals.end(), val));
-            binding b {BIND_OUT, prod_op, prod_op_port, prod_node, prod->second,
-                    idx};
+            binding_t b {BIND_OUT, prod_op, prod_op_port, prod_node,
+                    prod->second, idx};
             n_tracker->op_unhandled_input[static_cast<size_t>(itask.port)]
                     = false;
             if (prod_node->get_node_kind() == pb_node_kind::PB_NODE_KIND_OP) {
@@ -482,7 +482,7 @@ bool match_node_inputs(op_ptr op, match_context_ptr ctx) {
     if (inputs.empty()) { return true; }
 
     while (!n_tracker->src_to_visit.empty()) {
-        input_match_task itask = n_tracker->src_to_visit.front();
+        input_match_task_t itask = n_tracker->src_to_visit.front();
         n_tracker->src_to_visit.pop_front();
         iport_t node_port = itask.port;
         iport_t node_additional_port = itask.additional_port;
@@ -505,7 +505,7 @@ bool match_node_inputs(op_ptr op, match_context_ptr ctx) {
 // 4. consumers_t
 //
 static bool match_output(op_ptr op, match_context_ptr ctx,
-        output_match_task otask, const shared_ptr<consumers_t> &cons) {
+        output_match_task_t otask, const shared_ptr<consumers_t> &cons) {
     if (otask.port >= op->num_outputs()
             || op->get_output_value(static_cast<size_t>(otask.port))
                        ->get_consumers()
@@ -530,8 +530,8 @@ static bool match_output(op_ptr op, match_context_ptr ctx,
         op_ptr con_op = &(con_ops[0].get_op());
         size_t con_op_port = con_ops[0].get_offset();
         v[0] = false;
-        binding b {BIND_IN, con_op, static_cast<int64_t>(con_op_port), con_node,
-                con->second, 0};
+        binding_t b {BIND_IN, con_op, static_cast<int64_t>(con_op_port),
+                con_node, con->second, 0};
         n_tracker->op_unhandled_output[static_cast<size_t>(otask.port)] = v;
         if (con_node->get_node_kind() == pb_node_kind::PB_NODE_KIND_OP) {
             if (!register_node_tracker(b, ctx)) { return false; }
@@ -564,7 +564,7 @@ static bool match_output(op_ptr op, match_context_ptr ctx,
                     matched_node = true;
                     auto idx = get_output_consumer_index(con_op, con_op_port);
                     v[static_cast<size_t>(idx)] = false;
-                    binding b {BIND_IN, con_op,
+                    binding_t b {BIND_IN, con_op,
                             static_cast<int64_t>(con_op_port), con_node,
                             con->second, idx};
                     if (!register_node_tracker(b, ctx)) { return false; }
@@ -588,7 +588,7 @@ bool match_node_outputs(op_ptr op, match_context_ptr ctx) {
     if (outputs.empty()) { return true; }
     // Get output logical tensors of an op.
     while (!n_tracker->dst_to_visit.empty()) {
-        output_match_task otask = n_tracker->dst_to_visit.front();
+        output_match_task_t otask = n_tracker->dst_to_visit.front();
         n_tracker->dst_to_visit.pop_front();
         oport_t node_port = otask.port;
         if (!match_output(op, ctx, otask, node->get_consumers(node_port))) {
@@ -644,7 +644,7 @@ bool match_node(op_ptr op, match_context_ptr ctx) {
 // If pb_op, put in work deque and return pb_op
 // Else call nested matchers depending on node type
 //
-bool resolve_node(const binding &bind_arg, match_context_ptr ctx) {
+bool resolve_node(const binding_t &bind_arg, match_context_ptr ctx) {
     bool success = false;
     switch (bind_arg.bind_node->get_node_kind()) {
         case pb_node_kind::PB_NODE_KIND_GRAPH:
@@ -661,10 +661,10 @@ bool resolve_node(const binding &bind_arg, match_context_ptr ctx) {
     return success;
 }
 
-bool match_pattern(op_ptr first_op, const shared_ptr<pb_graph> &pattern,
-        match &m, bool auto_export_externals, bool match_forward) {
-    match_context global_ctx {nullptr, nullptr};
-    binding init_bind {BIND_NONE, first_op, -1, pattern.get(),
+bool match_pattern(op_ptr first_op, const shared_ptr<pb_graph_t> &pattern,
+        match_t &m, bool auto_export_externals, bool match_forward) {
+    match_context_t global_ctx {nullptr, nullptr};
+    binding_t init_bind {BIND_NONE, first_op, -1, pattern.get(),
             (match_forward ? 0 : -1), 0};
     if (!match_graph(init_bind, &global_ctx, nullptr)) { return false; }
     vector<op_ptr> matched_ops;
@@ -802,10 +802,10 @@ bool check_inputs_alias(std::vector<op_t *> &candidate_fusion) {
     return false;
 }
 
-match_context::match_context(
+match_context_t::match_context_t(
         match_context_ptr p_ctx, const pb_node_ptr &p_graph)
     : parent_ctx {p_ctx}, m_node {p_graph} {
-    m_graph = dynamic_cast<pb_graph *>(p_graph);
+    m_graph = dynamic_cast<pb_graph_t *>(p_graph);
     if (m_graph != nullptr) {
         for (auto const &node : m_graph->get_nodes()) {
             unhandled_nodes.insert(node);
@@ -864,11 +864,11 @@ static bool fill_parent_io_map(match_context_ptr local_ctx) {
 //
 // match nested pattern starting from initial binding
 //
-bool match_graph(const binding &bind_arg, match_context_ptr parent_ctx,
+bool match_graph(const binding_t &bind_arg, match_context_ptr parent_ctx,
         pair<graph_port_map, graph_port_map> *io_map) {
     // Create local match context
-    match_context local_ctx {parent_ctx, bind_arg.bind_node};
-    binding local_bind = bind_arg;
+    match_context_t local_ctx {parent_ctx, bind_arg.bind_node};
+    binding_t local_bind = bind_arg;
     // Get initial internal node to bind
     switch (bind_arg.bind_kind) {
         case BIND_NONE:
@@ -918,7 +918,7 @@ bool match_graph(const binding &bind_arg, match_context_ptr parent_ctx,
             if (n->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION) {
                 return false;
             }
-            repetition *rep = dynamic_cast<repetition *>(n);
+            repetition_t *rep = dynamic_cast<repetition_t *>(n);
             if (rep->get_min_rep() != 0) { return false; }
         }
     }
@@ -951,7 +951,7 @@ bool match_graph(const binding &bind_arg, match_context_ptr parent_ctx,
 }
 
 bool match_graph_inputs(match_context_ptr ctx, const pb_node_ptr &graph_node,
-        const binding &graph_binding, graph_port_map *in_port_map) {
+        const binding_t &graph_binding, graph_port_map *in_port_map) {
     // put neighbor ops into work deque from i/o pad mapping
     // update i/o pad ops unhandled ports
     for (auto inp : *in_port_map) {
@@ -962,7 +962,7 @@ bool match_graph_inputs(match_context_ptr ctx, const pb_node_ptr &graph_node,
         // filtering before creating input match task
         shared_ptr<producer_t> prod = graph_node->get_producer(graph_iport);
         if (prod == nullptr) continue;
-        // if this input port was used for binding to this graph
+        // if this input port was used for binding_t to this graph
         if (graph_binding.bind_kind == BIND_IN
                 && graph_binding.bind_port == graph_iport) {
             nt_ptr->op_unhandled_input[static_cast<size_t>(node_in_port)]
@@ -974,7 +974,7 @@ bool match_graph_inputs(match_context_ptr ctx, const pb_node_ptr &graph_node,
         input_match_kind mkind = has_commutative_input
                 ? INPUT_MATCH_KIND_COMMUTATIVE_ONE_CONSTRAINT
                 : INPUT_MATCH_KIND_NORMAL;
-        input_match_task itask {mkind, node_in_port, ipair.second};
+        input_match_task_t itask {mkind, node_in_port, ipair.second};
         if (!match_input(op, ctx, itask, graph_node->get_producer(graph_iport),
                     nullptr)) {
             return false;
@@ -993,7 +993,7 @@ bool match_graph_outputs(match_context_ptr ctx, const pb_node_ptr &graph_node,
         oport_t node_out_port = outp.second.second;
         shared_ptr<consumers_t> cons = graph_node->get_consumers(graph_oport);
         if (cons == nullptr) continue;
-        output_match_task otask;
+        output_match_task_t otask;
         otask.port = node_out_port;
         // otask.num_consumers is not used in this work flow
         if (!match_output(
@@ -1010,20 +1010,21 @@ bool match_graph_outputs(match_context_ptr ctx, const pb_node_ptr &graph_node,
 // rollback op unhandled edge states.
 //
 
-bool match_alternation(const binding &bind_arg, match_context_ptr parent_ctx) {
+bool match_alternation(
+        const binding_t &bind_arg, match_context_ptr parent_ctx) {
     bool success = false;
-    alternation *altnode = dynamic_cast<alternation *>(bind_arg.bind_node);
-    vector<pb_graph *> alts = altnode->get_alternatives();
+    alternation_t *altnode = dynamic_cast<alternation_t *>(bind_arg.bind_node);
+    vector<pb_graph_t *> alts = altnode->get_alternatives();
 
     pair<graph_port_map, graph_port_map> io_map;
-    // binding can be created with real parent ctx g
+    // binding_t can be created with real parent ctx g
     // since we settle with first matched alternative.
     // but we need to connect the inputs and outputs
     // body manually since the body is not directly connect to
     // parent. (update i/o op edges)
     // Alternatively, we may use a null context for simplicity.
-    for (pb_graph *gra : alts) {
-        binding local_bind = bind_arg;
+    for (pb_graph_t *gra : alts) {
+        binding_t local_bind = bind_arg;
         local_bind.bind_node = gra;
         success = match_graph(local_bind, parent_ctx, &io_map);
         if (success) break;
@@ -1042,14 +1043,14 @@ bool match_alternation(const binding &bind_arg, match_context_ptr parent_ctx) {
     return true;
 }
 
-bool match_repetition(const binding &bind_arg, match_context_ptr parent_ctx) {
-    repetition *repnode = dynamic_cast<repetition *>(bind_arg.bind_node);
+bool match_repetition(const binding_t &bind_arg, match_context_ptr parent_ctx) {
+    repetition_t *repnode = dynamic_cast<repetition_t *>(bind_arg.bind_node);
     pb_node_ptr body = repnode->get_body();
     port_maps pmap = repnode->get_port_maps();
     int64_t min_rep = repnode->get_min_rep();
     int64_t max_rep = repnode->get_max_rep();
 
-    // Binding has to be created with fake parent if min_rep is
+    // binding_t has to be created with fake parent if min_rep is
     // greater than 1. Since a match may need to rollback.
     // We use a null context for simplicity.
     // While looping, ff trip count becomes max_rep. stop iteration
@@ -1060,11 +1061,11 @@ bool match_repetition(const binding &bind_arg, match_context_ptr parent_ctx) {
     // Else, merge null context with parent, update i/o op edges
     // and return true.
 
-    // binding for first iteration.
+    // binding_t for first iteration.
     // all iterations have same body, bind_kind and bind_port
     // but they have different bind_op.
     // First iteration has same bind_op as the repetition node.
-    binding local_bind = bind_arg;
+    binding_t local_bind = bind_arg;
     local_bind.bind_node = body;
 
     // Create reverse port map iport_t -> oport_t
@@ -1075,28 +1076,28 @@ bool match_repetition(const binding &bind_arg, match_context_ptr parent_ctx) {
 
     // Various match_context
     // Need a confirmed context since exploring iteration is speculative
-    match_context confirmed_ctx {parent_ctx, bind_arg.bind_node};
+    match_context_t confirmed_ctx {parent_ctx, bind_arg.bind_node};
     // Also need a merge context to tag on incremental iterations.
     // This context is speculative since matching edges across neighboring
     // iterations can fail.
-    match_context speculative_ctx {parent_ctx, bind_arg.bind_node};
-    // Both context has the same binding (local_bind) and same parent context
+    match_context_t speculative_ctx {parent_ctx, bind_arg.bind_node};
+    // Both context has the same binding_t (local_bind) and same parent context
     // (parent_ctx) to refer to outside ops for alias checking
     // Every iteration needs a separate context and they will be used as
     // a unit for:
     // 1. (Auto) Adding to speculative_ctx for checking cross edges
     // 2. (Manual) Commiting to the confirmed_ctx.
     int i = 0;
-    binding temp_bind = local_bind;
+    binding_t temp_bind = local_bind;
     // Loop appears to be moving forward, but matching may happen
     // backward if bind_kind os BIND_OUT
     bool forward_match
             = (bind_arg.bind_kind == BIND_NONE && bind_arg.bind_port == 0)
             || bind_arg.bind_kind == BIND_IN;
     for (; i < max_rep - 1; i++) {
-        match_context temp_ctx {&speculative_ctx, nullptr};
+        match_context_t temp_ctx {&speculative_ctx, nullptr};
         if (!match_graph(temp_bind, &temp_ctx, nullptr)) { break; }
-        // update binding temp_bind for next rep;
+        // update binding_t temp_bind for next rep;
         if (i < max_rep - 2) {
             // Forward matching
             if (forward_match) {
@@ -1203,7 +1204,7 @@ bool match_repetition(const binding &bind_arg, match_context_ptr parent_ctx) {
     if (i < min_rep) { return false; }
     if (i == min_rep && i == 0) {
         // Zero trip match
-        // need to forward binding request to neighboring nodes
+        // need to forward binding_t request to neighboring nodes
         if (forward_match
                 && (bind_arg.bind_node->get_consumers(0) != nullptr)) {
             auto cons = bind_arg.bind_node->get_consumers(0);
@@ -1212,7 +1213,7 @@ bool match_repetition(const binding &bind_arg, match_context_ptr parent_ctx) {
                 // get next consumer
                 if (cons->size() != 1) { return false; }
                 auto con = *(cons->begin());
-                binding optional_bind = bind_arg;
+                binding_t optional_bind = bind_arg;
                 optional_bind.bind_node = con->first;
                 if (!resolve_node(optional_bind, parent_ctx)) { return false; }
             } else {
@@ -1223,7 +1224,7 @@ bool match_repetition(const binding &bind_arg, match_context_ptr parent_ctx) {
                                               bind_arg.bind_port))
                                       ->get_producer());
                 // do a match_output with a new consumers
-                output_match_task otask {0, 0};
+                output_match_task_t otask {0, 0};
                 if (!match_output(op, parent_ctx, otask, cons)) {
                     return false;
                 }
@@ -1234,7 +1235,7 @@ bool match_repetition(const binding &bind_arg, match_context_ptr parent_ctx) {
             if (bind_arg.bind_kind == BIND_NONE) {
                 // resolve_node with ... if BIND_NONE
                 // get next producer
-                binding optional_bind = bind_arg;
+                binding_t optional_bind = bind_arg;
                 optional_bind.bind_node = prod->first;
                 if (!resolve_node(optional_bind, parent_ctx)) { return false; }
             } else {
@@ -1248,7 +1249,7 @@ bool match_repetition(const binding &bind_arg, match_context_ptr parent_ctx) {
                                               bind_arg.bind_port_user_idx))
                                       .get_op());
                 // do a match input with a new producer
-                input_match_task itask {INPUT_MATCH_KIND_NORMAL, 0, -1};
+                input_match_task_t itask {INPUT_MATCH_KIND_NORMAL, 0, -1};
                 if (!match_input(op, parent_ctx, itask, prod, nullptr)) {
                     return false;
                 }

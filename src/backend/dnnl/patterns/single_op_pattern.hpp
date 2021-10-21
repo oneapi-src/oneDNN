@@ -28,7 +28,7 @@ namespace impl {
 namespace dnnl_impl {
 namespace pass {
 
-using pb_graph = impl::utils::pm::pb_graph;
+using pb_graph_t = impl::utils::pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
@@ -38,7 +38,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
     DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name) \
             .set_priority(p) \
             .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
-                    [](const std::shared_ptr<pb_graph> &pgraph) -> void { \
+                    [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
                         pgraph->append_op(impl::op_kind::op); \
                     }) \
             .set_attr<FCreateV2FusedOp>( \
@@ -123,7 +123,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, dnnl, Reorder, 8.f)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     impl::utils::pm::pb_op *p_tc = pgraph->append_op(
                             impl::op_kind::TypeCast, "p-typecast");
                     p_tc->SET_BF16_F16_CHECK();

@@ -27,7 +27,7 @@ namespace impl {
 namespace fake_impl {
 namespace pass {
 
-using pb_graph = utils::pm::pb_graph;
+using pb_graph_t = utils::pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
@@ -37,7 +37,7 @@ FAKE_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
     FAKE_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name) \
             .set_priority(p) \
             .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
-                    [](const std::shared_ptr<pb_graph> &pgraph) -> void { \
+                    [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
                         pgraph->append_op(op_kind::Wildcard); \
                     });
 

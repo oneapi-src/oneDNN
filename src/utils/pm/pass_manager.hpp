@@ -35,7 +35,7 @@ namespace pass {
  * \brief pass_registry is a registry class that
  *        is responsible for registering pass
  */
-class pass_registry {
+class pass_registry_t {
     using pass_create_fn = pass_base_ptr (*)(std::string, std::string);
 
 public:
@@ -55,11 +55,11 @@ public:
         return it->second;
     }
 
-    pass_registry() = default;
-    pass_registry(const pass_registry &) = delete;
-    pass_registry(pass_registry &&) = delete;
-    pass_registry &operator=(const pass_registry &) = delete;
-    pass_registry &operator=(pass_registry &&) = delete;
+    pass_registry_t() = default;
+    pass_registry_t(const pass_registry_t &) = delete;
+    pass_registry_t(pass_registry_t &&) = delete;
+    pass_registry_t &operator=(const pass_registry_t &) = delete;
+    pass_registry_t &operator=(pass_registry_t &&) = delete;
 
 private:
     std::list<pass_base_ptr> passes_;
@@ -67,16 +67,16 @@ private:
 };
 
 /*!
- * \brief pass_manager manages the registered passes
+ * \brief pass_manager_t manages the registered passes
  *        as well as backends. It supports pass registration,
  *        pass execution, partition compilation, etc.
  */
-class pass_manager {
+class pass_manager_t {
 private:
-    pass_registry &pass_registry_;
+    pass_registry_t &pass_registry_;
 
 public:
-    pass_manager(pass_registry &registry) : pass_registry_(registry) {
+    pass_manager_t(pass_registry_t &registry) : pass_registry_(registry) {
         pass_registry_.sort_passes();
     }
 

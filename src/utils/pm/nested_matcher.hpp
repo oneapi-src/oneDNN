@@ -67,13 +67,13 @@ namespace pm {
 // graph op binded with a pb_op will be handled by match_node()
 // which checks graph op attributes with the pb_op's decision_functions
 // and bind neighboring ops and corresponding pattern nodes.
-// node_tracker is used by detailed implementation and is used to track
+// node_tracker_t is used by detailed implementation and is used to track
 // which pb_op a graph op is paired with, how graph op edges need to
 // be matched and tracks unmatched input and output edges of a graph op.
-// How a graph op need to be matched is described by input_match_task
-// and output_match_task. input_match_task tells whether the input is
+// How a graph op need to be matched is described by input_match_task_t
+// and output_match_task_t. input_match_task_t tells whether the input is
 // commutative and whether both edges of a commutative pair is
-// constrained. output_match_task tells which output value's consumers
+// constrained. output_match_task_t tells which output value's consumers
 // need to be match and which one has already been matched.
 // The matcher is predictive since it has to decide how a graph op and
 // pattern node will be paired without looking at the entire graph and
@@ -118,7 +118,7 @@ enum input_match_kind {
 // Instructs how a pattern input edge should be matched.
 // There are two ports given to cover commutative pair
 //
-struct input_match_task {
+struct input_match_task_t {
     input_match_kind match_kind;
     iport_t port;
     iport_t additional_port;
@@ -129,7 +129,7 @@ struct input_match_task {
 // port is the output port for the edge.
 // num_consumers is the number of consumers to match
 //
-struct output_match_task {
+struct output_match_task_t {
     oport_t port;
     int64_t num_consumers;
 };
@@ -157,9 +157,9 @@ enum node_bind_kind {
 // pattern node may not be a pb_op. In that case, nested(recursive)
 // matching happens.
 //
-class binding {
+class binding_t {
 public:
-    binding(node_bind_kind p_kind, op_ptr p_op, int64_t p_op_port,
+    binding_t(node_bind_kind p_kind, op_ptr p_op, int64_t p_op_port,
             pb_node_ptr p_node, int64_t p_port, int64_t p_idx);
 
     op_ptr bind_op;
@@ -171,7 +171,7 @@ public:
 };
 
 //
-// node_tracker keeps track of a graph op's matched state
+// node_tracker_t keeps track of a graph op's matched state
 // It consists of
 // - the graph op
 // - paired pattern node
@@ -180,17 +180,17 @@ public:
 // - graph op in edges not matched by pattern
 // - graph op out edges not matched by pattern
 //
-class node_tracker {
+class node_tracker_t {
 public:
-    node_tracker(const binding &b);
+    node_tracker_t(const binding_t &b);
     pb_node_ptr get_node() { return m_node; };
     op_ptr get_op() { return m_op; };
     // work items for node
     // matched input edges, could be commutative
     // initialize from m_node
-    deque<input_match_task> src_to_visit;
+    deque<input_match_task_t> src_to_visit;
     // matched output edges, output consumers are commutative
-    deque<output_match_task> dst_to_visit;
+    deque<output_match_task_t> dst_to_visit;
     // edges matched for an op
     // other unconstrained edges
     // initialize from m_op
@@ -204,7 +204,7 @@ protected:
     op_ptr m_op;
 };
 
-using node_tracker_ptr = shared_ptr<node_tracker>;
+using node_tracker_ptr = shared_ptr<node_tracker_t>;
 
 using graph_port_map = map<int64_t, pair<op_ptr, int64_t>>;
 
@@ -214,18 +214,18 @@ using graph_port_map = map<int64_t, pair<op_ptr, int64_t>>;
 // - pointer to parent match context
 // - pointer to pattern graph tracked by this match context
 // - a deque of graph ops to visit at this local nesting
-// - a map from graph op to node_tracker
+// - a map from graph op to node_tracker_t
 // - a list of unmatched pb_nodes
 // - a map of pattern graph input port to matched graph op and
 // input port
 // - a map of pattern graph output port to matched graph op and
 // output port
 //
-class match_context {
+class match_context_t {
 public:
-    match_context(match_context *p_parent_ctx, const pb_node_ptr &p_graph);
-    match_context *get_parent_context() { return parent_ctx; };
-    pb_graph *get_graph() { return m_graph; };
+    match_context_t(match_context_t *p_parent_ctx, const pb_node_ptr &p_graph);
+    match_context_t *get_parent_context() { return parent_ctx; };
+    pb_graph_t *get_graph() { return m_graph; };
     pb_node_ptr get_node() { return m_node; };
 
     // Local and Global : track alias
@@ -236,18 +236,18 @@ public:
     deque<op_ptr> ops_to_visit;
     unordered_set<pb_node_ptr> unhandled_nodes;
 
-    // This pb_graph i/o pads to actual op i/o pad mapping.
+    // This pb_graph_t i/o pads to actual op i/o pad mapping.
     graph_port_map in_port_map;
     graph_port_map out_port_map;
 
 protected:
-    match_context *parent_ctx;
+    match_context_t *parent_ctx;
     // Can be a nullptr if context is a global for holding graph(s)
-    pb_graph *m_graph;
+    pb_graph_t *m_graph;
     pb_node_ptr m_node;
 };
 
-using match_context_ptr = match_context *;
+using match_context_ptr = match_context_t *;
 
 //
 // match a pattern node by checking paired graph op's attributes
@@ -296,12 +296,12 @@ bool match_node_attributes(op_ptr o, const pb_node_ptr &n);
 //
 // Trigger nested matching for non pb_op nodes
 //
-bool resolve_node(const binding &b, match_context_ptr context);
+bool resolve_node(const binding_t &b, match_context_ptr context);
 
 //
 // Match a graph
 //
-bool match_graph(const binding &b, match_context_ptr context,
+bool match_graph(const binding_t &b, match_context_ptr context,
         pair<graph_port_map, graph_port_map> *io_map);
 
 //
@@ -311,7 +311,7 @@ bool match_graph(const binding &b, match_context_ptr context,
 // in_port_map is passed to look up graph op tied to graph input port.
 //
 bool match_graph_inputs(match_context_ptr context,
-        const pb_node_ptr &graph_node, const binding &graph_binding,
+        const pb_node_ptr &graph_node, const binding_t &graph_binding,
         graph_port_map *in_port_map);
 
 //
@@ -327,14 +327,14 @@ bool match_graph_outputs(match_context_ptr context,
 // match an alternation
 // iterates alternatives and apply match_graph until a matching one is found.
 //
-bool match_alternation(const binding &b, match_context_ptr context);
+bool match_alternation(const binding_t &b, match_context_ptr context);
 
 //
 // match a repetition including optional
 // matches one iteration of repeating body at a time and matches edges
 // across iterations of matched bodies.
 //
-bool match_repetition(const binding &b, match_context_ptr context);
+bool match_repetition(const binding_t &b, match_context_ptr context);
 
 //
 // A match returns
@@ -344,7 +344,7 @@ bool match_repetition(const binding &b, match_context_ptr context);
 // a list of output value_t (logical_tensor) from intput graph
 // for interfacing with the match
 //
-struct match {
+struct match_t {
     vector<pair<op_ptr, pb_op *>> op_pb_op_pairs;
     vector<shared_ptr<value_t>> inputs;
     vector<shared_ptr<value_t>> outputs;
@@ -357,8 +357,8 @@ struct match {
 // matching should be interpreted.
 // match_forward controls matching direction (forward, backward)
 //
-bool match_pattern(op_ptr first_op, const shared_ptr<pb_graph> &pattern,
-        match &m, bool auto_export_externals = false,
+bool match_pattern(op_ptr first_op, const shared_ptr<pb_graph_t> &pattern,
+        match_t &m, bool auto_export_externals = false,
         bool match_forward = true);
 
 bool check_inputs_alias(std::vector<op_t *> &candidate_fusion);

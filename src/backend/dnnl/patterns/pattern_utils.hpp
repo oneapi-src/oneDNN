@@ -399,7 +399,7 @@ public:
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
             op_t *op_pattern, std::vector<std::vector<op_t *>> &fusion_ops);
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
-            shared_ptr<impl::utils::pm::pb_graph> pgraph,
+            shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
             std::vector<std::vector<pattern_pair>> &matched_pairs_list);
 
     inline void rewrite(dnnl::graph::impl::graph_t &backend_graph,
@@ -539,11 +539,11 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
 
 // function to do v2 pattern matching
 inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
-        std::shared_ptr<impl::utils::pm::pb_graph> pgraph,
+        std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
         std::vector<std::vector<pattern_pair>> &matched_pairs_list) {
     // dfs_visit graph, do pattern matching
     topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
-        impl::utils::pm::match matcher;
+        impl::utils::pm::match_t matcher;
         if (!impl::utils::pm::match_pattern(cur_op, pgraph, matcher)) {
             return status::success;
         }

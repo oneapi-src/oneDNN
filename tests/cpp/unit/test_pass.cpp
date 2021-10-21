@@ -43,7 +43,7 @@ namespace {
 dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     auto &backend_ptr
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager(
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     auto &passes = pm.get_passes();
     auto find = std::find_if(passes.begin(), passes.end(),
@@ -1438,7 +1438,7 @@ TEST(pass_test, binary_sum_fusion) {
             add
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
             {Multiply, dnnl_impl::op_kind::multiply_add},
             {Maximum, dnnl_impl::op_kind::maximum_add},
@@ -1514,7 +1514,7 @@ TEST(pass_priority_test, binary_sum_fusion) {
 
 TEST(pass_test, binary_sum_fusion_supported_broadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
             {Multiply, dnnl_impl::op_kind::multiply_add},
             {Maximum, dnnl_impl::op_kind::maximum_add},
@@ -1556,7 +1556,7 @@ TEST(pass_test, binary_sum_fusion_supported_broadcast) {
 
 TEST(pass_test, binary_sum_fusion_unsupported_broadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
             {Multiply, dnnl_impl::op_kind::multiply_add},
             {Maximum, dnnl_impl::op_kind::maximum_add},
@@ -1608,7 +1608,7 @@ TEST(pass_test, binary_sum_fusion_unsupported_broadcast) {
 
 TEST(pass_test, binary_sum_fusion_unknown_shape) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
             {Multiply, dnnl_impl::op_kind::multiply_add},
             {Maximum, dnnl_impl::op_kind::maximum_add},
@@ -1653,7 +1653,7 @@ TEST(pass_test, binary_add_mul_fusion) {
             mul
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
 
     graph_t agraph;
     op_t add {0, Add, "add"};
@@ -1694,7 +1694,7 @@ TEST(pass_test, binary_eltwise_fusion) {
         eltwise
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<std::pair<op_kind_t, op_kind_t>, op_kind_t>>
             opkind_pair {{{Add, Sigmoid}, dnnl_impl::op_kind::add_sigmoid},
                     {{Add, ReLU}, dnnl_impl::op_kind::add_relu},
@@ -3923,7 +3923,7 @@ TEST(pass_test, single_op_replacement) {
     using namespace dnnl::graph::impl::op_kind;
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<op_kind_t> single_op_set_supported = {BatchNormInference, Add,
             ReLU, MatMul, AvgPool, MaxPool, AvgPoolBackprop,
             BatchNormTrainingBackprop, ConvolutionBackpropData,
@@ -3947,7 +3947,7 @@ TEST(pass_test, single_op_replacement) {
     }
 
     auto &fake_backend_ptr = fake_impl::fake_backend::get_singleton();
-    auto fake_pm = pass::pass_manager(fake_backend_ptr.get_pass_registry());
+    auto fake_pm = pass::pass_manager_t(fake_backend_ptr.get_pass_registry());
     std::vector<op_kind_t> single_op_set_unsupported = {
             /* not enabling ops = */ Concat, Divide, EluBackprop,
             LayerNormBackprop, Reshape, Round, Sigmoid, SigmoidBackprop,
@@ -4089,7 +4089,7 @@ TEST(pass_test, save_load_json) {
 
     auto &backend_ptr
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager(
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
     pm.print_passes("passes.json");
@@ -4142,7 +4142,7 @@ TEST(pass_test, valid_json) {
 
     auto &backend_ptr
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager(
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
     std::ostringstream valid_stream;
@@ -4200,7 +4200,7 @@ TEST(pass_test, invalid_json_for_incompatible_hash) {
 
     auto &backend_ptr
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager(
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
     std::ostringstream invalid_stream;
@@ -4260,7 +4260,7 @@ TEST(pass_test, invalid_json_for_missing_field) {
 
     auto &backend_ptr
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager(
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
     std::ostringstream invalid_stream;
@@ -4313,7 +4313,7 @@ TEST(pass_test, invalid_json_for_wrong_format) {
 
     auto &backend_ptr
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager(
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
     std::ostringstream invalid_stream;
@@ -4580,7 +4580,7 @@ wildcard     | (f32)
     agraph.build_graph();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 4);
 }
@@ -5703,7 +5703,7 @@ TEST(pass_test, quantized_conv_priority_test) {
              | (f32)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     //asymmetric zps
     std::vector<int64_t> zps = {0, 0, 0, 0};
@@ -6317,7 +6317,7 @@ TEST(pass_test, x8s8f32_matmul_eltwise_fusion) {
              | (f32)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
             {ReLU, dnnl_impl::op_kind::x8s8f32_matmul_relu},
             {Sigmoid, dnnl_impl::op_kind::x8s8f32_matmul_sigmoid},
@@ -6434,7 +6434,7 @@ TEST(pass_test, x8s8f32_matmul_bias_eltwise_fusion) {
              | (f32)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
             {ReLU, dnnl_impl::op_kind::x8s8f32_matmul_bias_relu},
             {Sigmoid, dnnl_impl::op_kind::x8s8f32_matmul_bias_sigmoid},
@@ -6857,7 +6857,7 @@ TEST(pass_test, relu_add_fusion) {
 
     auto &backend_ptr
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager(
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
     pm.run_passes(agraph, "no_config");
@@ -7168,7 +7168,7 @@ TEST(pass_system_test, x8x8bf16_matmul_fusion) {
     agraph.build_graph();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -7318,7 +7318,7 @@ TEST(pass_system_test, x8x8bf16_matmul_div_fusion) {
     agraph.build_graph();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -7521,7 +7521,7 @@ TEST(pass_system_test, x8s8bf16_matmul_bias_fusion) {
     agraph.build_graph();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -7765,7 +7765,7 @@ TEST(pass_system_test, x8s8bf16_matmul_bias_add_fusion) {
     agraph.build_graph();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -7859,7 +7859,7 @@ TEST(pass_system_test, x8s8bf16_matmul_add_fusion) {
     agraph.build_graph();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -7987,7 +7987,7 @@ TEST(pass_system_test, int8_mix_bf16_matmul_bias_gelu_fusion) {
              | (u8/s8)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -8169,7 +8169,7 @@ TEST(pass_system_test, int8_mix_bf16_matmul_gelu_fusion) {
              | (u8/s8)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -8261,7 +8261,7 @@ TEST(pass_test, int8_mix_bf16_matmul_bias_fusion) {
              | (u8/s8)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -8351,7 +8351,7 @@ TEST(pass_system_test, int8_mix_bf16_matmul_bias_fusion) {
              | (u8/s8)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -8440,7 +8440,7 @@ TEST(pass_test, int8_mix_bf16_matmul_fusion) {
              | (u8/s8)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -8527,7 +8527,7 @@ TEST(pass_system_test, int8_mix_bf16_matmul_fusion) {
              | (u8/s8)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -8607,7 +8607,7 @@ TEST(pass_test, typecast_quantize_fusion) {
              | (u8/s8)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -8651,7 +8651,7 @@ TEST(pass_system_test, typecast_quantize_fusion) {
              | (u8/s8)
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};

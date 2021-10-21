@@ -40,7 +40,7 @@ namespace utils {
 namespace pm {
 class pb_op;
 class pb_node;
-class pb_graph;
+class pb_graph_t;
 // Helper types
 using iport_t = int64_t;
 using oport_t = int64_t;
@@ -96,7 +96,7 @@ public:
     virtual void set_name(string name) { m_debug_string = std::move(name); };
 
 protected:
-    friend class pb_graph;
+    friend class pb_graph_t;
     pb_node() = default;
     bool set_producer(iport_t p_port, shared_ptr<producer_t> p_producer);
     bool set_consumers(oport_t p_port, shared_ptr<consumers_t> p_consumers);
@@ -123,7 +123,7 @@ decision_function one_of_kind(
 
 // pb_op represents a single dnnl graph  op (and future sub-class) operation
 // No public constructor
-// Always created by a pb_graph
+// Always created by a pb_graph_t
 // pb_op has type and attributes
 // Type and attribute contraint checkers are registered in pb_op
 // Extends "pb_node" to enable attribute matching including op type check.
@@ -159,7 +159,7 @@ public:
     };
 
 protected:
-    friend class pb_graph;
+    friend class pb_graph_t;
     pb_op(const decision_function &p_fn);
     // For overriding default side output control
     unordered_set<oport_t> m_external_outputs;
@@ -172,54 +172,54 @@ protected:
 // Strutures for extended patterns
 // API may change
 //
-class alternation : public pb_node {
+class alternation_t : public pb_node {
 public:
-    alternation() = delete;
-    vector<pb_graph *> get_alternatives();
+    alternation_t() = delete;
+    vector<pb_graph_t *> get_alternatives();
 
 protected:
-    friend class pb_graph;
-    alternation(vector<shared_ptr<pb_graph>> p_nodes);
-    vector<shared_ptr<pb_graph>> m_alternatives;
+    friend class pb_graph_t;
+    alternation_t(vector<shared_ptr<pb_graph_t>> p_nodes);
+    vector<shared_ptr<pb_graph_t>> m_alternatives;
 };
 
-class repetition : public pb_node {
+class repetition_t : public pb_node {
 public:
-    repetition() = delete;
-    pb_graph *get_body();
+    repetition_t() = delete;
+    pb_graph_t *get_body();
     port_maps get_port_maps();
     int64_t get_min_rep() const { return m_min_rep; }
     int64_t get_max_rep() const { return m_max_rep; }
 
 protected:
-    friend class pb_graph;
+    friend class pb_graph_t;
     // Represents p_node repeated [min_rep, max_rep) times with p_map for
     // output to input binding
     // [n, n+1) means exactly n repetitions
     // [0, n+1) means at most n repetitions
     // [n, INT64_MAX) means at least n repetitions
-    repetition(shared_ptr<pb_graph> p_node, port_maps p_maps, int64_t min_rep,
-            int64_t max_rep);
+    repetition_t(shared_ptr<pb_graph_t> p_node, port_maps p_maps,
+            int64_t min_rep, int64_t max_rep);
     // Usage case for Optional does not need a port map
-    repetition(shared_ptr<pb_graph> p_node);
-    shared_ptr<pb_graph> m_body;
+    repetition_t(shared_ptr<pb_graph_t> p_node);
+    shared_ptr<pb_graph_t> m_body;
     port_maps m_port_maps;
     int64_t m_min_rep;
     int64_t m_max_rep;
 };
 
-// "pb_graph" represents a group of pb_ops and also serves as a pb_node anywhere
+// "pb_graph_t" represents a group of pb_ops and also serves as a pb_node anywhere
 // And provides a way to limit interface by limiting ports(placeholders)
-// to outside of pb_graph.
+// to outside of pb_graph_t.
 // Nested/Hierarchical pb_nodes are useful for expressing patterns beyond fixed
-// pb_graph. Regular expression like extension may works on a unit larger than
+// pb_graph_t. Regular expression like extension may works on a unit larger than
 // a single pb_node.
 // So a concept that represent grouping is going to be useful.
-// pb_graph defines a way to forward input/output of the group
+// pb_graph_t defines a way to forward input/output of the group
 // to input/output of individual pb_nodes.
-// For example, pb_graph "G" below wraps two connected pb_nodes "MUL" and "ADD"
+// For example, pb_graph_t "G" below wraps two connected pb_nodes "MUL" and "ADD"
 // Collectively, G defines three inputs and one output. The three inputs of "G"
-// are mapped to (pb_graph inner) inputs of "MUL" and "ADD"
+// are mapped to (pb_graph_t inner) inputs of "MUL" and "ADD"
 // The single output of "G" maps to the single output of "ADD"
 // Now, this "G" can used as part of a bigger pattern by connecting through
 // the three inputs and one output just defined.
@@ -235,16 +235,16 @@ protected:
 //    |          1-|   |   |
 // 2- |            -----   |
 //    ----------------------
-//          pb_graph "G"
+//          pb_graph_t "G"
 //
 // G:IN0->MUL:IN0, G:IN1->MUL:IN1, G:IN2->ADD:IN1
 // G:OUT0->ADD:OUT0
 // G:OUTPUT PORTS = {OUT0}
 
-class pb_graph : public pb_node {
+class pb_graph_t : public pb_node {
 public:
-    pb_graph(string name = "");
-    // Restrict "pb_op" create to a pb_graph to avoid dangling "pb_op"s
+    pb_graph_t(string name = "");
+    // Restrict "pb_op" create to a pb_graph_t to avoid dangling "pb_op"s
     pb_op *append_op(const decision_function &type_checker,
             const in_edges_t &p_in_edges, string name = "");
     pb_op *append_op(const decision_function &type_checker, string name = "");
@@ -258,18 +258,20 @@ public:
             const vector<dnnl::graph::impl::op_kind_t> &p_kind,
             string name = "");
 
-    alternation *append_alternation(vector<shared_ptr<pb_graph>> p_nodes,
+    alternation_t *append_alternation(vector<shared_ptr<pb_graph_t>> p_nodes,
             const in_edges_t &p_in_edges, string name = "");
-    alternation *append_alternation(
-            vector<shared_ptr<pb_graph>> p_nodes, string name = "");
-    repetition *append_repetition(shared_ptr<pb_graph> p_node, port_maps p_maps,
-            int64_t min_rep, int64_t max_rep, const in_edges_t &p_in_edges,
+    alternation_t *append_alternation(
+            vector<shared_ptr<pb_graph_t>> p_nodes, string name = "");
+    repetition_t *append_repetition(shared_ptr<pb_graph_t> p_node,
+            port_maps p_maps, int64_t min_rep, int64_t max_rep,
+            const in_edges_t &p_in_edges, string name = "");
+    repetition_t *append_repetition(shared_ptr<pb_graph_t> p_node,
+            port_maps p_maps, int64_t min_rep, int64_t max_rep,
             string name = "");
-    repetition *append_repetition(shared_ptr<pb_graph> p_node, port_maps p_maps,
-            int64_t min_rep, int64_t max_rep, string name = "");
-    repetition *append_optional(shared_ptr<pb_graph> p_node,
+    repetition_t *append_optional(shared_ptr<pb_graph_t> p_node,
             const in_edges_t &p_in_edges, string name = "");
-    repetition *append_optional(shared_ptr<pb_graph> p_node, string name = "");
+    repetition_t *append_optional(
+            shared_ptr<pb_graph_t> p_node, string name = "");
     bool set_edge(
             const shared_ptr<consumer_t> &, const shared_ptr<producer_t> &);
     bool has_edge(

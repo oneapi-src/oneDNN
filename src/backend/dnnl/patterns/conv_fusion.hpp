@@ -35,7 +35,7 @@ namespace pass {
 
 namespace pm = impl::utils::pm;
 using in_edges_t = pm::in_edges_t;
-using pb_graph = pm::pb_graph;
+using pb_graph_t = pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
@@ -67,7 +67,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(conv_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -91,7 +91,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu6_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv = pgraph->append_op(
                             impl::op_kind::Convolution, "p-conv");
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -118,7 +118,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu6_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_elu_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -142,7 +142,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_elu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_fusion)
         .set_priority(10.0f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -163,7 +163,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_relu_fusion)
         .set_priority(10.0f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -191,7 +191,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
         .set_priority(10.2f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -211,7 +211,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
                     relu6->set_attr<float>("max", 6.f);
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -238,7 +238,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
         .set_priority(10.0f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -259,7 +259,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
                             in_edges_t {in_edge(0, add, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -287,7 +287,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_fusion)
         .set_priority(9.9f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -312,7 +312,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
         .set_priority(9.9f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -330,7 +330,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
                     add->allow_internal_inputs({0, 1});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -355,7 +355,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_relu_fusion)
         .set_priority(9.9f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -378,7 +378,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_relu_fusion)
         .set_priority(9.9f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -394,7 +394,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_relu_fusion)
                             in_edges_t {in_edge(0, bn, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -417,7 +417,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
         .set_priority(10.2f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -434,7 +434,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
                             in_edges_t {in_edge(0, add, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -458,7 +458,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
         .set_priority(10.2f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -475,7 +475,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
                             in_edges_t {in_edge(0, add, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -499,7 +499,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu6_fusion)
         .set_priority(9.9f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -514,7 +514,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu6_fusion)
                     relu6->set_attr<float>("max", 6.f);
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -536,7 +536,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu6_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_fusion)
         .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -563,7 +563,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_fusion)
         .set_priority(10.6f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -591,7 +591,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
         .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -611,7 +611,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
                             in_edges_t {in_edge(0, bias, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -638,7 +638,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_relu_fusion)
         .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -668,7 +668,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_relu_fusion)
         .set_priority(10.6f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -698,7 +698,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_fusion)
         .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
                     pm::pb_op *dequant_weight = pgraph->append_op(
@@ -723,7 +723,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_fusion)
                             in_edges_t {in_edge(0, add, 0)}, "pquant");
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
                     pm::pb_op *dequant_weight = pgraph->append_op(
@@ -755,7 +755,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_relu_fusion)
         .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -778,7 +778,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_relu_fusion)
                             in_edges_t {in_edge(0, relu, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -808,7 +808,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
         .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -841,7 +841,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
                             in_edges_t {in_edge(0, relu, 0)}, "pquant");
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -882,7 +882,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, int8_quant_wei_conv_bias_add_relu_fusion)
         .set_priority(10.6f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -910,7 +910,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, relu, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -951,7 +951,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, int8_quant_wei_conv_bias_relu_fusion)
         .set_priority(10.6f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -973,7 +973,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, relu, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1007,7 +1007,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_bias_fusion)
         .set_priority(10.6f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1027,7 +1027,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_bias_fusion)
                                     in_edges_t {in_edge(0, conv, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1059,7 +1059,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_bias_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_add_relu_fusion)
         .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
                     pm::pb_op *dequant_weight = pgraph->append_op(
@@ -1097,7 +1097,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, int8_quant_wei_conv_add_relu_fusion)
         .set_priority(10.6f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1135,7 +1135,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -1162,7 +1162,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_fusion)
         .set_priority(9.9f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -1179,7 +1179,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_fusion)
                     conv->SET_NUM_INPUTS_CHECK(3);
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -1209,7 +1209,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_relu_fusion)
         .set_priority(10.0f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -1239,7 +1239,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_relu_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -1259,7 +1259,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_relu_fusion)
                             in_edges_t {in_edge(0, conv, 0)}, "prelu");
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -1292,7 +1292,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_conv_bias_add_relu_fusion)
         .set_priority(10.4f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -1324,7 +1324,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             in_edges_t {in_edge(0, add, 0)}, "prelu");
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -1363,7 +1363,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_add_relu_fusion)
         .set_priority(10.3f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
@@ -1402,7 +1402,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_add_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_quant_wei_conv_fusion)
         .set_priority(9.9f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1431,7 +1431,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_bias_fusion)
         .set_priority(10.0f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1449,7 +1449,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     conv->SET_NUM_INPUTS_CHECK(3);
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1481,7 +1481,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_relu_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1513,7 +1513,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_bias_relu_fusion)
         .set_priority(10.2f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1534,7 +1534,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             in_edges_t {in_edge(0, conv, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1568,7 +1568,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_bias_add_relu_fusion)
         .set_priority(10.3f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1596,7 +1596,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             in_edges_t {in_edge(0, add, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1638,7 +1638,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_add_relu_fusion)
         .set_priority(10.4f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op *quant_weight
@@ -1676,7 +1676,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1690,7 +1690,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
                     add->allow_internal_inputs({0, 1});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -1711,7 +1711,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_elu_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1723,7 +1723,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_elu_fusion)
                             in_edges_t {in_edge(0, bias, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -1742,7 +1742,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_elu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sigmoid_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1754,7 +1754,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sigmoid_fusion)
                             in_edges_t {in_edge(0, bias, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -1773,7 +1773,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sigmoid_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1791,7 +1791,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
                     mul->set_commutative_pair({0, 1});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv = pgraph->append_op(
                             impl::op_kind::Convolution, "p-conv");
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -1817,7 +1817,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1836,7 +1836,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1848,7 +1848,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_fusion)
                             in_edges_t {in_edge(0, bias, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -1867,7 +1867,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_relu_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1886,7 +1886,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1898,7 +1898,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu_fusion)
                             in_edges_t {in_edge(0, bias, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -1917,7 +1917,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_hardtanh_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1929,7 +1929,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_hardtanh_fusion)
                             in_edges_t {in_edge(0, bias, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -1948,7 +1948,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_hardtanh_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_square_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1960,7 +1960,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_square_fusion)
                             in_edges_t {in_edge(0, bias, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -1979,7 +1979,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_square_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_tanh_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -1991,7 +1991,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_tanh_fusion)
                             in_edges_t {in_edge(0, bias, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -2010,7 +2010,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_tanh_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_abs_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -2022,7 +2022,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_abs_fusion)
                             in_edges_t {in_edge(0, bias, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -2041,7 +2041,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_abs_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sqrt_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -2053,7 +2053,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sqrt_fusion)
                             in_edges_t {in_edge(0, bias, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -2072,7 +2072,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sqrt_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_fusion)
         .set_priority(9.7f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
@@ -2080,7 +2080,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_fusion)
                             in_edges_t {in_edge(0, conv, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(3);
@@ -2096,7 +2096,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_pass)
         .set_priority(9.7f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pgraph->append_op(impl::op_kind::Convolution);
                 })
         .set_attr<FCreateV2FusedOp>(
@@ -2110,7 +2110,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_pass)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bwd_f_biasadd_bwd_fusion)
         .set_priority(9.7f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph> &pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *convbpf = pgraph->append_op(
                             impl::op_kind::ConvolutionBackpropFilters);
                     pgraph->append_op(impl::op_kind::BiasAddBackprop,

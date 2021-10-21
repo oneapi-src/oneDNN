@@ -36,7 +36,7 @@ namespace graph {
 namespace impl {
 namespace pass {
 
-using pb_graph = utils::pm::pb_graph;
+using pb_graph_t = utils::pm::pb_graph_t;
 using graph = impl::graph_t;
 
 /*! \brief pass type */
@@ -53,7 +53,7 @@ using FCreatePattern = std::function<void(pattern *apattern)>;
 // FCreateV2Pattern: a function for defining pattern.
 // One pass can have several FCreateV2Pattern functions.
 using FCreateV2Pattern
-        = std::function<void(const std::shared_ptr<pb_graph> &pattern_graph)>;
+        = std::function<void(const std::shared_ptr<pb_graph_t> &pattern_graph)>;
 
 // FCreateOptPattern: a function for defining optimized pattern,
 // which is used in the graph rewriting part to rewrite the pattern

@@ -41,7 +41,7 @@ namespace fake_impl {
 class pattern_utils_t {
 public:
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
-            shared_ptr<utils::pm::pb_graph> pgraph,
+            shared_ptr<utils::pm::pb_graph_t> pgraph,
             std::vector<op_t *> &matched_op_list);
     inline void fuse(dnnl::graph::impl::graph_t &backend_graph,
             std::vector<op_t *> &matched_op_list);
@@ -53,12 +53,12 @@ public:
 
 // function to do pattern matching
 inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
-        std::shared_ptr<utils::pm::pb_graph> pgraph,
+        std::shared_ptr<utils::pm::pb_graph_t> pgraph,
         std::vector<op_t *> &matched_op_list) {
     std::unordered_set<op_t *> selected;
     // dfs_visit graph, do pattern matching
     topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
-        utils::pm::match matcher;
+        utils::pm::match_t matcher;
         if (!utils::pm::match_pattern(cur_op, pgraph, matcher)) {
             return status::success;
         }
