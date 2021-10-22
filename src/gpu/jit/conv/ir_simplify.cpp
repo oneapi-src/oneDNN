@@ -94,6 +94,12 @@ public:
 
     size_t get_hash() const override { return ir_utils::get_hash(value); }
 
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << "pint_imm_t(" << value << ")";
+        return oss.str();
+    }
+
     int id;
     int64_t value;
 
@@ -201,11 +207,15 @@ bool match(const expr_t &ptrn, const expr_t &expr, match_context_t &ctx) {
     if (ptrn.is_equal(expr)) return true;
 
     if (ptrn.is<pint_imm_t>()) {
-        if (!expr.is<int_imm_t>()) return false;
-
-        auto &expr_imm = expr.as<int_imm_t>();
         auto &ptrn_imm = ptrn.as<pint_imm_t>();
-        return ptrn_imm.matches(expr_imm);
+
+        bool ok = false;
+        if (expr.is<int_imm_t>()) {
+            ok = ptrn_imm.matches(expr.as<int_imm_t>());
+        } else if (ptrn_imm.id == -1 && expr.is<float_imm_t>()) {
+            ok = (to_cpp<float>(expr) == ptrn_imm.value);
+        }
+        return ok;
     }
 
     if (ptrn.is<pexpr_t>()) {
