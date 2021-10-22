@@ -104,14 +104,14 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     const memory_desc_wrapper bias_d(&bias_md);
 
     const int ndims = src_d.ndims();
-    // Currently this kernel only supports 2D and 3D convolutions.
-    if (ndims != 4 && ndims != 5) return status::unimplemented;
 
-    const auto blocked_tag = (ndims == 5) ? one_of(isa, avx512_core, avx512_core) ? nCdhw16c : nCdhw8c
-                                          : one_of(isa, avx512_core, avx512_core) ? nChw16c : nChw8c;
-    const auto wei_tag = (ndims == 5) ? one_of(isa, avx512_core, avx512_core) ? Goidhw16g : Goidhw8g
-                                      : one_of(isa, avx512_core, avx512_core) ? Goihw16g : Goihw8g;
-    const auto nxc_tag = (ndims == 5) ? ndhwc : nhwc;
+    const auto blocked_tag = one_of(isa, avx512_core) ?
+                             pick(ndims - 3, nCw16c, nChw16c, nCdhw16c) :
+                             pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+    const auto wei_tag = one_of(isa, avx512_core) ?
+                         pick(ndims - 3, Goiw16g, Goihw16g, Goidhw16g) :
+                         pick(ndims - 3, Goiw8g, Goihw8g, Goidhw8g);
+    const auto nxc_tag = pick(ndims - 3, nwc, nhwc, ndhwc);
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
@@ -172,29 +172,29 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     jcp.ic = src_d.dims()[1];
 
     jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
-    jcp.ih = src_d.dims()[ndims - 2];
+    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims - 2];
     jcp.iw = src_d.dims()[ndims - 1];
     jcp.od = (ndims == 5) ? dst_d.dims()[2] : 1;
-    jcp.oh = dst_d.dims()[ndims - 2];
+    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
     jcp.ow = dst_d.dims()[ndims - 1];
 
     jcp.kd = (ndims == 5) ? weights_d.dims()[3] : 1;
-    jcp.kh = weights_d.dims()[ndims - 1];
+    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[ndims - 1];
     jcp.kw = weights_d.dims()[ndims];
 
     jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
-    jcp.t_pad = cd.padding[0][ndims - 4];
+    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
     jcp.l_pad = cd.padding[0][ndims - 3];
     jcp.back_pad = (ndims == 5) ? cd.padding[1][0] : 0;
-    jcp.b_pad = cd.padding[1][ndims - 4];
+    jcp.b_pad = (ndims == 3) ? 0 : cd.padding[1][ndims - 4];
     jcp.r_pad = cd.padding[1][ndims - 3];
 
     jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
-    jcp.stride_h = cd.strides[ndims - 4];
+    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
-    jcp.dilate_h = cd.dilates[ndims - 4];
+    jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
 
     jcp.loop_order = loop_ngcw;
