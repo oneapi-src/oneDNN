@@ -91,6 +91,9 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
             phys_dims[i] = 1;
     }
 
+    const auto L1_size = platform::get_per_core_cache_size(1);
+    UNUSED(L1_size); // for Windows
+
     parallel_nd(phys_dims[0], phys_dims[1], phys_dims[2], phys_dims[3],
             phys_dims[4], num_arrs,
             [&](dim_t n0, dim_t n1, dim_t n2, dim_t n3, dim_t n4, dim_t a) {
@@ -111,7 +114,6 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
                 // Heuristic:
                 // memcpy works generally faster for data sizes not
                 // exceeding L1 cache.
-                const auto L1_size = platform::get_per_core_cache_size(1);
                 if (nelems_to_copy[a] * sizeof(data_t) > L1_size) {
                     // The code below performs data copying: o[e] = i[e]
                     // and uses a workaround to make GNU compilers optimize it
