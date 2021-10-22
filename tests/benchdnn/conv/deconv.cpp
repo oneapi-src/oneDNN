@@ -212,19 +212,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             res);
     if (res->state == SKIPPED) return;
 
-    // GPU:
-    //     * BWD: doesn't support any attributes
-    //     * FWD: support only post ops
-    if (is_gpu()
-            && (((prb->dir & FLAG_BWD) != 0 && !prb->attr.is_def())
-                    || ((prb->dir & FLAG_FWD) != 0
-                            && (!prb->attr.oscale.is_def()
-                                    || !prb->attr.scales.is_def()
-                                    || !prb->attr.zero_points.is_def())))) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-
     if (is_nvidia_gpu()) {
         const int64_t ID = prb->id, IH = prb->ih, IW = prb->iw;
         const int64_t OD = prb->od, OH = prb->oh, OW = prb->ow;
@@ -263,6 +250,25 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         // guilty. Likely Nvidia implementation. Switch it off until further
         // investigation.
         if (prb->dir == BWD_WB) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+
+    // GPU:
+    //     * BWD: doesn't support any attributes
+    //     * FWD: support only post ops and all but x8s8bf16 cfg
+    if (is_gpu()) {
+        const bool only_non_default_post_ops = prb->attr.oscale.is_def()
+                && prb->attr.scales.is_def() && prb->attr.zero_points.is_def();
+        const bool is_x8s8bf16_cfg
+                = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[DST].dt == dnnl_bf16;
+        const bool fwd_ok = !is_x8s8bf16_cfg
+                && IMPLICATION(
+                        (prb->dir & FLAG_FWD), only_non_default_post_ops);
+        const bool bwd_ok
+                = IMPLICATION((prb->dir & FLAG_BWD), prb->attr.is_def());
+        if (!fwd_ok || !bwd_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
