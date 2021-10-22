@@ -97,9 +97,12 @@ void jit_uni_fork_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward
         const auto ic_off_idx = is_src_layout_nxc ? ch * jcp.ch_block : ch;
         const auto oc_off_idx = is_dst_layout_nxc ? ch * jcp.ch_block : ch;
 
-        size_t src_off = (jcp.ndims == 5) ? src_d.blk_off(n, ic_off_idx, id, ih, iw) : src_d.blk_off(n, ic_off_idx, ih, iw);
-        size_t dst_off = (jcp.ndims == 5) ? dst_d.blk_off(n, oc_off_idx, od, oh, ow) : dst_d.blk_off(n, oc_off_idx, oh, ow);
-        size_t wei_off = (jcp.ndims == 5) ? weights_d.blk_off(ch, 0, 0, kd, kh, kw) : weights_d.blk_off(ch, 0, 0, kh, kw);
+        size_t src_off = (jcp.ndims == 3) ? src_d.blk_off(n, ic_off_idx, iw) :
+                         (jcp.ndims == 4) ? src_d.blk_off(n, ic_off_idx, ih, iw) : src_d.blk_off(n, ic_off_idx, id, ih, iw);
+        size_t dst_off = (jcp.ndims == 3) ? dst_d.blk_off(n, oc_off_idx, ow) :
+                         (jcp.ndims == 4) ? dst_d.blk_off(n, oc_off_idx, oh, ow) : dst_d.blk_off(n, oc_off_idx, od, oh, ow);
+        size_t wei_off = (jcp.ndims == 3) ? weights_d.blk_off(ch, 0, 0, kw) :
+                         (jcp.ndims == 4) ? weights_d.blk_off(ch, 0, 0, kh, kw) : weights_d.blk_off(ch, 0, 0, kd, kh, kw);
 
         par_conv.src = &src[src_off];
         par_conv.dst = &dst[dst_off];

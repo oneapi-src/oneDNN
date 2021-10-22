@@ -265,9 +265,9 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_1d(
     size_t ch_offset = jcp.is_depthwise ? jcp.nb_ch * jcp.ch_block
                                         : jcp.ngroups * jcp.oc;
     auto w = const_cast<char *>(weights);
-    const int32_t *compensation = (jcp.signed_input)
-            ? reinterpret_cast<int32_t *>(&w[extra_data_offset])
-            : nullptr;
+    const int32_t *compensation = (jcp.signed_input) ? reinterpret_cast<int32_t *>(&w[extra_data_offset]) :
+                                  (jcp.with_input_zp) ? pd()->attr()->output_compensations_.shifts_ : nullptr;
+    const uint8_t* input_zp = pd()->attr()->input_zero_points_.shifts_;
     const int32_t *zp_compensation = jcp.src_zero_point
             ? reinterpret_cast<int32_t *>(&w[extra_data_offset])
                     + (jcp.signed_input ? ch_offset : 0)
@@ -314,7 +314,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_1d(
 
             p.bias = bias ? bias + (bias_d.blk_off(g_oc) * bia_dt_size)
                           : nullptr;
-            p.compensation = (jcp.signed_input) ? compensation + g_oc : nullptr;
+            p.compensation = (jcp.signed_input || jcp.with_input_zp) ? compensation + g_oc : nullptr;
             p.zp_compensation
                     = jcp.src_zero_point ? zp_compensation + g_oc : nullptr;
             p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
@@ -333,6 +333,8 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_1d(
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
             p.dst_orig = dst;
             p.oc_off = g_oc * sizeof(float);
+            if (jcp.with_input_zp)
+                p.input_zp = input_zp + g_ic;
 
             (*kernel_)(&p);
 

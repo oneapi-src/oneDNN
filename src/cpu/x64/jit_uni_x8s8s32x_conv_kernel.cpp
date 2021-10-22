@@ -1345,7 +1345,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
             return status::unimplemented;
     }
 
-    if (jcp.with_input_zp && jcp.is_depthwise && ndims != 4)
+    if (jcp.with_input_zp && jcp.is_depthwise && !utils::one_of(ndims, 3, 4))
         return status::unimplemented;
 
     if (jcp.with_weights_zp)
