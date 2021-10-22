@@ -419,6 +419,7 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
 using namespace data_type;
 
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<f32>;
+template struct _gemm_u8s8s32x_convolution_bwd_data_t<bf16>;
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<s32>;
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<s8>;
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<u8>;

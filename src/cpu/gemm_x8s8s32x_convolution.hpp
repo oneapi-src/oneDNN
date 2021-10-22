@@ -126,7 +126,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
 
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+            bool ok = desc()->prop_kind == prop_kind::backward_data
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(
                             dst_type, s8, data_type::undef, u8, s32)
