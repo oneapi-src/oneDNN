@@ -4110,6 +4110,14 @@ public:
         return read.stmt();
     }
 
+    stmt_t build_prefetch_stmt() const {
+        ir_assert(needs_load());
+
+        read_builder_t prefetch(hw_, *ir_ctx_, *cset_, mem_view(), mem_buf(),
+                expr_t(), /*is_slm=*/false, /*is_prefetch=*/true);
+        return prefetch.stmt();
+    }
+
     stmt_t build_convert_stmt() {
         if (!needs_load() || !needs_f32_convert()) return stmt_t();
 
@@ -4550,6 +4558,15 @@ private:
         for (auto &t : post_op_tensors_) {
             if (!t.do_preload()) continue;
             stmt_ = stmt_.append(t.build_load_stmt());
+        }
+
+        // Generate prefetch statements.
+        if (cfg_.hw >= ngen::HW::XeHPC) {
+            for (auto &t : post_op_tensors_) {
+                if (!t.needs_load()) continue;
+                if (t.do_preload()) continue;
+                stmt_ = stmt_.append(t.build_prefetch_stmt());
+            }
         }
 
         // Generate f32 convert statements.
