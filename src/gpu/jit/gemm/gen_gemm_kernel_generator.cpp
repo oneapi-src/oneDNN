@@ -653,7 +653,7 @@ void gemm_kernel_generator_t<hw>::divDown(const Subregister &dst,
         const Subregister &src0, const Subregister &src1,
         const Subregister &src1Recip, const FlagRegister &flag,
         const CommonStrategy &strategy, CommonState &state) {
-    auto shift = state.ra.alloc_sub<uint16_t>();
+    auto shift = state.ra.alloc_sub<uint32_t>();
     auto pop = state.ra.alloc_sub<uint16_t>();
     cbit(1, pop, src1);
     fbh(1, shift, src1);
