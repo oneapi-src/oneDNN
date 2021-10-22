@@ -57,10 +57,11 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(src_md()->data_type, s8, u8)
                     && weights_md()->data_type == s8
-                    && utils::one_of(dst_md()->data_type, f32, s32, s8, u8)
+                    && utils::one_of(
+                            dst_md()->data_type, f32, bf16, s32, s8, u8)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(
-                                    weights_md(1)->data_type, f32, s32, s8, u8))
+                            utils::one_of(weights_md(1)->data_type, f32, bf16,
+                                    s32, s8, u8))
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(skip_mask_t::oscale
                                     | skip_mask_t::zero_points_runtime

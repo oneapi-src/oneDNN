@@ -731,7 +731,10 @@ bool mayiuse_jit_pp_kernel() noexcept {
 
 pp_ker_t *jit_pp_ker_create(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp) {
-    return mayiuse_jit_pp_kernel() ? new jit_pp_ker_t(pd, jcp) : nullptr;
+    const auto is_bf16_dst_dt = pd->dst_md()->data_type == data_type::bf16;
+    return mayiuse_jit_pp_kernel() && !is_bf16_dst_dt
+            ? new jit_pp_ker_t(pd, jcp)
+            : nullptr;
 }
 
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {

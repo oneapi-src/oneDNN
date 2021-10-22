@@ -139,6 +139,7 @@ pp_ker_t *pp_ker_t::create(
 #endif
     switch (pd->dst_md()->data_type) {
         case data_type::f32: return new ref_pp_ker_t<float>(pd, jcp);
+        case data_type::bf16: return new ref_pp_ker_t<bfloat16_t>(pd, jcp);
         case data_type::s32: return new ref_pp_ker_t<int32_t>(pd, jcp);
         case data_type::s8: return new ref_pp_ker_t<int8_t>(pd, jcp);
         case data_type::u8: return new ref_pp_ker_t<uint8_t>(pd, jcp);
