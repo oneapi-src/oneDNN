@@ -17,8 +17,9 @@
 
 find_package(CUDA 10.0 REQUIRED)
 
-find_path(CUDNN_INCLUDE_DIR "cudnn.h"
-          HINTS ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+set(cudnn_inc_dir_hints "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES};/usr/local/cuda/include")
+find_path(CUDNN_INCLUDE_DIR "cudnn.h" HINTS ${cudnn_inc_dir_hints})
+
 find_library(CUDNN_LIBRARY cudnn)
 find_library(CUDA_DRIVER_LIBRARY cuda)
 # this is work around to avoid duplication half creation in both cuda and SYCL
