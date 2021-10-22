@@ -303,13 +303,12 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
     return st;
 }
 
-template <data_type_t dst_type>
-status_t _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
+status_t gemm_u8s8s32x_convolution_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
-    auto diff_dst_base = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
-    auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto diff_dst_base = CTX_IN_MEM(const uint8_t *, DNNL_ARG_DIFF_DST);
+    auto wei_base = CTX_IN_MEM(const int8_t *, DNNL_ARG_WEIGHTS);
     auto bia_base = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    auto diff_src_base = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src_base = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -327,12 +326,9 @@ status_t _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
     return st;
 }
 
-template <data_type_t dst_type>
-status_t
-_gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
-        const int ithr, const int nthr, const diff_dst_data_t *diff_dst_base,
-        const wei_data_t *wei_base, const char *bia_base,
-        diff_src_data_t *diff_src_base,
+status_t gemm_u8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
+        const int ithr, const int nthr, const uint8_t *diff_dst_base,
+        const int8_t *wei_base, const char *bia_base, char *diff_src_base,
         const memory_tracking::grantor_t &scratchpad) const {
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
@@ -348,36 +344,38 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
     const size_t diff_src_g_stride = diff_src_md.blk_off(0, 1) * jcp.ic;
     const size_t diff_src_os_stride
             = diff_src_md.blocking_desc().strides[pd()->ndims() - 1];
+    const auto diff_src_dt_size
+            = types::data_type_size(diff_src_md.data_type());
 
     /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
     const int scale_idx_mult = pd()->attr()->output_scales_.mask_ == (1 << 1);
     const float *__restrict scales = pd()->attr()->output_scales_.scales_;
     const dim_t work_amount = jcp.ngroups * jcp.mb;
 
-    acc_data_t *__restrict col = scratchpad.get<acc_data_t>(key_conv_gemm_col)
+    int *__restrict col = scratchpad.get<int>(key_conv_gemm_col)
             + (ptrdiff_t)ithr * jcp.im2col_sz;
-    acc_data_t *__restrict acc
-            = scratchpad.get<acc_data_t>(key_conv_int_dat_in_acc_dt)
+    int *__restrict acc = scratchpad.get<int>(key_conv_int_dat_in_acc_dt)
             + (ptrdiff_t)ithr * jcp.is * jcp.id * jcp.ic;
 
-    dim_t n {0}, g {0};
+    dim_t n = 0, g = 0;
     dim_t start = 0, end = 0;
 
     balance211(work_amount, nthr, ithr, start, end);
     nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups);
 
     for (dim_t iwork = start; iwork < end; ++iwork) {
-        const diff_dst_data_t *__restrict diff_dst = diff_dst_base
+        const uint8_t *__restrict diff_dst = diff_dst_base
                 + n * diff_dst_mb_stride + g * diff_dst_g_stride;
-        const wei_data_t *__restrict wei = wei_base + g * wei_g_stride;
-        diff_src_data_t *__restrict diff_src = diff_src_base
-                + n * diff_src_mb_stride + g * diff_src_g_stride;
+        const int8_t *__restrict wei = wei_base + g * wei_g_stride;
+        char *__restrict diff_src = diff_src_base
+                + diff_src_dt_size
+                        * (n * diff_src_mb_stride + g * diff_src_g_stride);
 
         const dim_t M = jcp.ks * jcp.ic;
         const dim_t N = jcp.os * jcp.od;
         const dim_t K = jcp.oc;
         const int8_t off_a = 0;
-        const diff_dst_data_t off_b = 0;
+        const uint8_t off_b = 0;
         const int32_t off_c = 0;
         const float onef = 1.0, zerof = 0.0;
         const dim_t LD = K * jcp.ngroups;
@@ -391,15 +389,14 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         if (jcp.im2col_sz)
             jit_gemm_convolution_utils::col2im_dt<int32_t>(jcp, col, acc);
 
-        // TODO: the code below is not tested and broken anyway.
         parallel_nd(jcp.is * jcp.id, [&](dim_t is) {
-            diff_src_data_t *__restrict diff_src_loc
-                    = diff_src + is * diff_src_os_stride;
-            const acc_data_t *__restrict acc_loc = acc + is * jcp.ic;
+            char *__restrict diff_src_loc
+                    = diff_src + diff_src_dt_size * is * diff_src_os_stride;
+            const int *__restrict acc_loc = acc + is * jcp.ic;
             const float *__restrict scales_loc
                     = scales + g * jcp.ic * scale_idx_mult;
             for (int ic = 0; ic < jcp.ic; ic++) {
-                acc_data_t d = acc_loc[ic];
+                float d = static_cast<float>(acc_loc[ic]);
                 if (jcp.with_bias) {
                     const float b = io::load_float_value(
                             pd()->desc()->bias_desc.data_type, bia_base,
@@ -407,7 +404,8 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
                     d += b;
                 }
                 d *= scales_loc[ic * scale_idx_mult];
-                diff_src_loc[ic] = qz_a1b0<acc_data_t, diff_src_data_t>()(d);
+                io::store_float_value(
+                        diff_src_md.data_type(), d, diff_src_loc, ic);
             }
         });
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups);
@@ -416,13 +414,6 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
     return status::success;
 }
 
-using namespace data_type;
-
-template struct _gemm_u8s8s32x_convolution_bwd_data_t<f32>;
-template struct _gemm_u8s8s32x_convolution_bwd_data_t<bf16>;
-template struct _gemm_u8s8s32x_convolution_bwd_data_t<s32>;
-template struct _gemm_u8s8s32x_convolution_bwd_data_t<s8>;
-template struct _gemm_u8s8s32x_convolution_bwd_data_t<u8>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

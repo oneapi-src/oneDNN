@@ -113,26 +113,27 @@ private:
     std::unique_ptr<pp_ker_t> pp_ker_;
 };
 
-template <data_type_t dst_type>
-struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
+struct gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(IGEMM_S8U8S32_ISA_STR,
-                _gemm_u8s8s32x_convolution_bwd_data_t, USE_GLOBAL_SCRATCHPAD);
+                gemm_u8s8s32x_convolution_bwd_data_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = desc()->prop_kind == prop_kind::backward_data
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(
-                            dst_type, s8, data_type::undef, u8, s32)
+                    && utils::one_of(diff_dst_md()->data_type, u8)
+                    && weights_md()->data_type == s8
+                    && utils::one_of(
+                            diff_src_md()->data_type, f32, bf16, s32, s8, u8)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type, f32, s32,
-                                    s8, u8))
+                            utils::one_of(weights_md(1)->data_type, f32, bf16,
+                                    s32, s8, u8))
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale)
@@ -156,12 +157,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
         }
     };
 
-    _gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
-
-    typedef typename prec_traits<data_type::u8>::type diff_dst_data_t;
-    typedef typename prec_traits<data_type::s8>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type diff_src_data_t;
-    typedef typename prec_traits<data_type::s32>::type acc_data_t;
+    gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -170,8 +166,8 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     status_t execute_backward_data_thr(const int ithr, const int nthr,
-            const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
-            const char *bia_base, diff_src_data_t *diff_src_base,
+            const uint8_t *diff_dst_base, const int8_t *wei_base,
+            const char *bia_base, char *diff_src_base,
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
