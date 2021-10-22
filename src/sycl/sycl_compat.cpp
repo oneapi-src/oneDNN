@@ -177,11 +177,11 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
     auto backend = get_sycl_backend(sycl_engine->device());
 
     if (backend == backend_t::opencl) {
-        cl_program ocl_program
-                = reinterpret_cast<cl_program>(native_program_handle);
+        gpu::ocl::ocl_wrapper_t<cl_program> ocl_program(
+                reinterpret_cast<cl_program>(native_program_handle));
 #if DNNL_USE_SYCL121_API
         auto sycl_program = ::sycl::opencl::make<::sycl::program>(
-                sycl_engine->context(), ocl_program);
+                sycl_engine->context(), ocl_program.release());
 
         sycl_kernel = utils::make_unique<::sycl::kernel>(
                 sycl_program.get_kernel(kernel_name));

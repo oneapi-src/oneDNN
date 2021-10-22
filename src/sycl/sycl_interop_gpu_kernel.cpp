@@ -93,7 +93,7 @@ status_t sycl_interop_gpu_kernel_t::realize(gpu::compute::kernel_t *kernel,
         CHECK(create_ocl_program(ocl_program, sycl_engine->ocl_device(),
                 sycl_engine->ocl_context(), binary_.get()));
         CHECK(compat::make_kernel(sycl_kernel, kernel_name_, sycl_engine,
-                ocl_program, binary_.get(), programs));
+                ocl_program.release(), binary_.get(), programs));
     } else if (sycl_engine->backend() == backend_t::level0) {
 #ifdef DNNL_WITH_LEVEL_ZERO
         CHECK(sycl_create_kernel_with_level_zero(sycl_kernel, kernel_name_,
