@@ -140,17 +140,20 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                 }
             }
 
-            // Enforce f32 dt for diff src and work with f32 output for bias
-            // update or post ops after conv execution.
-            CHECK(conv_descr_create(desc(), &cd, nullptr, data_type::f32));
-            dnnl_primitive_desc_iterator it(
-                    engine, (op_desc_t *)&cd, &conv_attr, nullptr);
-            if (!it.is_initialized()) return status::out_of_memory;
+            // Intermediate f32 buffer is supported only for given condition.
+            if (!attr()->has_default_values() || with_bias()) {
+                // Enforce f32 dt for diff src and work with f32 output for bias
+                // update or post ops after conv execution.
+                CHECK(conv_descr_create(desc(), &cd, nullptr, data_type::f32));
+                dnnl_primitive_desc_iterator it(
+                        engine, (op_desc_t *)&cd, &conv_attr, nullptr);
+                if (!it.is_initialized()) return status::out_of_memory;
 
-            while (++it != it.end()) {
-                conv_pd_ = *it;
-                bool ok = conv_pd_->weights_md()->extra.flags == 0;
-                if (ok) return status::success;
+                while (++it != it.end()) {
+                    conv_pd_ = *it;
+                    bool ok = conv_pd_->weights_md()->extra.flags == 0;
+                    if (ok) return status::success;
+                }
             }
             return status::unimplemented;
         }
