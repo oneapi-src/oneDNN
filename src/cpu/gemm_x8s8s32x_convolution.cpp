@@ -303,9 +303,9 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
     return st;
 }
 
-status_t gemm_u8s8s32x_convolution_bwd_data_t::execute_backward_data(
+status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
-    auto diff_dst_base = CTX_IN_MEM(const uint8_t *, DNNL_ARG_DIFF_DST);
+    auto diff_dst_base = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
     auto wei_base = CTX_IN_MEM(const int8_t *, DNNL_ARG_WEIGHTS);
     auto bia_base = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto diff_src_base = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
@@ -326,8 +326,8 @@ status_t gemm_u8s8s32x_convolution_bwd_data_t::execute_backward_data(
     return st;
 }
 
-status_t gemm_u8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
-        const int ithr, const int nthr, const uint8_t *diff_dst_base,
+status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
+        const int ithr, const int nthr, const char *diff_dst_base,
         const int8_t *wei_base, const char *bia_base, char *diff_src_base,
         const memory_tracking::grantor_t &scratchpad) const {
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
@@ -364,8 +364,6 @@ status_t gemm_u8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
     nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups);
 
     for (dim_t iwork = start; iwork < end; ++iwork) {
-        const uint8_t *__restrict diff_dst = diff_dst_base
-                + n * diff_dst_mb_stride + g * diff_dst_g_stride;
         const int8_t *__restrict wei = wei_base + g * wei_g_stride;
         char *__restrict diff_src = diff_src_base
                 + diff_src_dt_size
@@ -375,14 +373,32 @@ status_t gemm_u8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
         const dim_t N = jcp.os * jcp.od;
         const dim_t K = jcp.oc;
         const int8_t off_a = 0;
-        const uint8_t off_b = 0;
         const int32_t off_c = 0;
         const float onef = 1.0, zerof = 0.0;
         const dim_t LD = K * jcp.ngroups;
 
-        status_t st = gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD,
-                &off_a, diff_dst, &LD, &off_b, &zerof,
-                jcp.im2col_sz ? col : acc, &M, &off_c);
+        status_t st = status::runtime_error;
+        switch (diff_dst_md.data_type()) {
+            case data_type::s8: {
+                const int8_t *__restrict diff_dst
+                        = reinterpret_cast<const int8_t *>(diff_dst_base)
+                        + n * diff_dst_mb_stride + g * diff_dst_g_stride;
+                const int8_t off_b = 0;
+                st = gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD,
+                        &off_a, diff_dst, &LD, &off_b, &zerof,
+                        jcp.im2col_sz ? col : acc, &M, &off_c);
+            } break;
+            case data_type::u8: {
+                const uint8_t *__restrict diff_dst
+                        = reinterpret_cast<const uint8_t *>(diff_dst_base)
+                        + n * diff_dst_mb_stride + g * diff_dst_g_stride;
+                const uint8_t off_b = 0;
+                st = gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD,
+                        &off_a, diff_dst, &LD, &off_b, &zerof,
+                        jcp.im2col_sz ? col : acc, &M, &off_c);
+            } break;
+            default: assert(!"unsupported data type"); break;
+        }
 
         if (st != status::success) return st;
 

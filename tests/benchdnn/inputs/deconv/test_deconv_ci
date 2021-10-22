@@ -30,7 +30,7 @@
 --attr-oscale=,common:0.25,per_oc:5
 ## Direct
 --alg=direct
---cfg=u8s8s32
+--cfg=s8s8s8,u8s8s32
 --stag=any,axb
 --dtag=any,axb
 --attr-post-ops=, \

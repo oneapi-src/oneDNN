@@ -378,48 +378,53 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map RE
     }},
     // BWD int8 (diff_dst:u8)
     {{backward_data, f32, s8, u8}, REG_BWD_D_PK({
-        CPU_INSTANCE(gemm_u8s8s32x_convolution_bwd_data_t)
+        CPU_INSTANCE(gemm_x8s8s32x_convolution_bwd_data_t)
         CPU_INSTANCE(ref_convolution_int8_bwd_data_t)
         nullptr,
     })},
     {{backward_data, bf16, s8, u8}, REG_BWD_D_PK({
-        CPU_INSTANCE(gemm_u8s8s32x_convolution_bwd_data_t)
+        CPU_INSTANCE(gemm_x8s8s32x_convolution_bwd_data_t)
         CPU_INSTANCE(ref_convolution_int8_bwd_data_t)
         nullptr,
     })},
     {{backward_data, s32, s8, u8}, REG_BWD_D_PK({
-        CPU_INSTANCE(gemm_u8s8s32x_convolution_bwd_data_t)
+        CPU_INSTANCE(gemm_x8s8s32x_convolution_bwd_data_t)
         CPU_INSTANCE(ref_convolution_int8_bwd_data_t)
         nullptr,
     })},
     {{backward_data, s8, s8, u8}, REG_BWD_D_PK({
-        CPU_INSTANCE(gemm_u8s8s32x_convolution_bwd_data_t)
+        CPU_INSTANCE(gemm_x8s8s32x_convolution_bwd_data_t)
         CPU_INSTANCE(ref_convolution_int8_bwd_data_t)
         nullptr,
     })},
     {{backward_data, u8, s8, u8}, REG_BWD_D_PK({
-        CPU_INSTANCE(gemm_u8s8s32x_convolution_bwd_data_t)
+        CPU_INSTANCE(gemm_x8s8s32x_convolution_bwd_data_t)
         CPU_INSTANCE(ref_convolution_int8_bwd_data_t)
         nullptr,
     })},
     // BWD int8 (diff_dst:s8)
     {{backward_data, f32, s8, s8}, REG_BWD_D_PK({
+        CPU_INSTANCE(gemm_x8s8s32x_convolution_bwd_data_t)
         CPU_INSTANCE(ref_convolution_int8_bwd_data_t)
         nullptr,
     })},
     {{backward_data, bf16, s8, s8}, REG_BWD_D_PK({
+        CPU_INSTANCE(gemm_x8s8s32x_convolution_bwd_data_t)
         CPU_INSTANCE(ref_convolution_int8_bwd_data_t)
         nullptr,
     })},
     {{backward_data, s32, s8, s8}, REG_BWD_D_PK({
+        CPU_INSTANCE(gemm_x8s8s32x_convolution_bwd_data_t)
         CPU_INSTANCE(ref_convolution_int8_bwd_data_t)
         nullptr,
     })},
     {{backward_data, s8, s8, s8}, REG_BWD_D_PK({
+        CPU_INSTANCE(gemm_x8s8s32x_convolution_bwd_data_t)
         CPU_INSTANCE(ref_convolution_int8_bwd_data_t)
         nullptr,
     })},
     {{backward_data, u8, s8, s8}, REG_BWD_D_PK({
+        CPU_INSTANCE(gemm_x8s8s32x_convolution_bwd_data_t)
         CPU_INSTANCE(ref_convolution_int8_bwd_data_t)
         nullptr,
     })},
