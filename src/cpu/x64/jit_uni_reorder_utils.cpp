@@ -89,15 +89,14 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
             }
         }
 
-        // TODO: should be `md.padded_dims()[d]`, but submemory descriptor fails
-        const int padded_dim = utils::rnd_up(md.dims()[d], blocks[d]);
         const int dim_with_external_padding
-                = (padded_dim + external_padding[d]) / blocks[d];
-        const int occur_num_of_padded_dim = padded_dim / blocks[d];
-        const int tail = dim_with_external_padding != occur_num_of_padded_dim
+                = (md.padded_dims()[d] + external_padding[d]) / blocks[d];
+        const int padded_dim = md.padded_dims()[d] / blocks[d];
+        const int tail = dim_with_external_padding != padded_dim
                 ? dim_with_external_padding
-                        - (dim_with_external_padding - occur_num_of_padded_dim)
+                        - (dim_with_external_padding - padded_dim)
                 : 0;
+
         add_dim(d, dim_with_external_padding, tail, !it_is_blk, bd.strides[d]);
 
         // TODO: NOW: revisit, do we need a reverse?
@@ -312,7 +311,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             // old must be divisible by ild or we will not be
             // able to create valid nodes. The problem appears
             // when stag=Acdb48a and dtag=Acdb32a for example.
-            if (old.dims[o_pos] % ild.dims[i_pos] != 0)
+            if (ild.dims[i_pos] == 0 || old.dims[o_pos] % ild.dims[i_pos] != 0)
                 return status::unimplemented;
 
             int factor = old.dims[o_pos] / ild.dims[i_pos];
@@ -340,7 +339,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             // ild must be divisible by old or we will not be
             // able to create valid nodes. The problem appears
             // when stag=Acdb32a and dtag=Acdb48a for example.
-            if (ild.dims[i_pos] % old.dims[o_pos] != 0)
+            if (old.dims[o_pos] == 0 || ild.dims[i_pos] % old.dims[o_pos] != 0)
                 return status::unimplemented;
 
             int factor = ild.dims[i_pos] / old.dims[o_pos];
