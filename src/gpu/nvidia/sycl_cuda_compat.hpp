@@ -20,10 +20,7 @@
 
 #include <cuda.h>
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <CL/sycl/backend/cuda.hpp>
-#pragma clang diagnostic pop
 
 #include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_utils.hpp"
