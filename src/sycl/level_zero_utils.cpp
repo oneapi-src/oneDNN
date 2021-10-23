@@ -40,10 +40,15 @@
 #error "Level Zero is not supported with this compiler version"
 #endif
 
-#include <CL/sycl/backend/level_zero.hpp>
-
 #include "common/c_types_map.hpp"
 #include "common/verbose.hpp"
+
+#include "sycl/sycl_utils.hpp"
+#if DNNL_USE_SYCL121_API
+#include <CL/sycl/backend/level_zero.hpp>
+#else
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
+#endif
 
 #include "sycl/sycl_gpu_engine.hpp"
 

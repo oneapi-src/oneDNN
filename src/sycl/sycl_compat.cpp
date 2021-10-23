@@ -20,10 +20,15 @@
 
 #include <CL/sycl.hpp>
 
+#include "sycl/sycl_utils.hpp"
+
 #ifdef DNNL_WITH_LEVEL_ZERO
 #include <level_zero/ze_api.h>
-
+#if DNNL_USE_SYCL121_API
 #include <CL/sycl/backend/level_zero.hpp>
+#else
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
+#endif
 #endif
 
 #include "common/utils.hpp"
@@ -31,7 +36,6 @@
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_gpu_engine.hpp"
-#include "sycl/sycl_utils.hpp"
 
 #if DNNL_USE_SYCL121_API
 #pragma clang diagnostic push
