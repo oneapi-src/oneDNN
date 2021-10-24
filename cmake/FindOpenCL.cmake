@@ -90,6 +90,7 @@ find_path(OpenCL_INCLUDE_DIR
     ENV OCL_ROOT
   PATH_SUFFIXES
     include
+    sycl
     OpenCL/common/inc
     "AMD APP/include")
 
