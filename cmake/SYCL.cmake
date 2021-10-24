@@ -68,6 +68,27 @@ if(DPCPP_SUPPORTED)
         find_package(OpenCL REQUIRED)
         find_package(cuBLAS REQUIRED)
         find_package(cuDNN REQUIRED)
+
+        if(NOT WIN32)
+            # XXX: CUDA contains OpenCL headers that conflict with the OpenCL
+            # headers found via `find_package(OpenCL REQUIRED)` above. The
+            # workaround is the following:
+            # Get interface include directories from all CUDA related import
+            # targets and lower their priority via `-idirafter` so that the
+            # compiler picks up the OpenCL headers that have been found via
+            # `find_package(OpenCL REQUIRED)` above.
+            set(cuda_include_dirs)
+            foreach(cuda_import_target cuBLAS::cuBLAS;cuDNN::cuDNN)
+                get_target_property(cuda_import_target_include_dirs ${cuda_import_target} INTERFACE_INCLUDE_DIRECTORIES)
+                set_target_properties(${cuda_import_target} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+                list(APPEND cuda_include_dirs ${cuda_import_target_include_dirs})
+            endforeach()
+
+            list(REMOVE_DUPLICATES cuda_include_dirs)
+            foreach(cuda_include_dir ${cuda_include_dirs})
+                append(CMAKE_CXX_FLAGS "-idirafter${cuda_include_dir}")
+            endforeach()
+        endif()
         list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
     else()
         find_library(OPENCL_LIBRARY OpenCL PATHS ENV LIBRARY_PATH ENV LIB NO_DEFAULT_PATH)
