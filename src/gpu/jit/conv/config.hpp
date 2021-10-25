@@ -131,6 +131,12 @@ public:
         oss << "kd" << kd;
         oss << "kh" << kh;
         oss << "kw" << kw;
+        if (sd != 1) oss << "sd" << sd;
+        if (sh != 1) oss << "sh" << sh;
+        if (sw != 1) oss << "sw" << sw;
+        if (dd != 0) oss << "dd" << dd;
+        if (dh != 0) oss << "dh" << dh;
+        if (dw != 0) oss << "dw" << dw;
         oss << "pd" << pd;
         oss << "ph" << ph;
         oss << "pw" << pw;
