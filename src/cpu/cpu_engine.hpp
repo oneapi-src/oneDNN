@@ -26,7 +26,6 @@
 #include "common/engine.hpp"
 #include "common/engine_id.hpp"
 #include "common/impl_list_item.hpp"
-#include "common/impl_registration.hpp"
 
 #include "cpu/platform.hpp"
 
@@ -34,10 +33,10 @@
     impl_list_item_t( \
             impl_list_item_t::type_deduction_helper_t<__VA_ARGS__::pd_t>()),
 #define CPU_INSTANCE_X64(...) DNNL_X64_ONLY(CPU_INSTANCE(__VA_ARGS__))
-#define CPU_INSTANCE_SSE41(...) REG_SSE41_ISA(CPU_INSTANCE_X64(__VA_ARGS__))
-#define CPU_INSTANCE_AVX2(...) REG_AVX2_ISA(CPU_INSTANCE_X64(__VA_ARGS__))
-#define CPU_INSTANCE_AVX512(...) REG_AVX512_ISA(CPU_INSTANCE_X64(__VA_ARGS__))
-#define CPU_INSTANCE_AMX(...) REG_AMX_ISA(CPU_INSTANCE_X64(__VA_ARGS__))
+#define CPU_INSTANCE_SSE41(...) REG_SSE41_ISA(CPU_INSTANCE(__VA_ARGS__))
+#define CPU_INSTANCE_AVX2(...) REG_AVX2_ISA(CPU_INSTANCE(__VA_ARGS__))
+#define CPU_INSTANCE_AVX512(...) REG_AVX512_ISA(CPU_INSTANCE(__VA_ARGS__))
+#define CPU_INSTANCE_AMX(...) REG_AMX_ISA(CPU_INSTANCE(__VA_ARGS__))
 #define CPU_INSTANCE_AARCH64(...) DNNL_AARCH64_ONLY(CPU_INSTANCE(__VA_ARGS__))
 #define CPU_INSTANCE_AARCH64_ACL(...) \
     DNNL_AARCH64_ACL_ONLY(CPU_INSTANCE(__VA_ARGS__))

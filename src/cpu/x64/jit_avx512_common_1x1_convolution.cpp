@@ -435,7 +435,8 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
     }
 }
 
-template struct jit_avx512_common_1x1_convolution_fwd_t<data_type::f32>;
+REG_AVX512_ISA(template struct jit_avx512_common_1x1_convolution_fwd_t<
+        data_type::f32>);
 /* convolution backward wtr data */
 
 template <data_type_t diff_dst_type, data_type_t wei_type,
@@ -586,7 +587,8 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     });
 }
 
-template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
+REG_AVX512_ISA(template struct jit_avx512_common_1x1_convolution_bwd_data_t<
+        data_type::f32>);
 
 /* convolution backward wtr weights */
 

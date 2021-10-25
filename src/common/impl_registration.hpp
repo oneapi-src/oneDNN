@@ -187,33 +187,6 @@
     { nullptr }
 #endif
 
-// Primitive ISA section
-
-// Note: unlike workload or primitive set, these macros will work with impl
-// items directly, thus, just make an item disappear, no empty lists.
-#if BUILD_PRIMITIVE_CPU_ISA_ALL || BUILD_SSE41 || BUILD_AVX2 || BUILD_AVX512 \
-        || BUILD_AMX
-#define REG_SSE41_ISA(...) __VA_ARGS__
-#else
-#define REG_SSE41_ISA(...)
-#endif
-
-#if BUILD_PRIMITIVE_CPU_ISA_ALL || BUILD_AVX2 || BUILD_AVX512 || BUILD_AMX
-#define REG_AVX2_ISA(...) __VA_ARGS__
-#else
-#define REG_AVX2_ISA(...)
-#endif
-
-#if BUILD_PRIMITIVE_CPU_ISA_ALL || BUILD_AVX512 || BUILD_AMX
-#define REG_AVX512_ISA(...) __VA_ARGS__
-#else
-#define REG_AVX512_ISA(...)
-#endif
-
-#if BUILD_PRIMITIVE_CPU_ISA_ALL || BUILD_AMX
-#define REG_AMX_ISA(...) __VA_ARGS__
-#else
-#define REG_AMX_ISA(...)
-#endif
+// Primitive ISA section in src/cpu/platform.hpp
 
 #endif

@@ -447,8 +447,10 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
     }
 }
 
-template struct jit_avx512_core_bf16_1x1_convolution_fwd_t<data_type::f32>;
-template struct jit_avx512_core_bf16_1x1_convolution_fwd_t<data_type::bf16>;
+REG_AVX512_ISA(template struct jit_avx512_core_bf16_1x1_convolution_fwd_t<
+        data_type::f32>);
+REG_AVX512_ISA(template struct jit_avx512_core_bf16_1x1_convolution_fwd_t<
+        data_type::bf16>);
 
 template <data_type_t diff_src_type>
 void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
@@ -609,9 +611,10 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
     }
 }
 
-template struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t<data_type::f32>;
-template struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
-        data_type::bf16>;
+REG_AVX512_ISA(template struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
+        data_type::f32>);
+REG_AVX512_ISA(template struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
+        data_type::bf16>);
 
 /* convolution backward wtr weights */
 
@@ -1130,10 +1133,12 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
     }
 }
 
-template struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<
-        data_type::f32>;
-template struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<
-        data_type::bf16>;
+REG_AVX512_ISA(
+        template struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<
+                data_type::f32>);
+REG_AVX512_ISA(
+        template struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<
+                data_type::bf16>);
 
 } // namespace x64
 } // namespace cpu

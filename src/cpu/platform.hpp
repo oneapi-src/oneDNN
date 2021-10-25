@@ -21,6 +21,7 @@
 #include "oneapi/dnnl/dnnl_config.h"
 
 #include "common/c_types_map.hpp"
+#include "common/impl_registration.hpp"
 #include "common/z_magic.hpp"
 
 // Possible architectures:
@@ -90,6 +91,50 @@
 #define DNNL_AARCH64_ACL_ONLY(...) __VA_ARGS__
 #else
 #define DNNL_AARCH64_ACL_ONLY(...)
+#endif
+
+// Primitive ISA section for configuring knobs.
+// Note: MSVC preprocessor by some reason "eats" symbols it's not supposed to
+// if __VA_ARGS__ is passed as empty. Then things happen like this for non-x64:
+// impl0, AMX(X64_impl1), impl2, ... -> impl0   impl2, ...
+// resulting in compilation error. Such problem happens for lists interleaving
+// X64 impls and non-X64 for non-X64 build.
+#if DNNL_X64
+// Note: unlike workload or primitive set, these macros will work with impl
+// items directly, thus, just make an item disappear, no empty lists.
+#define __BUILD_AMX BUILD_PRIMITIVE_CPU_ISA_ALL || BUILD_AMX
+#define __BUILD_AVX512 __BUILD_AMX || BUILD_AVX512
+#define __BUILD_AVX2 __BUILD_AVX512 || BUILD_AVX2
+#define __BUILD_SSE41 __BUILD_AVX2 || BUILD_SSE41
+#else
+#define __BUILD_AMX 0
+#define __BUILD_AVX512 0
+#define __BUILD_AVX2 0
+#define __BUILD_SSE41 0
+#endif
+
+#if __BUILD_AMX
+#define REG_AMX_ISA(...) __VA_ARGS__
+#else
+#define REG_AMX_ISA(...)
+#endif
+
+#if __BUILD_AVX512
+#define REG_AVX512_ISA(...) __VA_ARGS__
+#else
+#define REG_AVX512_ISA(...)
+#endif
+
+#if __BUILD_AVX2
+#define REG_AVX2_ISA(...) __VA_ARGS__
+#else
+#define REG_AVX2_ISA(...)
+#endif
+
+#if __BUILD_SSE41
+#define REG_SSE41_ISA(...) __VA_ARGS__
+#else
+#define REG_SSE41_ISA(...)
 #endif
 
 namespace dnnl {
