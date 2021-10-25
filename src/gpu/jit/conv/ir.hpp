@@ -839,6 +839,15 @@ inline stmt_t barrier_wait() {
     return barrier_wait_func().call();
 }
 
+inline func_t continue_func() {
+    static auto f = builtin_t::make("continue");
+    return f;
+}
+
+inline stmt_t _continue() {
+    return continue_func().call();
+}
+
 } // namespace funcs
 
 // Helper functionality to extract ND indices packed into 1D index.

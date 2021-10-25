@@ -3000,11 +3000,18 @@ public:
         auto var_op = scope.alloc_sub(to_ngen(obj.var.type()));
         auto init_op = eval(obj.init, scope);
         auto bound_op = eval(obj.bound, scope);
+
         ngen::Label loop_label;
+        loop_end_labels_.emplace_back();
+
         host_->emov(1, var_op, init_op);
         expr_binding_.bind(obj.var, var_op);
         host_->mark(loop_label);
         visit(obj.body);
+
+        host_->mark(loop_end_labels_.back());
+        loop_end_labels_.pop_back();
+
         host_->eadd(1, var_op, var_op, ngen::Immediate(1));
         host_->ecmp(1 | host_->lt | host_->f0[0], var_op, bound_op);
         host_->jmpi(1 | host_->f0[0], loop_label);
@@ -3071,6 +3078,8 @@ public:
         bool has_else = !obj.else_body.is_empty();
         auto scope = register_scope();
         auto cond_op = eval(obj.cond, scope);
+
+        if (try_emit_if_continue(obj, cond_op)) return;
 
         ngen::Label l_else;
         ngen::Label l_endif;
@@ -3411,6 +3420,18 @@ private:
                 data_rd.getBase(), elems * sizeof(float) / grf_size));
     }
 
+    bool try_emit_if_continue(const if_t &obj, const ngen_operand_t &cond_op) {
+        if (!obj.else_body.is_empty()) return false;
+        auto *call = obj.body.as_ptr<func_call_t>();
+        if (!call) return false;
+        if (!call->func.is_equal(funcs::continue_func())) return false;
+
+        ir_assert(!loop_end_labels_.empty())
+                << "Can't emit continue: no label found.";
+        host_->jmpi(1 | cond_op.flag_register(), loop_end_labels_.back());
+        return true;
+    }
+
     ngen_operand_t eval(const expr_t &e, ngen_register_scope_t &scope,
             const ngen_operand_t &dst_operand = ngen_operand_t()) {
         expr_evaluator_t<hw> expr_evaluator(host_, expr_binding_, scope);
@@ -3426,6 +3447,8 @@ private:
     conv_kernel_t<hw> *host_;
     expr_binding_t expr_binding_;
     int simd_size_;
+
+    std::vector<ngen::Label> loop_end_labels_;
 };
 
 template <ngen::HW hw>
