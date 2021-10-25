@@ -128,6 +128,12 @@ synchronization on entry and on exit in the dnnl::primitive::execute() call.
 The execution time is calculated based on wall time measured before and after
 primitive execution.
 
+@note
+When oneDNN verbose mode is enabled for builds with
+[Compute Library for the Arm architecture](https://oneapi-src.github.io/oneDNN/dev_guide_build.html#gcc-with-arm-compute-library-acl-on-aarch64-host),
+any failures in the validation of Compute Library primitives will be detailed
+in the verbose output.
+
 @warning
 Verbose mode has non-negligible performance impact especially on GPU or if the
 output rate is high.
