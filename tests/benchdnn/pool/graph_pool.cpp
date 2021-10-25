@@ -94,19 +94,6 @@ void check_known_skipped_case_graph(
         const ::pool::prb_t *prb, res_t *res) noexcept {
     ::pool::check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return;
-
-    for (const auto &po : prb->attr.post_ops.entry) {
-        if (po.is_binary_kind()) {
-            // currently, in the backend there are supported
-            // only two policies for binary post op:
-            // COMMON and PER_OC
-            const auto policy = po.binary.policy;
-            if (!(policy == attr_t::COMMON || policy == attr_t::PER_OC)) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                return;
-            }
-        }
-    }
 }
 
 fill_status_t pool_graph_prb_t::handle_main_op_() {
