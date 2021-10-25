@@ -600,7 +600,6 @@ public:
     }
 
     void finalize() {
-        sort_vars();
         init_problem_tiles();
         init_constraint_set();
         is_finalized_ = true;
@@ -823,33 +822,6 @@ private:
         }
         var_name += suffix;
         return var_t::make(type_t::u32(), var_name);
-    }
-
-    int get_var_key(const expr_t &v) const {
-        int key_max = std::numeric_limits<int>::max();
-        auto &loop = find_loop(v);
-        if (!loop.is_leaf()) return key_max;
-        // Loops bound to the kernel grid.
-        if (loop.is_kernel_grid()) {
-            return kernel_grid_.ndims()
-                    - kernel_grid_.dim_idx(loop.bound_var());
-        }
-        // Loops bound to the thread group grid or serial loop.
-        if (loop.is_tg_grid() || loop.is_serial()) return 10;
-
-        // Tensorized loops are the innermost.
-        if (loop.is_tensorized()) return key_max - 1;
-        ir_error_not_expected() << "Unknown loop";
-        return -1;
-    }
-
-    void sort_vars() {
-        std::stable_sort(vars_.end(), vars_.end(),
-                [&](const expr_t &a_var, const expr_t &b_var) {
-                    int a_key = get_var_key(a_var);
-                    int b_key = get_var_key(b_var);
-                    return a_key < b_key;
-                });
     }
 
     void init_problem_tiles() {
