@@ -16,4 +16,7 @@
 #quantize op
 --sdt=f32 --ddt=s8,u8  --attr-zero-points=,src:common:0+dst:common:2 2x64x3x3
 
+#typecast+quantize fusion op
+--sdt=bf16 --ddt=u8,s8  --attr-oscale=,common:0.5 --attr-zero-points=,src:common:0+dst:common:2 2x64x3x3
+
 #TODO - runtime scales and runtime zps to be added later.
