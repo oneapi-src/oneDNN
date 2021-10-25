@@ -101,12 +101,13 @@ public:
         return status::success;
     }
 
+    bool is_stride1() const { return sd == 1 && sh == 1 && sw == 1; }
+
     // Reduces dimensions for 1x1 kernel.
     void try_reduce_to_1d() {
         bool is_1x1 = (kd * kh * kw == 1);
-        bool is_stride1 = (sd == 1 && sh == 1 && sw == 1);
         bool is_eq_oi = (od == id && oh == ih && ow == iw);
-        if (is_1x1 && is_stride1 && is_eq_oi) {
+        if (is_1x1 && is_stride1() && is_eq_oi) {
             ir_assert(pd == 0 && ph == 0 && pw == 0);
             ow = od * oh * ow;
             iw = id * ih * iw;
@@ -428,15 +429,24 @@ public:
         iw_thr_blk = getenv_int("iw_thr_blk", iw_thr_blk);
 #endif
 
+        // Try to enable special optimization for strided BWD_D convolution.
+        if (can_optimize_strided_bwd_d()) optimize_strided = true;
+
         regs = 256;
 
+        iw_thr_dim = std::min(4, utils::div_up(iw, iw_thr_blk));
+        iw_thr_dim = (1 << math::ilog2q(iw_thr_dim));
+
+        if (optimize_strided) {
+            iw_thr_dim = ir_utils::max_divisor(iw / sw, {1, 2, 4});
+        }
+
         tg_grid_dim[0] = std::min(4, utils::div_up(ic, ic_thr_blk));
-        tg_grid_dim[1] = std::min(4, utils::div_up(iw, iw_thr_blk));
+        tg_grid_dim[1] = iw_thr_dim;
         tg_grid_dim[2] = 1;
 
         // Round down to a power of 2.
         tg_grid_dim[0] = (1 << math::ilog2q(tg_grid_dim[0]));
-        tg_grid_dim[1] = (1 << math::ilog2q(tg_grid_dim[1]));
         tg_grid_dim[2] = (1 << math::ilog2q(tg_grid_dim[2]));
 
 #ifdef GEN_CONV_DEBUG
@@ -479,10 +489,11 @@ public:
         int kernel_limit = is_f32_conv() ? 4 : 9;
         if (kd * kh * kw > kernel_limit) do_loop_unroll = false;
 
-        // Do not perform full unrolling with non-unit stride. These cases have
-        // non-trivial post-increment updates which result in unrolling all
-        // reduction loops and exceeding the instruction cache.
-        if (sd * sh * sw != 1) do_loop_unroll = false;
+        // Do not perform full unrolling with non-unit stride unless special
+        // stride optimization is enabled. These cases have non-trivial
+        // post-increment updates which result in unrolling all reduction loops
+        // and exceeding the instruction cache.
+        if (!is_stride1() && !optimize_strided) do_loop_unroll = false;
 
         fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
@@ -736,6 +747,7 @@ public:
         reduce_grf_usage = true;
         do_atomic_update = false;
         reuse_headers = hw <= ngen::HW::XeLP;
+        optimize_strided = false;
         a_sub_tiles = 1;
         b_sub_tiles = 1;
 
@@ -928,6 +940,7 @@ public:
 
     // Number of thread blocks across problem dimensions.
     int ic_thr_dim;
+    int iw_thr_dim;
     int mb_thr_dim;
     int oc_thr_dim;
     int ow_thr_dim;
@@ -974,6 +987,7 @@ public:
     bool allow_grf_reorder; // Whether to allow GRF reorders to FMA-friendly layouts.
     bool do_atomic_update; // Whether to use atomics during C update.
     bool reuse_headers; // Whether to reuse header messages to reduce GRF usage.
+    bool optimize_strided; // Apply special optimization for strided BWD_D convolution.
 
     // Sub-tiles to split into for the inner A x B multiplication:
     // for i in range(0, a_sub_tiles):
@@ -1335,6 +1349,13 @@ private:
             }
         }
         return status::success;
+    }
+
+    bool can_optimize_strided_bwd_d() const {
+        if (iw_thr_blk > 1) return false;
+        if (is_stride1()) return false;
+        if (iw % sw != 0) return false;
+        return true;
     }
 
     void enable_slm_buffering() {

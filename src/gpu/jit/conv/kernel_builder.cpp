@@ -1684,10 +1684,10 @@ public:
     }
 
     object_t _mutate(const for_t &obj) override {
-        level_++;
+        if (in_compute_loop_) level_++;
         found_loop_ = false;
         auto new_obj = ir_mutator_t::_mutate(obj);
-        level_--;
+        if (in_compute_loop_) level_--;
         if (!found_loop_) {
             // Innermost loop, inject let statements.
             auto body = get_stmt_body(new_obj);
@@ -1701,8 +1701,20 @@ public:
         return new_obj;
     }
 
+    object_t _mutate(const stmt_group_t &obj) override {
+        if (obj.label == stmt_label_t::compute_loop()) {
+            in_compute_loop_ = true;
+        }
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        if (obj.label == stmt_label_t::compute_loop()) {
+            in_compute_loop_ = false;
+        }
+        return new_obj;
+    }
+
 private:
     bool found_loop_ = false;
+    bool in_compute_loop_ = false;
     int level_ = 0;
     std::vector<const let_t *> lets_;
 };
@@ -1901,7 +1913,7 @@ public:
             }
         }
 
-        if (is_for) loop_level_++;
+        if (is_for && in_compute_loop_) loop_level_++;
         found_loop_ = false;
         ir_visitor_t::_visit(obj);
         if (in_compute_loop_ && is_let) {
@@ -1911,7 +1923,7 @@ public:
 
             inner_let_stmts_.push_back(replace_stmt_body(obj, stmt_t()));
         }
-        if (is_for) {
+        if (is_for && in_compute_loop_) {
             loop_level_--;
             found_loop_ = true;
         }
@@ -2183,6 +2195,36 @@ private:
     stmt_t post_inc_stmt_;
 };
 
+class compute_loop_nest_visitor_t : public ir_visitor_t {
+public:
+    int compute_loop_level() const { return compute_loop_level_; }
+
+    const std::vector<loop_info_t> &loops() const { return loops_; }
+
+    void _visit(const stmt_group_t &obj) override {
+        bool is_compute_loop = (obj.label == stmt_label_t::compute_loop());
+        if (is_compute_loop) {
+            in_compute_loop_ = true;
+            compute_loop_level_ = level_;
+        }
+        ir_visitor_t::_visit(obj);
+        if (is_compute_loop) in_compute_loop_ = false;
+    }
+
+    void _visit(const for_t &obj) override {
+        level_++;
+        ir_visitor_t::_visit(obj);
+        if (in_compute_loop_) loops_.emplace_back(obj);
+        level_--;
+    }
+
+private:
+    bool in_compute_loop_ = false;
+    int compute_loop_level_ = -1;
+    std::vector<loop_info_t> loops_;
+    int level_ = 0;
+};
+
 // Helper class to work with loop nest of the compute loop.
 class compute_loop_nest_t {
 public:
@@ -2190,9 +2232,11 @@ public:
 
     compute_loop_nest_t(const stmt_t &root, ir_context_t &ir_ctx)
         : root_(root) {
-        for (auto &l : find_objects<for_t>(root)) {
-            loops_.emplace_back(l);
-        }
+        compute_loop_nest_visitor_t visitor;
+        visitor.visit(root);
+
+        compute_loop_level_ = visitor.compute_loop_level();
+        loops_ = visitor.loops();
 
         if (loops_.empty()) {
             outer_loop_size_ = 1;
@@ -2203,6 +2247,11 @@ public:
         outer_loop_size_ = outer_loop_.size();
     }
 
+    // Returns the loop level of the compute_loop statement group corresponding
+    // to the number of outer loops.
+    int compute_loop_level() const { return compute_loop_level_; }
+
+    // Returns loops inside compute_loop statement group.
     const std::vector<loop_info_t> &loops() const { return loops_; }
 
     // Number of iterations of all loops.
@@ -2229,6 +2278,7 @@ public:
 
 private:
     stmt_t root_;
+    int compute_loop_level_ = -1;
     std::vector<loop_info_t> loops_;
 
     int outer_loop_size_;
@@ -2754,6 +2804,10 @@ public:
                 g2s_reg_bufs_.emplace_back(b, alloc_mgr_.alloc_size(b));
             }
         }
+
+        // Can't fuse top-level zero-out statement unless the compute loop is
+        // top-level as well.
+        fuse_zero_out_with_fma_ = (loop_nest_.compute_loop_level() == 0);
     }
 
     stmt_t inject() {
@@ -2839,7 +2893,8 @@ public:
         }
 
         // Remove zero-out statement for C (handled by sub_fma_acc_with_zero).
-        ret = substitute(ret, step_.c_zero_out(), stmt_t(), 1);
+        if (fuse_zero_out_with_fma_)
+            ret = substitute(ret, step_.c_zero_out(), stmt_t(), 1);
 
         return ret;
     }
@@ -2919,7 +2974,7 @@ private:
             }
         }
 
-        if (it.is_first_mul()) {
+        if (it.is_first_mul() && fuse_zero_out_with_fma_) {
             for (auto &m : mul) {
                 m = sub_fma_acc_with_zero(m);
             }
@@ -3111,6 +3166,7 @@ private:
     compute_params_t params_;
 
     std::vector<buffer_info_t> g2s_reg_bufs_; // For SLM buffering.
+    bool fuse_zero_out_with_fma_ = false;
 };
 
 // Injects loop unrolling based on the config. Possible options:
@@ -6239,6 +6295,36 @@ private:
     stmt_t b_reduced_store_stmt_;
 };
 
+class compute_loop_label_injector_t : public ir_mutator_t {
+public:
+    object_t _mutate(const for_t &obj) override {
+        if (injected_) return obj;
+
+        bool found_continue = false;
+        auto calls = find_objects<func_call_t>(obj);
+        for (auto &_c : calls) {
+            auto &c = _c.as<func_call_t>();
+            if (c.func.is_equal(funcs::continue_func())) found_continue = true;
+        }
+
+        if (!found_continue) {
+            injected_ = true;
+            return stmt_group_t::make(stmt_label_t::compute_loop(), obj);
+        }
+        return ir_mutator_t::_mutate(obj);
+    }
+
+private:
+    bool injected_ = false;
+};
+
+// Injects compute_loop statement label to the outermost loop that can be
+// pipelined. If a loop contains a "continue" function call it can't be
+// pipelined because of conditional flow.
+stmt_t inject_compute_loop_label(const stmt_t &s) {
+    return compute_loop_label_injector_t().mutate(s);
+}
+
 void kernel_builder_t::build() {
     ir_context_t ir_ctx;
     constraint_set_t init_cset;
@@ -6324,7 +6410,7 @@ void kernel_builder_t::build() {
     // Create IR statements.
     stmt_t loop_stmt = cb.iter_stmt();
     loop_stmt = gemm_schedule.create_loop_nest(loop_stmt);
-    loop_stmt = stmt_group_t::make(stmt_label_t::compute_loop(), loop_stmt);
+    loop_stmt = inject_compute_loop_label(loop_stmt);
     loop_stmt = cb.inject_compute_alloc_stmts(loop_stmt);
 
     auto c_store_stmt
@@ -6669,9 +6755,17 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     auto od = id - kd * (1 + cfg_.dd) + cfg_.pd;
     auto oh = ih - kh * (1 + cfg_.dh) + cfg_.ph;
     auto ow = iw - kw * (1 + cfg_.dw) + cfg_.pw;
-    dst_view.set_tdim(2, od / cfg_.sd, od_mask & (od % cfg_.sd == 0));
-    dst_view.set_tdim(3, oh / cfg_.sh, oh_mask & (oh % cfg_.sh == 0));
-    dst_view.set_tdim(4, ow / cfg_.sw, ow_mask & (ow % cfg_.sw == 0));
+
+    // When stride optimization is enabled, stride conditions are handled by
+    // continue calls in the outer loops.
+    if (!cfg_.optimize_strided) {
+        od_mask &= (od % cfg_.sd == 0);
+        oh_mask &= (oh % cfg_.sh == 0);
+        ow_mask &= (ow % cfg_.sw == 0);
+    }
+    dst_view.set_tdim(2, od / cfg_.sd, od_mask);
+    dst_view.set_tdim(3, oh / cfg_.sh, oh_mask);
+    dst_view.set_tdim(4, ow / cfg_.sw, ow_mask);
 
     dst_view.set_tlayout(dst_layout);
 
@@ -6735,7 +6829,23 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     gemm_schedule.tensorize(iw_inner);
     gemm_schedule.tensorize(oc_inner);
 
-    gemm_schedule.reorder({oc_blk_idx, kd, kh, kw});
+    if (cfg_.optimize_strided) {
+        // Apply mapping to iw to ensure each thread group has the same
+        // stride condition when evaluating skip conditions.
+        auto iw_shuffle = [&](const expr_t &x) {
+            int iw_same_mod_blk = ir_utils::safe_divide(
+                    gemm_schedule.var_bound(iw), cfg_.sw);
+            return (x % iw_same_mod_blk) * cfg_.sw + (x / iw_same_mod_blk);
+        };
+        gemm_schedule.set_mapping(iw, iw_shuffle(iw));
+        gemm_schedule.set_skip_condition(kd, od % cfg_.sd != 0);
+        gemm_schedule.set_skip_condition(kh, oh % cfg_.sh != 0);
+        gemm_schedule.set_skip_condition(kw, ow % cfg_.sw != 0);
+        // Put kd/kh/kw outermost to allow pipelining in oc loop.
+        gemm_schedule.reorder({kd, kh, kw, oc_blk_idx});
+    } else {
+        gemm_schedule.reorder({oc_blk_idx, kd, kh, kw});
+    }
 
     src_buf = kernel_info_.find_arg("src");
     wei_buf = kernel_info_.find_arg("wei");
