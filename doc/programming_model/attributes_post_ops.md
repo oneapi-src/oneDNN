@@ -272,6 +272,7 @@ Currently the following scenarios are optimized:
   post-operation which format may be queried from attributes using
   `dnnl::post_ops::get_params_binary(...)` function call.
 
+@anchor dev_guide_attributes_post_ops_prelu
 ### Prelu Post-op
 
 The prelu post-op enables fusing a primitive with a @ref dev_guide_prelu
