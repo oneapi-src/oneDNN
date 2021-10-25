@@ -91,7 +91,7 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
         auto acl_transA_st = arm_compute::NETranspose::validate(
                 &amp.src_acc_info, &amp.src_info);
         if (acl_transA_st.error_code() != arm_compute::ErrorCode::OK) {
-            printf("%s\n", acl_transA_st.error_description().c_str());
+            MAYBE_REPORT_ACL_ERROR(acl_transA_st.error_description().c_str());
             return status::unimplemented;
         }
     }
@@ -99,7 +99,7 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
         auto acl_transB_st = arm_compute::NETranspose::validate(
                 &amp.wei_acc_info, &amp.wei_info);
         if (acl_transB_st.error_code() != arm_compute::ErrorCode::OK) {
-            printf("%s\n", acl_transB_st.error_description().c_str());
+            MAYBE_REPORT_ACL_ERROR(acl_transB_st.error_description().c_str());
             return status::unimplemented;
         }
     }
@@ -107,7 +107,7 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     auto acl_st = arm_compute::NEGEMM::validate(&amp.src_info, &amp.wei_info,
             nullptr, &amp.dst_info, amp.alpha, 0.0f, amp.gemm_info);
     if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
-        printf("%s\n", acl_st.error_description().c_str());
+        MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
         return status::unimplemented;
     }
 
