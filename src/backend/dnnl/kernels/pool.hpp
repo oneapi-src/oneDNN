@@ -174,11 +174,9 @@ public:
             // post_src_dim[c_axis] == dst_dims[c_axis]
             const int c_axis = 1;
             for (int i = dst_ndims - 1; i >= 0; i--) {
-                if (res_desc_.cvt_post_src_.dims()[i] == 1) continue;
-
-                if (i != c_axis
-                        || res_desc_.cvt_dst_.dims()[i]
-                                != res_desc_.cvt_post_src_.dims()[i]) {
+                if (res_desc_.cvt_dst_.dims()[i]
+                                != res_desc_.cvt_post_src_.dims()[i]
+                        && res_desc_.cvt_post_src_.dims()[i] != 1) {
                     return impl::status::compile_fail;
                 }
             }

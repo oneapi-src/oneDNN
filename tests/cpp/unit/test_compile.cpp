@@ -11002,13 +11002,13 @@ TEST(operator_kernel, avgpool_add) {
     impl::stream_t &strm = get_stream();
 
     std::vector<std::string> data_formats {"NCX", "NXC"};
-    std::vector<bool> with_channel_broadcast_flags {true, false};
+    std::vector<bool> with_broadcast_flags {true, false};
     std::vector<impl::data_type_t> data_types {
             impl::data_type::f32, impl::data_type::bf16};
 
     for_(const auto dt : data_types)
     for_(const auto &data_format : data_formats)
-    for (const auto c_broadcast : with_channel_broadcast_flags) {
+    for (const auto broadcast : with_broadcast_flags) {
         static auto isa = dnnl_get_effective_cpu_isa();
         if (dt == impl::data_type::bf16 && isa < dnnl_cpu_isa_avx512_core
                 && eng.kind() == impl::engine_kind::cpu) {
@@ -11018,9 +11018,9 @@ TEST(operator_kernel, avgpool_add) {
         std::vector<int64_t> src_shape {3, 3, 4, 4, 4};
         std::vector<int64_t> dst_shape {3, 3, 2, 2, 2};
         const size_t spatial_size = src_shape.size() - 2;
-        std::vector<int64_t> post_src_shape {1, 1, 1, 1, 1};
+        std::vector<int64_t> post_src_shape {3, 3, 2, 2, 2};
+        if (broadcast) post_src_shape = {1, 1, 1, 1, 1};
 
-        if (c_broadcast) { post_src_shape[1] = src_shape[1]; }
         if (data_format == "NXC") {
             src_shape.emplace_back(src_shape[1]);
             src_shape.erase(src_shape.begin() + 1);
@@ -11055,15 +11055,17 @@ TEST(operator_kernel, avgpool_add) {
 
         std::vector<impl::logical_tensor_t> inputs {src_lt, post_src_lt};
         std::vector<impl::logical_tensor_t> outputs {dst_lt};
-        avgpool_kernel->compile(&avgpool_op, &eng, inputs, outputs);
+        ASSERT_EQ(avgpool_kernel->compile(&avgpool_op, &eng, inputs, outputs),
+                impl::status::success);
 
         impl::tensor_t src_ts(src_lt, &eng, src.data());
         impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
         impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
 
         impl::stream_t &strm = get_stream();
-        avgpool_kernel->execute(
-                &avgpool_op, &strm, {src_ts, post_src_ts}, {dst_ts});
+        ASSERT_EQ(avgpool_kernel->execute(
+                          &avgpool_op, &strm, {src_ts, post_src_ts}, {dst_ts}),
+                impl::status::success);
         strm.wait();
     }
 }
@@ -11075,13 +11077,13 @@ TEST(operator_kernel, maxpool_add) {
     impl::stream_t &strm = get_stream();
 
     std::vector<std::string> data_formats {"NCX", "NXC"};
-    std::vector<bool> with_channel_broadcast_flags {true, false};
+    std::vector<bool> with_broadcast_flags {true, false};
     std::vector<impl::data_type_t> data_types {
             impl::data_type::f32, impl::data_type::bf16};
 
     for_(const auto dt : data_types)
     for_(const auto &data_format : data_formats)
-    for (const auto c_broadcast : with_channel_broadcast_flags) {
+    for (const auto broadcast : with_broadcast_flags) {
         static auto isa = dnnl_get_effective_cpu_isa();
         if (dt == impl::data_type::bf16 && isa < dnnl_cpu_isa_avx512_core
                 && eng.kind() == impl::engine_kind::cpu) {
@@ -11091,9 +11093,9 @@ TEST(operator_kernel, maxpool_add) {
         std::vector<int64_t> src_shape {3, 3, 4, 4, 4};
         std::vector<int64_t> dst_shape {3, 3, 2, 2, 2};
         const size_t spatial_size = src_shape.size() - 2;
-        std::vector<int64_t> post_src_shape {1, 1, 1, 1, 1};
+        std::vector<int64_t> post_src_shape {3, 3, 2, 2, 2};
+        if (broadcast) post_src_shape = {1, 1, 1, 1, 1};
 
-        if (c_broadcast) { post_src_shape[1] = src_shape[1]; }
         if (data_format == "NXC") {
             src_shape.emplace_back(src_shape[1]);
             src_shape.erase(src_shape.begin() + 1);
@@ -11128,15 +11130,17 @@ TEST(operator_kernel, maxpool_add) {
 
         std::vector<impl::logical_tensor_t> inputs {src_lt, post_src_lt};
         std::vector<impl::logical_tensor_t> outputs {dst_lt};
-        maxpool_kernel->compile(&maxpool_op, &eng, inputs, outputs);
+        ASSERT_EQ(maxpool_kernel->compile(&maxpool_op, &eng, inputs, outputs),
+                impl::status::success);
 
         impl::tensor_t src_ts(src_lt, &eng, src.data());
         impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
         impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
 
         impl::stream_t &strm = get_stream();
-        maxpool_kernel->execute(
-                &maxpool_op, &strm, {src_ts, post_src_ts}, {dst_ts});
+        ASSERT_EQ(maxpool_kernel->execute(
+                          &maxpool_op, &strm, {src_ts, post_src_ts}, {dst_ts}),
+                impl::status::success);
         strm.wait();
     }
 }
