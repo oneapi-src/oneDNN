@@ -29,6 +29,7 @@
 #include "patterns/gelu_fusion.hpp"
 #include "patterns/matmul_fusion.hpp"
 #include "patterns/pool_fusion.hpp"
+#include "patterns/quantize_fusion.hpp"
 #include "patterns/single_op_pattern.hpp"
 #include "tensor.hpp"
 
@@ -66,6 +67,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PASSES_CALL(single_op_pass, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(pool_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(eltwise_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(quantize_fusion, pass_registry_);
 
     return true;
 }
