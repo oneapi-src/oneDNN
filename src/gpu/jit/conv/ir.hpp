@@ -304,9 +304,6 @@ expr_t const_fold_non_recursive(const expr_t &e);
 template <typename T>
 std::vector<object_t> find_objects(const object_t &root);
 
-template <typename T>
-std::vector<object_t> find_objects_unique(const object_t &root);
-
 class alloc_manager_t {
 public:
     alloc_manager_t(const stmt_t &root) {
