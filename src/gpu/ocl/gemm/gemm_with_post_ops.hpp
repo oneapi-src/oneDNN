@@ -59,7 +59,8 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
     };
 
     status_t init(engine_t *engine) override {
-        auto ret_status = pd()->gemm_pd_->create_primitive(gemm_prim_, engine);
+        auto ret_status
+                = create_nested_primitive(gemm_prim_, pd()->gemm_pd_, engine);
         CHECK(ret_status);
         compute::kernel_ctx_t kernel_ctx;
         ret_status = pd()->init_kernel_ctx(kernel_ctx);

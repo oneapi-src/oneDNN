@@ -174,8 +174,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
-        if (gemm_status != status::success) return gemm_status;
+        CHECK(create_nested_primitive(gemm_, pd()->gemm_pd_, engine));
 
         const size_t mb = pd()->MB();
         const size_t oc = pd()->OC();

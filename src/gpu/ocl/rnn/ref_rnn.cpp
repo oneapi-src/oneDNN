@@ -839,38 +839,34 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
         case prop_kind::forward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            pd()->gemm_layer_fwd_pd_->create_primitive(
-                                    gemm_layer_fwd_, engine),
-                            pd()->gemm_iter_fwd_pd_->create_primitive(
-                                    gemm_iter_fwd_, engine),
+                            create_nested_primitive(gemm_layer_fwd_,
+                                    pd()->gemm_layer_fwd_pd_, engine),
+                            create_nested_primitive(gemm_iter_fwd_,
+                                    pd()->gemm_iter_fwd_pd_, engine),
                             pd()->conf.is_vanilla_gru
-                                    ? pd()->gemm_iter_fwd_2_pd_
-                                              ->create_primitive(
-                                                      gemm_iter_fwd_2_, engine)
+                                    ? create_nested_primitive(gemm_iter_fwd_2_,
+                                            pd()->gemm_iter_fwd_2_pd_, engine)
                                     : status::success);
             break;
         case prop_kind::backward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            pd()->gemm_layer_bwd_pd_->create_primitive(
-                                    gemm_layer_bwd_, engine),
-                            pd()->gemm_iter_bwd_pd_->create_primitive(
-                                    gemm_iter_bwd_, engine),
-                            pd()->gemm_diff_wei_layer_pd_->create_primitive(
-                                    gemm_diff_wei_layer_, engine),
-                            pd()->gemm_diff_wei_iter_pd_->create_primitive(
-                                    gemm_diff_wei_iter_, engine),
+                            create_nested_primitive(gemm_layer_bwd_,
+                                    pd()->gemm_layer_bwd_pd_, engine),
+                            create_nested_primitive(gemm_iter_bwd_,
+                                    pd()->gemm_iter_bwd_pd_, engine),
+                            create_nested_primitive(gemm_diff_wei_layer_,
+                                    pd()->gemm_diff_wei_layer_pd_, engine),
+                            create_nested_primitive(gemm_diff_wei_iter_,
+                                    pd()->gemm_diff_wei_iter_pd_, engine),
                             pd()->conf.is_vanilla_gru
-                                    ? pd()->gemm_iter_bwd_2_pd_
-                                              ->create_primitive(
-                                                      gemm_iter_bwd_2_, engine)
+                                    ? create_nested_primitive(gemm_iter_bwd_2_,
+                                            pd()->gemm_iter_bwd_2_pd_, engine)
                                     : status::success,
-                            pd()->conf.is_vanilla_gru
-                                    ? pd()->gemm_diff_wei_iter_2_pd_
-                                              ->create_primitive(
-                                                      gemm_diff_wei_iter_2_,
-                                                      engine)
-                                    : status::success);
+                            pd()->conf.is_vanilla_gru ? create_nested_primitive(
+                                    gemm_diff_wei_iter_2_,
+                                    pd()->gemm_diff_wei_iter_2_pd_, engine)
+                                                      : status::success);
             break;
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }

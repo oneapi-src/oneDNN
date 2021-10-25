@@ -170,9 +170,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        status_t conv_status
-                = pd()->conv_pd_->create_primitive(conv_p_, engine);
-        return conv_status;
+        return create_nested_primitive(conv_p_, pd()->conv_pd_, engine);
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
@@ -278,9 +276,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        status_t conv_status
-                = pd()->conv_pd_->create_primitive(conv_p_, engine);
-        return conv_status;
+        return create_nested_primitive(conv_p_, pd()->conv_pd_, engine);
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
@@ -381,11 +377,9 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         // Creating convolution primitve
-        status_t conv_status
-                = pd()->conv_pd_->create_primitive(conv_p_, engine);
-        if (conv_status != status::success) return conv_status;
+        CHECK(create_nested_primitive(conv_p_, pd()->conv_pd_, engine));
 
-        if (!pd()->with_bias()) return conv_status;
+        if (!pd()->with_bias()) return status::success;
         // Initializing values for the deconv bias kernel
         compute::kernel_ctx_t kernel_ctx;
 

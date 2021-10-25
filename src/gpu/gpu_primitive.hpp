@@ -105,6 +105,11 @@ struct gpu_primitive_t : public primitive_t {
         return status;
     }
 
+    status_t create_nested_primitive(std::shared_ptr<primitive_t> &primitive,
+            const std::shared_ptr<primitive_desc_t> &pd, engine_t *engine) {
+        return pd->create_primitive(primitive, engine);
+    }
+
 protected:
     void register_kernels(const std::vector<compute::kernel_t> &kernels) {
         for (const auto &k : kernels) {

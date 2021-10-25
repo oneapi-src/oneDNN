@@ -98,11 +98,13 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
     convolution_inner_product_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        CHECK(pd()->cpd_->create_primitive(conv_, engine));
+        CHECK(create_nested_primitive(conv_, pd()->cpd_, engine));
         if (pd()->rpd_postop_)
-            CHECK(pd()->rpd_postop_->create_primitive(postop_reorder_, engine));
+            CHECK(create_nested_primitive(
+                    postop_reorder_, pd()->rpd_postop_, engine));
         if (pd()->rpd_dst_)
-            CHECK(pd()->rpd_dst_->create_primitive(dst_reorder_, engine));
+            CHECK(create_nested_primitive(
+                    dst_reorder_, pd()->rpd_dst_, engine));
         return status::success;
     }
 

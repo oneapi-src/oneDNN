@@ -288,10 +288,12 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
             kernel_name = "gen9_conv_bwd_weights";
         }
         if (pd()->conf.reorder_wei) {
-            CHECK(pd()->rpd_wei_->create_primitive(wei_reorder_, engine));
+            CHECK(create_nested_primitive(
+                    wei_reorder_, pd()->rpd_wei_, engine));
         }
         if (pd()->conf.reorder_bias) {
-            CHECK(pd()->rpd_bia_->create_primitive(bia_reorder_, engine));
+            CHECK(create_nested_primitive(
+                    bia_reorder_, pd()->rpd_bia_, engine));
         }
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);

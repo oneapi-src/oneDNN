@@ -107,7 +107,7 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        return pd()->reorder_pd_->create_primitive(reorder_, engine);
+        return create_nested_primitive(reorder_, pd()->reorder_pd_, engine);
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
