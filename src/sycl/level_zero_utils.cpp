@@ -74,7 +74,9 @@ void *find_ze_symbol(const char *symbol) {
 #if defined(__linux__)
     void *handle = dlopen("libze_loader.so.1", RTLD_NOW | RTLD_LOCAL);
 #elif defined(_WIN32)
-    HMODULE handle = LoadLibraryA("ze_loader.dll");
+    // Use LOAD_LIBRARY_SEARCH_SYSTEM32 flag to avoid DLL hijacking issue.
+    HMODULE handle = LoadLibraryExA(
+            "ze_loader.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 #endif
     if (!handle) {
         if (get_verbose())

@@ -272,7 +272,8 @@ lru_primitive_cache_t::~lru_primitive_cache_t() {
         && (defined(DNNL_WITH_SYCL) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL)
     // The ntdll.dll library is located in system32 therefore setting additional
     // environment is not required.
-    HMODULE handle = LoadLibraryA("ntdll.dll");
+    HMODULE handle = LoadLibraryExA(
+            "ntdll.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!handle) {
         cache_mapper_.release();
         return;
