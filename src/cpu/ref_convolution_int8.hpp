@@ -49,8 +49,8 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(src_type, s8, u8) && wei_type == s8
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, s32, s8, u8))
-                    && utils::one_of(dst_type, f32, s32, s8, u8)
+                            utils::one_of(bia_type, f32, bf16, s32, s8, u8))
+                    && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
                     && set_default_formats()
                     && attr()->has_default_values(smask_t::oscale
                                     | smask_t::zero_points_runtime
