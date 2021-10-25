@@ -106,6 +106,11 @@ ic35_iw30ih37_ow14oh17_kw3kh4_sw2sh2
 ic35_iw30ih36_ow14oh17_pw0ph1_kw3kh4_sw2sh2
 ic35_iw33ih37_ow14oh17_kw6kh4_sw2sh2
 ic35_iw33ih36_ow14oh17_pw0ph1_kw6kh4_sw2sh2
+
+# Padding is bigger than ur_w
+mb1ic8_ih19oh10kh15dh0sh2ph14_iw19ow10kw15dw0sw2pw14
+mb1ic8_ih19oh10kh14dh0sh2ph13_iw19ow10kw14dw0sw2pw13
+
 # With dilation
 mb1ic8_ih3oh3_kh3ph1_dh2dw2
 mb122ic32_ih32iw2_oh32ow2_kh3kw3_ph1pw1_dh4dw1
