@@ -7348,6 +7348,65 @@ TEST(operator_kernel, quantize_per_channel_symmetric) {
     }
 }
 
+TEST(operator_compile, typecast_quantize) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+    if (engine.kind() == impl::engine_kind::gpu) return;
+
+    std::vector<int64_t> src_shape = {1, 8, 16};
+    test::vector<float> src_data(product(src_shape));
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return f32_distribution(generator); });
+    impl::op_t typecast(0, impl::op_kind::TypeCast, "typecast");
+    impl::op_t quantize(1, impl::op_kind::Quantize, "quantize");
+    quantize.set_attr<std::vector<float>>("scales", {0.1f});
+    quantize.set_attr<std::vector<int64_t>>("zps", {10});
+    quantize.set_attr<std::string>("qtype", "per_tensor");
+    quantize.set_attr<int64_t>("axis", 0);
+
+    impl::logical_tensor_t src_bf16
+            = utils::logical_tensor_init(0, src_shape, impl::data_type::bf16);
+    impl::logical_tensor_t src_f32
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst_int8
+            = utils::logical_tensor_init(2, src_shape, impl::data_type::u8);
+
+    typecast.add_input(src_bf16);
+    typecast.add_output(src_f32);
+
+    quantize.add_input(src_f32);
+    quantize.add_output(dst_int8);
+
+    impl::graph_t g;
+    ASSERT_EQ(g.add_op(&typecast), impl::status::success);
+    ASSERT_EQ(g.add_op(&quantize), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("typecast_quantize_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {&src_bf16};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_int8};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    test::vector<int8_t> dst_data(product(src_shape));
+    impl::tensor_t src_ts(src_bf16, &engine, src_data.data());
+    impl::tensor_t dst_ts(dst_int8, &engine, dst_data.data());
+    cp.execute(&strm, {src_ts}, {dst_ts});
+    strm.wait();
+}
+
 TEST(operator_kernel, dequantize_per_tensor) {
     impl::engine_t &engine = get_engine();
     if (engine.kind() == impl::engine_kind::gpu) return;

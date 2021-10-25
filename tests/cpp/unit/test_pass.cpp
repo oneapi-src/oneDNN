@@ -8598,6 +8598,93 @@ TEST(pass_system_test, int8_mix_bf16_matmul_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
+TEST(pass_test, typecast_quantize_fusion) {
+    /*
+             | (bf16)
+           typecast
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t typecast {0, TypeCast, "typecast"};
+    op_t quant {1, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t bf16_input = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t f32_input = logical_tensor_init(1, data_type::f32);
+    typecast.add_input(bf16_input);
+    typecast.add_output(f32_input);
+
+    logical_tensor_t int8_dst = logical_tensor_init(2, data_type::u8);
+    quant.add_input(f32_input);
+    quant.add_output(int8_dst);
+
+    ASSERT_EQ(agraph.add_op(&typecast), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("typecast_quantize_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2);
+}
+
+TEST(pass_system_test, typecast_quantize_fusion) {
+    /*
+             | (bf16)
+           typecast
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t typecast {0, TypeCast, "typecast"};
+    op_t quant {1, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t bf16_input = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t f32_input = logical_tensor_init(1, data_type::f32);
+    typecast.add_input(bf16_input);
+    typecast.add_output(f32_input);
+
+    logical_tensor_t int8_dst = logical_tensor_init(2, data_type::u8);
+    quant.add_input(f32_input);
+    quant.add_output(int8_dst);
+
+    ASSERT_EQ(agraph.add_op(&typecast), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2);
+}
+
 // deq->matmul->q should have higher priority than deq->matmul
 // deq->typecast->matmul->typecast->q should have higher priority than
 // deq->typecast->matmul
