@@ -44,12 +44,12 @@ struct brgemm_matmul_bcast_desc_t {
     void set_params(const dims_t &inp_dims, const dims_t &dst_d_dims,
             int batch_ndims, dim_t batch) {
         const int ndims = batch_ndims;
-        const int mask = 1 << (ndims - 1);
         first_bcast_dim_to_last_batch_dim_prod = batch;
         for (int d = 0; d < ndims; ++d) {
             batch_dims[d] = dst_d_dims[d];
             gb_off[d] = (d == 0 ? batch : gb_off[d - 1]) / dst_d_dims[d];
             if (dst_d_dims[d] != 1 && inp_dims[d] == 1) { // broadcast
+                const int mask = 1 << (ndims - 1);
                 bcast_mask |= (mask >> d);
                 if (first_bcast_dim == -1) {
                     first_bcast_dim = d;
