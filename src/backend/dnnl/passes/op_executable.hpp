@@ -191,7 +191,7 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
     dims kernel = op->get_attr<dims>("kernel");
     dims pads_begin = op->get_attr<dims>("pads_begin");
     dims pads_end = op->get_attr<dims>("pads_end");
-    dims dilations;
+    dims dilations(strides.size(), 0);
     if (op->has_attr("dilations")) {
         dilations = op->get_attr<dims>("dilations");
     }
@@ -209,8 +209,6 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
-    dilations = get_compatible_dilates(dilations, src.dims().size());
-
     // infer dnnl expilicit pad
     dims new_pads_end(pads_end);
     bool adj_pad = false;
@@ -225,7 +223,10 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
         output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
         for (size_t i = 0; i < kernel.size(); ++i) {
             dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
-            if (op->get_kind() == impl::op_kind::AvgPool) dilated += 1;
+            if (op->get_kind() == impl::op_kind::AvgPool
+                    || (op->get_kind() == op_kind::dnnl_pool
+                            && op->get_attr<std::string>("kind") == "avgpool"))
+                dilated += 1;
             dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
                     - src_sp[i] - pads_begin[i];
             new_pads_end[i] = cur_pads_end;
@@ -236,9 +237,10 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
     algorithm algo = algorithm::undef;
     if (op->get_kind() == impl::op_kind::MaxPool
             || (op->get_kind() == op_kind::dnnl_pool
-                    && op->get_attr<std::string>("kind") == "maxpool"))
+                    && op->get_attr<std::string>("kind") == "maxpool")) {
         algo = algorithm::pooling_max;
-    else if (op->get_kind() == impl::op_kind::AvgPool
+        dilations = get_compatible_dilates(dilations, src.dims().size());
+    } else if (op->get_kind() == impl::op_kind::AvgPool
             || (op->get_kind() == op_kind::dnnl_pool
                     && op->get_attr<std::string>("kind") == "avgpool")) {
         const bool exclude_pad = op->get_attr<bool>("exclude_pad");
