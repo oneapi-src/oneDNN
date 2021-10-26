@@ -223,6 +223,32 @@ status_t ocl_gpu_engine_t::init_device_info() {
     return status::success;
 }
 
+status_t ocl_gpu_engine_t::serialize_device(
+        serialization_stream_t &sstream) const {
+    cl_platform_id platform;
+    cl_int err = clGetDeviceInfo(
+            device(), CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr);
+    OCL_CHECK(err);
+
+    size_t platform_name_len;
+    err = clGetPlatformInfo(
+            platform, CL_PLATFORM_NAME, 0, nullptr, &platform_name_len);
+    OCL_CHECK(err);
+
+    std::vector<char> platform_name(platform_name_len);
+    err = clGetPlatformInfo(platform, CL_PLATFORM_NAME, platform_name.size(),
+            platform_name.data(), nullptr);
+    OCL_CHECK(err);
+
+    sstream.write(platform_name.data(), platform_name.size());
+    sstream.write(device_info()->name().data(), device_info()->name().size());
+    sstream.write(&device_info()->runtime_version().major);
+    sstream.write(&device_info()->runtime_version().minor);
+    sstream.write(&device_info()->runtime_version().build);
+
+    return status::success;
+}
+
 } // namespace ocl
 } // namespace gpu
 } // namespace impl

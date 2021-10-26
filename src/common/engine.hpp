@@ -119,6 +119,12 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     virtual const dnnl::impl::impl_list_item_t *get_implementation_list(
             const dnnl::impl::op_desc_t *desc) const = 0;
 
+    virtual dnnl::impl::status_t serialize_device(
+            dnnl::impl::serialization_stream_t &sstream) const {
+        assert(!"unexpected");
+        return dnnl::impl::status::runtime_error;
+    }
+
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     void retain() { counter_++; }
 

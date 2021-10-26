@@ -95,6 +95,8 @@ public:
         return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
     }
 
+    status_t serialize_device(serialization_stream_t &sstream) const override;
+
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     engine_id_t engine_id() const override {
         return engine_id_t(new ocl_gpu_engine_id_impl_t(
