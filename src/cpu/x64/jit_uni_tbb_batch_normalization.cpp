@@ -193,15 +193,21 @@ struct jit_bnorm_process_relu_t {
 
     jit_bnorm_process_relu_t(const batch_normalization_pd_t *bdesc,
             jit_generator *host, Reg64 reg_off_dat, Reg64 reg_tmp,
-            Reg64 reg_ptr_ws, Vmm vzero, Vmm vstore_mask, Opmask kstore_mask)
+            Reg64 reg_ptr_ws, Vmm vzero, Vmm vstore_mask, Opmask kstore_mask,
+            Vmm valpha, Vmm vmask, Reg64 reg_alpha)
         : h_(host)
         , reg_off_dat_(reg_off_dat)
         , reg_tmp_(reg_tmp)
         , reg_ptr_ws_(reg_ptr_ws)
+        , reg_alpha(reg_alpha)
         , vzero_(vzero)
         , vstore_mask_(vstore_mask)
-        , kstore_mask_(kstore_mask) {
-        with_relu_ = bdesc->with_relu_post_op() || bdesc->fuse_norm_relu();
+        , kstore_mask_(kstore_mask)
+        , valpha(valpha)
+        , vmask(vmask)
+        , alpha(bdesc->alpha()) {
+        with_relu_ = bdesc->with_relu_post_op(bdesc->is_training())
+                || bdesc->fuse_norm_relu();
         with_relu_inf_only_ = with_relu_
                 && !(bdesc->fuse_norm_relu() && bdesc->is_training());
 
@@ -209,18 +215,36 @@ struct jit_bnorm_process_relu_t {
                 * types::data_type_size(bdesc->desc()->data_desc.data_type)));
     }
 
+    jit_bnorm_process_relu_t(const batch_normalization_pd_t *bdesc,
+            jit_generator *host, Reg64 reg_off_dat, Reg64 reg_tmp,
+            Reg64 reg_ptr_ws, Vmm vzero, Vmm vstore_mask, Opmask kstore_mask)
+        : jit_bnorm_process_relu_t(bdesc, host, reg_off_dat, reg_tmp,
+                reg_ptr_ws, vzero, vstore_mask, kstore_mask, Vmm(), Vmm(),
+                Reg64()) {}
+
     jit_generator *const h_;
     const Reg64 reg_off_dat_;
     const Reg64 reg_tmp_;
     const Reg64 reg_ptr_ws_;
+    const Reg64 reg_alpha;
     const Vmm vzero_, vstore_mask_;
     const Opmask kstore_mask_;
+    // used for ReLU computation
+    const Vmm valpha;
+    const Vmm vmask; // used for AVX2 and SSE41
     Label l_relu_mask_avx2_;
     bool with_relu_, with_relu_inf_only_;
     int bit_shift_;
+    const float alpha;
+
+    bool with_relu() const { return with_relu_; }
+
+    bool with_relu_inf_only() const { return with_relu_inf_only_; }
 
     void fwd_prepare_relu() {
         if (with_relu_) { h_->uni_vpxor(vzero_, vzero_, vzero_); }
+        if (with_relu_inf_only_ && alpha != 0)
+            h_->mov(reg_alpha, float2int(alpha));
     }
 
     void bwd_prepare_relu() {
@@ -242,7 +266,10 @@ struct jit_bnorm_process_relu_t {
 
     void fwd_process_relu(Vmm v, const int off = 0) {
         if (with_relu_inf_only_) {
-            h_->uni_vmaxps(v, v, vzero_);
+            if (alpha != 0.f)
+                fwd_process_relu_alpha(v);
+            else
+                h_->uni_vmaxps(v, v, vzero_);
         } else if (with_relu_) {
             if (isa == avx512_common)
                 fwd_process_relu_avx512_common(v, off);
@@ -281,6 +308,35 @@ struct jit_bnorm_process_relu_t {
         h_->kmovw(h_->ptr[reg_ptr_ws_ + reg_off_dat_ + off], kstore_mask_);
         h_->vblendmps(vdst | kstore_mask_, vzero_, vdst);
         h_->shl(reg_off_dat_, bit_shift_);
+    }
+
+    void fwd_process_relu_alpha(Vmm vmm_dst) {
+        if (isa == avx512_common)
+            fwd_process_relu_alpha_avx512_common(vmm_dst);
+        else {
+            assert(utils::one_of(isa, avx2, sse41));
+            fwd_process_relu_alpha_avx2(vmm_dst);
+        }
+    }
+
+    void fwd_process_relu_alpha_avx512_common(Vmm vmm_dst) {
+        const Xmm xmm_aux = Xmm(valpha.getIdx());
+        h_->vmovq(xmm_aux, reg_alpha);
+        h_->vbroadcastss(valpha, xmm_aux);
+        h_->vcmpps(kstore_mask_, vzero_, vmm_dst, h_->_cmp_lt_os);
+        h_->vmulps(valpha, vmm_dst, valpha);
+        h_->vblendmps(vmm_dst | kstore_mask_, valpha, vmm_dst);
+    }
+
+    void fwd_process_relu_alpha_avx2(Vmm vmm_dst) {
+        const Xmm xmm_aux = Xmm(valpha.getIdx());
+        h_->uni_vpxor(vmask, vmask, vmask);
+        h_->vmovq(xmm_aux, reg_alpha);
+        h_->uni_vbroadcastss(valpha, xmm_aux);
+        h_->uni_vcmpps(vmask, vmm_dst, vzero_, h_->_cmp_lt_os);
+        h_->uni_vmulps(valpha, valpha, vmm_dst);
+        h_->uni_vblendvps(
+                vmm_dst, vmm_dst, valpha, vmask); // swaped aux and dst
     }
 
     void bwd_process_relu_avx2(Vmm vdiff_dst, const int off = 0) {
@@ -747,8 +803,9 @@ struct jit_bnorm_fwd_t : public jit_generator {
     const Reg64 &reg_ptr_mean_ = r13;
     const Reg64 &reg_ptr_dst_ = r14;
     const Reg64 &reg_ptr_src_ = r15;
+    const Reg64 &reg_alpha_ = reg_ptr_ws_;
 
-    const Vmm vzero_ = Vmm(0);
+    const Vmm vmask = Vmm(0); // required for avx2 and sse41 ReLU computation
     const Vmm vone_ = Vmm(1);
     const Vmm vmean_ = Vmm(2);
     const Vmm vvar_ = Vmm(3);
@@ -758,7 +815,9 @@ struct jit_bnorm_fwd_t : public jit_generator {
     const Vmm veps_ = Vmm(7);
     const Vmm vtmp_ = Vmm(8);
     const Vmm v_ = Vmm(9);
-    const Vmm vtail_mask_ = Vmm(10);
+    const Vmm vzero_ = Vmm(10);
+    const Vmm vtail_mask_ = Vmm(11);
+    const Vmm valpha = Vmm(12);
     const Vmm vstore_mask_ = vtmp_;
 
     const Opmask &kstore_mask_ = k1;
@@ -787,7 +846,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
         mov(reg_ptr_mean_, PARAM_PTR(mean));
         mov(reg_ptr_var_, PARAM_PTR(var));
         mov(reg_ptr_scale_, PARAM_PTR(scale));
-        mov(reg_ptr_ws_, PARAM_PTR(ws));
+        if (jit_relu_.with_relu_ && !jit_relu_.with_relu_inf_only_)
+            mov(reg_ptr_ws_, PARAM_PTR(ws));
 
         Xmm x = Xmm(v_.getIdx());
 
@@ -941,7 +1001,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
 
             add(reg_ptr_src_, stride_N_ * data_type_size_);
             add(reg_ptr_dst_, stride_N_ * data_type_size_);
-            add(reg_ptr_ws_, stride_N_ / bits_per_byte);
+            if (jit_relu_.with_relu_ && !jit_relu_.with_relu_inf_only_)
+                add(reg_ptr_ws_, stride_N_ / bits_per_byte);
 
             // restore reg_N_, because register is shared with reg_ptr_shift_
             mov(reg_N_, ptr[rsp + stack_off_N]);
@@ -959,7 +1020,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
         , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
                   vtail_mask_, ktail_mask_)
         , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
-                  vstore_mask_, kstore_mask_)
+                  vstore_mask_, kstore_mask_, valpha, vmask, reg_alpha_)
         , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
                 "unsupported isa");
@@ -2185,7 +2246,8 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
             && IMPLICATION(src_md()->data_type == bf16,
                     is_superset(isa, avx512_common) && mayiuse(avx512_core))
             && check_scale_shift_data_type()
-            && (attr()->has_default_values() || this->with_relu_post_op());
+            && (attr()->has_default_values()
+                    || this->with_relu_post_op(is_training()));
     if (!ok) return status::unimplemented;
 
     const format_tag_t blocked_tag = is_superset(isa, avx512_common)
