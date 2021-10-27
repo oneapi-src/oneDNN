@@ -256,11 +256,10 @@ void fill_matrices(const test_params &p, const mapper_t &mapper_m,
 
 template <typename a_dt, typename b_dt, typename c_dt>
 void prepare_data_for_gemm_testing(
-        const test_params &p, test_gemm_data &gemm_data) {
+        const test_params &p, test_gemm_data &gemm_data, engine &eng) {
     size_t sizeA, sizeB, sizeC;
     get_matrix_size(p, sizeA, sizeB, sizeC);
 
-    engine eng = get_test_engine();
     gemm_data.a_mem.reset(
             new test_memory(get_matrix_md<a_dt>(sizeA, p.off.a), eng));
     gemm_data.b_mem.reset(

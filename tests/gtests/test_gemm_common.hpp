@@ -571,8 +571,9 @@ struct run_test_gemm {
             return;
         }
 
+        engine eng = get_test_engine();
         test_gemm_data gemm_data;
-        prepare_data_for_gemm_testing<a_dt, b_dt, c_dt>(p, gemm_data);
+        prepare_data_for_gemm_testing<a_dt, b_dt, c_dt>(p, gemm_data, eng);
 
         auto status = dnnl_gemm<a_dt, b_dt, c_dt>::call(p, *gemm_data.a_mem,
                 *gemm_data.b_mem, *gemm_data.c_mem, *gemm_data.oc_mem);
