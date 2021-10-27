@@ -54,7 +54,7 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
                     && memory_desc_matches_one_of_tag(
                             *src_md(), ncdhw, nchw, nc)
                     && (attr()->has_default_values()
-                            || this->with_relu_post_op());
+                            || this->with_relu_post_op(is_training()));
             if (!ok) return status::unimplemented;
 
             if (is_training() && fuse_norm_relu()) init_default_ws(8);

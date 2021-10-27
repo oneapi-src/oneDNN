@@ -44,7 +44,7 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
     const bool is_training = pd()->is_training();
     const bool fuse_norm_relu = pd()->fuse_norm_relu();
     const bool calculate_stats = !pd()->stats_is_src();
-    const bool with_relu = pd()->with_relu_post_op();
+    const bool with_relu = pd()->with_relu_post_op(is_training);
 
     const memory_desc_wrapper ss_d(pd()->weights_md());
 
@@ -95,8 +95,10 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
     const dim_t SP = pd()->H() * pd()->W() * pd()->D();
 
     const float eps = pd()->desc()->batch_norm_epsilon;
-    auto maybe_post_op
-            = [&](acc_data_t res) { return (with_relu && res < 0) ? 0 : res; };
+    auto maybe_post_op = [&](acc_data_t res) {
+        if (with_relu) return math::relu_fwd(res, pd()->alpha());
+        return res;
+    };
     int nthr = dnnl_get_max_threads();
 
     if (calculate_stats) {

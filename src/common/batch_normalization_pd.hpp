@@ -67,9 +67,20 @@ struct batch_normalization_pd_t : public primitive_desc_t {
         return desc_.flags & dnnl_use_global_stats;
     }
     bool fuse_norm_relu() const { return desc_.flags & dnnl_fuse_norm_relu; }
-    bool with_relu_post_op() const {
+    bool with_relu_post_op(bool require_nslope_zero = true) const {
         const auto &p = this->attr()->post_ops_;
-        return p.len() == 1 && p.entry_[0].is_relu(true, true);
+        const bool nslope_zero_ok
+                = IMPLICATION(is_training(), require_nslope_zero);
+        return p.len() == 1 && p.entry_[0].is_relu(true, require_nslope_zero)
+                && nslope_zero_ok;
+    }
+
+    float alpha() const {
+        const auto &p = attr()->post_ops_;
+        const bool entry_size_ok = p.entry_.size() > 0;
+        assert(entry_size_ok);
+        if (entry_size_ok) return p.entry_[0].eltwise.alpha;
+        return 0.f;
     }
 
     bool is_fwd() const {

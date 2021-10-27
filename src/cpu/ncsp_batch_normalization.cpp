@@ -80,9 +80,12 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
             = scratchpad.template get<acc_data_t>(key_bnorm_bf16cvt);
 
     const float eps = pd()->desc()->batch_norm_epsilon;
-    const bool with_relu = pd()->with_relu_post_op();
-    auto maybe_post_op
-            = [&](acc_data_t res) { return (with_relu && res < 0) ? 0 : res; };
+    const bool with_relu = pd()->with_relu_post_op(is_training);
+    auto maybe_post_op = [&](acc_data_t res) {
+        if (with_relu) return math::relu_fwd(res, pd()->alpha());
+        return res;
+    };
+
     const bool has_spatial = utils::one_of(pd()->ndims(), 4, 5);
     const dim_t SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;
     const dim_t simd_w = 16;

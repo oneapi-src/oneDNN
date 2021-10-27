@@ -125,9 +125,10 @@ status_t ref_batch_normalization_fwd_t<d_type>::execute_forward(
         return status::success;
     }
 
-    const bool with_relu = pd()->with_relu_post_op();
+    const bool with_relu = pd()->with_relu_post_op(is_training);
     auto maybe_post_op = [&](acc_data_t res) {
-        return (with_relu && res < 0.0f) ? 0.0f : res;
+        if (with_relu) return math::relu_fwd(res, pd()->alpha());
+        return res;
     };
 
     parallel_nd(C, [&](dim_t c) {

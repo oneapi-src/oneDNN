@@ -53,7 +53,7 @@ struct nspc_batch_normalization_fwd_t : public primitive_t {
                     && check_scale_shift_data_type()
                     && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
                     && (attr()->has_default_values()
-                            || this->with_relu_post_op());
+                            || this->with_relu_post_op(is_training()));
             if (!ok) return status::unimplemented;
 
             if (is_training() && fuse_norm_relu()) init_default_ws(8);
