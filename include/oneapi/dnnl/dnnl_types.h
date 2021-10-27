@@ -1571,7 +1571,7 @@ typedef enum {
     ///
     /// If specified:
     ///  - on forward propagation use scale and shift (aka scale and bias) for
-    ///    the batch normalization results
+    ///    the normalization results
     ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
     ///    diff wrt scale and shift (hence one extra output used)
     ///
@@ -1596,7 +1596,7 @@ typedef enum {
     /// Use scale parameter
     ///
     /// If specified:
-    ///  - on forward propagation use scale for the batch normalization results
+    ///  - on forward propagation use scale for the normalization results
     ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
     ///    diff wrt scale (hence one extra output used)
     dnnl_use_scale = 0x8U,
@@ -1604,8 +1604,8 @@ typedef enum {
     /// Use shift parameter
     ///
     /// If specified:
-    ///  - on forward propagation use shift (aka bias) for the batch
-    ///    normalization results
+    ///  - on forward propagation use shift (aka bias) for the normalization
+    ///    results
     ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
     ///    diff wrt shift (hence one extra output used)
     dnnl_use_shift = 0x10U,
