@@ -373,7 +373,8 @@ xe_hpc_1x1_conv_fwd(const __global SRC_DATA_T *src,
     do { \
         float2 bia2; \
         for (int i = 0; i < 2; ++i) { \
-            bia2[i] = ((oc_group_id * OC_CALC_BLOCK) + sg_local_id + (i * 16) \
+            bia2[i] = ((oc_group_id * OC_CALC_BLOCK) + sg_local_id \
+                                            + (i * 16) % OC_BLOCK \
                                     < (OC) \
                             ? bia \
                             : 0); \
