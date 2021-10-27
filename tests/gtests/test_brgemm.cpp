@@ -162,8 +162,9 @@ private:
             size_t sizeA, sizeB, sizeC;
             get_matrix_size(p, sizeA, sizeB, sizeC);
 
+            engine eng = get_test_engine();
             b_mem_reordered_ = std::make_shared<test_memory>(
-                    get_matrix_md<b_dt>(sizeB, p.off.b), get_test_engine());
+                    get_matrix_md<b_dt>(sizeB, p.off.b), eng);
             auto B_reordered = map_memory<b_dt>(*b_mem_reordered_);
 
             reorder_B(p, B, B_reordered);
@@ -218,7 +219,8 @@ private:
     template <typename a_dt, typename b_dt, typename c_dt>
     void test_brgemm(const brgemm_params_t &p) {
         gemm_data_ = {};
-        prepare_data_for_gemm_testing<a_dt, b_dt, c_dt>(p, gemm_data_);
+        engine eng = get_test_engine();
+        prepare_data_for_gemm_testing<a_dt, b_dt, c_dt>(p, gemm_data_, eng);
 
         dnnl_status_t status = run_brgemm<a_dt, b_dt, c_dt>(p);
 
