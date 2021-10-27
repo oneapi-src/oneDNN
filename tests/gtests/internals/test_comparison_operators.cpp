@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl_test_common.hpp"
+#include "tests/gtests/dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "dnnl.hpp"
@@ -122,53 +122,53 @@ HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestDepthwisePostOp) {
 }
 
 TEST(comparison_operators_t, TestBatchNormDesc) {
-    auto bnorm_desc = dnnl_batch_normalization_desc_t();
+    auto bnorm_desc = dnnl::impl::batch_normalization_desc_t();
     bnorm_desc.batch_norm_epsilon = NAN;
     TEST_SELF_COMPARISON(bnorm_desc);
 }
 
 TEST(comparison_operators_t, TestEltwiseDesc) {
-    auto eltwise_desc = dnnl_eltwise_desc_t();
+    auto eltwise_desc = dnnl::impl::eltwise_desc_t();
     eltwise_desc.alpha = NAN;
     TEST_SELF_COMPARISON(eltwise_desc);
 }
 
 TEST(comparison_operators_t, TestLayerNormDesc) {
-    auto lnorm_desc = dnnl_layer_normalization_desc_t();
+    auto lnorm_desc = dnnl::impl::layer_normalization_desc_t();
     lnorm_desc.layer_norm_epsilon = NAN;
     TEST_SELF_COMPARISON(lnorm_desc);
 }
 
 TEST(comparison_operators_t, TestLRNDesc) {
-    auto lrn_desc = dnnl_lrn_desc_t();
+    auto lrn_desc = dnnl::impl::lrn_desc_t();
     lrn_desc.lrn_alpha = NAN;
     TEST_SELF_COMPARISON(lrn_desc);
 }
 
 TEST(comparison_operators_t, TestReductionDesc) {
-    auto reduction_desc = dnnl_reduction_desc_t();
+    auto reduction_desc = dnnl::impl::reduction_desc_t();
     reduction_desc.p = NAN;
     TEST_SELF_COMPARISON(reduction_desc);
 }
 
 TEST(comparison_operators_t, TestResamplingDesc) {
-    auto resampling_desc = dnnl_resampling_desc_t();
+    auto resampling_desc = dnnl::impl::resampling_desc_t();
     resampling_desc.factors[0] = NAN;
     TEST_SELF_COMPARISON(resampling_desc);
 }
 
 TEST(comparison_operators_t, TestRNNDesc) {
-    auto rnn_desc = dnnl_rnn_desc_t();
+    auto rnn_desc = dnnl::impl::rnn_desc_t();
     rnn_desc.alpha = NAN;
     TEST_SELF_COMPARISON(rnn_desc);
 }
 
 TEST(comparison_operators_t, TestSumDesc) {
     float scales[2] = {NAN, 2.5f};
-    dnnl_memory_desc_t src_mds[2] = {};
-    dnnl_memory_desc_t dst_md {};
+    dnnl::impl::memory_desc_t src_mds[2] = {};
+    dnnl::impl::memory_desc_t dst_md {};
 
-    dnnl::impl::dnnl_sum_desc_t sum_desc
+    dnnl::impl::sum_desc_t sum_desc
             = {dnnl::impl::primitive_kind::sum, &dst_md, 2, scales, src_mds};
     TEST_SELF_COMPARISON(sum_desc);
 }
