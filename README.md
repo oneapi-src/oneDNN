@@ -292,11 +292,6 @@ Please submit your questions, feature requests, and bug reports on the
 You may reach out to project maintainers privately
 at dnnl.maintainers@intel.com.
 
-> **WARNING**
->
-> This is pre-production software and functionality may change without prior
-> notice.
-
 # Contributing
 
 We welcome community contributions to oneDNN. If you have an idea on how
