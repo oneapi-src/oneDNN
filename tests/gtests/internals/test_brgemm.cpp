@@ -124,8 +124,9 @@ protected:
     void SetUp() override {
         const auto &p = GetParam();
 
-        SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
-                "Brgemm is unimplemented on gpu.");
+        SKIP_IF(engine::get_count(engine::kind::cpu) == 0,
+                "Brgemm requires cpu.");
+        eng_ = std::make_shared<engine>(engine::kind::cpu, 0);
 
         SKIP_IF(!impl::cpu::platform::has_data_type_support(p.dt_a),
                 "Engine does not support this data type.");
@@ -162,9 +163,8 @@ private:
             size_t sizeA, sizeB, sizeC;
             get_matrix_size(p, sizeA, sizeB, sizeC);
 
-            engine eng = get_test_engine();
             b_mem_reordered_ = std::make_shared<test_memory>(
-                    get_matrix_md<b_dt>(sizeB, p.off.b), eng);
+                    get_matrix_md<b_dt>(sizeB, p.off.b), *eng_);
             auto B_reordered = map_memory<b_dt>(*b_mem_reordered_);
 
             reorder_B(p, B, B_reordered);
@@ -219,8 +219,7 @@ private:
     template <typename a_dt, typename b_dt, typename c_dt>
     void test_brgemm(const brgemm_params_t &p) {
         gemm_data_ = {};
-        engine eng = get_test_engine();
-        prepare_data_for_gemm_testing<a_dt, b_dt, c_dt>(p, gemm_data_, eng);
+        prepare_data_for_gemm_testing<a_dt, b_dt, c_dt>(p, gemm_data_, *eng_);
 
         dnnl_status_t status = run_brgemm<a_dt, b_dt, c_dt>(p);
 
@@ -264,6 +263,7 @@ private:
 
     test_gemm_data gemm_data_;
     std::shared_ptr<test_memory> b_mem_reordered_;
+    std::shared_ptr<engine> eng_;
 };
 
 TEST_P(brgemm_test_t, TestsBRGEMM) {}
