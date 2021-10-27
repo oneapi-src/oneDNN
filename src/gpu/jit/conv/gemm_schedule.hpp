@@ -818,7 +818,7 @@ private:
             var_name += name + "_";
         }
         var_name += suffix;
-        return var_t::make(type_t::s32(), var_name);
+        return var_t::make(type_t::u32(), var_name);
     }
 
     int get_var_key(const expr_t &v) const {
