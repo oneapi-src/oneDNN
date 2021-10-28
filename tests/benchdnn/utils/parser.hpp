@@ -31,11 +31,11 @@
 namespace parser {
 
 extern bool last_parsed_is_problem;
-static const auto eol = std::string::npos;
+extern const size_t eol;
 
-static inline std::string get_pattern(const std::string &option_name) {
-    return std::string("--") + option_name + std::string("=");
-}
+namespace parser_utils {
+std::string get_pattern(const std::string &option_name, bool with_args = true);
+} // namespace parser_utils
 
 template <typename T, typename F>
 static bool parse_vector_str(T &vec, const T &def, F process_func,
@@ -70,7 +70,7 @@ static bool parse_multivector_str(std::vector<T> &vec,
 template <typename T, typename F>
 static bool parse_vector_option(T &vec, const T &def, F process_func,
         const char *str, const std::string &option_name) {
-    const std::string pattern = get_pattern(option_name);
+    const std::string pattern = parser_utils::get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) == eol) return false;
     return parse_vector_str(vec, def, process_func, str + pattern.size());
 }
@@ -80,7 +80,7 @@ static bool parse_multivector_option(std::vector<T> &vec,
         const std::vector<T> &def, F process_func, const char *str,
         const std::string &option_name, char vector_delim = ',',
         char element_delim = ':') {
-    const std::string pattern = get_pattern(option_name);
+    const std::string pattern = parser_utils::get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) == eol) return false;
     return parse_multivector_str(vec, def, process_func, str + pattern.size(),
             vector_delim, element_delim);
@@ -89,7 +89,7 @@ static bool parse_multivector_option(std::vector<T> &vec,
 template <typename T, typename F>
 static bool parse_single_value_option(T &val, const T &def_val, F process_func,
         const char *str, const std::string &option_name) {
-    const std::string pattern = get_pattern(option_name);
+    const std::string pattern = parser_utils::get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) == eol) return false;
     str = str + pattern.size();
     if (*str == '\0') return val = def_val, true;
@@ -123,8 +123,8 @@ bool parse_subattr(
 template <typename S>
 bool parse_reset(S &settings, const char *str,
         const std::string &option_name = "reset") {
-    const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size() - 1) == eol) return false;
+    const std::string pattern = parser_utils::get_pattern(option_name, false);
+    if (pattern.find(str, 0, pattern.size()) == eol) return false;
     settings.reset();
     return true;
 }

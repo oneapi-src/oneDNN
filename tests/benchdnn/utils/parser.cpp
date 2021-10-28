@@ -14,11 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <string>
-
 #include "utils/parser.hpp"
 
 #include "dnnl_common.hpp"
@@ -26,6 +21,15 @@
 namespace parser {
 
 bool last_parsed_is_problem = false;
+const size_t eol = std::string::npos;
+
+namespace parser_utils {
+std::string get_pattern(const std::string &option_name, bool with_args) {
+    std::string s = std::string("--") + option_name;
+    if (with_args) s += "=";
+    return s;
+}
+} // namespace parser_utils
 
 // vector types
 bool parse_dir(std::vector<dir_t> &dir, const std::vector<dir_t> &def_dir,
@@ -86,7 +90,7 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
 
 bool parse_attr(attr_t &attr, const char *str,
         const std::string &option_name /* = "attr"*/) {
-    const std::string pattern = get_pattern(option_name);
+    const std::string pattern = parser_utils::get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) == eol) return false;
     static bool notice_printed = false;
     if (!notice_printed) {
@@ -139,12 +143,10 @@ bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
 
 bool parse_test_pattern_match(const char *&match, const char *str,
         const std::string &option_name /* = "match"*/) {
-    const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) != eol) {
-        match = str + pattern.size();
-        return true;
-    }
-    return false;
+    const char *def_match = "";
+    const auto chars2chars = [](const char *str) { return str; };
+    return parse_single_value_option(
+            match, def_match, chars2chars, str, option_name);
 }
 
 bool parse_inplace(std::vector<bool> &inplace,
@@ -189,30 +191,27 @@ bool parse_scale_policy(std::vector<policy_t> &policy,
 bool parse_perf_template(const char *&pt, const char *pt_def,
         const char *pt_csv, const char *str,
         const std::string &option_name /* = "perf-template"*/) {
-    const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) != eol) {
+    const auto str2pt = [&pt_def, &pt_csv](const char *str_) {
         const std::string csv_pattern = "csv";
         const std::string def_pattern = "def";
-        str += pattern.size();
-        if (csv_pattern.find(str, 0, csv_pattern.size()) != eol)
-            pt = pt_csv;
-        else if (def_pattern.find(str, 0, def_pattern.size()) != eol)
-            pt = pt_def;
+        if (csv_pattern.find(str_, 0, csv_pattern.size()) != eol)
+            return pt_csv;
+        else if (def_pattern.find(str_, 0, def_pattern.size()) != eol)
+            return pt_def;
         else
-            pt = str;
-        return true;
-    }
-    return false;
+            return str_;
+    };
+    return parse_single_value_option(pt, pt_def, str2pt, str, option_name);
 }
 
 bool parse_batch(const bench_f bench, const char *str,
         const std::string &option_name /* = "batch"*/) {
-    const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) != eol) {
-        SAFE(batch(str + pattern.size(), bench), CRIT);
-        return true;
-    }
-    return false;
+    int status = OK;
+    const auto str2batch = [bench](const char *str_) {
+        SAFE(batch(str_, bench), CRIT);
+        return OK;
+    };
+    return parse_single_value_option(status, FAIL, str2batch, str, option_name);
 }
 
 // prb_dims_t type
@@ -254,7 +253,7 @@ void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str) {
     if (start_pos != eol) prb_dims.name = str.substr(start_pos);
 }
 
-// service functions
+// Global options
 static bool parse_allow_enum_tags_only(const char *str,
         const std::string &option_name = "allow-enum-tags-only") {
     return parse_single_value_option(
@@ -290,7 +289,7 @@ static bool parse_engine(
     // Parse engine index if present
     std::string s(str);
     auto start_pos = s.find_first_of(':');
-    if (start_pos != eol) engine_index = stoi(s.substr(start_pos + 1));
+    if (start_pos != eol) engine_index = std::stoi(s.substr(start_pos + 1));
 
     auto n_devices = dnnl_engine_get_count(engine_tgt_kind);
     if (engine_index >= n_devices) {
@@ -321,16 +320,18 @@ static bool parse_fast_ref_gpu(
 
 static bool parse_fix_times_per_prb(
         const char *str, const std::string &option_name = "fix-times-per-prb") {
-    if (parse_single_value_option(fix_times_per_prb, 0, atoi, str, option_name))
-        return fix_times_per_prb = MAX2(0, fix_times_per_prb), true;
-    return false;
+    bool parsed = parse_single_value_option(
+            fix_times_per_prb, 0, atoi, str, option_name);
+    if (parsed) fix_times_per_prb = MAX2(0, fix_times_per_prb);
+    return parsed;
 }
 
 static bool parse_max_ms_per_prb(
         const char *str, const std::string &option_name = "max-ms-per-prb") {
-    if (parse_single_value_option(max_ms_per_prb, 3e3, atof, str, option_name))
-        return max_ms_per_prb = MAX2(100, MIN2(max_ms_per_prb, 60e3)), true;
-    return false;
+    bool parsed = parse_single_value_option(
+            max_ms_per_prb, 3e3, atof, str, option_name);
+    if (parsed) max_ms_per_prb = MAX2(100, MIN2(max_ms_per_prb, 60e3));
+    return parsed;
 }
 
 static bool parse_mem_check(
@@ -341,24 +342,19 @@ static bool parse_mem_check(
 
 static bool parse_memory_kind(
         const char *str, const std::string &option_name = "memory-kind") {
-    const bool parsed = parse_single_value_option(memory_kind,
-            default_memory_kind, str2memory_kind, str, option_name);
-
-    if (!parsed) {
-        const bool parsed_old_style = parse_single_value_option(memory_kind,
-                default_memory_kind, str2memory_kind, str, "sycl-memory-kind");
-        if (!parsed_old_style) return false;
-    }
+    bool parsed = parse_single_value_option(memory_kind, default_memory_kind,
+            str2memory_kind, str, option_name);
 
 #if !defined(DNNL_WITH_SYCL) && DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL
-    fprintf(stderr,
-            "ERROR: option `%s` is supported with DPC++ and OpenCL builds "
-            "only, "
-            "exiting...\n",
-            option_name.c_str());
-    exit(2);
+    if (parsed) {
+        fprintf(stderr,
+                "ERROR: option `--%s` is supported with DPC++ and OpenCL "
+                "builds only, exiting...\n",
+                option_name.c_str());
+        exit(2);
+    }
 #endif
-    return true;
+    return parsed;
 }
 
 static bool parse_mode(
@@ -391,36 +387,39 @@ static bool parse_mode(
 
 static bool parse_skip_impl(
         const char *str, const std::string &option_name = "skip-impl") {
-    const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) == eol) return false;
+    const auto chars2chars = [](const char *str) { return str; };
+    bool parsed = parse_single_value_option(
+            skip_impl, std::string(), chars2chars, str, option_name);
 
-    skip_impl = std::string(str + pattern.size());
     // Remove all quotes from input string since they affect the search.
-    for (auto c : {'"', '\''}) {
-        size_t start_pos = 0;
-        while (start_pos != eol) {
-            start_pos = skip_impl.find_first_of(c, start_pos);
-            if (start_pos != eol) skip_impl.erase(start_pos, 1);
+    if (parsed) {
+        for (auto c : {'"', '\''}) {
+            size_t start_pos = 0;
+            while (start_pos != eol) {
+                start_pos = skip_impl.find_first_of(c, start_pos);
+                if (start_pos != eol) skip_impl.erase(start_pos, 1);
+            }
         }
     }
-    return true;
+    return parsed;
 }
 
 static bool parse_start(
         const char *str, const std::string &option_name = "start") {
-    return parse_single_value_option(
-            test_start, 0, [](const std::string &s) { return std::stoi(s); },
-            str, option_name);
+    return parse_single_value_option(test_start, 0, atoi, str, option_name);
 }
 
 static bool parse_verbose(
         const char *str, const std::string &option_name = "verbose") {
+    bool parsed = parse_single_value_option(verbose, 0, atoi, str, option_name);
+    if (parsed) return parsed;
+
     const std::string pattern("-v"); // check short option first
     if (pattern.find(str, 0, pattern.size()) != eol) {
         verbose = atoi(str + pattern.size());
         return true;
     }
-    return parse_single_value_option(verbose, 0, atoi, str, option_name);
+    return false;
 }
 
 bool parse_bench_settings(const char *str) {
@@ -436,6 +435,7 @@ bool parse_bench_settings(const char *str) {
     return parsed;
 }
 
+// Service functions
 void catch_unknown_options(const char *str) {
     last_parsed_is_problem = true; // if reached, means problem parsing
 
