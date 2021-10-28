@@ -28,6 +28,7 @@ subset of the operation set.
    convolution/ConvTranspose_1.rst
    lower_precision/Dequantize_1.rst
    arithmetic/Divide_1.rst
+   shape/DynamicReshape_1.rst
    movement/DynamicTranspose_1.rst
    activation/Elu_1.rst
    activation/EluBackprop_1.rst
@@ -61,7 +62,6 @@ subset of the operation set.
    activation/ReLU_1.rst
    activation/ReLUBackprop_1.rst
    movement/Reorder_1.rst
-   shape/Reshape_1.rst
    arithmetic/Round_1.rst
    arithmetic/Rsqrt_1.rst
    activation/Sigmoid_1.rst

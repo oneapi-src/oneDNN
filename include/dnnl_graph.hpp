@@ -470,7 +470,7 @@ public:
         ReduceSum = kReduceSum,
         ReLU = kReLU,
         ReLUBackprop = kReLUBackprop,
-        Reshape = kReshape,
+        DynamicReshape = kDynamicReshape,
         Round = kRound,
         Sigmoid = kSigmoid,
         SigmoidBackprop = kSigmoidBackprop,
