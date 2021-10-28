@@ -70,8 +70,7 @@ Checks: >
     misc-unused-using-decls,
     cppcoreguidelines-prefer-member-initializer,
 
-# We may open the option below to enable checks in headers.
-# HeaderFilterRegex: '.*\/src\/.*'
+HeaderFilterRegex: '.*\/src\/.*'
 WarningsAsErrors: '*'
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase
