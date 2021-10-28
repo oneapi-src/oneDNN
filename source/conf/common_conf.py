@@ -16,7 +16,7 @@ extensions = [
 ]
 
 env = {
-    'llga_version': '0.7',
+    'llga_version': '0.8',
 }
 
 primary_domain = 'cpp'
