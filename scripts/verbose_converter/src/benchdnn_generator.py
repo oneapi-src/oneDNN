@@ -505,7 +505,15 @@ def convert_post_ops(post_ops):
 
 def convert_oscale(oscale):
     benchdnn_oscale = convert_scale_policy(oscale['mask'])
+    not_default_value = '0.5'
     value = oscale['value']
+    if value != None:
+        if value == '*':
+            value = not_default_value + '*'
+    else:
+        if benchdnn_oscale != 'common':
+            value = not_default_value
+
     if value != None:
         benchdnn_oscale += ':' + value
     return benchdnn_oscale
@@ -513,6 +521,7 @@ def convert_oscale(oscale):
 
 def convert_scales(scales):
     res = []
+    not_default_value = '0.5'
     for arg in scales.keys():
         s = scales[arg]
         policy = convert_scale_policy(s['mask'])
@@ -520,10 +529,10 @@ def convert_scales(scales):
         value = s['value']
         # benchdnn requires user to pass a value
         if value == None:
-            value = '0.5'
+            value = not_default_value
         # benchdnn doesn't allow user to pass * without an actual value
         if value == '*':
-            value = '0.5'
+            value = not_default_value + '*'
         benchdnn_scale += ':' + value
         res.append(benchdnn_scale)
     return '+'.join(res)
