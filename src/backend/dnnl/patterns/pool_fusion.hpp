@@ -42,28 +42,6 @@ namespace pass {
  */
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(pool_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, avgpool_add_fusion)
-        .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *pool = apattern->create_op(impl::op_kind::AvgPool);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-
-                    // pattern will not be matched if the add operation need
-                    // broadcast
-                    add->set_attr<bool>("broadcast_check", true);
-                    add->fill_and_connect_input(0, *pool, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::avgpool_add);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, maxpool_add_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
