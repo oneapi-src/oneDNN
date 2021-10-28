@@ -16,8 +16,8 @@ where *sum-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={undef [default], ...}` -- physical dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--scales={N1:N2[:N3]...}` -- input scales. Refer to ``Scales`` below.
-            The default is 0.25, 1, 4.
+ - `--scales={FLOAT[:FLOAT...]}` -- input scales. Refer to ``Scales`` below.
+            The default is 1.f.
 
 and *sum-desc* is a problem descriptor. The canonical form is:
 ```

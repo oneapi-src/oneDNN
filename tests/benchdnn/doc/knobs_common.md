@@ -8,11 +8,6 @@ The following common options are supported:
   BOOL is `true` (the default), the only allowed format tags are the ones from
   `dnnl_format_tag_t` enumeration.
 
-* --attr-scratchpad=`MODE` -- Specifies the scratchpad mode to be used for
-  benchmarking. MODE values can be `library` (the default) or `user`. Refer to
-  [scratchpad primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_scratchpad.html)
-  for details.
-
 * --batch=`FILE` -- Instructs the driver to take options and problem descriptors
   from a FILE. If several --batch options are specified, the driver will read
   input files consecutively. Nested inclusion of --batch option is supported.
