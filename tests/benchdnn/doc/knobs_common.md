@@ -8,6 +8,11 @@ The following common options are supported:
   BOOL is `true` (the default), the only allowed format tags are the ones from
   `dnnl_format_tag_t` enumeration.
 
+* --attr-same-pd-check=`BOOL` -- Instructs the driver to compare two primitive
+  descriptors - one with added attributes and one without them. When BOOL is
+  `true`, check will return error if adding of attributes caused fallback to
+  generic kernel, when optimized kernel lacked proper support.
+
 * --batch=`FILE` -- Instructs the driver to take options and problem descriptors
   from a FILE. If several --batch options are specified, the driver will read
   input files consecutively. Nested inclusion of --batch option is supported.
@@ -21,10 +26,12 @@ The following common options are supported:
   reproducer line omitting options and problem descriptor entries which values
   are set to their defaults.
 
-* --attr-same-pd-check=`BOOL` -- Instructs the driver to compare two primitive
-  descriptors - one with added attributes and one without them. When BOOL is
-  `true`, check will return error if adding of attributes caused fallback to
-  generic kernel, when optimized kernel lacked proper support.
+* --cpu-isa-hints=`HINTS` -- Specifies the ISA specific hints to the CPU engine.
+  `HINTS` values can be `none` (the default), `no_hints` or `prefer_ymm`. `none`
+  value respects the `DNNL_CPU_ISA_HINTS` environment variable setting, while
+  others will override it with chosen value. The settings other than `none` take
+  place immediately after the parsing and subsequent attempts to set the hints
+  will result in runtime error.
 
 * --engine=`KIND[:INDEX]` -- Specifies an engine kind KIND to be used for
   benchmarking. KIND values can be `cpu` (the default) or `gpu`. Optional
@@ -35,16 +42,15 @@ The following common options are supported:
   to the number of devices of requested kind discovered on a system, runtime
   error will occur.
 
-* --cpu-isa-hints=`HINTS` -- Specifies the ISA specific hints to the CPU engine.
-  `HINTS` values can be `none` (the default), `no_hints` or `prefer_ymm`. `none`
-  value respects the `DNNL_CPU_ISA_HINTS` environment variable setting, while
-  others will override it with chosen value. The settings other than `none` take
-  place immediately after the parsing and subsequent attempts to set the hints
-  will result in runtime error.
-
 * --mem-check=`BOOL` -- Instructs the driver to perform a device RAM capability
   check if the problem fits the device. When BOOL is `true` (the default), the
   check is performed.
+
+* --memory-kind=`KIND` -- Specifies the memory kind to test with DPC++ and
+  OpenCL engines. KIND values can be `usm` (default), `buffer`, `usm_device`
+  (to use malloc_device) or `usm_shared` (to use malloc_shared).
+  The old style option named --sycl-memory-kind is supported for backward
+  compatibility.
 
 * --mode=`MODE` -- Specifies **benchdnn** mode to be used for benchmarking. MODE 
   values can be:
@@ -71,12 +77,6 @@ The following common options are supported:
 * --start=`N` -- Specifies the test index to start testing. All tests before
   the index are skipped.
 
-* --memory-kind=`KIND` -- Specifies the memory kind to test with DPC++ and
-  OpenCL engines. KIND values can be `usm` (default), `buffer`, `usm_device`
-  (to use malloc_device) or `usm_shared` (to use malloc_shared).
-  The old style option named --sycl-memory-kind is supported for backward
-  compatibility.
-
 * -v`N`, --verbose=`N` -- Specifies the driver verbose level. It prints
   additional information depending on a level N. N is a non-negative integer
   value. The default value is `0`. Refer to [verbose](knobs_verbose.md) for
@@ -92,19 +92,18 @@ The following common options are applicable only for correctness mode:
 
 The following common options are applicable only for a performance mode:
 
-* --max-ms-per-prb=`N` -- Specifies the limit in milliseconds for performance
-  benchmarking set per problem. N is an integer positive number in a range
-  [1e2, 6e4]. If a value is out of the range, it will be saturated to range
-  board values. The default is `3e3`. This option helps to stabilize the
-  performance numbers reported for small problems.
-
 * --fix-times-per-prb=`N` -- Specifies the limit in rounds for performance
   benchmarking set per problem. N is a non-negative integer. When N is set to
   `0` (the default), time criterion is used for benchmarking instead. This
   option is useful for performance profiling, when certain amount of cycles is
   desired.
 
+* --max-ms-per-prb=`N` -- Specifies the limit in milliseconds for performance
+  benchmarking set per problem. N is an integer positive number in a range
+  [1e2, 6e4]. If a value is out of the range, it will be saturated to range
+  board values. The default is `3e3`. This option helps to stabilize the
+  performance numbers reported for small problems.
+
 * --perf-template=`STR` -- Specifies the format of performance report. STR
   values can be `def` (the default), `csv` or a custom set of supported flags.
   Refer to [performance report](knobs_perf_report.md) for details.
-
