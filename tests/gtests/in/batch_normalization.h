@@ -53,6 +53,7 @@
 #define PARAMS_B16(...) \
     EXPAND_ARGS(PARAMS(nChw16c, nChw16c, __VA_ARGS__, false, dnnl_success))
 #define PARAMS_EF(...) EXPAND_ARGS(PARAMS(nchw, nchw, __VA_ARGS__))
+#define PARAMS_ANY_EF(...) EXPAND_ARGS(PARAMS(any, nchw, __VA_ARGS__))
 
 #define CPU_INST_TEST_CASE(str, ...) \
     CPU_INSTANTIATE_TEST_SUITE_P( \
@@ -72,7 +73,8 @@ CPU_INST_TEST_CASE(SimpleZeroDim, PARAMS_N(0, 27, 9, 10, EPS),
 INST_TEST_CASE(SimpleExpectedFails,
         PARAMS_EF(-1, 27, 9, 10, EPS, true, dnnl_invalid_arguments),
         PARAMS_EF(1, -12, 10, 9, EPS, true, dnnl_invalid_arguments),
-        PARAMS_EF(4, 20, -12, 12, EPS, true, dnnl_invalid_arguments));
+        PARAMS_EF(4, 20, -12, 12, EPS, true, dnnl_invalid_arguments),
+        PARAMS_ANY_EF(2, 8, 1, 1, EPS, true, dnnl_invalid_arguments));
 
 CPU_INST_TEST_CASE(Simple_nChw16c_padded, PARAMS_B16(1, 27, 9, 10, EPS),
         PARAMS_B16(1, 12, 10, 9, EPS), PARAMS_B16(4, 20, 12, 12, EPS),

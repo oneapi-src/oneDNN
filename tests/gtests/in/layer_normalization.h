@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,6 +54,9 @@
 #define PARAMS_EF(...) \
     test_lnorm_params_t { EXPAND_FORMATS(abc, ab, abc), __VA_ARGS__ }
 
+#define PARAMS_ANY_EF(...) \
+    test_lnorm_params_t { EXPAND_FORMATS(any, ab, abc), __VA_ARGS__ }
+
 #define CPU_INST_TEST_CASE(str, ...) \
     CPU_INSTANTIATE_TEST_SUITE_P( \
             str, lnorm_test_t, ::testing::Values(__VA_ARGS__));
@@ -61,7 +64,8 @@
 CPU_INST_TEST_CASE(SimpleExpectedFails,
         PARAMS_EF({-1, 27, 9}, EPS, true, dnnl_invalid_arguments),
         PARAMS_EF({1, -12, 10}, EPS, true, dnnl_invalid_arguments),
-        PARAMS_EF({4, 20, -12}, EPS, true, dnnl_invalid_arguments));
+        PARAMS_EF({4, 20, -12}, EPS, true, dnnl_invalid_arguments),
+        PARAMS_ANY_EF({6, 32, 8}, EPS, true, dnnl_invalid_arguments));
 
 CPU_INST_TEST_CASE(SimpleZeroDim, PARAMS_NC({0, 9}), PARAMS_NC({1, 0}));
 

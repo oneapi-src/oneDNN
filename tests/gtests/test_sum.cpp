@@ -319,7 +319,11 @@ static auto special_test_cases = []() {
             sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw, {1, 8, 4, 4},
                     {1.0f}, false, true, dnnl_invalid_arguments},
             sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw, {2, 8, 4, 4},
-                    {0.1f}, false, true, dnnl_invalid_arguments});
+                    {0.1f}, false, true, dnnl_invalid_arguments},
+            sum_test_params {{tag::any, tag::nchw}, tag::nchw, {1, 16, 1, 1},
+                    {2.0f, 3.0f}, false, true, dnnl_invalid_arguments},
+            sum_test_params {{tag::nchw, tag::any}, tag::nchw, {1, 16, 1, 1},
+                    {2.0f, 3.0f}, false, true, dnnl_invalid_arguments});
 };
 
 /* corner cases */

@@ -375,6 +375,9 @@ using shuffle_test_u8 = shuffle_test_t<uint8_t>;
                             true, dnnl_invalid_arguments}, \
                     shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 16, 4, 4}, 4, 2, \
+                            true, dnnl_invalid_arguments}, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
+                            memory::format_tag::any, {2, 10, 4, 4}, 1, 2, \
                             true, dnnl_invalid_arguments}));
 
 INST_TEST_CASE(shuffle_test_float)

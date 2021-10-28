@@ -771,6 +771,12 @@ INSTANTIATE_TEST_SUITE_P(TestPoolingForwardEF, pooling_test_float,
                         memory::format_tag::nchw,
                         EXPAND_SIZES_2D(
                                 2, 4, 4, 4, 4, 4, 3, 3, 0, 0, 1, 1, 1, 1),
+                        true, dnnl_invalid_arguments},
+                pool_test_params_t {prop_kind::forward_inference,
+                        algorithm::pooling_max, memory::format_tag::any,
+                        memory::format_tag::nChw16c,
+                        EXPAND_SIZES_2D(
+                                4, 14, 60, 60, 31, 31, 2, 3, 1, 1, 1, 1, 2, 2),
                         true, dnnl_invalid_arguments}));
 
 INSTANTIATE_TEST_SUITE_P(TestPooling_nChw16c_with_padded, pooling_test_float,

@@ -124,7 +124,7 @@ protected:
 
             auto desc_A = memory::desc(p.dims, src0_dt, p.srcs_format[0]);
             // TODO: try to fit "reshape" logic here.
-            auto desc_B = memory::desc(dims_B, src1_dt, memory::dims());
+            auto desc_B = memory::desc(dims_B, src1_dt, p.srcs_format[1]);
             auto desc_C = memory::desc(p.dims, dst_dt, p.dst_format);
 
             const dnnl::impl::memory_desc_wrapper mdw_desc_A(desc_A.data);
@@ -263,6 +263,10 @@ INSTANTIATE_TEST_SUITE_P(BinaryTensorDims, binary_attr_test_t,
 
 static auto expected_failures = []() {
     return ::testing::Values(
+            // test tag::any support
+            binary_test_params_t {{tag::any, tag::nchw}, tag::nchw,
+                    algorithm::binary_add, {8, 7, 6, 5}, true,
+                    dnnl_invalid_arguments},
             // not supported alg_kind
             binary_test_params_t {{tag::nchw, tag::nchw}, tag::nchw,
                     algorithm::eltwise_relu, {1, 8, 4, 4}, true,

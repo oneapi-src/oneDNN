@@ -250,6 +250,12 @@ static auto cases_EF = []() {
                     dnnl_invalid_arguments},
             concat_test_params_t {1, {fmt::nchw, fmt::nchw}, fmt::nchw,
                     {{1, 4, 5, 5}, {1, 2, 5, 5}}, {1, 6, 6, 5}, true,
+                    dnnl_invalid_arguments},
+            concat_test_params_t {1, {fmt::any, fmt::nchw}, fmt::nchw,
+                    {{2, 16, 1, 1}, {2, 16, 1, 1}}, {2, 32, 1, 1}, true,
+                    dnnl_invalid_arguments},
+            concat_test_params_t {1, {fmt::nchw, fmt::any}, fmt::nchw,
+                    {{2, 16, 1, 1}, {2, 16, 1, 1}}, {2, 32, 1, 1}, true,
                     dnnl_invalid_arguments});
 };
 INSTANTIATE_TEST_SUITE_P(TestConcat_EF, concat_test_float, cases_EF());

@@ -128,7 +128,11 @@ static auto expected_failures = []() {
             // not supported p
             reduction_test_params_t {tag::nchw, tag::nchw,
                     algorithm::reduction_norm_lp_max, 0.5f, 0.0f, {1, 8, 4, 4},
-                    {1, 8, 4, 4}, true, dnnl_invalid_arguments});
+                    {1, 8, 4, 4}, true, dnnl_invalid_arguments},
+            // invalid tag
+            reduction_test_params_t {tag::any, tag::nchw,
+                    algorithm::reduction_sum, 0.0f, 0.0f, {1, 1, 1, 4},
+                    {1, 1, 1, 1}, true, dnnl_invalid_arguments});
 };
 
 static auto zero_dim = []() {
