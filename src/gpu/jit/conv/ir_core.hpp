@@ -784,6 +784,7 @@ private:
 // Helper functions.
 inline bool is_const(const expr_t &e);
 inline bool is_var(const expr_t &e);
+inline bool all_of(const expr_t &e, const expr_t &value);
 
 // Unary and binary operators.
 enum class op_kind_t {
@@ -1436,6 +1437,15 @@ inline bool is_const(const expr_t &e) {
     return e.is<bool_imm_t>() || e.is<int_imm_t>() || e.is<float_imm_t>();
 }
 
+inline bool all_of(const expr_t &e, const expr_t &value) {
+    auto *shuffle = e.as_ptr<shuffle_t>();
+    if (!shuffle) return e.is_equal(value);
+    for (auto &i : shuffle->idx) {
+        if (!shuffle->vec[i].is_equal(value)) return false;
+    }
+    return true;
+}
+
 inline bool is_shuffle_const(const expr_t &e) {
     auto *shuffle = e.as_ptr<shuffle_t>();
     if (!shuffle) return false;
@@ -1641,7 +1651,16 @@ public:
     // elements).
     static stmt_t make(const expr_t &buf, const expr_t &off,
             const expr_t &value, int stride = default_stride,
-            const expr_t &mask = expr_t()) {
+            const expr_t &_mask = expr_t()) {
+        auto mask = _mask;
+        if (!mask.is_empty()) {
+            if (all_of(mask, expr_t(true))) {
+                mask = expr_t();
+            } else if (all_of(mask, expr_t(false))) {
+                // No need to store anything with a false mask.
+                return stmt_t();
+            }
+        }
         return stmt_t(new store_t(buf, off, value, stride, mask));
     }
 

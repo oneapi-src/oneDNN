@@ -389,8 +389,6 @@ bool is_const_broadcast(const expr_t &e);
 
 bool is_const_broadcast(const expr_t &e, const expr_t &value);
 
-bool all_of(const expr_t &e, const expr_t &value);
-
 expr_t make_buffer(const std::string &name);
 
 // Utility functions for nary_op_t.

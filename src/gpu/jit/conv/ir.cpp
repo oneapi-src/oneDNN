@@ -338,15 +338,6 @@ bool is_const_broadcast(const expr_t &e, const expr_t &value) {
     return e.as<shuffle_t>().vec[0].is_equal(value);
 }
 
-bool all_of(const expr_t &e, const expr_t &value) {
-    auto *shuffle = e.as_ptr<shuffle_t>();
-    if (!shuffle) return e.is_equal(value);
-    for (auto &i : shuffle->idx) {
-        if (!shuffle->vec[i].is_equal(value)) return false;
-    }
-    return true;
-}
-
 expr_t make_buffer(const std::string &name) {
     return var_t::make(type_t::byte_ptr(), name);
 }
