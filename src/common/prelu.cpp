@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,14 +35,17 @@ status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
         const memory_desc_t *diff_data_desc,
         const memory_desc_t *diff_weights_desc) {
     static constexpr int max_supported_ndims = 5;
-    bool args_ok = true && !any_null(prelu_desc, data_desc, weights_desc)
+    bool args_ok = !any_null(prelu_desc, data_desc, weights_desc)
             && one_of(prop_kind, forward_training, forward_inference, backward)
             && data_desc->ndims <= max_supported_ndims
             && data_desc->ndims == weights_desc->ndims
             && IMPLICATION(prop_kind == backward,
                     !any_null(diff_data_desc, diff_weights_desc)
                             && diff_data_desc->ndims == data_desc->ndims
-                            && diff_weights_desc->ndims == weights_desc->ndims);
+                            && diff_weights_desc->ndims == weights_desc->ndims)
+            && IMPLICATION(
+                    one_of(prop_kind, forward_training, forward_inference),
+                    !memory_desc_wrapper(data_desc).format_any());
 
     if (!args_ok) return invalid_arguments;
 

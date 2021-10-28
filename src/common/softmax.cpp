@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,9 +33,12 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc,
         primitive_kind_t prim_kind, prop_kind_t prop_kind,
         const memory_desc_t *data_desc, const memory_desc_t *diff_desc,
         int softmax_axis) {
-    bool args_ok = true && !any_null(softmax_desc, data_desc)
+    bool args_ok = !any_null(softmax_desc, data_desc)
             && IMPLICATION(prop_kind == backward_data, diff_desc != nullptr)
-            && 0 <= softmax_axis && softmax_axis < data_desc->ndims;
+            && 0 <= softmax_axis && softmax_axis < data_desc->ndims
+            && IMPLICATION(
+                    one_of(prop_kind, forward_training, forward_inference),
+                    !memory_desc_wrapper(data_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
     bool runtime_dims_or_strides

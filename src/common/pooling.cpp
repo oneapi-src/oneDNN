@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,11 +43,13 @@ status_t pooling_desc_init(pooling_desc_type *pool_desc, prop_kind_t prop_kind,
         const memory_desc_t *dst_desc, const dims_t strides,
         const dims_t kernel, const dims_t dilation, const dims_t padding_l,
         const dims_t padding_r) {
-    bool args_ok = true
-            && !any_null(
-                    pool_desc, src_desc, dst_desc, strides, kernel, padding_l)
+    bool args_ok = !any_null(pool_desc, src_desc, dst_desc, strides, kernel,
+                           padding_l)
             && one_of(alg_kind, pooling_max, pooling_avg_include_padding,
-                    pooling_avg_exclude_padding);
+                    pooling_avg_exclude_padding)
+            && IMPLICATION(
+                    one_of(prop_kind, forward_training, forward_inference),
+                    !memory_desc_wrapper(src_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
     if (padding_r == nullptr) padding_r = padding_l;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,14 +33,17 @@ namespace {
 status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *data_desc,
         const memory_desc_t *diff_data_desc, float alpha, float beta) {
-    bool args_ok = true && !any_null(eltwise_desc, data_desc)
+    bool args_ok = !any_null(eltwise_desc, data_desc)
             && one_of(prop_kind, forward_training, forward_inference,
                     backward_data)
             && IMPLICATION(
                     prop_kind == backward_data, diff_data_desc != nullptr)
             && IMPLICATION(alg_kind == eltwise_round,
                     one_of(prop_kind, forward_training, forward_inference))
-            && math::is_eltwise_ok(data_desc->data_type, alg_kind, alpha, beta);
+            && math::is_eltwise_ok(data_desc->data_type, alg_kind, alpha, beta)
+            && IMPLICATION(
+                    one_of(prop_kind, forward_training, forward_inference),
+                    !memory_desc_wrapper(data_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
     bool runtime_dims_or_strides

@@ -63,8 +63,12 @@ status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
 
     auto s_ek = src_engine->kind();
     auto d_ek = dst_engine->kind();
-    if (!IMPLICATION(s_ek != d_ek, utils::one_of(engine_kind::cpu, s_ek, d_ek)))
-        return invalid_arguments;
+
+    bool args_ok = !memory_desc_wrapper(src_md).format_any()
+            && !memory_desc_wrapper(dst_md).format_any()
+            && IMPLICATION(
+                    s_ek != d_ek, utils::one_of(engine_kind::cpu, s_ek, d_ek));
+    if (!args_ok) return invalid_arguments;
 
     auto s_mdw = memory_desc_wrapper(*src_md);
     auto d_mdw = memory_desc_wrapper(*dst_md);

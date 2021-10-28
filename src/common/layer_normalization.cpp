@@ -32,7 +32,7 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
         prop_kind_t prop_kind, const memory_desc_t *data_desc,
         const memory_desc_t *stat_desc, const memory_desc_t *diff_data_desc,
         float epsilon, unsigned flags) {
-    bool args_ok = true && !any_null(lnorm_desc, data_desc)
+    bool args_ok = !any_null(lnorm_desc, data_desc)
             && one_of(prop_kind, forward_training, forward_inference,
                     backward_data, backward)
             && 2 <= data_desc->ndims && data_desc->ndims <= 5
@@ -40,7 +40,10 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
             && (flags
                        & ~(dnnl_use_global_stats | dnnl_use_scaleshift
                                | dnnl_use_scale | dnnl_use_shift))
-                    == 0;
+                    == 0
+            && IMPLICATION(
+                    one_of(prop_kind, forward_training, forward_inference),
+                    !memory_desc_wrapper(data_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
     auto ld = layer_normalization_desc_t();

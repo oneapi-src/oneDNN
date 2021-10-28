@@ -51,8 +51,11 @@ status_t concat_primitive_desc_create(primitive_desc_iface_t **concat_pd_iface,
         return unimplemented;
 
     int concat_dim_sz = dims[concat_dim];
+    if (memory_desc_wrapper(src_mds[0]).format_any()) return invalid_arguments;
     for (int i = 1; i < n; ++i) {
-        if (src_mds[i].ndims != ndims) return invalid_arguments;
+        if (src_mds[i].ndims != ndims
+                || memory_desc_wrapper(src_mds[i]).format_any())
+            return invalid_arguments;
         if (memory_desc_wrapper(src_mds[i]).has_runtime_dims_or_strides())
             return unimplemented;
 

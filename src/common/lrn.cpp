@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,12 +33,15 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *data_desc,
         const memory_desc_t *diff_data_desc, dim_t local_size, float alpha,
         float beta, float k) {
-    bool args_ok = true && !any_null(lrn_desc, data_desc)
+    bool args_ok = !any_null(lrn_desc, data_desc)
             && one_of(alg_kind, lrn_within_channel, lrn_across_channels)
             && one_of(prop_kind, forward_training, forward_inference,
                     backward_data)
             && IMPLICATION(
-                    prop_kind == backward_data, diff_data_desc != nullptr);
+                    prop_kind == backward_data, diff_data_desc != nullptr)
+            && IMPLICATION(
+                    one_of(prop_kind, forward_training, forward_inference),
+                    !memory_desc_wrapper(data_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
     auto ld = lrn_desc_t();
