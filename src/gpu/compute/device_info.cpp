@@ -110,8 +110,19 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     // Assumption is that HT is likely enabled on client systems.
     llc_cache_size_ = std::thread::hardware_concurrency() * (1 << 20);
 
-    // Runtimes return XeHP-equivalent EU count instead of true EU count on XeHPC.
-    if (gpu_arch_ == gpu::compute::gpu_arch_t::xe_hpc) eu_count_ /= 2;
+    bool ocl_backend = true;
+
+#ifdef DNNL_WITH_SYCL
+    if (engine->runtime_kind() == runtime_kind::sycl) {
+        auto *sycl_engine
+                = utils::downcast<const sycl::sycl_engine_base_t *>(engine);
+        ocl_backend = (sycl_engine->backend() == sycl::backend_t::opencl);
+    }
+#endif
+
+    // OCL runtime returns XeHP-equivalent EU count instead of true EU count on XeHPC.
+    if (ocl_backend && gpu_arch_ == gpu::compute::gpu_arch_t::xe_hpc)
+        eu_count_ /= 2;
 
     // Assume 7 threads by default
     int32_t threads_per_eu[2] = {7, 7};
@@ -143,16 +154,7 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
         default: break;
     }
 
-    mayiuse_non_uniform_work_groups_ = true;
-#ifdef DNNL_WITH_SYCL
-    if (engine->runtime_kind() == runtime_kind::sycl) {
-        auto *sycl_engine
-                = utils::downcast<const sycl::sycl_engine_base_t *>(engine);
-        // Level Zero backend does not support non-uniform work-groups.
-        mayiuse_non_uniform_work_groups_
-                = (sycl_engine->backend() == sycl::backend_t::opencl);
-    }
-#endif
+    mayiuse_non_uniform_work_groups_ = ocl_backend;
 
     return status::success;
 }
