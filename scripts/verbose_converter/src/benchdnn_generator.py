@@ -479,7 +479,8 @@ def convert_post_ops(post_ops):
     def convert_prelu_post_op(post_op):
         benchdnn_p_op = post_op['alg']
         if post_op['mask'] != 0:
-            benchdnn_p_op += ':' + post_op['mask']
+            policy = convert_scale_policy(post_op['mask'])
+            benchdnn_p_op += ':' + policy
         return benchdnn_p_op
 
     convert = {
