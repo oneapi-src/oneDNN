@@ -255,56 +255,31 @@ void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str) {
 }
 
 // service functions
-static bool parse_bench_mode(
-        const char *str, const std::string &option_name = "mode") {
-    const auto str2bench_mode = [](const std::string &_str) {
-        bench_mode_t mode;
-        for (size_t i = 0; i < _str.size(); i++) {
-            if (_str[i] == 'r' || _str[i] == 'R') mode |= RUN;
-            if (_str[i] == 'c' || _str[i] == 'C') mode |= CORR;
-            if (_str[i] == 'p' || _str[i] == 'P') mode |= PERF;
-            if (_str[i] == 'l' || _str[i] == 'L') mode |= LIST;
-        }
-        if (!(mode & LIST).none() && mode.count() > 1) {
-            fprintf(stderr,
-                    "ERROR: LIST mode is incompatible with any other modes. "
-                    "Please use just `--mode=L` instead.\n");
-            exit(2);
-        }
-        if (mode.none()) {
-            fprintf(stderr, "ERROR: empty mode is not allowed.\n");
-            exit(2);
-        }
-
-        return mode;
-    };
-
+static bool parse_allow_enum_tags_only(const char *str,
+        const std::string &option_name = "allow-enum-tags-only") {
     return parse_single_value_option(
-            bench_mode, CORR, str2bench_mode, str, option_name);
+            allow_enum_tags_only, true, str2bool, str, option_name);
 }
 
-static bool parse_max_ms_per_prb(
-        const char *str, const std::string &option_name = "max-ms-per-prb") {
-    if (parse_single_value_option(max_ms_per_prb, 3e3, atof, str, option_name))
-        return max_ms_per_prb = MAX2(100, MIN2(max_ms_per_prb, 60e3)), true;
-    return false;
+static bool parse_attr_same_pd_check(const char *str,
+        const std::string &option_name = "attr-same-pd-check") {
+    return parse_single_value_option(
+            attr_same_pd_check, false, str2bool, str, option_name);
 }
 
-static bool parse_fix_times_per_prb(
-        const char *str, const std::string &option_name = "fix-times-per-prb") {
-    if (parse_single_value_option(fix_times_per_prb, 0, atoi, str, option_name))
-        return fix_times_per_prb = MAX2(0, fix_times_per_prb), true;
-    return false;
+static bool parse_canonical(
+        const char *str, const std::string &option_name = "canonical") {
+    return parse_single_value_option(
+            canonical, false, str2bool, str, option_name);
 }
 
-static bool parse_verbose(
-        const char *str, const std::string &option_name = "verbose") {
-    const std::string pattern("-v"); // check short option first
-    if (pattern.find(str, 0, pattern.size()) != eol) {
-        verbose = atoi(str + pattern.size());
-        return true;
-    }
-    return parse_single_value_option(verbose, 0, atoi, str, option_name);
+static bool parse_cpu_isa_hints(
+        const char *str, const std::string &option_name = "cpu-isa-hints") {
+    const bool parsed
+            = parse_single_value_option(hints, isa_hints_t {isa_hints_t::none},
+                    isa_hints_t::str2hints, str, option_name);
+    if (parsed) init_isa_settings();
+    return parsed;
 }
 
 static bool parse_engine(
@@ -344,48 +319,24 @@ static bool parse_fast_ref_gpu(
     return parsed;
 }
 
-static bool parse_canonical(
-        const char *str, const std::string &option_name = "canonical") {
-    return parse_single_value_option(
-            canonical, false, str2bool, str, option_name);
+static bool parse_fix_times_per_prb(
+        const char *str, const std::string &option_name = "fix-times-per-prb") {
+    if (parse_single_value_option(fix_times_per_prb, 0, atoi, str, option_name))
+        return fix_times_per_prb = MAX2(0, fix_times_per_prb), true;
+    return false;
+}
+
+static bool parse_max_ms_per_prb(
+        const char *str, const std::string &option_name = "max-ms-per-prb") {
+    if (parse_single_value_option(max_ms_per_prb, 3e3, atof, str, option_name))
+        return max_ms_per_prb = MAX2(100, MIN2(max_ms_per_prb, 60e3)), true;
+    return false;
 }
 
 static bool parse_mem_check(
         const char *str, const std::string &option_name = "mem-check") {
     return parse_single_value_option(
             mem_check, true, str2bool, str, option_name);
-}
-
-static bool parse_skip_impl(
-        const char *str, const std::string &option_name = "skip-impl") {
-    const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) == eol) return false;
-
-    skip_impl = std::string(str + pattern.size());
-    // Remove all quotes from input string since they affect the search.
-    for (auto c : {'"', '\''}) {
-        size_t start_pos = 0;
-        while (start_pos != eol) {
-            start_pos = skip_impl.find_first_of(c, start_pos);
-            if (start_pos != eol) skip_impl.erase(start_pos, 1);
-        }
-    }
-    return true;
-}
-
-static bool parse_allow_enum_tags_only(const char *str,
-        const std::string &option_name = "allow-enum-tags-only") {
-    return parse_single_value_option(
-            allow_enum_tags_only, true, str2bool, str, option_name);
-}
-
-static bool parse_cpu_isa_hints(
-        const char *str, const std::string &option_name = "cpu-isa-hints") {
-    const bool parsed
-            = parse_single_value_option(hints, isa_hints_t {isa_hints_t::none},
-                    isa_hints_t::str2hints, str, option_name);
-    if (parsed) init_isa_settings();
-    return parsed;
 }
 
 static bool parse_memory_kind(
@@ -410,29 +361,79 @@ static bool parse_memory_kind(
     return true;
 }
 
-static bool parse_test_start(
+static bool parse_mode(
+        const char *str, const std::string &option_name = "mode") {
+    const auto str2bench_mode = [](const std::string &_str) {
+        bench_mode_t mode;
+        for (size_t i = 0; i < _str.size(); i++) {
+            if (_str[i] == 'r' || _str[i] == 'R') mode |= RUN;
+            if (_str[i] == 'c' || _str[i] == 'C') mode |= CORR;
+            if (_str[i] == 'p' || _str[i] == 'P') mode |= PERF;
+            if (_str[i] == 'l' || _str[i] == 'L') mode |= LIST;
+        }
+        if (!(mode & LIST).none() && mode.count() > 1) {
+            fprintf(stderr,
+                    "ERROR: LIST mode is incompatible with any other modes. "
+                    "Please use just `--mode=L` instead.\n");
+            exit(2);
+        }
+        if (mode.none()) {
+            fprintf(stderr, "ERROR: empty mode is not allowed.\n");
+            exit(2);
+        }
+
+        return mode;
+    };
+
+    return parse_single_value_option(
+            bench_mode, CORR, str2bench_mode, str, option_name);
+}
+
+static bool parse_skip_impl(
+        const char *str, const std::string &option_name = "skip-impl") {
+    const std::string pattern = get_pattern(option_name);
+    if (pattern.find(str, 0, pattern.size()) == eol) return false;
+
+    skip_impl = std::string(str + pattern.size());
+    // Remove all quotes from input string since they affect the search.
+    for (auto c : {'"', '\''}) {
+        size_t start_pos = 0;
+        while (start_pos != eol) {
+            start_pos = skip_impl.find_first_of(c, start_pos);
+            if (start_pos != eol) skip_impl.erase(start_pos, 1);
+        }
+    }
+    return true;
+}
+
+static bool parse_start(
         const char *str, const std::string &option_name = "start") {
     return parse_single_value_option(
             test_start, 0, [](const std::string &s) { return std::stoi(s); },
             str, option_name);
 }
 
-static bool parse_attr_same_pd_check(const char *str,
-        const std::string &option_name = "attr-same-pd-check") {
-    return parse_single_value_option(
-            attr_same_pd_check, false, str2bool, str, option_name);
+static bool parse_verbose(
+        const char *str, const std::string &option_name = "verbose") {
+    const std::string pattern("-v"); // check short option first
+    if (pattern.find(str, 0, pattern.size()) != eol) {
+        verbose = atoi(str + pattern.size());
+        return true;
+    }
+    return parse_single_value_option(verbose, 0, atoi, str, option_name);
 }
 
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
-    return parse_bench_mode(str) || parse_max_ms_per_prb(str)
-            || parse_fix_times_per_prb(str) || parse_verbose(str)
-            || parse_engine(str) || parse_fast_ref_gpu(str)
-            || parse_canonical(str) || parse_mem_check(str)
-            || parse_skip_impl(str) || parse_allow_enum_tags_only(str)
-            || parse_cpu_isa_hints(str) || parse_memory_kind(str)
-            || parse_test_start(str) || parse_attr_same_pd_check(str);
+    bool parsed = parse_allow_enum_tags_only(str)
+            || parse_attr_same_pd_check(str) || parse_canonical(str)
+            || parse_cpu_isa_hints(str) || parse_engine(str)
+            || parse_fast_ref_gpu(str) || parse_fix_times_per_prb(str)
+            || parse_max_ms_per_prb(str) || parse_mem_check(str)
+            || parse_memory_kind(str) || parse_mode(str) || parse_skip_impl(str)
+            || parse_start(str) || parse_verbose(str);
+    return parsed;
 }
 
 void catch_unknown_options(const char *str) {
