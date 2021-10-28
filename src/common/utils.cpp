@@ -33,6 +33,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <string>
 
 #include "oneapi/dnnl/dnnl.h"
@@ -147,8 +148,10 @@ int32_t fetch_and_add(int32_t *dst, int32_t val) {
 
 static setting_t<bool> jit_dump {false};
 bool get_jit_dump() {
-    jit_dump.set(!!getenv_int("MKLDNN_JIT_DUMP", 0), true);
-    jit_dump.set(!!getenv_int("DNNL_JIT_DUMP", jit_dump.get()), true);
+    if (!jit_dump.initialized()) {
+        jit_dump.set(!!getenv_int("MKLDNN_JIT_DUMP", 0));
+        jit_dump.set(!!getenv_int("DNNL_JIT_DUMP", jit_dump.get()));
+    }
     return jit_dump.get();
 }
 
@@ -161,8 +164,10 @@ unsigned get_jit_profiling_flags() {
     MAYBE_UNUSED(jit_profiling_flags);
     unsigned flag = 0;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    jit_profiling_flags.set(
-            getenv_int("DNNL_JIT_PROFILE", jit_profiling_flags.get()), true);
+    if (!jit_profiling_flags.initialized()) {
+        jit_profiling_flags.set(
+                getenv_int("DNNL_JIT_PROFILE", jit_profiling_flags.get()));
+    }
     flag = jit_profiling_flags.get();
 #endif
     return flag;
@@ -172,16 +177,22 @@ static setting_t<std::string> jit_profiling_jitdumpdir;
 dnnl_status_t init_jit_profiling_jitdumpdir(
         const char *jitdumpdir, bool overwrite) {
 #ifdef __linux__
+    static std::mutex m;
+    std::lock_guard<std::mutex> g(m);
+
+    if (jit_profiling_jitdumpdir.initialized() && !overwrite)
+        return status::success;
+
     if (!jitdumpdir) {
         char buf[PATH_MAX];
         if (getenv("JITDUMPDIR", buf, sizeof(buf)) > 0)
-            jit_profiling_jitdumpdir.set(buf, !overwrite);
+            jit_profiling_jitdumpdir.set(buf);
         else if (getenv("HOME", buf, sizeof(buf)) > 0)
-            jit_profiling_jitdumpdir.set(buf, !overwrite);
+            jit_profiling_jitdumpdir.set(buf);
         else
-            jit_profiling_jitdumpdir.set(".", !overwrite);
+            jit_profiling_jitdumpdir.set(".");
     } else
-        jit_profiling_jitdumpdir.set(jitdumpdir, !overwrite);
+        jit_profiling_jitdumpdir.set(jitdumpdir);
 
     return status::success;
 #else
@@ -192,7 +203,8 @@ dnnl_status_t init_jit_profiling_jitdumpdir(
 std::string get_jit_profiling_jitdumpdir() {
     std::string jitdumpdir;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    init_jit_profiling_jitdumpdir(nullptr, false);
+    if (!jit_profiling_jitdumpdir.initialized())
+        init_jit_profiling_jitdumpdir(nullptr, false);
     jitdumpdir = jit_profiling_jitdumpdir.get();
 #endif
     return jitdumpdir;

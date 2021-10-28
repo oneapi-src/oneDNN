@@ -108,8 +108,7 @@ status_t primitive_execute(
 
     stream->before_exec_hook();
 
-    const bool enable_itt = itt::get_itt(itt::__itt_task_level_low);
-    if (enable_itt)
+    if (itt::get_itt(itt::__itt_task_level_low))
         itt::primitive_task_start(primitive_iface->pd()->impl()->kind());
 
     if (get_verbose()) {
@@ -128,7 +127,7 @@ status_t primitive_execute(
         status = stream->enqueue_primitive(primitive_iface, ctx);
     }
 
-    if (enable_itt) itt::primitive_task_end();
+    if (itt::get_itt(itt::__itt_task_level_low)) itt::primitive_task_end();
 
     stream->after_exec_hook();
 
