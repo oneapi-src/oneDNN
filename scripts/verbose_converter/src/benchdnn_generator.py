@@ -540,17 +540,20 @@ def convert_scales(scales):
 
 def convert_zero_points(zero_points):
     res = []
+    not_default_value = '1'
     for arg in zero_points.keys():
         zp = zero_points[arg]
         policy = convert_zp_policy(zp['mask'])
         benchdnn_zp = arg + ':' + policy
         value = zp['value']
+        if policy != 'common':
+            value = '*'
         # benchdnn requires user to pass a value
         if value == None:
-            value = '1'
+            value = not_default_value
         # benchdnn doesn't allow user to pass * without an actual value
         if value == '*':
-            value = '1'
+            value = not_default_value + '*'
         benchdnn_zp += ':' + value
         res.append(benchdnn_zp)
     return '+'.join(res)
