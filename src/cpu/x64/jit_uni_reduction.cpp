@@ -22,6 +22,7 @@ namespace cpu {
 namespace x64 {
 
 static cpu_isa_t get_supported_isa() {
+    if (mayiuse(avx512_core_fp16)) return avx512_core_fp16;
     if (mayiuse(avx512_core_bf16)) return avx512_core_bf16;
     if (mayiuse(avx512_core)) return avx512_core;
     if (mayiuse(avx2)) return avx2;
@@ -170,6 +171,9 @@ status_t jit_uni_reduction_t::get_proper_kernel(
         const memory_desc_t *dst_md, const jit_reduction_conf_t &conf) {
     using namespace data_type;
 
+    if (conf.isa == avx512_core_fp16)
+        return safe_ptr_assign(kernel_,
+                new jit_uni_reduction_kernel_t<avx512_core_fp16>(conf, dst_md));
     if (conf.isa == avx512_core_bf16)
         return safe_ptr_assign(kernel_,
                 new jit_uni_reduction_kernel_t<avx512_core_bf16>(conf, dst_md));

@@ -378,6 +378,7 @@ void jit_uni_reduction_kernel_t<isa, Vmm>::generate() {
         postops_injector_->prepare_table();
 }
 
+template struct jit_uni_reduction_kernel_t<avx512_core_fp16>;
 template struct jit_uni_reduction_kernel_t<avx512_core_bf16>;
 template struct jit_uni_reduction_kernel_t<avx512_core>;
 template struct jit_uni_reduction_kernel_t<avx2>;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -162,6 +162,8 @@ using namespace data_type;
 template struct ref_reduction_t<f32, f32, f32>;
 template struct ref_reduction_t<bf16, bf16, f32>;
 template struct ref_reduction_t<bf16, f32, f32>;
+template struct ref_reduction_t<f16, f16, f32>;
+template struct ref_reduction_t<f16, f32, f32>;
 template struct ref_reduction_t<s8, s8, s32>;
 template struct ref_reduction_t<s8, s32, s32>;
 template struct ref_reduction_t<s8, f32, f32>;
