@@ -54,7 +54,7 @@ void pass_manager_t::print_passes(const std::string &pass_config_json) {
 
 void pass_manager_t::print_passes(std::ostream *os) {
     auto passes = get_passes();
-    json::json_writer write(os);
+    json::json_writer_t write(os);
     write.begin_object();
     std::string hash = dnnl_graph_version()->hash;
     std::string version = std::to_string(dnnl_graph_version()->major) + "."
@@ -71,8 +71,8 @@ void pass_manager_t::run_passes(
     UNUSED(policy);
     if (*fs) {
         std::list<pass_base_ptr> new_passes;
-        json::json_reader read(fs);
-        json::read_helper helper;
+        json::json_reader_t read(fs);
+        json::read_helper_t helper;
         std::string hash;
         std::string version;
         helper.declare_field("hash", &hash);

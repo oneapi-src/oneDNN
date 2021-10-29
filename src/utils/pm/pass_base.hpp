@@ -122,7 +122,7 @@ public:
     // the criteria of pass execution
     virtual void run(graph &agraph) { UNUSED(agraph); }
     // save pass basic information into json
-    virtual void save(utils::json::json_writer *writer) {
+    virtual void save(utils::json::json_writer_t *writer) {
         writer->begin_object();
         writer->write_keyvalue("pass_name", name_);
         if (type_ == pass_type::kTransformation) {
@@ -136,8 +136,8 @@ public:
         writer->end_object();
     }
     // load pass basic information from json
-    virtual void load(utils::json::json_reader *reader) {
-        utils::json::read_helper helper;
+    virtual void load(utils::json::json_reader_t *reader) {
+        utils::json::read_helper_t helper;
         std::string type;
         helper.declare_field("pass_name", &name_);
         helper.declare_field("pass_type", &type);
