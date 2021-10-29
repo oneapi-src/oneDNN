@@ -99,7 +99,7 @@ public:
                 [this, &src_mds, &get_forced_format_tag](const lt &in) {
                     auto tmp_desc = make_dnnl_memory_desc(in);
                     this->res_desc_.cvt_src_.push_back(tmp_desc);
-                    src_mds.push_back(
+                    src_mds.emplace_back(
                             memory::desc {tmp_desc.dims(), tmp_desc.data_type(),
                                     get_forced_format_tag(tmp_desc.dims())});
                 });

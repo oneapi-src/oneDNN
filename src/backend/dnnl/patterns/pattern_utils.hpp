@@ -181,7 +181,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
             "out_bf16_check", "in_bf16_check"};
     bool pattern_is_graph = graph_op == pattern_op;
     hashtype pattern_starter_hash = hash_func(pattern_op);
-    pattern_queue.push_back(std::make_pair(pattern_op,
+    pattern_queue.emplace_back(std::make_pair(pattern_op,
             std::make_pair(
                     0, 0))); //op, matched_input_value, matched_output_value
     visited.insert(pattern_starter_hash);
@@ -323,7 +323,7 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
                 op_t &nout = nconsumers[i].get_op();
                 hashtype poutput_hash = hash_func(&pout);
                 if (visited.count(poutput_hash) == 0) {
-                    pattern_queue.push_back(
+                    pattern_queue.emplace_back(
                             std::make_pair(&pout, std::make_pair(0, 0)));
                     op_queue.push_back(&nout);
                     visited.insert(poutput_hash);
