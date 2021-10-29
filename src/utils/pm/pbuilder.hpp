@@ -208,18 +208,18 @@ protected:
     int64_t m_max_rep;
 };
 
-// "pb_graph_t" represents a group of pb_ops and also serves as a pb_node anywhere
-// And provides a way to limit interface by limiting ports(placeholders)
-// to outside of pb_graph_t.
+// "pb_graph_t" represents a group of pb_ops and also serves as a pb_node
+// anywhere And provides a way to limit interface by limiting ports
+// (placeholders) to outside of pb_graph_t.
 // Nested/Hierarchical pb_nodes are useful for expressing patterns beyond fixed
-// pb_graph_t. Regular expression like extension may works on a unit larger than
-// a single pb_node.
+// pb_graph_t. Regular expression like extension may works on a unit larger
+// than a single pb_node.
 // So a concept that represent grouping is going to be useful.
 // pb_graph_t defines a way to forward input/output of the group
 // to input/output of individual pb_nodes.
-// For example, pb_graph_t "G" below wraps two connected pb_nodes "MUL" and "ADD"
-// Collectively, G defines three inputs and one output. The three inputs of "G"
-// are mapped to (pb_graph_t inner) inputs of "MUL" and "ADD"
+// For example, pb_graph_t "G" below wraps two connected pb_nodes "MUL" and
+// "ADD" Collectively, G defines three inputs and one output. The three inputs
+// of "G" are mapped to (pb_graph_t inner) inputs of "MUL" and "ADD"
 // The single output of "G" maps to the single output of "ADD"
 // Now, this "G" can used as part of a bigger pattern by connecting through
 // the three inputs and one output just defined.
