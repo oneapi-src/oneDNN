@@ -24,9 +24,9 @@
 
 using namespace dnnl::graph::impl;
 
-dnnl_graph_log_level_t Logger::default_level_ {dnnl_graph_log_level_disabled};
+dnnl_graph_log_level_t logger_t::default_level_ {dnnl_graph_log_level_disabled};
 
-dnnl_graph_log_level_t Logger::get_log_level_int() {
+dnnl_graph_log_level_t logger_t::get_log_level_int() {
     auto level_env = std::getenv("DNNL_GRAPH_VERBOSE");
     if (level_env) {
         int level = atoi(level_env);
@@ -43,7 +43,7 @@ dnnl_graph_log_level_t Logger::get_log_level_int() {
     return default_level_;
 }
 
-Logger::Logger() : output_stream_(&std::cout) {
+logger_t::logger_t() : output_stream_(&std::cout) {
     auto output_env = std::getenv("DNNL_GRAPH_VERBOSE_OUTPUT");
     if (output_env) {
         if (strcmp(output_env, "stdout") == 0) {
@@ -57,7 +57,7 @@ Logger::Logger() : output_stream_(&std::cout) {
     }
 }
 
-void Logger::log_message_int(int32_t level, const char *message) {
+void logger_t::log_message_int(int32_t level, const char *message) {
     const std::lock_guard<std::mutex> lock(mutex_);
     const time_t tt = std::chrono::system_clock::to_time_t(
             std::chrono::system_clock::now());

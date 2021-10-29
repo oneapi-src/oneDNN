@@ -43,7 +43,7 @@ namespace impl {
  * redirect messages to a file:
  * export DNNL_GRAPH_VERBOSE_OUTPUT=<stdout|stderr|path_to_file>
  */
-class Logger {
+class logger_t {
 public:
     static void log_message(int32_t level, const char *message) {
         singleton().log_message_int(level, message);
@@ -76,12 +76,12 @@ public:
     }
 
 private:
-    Logger();
+    logger_t();
     void log_message_int(int32_t level, const char *message);
     static dnnl_graph_log_level_t get_log_level_int();
 
-    static Logger &singleton() {
-        static Logger logger;
+    static logger_t &singleton() {
+        static logger_t logger;
         return logger;
     }
 
@@ -94,16 +94,16 @@ private:
 /**
  * @brief Class encapsulating a single message with specified verbosity level.
  *
- * The class is not intended to be used directly, as lifespan of LogEntry
+ * The class is not intended to be used directly, as lifespan of log_entry_t
  * objects decides when given message will be flushed. Use the DNNL_GRAPH_LOG() and
  * DNNL_GRAPH_LOG_<level>() macros instead.
  */
-class LogEntry {
+class log_entry_t {
 public:
-    LogEntry(dnnl_graph_log_level_t level) : level_(level) {}
-    ~LogEntry() {
+    log_entry_t(dnnl_graph_log_level_t level) : level_(level) {}
+    ~log_entry_t() {
         try {
-            dnnl::graph::impl::Logger::log_message(level_, ss_.str().c_str());
+            dnnl::graph::impl::logger_t::log_message(level_, ss_.str().c_str());
         } catch (...) {}
     }
     std::ostream &stream() { return ss_; };
@@ -121,9 +121,9 @@ private:
  */
 #ifndef DNNL_GRAPH_LOG
 #define DNNL_GRAPH_LOG(level) \
-    if (!dnnl::graph::impl::Logger::log_level_active(level)) { \
+    if (!dnnl::graph::impl::logger_t::log_level_active(level)) { \
     } else \
-        dnnl::graph::impl::LogEntry(level).stream()
+        dnnl::graph::impl::log_entry_t(level).stream()
 #define DNNL_GRAPH_LOG_ERROR() DNNL_GRAPH_LOG(dnnl_graph_log_level_error)
 #define DNNL_GRAPH_LOG_INFO() DNNL_GRAPH_LOG(dnnl_graph_log_level_info)
 #define DNNL_GRAPH_LOG_DEBUG() DNNL_GRAPH_LOG(dnnl_graph_log_level_debug)
