@@ -27,7 +27,7 @@ namespace gpu {
 namespace ocl {
 
 std::pair<int, int> gen9_concat_t::pd_t::calculate_iter_dim_idx_chunk(
-        int num_threads) {
+        int num_threads) const {
     if (conf.ndims == 1) return std::make_pair(0, 1);
     const auto &dst_dims = conf.dst_md_info.padded_dims;
     int max_dim_idx = -1;

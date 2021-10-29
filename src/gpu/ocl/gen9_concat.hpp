@@ -63,7 +63,7 @@ struct gen9_concat_t : public gpu_primitive_t {
                 int sub_group_size);
         int calculate_sub_group_size(
                 const compute::compute_engine_t *compute_engine);
-        std::pair<int, int> calculate_iter_dim_idx_chunk(int num_threads);
+        std::pair<int, int> calculate_iter_dim_idx_chunk(int num_threads) const;
     };
 
     status_t init(engine_t *engine) override {
