@@ -62,7 +62,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(quantize_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_quantize_fusion)
         .set_priority(8.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](std::shared_ptr<pb_graph_t> pgraph) -> void {
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *typecast
                             = pgraph->append_op(impl::op_kind::TypeCast);
                     // check it is a bf16->f32 typecast
