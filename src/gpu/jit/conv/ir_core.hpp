@@ -892,6 +892,8 @@ public:
 
     size_t get_hash() const override { return ir_utils::get_hash(value); }
 
+    IR_DECLARE_TRAVERSERS()
+
     bool value;
 
 private:
@@ -949,6 +951,8 @@ public:
     }
 
     size_t get_hash() const override { return ir_utils::get_hash(value); }
+
+    IR_DECLARE_TRAVERSERS()
 
     float value;
 
@@ -1027,6 +1031,8 @@ public:
             return true;
         return false;
     }
+
+    IR_DECLARE_TRAVERSERS()
 
     int64_t value;
 
@@ -2059,6 +2065,8 @@ public:
 
     stmt_t call(const std::vector<expr_t> &args,
             const func_call_attr_t &attr = {}) const;
+
+    IR_DECLARE_TRAVERSERS()
 };
 
 // Wrapper for IR function objects.
