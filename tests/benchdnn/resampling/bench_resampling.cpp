@@ -76,13 +76,13 @@ int bench(int argc, char **argv) {
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_tag(s.tag, def.tag, argv[0])
                 || parse_alg(s.alg, def.alg, str2alg, argv[0])
-                || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])
+                || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
-                || parse_reset(s, argv[0]);
+                || parse_reset(s, argv[0]) || parse_help(argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 

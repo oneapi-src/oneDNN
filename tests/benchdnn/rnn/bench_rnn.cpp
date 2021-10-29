@@ -91,6 +91,34 @@ void check_correctness(const settings_t &s) {
     }
 }
 
+static const std::string help_direction
+        = "DIRECTION    (Default: `left2right`)\n    Specifies evaluation "
+          "direction.\n    `DIRECTION` values are: `left2right`, `right2left`, "
+          "`concat` and `sum`.\n";
+
+static const std::string help_activation
+        = "ACTIVATION    (Default: `relu`)\n    Specifies Vanilla RNN "
+          "activation function.\n    `ACTIVATION` values are: `relu`, "
+          "`logistic`, and `tanh`.\n";
+
+static const std::string help_l
+        = "UINT    (Default: `0`)\n    Overrides number of layers value "
+          "specified in a problem descriptor with `UINT` value.\n    When set "
+          "to `0`, takes no effect.\n";
+
+static const std::string help_t
+        = "UINT    (Default: `0`)\n    Overrides number of timestamps value "
+          "specified in a problem descriptor with `UINT` value.\n    When set "
+          "to `0`, takes no effect.\n";
+
+static const std::string help_with_peephole
+        = "BOOL    (Default: `false`)\n    When set to `true`, enables LSTM "
+          "peephole extension.\n";
+
+static const std::string help_with_projection
+        = "BOOL    (Default: `false`)\n    When set to `true`, enables LSTM "
+          "projection extension.\n";
+
 int bench(int argc, char **argv) {
     driver_name = "rnn";
     using namespace parser;
@@ -104,29 +132,31 @@ int bench(int argc, char **argv) {
                 || parse_cfg(s.cfg, def.cfg, cstr2str, argv[0])
                 || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_vector_option(s.direction, def.direction,
-                        str2direction, argv[0], "direction")
+                        str2direction, argv[0], "direction", help_direction)
                 || parse_vector_option(s.activation, def.activation,
-                        str2activation, argv[0], "activation")
+                        str2activation, argv[0], "activation", help_activation)
                 || parse_scale_policy(s.scale_policy, def.scale_policy, argv[0])
                 || parse_scale_policy(s.scale_proj_policy,
                         def.scale_proj_policy, argv[0], "scaling-proj")
                 || parse_mb(s.mb, def.mb, argv[0])
                 || parse_vector_option(
-                        s.n_layer, def.n_layer, atoi, argv[0], "l")
-                || parse_vector_option(s.n_iter, def.n_iter, atoi, argv[0], "t")
+                        s.n_layer, def.n_layer, atoi, argv[0], "l", help_l)
+                || parse_vector_option(
+                        s.n_iter, def.n_iter, atoi, argv[0], "t", help_t)
                 || parse_skip_nonlinear(
                         s.skip_nonlinear, def.skip_nonlinear, argv[0])
                 || parse_trivial_strides(
                         s.trivial_strides, def.trivial_strides, argv[0])
                 || parse_vector_option(s.with_peephole, def.with_peephole,
-                        str2bool, argv[0], "with-peephole")
+                        str2bool, argv[0], "with-peephole", help_with_peephole)
                 || parse_vector_option(s.with_projection, def.with_projection,
-                        str2bool, argv[0], "with-projection")
+                        str2bool, argv[0], "with-projection",
+                        help_with_projection)
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
-                || parse_reset(s, argv[0]);
+                || parse_reset(s, argv[0]) || parse_help(argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 

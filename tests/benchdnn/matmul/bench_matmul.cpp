@@ -101,6 +101,16 @@ void check_correctness(const settings_t &s, const settings_t &def) {
     }
 }
 
+static const std::string help_bia_mask
+        = "UINT    (Default: `2`)\n    Specifies a bit-mask that indicates "
+          "which bias dimensions coincide with C matrix dimensions, when `1` "
+          "is on a correspondent dimension.\n";
+
+static const std::string help_runtime_dims_masks
+        = "UINT:UINT    (Default: `0:0`)\n    Specifies a bit-mask for "
+          "matrices A and B that indicates whether a dimension is "
+          "`DNNL_RUNTIME_DIM_VAL` if `1` on a correspondent dimension.\n";
+
 int bench(int argc, char **argv) {
     driver_name = "matmul";
     using namespace parser;
@@ -115,10 +125,11 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_strides(s.strides, def.strides, argv[0], "strides")
                 || parse_dt(s.bia_dt, def.bia_dt, argv[0], "bia_dt")
-                || parse_vector_option(
-                        s.bia_mask, def.bia_mask, atoi, argv[0], "bia_mask")
+                || parse_vector_option(s.bia_mask, def.bia_mask, atoi, argv[0],
+                        "bia_mask", help_bia_mask)
                 || parse_multivector_option(s.rt_dims_masks, def.rt_dims_masks,
-                        atoi, argv[0], "runtime_dims_masks")
+                        atoi, argv[0], "runtime_dims_masks",
+                        help_runtime_dims_masks)
                 || parse_attr(s.attr, argv[0])
                 || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
@@ -127,7 +138,7 @@ int bench(int argc, char **argv) {
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
-                || parse_reset(s, argv[0]);
+                || parse_reset(s, argv[0]) || parse_help(argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
