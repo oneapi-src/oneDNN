@@ -25,7 +25,7 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 
-class opset_v1 {
+class opset_v1_t {
 public:
     static void for_each_schema(const std::function<void(op_schema_t &&)> &fn) {
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Abs, 1)>());
@@ -112,7 +112,7 @@ public:
 };
 
 inline void register_opset_schema() {
-    register_opset_schema<opset_v1>();
+    register_opset_schema<opset_v1_t>();
 }
 
 } // namespace impl

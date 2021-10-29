@@ -29,7 +29,7 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-class dnnl_opset {
+class dnnl_opset_t {
 public:
     static void for_each_schema(const std::function<void(op_schema_t &&)> &fn) {
         // fusion ops
@@ -275,7 +275,7 @@ public:
 };
 
 inline void register_dnnl_opset_schema() {
-    register_opset_schema<dnnl_opset>();
+    register_opset_schema<dnnl_opset_t>();
 }
 
 } // namespace dnnl_impl
