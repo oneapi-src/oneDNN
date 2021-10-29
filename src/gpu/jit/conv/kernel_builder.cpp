@@ -3252,13 +3252,17 @@ public:
     }
 
     object_t _mutate(const func_call_t &obj) override {
-        if (!obj.func.is_same(funcs::barrier_func())) return obj;
+        if (is_func_call<send_t>(obj)) {
+            auto &send = obj.func.as<send_t>();
+            if (send.is_slm()) can_remove_barrier_ = false;
+        } else if (obj.func.is_same(funcs::barrier_func())) {
+            bool can_remove = can_remove_barrier_;
+            can_remove_barrier_ = false;
 
-        bool is_first = is_first_barrier_;
-        is_first_barrier_ = false;
-
-        // If not in a loop and this is the first barrier -> can be dropped.
-        if (loop_level_ == 0 && is_first) return stmt_t();
+            // If not in a loop and this is the first barrier -> can be removed.
+            if (loop_level_ == 0 && can_remove) return stmt_t();
+            return obj;
+        }
 
         return obj;
     }
@@ -3268,7 +3272,7 @@ public:
 
 private:
     int loop_level_ = 0;
-    bool is_first_barrier_ = true;
+    bool can_remove_barrier_ = true;
 };
 
 stmt_t optimize_barrier(const stmt_t &s) {
