@@ -1282,11 +1282,13 @@ private:
             if (is_dst_nhwc && (ic_bytes % 32 != 0 || oc_bytes % 32 != 0))
                 return status::unimplemented;
         }
-        if (!is_src_nhwc && src_layout != layout_t(src_md, src_tag))
+        if (!is_src_nhwc
+                && !src_layout.is_strictly_equal(make_layout(src_md, src_tag)))
             return status::unimplemented;
-        if (!is_dst_nhwc && dst_layout != layout_t(dst_md, dst_tag))
+        if (!is_dst_nhwc
+                && !dst_layout.is_strictly_equal(make_layout(dst_md, dst_tag)))
             return status::unimplemented;
-        if (wei_layout != layout_t(wei_md, wei_tag))
+        if (!wei_layout.is_strictly_equal(make_layout(wei_md, wei_tag)))
             return status::unimplemented;
         return status::success;
     }
