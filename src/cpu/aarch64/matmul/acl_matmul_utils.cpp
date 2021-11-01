@@ -82,10 +82,18 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
             = arm_compute::TensorInfo(arm_compute::TensorShape(N, M, 1, batch),
                     1, arm_compute::DataType::F32);
 
+    // Fast-math mode
+    auto math_mode = get_fpmath_mode();
+    bool is_fastmath_enabled
+            = one_of(math_mode, fpmath_mode::bf16, fpmath_mode::any);
+    amp.gemm_info.set_fast_math(is_fastmath_enabled);
+
     // Fused ReLU activation
     amp.gemm_info.set_activation_info(get_acl_act(attr));
+
     // Set alpha (output scaling)
     amp.alpha = attr.output_scales_.scales_[0];
+
     // Validate ACL transpose
     if (amp.is_transA) {
         auto acl_transA_st = arm_compute::NETranspose::validate(
