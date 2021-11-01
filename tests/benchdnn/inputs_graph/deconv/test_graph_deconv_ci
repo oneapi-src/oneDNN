@@ -52,7 +52,7 @@
 # int8 tests - with groups
 --reset
 --dir=FWD_D
---cfg=u8s8s8,s8s8s8
+--cfg=u8s8s8
 --stag=abcd
 --wtag=acbde
 --dtag=abcd
