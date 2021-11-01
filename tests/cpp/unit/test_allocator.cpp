@@ -29,13 +29,15 @@
 #endif
 
 TEST(allocator_test, default_cpu_allocator) {
-    dnnl::graph::impl::allocator_t alloc {};
+    dnnl::graph::impl::allocator_t *alloc
+            = dnnl::graph::impl::allocator_t::create();
 
     dnnl::graph::impl::allocator_t::attribute_t attr {
             dnnl::graph::impl::allocator_lifetime::persistent, 4096};
-    void *mem_ptr = alloc.allocate(static_cast<size_t>(16));
+    void *mem_ptr = alloc->allocate(static_cast<size_t>(16));
     ASSERT_NE(mem_ptr, nullptr);
-    alloc.deallocate(mem_ptr);
+    alloc->deallocate(mem_ptr);
+    alloc->release();
 }
 
 TEST(allocator_test, create_attr) {
@@ -50,15 +52,16 @@ TEST(allocator_test, create_attr) {
 TEST(allocator_test, default_sycl_allocator) {
     namespace sycl = cl::sycl;
     namespace impl = dnnl::graph::impl;
-    impl::allocator_t alloc {};
+    impl::allocator_t *alloc = impl::allocator_t::create();
     sycl::queue q {sycl::gpu_selector {}, sycl::property::queue::in_order {}};
 
     impl::allocator_t::attribute_t attr {
             impl::allocator_lifetime::persistent, 4096};
-    void *mem_ptr = alloc.allocate(
+    void *mem_ptr = alloc->allocate(
             static_cast<size_t>(16), q.get_device(), q.get_context(), attr);
     ASSERT_NE(mem_ptr, nullptr);
-    alloc.deallocate(mem_ptr, q.get_context());
+    alloc->deallocate(mem_ptr, q.get_context());
+    alloc->release();
 }
 
 /// Below functions aim to simulate what integration layer does
@@ -97,8 +100,9 @@ TEST(allocator_test, sycl_allocator) {
     ASSERT_EQ(alloc_attr.data.type,
             dnnl::graph::impl::allocator_lifetime::persistent);
     ASSERT_EQ(alloc_attr.data.alignment, 1024);
-    dnnl::graph::impl::allocator_t sycl_alloc {
-            sycl_malloc_wrapper, sycl_free_wrapper};
+    dnnl::graph::impl::allocator_t *sycl_alloc
+            = dnnl::graph::impl::allocator_t::create(
+                    sycl_malloc_wrapper, sycl_free_wrapper);
     for (const auto &plt : platform_list) {
         auto device_list = plt.get_devices();
         for (const auto &dev : device_list) {
@@ -106,13 +110,14 @@ TEST(allocator_test, sycl_allocator) {
                 sycl_dev.reset(new sycl::device(dev));
                 sycl_ctx.reset(new sycl::context(*sycl_dev));
 
-                auto *mem_ptr = sycl_alloc.allocate(static_cast<size_t>(16),
+                auto *mem_ptr = sycl_alloc->allocate(static_cast<size_t>(16),
                         *sycl_dev, *sycl_ctx, alloc_attr);
                 ASSERT_NE(mem_ptr, nullptr);
-                sycl_alloc.deallocate(mem_ptr, *sycl_ctx);
+                sycl_alloc->deallocate(mem_ptr, *sycl_ctx);
             }
         }
     }
+    sycl_alloc->release();
 }
 #endif
 
@@ -122,13 +127,13 @@ TEST(allocator_test, monitor) {
 
     const size_t temp_size = 1024, persist_size = 512;
 
-    allocator_t alloc;
+    allocator_t *alloc = allocator_t::create();
     std::vector<void *> persist_bufs;
     std::mutex m;
 
     auto callee = [&]() {
         // allocate persistent buffer
-        void *p_buf = alloc.allocate(persist_size,
+        void *p_buf = alloc->allocate(persist_size,
                 allocator_t::attribute_t {
                         allocator_lifetime::persistent, 4096});
         {
@@ -137,41 +142,41 @@ TEST(allocator_test, monitor) {
         }
 
         // allocate temporary buffer
-        void *t_buf = alloc.allocate(temp_size,
+        void *t_buf = alloc->allocate(temp_size,
                 allocator_t::attribute_t {allocator_lifetime::temp, 4096});
         for (size_t i = 0; i < temp_size; i++) {
             char *ptr = (char *)t_buf + i;
             *ptr = *ptr + 2;
         }
         // deallocate temporary buffer
-        alloc.deallocate(t_buf);
+        alloc->deallocate(t_buf);
     };
 
     // single thread
     for (size_t iter = 0; iter < 4; iter++) {
-        allocator_t::monitor_t::reset_peak_temp_memory(&alloc);
-        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(&alloc), 0);
+        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
+        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(alloc), 0);
 
         callee(); // call the callee to do memory operation
 
-        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(&alloc),
-                temp_size);
-        ASSERT_EQ(allocator_t::monitor_t::get_total_persist_memory(&alloc),
+        ASSERT_EQ(
+                allocator_t::monitor_t::get_peak_temp_memory(alloc), temp_size);
+        ASSERT_EQ(allocator_t::monitor_t::get_total_persist_memory(alloc),
                 persist_size * (iter + 1));
     }
 
     for (auto p_buf : persist_bufs) {
-        alloc.deallocate(p_buf);
+        alloc->deallocate(p_buf);
     }
     persist_bufs.clear();
 
     // multiple threads
     auto thread_func = [&]() {
-        allocator_t::monitor_t::reset_peak_temp_memory(&alloc);
-        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(&alloc), 0);
+        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
+        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(alloc), 0);
         callee();
-        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(&alloc),
-                temp_size);
+        ASSERT_EQ(
+                allocator_t::monitor_t::get_peak_temp_memory(alloc), temp_size);
     };
 
     std::thread t1(thread_func);
@@ -181,12 +186,14 @@ TEST(allocator_test, monitor) {
     t2.join();
 
     // two threads allocated persist buffer
-    ASSERT_EQ(allocator_t::monitor_t::get_total_persist_memory(&alloc),
+    ASSERT_EQ(allocator_t::monitor_t::get_total_persist_memory(alloc),
             persist_size * 2);
 
     for (auto p_buf : persist_bufs) {
-        alloc.deallocate(p_buf);
+        alloc->deallocate(p_buf);
     }
     persist_bufs.clear();
+
+    alloc->release();
 }
 #endif

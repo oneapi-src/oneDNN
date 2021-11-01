@@ -17,6 +17,7 @@
 #ifndef INTERFACE_ALLOCATOR_HPP
 #define INTERFACE_ALLOCATOR_HPP
 
+#include <atomic>
 #include <cstdlib>
 #include <unordered_map>
 
@@ -34,7 +35,60 @@
 #endif
 
 struct dnnl_graph_allocator final : public dnnl::graph::impl::utils::id_t {
+private:
+    // Make constructor and destructor private, so that users can only create
+    // and destroy allocator through the public static creator and release
+    // method.
+    dnnl_graph_allocator() = default;
+
+    dnnl_graph_allocator(dnnl_graph_cpu_allocate_f cpu_malloc,
+            dnnl_graph_cpu_deallocate_f cpu_free)
+        : cpu_malloc_ {cpu_malloc}, cpu_free_ {cpu_free} {}
+
+#if DNNL_GRAPH_WITH_SYCL
+    dnnl_graph_allocator(dnnl_graph_sycl_allocate_f sycl_malloc,
+            dnnl_graph_sycl_deallocate_f sycl_free)
+        : sycl_malloc_(sycl_malloc), sycl_free_(sycl_free) {}
+#endif
+
+    ~dnnl_graph_allocator() = default;
+
 public:
+    // CAVEAT: The invocation number of release() should be exactly equal to the
+    // added invocation number of create() and retain(). Otherwise, error will
+    // occur!
+
+    // This function increments the reference count
+    void retain() {
+        counter_.fetch_add(1, std::memory_order::memory_order_relaxed);
+    }
+
+    // This function decrements the reference count. If the reference count is
+    // decremented to zero, the object will be destroyed.
+    void release() {
+        if (counter_.fetch_sub(1, std::memory_order_relaxed) == 1) {
+            delete this;
+        }
+    }
+
+    // The following three static functions are used to create an allocator
+    // object. The initial reference count of created object is 1.
+    static dnnl_graph_allocator *create() {
+        return new dnnl_graph_allocator {};
+    }
+
+    static dnnl_graph_allocator *create(dnnl_graph_cpu_allocate_f cpu_malloc,
+            dnnl_graph_cpu_deallocate_f cpu_free) {
+        return new dnnl_graph_allocator {cpu_malloc, cpu_free};
+    }
+
+#if DNNL_GRAPH_WITH_SYCL
+    static dnnl_graph_allocator *create(dnnl_graph_sycl_allocate_f sycl_malloc,
+            dnnl_graph_sycl_deallocate_f sycl_free) {
+        return new dnnl_graph_allocator {sycl_malloc, sycl_free};
+    }
+#endif
+
     /// Allocator attributes
     struct attribute_t {
         friend struct dnnl_graph_allocator;
@@ -105,18 +159,6 @@ public:
         static size_t get_total_persist_memory(
                 const dnnl_graph_allocator *alloc);
     };
-
-    dnnl_graph_allocator() = default;
-
-    dnnl_graph_allocator(dnnl_graph_cpu_allocate_f cpu_malloc,
-            dnnl_graph_cpu_deallocate_f cpu_free)
-        : cpu_malloc_ {cpu_malloc}, cpu_free_ {cpu_free} {}
-
-#if DNNL_GRAPH_WITH_SYCL
-    dnnl_graph_allocator(dnnl_graph_sycl_allocate_f sycl_malloc,
-            dnnl_graph_sycl_deallocate_f sycl_free)
-        : sycl_malloc_(sycl_malloc), sycl_free_(sycl_free) {}
-#endif
 
     void *allocate(size_t n, attribute_t attr = {}) const {
         void *buffer = cpu_malloc_(n, attr.data);
@@ -195,6 +237,8 @@ private:
     dnnl_graph_sycl_deallocate_f sycl_free_ {
             dnnl::graph::impl::utils::sycl_allocator_t::free};
 #endif
+
+    std::atomic<int32_t> counter_ {1}; // align to oneDNN to use int32_t type
 };
 
 #endif

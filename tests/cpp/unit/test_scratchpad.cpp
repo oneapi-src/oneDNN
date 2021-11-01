@@ -29,7 +29,7 @@ TEST(scratchpad, temporary_scratchpad) {
     using dnnl::graph::impl::allocator_t;
     using dnnl::graph::impl::dnnl_impl::temporary_scratchpad_t;
 
-    allocator_t alloc;
+    allocator_t &alloc = *allocator_t::create();
     dnnl::engine eng(dnnl::engine::kind::cpu, 0);
 
     // No seg fault here because the memory will be deleted when
@@ -47,6 +47,7 @@ TEST(scratchpad, temporary_scratchpad) {
         // the scratchpad size will be changed
         ASSERT_EQ(buf_sizes[i], scratchpad.size());
     }
+    alloc.release();
 }
 
 TEST(scratchpad, registry) {

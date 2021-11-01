@@ -41,10 +41,12 @@ void sycl_free(void *ptr, const void *ctx) {
 impl::engine_t &get_engine(impl::engine_kind_t engine_kind) {
     UNUSED(engine_kind);
 #if DNNL_GRAPH_WITH_SYCL
-    static impl::allocator_t sycl_allocator(sycl_alloc, sycl_free);
+    static auto sycl_allocator = std::shared_ptr<impl::allocator_t>(
+            impl::allocator_t::create(sycl_alloc, sycl_free),
+            [](impl::allocator_t *alloc) { alloc->release(); });
     static impl::engine_t eng(
             impl::engine_kind::gpu, get_device(), get_context());
-    eng.set_allocator(&sycl_allocator);
+    eng.set_allocator(sycl_allocator.get());
 #else
     static impl::engine_t eng(impl::engine_kind::cpu, 0);
 #endif

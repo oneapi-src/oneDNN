@@ -31,7 +31,7 @@ public:
     explicit dnnl_graph_engine(
             dnnl::graph::impl::engine_kind_t kind, int device_id)
         : kind_(kind), device_id_(device_id) {
-        allocator_.reset(new dnnl::graph::impl::allocator_t {},
+        allocator_.reset(dnnl::graph::impl::allocator_t::create(),
                 default_destroy_allocator);
     }
 
@@ -42,7 +42,7 @@ public:
     dnnl_graph_engine(dnnl::graph::impl::engine_kind_t kind,
             const cl::sycl::device &dev, const cl::sycl::context &ctx)
         : kind_(kind), dev_(dev), ctx_(ctx) {
-        allocator_.reset(new dnnl::graph::impl::allocator_t {},
+        allocator_.reset(dnnl::graph::impl::allocator_t::create(),
                 default_destroy_allocator);
     }
 #endif
@@ -80,7 +80,7 @@ public:
 private:
     static void default_destroy_allocator(
             dnnl::graph::impl::allocator_t *alloc) {
-        delete alloc;
+        alloc->release();
     }
 
     static void dummy_destroy_allocator(dnnl::graph::impl::allocator_t *) {}

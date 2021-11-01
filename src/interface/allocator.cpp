@@ -29,9 +29,9 @@ status_t DNNL_GRAPH_API dnnl_graph_allocator_create(
         allocator_t **created_allocator, cpu_allocate_f cpu_malloc,
         cpu_deallocate_f cpu_free) {
     if (utils::any_null(cpu_malloc, cpu_free)) {
-        *created_allocator = new allocator_t {};
+        *created_allocator = allocator_t::create();
     } else {
-        *created_allocator = new allocator_t {cpu_malloc, cpu_free};
+        *created_allocator = allocator_t::create(cpu_malloc, cpu_free);
     }
     return status::success;
 }
@@ -41,9 +41,9 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(
         sycl_deallocate_f sycl_free) {
 #if DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(sycl_malloc, sycl_free)) {
-        *created_allocator = new allocator_t {};
+        *created_allocator = allocator_t::create();
     } else {
-        *created_allocator = new allocator_t {sycl_malloc, sycl_free};
+        *created_allocator = allocator_t::create(sycl_malloc, sycl_free);
     }
     return status::success;
 #else
@@ -55,7 +55,8 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_allocator_destroy(allocator_t *allocator) {
-    delete allocator;
+    if (allocator == nullptr) return status::invalid_argument;
+    allocator->release();
     return status::success;
 }
 

@@ -42,9 +42,13 @@ struct constant_buffer_t {
         : size_(size), p_engine_(p_engine), alc_(alc) {
         data_ = dnnl_allocator_t::malloc(
                 size, p_engine, alc, impl::allocator_lifetime::persistent);
+        const_cast<impl::allocator_t *>(alc)->retain();
     }
 
-    ~constant_buffer_t() { dnnl_allocator_t::free(data_, p_engine_, alc_); }
+    ~constant_buffer_t() {
+        dnnl_allocator_t::free(data_, p_engine_, alc_);
+        const_cast<impl::allocator_t *>(alc_)->release();
+    }
 
     template <typename T>
     T *data() {
