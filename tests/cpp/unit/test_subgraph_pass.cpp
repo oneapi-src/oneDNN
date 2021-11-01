@@ -792,11 +792,11 @@ TEST_P(int8_matmul_pass_test, int8_matmul_layout_propagation) {
 
 INSTANTIATE_TEST_SUITE_P(int8_matmul_test_instance, int8_matmul_pass_test,
         testing::Values(ut_int8_matmul_params {{1, 1024}, {1000, 1024}, {1000},
-                                {1, 1000}, false, true, false, 8, 4},
+                                {1, 1000}, false, true, false, 8, 5},
                 ut_int8_matmul_params {{1, 1024}, {1000, 1024}, {1000},
                         {1, 1000}, false, true, true, 8, 5},
                 ut_int8_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3},
-                        false, true, false, 9, 5},
+                        false, true, false, 9, 6},
                 ut_int8_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3},
                         false, true, true, 9, 6}));
 
