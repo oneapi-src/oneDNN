@@ -32,6 +32,7 @@
 #include "cpu/x64/jit_uni_reorder.hpp"
 
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_avx512_core_fp16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 // #define TR_DEBUG
@@ -165,17 +166,19 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         using namespace data_type;
 
         bool ok = true && p.ndims > 0
-                && utils::one_of(p.itype, f32, bf16, s32, s8, u8)
-                && utils::one_of(p.otype, f32, bf16, s32, s8, u8)
-                && IMPLICATION(p.itype == bf16,
-                        utils::one_of(p.otype, s8, u8, f32, bf16))
-                && IMPLICATION(p.otype == bf16,
-                        utils::one_of(p.itype, s8, u8, f32, bf16))
+                && utils::one_of(p.itype, f32, bf16, f16, s32, s8, u8)
+                && utils::one_of(p.otype, f32, bf16, f16, s32, s8, u8)
+                && IMPLICATION(utils::one_of(p.itype, bf16, f16),
+                        utils::one_of(p.otype, s8, u8, f32, bf16, f16))
+                && IMPLICATION(utils::one_of(p.otype, bf16, f16),
+                        utils::one_of(p.itype, s8, u8, f32, bf16, f16))
                 && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
                 && simple_impl_desc_init(p, nullptr) && mayiuse(sse41)
-                && IMPLICATION((p.itype == bf16 || p.otype == bf16),
+                && IMPLICATION(utils::one_of(bf16, p.itype, p.otype),
                         mayiuse(avx512_core))
+                && IMPLICATION(utils::one_of(f16, p.itype, p.otype),
+                        mayiuse(avx512_core_fp16))
                 && prb_has_small_strides(p);
 
         return ok;
@@ -261,6 +264,12 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                               vpmovzxwd(dst, src);
                               vpslld(dst, dst, 0x10);
                               break;
+                          case f16:
+                              if (src.isMEM())
+                                  vcvtph2psx(dst, src);
+                              else
+                                  vcvtph2psx(dst, Xmm(src.getIdx()));
+                              break;
                           case s32: vcvtdq2ps(dst, src); break;
                           case s8:
                               vpmovsxbd(dst, src);
@@ -279,7 +288,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             const Xmm xmm = Xmm(ymm.getIdx());
             switch (odt) {
                 case bf16:
-                    if (utils::one_of(idt, f32, s8, u8)) {
+                    if (utils::one_of(idt, f32, f16, s8, u8)) {
                         if (idt != f32) cvt2ps(ymm, ymm, idt);
                         if (mayiuse(avx512_core_bf16)) {
                             vcvtneps2bf16(Xmm(ymm.getIdx()), ymm);
@@ -287,6 +296,12 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                             bf16_emu_->vcvtneps2bf16(
                                     Ymm(ymm.getIdx()), Zmm(ymm.getIdx()));
                         }
+                    }
+                    break;
+                case f16:
+                    if (utils::one_of(idt, f32, bf16, s8, u8)) {
+                        if (idt != f32) cvt2ps(ymm, ymm, idt);
+                        vcvtps2ph(Xmm(ymm.getIdx()), ymm, _op_mxcsr);
                     }
                     break;
                 case s32:
@@ -298,9 +313,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         vpmovzxbd(ymm, ymm);
                     break;
                 case s8:
-                    if (idt == bf16) cvt2ps(ymm, ymm, idt);
-                    if (utils::one_of(idt, f32, bf16)) vcvtps2dq(ymm, ymm);
-                    if (utils::one_of(idt, bf16, f32, s32)) {
+                    if (utils::one_of(idt, bf16, f16)) cvt2ps(ymm, ymm, idt);
+                    if (utils::one_of(idt, f32, bf16, f16)) vcvtps2dq(ymm, ymm);
+                    if (utils::one_of(idt, bf16, f16, f32, s32)) {
                         if (mayiuse(avx512_core)) {
                             vpmovsdb(xmm, ymm);
                         } else {
@@ -312,9 +327,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     if (idt == u8) vpminub(ymm, ymm, ymm_8x127b_);
                     break;
                 case u8:
-                    if (idt == bf16) cvt2ps(ymm, ymm, idt);
-                    if (utils::one_of(idt, f32, bf16)) vcvtps2dq(ymm, ymm);
-                    if (utils::one_of(idt, bf16, f32, s32)) {
+                    if (utils::one_of(idt, bf16, f16)) cvt2ps(ymm, ymm, idt);
+                    if (utils::one_of(idt, f32, bf16, f16)) vcvtps2dq(ymm, ymm);
+                    if (utils::one_of(idt, bf16, f16, f32, s32)) {
                         if (mayiuse(avx512_core)) {
                             vpmaxsd(ymm, ymm, ymm_zero_);
                             vpmovusdb(xmm, ymm);
@@ -415,8 +430,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         // have to be equal to 1.
 
         return mayiuse(avx2) && prb_.ndims >= 2
-                && ((utils::one_of(prb_.itype, u8, s8, s32, f32, bf16)
-                        && utils::one_of(prb_.otype, u8, s8, s32, f32, bf16)))
+                && ((utils::one_of(prb_.itype, u8, s8, s32, f32, bf16, f16)
+                        && utils::one_of(
+                                prb_.otype, u8, s8, s32, f32, bf16, f16)))
                 && utils::everyone_is(desirable_node_size, prb_.n(0), prb_.n(1))
                 && utils::everyone_is(desirable_stride, prb_.os(0), prb_.is(1))
                 && !prb_.is_tail_present
@@ -548,6 +564,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                                   break;
                               } else
                                   assert("unreachable!");
+                          case f16: vcvtph2ps(dst, src); break;
                           case s32: uni_vcvtdq2ps(dst, src); break;
                           case s8:
                               uni_vpmovsxbd(dst, src);
@@ -566,7 +583,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             switch (odt) {
                 case bf16:
                     if (!mayiuse(avx)) assert(!"unreachable");
-                    if (utils::one_of(idt, f32, s8, u8)) {
+                    if (utils::one_of(idt, f32, f16, s8, u8)) {
                         if (idt != f32) cvt2ps(xmm, xmm, idt);
                         if (mayiuse(avx512_core_bf16)) {
                             vcvtneps2bf16(xmm, xmm);
@@ -574,6 +591,13 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                             bf16_emu_->vcvtneps2bf16(
                                     Ymm(xmm.getIdx()), Zmm(xmm.getIdx()));
                         }
+                    }
+                    break;
+                case f16:
+                    if (!mayiuse(avx)) assert(!"unreachable");
+                    if (utils::one_of(idt, f32, bf16, s8, u8)) {
+                        if (idt != f32) cvt2ps(xmm, xmm, idt);
+                        vcvtps2ph(xmm, xmm, _op_mxcsr);
                     }
                     break;
                 case s32:
@@ -585,9 +609,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         uni_vpmovzxbd(xmm, xmm);
                     break;
                 case s8:
-                    if (idt == bf16) cvt2ps(xmm, xmm, idt);
-                    if (utils::one_of(idt, f32, bf16)) uni_vcvtps2dq(xmm, xmm);
-                    if (utils::one_of(idt, bf16, f32, s32)) {
+                    if (utils::one_of(idt, bf16, f16)) cvt2ps(xmm, xmm, idt);
+                    if (utils::one_of(idt, f32, bf16, f16))
+                        uni_vcvtps2dq(xmm, xmm);
+                    if (utils::one_of(idt, bf16, f16, f32, s32)) {
                         if (mayiuse(avx512_core)) {
                             vpmovsdb(xmm, xmm);
                         } else {
@@ -598,9 +623,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     if (idt == u8) uni_vpminub(xmm, xmm, xmm_4x127b_);
                     break;
                 case u8:
-                    if (idt == bf16) cvt2ps(xmm, xmm, idt);
-                    if (utils::one_of(idt, f32, bf16)) uni_vcvtps2dq(xmm, xmm);
-                    if (utils::one_of(idt, bf16, f32, s32)) {
+                    if (utils::one_of(idt, bf16, f16)) cvt2ps(xmm, xmm, idt);
+                    if (utils::one_of(idt, f32, bf16, f16))
+                        uni_vcvtps2dq(xmm, xmm);
+                    if (utils::one_of(idt, bf16, f16, f32, s32)) {
                         if (mayiuse(avx512_core)) {
                             vpmaxsd(xmm, xmm, xmm_zero_);
                             vpmovusdb(xmm, xmm);
@@ -866,7 +892,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         } else if (utils::one_of(prb_.otype, s8, u8)) {
                             uni_vpinsrb(
                                     xmm_tmp_, xmm_tmp_, o_addr(o_off[ur]), 0x0);
-                        } else if (prb_.otype == bf16) {
+                        } else if (utils::one_of(prb_.otype, bf16, f16)) {
                             uni_vpinsrw(
                                     xmm_tmp_, xmm_tmp_, o_addr(o_off[ur]), 0x0);
                         } else {

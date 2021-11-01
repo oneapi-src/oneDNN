@@ -18,20 +18,81 @@
 #include "common/dnnl_thread.hpp"
 
 #include "cpu/platform.hpp"
+#if DNNL_X64
+#include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/jit_avx512_core_fp16cvt.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
 
+bool try_cvt_float_to_float16(float16_t *out, const float *inp) {
+#if DNNL_X64
+    if (cpu::platform::has_data_type_support(data_type::f16)) {
+        cpu::x64::f16_support::jit_call_t p;
+        p.inp = (void *)inp;
+        p.out = (void *)out;
+        static const cpu::x64::jit_avx512_core_fp16_cvt_ps_to_f16_t
+                cvt_one_ps_to_f16(1);
+        cvt_one_ps_to_f16(&p);
+        return true;
+    }
+#endif
+    return false;
+}
+
 void cvt_float_to_float16(float16_t *out, const float *inp, size_t nelems) {
+#if DNNL_X64
+    if (cpu::platform::has_data_type_support(data_type::f16)) {
+        cpu::x64::f16_support::jit_call_t p_;
+        p_.inp = (void *)inp;
+        p_.out = (void *)out;
+        p_.nelems = nelems;
+        static const cpu::x64::jit_avx512_core_fp16_cvt_ps_to_f16_t
+                cvt_ps_to_f16;
+        cvt_ps_to_f16(&p_);
+        return;
+    }
+#endif
+
     PRAGMA_OMP_SIMD()
     for (size_t i = 0; i < nelems; ++i)
         out[i] = static_cast<float16_t>(inp[i]);
 }
 
 void cvt_float16_to_float(float *out, const float16_t *inp, size_t nelems) {
+#if DNNL_X64
+    if (cpu::platform::has_data_type_support(data_type::f16)) {
+        static const cpu::x64::jit_avx512_core_fp16_cvt_f16_to_ps_t kernel(
+                false);
+        return kernel(out, inp, nelems);
+    }
+#endif
+
     PRAGMA_OMP_SIMD()
     for (size_t i = 0; i < nelems; ++i)
         out[i] = inp[i];
+}
+
+void add_floats_and_cvt_to_float16(
+        float16_t *out, const float *inp0, const float *inp1, size_t nelems) {
+#if DNNL_X64
+    if (cpu::platform::has_data_type_support(data_type::f16)) {
+        cpu::x64::f16_support::jit_call_t p_;
+        p_.inp = (void *)inp0;
+        p_.add = (void *)inp1;
+        p_.out = (void *)out;
+        p_.nelems = nelems;
+        static const cpu::x64::jit_avx512_core_fp16_add_cvt_ps_to_f16_t
+                add_cvt_ps_to_f16;
+        add_cvt_ps_to_f16(&p_);
+        return;
+    }
+#endif
+
+    PRAGMA_OMP_SIMD()
+    for (size_t i = 0; i < nelems; ++i)
+        out[i] = static_cast<float16_t>(inp0[i] + inp1[i]);
 }
 
 } // namespace impl

@@ -127,6 +127,12 @@ inline float16_t::operator float() const {
 void cvt_float_to_float16(float16_t *out, const float *inp, size_t nelems);
 void cvt_float16_to_float(float *out, const float16_t *inp, size_t nelems);
 
+// performs element-by-element sum of inp and add float arrays and stores
+// result to float16 out array with downconversion
+// out[:] = (float16_t)(inp0[:] + inp1[:])
+void add_floats_and_cvt_to_float16(
+        float16_t *out, const float *inp0, const float *inp1, size_t nelems);
+
 } // namespace impl
 } // namespace dnnl
 
