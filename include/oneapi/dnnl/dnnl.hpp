@@ -1329,6 +1329,8 @@ struct memory : public handle<dnnl_memory_t> {
         /// permuted 4D tensor
         acdb = dnnl_acdb,
         /// permuted 4D tensor
+        adbc = dnnl_adbc,
+        /// permuted 4D tensor
         bacd = dnnl_bacd,
         /// permuted 4D tensor
         bcda = dnnl_bcda,

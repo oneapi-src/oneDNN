@@ -710,6 +710,7 @@ typedef enum {
     dnnl_aBC16b32c,
     dnnl_AB16a16b,
     dnnl_AB16a32b,
+    dnnl_adbc,
 
     /// Just a sentinel, not real memory format tag. Must be changed after new
     /// format tag is added.

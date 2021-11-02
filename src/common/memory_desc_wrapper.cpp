@@ -165,6 +165,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(abdefc, {0, 1, 3, 4, 5, 2}, {}, {});
         C(acdb, {0, 2, 3, 1}, {}, {});
         C(acdeb, {0, 2, 3, 4, 1}, {}, {});
+        C(adbc, {0, 3, 1, 2}, {}, {});
         C(ba, {1, 0}, {}, {});
         C(bac, {1, 0, 2}, {}, {});
         C(bacd, {1, 0, 2, 3}, {}, {});
