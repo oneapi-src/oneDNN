@@ -94,7 +94,7 @@ endif()
 if(DNNL_GRAPH_CPU_RUNTIME MATCHES "OMP")
     if(OpenMP_CXX_FOUND)
         if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-            list(APPEND EXTRA_SHARED_LIBS ${OpenMP_CXX_LIBRARIES})
+            list(APPEND DNNL_GRAPH_EXTRA_SHARED_LIBS ${OpenMP_CXX_LIBRARIES})
         endif()
     else()
         message(${_omp_severity} "OpenMP library could not be found. "

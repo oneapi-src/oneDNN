@@ -51,7 +51,7 @@ endfunction()
 #   arg4 -- (optional) list of extra library dependencies
 function(register_exe name srcs test)
     add_executable(${name} ${srcs})
-    target_link_libraries(${name} ${LIB_NAME} ${EXTRA_SHARED_LIBS} ${ARGV3})
+    target_link_libraries(${name} ${LIB_NAME} ${DNNL_GRAPH_EXTRA_SHARED_LIBS} ${ARGV3})
     if("x${test}" STREQUAL "xtest")
         add_graph_test(${name} ${name})
         maybe_configure_windows_test(${name} TEST)
@@ -85,3 +85,20 @@ macro(listsubdir res curdir)
   endforeach()
   set(${res} ${dirlist})
 endmacro()
+
+function(target_link_libraries_build target list)
+    # Foreach is required for compatibility with 2.8.11 ways
+    foreach(lib ${list})
+        target_link_libraries(${target} LINK_PUBLIC
+            "$<BUILD_INTERFACE:${lib}>")
+    endforeach(lib)
+endfunction()
+
+function(target_link_libraries_install target list)
+    # Foreach is required for compatibility with 2.8.11 ways
+    foreach(lib ${list})
+        get_filename_component(base "${lib}" NAME)
+        target_link_libraries(${target} LINK_PUBLIC
+            "$<INSTALL_INTERFACE:${base}>")
+    endforeach(lib)
+endfunction()

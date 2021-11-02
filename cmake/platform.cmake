@@ -26,8 +26,7 @@ set(dnnl_graph_platform_cmake_included true)
 
 include("cmake/utils.cmake")
 
-# todo(xinyu): support static link on windows platform
-if(WIN32)
+if (DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
     add_definitions(-DDNNL_GRAPH_DLL_EXPORTS)
 endif()
 

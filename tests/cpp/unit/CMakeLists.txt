@@ -27,8 +27,10 @@ add_subdirectory(interface)
 add_subdirectory(backend)
 
 get_property(UNIT_TEST_DEPS GLOBAL PROPERTY ${LIB_NAME}_UNIT_TEST_DEPS)
+get_property(LIB_DEPS GLOBAL PROPERTY ${LIB_NAME}_LIB_DEPS)
 
-add_executable(${LIB_NAME}_unit_test ${COMMON_UNIT_TESTS} ${UNIT_TEST_DEPS})
+add_executable(${LIB_NAME}_unit_test ${COMMON_UNIT_TESTS} ${UNIT_TEST_DEPS} ${LIB_DEPS})
+
 # Set path to non exported headers
 target_include_directories(${LIB_NAME}_unit_test
     PRIVATE
@@ -37,12 +39,12 @@ target_include_directories(${LIB_NAME}_unit_test
     PRIVATE
     ${PROJECT_SOURCE_DIR}/src/
     )
+
 target_link_libraries(${LIB_NAME}_unit_test
     LINK_PRIVATE
     ${DNNL_GRAPH_TEST_LINK_FLAGS}
     ${LIB_NAME}_gtest
-    ${LIB_NAME}_static # Use static to access private symbols not available in public API
-    ${EXTRA_SHARED_LIBS}
+    ${DNNL_GRAPH_EXTRA_SHARED_LIBS}
     ${DNNL_GRAPH_COMMON_LINK_FLAGS} # FIXME: consider target_link_options from cmake 3.13
     )
 

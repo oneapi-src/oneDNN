@@ -36,6 +36,5 @@ if(NOT TARGET @LIB_NAME@)
 endif()
 
 set(DNNL_GRAPH_SHARED_LIBRARIES @LIB_NAME@::@LIB_NAME@)
-set(DNNL_GRAPH_STATIC_LIBRARIES @LIB_NAME@::@LIB_NAME@_static)
 
 check_required_components("@LIB_NAME@")

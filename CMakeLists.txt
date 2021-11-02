@@ -88,7 +88,6 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "")
 endif()
 
 # oneDNN Graph
-
 set(LIB_NAME dnnl_graph)
 set(PROJECT_NAME "oneDNN Graph")
 set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library Graph API (oneDNN Graph)")
@@ -108,7 +107,6 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 include("cmake/options.cmake")
-
 include("cmake/SYCL.cmake")
 
 # Let SYCL to choose the C++ standard it needs.
@@ -142,11 +140,11 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif()
 
 include("cmake/build_oneDNN.cmake")
-
 include("cmake/utils.cmake")
 
 include_directories(include)
 
+set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS)
 set(DNNL_GRAPH_COMMON_LINK_FLAGS)
 
 if(${DNNL_GRAPH_ENABLE_ASAN})
@@ -175,6 +173,7 @@ endif()
 if(NOT WIN32)
     include("cmake/check_headers.cmake")
 endif()
+
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
 include("cmake/OpenMP.cmake")
