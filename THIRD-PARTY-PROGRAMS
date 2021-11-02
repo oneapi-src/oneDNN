@@ -17,7 +17,6 @@ terms are listed below.
 Copyright (c) 2007 MITSUNARI Shigeo
 All rights reserved.
 
-Modified BSD License
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -43,27 +42,6 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 THE POSSIBILITY OF SUCH DAMAGE.
 
-
-ソースコード形式かバイナリ形式か、変更するかしないかを問わず、以下の条件を満た
-す場合に限り、再頒布および使用が許可されます。
-
-ソースコードを再頒布する場合、上記の著作権表示、本条件一覧、および下記免責条項
-を含めること。
-バイナリ形式で再頒布する場合、頒布物に付属のドキュメント等の資料に、上記の著作
-権表示、本条件一覧、および下記免責条項を含めること。
-書面による特別の許可なしに、本ソフトウェアから派生した製品の宣伝または販売促進
-に、著作権者の名前またはコントリビューターの名前を使用してはならない。
-本ソフトウェアは、著作権者およびコントリビューターによって「現状のまま」提供さ
-れており、明示黙示を問わず、商業的な使用可能性、および特定の目的に対する適合性
-に関する暗黙の保証も含め、またそれに限定されない、いかなる保証もありません。
-著作権者もコントリビューターも、事由のいかんを問わず、 損害発生の原因いかんを
-問わず、かつ責任の根拠が契約であるか厳格責任であるか（過失その他の）不法行為で
-あるかを問わず、仮にそのような損害が発生する可能性を知らされていたとしても、
-本ソフトウェアの使用によって発生した（代替品または代用サービスの調達、使用の
-喪失、データの喪失、利益の喪失、業務の中断も含め、またそれに限定されない）直接
-損害、間接損害、偶発的な損害、特別損害、懲罰的損害、または結果損害について、
-一切責任を負わないものとします。
-
 ------------------------------------------------------------------
 2.  Googletest (tests/gtests/gtest/)
 Copyright 2005, Google Inc.
@@ -72,8 +50,6 @@ Copyright 2007, Google Inc.
 Copyright 2008, Google Inc.
 Copyright 2015, Google Inc.
 All rights reserved.
-
-Modified BSD License
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -103,7 +79,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------
 3. Intel oneAPI Deep Neural Network Library
-Copyright 2018-2020 Intel Corporation
+   Copyright 2018-2020 Intel Corporation
+
+   Mathjax
+
+   roboto-fontface
 
 Apache License, Version 2.0
 
@@ -321,12 +301,100 @@ SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
 FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+-----------------------------------------------------------------------
+5. Font-awesome v4.7.0
+
+   roboto-fontface
+
+SIL OPEN FONT LICENSE
+Version 1.1 - 26 February 2007
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded,
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting — in part or in whole — any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.
+
 
 -----------------------------------------------------------------------
 
-The following third party programs have their own third party program files.
-These additional third party program files are as follows:
+The following third party programs have their own third party program files. These additional third party program files are as follows:
 
-1. Intel oneAPI Deep Neural Network Library: Third Party Programs File is
-enclosed separately and also available at:
-https://github.com/oneapi-src/oneDNN/blob/master/THIRD-PARTY-PROGRAMS.
+1. Intel oneAPI Deep Neural Network Library: Third Party Programs File is enclosed separately and also available at: https://github.com/oneapi-src/oneDNN/blob/master/THIRD-PARTY-PROGRAMS.
