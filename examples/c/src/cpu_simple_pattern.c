@@ -532,7 +532,6 @@ int main(int argc, char **argv) {
     DNNL_GRAPH_CHECK(dnnl_graph_stream_destroy(stream));
     printf("Success!\n");
 
-    DNNL_GRAPH_CHECK(dnnl_graph_set_compiled_partition_cache_capacity(0));
     // release resource
     for (int i = 0; i < partitions_num; i++) {
         DNNL_GRAPH_CHECK(

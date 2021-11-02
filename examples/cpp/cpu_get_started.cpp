@@ -317,8 +317,6 @@ void cpu_get_started_tutorial() {
     cp1.execute(strm, {relu0_dst, conv1_weight, conv1_bias}, {relu1_dst});
     //[Execute compiled partition 1]
 
-    set_compiled_partition_cache_capacity(0);
-
     /// @page cpu_get_started_cpp Getting started on CPU
     // clang-format on
 }
