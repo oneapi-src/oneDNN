@@ -517,7 +517,7 @@ static bool match_output(op_ptr op, match_context_ptr ctx,
         }
         return false;
     }
-    node_tracker_ptr n_tracker = ctx->node_tracker_map[op];
+    node_tracker_ptr n_tracker = find_node_tracker(op, ctx);
     auto val = op->get_output_value(static_cast<size_t>(otask.port));
     auto con_ops = val->get_consumers();
     vector<bool> v

@@ -927,7 +927,7 @@ TEST(v2_pattern_test, optional) {
 // setting up the contact interface for nested patterns.
 //
 TEST(v2_pattern_test, complex_repetition) {
-    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(13);
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(20);
     auto graphp = make_shared<pb_graph_t>("pmaingraph");
     // Basic building block
     // Convolution + (BatchNormInference)? + ReLU
@@ -1021,6 +1021,19 @@ TEST(v2_pattern_test, complex_repetition) {
     b2->add_output(lt_vec[12]);
     match_t m3;
     EXPECT_FALSE(match_pattern(a2, graphp, m3));
+
+    graph_t gr4;
+    op_t *a4 = gr4.create_op(Convolution, "conv1");
+    a4->add_input(lt_vec[16]);
+    a4->add_input(lt_vec[17]);
+    op_t *b4 = gr4.create_op(ReLU, "relu1");
+    b4->fill_and_connect_input(0, *a4, 0);
+    op_t *c4 = gr4.create_op(Add, "add");
+    c4->fill_and_connect_input(0, *b4, 0);
+    c4->add_input(lt_vec[18]);
+    c4->add_output(lt_vec[19]);
+    match_t m4;
+    EXPECT_TRUE(match_pattern(a4, graphp, m4));
 }
 
 //
