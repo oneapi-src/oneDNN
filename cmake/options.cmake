@@ -99,7 +99,17 @@ set(DNNL_GRAPH_TEST_SET "CI" CACHE STRING
     When CI option is set, it enables a subset of test targets to run. When
     NIGHTLY option is set, it enables a broader set of test targets to run.")
 
+if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "DPCPP")
+    set(DNNL_GRAPH_CPU_SYCL true)
+    add_definitions(-DDNNL_GRAPH_CPU_SYCL)
+endif()
+
 if(DNNL_GRAPH_GPU_RUNTIME STREQUAL "DPCPP")
+    set(DNNL_GRAPH_GPU_SYCL true)
+    add_definitions(-DDNNL_GRAPH_GPU_SYCL)
+endif()
+
+if(DNNL_GRAPH_CPU_SYCL OR DNNL_GRAPH_GPU_SYCL)
     set(DNNL_GRAPH_WITH_SYCL true)
     add_definitions(-DDNNL_GRAPH_WITH_SYCL)
 endif()
