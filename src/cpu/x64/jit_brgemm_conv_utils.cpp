@@ -1477,11 +1477,11 @@ void brg_blocking_t::calc_blocks_1x1() {
         const auto max_os_block_L2 = max_sp_block_L2;
 
         auto max_os_block_aliasing = 1000000 / nthr;
-        if ((oc_without_padding * os * dst_dsz) % 4096 == 0) {
+        if ((oc_without_padding * os * dst_dsz) % P4K == 0) {
             max_os_block_aliasing /= 1;
             for (auto cur_oc = oc_without_padding;
                     max_os_block_aliasing * dst_dsz > 400 && cur_oc % 2 == 0
-                    && cur_oc * os * dst_dsz >= 4096;
+                    && cur_oc * os * dst_dsz >= P4K;
                     cur_oc /= 2) {
                 max_os_block_aliasing /= 2;
             }
@@ -1884,7 +1884,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // to avoid cache concurrent write access from different threads
     size_t sc_size = sizeof(brgemm_batch_element_t);
     jcp.adjusted_batch_size
-            = div_up(rnd_up(jcp.gemm_batch_size * sc_size, 4096), sc_size);
+            = div_up(rnd_up(jcp.gemm_batch_size * sc_size, P4K), sc_size);
 
     CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
     CHECK(attr.set_default_formats(&dst_md));
@@ -1918,10 +1918,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
         jcp.inp_buffer_size = rnd_up(ds * hs * jcp.iwp * jcp.ngroups * jcp.nb_ic
                         * jcp.ic_block * jcp.kh_sets * jcp.kw_sets,
-                4096);
+                P4K);
         jcp.inp_buffer_mask_size = rnd_up(static_cast<dim_t>(jcp.nb_od)
                         * jcp.nb_oh * jcp.nb_ow * jcp.ngroups * jcp.nb_ic,
-                4096);
+                P4K);
     }
 
     return status::success;
@@ -2036,7 +2036,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // to avoid cache concurrent access from different threads
     size_t sc_size = sizeof(brgemm_batch_element_t);
     jcp.adjusted_batch_size
-            = div_up(rnd_up(jcp.gemm_batch_size * sc_size, 4096), sc_size);
+            = div_up(rnd_up(jcp.gemm_batch_size * sc_size, P4K), sc_size);
 
     CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
     CHECK(attr.set_default_formats(&dst_md));
@@ -2092,24 +2092,24 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             || (jcp.brg_type == brgemm_strd && jcp.exec_type == exec_vpad))
         scratchpad.book(key_brgemm_primitive_batch,
                 static_cast<size_t>(jcp.nthr) * jcp.adjusted_batch_size,
-                sizeof(brgemm_batch_element_t), 64);
+                sizeof(brgemm_batch_element_t), 64, P4K);
     if (jcp.exec_type == exec_trans) {
         size_t inp_buffer_size
                 = static_cast<size_t>(jcp.nthr) * jcp.inp_buffer_size;
-        scratchpad.book(
-                key_conv_brgemm_inp_buffer, inp_buffer_size, jcp.src_dsz);
+        scratchpad.book(key_conv_brgemm_inp_buffer, inp_buffer_size,
+                jcp.src_dsz, 0, P4K);
         size_t inp_buffer_mask_size
                 = static_cast<size_t>(jcp.nthr) * jcp.inp_buffer_mask_size;
         scratchpad.book(key_conv_brgemm_inp_buffer_mask, inp_buffer_mask_size,
-                sizeof(uint8_t));
+                sizeof(uint8_t), 0, P4K);
     }
     if (jcp.use_buffer) {
         scratchpad.book(key_brgemm_primitive_buffer, jcp.nthr * jcp.buffer_size,
-                jcp.acc_dsz);
+                jcp.acc_dsz, 0, P4K);
     }
     if (is_amx(jcp.isa)) {
-        scratchpad.book(
-                key_conv_amx_tile_buffer, jcp.nthr * 4 * 1024, sizeof(char));
+        scratchpad.book(key_conv_amx_tile_buffer, jcp.nthr * 2 * P4K,
+                sizeof(char), 0, P4K);
     }
 }
 

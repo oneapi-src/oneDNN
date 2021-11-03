@@ -35,6 +35,8 @@ namespace x64 {
 
 namespace brgemm_convolution_utils {
 
+constexpr size_t P4K = 4096;
+
 bool is_amx(cpu_isa_t isa);
 
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,

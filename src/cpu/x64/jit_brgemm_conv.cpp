@@ -635,8 +635,9 @@ status_t brgemm_convolution_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
                 : nullptr;
         if (is_amx) {
             // Workaround: for some machines SEGFAULT possible on tile load
-            // if page was not touched before it
-            for (size_t i = 0; i < jcp.inp_buffer_size; i += 4096)
+            // if the page was not touched before it
+            for (size_t i = 0; i < jcp.inp_buffer_size;
+                    i += brgemm_convolution_utils::P4K)
                 inp_buffer[i] = 0;
         }
 
@@ -644,8 +645,9 @@ status_t brgemm_convolution_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
                 ? inp_p_buffer_mask + ithr * jcp.inp_buffer_mask_size
                 : nullptr;
 
-        char *const wsp_tile
-                = is_amx ? wsp_tile_global + ithr * 4 * 1024 : nullptr;
+        char *const wsp_tile = is_amx
+                ? wsp_tile_global + ithr * 2 * brgemm_convolution_utils::P4K
+                : nullptr;
         dim_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
         int n {0}, g {0}, ocb {0}, odb {0}, ohb {0}, owb {0};
