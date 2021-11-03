@@ -41,27 +41,40 @@ namespace dnnl_impl {
 
 void *dnnl_allocator_t::malloc(size_t size, const dnnl::engine &p_engine,
         const impl::allocator_t *alc, allocator_lifetime_t lifetime) {
-#if DNNL_GRAPH_WITH_SYCL
-    return alc->allocate(size, dnnl::sycl_interop::get_device(p_engine),
-            dnnl::sycl_interop::get_context(p_engine),
-            {lifetime, DNNL_SYCL_MEMALIGNMENT});
+    if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        return alc->allocate(size, dnnl::sycl_interop::get_device(p_engine),
+                dnnl::sycl_interop::get_context(p_engine),
+                {lifetime, DNNL_SYCL_MEMALIGNMENT});
 #else
-    return p_engine.get_kind() == dnnl::engine::kind::cpu
-            ? alc->allocate(size, {lifetime, DNNL_CPU_MEMALIGNMENT})
-            : nullptr;
+        return alc->allocate(size, {lifetime, DNNL_CPU_MEMALIGNMENT});
 #endif
+    } else if (p_engine.get_kind() == dnnl::engine::kind::gpu) {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        return alc->allocate(size, dnnl::sycl_interop::get_device(p_engine),
+                dnnl::sycl_interop::get_context(p_engine),
+                {lifetime, DNNL_SYCL_MEMALIGNMENT});
+#else
+        return nullptr;
+#endif
+    } else {
+        return nullptr;
+    }
 }
 
 void dnnl_allocator_t::free(
         void *p, const dnnl::engine &p_engine, const impl::allocator_t *alc) {
-#if DNNL_GRAPH_WITH_SYCL
-    return alc->deallocate(p, dnnl::sycl_interop::get_context(p_engine));
+    if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        return alc->deallocate(p, dnnl::sycl_interop::get_context(p_engine));
 #else
-    if (p_engine.get_kind() == dnnl::engine::kind::cpu)
         return alc->deallocate(p);
-    else
-        return;
 #endif
+    } else if (p_engine.get_kind() == dnnl::engine::kind::gpu) {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        return alc->deallocate(p, dnnl::sycl_interop::get_context(p_engine));
+#endif
+    }
 }
 
 format_tag get_default_format(size_t ndim) {
@@ -95,24 +108,49 @@ dims group_dims(const dims &adims, dim groups) {
 }
 
 dnnl::engine make_dnnl_engine(const impl::engine_t &g_engine) {
-#if DNNL_GRAPH_WITH_SYCL
-    return dnnl::sycl_interop::make_engine(
-            g_engine.sycl_device(), g_engine.sycl_context());
+    if (g_engine.kind() == impl::engine_kind::cpu) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        return dnnl::sycl_interop::make_engine(
+                g_engine.sycl_device(), g_engine.sycl_context());
 #else
-    return dnnl::engine(static_cast<dnnl::engine::kind>(g_engine.kind()),
-            static_cast<size_t>(g_engine.device_id()));
+        return dnnl::engine(static_cast<dnnl::engine::kind>(g_engine.kind()),
+                static_cast<size_t>(g_engine.device_id()));
 #endif
+    } else if (g_engine.kind() == impl::engine_kind::gpu) {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        return dnnl::sycl_interop::make_engine(
+                g_engine.sycl_device(), g_engine.sycl_context());
+#else
+        return dnnl::engine(static_cast<dnnl::engine::kind>(g_engine.kind()),
+                static_cast<size_t>(g_engine.device_id()));
+#endif
+    } else {
+        assert(!"only cpu and gpu engine are valid");
+        return {};
+    }
 }
 
 dnnl::stream make_dnnl_stream(
         const dnnl::engine &p_engine, const impl::stream_t &g_stream) {
-#if DNNL_GRAPH_WITH_SYCL
-    return dnnl::sycl_interop::make_stream(
-            p_engine, const_cast<cl::sycl::queue &>(g_stream.get_queue()));
-#else
     UNUSED(g_stream);
-    return dnnl::stream(p_engine);
+    if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        return dnnl::sycl_interop::make_stream(
+                p_engine, const_cast<cl::sycl::queue &>(g_stream.get_queue()));
+#else
+        return dnnl::stream(p_engine);
 #endif
+    } else if (p_engine.get_kind() == dnnl::engine::kind::gpu) {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        return dnnl::sycl_interop::make_stream(
+                p_engine, const_cast<cl::sycl::queue &>(g_stream.get_queue()));
+#else
+        return dnnl::stream(p_engine);
+#endif
+    } else {
+        assert(!"only cpu and gpu stream are valid");
+        return {};
+    }
 }
 
 dnnl::memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt) {
@@ -141,25 +179,32 @@ dnnl::memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt) {
     }
 }
 
+dnnl::memory make_dnnl_memory(const dnnl::memory::desc &md,
+        const dnnl::engine &p_engine, void *handle) {
+    if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        return dnnl::sycl_interop::make_memory(
+                md, p_engine, dnnl::sycl_interop::memory_kind::usm, handle);
+#else
+        return dnnl::memory(md, p_engine, handle);
+#endif
+    } else if (p_engine.get_kind() == dnnl::engine::kind::gpu) {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        return dnnl::sycl_interop::make_memory(
+                md, p_engine, dnnl::sycl_interop::memory_kind::usm, handle);
+#else
+        return dnnl::memory(md, p_engine, handle);
+#endif
+    } else {
+        assert(!"only cpu and gpu memory are valid");
+        return {};
+    }
+}
+
 dnnl::memory make_dnnl_memory(
         const impl::tensor_t &atensor, const dnnl::engine &p_engine) {
     dnnl::memory::desc md = make_dnnl_memory_desc(atensor.get_logical_tensor());
-#if DNNL_GRAPH_WITH_SYCL
-    return dnnl::sycl_interop::make_memory(md, p_engine,
-            dnnl::sycl_interop::memory_kind::usm, atensor.get_data_handle());
-#else
-    return dnnl::memory(md, p_engine, atensor.get_data_handle());
-#endif
-}
-
-dnnl::memory make_dnnl_memory(const dnnl::memory::desc &md,
-        const dnnl::engine &p_engine, void *handle) {
-#if DNNL_GRAPH_WITH_SYCL
-    return dnnl::sycl_interop::make_memory(
-            md, p_engine, dnnl::sycl_interop::memory_kind::usm, handle);
-#else
-    return dnnl::memory(md, p_engine, handle);
-#endif
+    return make_dnnl_memory(md, p_engine, atensor.get_data_handle());
 }
 
 // fill 1 in the front of adesc, to make its ndims to be same as tgt_ndims

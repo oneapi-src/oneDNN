@@ -64,18 +64,33 @@ public:
 
             auto *scale_shift_buf
                     = static_cast<char *>(scale_shift.get_data_handle());
-#if DNNL_GRAPH_WITH_SYCL
-            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-            q.memcpy(
-                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
-            q.memcpy(scale_shift_buf + scale.get_size(),
-                    shift.get_data_handle(), shift.get_size());
+            if (p_engine_.get_kind() == dnnl::engine::kind::cpu) {
+#if DNNL_GRAPH_CPU_SYCL
+                cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
+                q.memcpy(scale_shift_buf, scale.get_data_handle(),
+                        scale.get_size());
+                q.memcpy(scale_shift_buf + scale.get_size(),
+                        shift.get_data_handle(), shift.get_size());
 #else
-            std::memcpy(
-                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
-            std::memcpy(scale_shift_buf + scale.get_size(),
-                    shift.get_data_handle(), shift.get_size());
+                std::memcpy(scale_shift_buf, scale.get_data_handle(),
+                        scale.get_size());
+                std::memcpy(scale_shift_buf + scale.get_size(),
+                        shift.get_data_handle(), shift.get_size());
 #endif
+            } else {
+#if DNNL_GRAPH_GPU_SYCL
+                cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
+                q.memcpy(scale_shift_buf, scale.get_data_handle(),
+                        scale.get_size());
+                q.memcpy(scale_shift_buf + scale.get_size(),
+                        shift.get_data_handle(), shift.get_size());
+#else
+                std::memcpy(scale_shift_buf, scale.get_data_handle(),
+                        scale.get_size());
+                std::memcpy(scale_shift_buf + scale.get_size(),
+                        shift.get_data_handle(), shift.get_size());
+#endif
+            }
         }
 
         exec_args ln_args;
@@ -230,7 +245,7 @@ public:
         }
         return impl::status::success;
     }
-};
+}; // namespace dnnl_impl
 
 struct layer_normalization_backward_t
     : public dnnl::layer_normalization_backward {

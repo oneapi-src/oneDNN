@@ -210,18 +210,33 @@ private:
                         impl::allocator_lifetime::persistent};
             auto *scale_shift_buf
                     = static_cast<char *>(scale_shift_.get_data_handle());
-#if DNNL_GRAPH_WITH_SYCL
-            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-            q.memcpy(
-                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
-            q.memcpy(scale_shift_buf + scale.get_size(),
-                    shift.get_data_handle(), shift.get_size());
+            if (p_engine_.get_kind() == dnnl::engine::kind::cpu) {
+#if DNNL_GRAPH_CPU_SYCL
+                cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
+                q.memcpy(scale_shift_buf, scale.get_data_handle(),
+                        scale.get_size());
+                q.memcpy(scale_shift_buf + scale.get_size(),
+                        shift.get_data_handle(), shift.get_size());
 #else
-            std::memcpy(
-                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
-            std::memcpy(scale_shift_buf + scale.get_size(),
-                    shift.get_data_handle(), shift.get_size());
+                std::memcpy(scale_shift_buf, scale.get_data_handle(),
+                        scale.get_size());
+                std::memcpy(scale_shift_buf + scale.get_size(),
+                        shift.get_data_handle(), shift.get_size());
 #endif
+            } else {
+#if DNNL_GRAPH_GPU_SYCL
+                cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
+                q.memcpy(scale_shift_buf, scale.get_data_handle(),
+                        scale.get_size());
+                q.memcpy(scale_shift_buf + scale.get_size(),
+                        shift.get_data_handle(), shift.get_size());
+#else
+                std::memcpy(scale_shift_buf, scale.get_data_handle(),
+                        scale.get_size());
+                std::memcpy(scale_shift_buf + scale.get_size(),
+                        shift.get_data_handle(), shift.get_size());
+#endif
+            }
         }
 
         auto expected_src = src.reorder_if_differ_in(p_stream, pd_.src_desc());
@@ -379,16 +394,34 @@ private:
         scale_shift_ = dnnl_tensor_t {pd_.weights_desc(), p_engine_, alc};
         auto *scale_shift_buf
                 = static_cast<char *>(scale_shift_.get_data_handle());
-#if DNNL_GRAPH_WITH_SYCL
-        cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-        q.memcpy(scale_shift_buf, scale.get_data_handle(), scale.get_size());
-        q.memcpy(scale_shift_buf + scale.get_size(), shift.get_data_handle(),
-                shift.get_size());
+
+        if (p_engine_.get_kind() == dnnl::engine::kind::cpu) {
+#if DNNL_GRAPH_CPU_SYCL
+            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
+            q.memcpy(
+                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
+            q.memcpy(scale_shift_buf + scale.get_size(),
+                    shift.get_data_handle(), shift.get_size());
 #else
-        std::memcpy(scale_shift_buf, scale.get_data_handle(), scale.get_size());
-        std::memcpy(scale_shift_buf + scale.get_size(), shift.get_data_handle(),
-                shift.get_size());
+            std::memcpy(
+                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
+            std::memcpy(scale_shift_buf + scale.get_size(),
+                    shift.get_data_handle(), shift.get_size());
 #endif
+        } else {
+#if DNNL_GRAPH_GPU_SYCL
+            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
+            q.memcpy(
+                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
+            q.memcpy(scale_shift_buf + scale.get_size(),
+                    shift.get_data_handle(), shift.get_size());
+#else
+            std::memcpy(
+                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
+            std::memcpy(scale_shift_buf + scale.get_size(),
+                    shift.get_data_handle(), shift.get_size());
+#endif
+        }
 
         mean.reinit_if_possible(p_stream, pd_.mean_desc());
         variance.reinit_if_possible(p_stream, pd_.variance_desc());
@@ -586,20 +619,37 @@ private:
         diff_shift.reinit_if_possible(p_stream, scale.get_desc());
         auto *diff_scale_shift_buf
                 = static_cast<char *>(diff_scale_shift_.get_data_handle());
-#if DNNL_GRAPH_WITH_SYCL
-        cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-        q.memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
-                diff_scale.get_size());
-        q.memcpy(diff_shift.get_data_handle(),
-                diff_scale_shift_buf + diff_scale.get_size(),
-                diff_shift.get_size());
+        if (p_engine_.get_kind() == dnnl::engine::kind::cpu) {
+#if DNNL_GRAPH_CPU_SYCL
+            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
+            q.memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
+                    diff_scale.get_size());
+            q.memcpy(diff_shift.get_data_handle(),
+                    diff_scale_shift_buf + diff_scale.get_size(),
+                    diff_shift.get_size());
 #else
-        std::memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
-                diff_scale.get_size());
-        std::memcpy(diff_shift.get_data_handle(),
-                diff_scale_shift_buf + diff_scale.get_size(),
-                diff_shift.get_size());
+            std::memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
+                    diff_scale.get_size());
+            std::memcpy(diff_shift.get_data_handle(),
+                    diff_scale_shift_buf + diff_scale.get_size(),
+                    diff_shift.get_size());
 #endif
+        } else {
+#if DNNL_GRAPH_GPU_SYCL
+            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
+            q.memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
+                    diff_scale.get_size());
+            q.memcpy(diff_shift.get_data_handle(),
+                    diff_scale_shift_buf + diff_scale.get_size(),
+                    diff_shift.get_size());
+#else
+            std::memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
+                    diff_scale.get_size());
+            std::memcpy(diff_shift.get_data_handle(),
+                    diff_scale_shift_buf + diff_scale.get_size(),
+                    diff_shift.get_size());
+#endif
+        }
     }
 };
 

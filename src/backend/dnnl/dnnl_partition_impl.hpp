@@ -170,26 +170,34 @@ public:
             const std::vector<impl::tensor_t> &outputs,
             const cl::sycl::event *sycl_event) override {
         UNUSED(sycl_event);
-        std::vector<impl::tensor_t> ordered_inputs, ordered_outputs;
-        ordered_inputs.reserve(inputs_.size());
-        ordered_outputs.reserve(outputs_.size());
-        for (size_t i = 0; i < inputs_.size(); i++) {
-            assertm(perm_ins_[i] < inputs.size()
-                            && inputs[perm_ins_[i]].get_logical_tensor().id
-                                    == inputs_[i].id,
-                    "invalid inputs");
-            ordered_inputs.emplace_back(inputs[perm_ins_[i]]);
-        }
-        for (size_t i = 0; i < outputs_.size(); i++) {
-            assertm(perm_ins_[i] < inputs.size()
-                            && outputs[perm_outs_[i]].get_logical_tensor().id
-                                    == outputs_[i].id,
-                    "invalid inputs");
-            ordered_outputs.emplace_back(outputs[perm_outs_[i]]);
-        }
+        if (use_subgraph_) {
+            // In subgraph mode, we don't need to resort the inputs and outputs
+            return kernel_->execute((const dnnl_partition_impl_t *)nullptr,
+                    g_stream, inputs, outputs);
+        } else {
+            std::vector<impl::tensor_t> ordered_inputs, ordered_outputs;
+            ordered_inputs.reserve(inputs_.size());
+            ordered_outputs.reserve(outputs_.size());
+            for (size_t i = 0; i < inputs_.size(); i++) {
+                assertm(perm_ins_[i] < inputs.size()
+                                && inputs[perm_ins_[i]].get_logical_tensor().id
+                                        == inputs_[i].id,
+                        "invalid inputs");
+                ordered_inputs.emplace_back(inputs[perm_ins_[i]]);
+            }
+            for (size_t i = 0; i < outputs_.size(); i++) {
+                assertm(perm_ins_[i] < inputs.size()
+                                && outputs[perm_outs_[i]]
+                                                .get_logical_tensor()
+                                                .id
+                                        == outputs_[i].id,
+                        "invalid inputs");
+                ordered_outputs.emplace_back(outputs[perm_outs_[i]]);
+            }
 
-        return kernel_->execute(
-                op_.get(), g_stream, ordered_inputs, ordered_outputs);
+            return kernel_->execute(
+                    op_.get(), g_stream, ordered_inputs, ordered_outputs);
+        }
     }
 #endif
 
