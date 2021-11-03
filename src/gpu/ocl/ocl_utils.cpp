@@ -188,6 +188,27 @@ status_t get_ocl_program_binary(cl_kernel kernel, cl_device_id device,
     return get_ocl_program_binary(program, device, binary);
 }
 
+static std::string get_kernel_name(cl_kernel kernel) {
+    size_t name_size;
+    cl_int err = clGetKernelInfo(
+            kernel, CL_KERNEL_FUNCTION_NAME, 0, nullptr, &name_size);
+    // Ignore error.
+    if (err != CL_SUCCESS) return {};
+
+    // Include null terminator explicitly - to safely overwrite it in
+    // clGetKernelInfo
+    std::string name(name_size, 0);
+    err = clGetKernelInfo(
+            kernel, CL_KERNEL_FUNCTION_NAME, name_size, &name[0], nullptr);
+    // Ignore error.
+    if (err != CL_SUCCESS) return {};
+
+    // Remove the null terminator as std::string already includes it
+    name.resize(name_size - 1);
+
+    return name;
+}
+
 #if DNNL_ENABLE_JIT_DUMP
 
 void dump_kernel_binary(cl_kernel ocl_kernel) {
@@ -207,22 +228,9 @@ void dump_kernel_binary(cl_kernel ocl_kernel) {
     // Ignore error.
     if (err != CL_SUCCESS) return;
 
-    size_t name_size;
-    err = clGetKernelInfo(
-            ocl_kernel, CL_KERNEL_FUNCTION_NAME, 0, nullptr, &name_size);
+    auto name = get_kernel_name(ocl_kernel);
     // Ignore error.
-    if (err != CL_SUCCESS) return;
-
-    // Include null terminator explicitly - to safely overwrite it in
-    // clGetKernelInfo
-    std::string name(name_size, 0);
-    err = clGetKernelInfo(
-            ocl_kernel, CL_KERNEL_FUNCTION_NAME, name_size, &name[0], nullptr);
-    // Ignore error.
-    if (err != CL_SUCCESS) return;
-
-    // Remove the null terminator as std::string already includes it
-    name.resize(name_size - 1);
+    if (name.empty()) return;
 
     static std::mutex m;
     std::lock_guard<std::mutex> guard(m);
@@ -275,6 +283,27 @@ status_t get_kernel_arg_types(cl_kernel ocl_kernel,
                 &type, ocl_kernel, i, /*allow_undef=*/true));
         (*arg_types)[i] = type;
     }
+
+    return status::success;
+}
+
+status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel) {
+    cl_int err;
+#ifdef CL_VERSION_2_1
+    *cloned_kernel = clCloneKernel(kernel, &err);
+    OCL_CHECK(err);
+#else
+    // clCloneKernel is not available - recreate from the program.
+    auto name = get_kernel_name(kernel);
+
+    cl_program program;
+    err = clGetKernelInfo(
+            kernel, CL_KERNEL_PROGRAM, sizeof(program), &program, nullptr);
+    OCL_CHECK(err);
+
+    *cloned_kernel = clCreateKernel(program, name.c_str(), &err);
+    OCL_CHECK(err);
+#endif
 
     return status::success;
 }

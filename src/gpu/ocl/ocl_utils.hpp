@@ -294,6 +294,8 @@ void dump_kernel_binary(
 status_t get_kernel_arg_types(cl_kernel ocl_kernel,
         std::vector<gpu::compute::scalar_type_t> *arg_types);
 
+status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel);
+
 } // namespace ocl
 } // namespace gpu
 } // namespace impl
