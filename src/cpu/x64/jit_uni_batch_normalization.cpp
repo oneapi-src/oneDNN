@@ -121,7 +121,6 @@ struct jit_bnorm_t : public jit_generator {
 
     // Relu section
     bool with_relu, with_relu_inf_only;
-    Vmm vzero; // is_fwd() ? vdiff_beta : vbeta
     Reg64 reg_ws = reg_roff;
     Label l_relu_mask_avx2;
     Opmask kstore_mask = Opmask(1);
@@ -153,6 +152,7 @@ struct jit_bnorm_t : public jit_generator {
     Vmm vaux = Vmm(isa == avx512_common ? 31 : 5);
     Vmm vdst_aux = vdiff_gamma; // used for ReLU in AVX2 & sse41
     Vmm vmask = Vmm(0);
+    Vmm vzero; // is_fwd() ? vdiff_beta : vbeta
 
     size_t t0_pf_offt;
     size_t t1_pf_offt;
