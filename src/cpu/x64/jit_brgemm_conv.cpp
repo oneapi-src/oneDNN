@@ -633,6 +633,13 @@ status_t brgemm_convolution_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
         char *inp_buffer = (jcp.exec_type == exec_trans)
                 ? inp_p_buffer + src_dsz * ithr * jcp.inp_buffer_size
                 : nullptr;
+        if (is_amx) {
+            // Workaround: for some machines SEGFAULT possible on tile load
+            // if page was not touched before it
+            for (size_t i = 0; i < jcp.inp_buffer_size; i += 4096)
+                inp_buffer[i] = 0;
+        }
+
         uint8_t *__restrict inp_buffer_mask = (jcp.exec_type == exec_trans)
                 ? inp_p_buffer_mask + ithr * jcp.inp_buffer_mask_size
                 : nullptr;
