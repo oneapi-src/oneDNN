@@ -17,6 +17,7 @@
 #define BACKEND_DNNL_PASSES_UTILS_HPP
 
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -98,6 +99,32 @@ private:
 void replace_op(std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op);
 
 using pd_cache_t = std::unordered_map<op_t *, dnnl::primitive_desc>;
+
+inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
+    static const std::map<op_kind_t, dnnl::algorithm> &eltwise_alg_map
+            = {{impl::op_kind::Abs, dnnl::algorithm::eltwise_abs},
+                    {impl::op_kind::Elu, dnnl::algorithm::eltwise_elu},
+                    {impl::op_kind::Exp, dnnl::algorithm::eltwise_exp},
+                    {impl::op_kind::GELU, dnnl::algorithm::eltwise_gelu_erf},
+                    {impl::op_kind::HardTanh, dnnl::algorithm::eltwise_clip},
+                    {impl::op_kind::Log, dnnl::algorithm::eltwise_log},
+                    {impl::op_kind::ReLU, dnnl::algorithm::eltwise_relu},
+                    {impl::op_kind::Sigmoid, dnnl::algorithm::eltwise_logistic},
+                    {impl::op_kind::Sqrt, dnnl::algorithm::eltwise_sqrt},
+                    {impl::op_kind::Square, dnnl::algorithm::eltwise_square},
+                    {op_kind::dnnl_swish, dnnl::algorithm::eltwise_swish},
+                    {impl::op_kind::Tanh, dnnl::algorithm::eltwise_tanh}};
+    return eltwise_alg_map;
+}
+
+inline bool is_eltwise_kind(op_kind_t kind) {
+    const std::set<op_kind_t> eltwise_kinds {impl::op_kind::Abs,
+            impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
+            impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::ReLU,
+            impl::op_kind::Sigmoid, impl::op_kind::Sqrt, impl::op_kind::Square,
+            op_kind::dnnl_swish, impl::op_kind::Tanh};
+    return eltwise_kinds.find(kind) != eltwise_kinds.end();
+}
 
 } // namespace dnnl_impl
 } // namespace impl

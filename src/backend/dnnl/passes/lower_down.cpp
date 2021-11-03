@@ -53,9 +53,10 @@ static bool has_int8_support(op_kind_t kind) {
 // TODO(xxx): extend to support other ops
 static bool has_post_ops(op_kind_t kind) {
     std::set<op_kind_t> ops {impl::op_kind::Convolution,
-            op_kind::dnnl_convolution, impl::op_kind::MatMul,
-            impl::op_kind::ConvTranspose, op_kind::dnnl_convtranspose,
-            impl::op_kind::AvgPool, impl::op_kind::MaxPool, op_kind::dnnl_pool};
+            op_kind::dnnl_convolution, impl::op_kind::ConvTranspose,
+            op_kind::dnnl_convtranspose, impl::op_kind::MatMul,
+            impl::op_kind::AvgPool, impl::op_kind::MaxPool, op_kind::dnnl_pool,
+            impl::op_kind::ReLU};
     return ops.count(kind) != 0;
 }
 
@@ -583,23 +584,6 @@ status_t fuse_post_ops(
             impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Add,
             impl::op_kind::Divide, op_kind::dnnl_swish};
 
-    const std::set<op_kind_t> eltwise_kinds {impl::op_kind::ReLU,
-            impl::op_kind::GELU, impl::op_kind::Sigmoid, impl::op_kind::Elu,
-            impl::op_kind::HardTanh, impl::op_kind::Abs, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_swish};
-
-    const std::map<op_kind_t, dnnl::algorithm> eltwise_alg_map {
-            {impl::op_kind::ReLU, dnnl::algorithm::eltwise_relu},
-            {impl::op_kind::GELU, dnnl::algorithm::eltwise_gelu_erf},
-            {impl::op_kind::Sigmoid, dnnl::algorithm::eltwise_logistic},
-            {impl::op_kind::Elu, dnnl::algorithm::eltwise_elu},
-            {impl::op_kind::HardTanh, dnnl::algorithm::eltwise_clip},
-            {impl::op_kind::Abs, dnnl::algorithm::eltwise_abs},
-            {impl::op_kind::Sqrt, dnnl::algorithm::eltwise_sqrt},
-            {impl::op_kind::Square, dnnl::algorithm::eltwise_square},
-            {impl::op_kind::Tanh, dnnl::algorithm::eltwise_tanh},
-            {op_kind::dnnl_swish, dnnl::algorithm::eltwise_swish}};
-
     // lambda function to fuse one post op into base primitive
     auto fuse_post_ops_func = [&](std::vector<op_ptr> &subgraph,
                                       primitive_attr_mgr_t &prm_attr_mgr,
@@ -650,9 +634,9 @@ status_t fuse_post_ops(
 
             dnnl::post_ops pops = prm_attr.get_post_ops();
 
-            if (eltwise_kinds.count(post_op->get_kind()) != 0) {
+            if (is_eltwise_kind(post_op->get_kind())) {
                 float scale = 1.f;
-                auto alg = eltwise_alg_map.at(post_op->get_kind());
+                auto alg = get_eltwise_alg_map().at(post_op->get_kind());
                 float alpha = 0;
                 float beta = 0;
 
@@ -751,9 +735,16 @@ status_t fuse_post_ops(
 
                     if (ltw(fused_in->get_logical_tensor()).vdims()
                             == ltw(other_in->get_logical_tensor()).vdims()) {
-                        // use sum post-ops for no-broadcast add
-                        pops.append_sum(1.f);
-                        base_op->set_attr<bool>("with_sum", true);
+                        if (is_eltwise_kind(base_op->get_kind())) {
+                            memory::desc post_src = make_dnnl_memory_desc(
+                                    other_in->get_logical_tensor());
+                            pops.append_binary(algorithm::binary_add, post_src);
+                            base_op->set_attr<bool>("with_binary", true);
+                        } else {
+                            // use sum post-ops for no-broadcast add
+                            pops.append_sum(1.f);
+                            base_op->set_attr<bool>("with_sum", true);
+                        }
                     } else {
                         // use binary post-ops for broadcast add
                         auto dst_lt = dst->get_logical_tensor();

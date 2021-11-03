@@ -16,6 +16,7 @@
 #ifndef BACKEND_DNNL_PASSES_OP_EXECUTABLE_HPP
 #define BACKEND_DNNL_PASSES_OP_EXECUTABLE_HPP
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -308,6 +309,59 @@ inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
     return pd;
 }
 
+inline dnnl::eltwise_forward::primitive_desc create_eltwise_pd(
+        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return static_cast<dnnl::eltwise_forward::primitive_desc &>(
+                pd_cache.at(op.get()));
+    }
+
+    float alpha = 0.f, beta = 0.f;
+    if (op->has_attr("alpha")) {
+        alpha = op->get_attr<float>("alpha");
+    } else if (op->has_attr("min")) {
+        alpha = op->get_attr<float>("min");
+    }
+
+    if (op->has_attr("beta")) {
+        beta = op->get_attr<float>("beta");
+    } else if (op->has_attr("max")) {
+        beta = op->get_attr<float>("max");
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+
+    const auto op_kind = op->get_kind();
+
+    const auto &eltwise_alg_map = get_eltwise_alg_map();
+    const auto eltwise_alg_pos = eltwise_alg_map.find(op_kind);
+    const algorithm algo = eltwise_alg_pos != eltwise_alg_map.end()
+            ? eltwise_alg_pos->second
+            : algorithm::undef;
+    if (algo == algorithm::undef)
+        BACKEND_DNNL_ENFORCE(0, "Unsupported eltwise op.");
+
+    dnnl::eltwise_forward::primitive_desc pd;
+    pd = dnnl::eltwise_forward::primitive_desc(
+            {prop_kind::forward, algo, src, alpha, beta}, prm_attr, p_engine);
+
+    pd_cache.insert({op.get(), pd});
+
+    return pd;
+}
+
 struct op_executable_t {
     virtual ~op_executable_t() = default;
     virtual void execute(const stream &stream,
@@ -424,6 +478,26 @@ private:
     dnnl::matmul::primitive_desc pd_;
     dnnl::matmul prim_;
     bool with_sum_ {false};
+};
+
+struct eltwise_executable_t : public op_executable_t {
+    eltwise_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_eltwise_pd(op, p_engine, prm_attr_mgr, pd_cache);
+        prim_ = dnnl::eltwise_forward(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::eltwise_forward::primitive_desc pd_;
+    dnnl::eltwise_forward prim_;
 };
 
 struct pool_executable_t : public op_executable_t {

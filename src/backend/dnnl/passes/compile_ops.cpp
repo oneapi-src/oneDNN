@@ -57,6 +57,9 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
         } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
             prm = std::make_shared<matmul_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (is_eltwise_kind(cur_op->get_kind())) {
+            prm = std::make_shared<eltwise_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::MaxPool
                 || cur_op->get_kind() == impl::op_kind::AvgPool
                 || cur_op->get_kind() == op_kind::dnnl_pool) {

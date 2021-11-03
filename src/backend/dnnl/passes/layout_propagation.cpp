@@ -131,6 +131,30 @@ static bool layout_propagation_for_deconv(op_ptr &op,
     return true;
 }
 
+static bool layout_propagation_for_eltwise(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    bool changed = true;
+    value_ptr src = op->get_input_value(0);
+    value_ptr dst = op->get_output_value(0);
+
+    // When input's layout is specified (opaque or strided),
+    // we can propagate it to output.
+    if (!ltw(src->get_logical_tensor()).is_any()
+            && ltw(dst->get_logical_tensor()).is_any()) {
+        auto pd = create_eltwise_pd(op, p_engine, prm_attr_mgr, pd_cache);
+
+        fill_layout_info(dst, pd.dst_desc());
+
+        value_ptr scratchpad_val = insert_scratchpad(op);
+        fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+    } else {
+        changed = false;
+    }
+
+    return changed;
+}
+
 static bool layout_propagation_for_matmul(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache) {
@@ -541,6 +565,10 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
                     || cur_op->get_kind() == impl::op_kind::AvgPool
                     || cur_op->get_kind() == op_kind::dnnl_pool) {
                 changed = layout_propagation_for_pool(
+                                  cur_op, p_engine, prm_attr_mgr, pd_cache)
+                        || changed;
+            } else if (is_eltwise_kind(cur_op->get_kind())) {
+                changed = layout_propagation_for_eltwise(
                                   cur_op, p_engine, prm_attr_mgr, pd_cache)
                         || changed;
             } else if (cur_op->get_kind() == op_kind::permute) {

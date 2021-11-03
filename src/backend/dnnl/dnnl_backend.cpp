@@ -162,17 +162,17 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::BiasAdd, bias_add)
 
     // elementwise related operators
-    DNNL_REGISTER_KERNEL(impl::op_kind::Abs, eltwise_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::Elu, eltwise_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::Exp, eltwise_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::GELU, eltwise_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::HardTanh, eltwise_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::ReLU, eltwise_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::Sqrt, eltwise_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::Square, eltwise_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::Tanh, eltwise_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::Pow, eltwise_forward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::Log, eltwise_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Abs, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Elu, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Exp, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::GELU, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::HardTanh, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Log, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Pow, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReLU, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Sqrt, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Square, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Tanh, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::ReLUBackprop, eltwise_backward)
     DNNL_REGISTER_KERNEL(impl::op_kind::GELUBackprop, eltwise_backward)
 
@@ -326,7 +326,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::x8x8float_matmul_div, quantized_matmul);
 
     //eltwise+binary ops
-    DNNL_REGISTER_KERNEL(op_kind::relu_add, eltwise_forward);
+    DNNL_REGISTER_KERNEL(op_kind::relu_add, float_eltwise_fwd);
 
     // quantized pooling
     DNNL_REGISTER_KERNEL(op_kind::int8_maxpool, quantized_pooling);

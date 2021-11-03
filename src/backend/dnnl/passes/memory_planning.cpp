@@ -528,7 +528,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                             : false;
                     prepare_args_for_siso_op(
                             op, p_engine, prm_attr_mgr, true, is_training);
-                } else if (op->get_kind() == impl::op_kind::Reorder
+                } else if (is_eltwise_kind(op->get_kind())
+                        || op->get_kind() == impl::op_kind::Reorder
                         || op->get_kind() == op_kind::mul_scales
                         || op->get_kind() == op_kind::permute
                         || op->get_kind() == op_kind::to_group

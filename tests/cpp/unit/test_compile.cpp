@@ -860,143 +860,6 @@ INSTANTIATE_TEST_SUITE_P(TestConcatCompile, test_concat_compile,
                                 8., 8.},
                         -1, false}));
 
-TEST(operator_kernel, relu) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
-    test::vector<float> ref_dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.5, 2.0};
-    test::vector<float> dst(src.size(), 0.0);
-
-    impl::op_t relu_op(impl::op_kind::ReLU);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto relu_kernel = op_factory.create_kernel(relu_op);
-    ASSERT_TRUE(relu_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-
-    impl::engine_t &eng = get_engine();
-    // compile the relu operator
-    relu_kernel->compile(&relu_op, &eng, {src_lt}, {dst_lt});
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    relu_kernel->execute(&relu_op, &strm, {src_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(operator_kernel, relu_backward) {
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
-    test::vector<float> diff_dst {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
-    test::vector<float> ref_diff_src {
-            0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 6.0, 7.0, 8.0};
-    test::vector<float> diff_src(src.size(), 0.0);
-
-    impl::op_t relu_op(impl::op_kind::ReLUBackprop);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto relu_kernel = op_factory.create_kernel(relu_op);
-    ASSERT_TRUE(relu_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t diff_src_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t diff_dst_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
-
-    // compile the relu backward operator
-    relu_kernel->compile(&relu_op, &eng, {diff_dst_lt, src_lt}, {diff_src_lt});
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-
-    impl::stream_t &strm = get_stream();
-    relu_kernel->execute(&relu_op, &strm, {diff_dst_ts, src_ts}, {diff_src_ts});
-    strm.wait();
-    for (size_t i = 0; i < diff_src.size(); ++i) {
-        ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
-    }
-}
-
-TEST(operator_kernel, gelu) {
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
-    test::vector<float> ref_dst {-0.0455001f, -0.10021085f, -0.15865527f,
-            -0.15426877f, 0.f, 0.3457312f, 0.84134465f, 1.399789f, 1.9544998f};
-    test::vector<float> dst(src.size(), 0.0);
-
-    impl::op_t gelu_op(impl::op_kind::GELU);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto gelu_kernel = op_factory.create_kernel(gelu_op);
-    ASSERT_TRUE(gelu_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-
-    gelu_kernel->compile(&gelu_op, &eng, {src_lt}, {dst_lt});
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    gelu_kernel->execute(&gelu_op, &strm, {src_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_NEAR(dst[i], ref_dst[i], 1.e-6f);
-    }
-}
-
-TEST(operator_kernel, gelu_backward) {
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
-    test::vector<float> diff_dst {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
-    test::vector<float> ref_diff_src {0.0f, -0.1274692f, -0.1666309f,
-            0.3975146f, 2.0f, 4.3374756f, 6.4998928f, 7.8922843f, 8.6818544f};
-    test::vector<float> diff_src(src.size(), 0.0);
-
-    impl::op_t gelu_op(impl::op_kind::GELUBackprop);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto gelu_kernel = op_factory.create_kernel(gelu_op);
-    ASSERT_TRUE(gelu_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t diff_src_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t diff_dst_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
-
-    // compile the helu backward operator
-    gelu_kernel->compile(&gelu_op, &eng, {diff_dst_lt, src_lt}, {diff_src_lt});
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-
-    impl::stream_t &strm = get_stream();
-    gelu_kernel->execute(&gelu_op, &strm, {diff_dst_ts, src_ts}, {diff_src_ts});
-    strm.wait();
-    for (size_t i = 0; i < diff_src.size(); ++i) {
-        ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
-    }
-}
-
 TEST(operator_kernel, add) {
     impl::engine_t &eng = get_engine();
 
@@ -5910,74 +5773,109 @@ TEST(operator_kernel, conv_add_relu) {
     }
 }
 
-TEST(operator_kernel, abs) {
-    impl::engine_t &eng = get_engine();
+test::vector<float> sigmoid_func(const test::vector<float> &ref_dst) {
+    test::vector<float> out;
+    for (auto &rdst : ref_dst) {
+        out.emplace_back(static_cast<float>(1 / (exp(-rdst) + 1)));
+    }
+    return std::move(out);
+}
 
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
-    test::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
+test::vector<float> tanh_func(const test::vector<float> &ref_dst) {
+    test::vector<float> out;
+    for (auto &rdst : ref_dst) {
+        out.emplace_back(static_cast<float>(
+                (exp(rdst) - exp(-rdst)) / (exp(rdst) + exp(-rdst))));
+    }
+    return std::move(out);
+}
+
+test::vector<float> sqrt_func(const test::vector<float> &ref_dst) {
+    test::vector<float> out;
+    for (auto &rdst : ref_dst) {
+        out.emplace_back(static_cast<float>(sqrt(rdst)));
+    }
+    return std::move(out);
+}
+
+void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
+        dnnl::graph::impl::dims &dims, const dnnl_graph_op_kind_t op_kind,
+        const std::string &op_name,
+        const std::map<std::string, float> &attrs_data = {}) {
+    impl::engine_t &eng = get_engine();
+    impl::op_t op(op_kind, op_name);
+
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::op_t op(impl::op_kind::Abs);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto this_kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(this_kernel);
+    for (const auto &attr_data : attrs_data) {
+        op.set_attr<float>(attr_data.first, attr_data.second);
+    }
 
     impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
+            = utils::logical_tensor_init(0, dims, impl::data_type::f32);
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
+            1, dims, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    op.add_input(src_lt);
+    op.add_output(dst_lt);
 
-    // compile the relu operator
-    this_kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g(eng.kind());
+    g.add_op(&op);
+    g.build_graph();
+
+    std::string pass_name = op_name + "_pass";
+
+    impl::pass::pass_base_ptr apass = get_pass(pass_name);
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
+
+    cp.execute(&strm, {src_ts}, {dst_ts});
     strm.wait();
 
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    if (op_kind == impl::op_kind::Log) {
+        for (size_t i = 0; i < src.size(); ++i) {
+            ASSERT_TRUE(std::fabs(dst[i] - ref_dst[i]) < 0.00001);
+        }
+    } else {
+        for (size_t i = 0; i < src.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        }
     }
 }
 
-TEST(operator_kernel, elu) {
-    impl::engine_t &eng = get_engine();
+TEST(operator_kernel, abs) {
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
+    test::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
 
+    dnnl::graph::impl::dims dims {1, 2, 3};
+
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Abs, "abs");
+}
+
+TEST(operator_kernel, elu) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst;
-    test::vector<float> dst(src.size(), 0.0);
-
-    impl::op_t op(impl::op_kind::Elu);
-    op.set_attr<float>("alpha", 1.f);
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto this_kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(this_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    // compile the relu operator
-    this_kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
-    strm.wait();
 
     for (size_t i = 0; i < src.size(); ++i) {
         float temp;
@@ -5989,301 +5887,172 @@ TEST(operator_kernel, elu) {
         ref_dst.push_back(temp);
     }
 
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
+    dnnl::graph::impl::dims dims {1, 2, 3};
+    const std::map<std::string, float> attrs_data {{"alpha", 1.f}};
+
+    test_eltwise_common(
+            src, ref_dst, dims, impl::op_kind::Elu, "elu", attrs_data);
 }
 
 TEST(operator_kernel, exp) {
-    impl::engine_t &eng = get_engine();
-
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst;
-    test::vector<float> dst(src.size(), 0.0);
-
-    impl::op_t op(impl::op_kind::Exp);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto this_kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(this_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    // compile the relu operator
-    this_kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
-    strm.wait();
-
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = static_cast<float>(exp(src[i]));
         ref_dst.push_back(temp);
     }
 
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    dnnl::graph::impl::dims dims {1, 2, 3};
+
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Exp, "exp");
+}
+
+TEST(operator_kernel, gelu) {
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
+    test::vector<float> ref_dst {-0.0455001f, -0.10021085f, -0.15865527f,
+            -0.15426877f, 0.f, 0.3457312f, 0.84134465f, 1.399789f, 1.9544998f};
+
+    dnnl::graph::impl::dims dims {1, 3, 3};
+
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::GELU, "gelu");
+}
+
+TEST(operator_kernel, gelu_backward) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
+    test::vector<float> diff_dst {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+    test::vector<float> ref_diff_src {0.0f, -0.1274692f, -0.1666309f,
+            0.3975146f, 2.0f, 4.3374756f, 6.4998928f, 7.8922843f, 8.6818544f};
+    test::vector<float> diff_src(src.size(), 0.0);
+
+    impl::op_t gelu_op(impl::op_kind::GELUBackprop);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto gelu_kernel = op_factory.create_kernel(gelu_op);
+    ASSERT_TRUE(gelu_kernel);
+
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt
+            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t diff_dst_lt
+            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
+
+    // compile the helu backward operator
+    gelu_kernel->compile(&gelu_op, &eng, {diff_dst_lt, src_lt}, {diff_src_lt});
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+
+    impl::stream_t &strm = get_stream();
+    gelu_kernel->execute(&gelu_op, &strm, {diff_dst_ts, src_ts}, {diff_src_ts});
+    strm.wait();
+    for (size_t i = 0; i < diff_src.size(); ++i) {
+        ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
 }
 
 TEST(operator_kernel, hardtanh) {
-    impl::engine_t &eng = get_engine();
-
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};
-    test::vector<float> dst(src.size(), 0.0);
 
-    impl::op_t op(impl::op_kind::HardTanh);
-    op.set_attr<float>("max", 2.f);
-    op.set_attr<float>("min", -1.f);
+    dnnl::graph::impl::dims dims {1, 2, 3};
+    const std::map<std::string, float> attrs_data {{"min", -1.f}, {"max", 2.f}};
+
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::HardTanh, "hardtanh",
+            attrs_data);
+}
+
+TEST(operator_kernel, relu) {
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
+    test::vector<float> ref_dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.5, 2.0};
+
+    dnnl::graph::impl::dims dims {1, 3, 3};
+
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::ReLU, "relu");
+}
+
+TEST(operator_kernel, relu_backward) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
+    test::vector<float> diff_dst {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+    test::vector<float> ref_diff_src {
+            0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 6.0, 7.0, 8.0};
+    test::vector<float> diff_src(src.size(), 0.0);
+
+    impl::op_t relu_op(impl::op_kind::ReLUBackprop);
+
     auto &op_factory = get_dnnl_kernel_registry();
-    auto this_kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(this_kernel);
+    auto relu_kernel = op_factory.create_kernel(relu_op);
+    ASSERT_TRUE(relu_kernel);
 
     impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
+            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt
+            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t diff_dst_lt
+            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    // compile the relu operator
-    this_kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    // compile the relu backward operator
+    relu_kernel->compile(&relu_op, &eng, {diff_dst_lt, src_lt}, {diff_src_lt});
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
 
     impl::stream_t &strm = get_stream();
-    this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
+    relu_kernel->execute(&relu_op, &strm, {diff_dst_ts, src_ts}, {diff_src_ts});
     strm.wait();
-
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    for (size_t i = 0; i < diff_src.size(); ++i) {
+        ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
 }
 
 TEST(operator_kernel, sqrt) {
-    impl::engine_t &eng = get_engine();
-
     test::vector<float> src {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
-    test::vector<float> ref_dst;
-    test::vector<float> dst(src.size(), 0.0);
+    test::vector<float> ref_dst = sqrt_func(src);
 
-    impl::op_t op(impl::op_kind::Sqrt);
+    dnnl::graph::impl::dims dims {1, 2, 3};
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto this_kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(this_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    // compile the relu operator
-    this_kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src.size(); ++i) {
-        float temp = static_cast<float>(sqrt(src[i]));
-        ref_dst.push_back(temp);
-    }
-
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Sqrt, "sqrt");
 }
 
 TEST(operator_kernel, square) {
-    impl::engine_t &eng = get_engine();
-
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst;
-    test::vector<float> dst(src.size(), 0.0);
-
-    impl::op_t op(impl::op_kind::Square);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto this_kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(this_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    // compile the relu operator
-    this_kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
-    strm.wait();
-
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = src[i] * src[i];
         ref_dst.push_back(temp);
     }
 
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
+    dnnl::graph::impl::dims dims {1, 2, 3};
 
-TEST(operator_kernel, pow) {
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
-    test::vector<float> ref_dst;
-    test::vector<float> dst(src.size(), 0.0);
-
-    impl::op_t op(impl::op_kind::Pow);
-    op.set_attr<float>("alpha", 1.f);
-    op.set_attr<float>("beta", 3.f);
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto this_kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(this_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    // compile the relu operator
-    this_kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src.size(); ++i) {
-        float temp = static_cast<float>(pow(src[i], 3.0));
-        ref_dst.push_back(temp);
-    }
-
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Square, "square");
 }
 
 TEST(operator_kernel, log) {
-    impl::engine_t &eng = get_engine();
-
     test::vector<float> src {2.f, 1.5f, 1.f, 0.5f, 0.8f, 3.5f};
     test::vector<float> ref_dst;
-    test::vector<float> dst(src.size(), 0.0);
-
-    impl::op_t op(impl::op_kind::Log);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto this_kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(this_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    // compile the relu operator
-    this_kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
-    strm.wait();
-
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = static_cast<float>(log(src[i]));
         ref_dst.push_back(temp);
     }
 
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_TRUE(std::fabs(dst[i] - ref_dst[i]) < 0.00001);
-    }
+    dnnl::graph::impl::dims dims {1, 2, 3};
+
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Log, "log");
 }
 
 TEST(operator_kernel, tanh) {
-    impl::engine_t &eng = get_engine();
-
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
-    test::vector<float> ref_dst;
-    test::vector<float> dst(src.size(), 0.0);
+    test::vector<float> ref_dst = tanh_func(src);
 
-    impl::op_t op(impl::op_kind::Tanh);
+    dnnl::graph::impl::dims dims {1, 2, 3};
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto this_kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(this_kernel);
-
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
-
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-
-    // compile the relu operator
-    this_kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    this_kernel->execute(&op, &strm, {src_ts}, {dst_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src.size(); ++i) {
-        float temp = static_cast<float>(
-                (exp(src[i]) - exp(-src[i])) / (exp(src[i]) + exp(-src[i])));
-        ref_dst.push_back(temp);
-    }
-
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Tanh, "tanh");
 }
 
 struct eltwise_param {
@@ -6294,31 +6063,6 @@ struct eltwise_param {
     std::string op_name;
     std::vector<std::pair<std::string, float>> attrs;
 };
-
-test::vector<float> sigmoid_func(const test::vector<float> &ref_dst) {
-    test::vector<float> out;
-    for (auto &rdst : ref_dst) {
-        out.emplace_back(static_cast<float>(1 / (exp(-rdst) + 1)));
-    }
-    return out;
-}
-
-test::vector<float> tanh_func(const test::vector<float> &ref_dst) {
-    test::vector<float> out;
-    for (auto &rdst : ref_dst) {
-        out.emplace_back(static_cast<float>(
-                (exp(rdst) - exp(-rdst)) / (exp(rdst) + exp(-rdst))));
-    }
-    return out;
-}
-
-test::vector<float> sqrt_func(const test::vector<float> &ref_dst) {
-    test::vector<float> out;
-    for (auto &rdst : ref_dst) {
-        out.emplace_back(static_cast<float>(sqrt(rdst)));
-    }
-    return out;
-}
 
 TEST(operator_compile, conv_bias_eltwise) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
@@ -11101,44 +10845,103 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_get_inplace_pair) {
     }
 }
 
-TEST(operator_kernel, relu_add_fusion) {
-    impl::engine_t &eng = get_engine();
+struct dnnl_graph_test_relu_add_params {
+    std::vector<impl::dim_t> add_src_shape;
+    test::vector<float> add_src_data;
+    bool swap;
+};
 
-    test::vector<float> src {-2.0, -1.5, 1.0, 0.5};
-    test::vector<float> post_src {2.0};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    test::vector<float> ref_dst {2.0, 2.0, 3.0, 2.5};
+class test_relu_add_compile
+    : public ::testing::TestWithParam<dnnl_graph_test_relu_add_params> {
+public:
+    void TestReluAdd() {
+        const auto params = ::testing::TestWithParam<
+                dnnl_graph_test_relu_add_params>::GetParam();
+        impl::engine_t &eng = get_engine();
 
-    impl::op_t op(impl::dnnl_impl::op_kind::relu_add);
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(kernel);
+        test::vector<float> src {-2.0, -1.5, 1.0, 0.5};
+        test::vector<float> add_src = params.add_src_data;
+        test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            2, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+        impl::op_t relu_op(0, impl::op_kind::ReLU, "relu");
+        impl::op_t add_op(1, impl::op_kind::Add, "add");
 
-    // compile the relu backward operator
-    std::vector<impl::logical_tensor_t> inputs {src_lt, post_src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+        impl::logical_tensor_t relu_src_lt = utils::logical_tensor_init(
+                0, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t relu_dst_lt = utils::logical_tensor_init(
+                1, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+        impl::logical_tensor_t add_src_lt = utils::logical_tensor_init(
+                2, params.add_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+                3, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
 
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+        relu_op.add_input(relu_src_lt);
+        relu_op.add_output(relu_dst_lt);
+        if (params.swap) {
+            add_op.add_input(add_src_lt);
+            add_op.add_input(relu_dst_lt);
 
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+        } else {
+            add_op.add_input(relu_dst_lt);
+            add_op.add_input(add_src_lt);
+        }
+        add_op.add_output(add_dst_lt);
 
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, post_src_ts}, {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        impl::graph_t g;
+        g.add_op(&relu_op);
+        g.add_op(&add_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("relu_add_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &relu_src_lt, &add_src_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(add_dst_lt.id, &lt);
+
+        ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+
+        impl::tensor_t src_ts(relu_src_lt, &eng, src.data());
+        impl::tensor_t add_src_ts(add_src_lt, &eng, add_src.data());
+        impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
+
+        impl::stream_t &strm = get_stream();
+
+        ASSERT_EQ(cp.execute(&strm, {src_ts, add_src_ts}, {add_dst_ts}),
+                impl::status::success);
+        strm.wait();
     }
+};
+
+TEST_P(test_relu_add_compile, TestReluAddCompile) {
+    TestReluAdd();
 }
+
+INSTANTIATE_TEST_SUITE_P(TestReluAddCompile, test_relu_add_compile,
+        ::testing::Values(
+                // with broadcast add and no swap inputs
+                dnnl_graph_test_relu_add_params {{1}, {2.0}, false},
+                // with broadcast add and swap inputs
+                dnnl_graph_test_relu_add_params {{1}, {2.0}, true},
+                // no broadcast add and no swap inputs
+                dnnl_graph_test_relu_add_params {
+                        {1, 1, 2, 2}, {2.0, 2.0, 2.0, 2.0}, false},
+                // no broadcast add and swap inputs
+                dnnl_graph_test_relu_add_params {
+                        {1, 1, 2, 2}, {2.0, 2.0, 2.0, 2.0}, true}));
 
 TEST(operator_kernel, avgpool_add) {
     using dims = impl::dnnl_impl::dims;

@@ -380,7 +380,13 @@ public:
                 op_kind::matmul_add_sigmoid,
                 // f32 pooling pattern
                 impl::op_kind::AvgPool, impl::op_kind::MaxPool,
-                op_kind::avgpool_add, op_kind::maxpool_add};
+                op_kind::avgpool_add, op_kind::maxpool_add,
+                // fp32 eltwise pattern
+                impl::op_kind::Abs, impl::op_kind::Elu, impl::op_kind::Exp,
+                impl::op_kind::GELU, impl::op_kind::HardTanh,
+                impl::op_kind::Log, impl::op_kind::Pow, impl::op_kind::ReLU,
+                op_kind::relu_add, impl::op_kind::Sqrt, impl::op_kind::Square,
+                impl::op_kind::Tanh};
 
         // compile will transform the subgraph in partition, so we make
         // a copy
