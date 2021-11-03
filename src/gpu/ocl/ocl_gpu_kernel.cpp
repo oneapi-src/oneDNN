@@ -32,19 +32,58 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+namespace {
+// RAII helper to lock/unlock cl_kernel for enqueueing.
+struct enqueue_lock_t {
+    enqueue_lock_t(std::atomic<bool> *is_locked) : is_locked(is_locked) {
+        try_lock();
+    }
+
+    ~enqueue_lock_t() {
+        if (owns_lock) unlock();
+    }
+
+    // Tries to lock cl_kernel for enqueueing.
+    void try_lock() {
+        bool expected = false;
+        owns_lock = is_locked->compare_exchange_weak(expected, true);
+    }
+
+    // Unlocks cl_kernel after enqueueing.
+    void unlock() { is_locked->store(false); }
+
+    std::atomic<bool> *is_locked;
+    bool owns_lock = false;
+};
+} // namespace
+
 ocl_gpu_kernel_t::~ocl_gpu_kernel_t() {
     if (ocl_kernel_) OCL_CHECK_V(clReleaseKernel(ocl_kernel_));
 }
 
 status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const compute::nd_range_t &range,
-        const compute::kernel_arg_list_t &arg_list) const {
+        const compute::kernel_arg_list_t &arg_list) {
     assert(state_ == state_t::kernel);
 
     auto *ocl_stream = utils::downcast<ocl_stream_t *>(&stream);
     cl_command_queue queue = ocl_stream->queue();
 
     assert(ocl_kernel_ && "kernel is NULL");
+
+    cl_kernel enqueue_kernel = ocl_kernel_;
+    ocl_wrapper_t<cl_kernel> cloned_kernel;
+
+    // Try to lock the mutex to use the original cl_kernel without cloning.
+    enqueue_lock_t enqueue_lock(&is_locked_);
+    if (!enqueue_lock.owns_lock) {
+        // Failed to lock so clone the kernel to avoid concurrent access to
+        // the same cl_kernel object.
+        cl_kernel _cloned_kernel;
+        CHECK(clone_kernel(ocl_kernel_, &_cloned_kernel));
+        cloned_kernel = make_ocl_wrapper(_cloned_kernel);
+        enqueue_kernel = cloned_kernel.get();
+    }
 
     for (int i = 0; i < arg_list.nargs(); ++i) {
         auto &arg = arg_list.get(i);
@@ -79,7 +118,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                                 ocl_mem_storage);
                         auto ocl_mem = m->mem_object();
                         set_err = clSetKernelArg(
-                                ocl_kernel_, i, sizeof(cl_mem), &ocl_mem);
+                                enqueue_kernel, i, sizeof(cl_mem), &ocl_mem);
                         break;
                     }
                     case memory_kind::usm: {
@@ -88,7 +127,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                                 ocl_mem_storage);
                         auto *usm_ptr = m->usm_ptr();
                         CHECK(usm::set_kernel_arg_usm(
-                                stream.engine(), ocl_kernel_, i, usm_ptr));
+                                stream.engine(), enqueue_kernel, i, usm_ptr));
                         break;
                     }
                     default: assert(!"not expected");
@@ -96,13 +135,14 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             } else {
                 cl_mem null_mem = nullptr;
                 set_err = clSetKernelArg(
-                        ocl_kernel_, i, sizeof(cl_mem), &null_mem);
+                        enqueue_kernel, i, sizeof(cl_mem), &null_mem);
             }
         } else if (arg.is_local()) {
-            set_err = clSetKernelArg(ocl_kernel_, i, arg.size(), arg.value());
+            set_err = clSetKernelArg(
+                    enqueue_kernel, i, arg.size(), arg.value());
         } else if (arg.is_svm_pointer()) {
 #ifdef CL_VERSION_2_0
-            set_err = clSetKernelArgSVMPointer(ocl_kernel_, i, arg.value());
+            set_err = clSetKernelArgSVMPointer(enqueue_kernel, i, arg.value());
 #else
             return status::runtime_error; // SVM is not supported
 #endif // CL_VERSION_2_0
@@ -114,7 +154,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             auto cvt_arg = compute::kernel_arg_t::cast(
                     arg_types_[i], arg, cast_storage);
             set_err = clSetKernelArg(
-                    ocl_kernel_, i, cvt_arg.size(), cvt_arg.value());
+                    enqueue_kernel, i, cvt_arg.size(), cvt_arg.value());
         }
         status_t status = convert_to_dnnl(set_err);
         if (status != status::success) return status;
@@ -122,7 +162,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
 
     cl_uint ndims = static_cast<cl_uint>(range.ndims());
     if (range.is_zero()) { return status::success; }
-    cl_int err = clEnqueueNDRangeKernel(queue, ocl_kernel_, ndims, nullptr,
+    cl_int err = clEnqueueNDRangeKernel(queue, enqueue_kernel, ndims, nullptr,
             range.global_range(), range.local_range(), 0, nullptr, nullptr);
     status_t status = convert_to_dnnl(err);
     return status;

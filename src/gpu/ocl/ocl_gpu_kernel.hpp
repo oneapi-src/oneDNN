@@ -18,6 +18,7 @@
 #define GPU_OCL_OCL_GPU_KERNEL_HPP
 
 #include <assert.h>
+#include <atomic>
 #include <string>
 #include <CL/cl.h>
 
@@ -50,7 +51,7 @@ public:
     }
 
     status_t parallel_for(stream_t &stream, const compute::nd_range_t &range,
-            const compute::kernel_arg_list_t &arg_list) const override;
+            const compute::kernel_arg_list_t &arg_list) override;
 
     status_t realize(compute::kernel_t *kernel, const engine_t *engine,
             compute::program_list_t *programs) const override;
@@ -92,6 +93,9 @@ protected:
     std::string kernel_name_;
 
     std::vector<gpu::compute::scalar_type_t> arg_types_;
+
+    // Used to protect cl_kernel before enqueueing to set arguments.
+    std::atomic<bool> is_locked_ {false};
 };
 
 } // namespace ocl

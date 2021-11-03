@@ -114,7 +114,7 @@ status_t sycl_interop_gpu_kernel_t::realize(gpu::compute::kernel_t *kernel,
 
 status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
         const gpu::compute::nd_range_t &range,
-        const gpu::compute::kernel_arg_list_t &arg_list) const {
+        const gpu::compute::kernel_arg_list_t &arg_list) {
     assert(state_ == state_t::kernel);
 
     if (range.is_zero()) return status::success;
