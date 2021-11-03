@@ -195,6 +195,7 @@ dnnl_status_t init_jit_profiling_jitdumpdir(
 
     return status::success;
 #else
+    UNUSED(jit_profiling_jitdumpdir);
     return status::unimplemented;
 #endif
 }
