@@ -117,8 +117,13 @@ if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
         ${CMAKE_CURRENT_BINARY_DIR}/CMakeLists.txt
         ${sources} ${headers}
         DESTINATION examples)
+
+    if(DNNL_WITH_SYCL)
+        install(FILES
+            ${PROJECT_SOURCE_DIR}/cmake/dpcpp_driver_check.cmake
+            DESTINATION examples)
+    else()
     # Skip matmul examples with SYCL
-    if(NOT DNNL_WITH_SYCL)
         install(DIRECTORY
             tutorials
             DESTINATION examples)

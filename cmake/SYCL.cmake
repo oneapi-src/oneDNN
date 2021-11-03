@@ -27,17 +27,9 @@ if(NOT DNNL_WITH_SYCL)
 endif()
 
 include(FindPackageHandleStandardArgs)
-include(CheckCXXCompilerFlag)
-
-# Check if CXX is Intel oneAPI DPC++ Compiler
-CHECK_CXX_COMPILER_FLAG(-fsycl DPCPP_SUPPORTED)
-
-if(NOT DPCPP_SUPPORTED)
-    message(FATAL_ERROR "${CMAKE_CXX_COMPILER_ID} is not Intel oneAPI DPC++ Compiler")
-endif()
+include("cmake/dpcpp_driver_check.cmake")
 
 find_package(LevelZero)
-
 if(LevelZero_FOUND)
     message(STATUS "DPC++ support is enabled (OpenCL and Level Zero)")
 else()
