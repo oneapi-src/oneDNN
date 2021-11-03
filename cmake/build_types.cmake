@@ -47,10 +47,17 @@ mark_as_advanced(
 
 
 # Release build with linking to the Debug Runtime
-string(REGEX REPLACE "--dependent-lib=msvcrt" "--dependent-lib=msvcrtd"
-    _CMAKE_CXX_FLAGS_RELWITHMDD "${CMAKE_CXX_FLAGS_RELEASE}")
-string(REGEX REPLACE "--dependent-lib=msvcrt" "--dependent-lib=msvcrtd"
-    _CMAKE_C_FLAGS_RELWITHMDD "${CMAKE_C_FLAGS_RELEASE}")
+if(CMAKE_BASE_NAME STREQUAL "icx")
+    string(REGEX REPLACE "\\/MD" "/MDd"
+         _CMAKE_CXX_FLAGS_RELWITHMDD "${CMAKE_CXX_FLAGS_RELEASE}")
+    string(REGEX REPLACE "\\/MD" "/MDd"
+         _CMAKE_C_FLAGS_RELWITHMDD "${CMAKE_C_FLAGS_RELEASE}")
+else()
+    string(REGEX REPLACE "--dependent-lib=msvcrt" "--dependent-lib=msvcrtd"
+        _CMAKE_CXX_FLAGS_RELWITHMDD "${CMAKE_CXX_FLAGS_RELEASE}")
+    string(REGEX REPLACE "--dependent-lib=msvcrt" "--dependent-lib=msvcrtd"
+        _CMAKE_C_FLAGS_RELWITHMDD "${CMAKE_C_FLAGS_RELEASE}")
+endif()
 
 string(REGEX REPLACE "NDEBUG" "_DEBUG"
     _CMAKE_CXX_FLAGS_RELWITHMDD "${_CMAKE_CXX_FLAGS_RELWITHMDD}")

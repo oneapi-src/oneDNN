@@ -54,6 +54,10 @@ else()
     set(DNNL_WITH_SYCL false)
 endif()
 
+if(DNNL_WITH_SYCL)
+    include("dpcpp_driver_check.cmake")
+endif()
+
 if(UNIX OR MINGW)
     find_library(LIBM m)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
@@ -98,7 +102,7 @@ if(WIN32 AND DNNL_WITH_SYCL)
     # this is fixed we have to explicitly drop release C++ runtime for
     # debug build types.
     string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
-    if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+    if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG" AND NOT CMAKE_BASE_NAME MATCHES "(icx|dpcpp)")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Xlinker /NODEFAULTLIB:msvcrt")
     endif()
 endif()
