@@ -47,7 +47,7 @@ public:
 
     status_t parallel_for(stream_t &stream,
             const gpu::compute::nd_range_t &range,
-            const gpu::compute::kernel_arg_list_t &arg_list) const override;
+            const gpu::compute::kernel_arg_list_t &arg_list) override;
 
     status_t realize(gpu::compute::kernel_t *kernel, const engine_t *engine,
             gpu::compute::program_list_t *programs) const override;
