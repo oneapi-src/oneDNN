@@ -68,8 +68,8 @@ source /opt/intel/oneapi/setvars.sh
 mkdir -p build
 cd build
 
-export CC=clang
-export CXX=clang++
+export CC=icx
+export CXX=icpx
 
 cmake .. \
           -DDNNL_CPU_RUNTIME=DPCPP
@@ -81,6 +81,9 @@ Open-source version of oneAPI DPC++ Compiler may not contain OpenCL runtime.
 In this case, you can use `OPENCLROOT` CMake option or environment variable
 of the same name to specify path to the OpenCL runtime if it is installed in
 a custom location.
+
+@note Open-source version of oneAPI DPC++ Compiler does not have the icx/icpx
+drivers, use clang/clang++ instead.
 
 - Build the library
 ~~~sh
@@ -167,8 +170,8 @@ mkdir build
 cd build
 
 :: Set C and C++ compilers
-set CC=clang
-set CXX=clang++
+set CC=icx
+set CXX=icx
 cmake .. -G Ninja -DDNNL_CPU_RUNTIME=DPCPP ^
                   -DDNNL_GPU_RUNTIME=DPCPP ^
                   -DCMAKE_PREFIX_PATH=<path to Level Zero headers> ^
@@ -179,6 +182,9 @@ Open-source version of oneAPI DPC++ Compiler may not contain OpenCL runtime.
 In this case, you can use `OPENCLROOT` CMake option or environment variable
 of the same name to specify path to the OpenCL runtime if it is installed in
 a custom location.
+
+@note Open-source version of oneAPI DPC++ Compiler does not have the icx driver,
+use clang/clang++ instead.
 
 @note The only CMake generator that supports oneAPI DPC++ Compiler on Windows
 is Ninja. CC and CXX variables must be set to clang and clang++ respectively. 
