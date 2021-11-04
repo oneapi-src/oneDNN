@@ -3053,7 +3053,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
                                   memory::convert_to_c(weights_data_type),
                                   memory::convert_to_c(bias_data_type),
                                   memory::convert_to_c(dst_data_type),
-                                  scales.size(), mask, &scales[0]),
+                                  scales.size(), mask, scales.data()),
                 "could not append depthwise post-op");
     }
 
@@ -3138,7 +3138,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
                                   memory::convert_to_c(weights_data_type),
                                   memory::convert_to_c(bias_data_type),
                                   memory::convert_to_c(dst_data_type),
-                                  scales.size(), mask, &scales[0]),
+                                  scales.size(), mask, scales.data()),
                 "could not append depthwise post-op");
     }
 
