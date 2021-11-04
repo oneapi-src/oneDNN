@@ -982,7 +982,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::transpose_matrix_c_chunk(
         const thread_info_t *ti, const int ocb, const int icb, int oc_size,
         int ic_size, bool is_reduction) const {
     const auto &jbgp = pd()->jbgp_;
-    const size_t acc_dt_size = types::data_type_size(jbgp.acc_dt);
+
     if (isa == avx512_core_bf16_amx_bf16) {
         auto p = jit_amx_ip_trans_diff_wei::ctx_t();
 
@@ -994,10 +994,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::transpose_matrix_c_chunk(
                 * ext_ic_block_ * ext_oc_block_;
         dim_t out_offset = ocb_shift + icb_shift;
 
-        p.src = jbgp.nthr_mb == 1
-                ? get_wei_acc_ptr(ti, ocb, icb)
-                : (void *)(ti->buffer_c
-                        + acc_dt_size * get_wei_offset(ocb, icb));
+        p.src = get_wei_acc_ptr(ti, ocb, icb, 0);
         p.dst = (void *)(ti->diff_weights
                 + types::data_type_size(jbgp.wei_dt) * out_offset);
 
@@ -1011,12 +1008,8 @@ void brgemm_inner_product_bwd_weights_t<isa>::transpose_matrix_c_chunk(
                 : 0;
         (*diff_wei_trans_kernel_)(&p);
     } else {
-        const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
         auto ctx = jit_brgemm_trans_to_vnni_t::ctx_t();
-        ctx.src = (!is_reduction)
-                ? (void *)(get_wei_acc_ptr(ti, ocb, icb))
-                : (void *)(ti->buffer_c
-                        + acc_dt_size * diff_weights_d.blk_off(ocb, icb));
+        ctx.src = (void *)(get_wei_acc_ptr(ti, ocb, icb, 0));
 
         ctx.tr_src = (void *)(ti->diff_weights
                 + types::data_type_size(jbgp.wei_dt)
@@ -1045,43 +1038,66 @@ dim_t brgemm_inner_product_bwd_weights_t<isa>::get_wei_offset(
 
 template <cpu_isa_t isa>
 char *brgemm_inner_product_bwd_weights_t<isa>::get_wei_acc_ptr(
-        const thread_info_t *ti, int ocb, int icb) const {
+        const thread_info_t *ti, int ocb, int icb,
+        int reduction_buf_idx) const {
     constexpr bool is_amx_bf16 = (isa == avx512_core_bf16_amx_bf16);
 
     const auto &jbgp = pd()->jbgp_;
     const int reduction_buf_start_idx = jbgp.wei_dt == f32;
+    // reduction_buf_idx argument allows manually set up required reduction
+    // buffer index, required for reduction and transform diff_weights parts.
+    // It has value -1 by default. If reduction_buf_idx < 0 then ti->ithr_os_c
+    // is used for calculation of the current reduction index.
+    const int buf_idx = reduction_buf_idx >= 0
+            ? reduction_buf_idx
+            : (ti->ithr_os_c - reduction_buf_start_idx);
     const size_t acc_dt_size = types::data_type_size(jbgp.acc_dt);
-    const int icb_scale = (!is_amx_bf16) ? jbgp.ic_block / jbgp.simd_w : 1;
 
-    if (jbgp.use_buffer && jbgp.nthr_mb == 1) {
-        if (!is_amx_bf16) {
-            UNUSED(icb);
-            UNUSED(ocb);
-            return ti->buffer_c + acc_dt_size * ti->ithr * jbgp.LDC * jbgp.M;
-        } else {
-            const size_t blk_size = acc_dt_size * jbgp.ic_block * jbgp.oc_block;
-            const size_t buf_size_per_thread
-                    = blk_size * jbgp.nb_ic_blocking * jbgp.nb_oc_blocking;
-            const int ocb_l = ocb % jbgp.nb_oc_blocking;
-            const int icb_l = icb % jbgp.nb_ic_blocking;
-            const size_t offset_within_thread_buf
-                    = blk_size * (jbgp.nb_ic_blocking * ocb_l + icb_l);
-            const size_t offset
-                    = ti->ithr * buf_size_per_thread + offset_within_thread_buf;
-            return ti->buffer_c + offset;
-        }
-    } else if (jbgp.use_buffer && jbgp.nthr_mb > 1
-            && ti->ithr_os_c >= reduction_buf_start_idx) {
-        const size_t red_buf_elems = (size_t)jbgp.nb_ic * jbgp.ic_block
-                * jbgp.nb_oc * jbgp.oc_block;
-        return ti->buffer_c
-                + acc_dt_size * (ti->ithr_os_c - reduction_buf_start_idx)
-                * red_buf_elems
-                + acc_dt_size * get_wei_offset(ocb, icb * icb_scale);
-    } else {
+    if ((jbgp.nthr_mb > 1 && buf_idx < 0)
+            || (jbgp.wei_dt == jbgp.acc_dt && reduction_buf_idx < 0
+                    && ti->ithr_os_c == 0)) {
+        MAYBE_UNUSED(reduction_buf_idx);
+        const int icb_scale = (!is_amx_bf16 || jbgp.wei_dt == jbgp.acc_dt)
+                ? jbgp.ic_block / jbgp.simd_w
+                : 1;
+        const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
         return (char *)ti->diff_weights
-                + acc_dt_size * get_wei_offset(ocb, icb * icb_scale);
+                + get_blk_off(
+                        diff_weights_d, jbgp.wei_dt, ocb, icb * icb_scale);
     }
+
+    if (!jbgp.use_buffer) return nullptr;
+
+    const int ocb_l = ocb % jbgp.nb_oc_blocking;
+    const int icb_l = icb % jbgp.nb_ic_blocking;
+
+    if (jbgp.nthr_mb > 1 || jbgp.harness == harness_mb_reduction) {
+        const size_t icc = icb / jbgp.nb_ic_blocking;
+        const size_t occ = ocb / jbgp.nb_oc_blocking;
+        const size_t num_ic_chunks = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
+        const size_t num_oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
+        const size_t block_size = acc_dt_size * jbgp.ic_block * jbgp.oc_block;
+        const size_t chunk_size
+                = block_size * jbgp.nb_ic_blocking * jbgp.nb_oc_blocking;
+        const size_t reduction_buf_shift
+                = num_ic_chunks * num_oc_chunks * chunk_size * buf_idx;
+        return ti->buffer_c + reduction_buf_shift
+                + (occ * num_ic_chunks + icc) * chunk_size
+                + (ocb_l * jbgp.nb_ic_blocking + icb_l) * block_size;
+    } else if (jbgp.nthr_mb == 1) {
+        MAYBE_UNUSED(reduction_buf_idx);
+        const size_t blk_size = acc_dt_size * jbgp.ic_block * jbgp.oc_block;
+        const size_t buf_size_per_thread
+                = blk_size * jbgp.nb_ic_blocking * jbgp.nb_oc_blocking;
+        const size_t offset_within_thread_buf
+                = blk_size * (jbgp.nb_ic_blocking * ocb_l + icb_l);
+        const size_t offset
+                = ti->ithr * buf_size_per_thread + offset_within_thread_buf;
+        return ti->buffer_c + offset;
+    }
+
+    assert(!"unsupported case");
+    return nullptr;
 };
 
 template <cpu_isa_t isa>
@@ -1326,13 +1342,10 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
     auto loop_idx = 0;
     const auto loop_end = occ_work * icc_work * osc_work;
 
-    // For huge mini batch (os) iterate over osc in outermost loop
-    // Optimization for bert_large topology
-    const bool osc_outermost
-            = jbgp.os >= 5 * (jbgp.ic + jbgp.oc) && jbgp.nb_os >= 256;
-
     int occ_idx = 0, icc_idx = 0, osc_idx = 0;
-    if (osc_outermost)
+    //TODO: Introduce loop order enum for brgemm-based implementations
+    const bool osc_loop_outermost = jbgp.harness == harness_mb_reduction;
+    if (osc_loop_outermost)
         nd_iterator_init(loop_idx, osc_idx, osc_work, occ_idx, occ_work,
                 icc_idx, icc_work);
     else
@@ -1356,7 +1369,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
         }
 
         ++loop_idx;
-        if (osc_outermost)
+        if (osc_loop_outermost)
             nd_iterator_step(
                     osc_idx, osc_work, occ_idx, occ_work, icc_idx, icc_work);
         else
@@ -1383,8 +1396,6 @@ void brgemm_inner_product_bwd_weights_t<
     const int ocb_work = ti->oc_c_work * jbgp.nb_oc_blocking;
     const int work = ocb_work * icb_work;
 
-    const size_t acc_dt_size = types::data_type_size(jbgp.acc_dt);
-
     int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     int reduce_buffers = nstl::min(ti->nthr_os_c, os_chunks);
     int reduce_buf_idx_start = is_bf16_out;
@@ -1395,25 +1406,21 @@ void brgemm_inner_product_bwd_weights_t<
     if (start == end) return;
 
     int icb_l = 0, ocb_l = 0;
-    char *wei_reduced = is_bf16_out ? ti->buffer_c : ti->diff_weights;
-    const size_t red_buf_elems
-            = (size_t)jbgp.nb_ic * jbgp.ic_block * jbgp.nb_oc * jbgp.oc_block;
     const int acc_size = jbgp.ic_block * jbgp.oc_block;
     for (int ir = reduce_buf_idx_start; ir < reduce_buf_idx_end; ++ir) {
-        char *wei_to_reduce = ti->buffer_c + acc_dt_size * ir * red_buf_elems;
         int counter = start;
         nd_iterator_init(start, ocb_l, ocb_work, icb_l, icb_work);
         while (counter < end) {
             const int ocb = ti->oc_c_start * jbgp.nb_oc_blocking + ocb_l;
             const int icb = ti->ic_c_start * jbgp.nb_ic_blocking + icb_l;
+            char *wei_to_reduce = get_wei_acc_ptr(ti, ocb, icb, ir);
+            const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
+            char *wei_reduced = is_bf16_out ? get_wei_acc_ptr(ti, ocb, icb, 0)
+                                            : ti->diff_weights
+                            + get_blk_off(diff_weights_d, jbgp.wei_dt, ocb,
+                                    icb * icb_scale);
             acc_ker_->accumulate(
-                    (float *)(wei_reduced
-                            + acc_dt_size
-                                    * get_wei_offset(ocb, icb * icb_scale)),
-                    (float *)(wei_to_reduce
-                            + acc_dt_size
-                                    * get_wei_offset(ocb, icb * icb_scale)),
-                    acc_size);
+                    (float *)(wei_reduced), (float *)(wei_to_reduce), acc_size);
             if (is_bf16_out && ir + 1 == reduce_buf_idx_end) {
                 transpose_matrix_c_chunk(ti, ocb, icb * icb_scale,
                         jbgp.oc_block, jbgp.ic_block, true);
