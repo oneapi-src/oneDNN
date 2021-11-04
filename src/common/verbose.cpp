@@ -342,7 +342,9 @@ std::string md2desc_str(const memory_desc_t *md) {
 
 std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
     ss << oscale.mask_;
-    if (oscale.mask_ == 0) ss << ":" << get_val_str(oscale.scales_[0]);
+    const float val = oscale.scales_[0];
+    if (oscale.mask_ == 0 || is_runtime_value(val))
+        ss << ":" << get_val_str(val);
     return ss;
 }
 
@@ -395,7 +397,8 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                << (arg == DNNL_ARG_SRC ? "src"
                                        : arg == DNNL_ARG_DST ? "dst" : "wei")
                << ":" << mask;
-            if (mask == 0) ss << ":" << get_val_str(*zpp);
+            if (mask == 0 || is_runtime_value(*zpp))
+                ss << ":" << get_val_str(*zpp);
             delim = attr_delim;
         }
         ss << " ";
