@@ -444,6 +444,24 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     ASSERT_EQ(dst_dt, memory::data_type::f32);
     ASSERT_EQ(scales_mask, 1 << 1);
     ASSERT_EQ(scales_in, scales_out);
+
+    scales_in = {};
+    ops.append_dw_k3s1p1(memory::data_type::f32, memory::data_type::f32,
+            memory::data_type::f32, 0, scales_in);
+    attr.set_post_ops(ops);
+
+    ASSERT_EQ(attr.get_post_ops().kind(0), primitive::kind::convolution);
+    ASSERT_EQ(attr.get_post_ops().kind(1), primitive::kind::convolution);
+    ASSERT_EQ(attr.get_post_ops().kind(2), primitive::kind::convolution);
+
+    attr.get_post_ops().get_params_dw_k3s1p1(
+            2, wei_dt, bias_dt, dst_dt, scales_mask, scales_out);
+
+    ASSERT_EQ(wei_dt, memory::data_type::f32);
+    ASSERT_EQ(bias_dt, memory::data_type::f32);
+    ASSERT_EQ(dst_dt, memory::data_type::f32);
+    ASSERT_EQ(scales_mask, 0);
+    ASSERT_EQ(scales_in, scales_out);
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusion) {
