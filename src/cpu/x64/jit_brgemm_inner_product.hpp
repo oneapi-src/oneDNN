@@ -514,7 +514,8 @@ private:
     char brg_kernel_palettes_
             [brgemm_inner_product_utils::max_num_brg_kernels_ip][64];
     dim_t get_wei_offset(int ocb, int icb) const;
-    char *get_wei_acc_ptr(const thread_info_t *ti, int ocb, int icb) const;
+    char *get_wei_acc_ptr(const thread_info_t *ti, int ocb, int icb,
+            int reduction_buf_idx = -1) const;
 
     int ext_ic_block_ = 0;
     int ext_oc_block_ = 0;

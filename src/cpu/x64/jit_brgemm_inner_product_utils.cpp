@@ -753,6 +753,9 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_oc_big_2_pow = jbgp.oc >= 512 && math::is_pow2(jbgp.oc);
     const bool is_huge_oc = jbgp.oc >= 4 * 1024;
     jbgp.use_buffer_b = jbgp.dst_dt == bf16 || is_oc_big_2_pow || is_huge_oc;
+    jbgp.harness = jbgp.os >= 5 * (jbgp.ic + jbgp.oc) && jbgp.nb_os >= 256
+            ? harness_mb_reduction
+            : harness_2d_reduction;
 
     int nb_os_blocking, nthr, nthr_mb, nthr_oc, nthr_ic;
     // Caution: thread_balance requires `use_buffer_a` and `use_buffer_b`
@@ -948,15 +951,22 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     }
     if (jbgp.use_buffer) {
         size_t nelements = (size_t)jbgp.nthr * jbgp.LDC * jbgp.M;
-        if (jbgp.prop_kind == dnnl_backward_weights && jbgp.nthr_mb == 1
-                && jbgp.isa == avx512_core_bf16_amx_bf16) {
+        if (jbgp.prop_kind == dnnl_backward_weights
+                && (jbgp.nthr_mb > 1 || jbgp.harness == harness_mb_reduction)) {
+            const size_t n_reduction_buffers = jbgp.nthr_mb > 1
+                    ? jbgp.nthr_mb - (jbgp.wei_dt == f32)
+                    : 1;
+            const size_t num_ic_chunks
+                    = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
+            const size_t num_oc_chunks
+                    = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
+            nelements = (size_t)n_reduction_buffers * num_ic_chunks
+                    * num_oc_chunks * jbgp.nb_ic_blocking * jbgp.nb_oc_blocking
+                    * jbgp.ic_block * jbgp.oc_block;
+        } else if (jbgp.prop_kind == dnnl_backward_weights
+                && jbgp.nthr_mb == 1) {
             nelements = (size_t)jbgp.nthr * jbgp.nb_ic_blocking * jbgp.ic_block
                     * jbgp.nb_oc_blocking * jbgp.oc_block;
-        } else if (jbgp.prop_kind == dnnl_backward_weights
-                && jbgp.nthr_mb > 1) {
-            int n_reduction_buffers = jbgp.nthr_mb - (jbgp.wei_dt == f32);
-            nelements = (size_t)n_reduction_buffers * jbgp.nb_ic * jbgp.ic_block
-                    * jbgp.nb_oc * jbgp.oc_block;
         } else if (jbgp.prop_kind == dnnl_backward_data && jbgp.nthr_oc_b > 1) {
             const int adj_buffers = (jbgp.src_dt == f32) ? 1 : 0;
             int n_reduction_buffers = jbgp.nthr_oc_b - adj_buffers;
