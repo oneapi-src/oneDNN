@@ -1789,10 +1789,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             // and overlap of input by kw
             const auto bd_blocking = 2 * jcp.amx_h;
             const auto ld_blocking = 2 * 16;
-            const auto A_ds = jcp.src_dsz * bd_blocking * jcp.K * jcp.kd_block
-                    * jcp.kh_block;
-            const auto B_ds = jcp.wei_dsz * ld_blocking * jcp.K * jcp.kd_block
-                    * jcp.kh_block * jcp.kw_block;
+            const auto A_ds
+                    = jcp.src_dsz * bd_blocking * jcp.ic * jcp.kd * jcp.kh;
+            const auto B_ds = jcp.wei_dsz * ld_blocking * jcp.ic * jcp.kd
+                    * jcp.kh * jcp.kw;
             const auto C_ds = jcp.acc_dsz * bd_blocking * ld_blocking;
             if (A_ds + B_ds + C_ds > brg_blocking_t::L1)
                 jcp.amx_tile_load_xx = true;
