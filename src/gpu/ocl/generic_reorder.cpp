@@ -56,10 +56,10 @@ namespace ocl {
 
 using namespace dnnl::impl::memory_tracking::names;
 
-using dimension_t = struct {
-    int size;
-    int step;
-    int idx;
+struct dimension_t {
+    int size = 0;
+    int step = 0;
+    int idx = 0;
 };
 
 using dimensions_t = std::vector<dimension_t>;

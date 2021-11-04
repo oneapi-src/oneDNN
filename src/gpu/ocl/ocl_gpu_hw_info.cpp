@@ -26,7 +26,7 @@ void init_gpu_hw_info(cl_device_id device, cl_context context,
         compute::gpu_arch_t &gpu_arch, int &stepping_id) {
     using namespace ngen;
 
-    HW hw;
+    HW hw = HW::Unknown;
     jit::jit_generator<HW::Unknown>::getHWInfo(
             context, device, hw, stepping_id);
     switch (hw) {
