@@ -1121,10 +1121,13 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::icb_loop(
 
     mov(reg_icb, jcp.nb_ic);
 
-    if (zp::should_calculate_deconv_zp_src_pad_str_comp(jcp) && jcp.ndims > 3) {
+    if (zp::should_calculate_deconv_zp_src_pad_str_comp(jcp)) {
         mov(reg_oc_blocks, ptr[param1 + GET_OFF(oc_blocks)]);
-        mov(reg_scratch, qword[param1 + GET_OFF(zp_src_pad_str_compensation)]);
-        mov(zp_src_pad_comp_addr, reg_scratch);
+        if (jcp.ndims > 3) {
+            mov(reg_scratch,
+                    qword[param1 + GET_OFF(zp_src_pad_str_compensation)]);
+            mov(zp_src_pad_comp_addr, reg_scratch);
+        }
     }
 
     L(icb_loop_label);
