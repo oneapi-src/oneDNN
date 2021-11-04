@@ -14,3 +14,6 @@
 
 #depthwise deconv channel tails
 --reset --cfg=u8s8s32 g19ic19iw5oc19ow5kw3pw1n"depthwise_deconv_channel_tails"
+
+#grouped deconv oc_tail with zero-point
+--reset --cfg=u8s8s32 --attr-zero-points=dst:common:15+src:common:31 g1ic15iw5oc3ow5kw3pw1n"groups_1d_deconv_zp"
