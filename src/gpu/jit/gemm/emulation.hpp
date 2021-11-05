@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,19 +35,22 @@ struct EmulationStrategy {
     bool emulate64_mul = false;
     // Emulate QW and/or/xor operations (XeHPC)
     bool emulate64_logic = false;
+    // Don't emulate QW shl/shr (XeHPC)
+    bool noemulate64_shift = false;
 
     EmulationStrategy() = default;
-    EmulationStrategy(ngen::HW hw_) {
+    EmulationStrategy(ngen::HW hw_, int stepping = 0) {
         using namespace ngen;
         if (hw_ == HW::Gen11) emulate64 = true;
         if (hw_ >= HW::Gen11) emulateDWxDW = true;
         if (hw_ == HW::Gen12LP) emulate64 = true;
         if (hw_ == HW::XeHPG) emulate64 = true;
-        // The line below applies to Xe HPC XT B0 and beyond.
-        // if (hw_ == HW::XeHPC) emulate64_mul = emulate64_logic = true;
-
-        // Xe HPC XT A0 only supports QW mov/shifts/rotate.
-        if (hw_ == HW::XeHPC) emulate64 = true;
+        if (hw_ == HW::XeHPC) {
+            if (stepping >= SteppingPVCXTB0)
+                emulate64_mul = emulate64_logic = true;
+            else
+                emulate64 = noemulate64_shift = true;
+        }
     }
 };
 
@@ -243,11 +246,13 @@ struct EmulationImplementation {
 
             splitToDW(src0, s0Lo, s0Hi);
 
-            if (static_cast<uint64_t>(s0Lo) == static_cast<uint64_t>(s0Hi)) {
+            if (static_cast<uint64_t>(s0Lo) == static_cast<uint64_t>(s0Hi)
+                    && dst.getHS() <= 1) {
                 auto mod2x = mod;
                 mod2x.setExecSize(mod.getExecSize() * 2);
 
                 downgradeToDW(dst);
+                dst.setRegion(0, 0, 1);
                 g.mov(mod2x, dst, s0Lo);
             } else {
                 splitToDW(dst, dstLo, dstHi);
@@ -511,6 +516,7 @@ struct EmulationImplementation {
         bool s1W = isW(src1);
         bool s1D = isDW(src1);
         bool s1Q = isQW(src1);
+        bool s1Immed = std::is_base_of<ngen::Immediate, S1>::value;
 
         bool s0Signed = isSigned(src0.getType());
         bool s1Signed = isSigned(src1.getType());
@@ -518,8 +524,6 @@ struct EmulationImplementation {
 
         bool emulate64 = strategy.emulate64;
         emulate64 |= strategy.emulate64_mul;
-
-        if (mod.getExecSize() != 1) stub();
 
         if (s0Q || s1Q) {
             stub();
@@ -538,11 +542,13 @@ struct EmulationImplementation {
                 g.mov(mod, dstHi, 0);
         } else if (dstQ && s0W && s1D) {
             stub();
-        } else if (dstQ && s0D && (s1W || (s1D && emulate64))) {
+        } else if (dstQ && s0D
+                && ((s1W && !s1Immed) || ((s1W || s1D) && emulate64))) {
             RegData dstLo, dstHi;
             splitToDW(dst, dstLo, dstHi);
 
-            auto acc = g.acc0.retype(mulHiType)[dstLo.getOffset()];
+            auto acc = g.acc0.retype(mulHiType)[dstLo.getOffset()](
+                    dstLo.getHS());
 
             g.mul(mod, acc, src0, lowWord(src1));
             if (s1D)
@@ -552,8 +558,8 @@ struct EmulationImplementation {
             g.mov(mod, dstHi, dstLo);
             g.mov(mod, dstLo, acc);
         } else if (dstD && s0D && s1D && strategy.emulateDWxDW) {
-            auto acc = g.acc0.retype(mulHiType)[dst.getOffset()];
-            auto dummy = g.null.retype(mulHiType)[dst.getOffset()];
+            auto acc = g.acc0.retype(mulHiType)[dst.getOffset()](dst.getHS());
+            auto dummy = g.null.retype(mulHiType)[dst.getOffset()](dst.getHS());
 
             g.mul(mod, acc, src0, lowWord(src1));
 
@@ -610,7 +616,7 @@ struct EmulationImplementation {
             return;
         }
 
-        if (dstQ && strategy.emulate64) {
+        if (dstQ && strategy.emulate64 && !strategy.noemulate64_shift) {
             if (src1 >= 32) stub();
 
             RegData dstHi, dstLo, s0Hi, s0Lo;
@@ -656,7 +662,7 @@ struct EmulationImplementation {
             return;
         }
 
-        if (dstQ && strategy.emulate64) {
+        if (dstQ && strategy.emulate64 && !strategy.noemulate64_shift) {
             if (src1 >= 32) stub();
 
             RegData dstHi, dstLo, s0Hi, s0Lo;
