@@ -263,9 +263,9 @@ private:
         size_t stack_size;
         res = pthread_attr_getstack(&attr, &stack_base, &stack_size);
         assert(res == 0);
+        MAYBE_UNUSED(res);
 
         size_t stack_consumption = 0;
-
         size_t start_unprotected_buffer
                 = get_stack_size() - get_page_size() * get_hard_stack_limit();
         for (size_t i = start_unprotected_buffer; i < stack_size; i++) {
@@ -274,7 +274,11 @@ private:
                 break;
             }
         }
-        MAYBE_UNUSED(res);
+        // OS can reserve a space of size up to 4096 (page size) in the
+        // beginning of stack buffer. We shouldn't take the reserved space into
+        // account when calculating stack consumption.
+        if (stack_consumption >= get_page_size())
+            stack_consumption -= get_page_size();
         return reinterpret_cast<void *>(stack_consumption);
     }
 
