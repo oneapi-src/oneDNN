@@ -3,47 +3,59 @@
 .. SPDX-License-Identifier: CC-BY-4.0
 
 ---------
-Transpose
+DynamicTranspose
 ---------
 
-**Versioned name**: *Transpose-1*
+**Versioned name**: *DynamicTranspose-1*
 
 **Category**: *Movement*
 
-**Short description**: *Transpose* operation reorders the input tensor
-dimensions.
+**Short description**: *DynamicTranspose* operation reorders the input tensor
+dimensions. In DynamicTranspose, the target shape order is given as an input
+tensor at runtime. It's useful when the target order is unknown during the
+operator creation.
 
-**OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_movement_Transpose_1.html>`__
-
-**Inputs**:
-
-* **1**:  ``arg`` - the tensor to be transposed. A tensor of type T1.
-  **Required.**
-* **2**:  ``input_order`` - the permutation to apply to the axes of the input
-  shape. Must be a vector of element T2 type, with shape *[n]*, where n is
-  the rank of ``arg``. The tensor's value must contain every integer in the
-  range *[0,n-1]*. If an empty list is specified *[]* then the axes will be
-  inverted. A tensor of type T2. **Required.**
-
-**Outputs**
-
-* **1**:  A tensor with shape and type matching 1st tensor.
-
-**Types**
-
-* *T1*: arbitrary supported type.
-* *T2*: any integer type..
-
-**Detailed description**:
-
-*Transpose* operation reorders the input tensor dimensions. Source indexes and
-destination indexes are bound by the formula:
+**Detailed description**: *DynamicTranspose* operation reorders the input tensor
+dimensions. Source indices and destination indices are bound by the formula:
 
 .. math::
-   output[i(order[0]), i(order[1]), ..., i(order[N-1])] = input[i(0), i(1), ..., i(N-1)]
+   output[i(order[0]),\ i(order[1]),\ ...,\ i(order[N-1])]\ =\ input[i(0),\ i(1),\ ...,\ i(N-1)]
    
 where:
 
 .. math::
-   i(j) in range 0..(input.shape[j]-1)
+   i(j) \ in\ range\ 0...(input.shape[j]-1)
+   
+The input shape is [input.shape(0), input.shape(1), ......, input.shape(N-1)],
+the output shape is [input.shape(order[0]), input.shape(order[1]), ...,
+input.shape(order[N-1])]. Output tensor may have a different memory layout with
+input tensor. *DynamicTranspose* is not guaranteed to return a view or a copy
+when input tensor and output tensor can be inplaced, users should not depend
+on this behavior.
+
+**Inputs**:
+
+* **1**:  ``data`` - the tensor to be transposed.
+  **Required.**
+
+  * **Type**: T1
+  
+* **2**:  ``order`` - the permutation applied to the axes of the input shape.
+  It must be a vector of elements with T2 type and shape *[N]*, where N is the
+  rank of ``data``. If an empty list *[]* is specified, then axes will be
+  inverted to ([N-1,...,1,0]). A negative number means counting from last to the
+  first axis.
+  **Required.**
+
+  * **Type**: T2
+
+**Outputs**
+
+* **1**: A tensor transposed from input ``data`` tensor.
+
+  * **Type**: T1
+
+**Types**
+
+* *T1*: f32, f16, bf16
+* *T2*: int64
