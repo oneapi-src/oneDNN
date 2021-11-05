@@ -366,6 +366,9 @@ void parse_prb_vdims(prb_vdims_t &prb_vdims, const std::string &str) {
     parse_multivector_str(
             prb_vdims.vdims, {dims_t()}, atoi, vdims_str, ':', 'x');
 
+    // Expect at least two inputs provided
+    SAFE_V(prb_vdims.vdims.size() > 1 ? OK : FAIL);
+
     prb_vdims.ndims = static_cast<int>(prb_vdims.vdims[0].size());
     // If second and consecutive inputs are provided with less dimensions
     // (ndims0 > ndims1), then fill these tensors with ones to match ndims,
