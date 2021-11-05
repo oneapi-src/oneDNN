@@ -150,11 +150,16 @@ public:
             scoreboard.type = info.tokenMode() - 1;
             scoreboard.sb = true;
             scoreboard.mode = 0;
-        } else
+        } else if (info.parts.noacc)
+            all = 0xF0;
+        else
             all = 0;
     }
 
     SWSBInfo decode(Opcode op) const {
+        if (all == 0xF0)
+            return SWSBInfo::createNoAccSBSet();
+
         auto result = SWSBInfo(pipe(op), dist());
         if (combined.mode) {
             bool src, dst;

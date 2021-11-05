@@ -28,7 +28,6 @@
 
 #include <limits>
 #include <list>
-#include <limits>
 #include <map>
 
 namespace ngen {
@@ -277,11 +276,7 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
     // Exception: if there are any long operands, it's a long pipe instruction.
     if (hw >= HW::XeHP) {
         auto dt = insn.dstTypecode();
-#if !NGEN_XE_HPC_A
         unsigned lmask = (hw == HW::XeHPC) ? 0b1011 : 0b0011;
-#else
-        unsigned lmask = 3;
-#endif
         if ((dt & lmask) == lmask)
             mask |= PipeMaskL;
         else if (dt & 8)
@@ -988,6 +983,8 @@ template <typename Instruction>
 inline bool canDefaultPipe(HW hw, const Instruction &insn)
 {
     if (hw >= HW::XeHP && insn.opcode() == Opcode::mov_gen12 && (insn.dstTypecode() ^ insn.src0Typecode()) & 0x8)
+        return false;
+    if (hw >= HW::XeHPC && insn.dstTypecode() == 0xB /* :df */)
         return false;
     return true;
 }

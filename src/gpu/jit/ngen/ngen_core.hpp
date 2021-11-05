@@ -214,6 +214,12 @@ enum class HW {
     XeHPC,
 };
 
+// Stepping IDs.
+enum {
+    SteppingPVCXTA0 = 3,
+    SteppingPVCXTB0 = 5,
+};
+
 // Data types. Bits[0:4] are the ID, bits[5:7] hold log2(width in bytes).
 enum class DataType : uint8_t {
     ud = 0x40,
@@ -944,7 +950,14 @@ public:
 
     AccumulatorRegister &operator=(const Invalid &i) { this->invalidate(); return *this; }
 
-    static constexpr int count(HW hw) { return (hw >= HW::XeHP) ? 4 : 2; }
+    static constexpr14 int count(HW hw, DataType dt = DataType::invalid) {
+        if (hw == HW::Gen9 && dt == DataType::df) return 0;
+        if (hw >= HW::XeHP) return 4;
+        return 2;
+    }
+    static constexpr14 int count(HW hw, int grfCount, DataType dt = DataType::invalid) {
+        return count(hw, dt) * (grfCount == 256 ? 2 : 1);
+    }
 };
 
 class SpecialAccumulatorRegister : public AccumulatorRegister
@@ -1477,7 +1490,8 @@ class SWSBInfo
 public:
     union {
         struct {
-            unsigned token : 6;
+            unsigned token : 5;
+            unsigned noacc : 1;
             unsigned src : 1;
             unsigned dst : 1;
             unsigned dist : 4;
@@ -1502,6 +1516,8 @@ public:
     constexpr SWSBInfo() : all(0) {}
     constexpr SWSBInfo(Pipe pipe_, int dist_) : all(((dist_ & 0xF) << 8) | (static_cast<unsigned>(pipe_) << 12)) {}
     constexpr SWSBInfo(int id_, bool src_, bool dst_) : all(id_ | (uint16_t(src_) << 6) | (uint16_t(dst_) << 7)) {}
+
+    static constexpr SWSBInfo createNoAccSBSet() { return SWSBInfo(0x20); }
 
     friend constexpr SWSBInfo operator|(const SWSBInfo &i1, const SWSBInfo &i2) { return SWSBInfo(i1.all | i2.all); }
 };

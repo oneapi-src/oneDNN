@@ -476,6 +476,7 @@ PREFIX constexpr ngen::SBID CG::sb28; \
 PREFIX constexpr ngen::SBID CG::sb29; \
 PREFIX constexpr ngen::SBID CG::sb30; \
 PREFIX constexpr ngen::SBID CG::sb31; \
+PREFIX constexpr ngen::SWSBInfo CG::NoAccSBSet; \
 PREFIX constexpr ngen::DataSpecLSC CG::vnni;
 
 #ifndef NGEN_SHORT_NAMES

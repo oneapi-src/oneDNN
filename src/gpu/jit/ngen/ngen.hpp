@@ -182,6 +182,7 @@ protected:
     };
 
     static constexpr bool isGen12 = (hw >= HW::Gen12LP);
+    int stepping = 0;
 
     Label _labelLocalIDsLoaded;
     Label _labelArgsLoaded;
@@ -289,7 +290,7 @@ private:
 #include "ngen_compiler_fix.hpp"
 
 public:
-    BinaryCodeGenerator() : defaultModifier{}, labelManager{}, sync{this}, load{this}, store{this}, atomic{this} {
+    explicit BinaryCodeGenerator(int stepping_ = 0) : stepping{stepping_}, defaultModifier{}, labelManager{}, sync{this}, load{this}, store{this}, atomic{this} {
         _workaround_();
         pushStream(rootStream);
     }
@@ -300,7 +301,10 @@ public:
     }
 
     std::vector<uint8_t> getCode();
-    size_t getRootStreamLength() const { return rootStream.length(); };
+    size_t getRootStreamLength() const { return rootStream.length(); }
+
+    int getStepping() const { return stepping; }
+    void setStepping(int stepping_) { stepping = stepping_; }
 
 protected:
     // Configuration.
@@ -1540,6 +1544,7 @@ template <typename... Targs> void setDefaultNoMask(Targs&&... args) { ngen::Bina
 template <typename... Targs> void setDefaultAutoSWSB(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::setDefaultAutoSWSB(std::forward<Targs>(args)...); } \
 bool getDefaultNoMask() { return ngen::BinaryCodeGenerator<hw>::getDefaultNoMask(); } \
 bool getDefaultAutoSWSB() { return ngen::BinaryCodeGenerator<hw>::getDefaultAutoSWSB(); } \
+using ngen::BinaryCodeGenerator<hw>::stepping; \
 NGEN_FORWARD_EXTRA \
 NGEN_FORWARD_OP_NAMES \
 NGEN_FORWARD_MIN_MAX \
@@ -1698,6 +1703,7 @@ using ngen::BinaryCodeGenerator<hw>::sb16; using ngen::BinaryCodeGenerator<hw>::
 using ngen::BinaryCodeGenerator<hw>::sb20; using ngen::BinaryCodeGenerator<hw>::sb21; using ngen::BinaryCodeGenerator<hw>::sb22; using ngen::BinaryCodeGenerator<hw>::sb23; \
 using ngen::BinaryCodeGenerator<hw>::sb24; using ngen::BinaryCodeGenerator<hw>::sb25; using ngen::BinaryCodeGenerator<hw>::sb26; using ngen::BinaryCodeGenerator<hw>::sb27; \
 using ngen::BinaryCodeGenerator<hw>::sb28; using ngen::BinaryCodeGenerator<hw>::sb29; using ngen::BinaryCodeGenerator<hw>::sb30; using ngen::BinaryCodeGenerator<hw>::sb31; \
+using ngen::BinaryCodeGenerator<hw>::NoAccSBSet; \
 using ngen::BinaryCodeGenerator<hw>::vnni;
 #define NGEN_FORWARD_REGISTERS NGEN_FORWARD_REGISTERS_BASE NGEN_FORWARD_REGISTERS_EXTRA1 NGEN_FORWARD_REGISTERS_EXTRA2 NGEN_FORWARD_REGISTERS_EXTRA3
 #endif

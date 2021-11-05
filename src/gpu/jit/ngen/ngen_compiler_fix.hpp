@@ -177,6 +177,7 @@ void _workaround_() {
     (void) SWSBInfo(sb20).hasDist(); (void) SWSBInfo(sb21).hasDist(); (void) SWSBInfo(sb22).hasDist(); (void) SWSBInfo(sb23).hasDist();
     (void) SWSBInfo(sb24).hasDist(); (void) SWSBInfo(sb25).hasDist(); (void) SWSBInfo(sb26).hasDist(); (void) SWSBInfo(sb27).hasDist();
     (void) SWSBInfo(sb28).hasDist(); (void) SWSBInfo(sb29).hasDist(); (void) SWSBInfo(sb30).hasDist(); (void) SWSBInfo(sb31).hasDist();
+    (void) NoAccSBSet.hasDist();
 
     (void) A32.getModel();
     (void) A32NC.getModel();

@@ -54,7 +54,7 @@ enum class ProductFamily : uint32_t {
     DG1 = 1210,
     XE_HP_SDV = 1250,
     DG2 = 1270,
-    XE_HPC = 1280,
+    PVC = 1271,
 };
 
 typedef struct

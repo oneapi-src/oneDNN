@@ -160,6 +160,7 @@ static constexpr_reg SBID sb0{0}, sb1{1}, sb2{2}, sb3{3}, sb4{4}, sb5{5}, sb6{6}
 static constexpr_reg SBID sb8{8}, sb9{9}, sb10{10}, sb11{11}, sb12{12}, sb13{13}, sb14{14}, sb15{15};
 static constexpr_reg SBID sb16{16}, sb17{17}, sb18{18}, sb19{19}, sb20{20}, sb21{21}, sb22{22}, sb23{23};
 static constexpr_reg SBID sb24{24}, sb25{25}, sb26{16}, sb27{27}, sb28{28}, sb29{29}, sb30{30}, sb31{31};
+static constexpr_reg SWSBInfo NoAccSBSet = SWSBInfo::createNoAccSBSet();
 
 static constexpr_reg AddressBase A32 = AddressBase::createA32(true);
 static constexpr_reg AddressBase A32NC = AddressBase::createA32(false);

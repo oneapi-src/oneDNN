@@ -30,7 +30,10 @@ class ELFCodeGenerator : public BinaryCodeGenerator<hw>
 {
 public:
     inline std::vector<uint8_t> getBinary();
-    static inline void getHWInfo(const std::vector<uint8_t> &binary, HW &_hw, int &steppingID);
+    static inline HW getBinaryArch(const std::vector<uint8_t> &binary);
+    static inline void getBinaryHWInfo(const std::vector<uint8_t> &binary, HW &outHW, int &outStepping);
+
+    explicit ELFCodeGenerator(int stepping_ = 0) : BinaryCodeGenerator<hw>(stepping_) {}
 
 protected:
     NEOInterfaceHandler interface_{hw};
@@ -105,11 +108,13 @@ private:
             ELFClass64 = 2,
             ELFLittleEndian = 1,
             ELFVersion1 = 1,
+            ELFRelocatable = 1,
         };
         enum {
+            MachineIntelGT = 205,
             ZebinExec = 0xFF12
         };
-        union ZebinFlags {
+        union TargetMetadata {
             uint32_t all;
             struct {
                 unsigned genFlags : 8;
@@ -129,13 +134,13 @@ private:
             uint8_t version = ELFVersion1;
             uint8_t osABI = 0;
             uint64_t pad = 0;
-            uint16_t type = ZebinExec;
-            uint16_t machine;
+            uint16_t type = ELFRelocatable;
+            uint16_t machine = MachineIntelGT;
             uint32_t version2 = 1;
             uint64_t entrypoint = 0;
             uint64_t programHeaderOff = 0;
             uint64_t sectionTableOff;
-            ZebinFlags flags;
+            TargetMetadata flags;
             uint16_t size;
             uint16_t programHeaderSize = 0;
             uint16_t programTableEntries = 0;
@@ -146,7 +151,7 @@ private:
         struct SectionHeader {
             uint32_t name;
             enum Type : uint32_t {
-                Null = 0, Program = 1, SymbolTable = 2, StringTable = 3, ZeInfo = 0xFF000011
+                Null = 0, Program = 1, SymbolTable = 2, StringTable = 3, Note = 7, ZeInfo = 0xFF000011
             } type;
             uint64_t flags = 0;
             uint64_t addr = 0;
@@ -156,11 +161,20 @@ private:
             uint32_t info = 0;
             uint64_t align = 0x10;
             uint64_t entrySize = 0;
-        } sectionHeaders[4];
+        } sectionHeaders[5];
+        struct Note {
+            uint32_t nameSize = 0;
+            uint32_t descSize = 4;
+            enum Type : uint32_t {
+                ProductFamily = 1, GfxCoreFamily = 2, TargetMetadata = 3
+            } type = Type::GfxCoreFamily;
+            uint32_t payload;
+        } noteGfxCore;
         struct StringTable {
             const char zero = '\0';
             const char snStrTable[10] = ".shstrtab";
             const char snMetadata[9] = ".ze_info";
+            const char snNote[21] = ".note.intelgt.compat";
             const char snText[6] = {'.', 't', 'e', 'x', 't', '.'};
         } stringTable;
 
@@ -173,6 +187,11 @@ private:
             fileHeader.sectionHeaderSize = sizeof(SectionHeader);
             fileHeader.sectionTableOff = offsetof(ZebinELF, sectionHeaders);
             fileHeader.sectionCount = sizeof(sectionHeaders) / sizeof(SectionHeader);
+
+#ifdef NGEN_OLD_ZEBIN_ELF
+            fileHeader.type = ZebinExec;
+            fileHeader.sectionCount--;
+#endif
 
             fileHeader.flags.all = 0;
             fileHeader.flags.parts.useGfxCoreFamily = 1;
@@ -201,6 +220,13 @@ private:
             sectionHeaders[3].type = SectionHeader::Type::Program;
             sectionHeaders[3].offset = sectionHeaders[2].offset + align(szMetadata);
             sectionHeaders[3].size = szKernel;
+
+            sectionHeaders[4].name = offsetof(StringTable, snNote);
+            sectionHeaders[4].type = SectionHeader::Type::Note;
+            sectionHeaders[4].offset = offsetof(ZebinELF, noteGfxCore);
+            sectionHeaders[4].size = sizeof(noteGfxCore);
+
+            noteGfxCore.payload = static_cast<uint32_t>(npack::encodeGfxCoreFamily(hw));
         }
 
         static size_t kernelNameOffset() {
@@ -211,7 +237,7 @@ private:
             if (fileHeader.magic != ELFMagic || fileHeader.elfClass != ELFClass64
                     || fileHeader.endian != ELFLittleEndian || fileHeader.sectionHeaderSize != sizeof(SectionHeader)
                     || (fileHeader.version != 0 && fileHeader.version != ELFVersion1)
-                    || fileHeader.type != ZebinExec)
+                    || (fileHeader.type != ZebinExec && fileHeader.type != ELFRelocatable))
                 return false;
             auto *base = reinterpret_cast<const uint8_t *>(&fileHeader);
             auto *sheader = reinterpret_cast<const SectionHeader *>(base + fileHeader.sectionTableOff);
@@ -219,6 +245,35 @@ private:
                 if (sheader->type == SectionHeader::Type::ZeInfo)
                     return true;
             return false;
+        }
+
+        void findNotes(const Note *&start, const Note *&end) const {
+            auto *base = reinterpret_cast<const uint8_t *>(&fileHeader);
+            auto *sheader0 = reinterpret_cast<const SectionHeader *>(base + fileHeader.sectionTableOff);
+            const char *strtab = nullptr;
+            uint64_t strtabSize = 0;
+
+            auto sheader = sheader0;
+            for (int s = 0; s < fileHeader.sectionCount; s++, sheader++) {
+                if (sheader->type == SectionHeader::Type::StringTable) {
+                    strtab = reinterpret_cast<const char *>(base + sheader->offset);
+                    strtabSize = sheader->size;
+                }
+            }
+
+            bool found = false;
+            sheader = sheader0;
+            for (int s = 0; s < fileHeader.sectionCount; s++, sheader++)
+                if (sheader->type == SectionHeader::Type::Note)
+                    if (sheader->name < strtabSize)
+                        if (!strcmp(strtab + sheader->name, ".note.intelgt.compat"))
+                            { found = true; break; }
+
+            if (found) {
+                start = reinterpret_cast<const Note *>(base + sheader->offset);
+                end = reinterpret_cast<const Note *>(base + sheader->offset + sheader->size);
+            } else
+                start = end = nullptr;
         }
     };
 };
@@ -307,20 +362,70 @@ std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary()
 }
 
 template <HW hw>
-void ELFCodeGenerator<hw>::getHWInfo(const std::vector<uint8_t> &binary, HW &_hw, int &steppingID)
+inline HW ELFCodeGenerator<hw>::getBinaryArch(const std::vector<uint8_t> &binary)
 {
+    HW outHW;
+    int outStepping;
+
+    getBinaryHWInfo(binary, outHW, outStepping);
+
+    return outHW;
+}
+
+template <HW hw>
+inline void ELFCodeGenerator<hw>::getBinaryHWInfo(const std::vector<uint8_t> &binary, HW &outHW, int &outStepping)
+{
+    using Note = typename ZebinELF::Note;
+
+    outHW = HW::Unknown;
+    outStepping = 0;
+
     auto zebinELF = reinterpret_cast<const ZebinELF *>(binary.data());
     if (zebinELF->valid()) {
-        if (zebinELF->fileHeader.flags.parts.useGfxCoreFamily)
-            _hw = npack::decodeGfxCoreFamily(static_cast<npack::GfxCoreFamily>(zebinELF->fileHeader.machine));
-        else
-            _hw = npack::decodeProductFamily(static_cast<npack::ProductFamily>(zebinELF->fileHeader.machine));
-        // XXX: Report minHWRevision when minHWRevision != maxHWRevision: it's
-        // important to reliably detect early steppings to apply potential WAs.
-        steppingID = zebinELF->fileHeader.flags.parts.minHWRevision;
-    } else {
-        npack::getHWInfo(binary, _hw, steppingID);
-    }
+        // Check for .note.intelgt.compat section first. If not present, fall back to flags.
+        const Note *start, *end;
+        zebinELF->findNotes(start, end);
+        if (start && end) {
+            while (start < end) {
+                auto rstart = reinterpret_cast<const uint8_t *>(start);
+                if (start->descSize == sizeof(start->payload)) {
+                    auto *actualPayload = reinterpret_cast<const uint32_t *>(
+                        rstart + offsetof(Note, payload) + utils::alignup_pow2(start->nameSize, 4)
+                    );
+                    switch (start->type) {
+                        case Note::Type::ProductFamily: {
+                            auto decodedHW = npack::decodeProductFamily(static_cast<npack::ProductFamily>(*actualPayload));
+                            if (decodedHW != HW::Unknown)
+                                outHW = decodedHW;
+                            break;
+                        }
+                        case Note::Type::GfxCoreFamily:
+                            if (outHW == HW::Unknown)
+                                outHW = npack::decodeGfxCoreFamily(static_cast<npack::GfxCoreFamily>(*actualPayload));
+                            break;
+                        case Note::Type::TargetMetadata: {
+                            typename ZebinELF::TargetMetadata metadata;
+                            metadata.all = *actualPayload;
+                            outStepping = metadata.parts.minHWRevision;
+                        }
+                        default: break;
+                    }
+                }
+                start = reinterpret_cast<const Note *>(
+                    rstart + offsetof(Note, payload)
+                           + utils::alignup_pow2(start->nameSize, 4)
+                           + utils::alignup_pow2(start->descSize, 4)
+                );
+            }
+        } else {
+            if (zebinELF->fileHeader.flags.parts.useGfxCoreFamily)
+                outHW = npack::decodeGfxCoreFamily(static_cast<npack::GfxCoreFamily>(zebinELF->fileHeader.machine));
+            else
+                outHW = npack::decodeProductFamily(static_cast<npack::ProductFamily>(zebinELF->fileHeader.machine));
+            outStepping = zebinELF->fileHeader.flags.parts.minHWRevision;
+        }
+    } else
+        npack::getBinaryHWInfo(binary, outHW, outStepping);
 }
 
 } /* namespace ngen */

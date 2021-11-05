@@ -383,12 +383,12 @@ class AsmCodeGenerator {
 private:
 #include "ngen_compiler_fix.hpp"
 public:
-    AsmCodeGenerator(HW hardware_) : hardware(hardware_), isGen12(hardware_ >= HW::Gen12LP),
+    explicit AsmCodeGenerator(HW hardware_, int stepping_ = 0) : hardware(hardware_), stepping(stepping_), isGen12(hardware_ >= HW::Gen12LP),
             defaultOutput{nullptr}, sync{this}, load{this}, store{this}, atomic{this} {
         _workaround_();
         streamStack.push_back(new InstructionStream());
     }
-    AsmCodeGenerator(HW hardware_, std::ostream &defaultOutput_) : AsmCodeGenerator(hardware_) {
+    AsmCodeGenerator(HW hardware_, std::ostream &defaultOutput_, int stepping_ = 0) : AsmCodeGenerator(hardware_, stepping_) {
         defaultOutput = &defaultOutput_;
     }
     ~AsmCodeGenerator() noexcept(false) {
@@ -399,6 +399,9 @@ public:
     }
     inline void getCode(std::ostream &out);
     void enableLineNumbers(bool enable = true) { lineNumbers = enable; }
+
+    int getStepping() const { return stepping; }
+    void setStepping(int stepping_) { stepping = stepping_; }
 
 protected:
     struct InstructionStream {
@@ -431,6 +434,7 @@ protected:
     };
 
     HW hardware;
+    int stepping;
     bool isGen12;
     std::ostream *defaultOutput;
     bool lineNumbers = false;
@@ -1839,6 +1843,7 @@ void AsmCodeGenerator::outMods(std::ostream &out,const InstructionModifier &mod,
                 out << '@' << swsb.parts.dist;
             }
 
+            if (swsb.parts.noacc)                                         printPostMod("NoAccSBSet");
             if (mod.isAlign16())                                          printPostMod("Align16");
             if (mod.isNoDDClr())                                          printPostMod("NoDDClr");
             if (mod.isNoDDChk())                                          printPostMod("NoDDChk");

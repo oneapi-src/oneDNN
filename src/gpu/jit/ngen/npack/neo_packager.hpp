@@ -201,32 +201,27 @@ inline HW decodeProductFamily(ProductFamily family)
     if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return HW::Gen12LP;
     if (family == ProductFamily::XE_HP_SDV) return HW::XeHP;
     if (family == ProductFamily::DG2) return HW::XeHPG;
-    if (family == ProductFamily::XE_HPC) return HW::XeHPC;
+    if (family == ProductFamily::PVC) return HW::XeHPC;
     return HW::Unknown;
 }
 
-inline HW getBinaryArch(const std::vector<uint8_t> &binary, const SProgramBinaryHeader *pheader)
+inline void getBinaryHWInfo(const std::vector<uint8_t> &binary, HW &outHW, int &outStepping)
 {
-    auto hw = decodeGfxCoreFamily(pheader->Device);
+    const SProgramBinaryHeader *pheader = nullptr;
+
+    findDeviceBinary(binary, nullptr, &pheader, nullptr);
+    outHW = decodeGfxCoreFamily(pheader->Device);
+    outStepping = pheader->SteppingId;
 
     // XeHPG identifies with older runtimes as XeHP. Check whether EOT goes to TS (XeHP) or gateway (XeHPG).
     using b14 = std::array<uint8_t, 14>;
     b14 gtwyEOT{{3, 0x80, 4, 0, 0, 0, 0xC, 0x7F, 0x20, 0x30, 0, 0, 0, 0}};
-    if (hw == HW::XeHP) for (size_t i = 0; i < binary.size() - 0x10; i++) {
+    if (outHW == HW::XeHP) for (size_t i = 0; i < binary.size() - 0x10; i++) {
         if (binary[i] == 0x31 && *(b14 *)(binary.data() + i + 2) == gtwyEOT) {
-            hw = HW::XeHPG;
+            outHW = HW::XeHPG;
             break;
         }
     }
-    return hw;
-}
-
-inline void getHWInfo(const std::vector<uint8_t> &binary, HW &hw, int &steppingID) {
-    const SProgramBinaryHeader *pheader = nullptr;
-
-    findDeviceBinary(binary, nullptr, &pheader, nullptr);
-    hw = getBinaryArch(binary, pheader);
-    steppingID = pheader->SteppingId;
 }
 
 
