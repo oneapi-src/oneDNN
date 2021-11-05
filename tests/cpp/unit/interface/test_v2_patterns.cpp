@@ -15,11 +15,12 @@
 *******************************************************************************/
 
 #include <memory>
+
 #include "interface/graph.hpp"
 #include "utils/pm/nested_matcher.hpp"
 #include "gtest/gtest.h"
 
-#include "utils.hpp"
+#include "cpp/unit/utils.hpp"
 
 using namespace dnnl::graph::impl;
 using namespace dnnl::graph::impl::op_kind;

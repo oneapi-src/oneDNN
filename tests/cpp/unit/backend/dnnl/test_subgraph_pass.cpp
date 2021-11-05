@@ -33,8 +33,8 @@
 #include "backend/dnnl/passes/memory_planning.hpp"
 #include "backend/dnnl/passes/op_executable.hpp"
 
-#include "unit_test_common.hpp"
-#include "utils.hpp"
+#include "cpp/unit/unit_test_common.hpp"
+#include "cpp/unit/utils.hpp"
 
 using namespace dnnl::graph::impl;
 using namespace dnnl::graph::impl::op_kind;

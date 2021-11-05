@@ -21,7 +21,7 @@
 #include "interface/op.hpp"
 #include "interface/value.hpp"
 
-#include "utils.hpp"
+#include "cpp/unit/utils.hpp"
 
 namespace impl = dnnl::graph::impl;
 namespace utils = dnnl::graph::tests::unit::utils;

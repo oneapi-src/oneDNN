@@ -13,10 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #===============================================================================
+set(OBJ_LIB ${LIB_NAME}_interface_unit_test)
 
-# Notice: each sub-directory(each backend) must have backend own CMakeLists.txt.
+add_library(${OBJ_LIB} OBJECT
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_logger.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_v2_patterns.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
+    )
 
-listsubdir(subdirs ${CMAKE_CURRENT_SOURCE_DIR})
-foreach(subdir ${subdirs})
-    add_subdirectory(${subdir})
-endforeach()
+set_property(GLOBAL APPEND PROPERTY ${LIB_NAME}_UNIT_TEST_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)

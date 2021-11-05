@@ -14,9 +14,14 @@
 # limitations under the License.
 #===============================================================================
 
-# Notice: each sub-directory(each backend) must have backend own CMakeLists.txt.
+set(OBJ_LIB ${LIB_NAME}_backend_fake_unit_test)
 
-listsubdir(subdirs ${CMAKE_CURRENT_SOURCE_DIR})
-foreach(subdir ${subdirs})
-    add_subdirectory(${subdir})
-endforeach()
+add_library(${OBJ_LIB} OBJECT
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pass.cpp
+    )
+
+set_property(GLOBAL APPEND PROPERTY ${LIB_NAME}_UNIT_TEST_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)

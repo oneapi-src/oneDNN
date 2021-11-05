@@ -28,10 +28,7 @@
 #include "interface/partition.hpp"
 #include "interface/partition_impl.hpp"
 
-#include "backend/dnnl/dnnl_backend.hpp"
-#include "backend/dnnl/internal_ops.hpp"
-
-#include "utils.hpp"
+#include "cpp/unit/utils.hpp"
 
 /**
  * 1. Create a dnnl::graph::op object
@@ -407,20 +404,3 @@ TEST(op_test, assigned_partition) {
     ASSERT_EQ(conv.get_partition(), part);
 }
 
-TEST(op_test, fused_op) {
-    using namespace dnnl::graph::impl;
-    op_t conv {0, op_kind::Convolution, std::string("convolution")};
-    op_t relu {1, op_kind::ReLU, std::string("relu")};
-    ASSERT_FALSE(conv.is_fused());
-    ASSERT_FALSE(relu.is_fused());
-
-    op_t conv_relu {2, impl::dnnl_impl::op_kind::conv_relu,
-            std::string("conv_relu"), true};
-    conv_relu.add_op_ids({0, 1});
-    ASSERT_TRUE(conv_relu.is_fused());
-
-    std::vector<size_t> ret = conv_relu.get_op_ids();
-    ASSERT_EQ(ret.size(), 2);
-    ASSERT_EQ(ret[0], 0);
-    ASSERT_EQ(ret[1], 1);
-}

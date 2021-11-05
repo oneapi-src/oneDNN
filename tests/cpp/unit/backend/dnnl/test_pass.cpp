@@ -28,10 +28,7 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
-#include "backend/fake/fake_backend.hpp"
-#include "backend/fake/fake_partition_impl.hpp"
-
-#include "utils.hpp"
+#include "cpp/unit/utils.hpp"
 
 using namespace dnnl::graph::impl;
 using namespace dnnl::graph::impl::op_kind;
@@ -3943,34 +3940,6 @@ TEST(pass_test, single_op_replacement) {
                 std::string("dnnl_backend"));
 
         auto replaced_op = get_fused_op(agraph.get_partitions()[0]);
-        ASSERT_EQ(replaced_op->get_kind(), akind);
-    }
-
-    auto &fake_backend_ptr = fake_impl::fake_backend::get_singleton();
-    auto fake_pm = pass::pass_manager_t(fake_backend_ptr.get_pass_registry());
-    std::vector<op_kind_t> single_op_set_unsupported = {
-            /* not enabling ops = */ Concat, Divide, EluBackprop,
-            LayerNormBackprop, Reshape, Round, Sigmoid, SigmoidBackprop,
-            SqrtBackprop, TanhBackprop,
-            /* no dnnl primitive support = */ BiasAdd, BiasAddBackprop, Clamp,
-            ClampBackprop, Erf, HardTanhBackprop, PowBackprop, ReduceSum,
-            SoftPlus, SoftPlusBackprop, Wildcard, End, Interpolate,
-            InterpolateBackprop, Transpose, Index, PowBackpropExponent};
-    for (auto akind : single_op_set_unsupported) {
-        graph_t agraph;
-        op_t *op = agraph.create_op(akind);
-        ASSERT_EQ(op->get_kind(), akind);
-        fake_pm.run_passes(agraph, "no_config");
-
-        auto orig_op = agraph.get_ops()[0];
-        ASSERT_NE(orig_op->get_partition(), nullptr);
-        ASSERT_EQ(orig_op->get_partition()->get_assigned_backend()->get_name(),
-                std::string("fake_backend"));
-
-        ASSERT_EQ(agraph.get_partitions().size(), 1);
-        auto replaced_op = static_cast<fake_impl::fake_partition_impl_t *>(
-                agraph.get_partitions()[0].get())
-                                   ->get_fused_op();
         ASSERT_EQ(replaced_op->get_kind(), akind);
     }
 }

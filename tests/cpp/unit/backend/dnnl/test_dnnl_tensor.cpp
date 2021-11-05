@@ -19,7 +19,7 @@
 #include "backend/dnnl/tensor.hpp"
 #include "interface/allocator.hpp"
 
-#include "unit_test_common.hpp"
+#include "cpp/unit/unit_test_common.hpp"
 
 namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = dnnl::graph::impl::dnnl_impl;

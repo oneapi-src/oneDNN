@@ -22,7 +22,7 @@
 #include "interface/allocator.hpp"
 #include "interface/c_types_map.hpp"
 
-#include "utils.hpp"
+#include "cpp/unit/utils.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>

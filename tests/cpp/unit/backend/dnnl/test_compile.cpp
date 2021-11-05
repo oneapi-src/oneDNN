@@ -40,10 +40,10 @@
 #include "backend/dnnl/kernels/softmax.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
-#include "unit_test_common.hpp"
+#include "cpp/unit/unit_test_common.hpp"
 
-#include "dnnl.h"
-#include "utils.hpp"
+// #include "dnnl.h"
+#include "cpp/unit/utils.hpp"
 
 namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = impl::dnnl_impl;

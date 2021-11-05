@@ -14,44 +14,21 @@
 # limitations under the License.
 #===============================================================================
 
-# These files access internal api and needs visibility options set to avoid warnings on macos
-add_library(${LIB_NAME}_unit_test_objlib OBJECT
-    ${CMAKE_CURRENT_SOURCE_DIR}/unit_test_common.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_compile.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_debug.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_engine.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_id.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_logger.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_partition.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_pass.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_v2_patterns.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_subgraph_pass.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_scratchpad.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_local_cache.cpp
+include_directories(
+    ${PROJECT_SOURCE_DIR}/tests
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include)
+
+file(GLOB COMMON_UNIT_TESTS
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-# Set path to exported and non exported headers
-target_include_directories(${LIB_NAME}_unit_test_objlib
-    PRIVATE
-    ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
-    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
-    ${PROJECT_SOURCE_DIR}/tests # gtest related headers
-    PRIVATE
-    ${PROJECT_SOURCE_DIR}/src/
-    ${PROJECT_SOURCE_DIR}/include # Public but need to set manually for OBJECT target
-    )
+add_subdirectory(interface)
+add_subdirectory(backend)
 
-add_executable(${LIB_NAME}_unit_test $<TARGET_OBJECTS:${LIB_NAME}_unit_test_objlib>)
+get_property(UNIT_TEST_DEPS GLOBAL PROPERTY ${LIB_NAME}_UNIT_TEST_DEPS)
+
+add_executable(${LIB_NAME}_unit_test ${COMMON_UNIT_TESTS} ${UNIT_TEST_DEPS})
 # Set path to non exported headers
 target_include_directories(${LIB_NAME}_unit_test
     PRIVATE
