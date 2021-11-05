@@ -69,7 +69,6 @@ TEST(api_op, create_all_ops) {
             op::kind::ReduceSum,
             op::kind::ReLU,
             op::kind::ReLUBackprop,
-            op::kind::Reshape,
             op::kind::Round,
             op::kind::Sigmoid,
             op::kind::SigmoidBackprop,
@@ -94,6 +93,8 @@ TEST(api_op, create_all_ops) {
             op::kind::Dequantize,
             op::kind::Reorder,
             op::kind::TypeCast,
+            op::kind::StaticReshape,
+            op::kind::DynamicReshape,
     };
 
     const auto num_ops = all_kind_enums.size();

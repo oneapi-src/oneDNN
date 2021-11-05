@@ -23,6 +23,7 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - ConvolutionBackpropFilters
 - ConvTranspose
 - Dequantize
+- DynamicReshape
 - Divide
 - Elu
 - EluBackprop
@@ -54,7 +55,6 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - ReduceSum
 - ReLU
 - ReLUBackprop
-- Reshape
 - Reorder
 - Round
 - Sigmoid
@@ -65,6 +65,7 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - SoftPlusBackprop
 - Sqrt
 - SqrtBackprop
+- StaticReshape
 - Square
 - Tanh
 - TanhBackprop

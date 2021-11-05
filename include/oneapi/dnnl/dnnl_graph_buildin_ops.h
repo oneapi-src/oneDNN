@@ -67,7 +67,6 @@
     _(ReduceSum) \
     _(ReLU) \
     _(ReLUBackprop) \
-    _(Reshape) \
     _(Round) \
     _(Sigmoid) \
     _(SigmoidBackprop) \
@@ -91,7 +90,9 @@
     _(Quantize) \
     _(Dequantize) \
     _(Reorder) \
-    _(TypeCast)
+    _(TypeCast) \
+    _(StaticReshape) \
+    _(DynamicReshape)
 
 #endif
 

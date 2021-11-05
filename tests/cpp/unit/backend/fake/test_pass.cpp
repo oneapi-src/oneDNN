@@ -37,9 +37,9 @@ TEST(pass_test, fake_single_op_replacement) {
     auto &fake_backend_ptr = fake_impl::fake_backend_t::get_singleton();
     auto fake_pm = pass::pass_manager_t(fake_backend_ptr.get_pass_registry());
     std::vector<op_kind_t> single_op_set_unsupported = {
-            /* not enabling ops = */ Concat, Divide, EluBackprop,
-            LayerNormBackprop, Reshape, Round, Sigmoid, SigmoidBackprop,
-            SqrtBackprop, TanhBackprop,
+            /* not enabling ops = */ Concat, Divide, DynamicReshape,
+            EluBackprop, LayerNormBackprop, Round, Sigmoid, SigmoidBackprop,
+            SqrtBackprop, TanhBackprop, StaticReshape,
             /* no dnnl primitive support = */ BiasAdd, BiasAddBackprop, Clamp,
             ClampBackprop, Erf, HardTanhBackprop, PowBackprop, ReduceSum,
             SoftPlus, SoftPlusBackprop, Wildcard, End, Interpolate,

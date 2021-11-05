@@ -901,17 +901,6 @@ DNNL_GRAPH_OP_SCHEMA(ReLUBackprop, 1,
                         "gradient tensor w.r.t. the input of ReLU")
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(Reshape, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "data", "multidimensional input tensor")
-                .set_input(1, "shape", "1D tensor describing output shape")
-                .set_output(0, "output",
-                        "Output tensor with the same content as a tensor at "
-                        "input data but with shape defined by input shape")
-                .set_shape_inference_function(infer_unsupported_output_shape))
-
 DNNL_GRAPH_OP_SCHEMA(Round, 1,
         op_schema_t()
                 .set_num_inputs(1)
@@ -1149,6 +1138,43 @@ DNNL_GRAPH_OP_SCHEMA(TypeCast, 1,
                 .set_output(0, "output", "output tensor",
                         {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(StaticReshape, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "data", "multidimensional input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output",
+                        "Output tensor with the same content as a tensor at "
+                        "input data but with shape defined by input shape",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_attr("shape", "describing output shape", true,
+                        attribute_kind::is)
+                .set_attr("special_zero",
+                        "controls how zero values in shape are interpreted "
+                        "shape",
+                        true, attribute_kind::b)
+                .set_shape_inference_function(
+                        infer_static_reshape_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(DynamicReshape, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "data", "multidimensional input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "shape", "1D tensor describing output shape",
+                        {data_type::f32})
+                .set_output(0, "output",
+                        "Output tensor with the same content as a tensor at "
+                        "input data but with shape defined by input shape",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_attr("special_zero",
+                        " controls how zero values in shape are interpreted "
+                        "shape",
+                        true, attribute_kind::b)
+                .set_shape_inference_function(infer_unsupported_output_shape))
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

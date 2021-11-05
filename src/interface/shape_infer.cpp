@@ -1049,6 +1049,72 @@ status_t infer_reduce_sum_output_shape(op_t *n,
     return status::unsupported;
 }
 
+status_t infer_static_reshape_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    if (!out0.is_shape_unknown()) return status::success;
+
+    // check if partial set shape aligns with inferred shape
+    if (out0.ndims() != -1) {
+        if (!validate(in0.vdims(), out0.vdims())) {
+            return status::invalid_shape;
+        }
+    }
+
+    const dims &in_dims = in0.vdims();
+    dims out_dims = n->get_attr<dims>("shape");
+    const bool special_zero = n->get_attr<bool>("special_zero");
+
+    bool find_uncertain_dim = false; // shape contains -1
+    size_t uncertain_axis = 0;
+    for (size_t i = 0; i < out_dims.size(); i++) {
+        if (out_dims[i] < -1) return status::invalid_shape;
+        if (out_dims[i] == 0) {
+            // handle special_zero: 0 means same as input shape in that
+            // dimension if special_zero is true; or 0 as-is if special_zero is
+            // false
+            if (special_zero) {
+                if (i >= in0.ndims()) return status::invalid_shape;
+                out_dims[i] = in_dims[i];
+            }
+        } else if (out_dims[i] == -1) {
+            // only allow at most one -1
+            if (find_uncertain_dim) return status::invalid_shape;
+            find_uncertain_dim = true;
+            uncertain_axis = i;
+        }
+    }
+
+    int in_size = 1;
+    int out_size = 1;
+    for (size_t i = 0; i < in0.ndims(); i++) {
+        if (in_dims[i] >= 0) in_size *= in_dims[i];
+    }
+    for (size_t i = 0; i < out_dims.size(); i++) {
+        if (out_dims[i] >= 0) out_size *= out_dims[i];
+    }
+    // handle -1 in output shape: the value is inferred from the size of the
+    // input tensor and the remaining dimensions
+    if (find_uncertain_dim) {
+        if (out_size == 0) return status::invalid_shape;
+        out_dims[uncertain_axis] = in_size / out_size;
+    }
+
+    // size of input should be same as output
+    if (find_uncertain_dim == false) {
+        if (out_size != in_size) return status::invalid_shape;
+    } else {
+        if (out_size * out_dims[uncertain_axis] != in_size)
+            return status::invalid_shape;
+    }
+
+    // We should compute output dense strides instead of
+    // directly copying input strides to it
+    set_shape_and_strides(*outputs[0], out_dims);
+    return status::success;
+}
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

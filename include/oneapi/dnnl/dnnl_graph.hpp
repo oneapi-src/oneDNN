@@ -783,7 +783,6 @@ public:
         ReduceSum = kReduceSum,
         ReLU = kReLU,
         ReLUBackprop = kReLUBackprop,
-        Reshape = kReshape,
         Round = kRound,
         Sigmoid = kSigmoid,
         SigmoidBackprop = kSigmoidBackprop,
@@ -808,6 +807,8 @@ public:
         Dequantize = kDequantize,
         Reorder = kReorder,
         TypeCast = kTypeCast,
+        StaticReshape = kStaticReshape,
+        DynamicReshape = kDynamicReshape,
         LastSymbol = kLastSymbol,
     };
 

@@ -113,7 +113,6 @@ const op_kind_t PowBackprop = kPowBackprop;
 const op_kind_t ReduceSum = kReduceSum;
 const op_kind_t ReLU = kReLU;
 const op_kind_t ReLUBackprop = kReLUBackprop;
-const op_kind_t Reshape = kReshape;
 const op_kind_t Round = kRound;
 const op_kind_t Sigmoid = kSigmoid;
 const op_kind_t SigmoidBackprop = kSigmoidBackprop;
@@ -138,6 +137,8 @@ const op_kind_t Quantize = kQuantize;
 const op_kind_t Dequantize = kDequantize;
 const op_kind_t Reorder = kReorder;
 const op_kind_t TypeCast = kTypeCast;
+const op_kind_t StaticReshape = kStaticReshape;
+const op_kind_t DynamicReshape = kDynamicReshape;
 const op_kind_t LastSymbol = kLastSymbol;
 
 #define REGISTER_SYMBOL(s) #s,

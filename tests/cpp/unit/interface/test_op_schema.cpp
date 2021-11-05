@@ -2938,3 +2938,145 @@ TEST(op_schema_test, logsoftmax_bf16) {
     logsoftmax.set_attr<int64_t>("axis", 1);
     EXPECT_TRUE(schema->verify(&logsoftmax));
 }
+
+TEST(OpSchema, VerifyDynamicReshape) {
+    const op_kind_t op_kind_ = op_kind::DynamicReshape;
+    const size_t expected_in_size = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 1;
+    const std::map<std::string, bool> attrs_data = {{"special_zero", true}};
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, VerifyStaticReshape) {
+    const op_kind_t op_kind_ = op_kind::StaticReshape;
+    const size_t expected_in_size = 1;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 2;
+    const std::map<std::string, bool> attrs_data
+            = {{"shape", true}, {"special_zero", true}};
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferStaticReshapeShape) {
+    const op_schema_t *static_reshape_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::StaticReshape);
+
+    op_t static_reshape_op {
+            op_kind::StaticReshape, op_t::kind2str(op_kind::StaticReshape)};
+
+    std::vector<int64_t> out_shape {16, 4, 8};
+    static_reshape_op.set_attr("shape", out_shape);
+    static_reshape_op.set_attr("special_zero", false);
+
+    logical_tensor_t lt_in1
+            = logical_tensor_init(0, {2, 8, 32}, data_type::f32);
+    std::vector<logical_tensor_t *> lt_in {&lt_in1};
+    logical_tensor_t lt_o1
+            = logical_tensor_init(1, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out1 {&lt_o1};
+
+    static_reshape_op_schema->shape_infer(&static_reshape_op, lt_in, lt_out1);
+
+    std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper_t(lt_o1).vdims();
+    EXPECT_EQ(infered_out_shape, out_shape);
+
+    // test special zero true
+    out_shape = {4, 0, 16};
+    static_reshape_op.set_attr("shape", out_shape);
+    static_reshape_op.set_attr("special_zero", true);
+    lt_o1 = logical_tensor_init(2, data_type::f32, layout_type::strided);
+
+    static_reshape_op_schema->shape_infer(&static_reshape_op, lt_in, lt_out1);
+
+    infered_out_shape = logical_tensor_wrapper_t(lt_o1).vdims();
+    std::vector<int64_t> expected_out_shape = {4, 8, 16};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    // test special zero false
+    out_shape = {4, 0, 16};
+    static_reshape_op.set_attr("shape", out_shape);
+    static_reshape_op.set_attr("special_zero", false);
+    lt_o1 = logical_tensor_init(3, data_type::f32, layout_type::strided);
+
+    status_t infer_status = static_reshape_op_schema->shape_infer(
+            &static_reshape_op, lt_in, lt_out1);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // test -1 in shape
+    out_shape = {8, 0, -1};
+    static_reshape_op.set_attr("shape", out_shape);
+    static_reshape_op.set_attr("special_zero", true);
+    lt_o1 = logical_tensor_init(4, data_type::f32, layout_type::strided);
+
+    static_reshape_op_schema->shape_infer(&static_reshape_op, lt_in, lt_out1);
+
+    infered_out_shape = logical_tensor_wrapper_t(lt_o1).vdims();
+    expected_out_shape = {8, 8, 8};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    // test input/output with different shape size
+    out_shape = {4, 6, 16};
+    static_reshape_op.set_attr("shape", out_shape);
+    lt_o1 = logical_tensor_init(5, data_type::f32, layout_type::strided);
+
+    infer_status = static_reshape_op_schema->shape_infer(
+            &static_reshape_op, lt_in, lt_out1);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // test invalid shape: more than one -1
+    out_shape = {-1, -1, 16};
+    static_reshape_op.set_attr("shape", out_shape);
+    lt_o1 = logical_tensor_init(6, data_type::f32, layout_type::strided);
+
+    infer_status = static_reshape_op_schema->shape_infer(
+            &static_reshape_op, lt_in, lt_out1);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // test invalid shape: < -1
+    out_shape = {4, -6, 16};
+    static_reshape_op.set_attr("shape", out_shape);
+    lt_o1 = logical_tensor_init(7, data_type::f32, layout_type::strided);
+
+    infer_status = static_reshape_op_schema->shape_infer(
+            &static_reshape_op, lt_in, lt_out1);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // test shape contains 0-D
+    out_shape = {0, 4, 7};
+    static_reshape_op.set_attr("shape", out_shape);
+    static_reshape_op.set_attr("special_zero", false);
+
+    logical_tensor_t lt_in8
+            = logical_tensor_init(8, {0, 2, 8, 6}, data_type::f32);
+    lt_in = {&lt_in8};
+    logical_tensor_t lt_o9
+            = logical_tensor_init(9, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out9 {&lt_o9};
+
+    static_reshape_op_schema->shape_infer(&static_reshape_op, lt_in, lt_out9);
+
+    infered_out_shape = logical_tensor_wrapper_t(lt_o9).vdims();
+    EXPECT_EQ(infered_out_shape, out_shape);
+
+    // test invalid shape case
+    out_shape = {-1, 0};
+    static_reshape_op.set_attr("shape", out_shape);
+    lt_o9 = logical_tensor_init(10, data_type::f32, layout_type::strided);
+
+    infer_status = static_reshape_op_schema->shape_infer(
+            &static_reshape_op, lt_in, lt_out9);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // test input/output with different shape size
+    out_shape = {-1, 0};
+    static_reshape_op.set_attr("shape", out_shape);
+    lt_o9 = logical_tensor_init(11, data_type::f32, layout_type::strided);
+
+    infer_status = static_reshape_op_schema->shape_infer(
+            &static_reshape_op, lt_in, lt_out9);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+}
