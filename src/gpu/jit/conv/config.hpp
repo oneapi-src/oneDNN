@@ -416,17 +416,28 @@ public:
     status_t init_bwd_d(convolution_pd_t *conv_pd) {
         using namespace ir_utils;
 
-        // Set dispatch and kernel parameters.
-        mb_thr_blk = (mb < 16 ? 1 : mb == 16 ? 16 : 32);
-        ic_thr_blk = 32;
-        if (hw >= ngen::HW::XeHPC) ic_thr_blk = 64;
-        iw_thr_blk = (mb < 16 ? 16 : 1);
-        if (iw < iw_thr_blk) iw_thr_blk = 8;
+        if (fma_kind == fma_kind_t::mad) {
+            mb_thr_blk = (mb < 16 ? 1 : mb == 16 ? 16 : 32);
+            ic_thr_blk = 16;
+            iw_thr_blk = (mb < 16) ? 16 : 1;
+            oc_blk = is_s32_accumulator() ? 32 : 16;
+        } else if (is_dpas_fma()) {
+            // Set dispatch and kernel parameters.
+            mb_thr_blk = (mb < 16 ? 1 : mb == 16 ? 16 : 32);
+            ic_thr_blk = 32;
+            if (hw >= ngen::HW::XeHPC) ic_thr_blk = 64;
+            iw_thr_blk = (mb < 16 ? 16 : 1);
+            if (iw < iw_thr_blk) iw_thr_blk = 8;
+            oc_blk = (is_s32_accumulator() ? 32 : 16);
+        } else {
+            ir_error_not_expected();
+        }
 
 #ifdef GEN_CONV_DEBUG
         mb_thr_blk = getenv_int("mb_thr_blk", mb_thr_blk);
         ic_thr_blk = getenv_int("ic_thr_blk", ic_thr_blk);
         iw_thr_blk = getenv_int("iw_thr_blk", iw_thr_blk);
+        oc_blk = getenv_int("oc_blk", oc_blk);
 #endif
 
         // Try to enable special optimization for strided BWD_D convolution.
@@ -457,7 +468,6 @@ public:
         mb_tg_blk = mb_thr_blk;
         ic_tg_blk = tg_grid_dim[0] * ic_thr_blk;
         iw_tg_blk = tg_grid_dim[1] * iw_thr_blk;
-        oc_blk = (is_s32_accumulator() ? 32 : 16);
 
 #ifdef GEN_CONV_DEBUG
         mb_tg_blk = getenv_int("mb_tg_blk", mb_tg_blk);
