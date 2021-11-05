@@ -159,7 +159,7 @@ simple_concat(__global DATA_T *dst, __global const DATA_T *src0
     DATA_T B;
     DATA2_T C;
     DATA4_T D;
-    const size_t x = get_global_id(0) * (BLOCK / SIMD)
+    const size_t x = (get_global_id(0) / SIMD) * BLOCK
             + get_global_id(2) * INNER_OFFSET;
     __global const DATA_T *src;
 
