@@ -278,7 +278,7 @@ public:
             ic_blk = (is_small_ic() ? ic : 16);
         } else if (is_dpas_fma()) {
             g_tg_blk = 1;
-            mb_thr_blk = is_small_ic() ? 8 : (mb < 16 ? 1 : 32);
+            mb_thr_blk = is_small_ic() ? 8 : (mb < 16 ? 1 : mb == 16 ? 16 : 32);
             mb_thr_dim = (is_small_ic())
                     ? (mb < 16 ? std::min(utils::div_up(mb, mb_thr_blk), 4) : 4)
                     : 1;
@@ -417,7 +417,7 @@ public:
         using namespace ir_utils;
 
         // Set dispatch and kernel parameters.
-        mb_thr_blk = (mb < 16 ? 1 : 32);
+        mb_thr_blk = (mb < 16 ? 1 : mb == 16 ? 16 : 32);
         ic_thr_blk = 32;
         if (hw >= ngen::HW::XeHPC) ic_thr_blk = 64;
         iw_thr_blk = (mb < 16 ? 16 : 1);
@@ -1161,38 +1161,52 @@ private:
             src_tag = is_s32_accumulator() ? "ABx8a4b" : "ABx8a2b";
         } else if (fma_kind == fma_kind_t::mad) {
             if (is_s32_accumulator()) {
-                src_tag = (!is_mb_block ? "aBx32b" : "ABx32a32b");
+                src_tag = (!is_mb_block
+                                ? "aBx32b"
+                                : (mb > 16) ? "ABx32a32b" : "ABx16a32b");
             } else {
-                src_tag = (!is_mb_block ? "aBx16b" : "ABx32a16b");
+                src_tag = (!is_mb_block
+                                ? "aBx16b"
+                                : (mb > 16) ? "ABx32a16b" : "ABx16a16b");
             }
             if (is_fwd) {
                 int max_simd_size = 16;
                 if (simd_size > max_simd_size) simd_size = max_simd_size;
             }
         } else if (is_s32_accumulator()) {
-            src_tag = (!is_mb_block ? "aBx32b" : "ABx32a32b");
+            src_tag = (!is_mb_block ? "aBx32b"
+                                    : (mb > 16) ? "ABx32a32b" : "ABx16a32b");
         } else {
-            src_tag = (!is_mb_block ? "aBx16b" : "ABx32a16b");
+            src_tag = (!is_mb_block ? "aBx16b"
+                                    : (mb > 16) ? "ABx32a16b" : "ABx16a16b");
         }
 
         if (fma_kind == fma_kind_t::mad) {
             if (is_dw) {
                 if (is_int8_dst()) {
-                    dst_tag = (!is_mb_block ? "aBx32b" : "ABx32a32b");
+                    dst_tag = (!is_mb_block
+                                    ? "aBx32b"
+                                    : (mb > 16) ? "ABx32a32b" : "ABx16a32b");
                 } else {
-                    dst_tag = (!is_mb_block ? "aBx16b" : "ABx32a16b");
+                    dst_tag = (!is_mb_block
+                                    ? "aBx16b"
+                                    : (mb > 16) ? "ABx32a16b" : "ABx16a16b");
                 }
             } else {
-                dst_tag = (!is_mb_block ? "aBx16b" : "ABx32a16b");
+                dst_tag = (!is_mb_block
+                                ? "aBx16b"
+                                : (mb > 16) ? "ABx32a16b" : "ABx16a16b");
             }
             if (is_bwd_d) {
                 int max_simd_size = 16;
                 if (simd_size > max_simd_size) simd_size = max_simd_size;
             }
         } else if (is_int8_dst()) {
-            dst_tag = (!is_mb_block ? "aBx32b" : "ABx32a32b");
+            dst_tag = (!is_mb_block ? "aBx32b"
+                                    : (mb > 16) ? "ABx32a32b" : "ABx16a32b");
         } else {
-            dst_tag = (!is_mb_block ? "aBx16b" : "ABx32a16b");
+            dst_tag = (!is_mb_block ? "aBx16b"
+                                    : (mb > 16) ? "ABx32a16b" : "ABx16a16b");
         }
 
         // Weight reorders are generally small, so reordering weights between
