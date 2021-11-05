@@ -1048,8 +1048,9 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
 
     bool is_po_ok = true;
     for (int po_idx = 0; po_idx < p.len(); ++po_idx) {
-        is_po_ok &= is_eltwise(po_idx) | is_sum(po_idx) | is_binary(po_idx)
-                | is_prelu(po_idx);
+        is_po_ok = is_po_ok
+                && (is_eltwise(po_idx) || is_sum(po_idx) || is_binary(po_idx)
+                        || is_prelu(po_idx));
         if (is_binary(po_idx)) {
             const auto &bin_desc = p.entry_[po_idx].binary.src1_desc;
             if (bin_desc.ndims > max_ndims_supported) {
