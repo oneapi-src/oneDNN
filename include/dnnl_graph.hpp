@@ -486,7 +486,7 @@ public:
         Wildcard = kWildcard,
         BiasAdd = kBiasAdd,
         Interpolate = kInterpolate,
-        Transpose = kTranspose,
+        DynamicTranspose = kDynamicTranspose,
         Index = kIndex,
         InterpolateBackprop = kInterpolateBackprop,
         PowBackpropExponent = kPowBackpropExponent,

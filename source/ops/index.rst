@@ -17,7 +17,7 @@ subset of the operation set.
    normalization/BatchNormForwardTraining_1.rst
    normalization/BatchNormInference_1.rst
    normalization/BatchNormTrainingBackprop_1.rst
-   arithmetic/BiasAdd_1.rst   
+   arithmetic/BiasAdd_1.rst
    arithmetic/BiasAddBackprop_1.rst
    activation/Clamp_1.rst
    activation/ClampBackprop_1.rst
@@ -27,11 +27,12 @@ subset of the operation set.
    convolution/ConvolutionBackpropFilters_1.rst
    convolution/ConvTranspose_1.rst
    lower_precision/Dequantize_1.rst
-   arithmetic/Divide_1.rst   
+   arithmetic/Divide_1.rst
+   movement/DynamicTranspose_1.rst
    activation/Elu_1.rst
    activation/EluBackprop_1.rst
    misc/End_1.rst
-   arithmetic/Erf_1.rst   
+   arithmetic/Erf_1.rst
    activation/Exp_1.rst
    activation/GELU_2.rst
    activation/GELUBackprop_2.rst
@@ -54,9 +55,9 @@ subset of the operation set.
    arithmetic/Multiply_1.rst
    arithmetic/Pow_1.rst
    arithmetic/PowBackprop_1.rst
-   arithmetic/PowBackpropExponent_1.rst      
+   arithmetic/PowBackpropExponent_1.rst
    lower_precision/Quantize_1.rst
-   reduction/ReduceSum_1.rst   
+   reduction/ReduceSum_1.rst
    activation/ReLU_1.rst
    activation/ReLUBackprop_1.rst
    movement/Reorder_1.rst
@@ -76,6 +77,5 @@ subset of the operation set.
    arithmetic/Subtract_1.rst
    activation/Tanh_1.rst
    activation/TanhBackprop_1.rst
-   movement/Transpose_1.rst
    lower_precision/TypeCast_1.rst
    misc/Wildcard_1.rst
