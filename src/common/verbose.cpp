@@ -426,7 +426,7 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                     ss << delim << "dw_k3s" << c.stride << "p1";
                     if (c.wei_dt == s8 || c.dst_dt != f32)
                         ss << ":" << c.dst_dt;
-                    if (c.wei_dt == s8) {
+                    if (c.count > 0 && c.wei_dt == s8) {
                         ss << ":" << c.mask;
                         if (c.mask == 0) ss << ":" << c.scales[0];
                     }
