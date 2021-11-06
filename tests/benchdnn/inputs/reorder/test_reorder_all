@@ -29,6 +29,7 @@
 # blocked with tail
 --stag=aBx4b,aBx8b --dtag=aBx16b 2x40x3x3
 --stag=aBx16b      --dtag=aBx8b  2x40x3x3
+--stag=ab --dtag=AB16b16a2b 16x63
 
 --attr-oscale=common:0.
 --stag=abx,axb
