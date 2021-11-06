@@ -46,8 +46,8 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
     const auto &post_ops = attr.post_ops_;
     const auto ndims = dst_d.ndims();
 
-    bool is_binary_po_per_oc_sp_bcast;
-    bool is_binary_po_channel_bcast;
+    bool is_binary_po_per_oc_sp_bcast {};
+    bool is_binary_po_channel_bcast {};
     std::tie(is_binary_po_per_oc_sp_bcast, is_binary_po_channel_bcast)
             = binary_injector_utils::bcast_strategies_present_tup(
                     post_ops.entry_, dst_d,
