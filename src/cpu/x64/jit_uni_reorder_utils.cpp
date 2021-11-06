@@ -115,28 +115,18 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
     return success;
 }
 
-static bool is_with_groups(
-        const memory_desc_t &src_md, const memory_desc_t &dst_md) {
-    using namespace format_tag;
-    switch (src_md.ndims) {
-        case 4:
-            return memory_desc_matches_one_of_tag(src_md, goiw, wigo)
-                    && memory_desc_matches_one_of_tag(dst_md, gOIw4i16o4i,
-                            gOIw2i8o4i, gOIw4o4i, Goiw16g, Goiw8g, Goiw4g,
-                            gOwi16o, gOwI16o4i, gOIw16i16o4i);
-        case 5:
-            return memory_desc_matches_one_of_tag(src_md, goihw, hwigo)
-                    && memory_desc_matches_one_of_tag(dst_md, gOIhw4i16o4i,
-                            gOIhw2i8o4i, gOIhw4o4i, Goihw16g, Goihw8g, Goihw4g,
-                            gOwhi16o, gOhwI16o4i, gOIhw16i16o4i);
-        case 6:
-            return memory_desc_matches_one_of_tag(src_md, goidhw)
-                    && memory_desc_matches_one_of_tag(dst_md, gOIdhw4i16o4i,
-                            gOIdhw2i8o4i, gOIdhw4o4i, gOdhwI16o4i,
-                            gOIdhw16i16o4i);
+static bool is_with_groups(const memory_desc_t &dst_md) {
+    using namespace memory_extra_flags;
+    auto dst_d = memory_desc_wrapper(dst_md);
+    const int grp_bit = 1 << 1;
+    auto check_flag_and_mask = [&](int flag, int mask) {
+        return (dst_d.extra().flags & flag) && (mask & grp_bit);
     };
 
-    return false;
+    return check_flag_and_mask(
+                   compensation_conv_s8s8, dst_d.extra().compensation_mask)
+            || check_flag_and_mask(compensation_conv_asymmetric_src,
+                    dst_d.extra().asymm_compensation_mask);
 }
 
 status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
@@ -232,7 +222,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     p.req_asymmetric_comp = om_d.extra().flags
             & memory_extra_flags::compensation_conv_asymmetric_src;
 
-    const bool with_groups = is_with_groups(imd, omd);
+    const bool with_groups = is_with_groups(omd);
 
     auto mask_ok = [&](bool check, int mask) {
         return IMPLICATION(check, mask == (with_groups ? 0x3 : 0x1));
