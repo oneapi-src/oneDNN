@@ -35,6 +35,14 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
     int n_index = info.isNMK() ? 0 : 1;
     auto groups_m = uint32_t(gws[m_index] / lws[m_index]);
     auto groups_n = uint32_t(gws[n_index] / lws[n_index]);
+    auto group_count = groups_m * groups_n;
+
+    uint32_t ss_count = dev_info->eu_count() / dev_info->max_eus_per_wg();
+    bool large_grf_mode = (info.grfCount > 128);
+    uint32_t thread_per_ss = dev_info->hw_threads(large_grf_mode) / ss_count;
+    uint32_t thread_per_tg = uint32_t(lws[0] * lws[1] * lws[2]);
+    uint32_t tg_per_ss = thread_per_ss / thread_per_tg;
+    uint32_t concurrent_tg = tg_per_ss * ss_count;
 
     arg_list.set(argn++, groups_m);
     arg_list.set(argn++, groups_n);
@@ -60,13 +68,6 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
         arg_list.set(argn++, uvd_recip);
         arg_list.set(argn++, bail);
     } else if (info.isBoustrophedon()) {
-        uint32_t ss_count = dev_info->eu_count() / dev_info->max_eus_per_wg();
-        bool large_grf_mode = (info.grfCount > 128);
-        uint32_t thread_per_ss
-                = dev_info->hw_threads(large_grf_mode) / ss_count;
-        uint32_t eu_per_tg = uint32_t(lws[0] * lws[1] * lws[2]);
-        uint32_t tg_per_ss = thread_per_ss / eu_per_tg;
-        uint32_t concurrent_tg = tg_per_ss * ss_count;
         double bias = double(info.wg[0] * info.unroll[0])
                 / double(info.wg[1] * info.unroll[1]);
         double sm = std::sqrt(concurrent_tg / bias);
@@ -123,7 +124,7 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
                 slice = gc;
             else
                 slice = gc / utils::div_up(gc, int(std::round(s)));
-            thresh = std::max(0, (gc / slice) - (gc % slice));
+            thresh = nstl::max(0, (gc / slice) - (gc % slice));
         }
 
         if (slice == 0) {
@@ -135,7 +136,12 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
         arg_list.set(argn++, thresh);
     }
 
-    gws[0] = lws[0] * groups_m * groups_n;
+    if (info.isPersistent()) {
+        group_count = nstl::min(group_count, concurrent_tg);
+        arg_list.set(argn++, concurrent_tg);
+    }
+
+    gws[0] = lws[0] * group_count;
     gws[1] = lws[1];
 }
 

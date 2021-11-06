@@ -100,7 +100,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
 
     bool arch_ok = (arch == arch_t::xe_hp);
     arch_ok |= (arch == arch_t::xe_hpg);
-    arch_ok |= (arch == arch_t::xe_hpc);
+    arch_ok |= (arch == arch_t::xe_hpc) && (packed_a() || packed_b());
 
     ok = true && limits_ok && (dt_float_ok || dt_int_ok) && arch_ok
             && compute_engine->mayiuse(compute::device_ext_t::
@@ -203,36 +203,55 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     bool c_any = c_mdw.format_any();
     bool batch = d->is_batched();
 
-    format_tag_t a_packed_tag = batch ? ((sz == 2) ? aCB4c8b8c2b : aCB4c8b8c4b)
-                                      : ((sz == 2) ? BA4b8a8b2a : BA4b8a8b4a);
-    format_tag_t b_packed_tag_48 = batch ? ((sz == 2) ? aBC48b16c : aBC48b32c)
-                                         : ((sz == 2) ? AB48a16b : AB48a32b);
-    format_tag_t b_packed_tag_32 = batch ? ((sz == 2) ? aBC32b16c : aBC32b32c)
-                                         : ((sz == 2) ? AB32a16b : AB32a32b);
+    format_tag_t a_packed_tag_16 = undef;
+    format_tag_t a_packed_tag_32 = undef;
+    format_tag_t a_packed_tag_64 = undef;
+    format_tag_t b_packed_tag_16 = undef;
+    format_tag_t b_packed_tag_32 = undef;
+    format_tag_t b_packed_tag_48 = undef;
     format_tag_t unpacked_tag = batch ? abc : ab;
 
     if (arch == compute::gpu_arch_t::xe_hpc) {
-        a_packed_tag = batch ? ((sz == 2) ? aCB4c8b16c2b : aCB4c8b16c4b)
-                             : ((sz == 2) ? BA4b8a16b2a : BA4b8a16b4a);
+        a_packed_tag_64 = batch ? ((sz == 2) ? aCB4c8b16c2b : aCB4c8b16c4b)
+                                : ((sz == 2) ? BA4b8a16b2a : BA4b8a16b4a);
+        a_packed_tag_16 = batch ? ((sz == 2) ? aCB16c2b : aCB16c4b)
+                                : ((sz == 2) ? BA16b2a : BA16b4a);
+        b_packed_tag_16 = batch ? ((sz == 2) ? aBC16b16c : aBC16b32c)
+                                : ((sz == 2) ? AB16a16b : AB16a32b);
+    } else {
+        a_packed_tag_32 = batch ? ((sz == 2) ? aCB4c8b8c2b : aCB4c8b8c4b)
+                                : ((sz == 2) ? BA4b8a8b2a : BA4b8a8b4a);
+        b_packed_tag_48 = batch ? ((sz == 2) ? aBC48b16c : aBC48b32c)
+                                : ((sz == 2) ? AB48a16b : AB48a32b);
     }
+    b_packed_tag_32 = batch ? ((sz == 2) ? aBC32b16c : aBC32b32c)
+                            : ((sz == 2) ? AB32a16b : AB32a32b);
 
-    bool a_prepacked = a_mdw.matches_tag(a_packed_tag);
+    bool a_prepacked_16 = a_mdw.matches_tag(a_packed_tag_16);
+    bool a_prepacked_32 = a_mdw.matches_tag(a_packed_tag_32);
+    bool a_prepacked_64 = a_mdw.matches_tag(a_packed_tag_64);
+    bool bc_prepacked_16 = b_mdw.matches_tag(b_packed_tag_16)
+            || c_mdw.matches_tag(b_packed_tag_16);
     bool bc_prepacked_32 = b_mdw.matches_tag(b_packed_tag_32)
             || c_mdw.matches_tag(b_packed_tag_32);
     bool bc_prepacked_48 = b_mdw.matches_tag(b_packed_tag_48)
             || c_mdw.matches_tag(b_packed_tag_48);
-    bool c_prepacked = c_mdw.matches_tag(b_packed_tag_32)
+    bool c_prepacked = c_mdw.matches_tag(b_packed_tag_16)
+            || c_mdw.matches_tag(b_packed_tag_32)
             || c_mdw.matches_tag(b_packed_tag_48);
 
-    any_prepacked_ = a_prepacked || bc_prepacked_32 || bc_prepacked_48;
+    any_prepacked_ = a_prepacked_16 || a_prepacked_32 || a_prepacked_64
+            || bc_prepacked_16 || bc_prepacked_32 || bc_prepacked_48;
 
-    unroll_m_ = 32;
+    unroll_m_ = 0;
     unroll_n_ = 0;
     kernel_tag_ = 0;
-    if (bc_prepacked_32)
-        unroll_n_ = 32;
-    else if (bc_prepacked_48)
-        unroll_n_ = 48;
+    if (a_prepacked_16) unroll_m_ = 16;
+    if (a_prepacked_32) unroll_m_ = 32;
+    if (a_prepacked_64) unroll_m_ = 64;
+    if (bc_prepacked_16) unroll_n_ = 16;
+    if (bc_prepacked_32) unroll_n_ = 32;
+    if (bc_prepacked_48) unroll_n_ = 48;
 
     use_new_kernels_ = !c_prepacked && !with_ab_zero_points() && (d->k() >= 64);
     use_new_kernels_ |= (arch >= compute::gpu_arch_t::xe_hpc);
@@ -241,8 +260,12 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
             d->b_type(), d->c_type(), d->m(), d->n(), d->k(), d->batch(),
             unroll_m_, unroll_n_, kernel_tag_);
 
-    format_tag_t b_packed_tag
-            = (unroll_n_ == 48) ? b_packed_tag_48 : b_packed_tag_32;
+    format_tag_t a_packed_tag = (unroll_m_ == 64)
+            ? a_packed_tag_64
+            : (unroll_m_ == 32) ? a_packed_tag_32 : a_packed_tag_16;
+    format_tag_t b_packed_tag = (unroll_n_ == 48)
+            ? b_packed_tag_48
+            : (unroll_n_ == 32) ? b_packed_tag_32 : b_packed_tag_16;
     format_tag_t c_packed_tag = use_new_kernels_ ? unpacked_tag : b_packed_tag;
 
     packed_a_ = packed_b_ = packed_c_ = false;
@@ -734,6 +757,9 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
 
     auto tg_m = compute_info_.wg[LoopM];
     auto tg_n = compute_info_.wg[LoopN];
+
+    if (!compute_info_.kRemainderHandling)
+        k = utils::rnd_up(k, compute_info_.unroll[LoopK]);
 
     auto &kernel = kernel_[first_k_block][last_k_block];
 

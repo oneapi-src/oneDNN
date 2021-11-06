@@ -179,7 +179,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                     eff_transa(), eff_transb(), d->a_type(), d->b_type(),
                     d->c_type(), eff_align_a(), eff_align_b(), align_c(),
                     eff_m(), eff_n(), d->k(), d->batch(), batch_dims(),
-                    unroll_m_, unroll_n_, tag_);
+                    eff_lda(), eff_ldb(), d->ldc(), unroll_m_, unroll_n_, tag_,
+                    kernel_align_a_, kernel_align_b_, kernel_align_c_);
         }
 
         bool set_default_formats() {
@@ -309,6 +310,12 @@ struct gen_gemm_t : public gpu_gemm_t {
         }
         dim_t eff_m() const { return !swap_ab() ? desc()->m() : desc()->n(); }
         dim_t eff_n() const { return !swap_ab() ? desc()->n() : desc()->m(); }
+        dim_t eff_lda() const {
+            return !swap_ab() ? desc()->lda() : desc()->ldb();
+        }
+        dim_t eff_ldb() const {
+            return !swap_ab() ? desc()->ldb() : desc()->lda();
+        }
 
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
@@ -318,6 +325,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         bool ab_zp_ = false;
         int unroll_m_ = 0, unroll_n_ = 0;
         char tag_ = '\0';
+        int kernel_align_a_ = 0, kernel_align_b_ = 0, kernel_align_c_ = 0;
 
         const compute::device_info_t *dev_info_;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
@@ -353,8 +361,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                 pd()->eff_transa(), pd()->eff_transb(),
                 pd()->with_ab_zero_points(), pd()->with_c_zero_points(),
                 pd()->with_bias(), pd()->attr()->post_ops_, d->a_type(),
-                d->b_type(), c_type, co_type, acc_type, pd()->eff_align_a(),
-                pd()->eff_align_b(), pd()->align_c(), pd()->unroll_m_,
+                d->b_type(), c_type, co_type, acc_type, pd()->kernel_align_a_,
+                pd()->kernel_align_b_, pd()->kernel_align_c_, pd()->unroll_m_,
                 pd()->unroll_n_, pd()->tag_);
 
         if (status != status::success) return status;

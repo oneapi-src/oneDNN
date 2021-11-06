@@ -124,7 +124,7 @@ public:
     CommonDriverInfo driver_info(int eu_count) const {
         CommonDriverInfo info;
         info.subgroupSize = nominal_subgroup_size;
-        info.fusedEUs = true;
+        info.fusedLoop = LoopM;
         info.loopOrder[0] = LoopM;
         info.loopOrder[1] = LoopN;
         info.loopOrder[2] = LoopK;

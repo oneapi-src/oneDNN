@@ -117,7 +117,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         std::swap(gws[0], gws[1]);
     }
 
-    if (nocopy_info_.fusedEUs && (lws[0] > 1))
+    if (nocopy_info_.fusedEUs() && (lws[0] > 1))
         gws[0] = utils::rnd_up(gws[0], 2);
 
     int last_non_1 = 2;
@@ -125,7 +125,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
             last_non_1--)
         ;
 
-    for (int d = 0; d < 2; d++) {
+    for (int d = 0; d < 3; d++) {
         if (nocopy_info_.fixedWG || (gws[d] > lws[d]))
             gws[d] = utils::rnd_up(gws[d], lws[d]);
         else {
@@ -141,6 +141,12 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     gemm_linear_order_args(arg_list, argn, lws, gws, m, n, disable_hilbert,
             nocopy_info_, pd()->dev_info_);
+
+    if (nocopy_info_.perKSLM > 0) {
+        size_t slm = nocopy_info_.slm;
+        if (lws[2] > 1) slm = nstl::max(slm, nocopy_info_.perKSLM * lws[2]);
+        arg_list.set(argn++, slm, nullptr);
+    }
 
     lws[0] *= nocopy_info_.subgroupSize;
     gws[0] *= nocopy_info_.subgroupSize;
