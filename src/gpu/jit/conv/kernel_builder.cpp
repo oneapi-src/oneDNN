@@ -522,7 +522,7 @@ public:
         if (!is_expr_defined(obj)) external_vars.insert(obj);
     }
 
-    object_set_t<expr_t> external_vars;
+    object_eq_set_t<expr_t> external_vars;
 };
 
 stmt_t inject_external_var_let(const stmt_t &_stmt) {
@@ -3462,11 +3462,11 @@ class alloc_injector_t : public ir_mutator_t {
 public:
     alloc_injector_t(const stmt_t &root, const std::vector<stmt_t> &allocs,
             bool put_innermost)
-        : root_(root), put_innermost_(put_innermost) {
+        : root_(root), put_innermost_(put_innermost), allocs_(allocs) {
         for (auto &_a : allocs) {
             auto &a = _a.as<alloc_t>();
             if (a.kind != alloc_kind_t::global) ir_assert(a.size > 0) << _a;
-            allocs_.insert({a.buf, _a});
+            alloc_map_.insert({a.buf, _a});
         }
         mutate(root_);
         buf_total_refs_ = buf_cur_refs_;
@@ -3482,7 +3482,7 @@ public:
 
 #undef HANDLE_IR_OBJECT
     object_t _mutate(const var_t &obj) override {
-        if (allocs_.find(obj) != allocs_.end()) buf_cur_refs_[obj]++;
+        if (alloc_map_.find(obj) != alloc_map_.end()) buf_cur_refs_[obj]++;
         return obj;
     }
 
@@ -3497,9 +3497,10 @@ private:
                 if (kv.second == 0) undef_bufs.insert(kv.first);
             new_obj = ir_mutator_t::_mutate(obj);
         }
-        for (auto &kv : allocs_) {
-            auto &buf = kv.first;
-            if (kv.second.is_empty()) continue; // Already injected.
+        for (auto &a : allocs_) {
+            auto it = alloc_map_.find(a.as<alloc_t>().buf);
+            auto &buf = it->first;
+            if (it->second.is_empty()) continue; // Already injected.
             bool do_inject = false;
             if (put_innermost_) {
                 int cur_refs = buf_cur_refs_[buf];
@@ -3510,9 +3511,9 @@ private:
                 do_inject = root_.is_same(obj);
             }
             if (do_inject) {
-                auto &a = kv.second.as<alloc_t>();
+                auto &a = it->second.as<alloc_t>();
                 new_obj = alloc_t::make(a.buf, a.size, a.kind, a.attr, new_obj);
-                kv.second = stmt_t();
+                it->second = stmt_t();
             }
         }
         return new_obj;
@@ -3521,7 +3522,8 @@ private:
     bool in_ctor_ = true;
     const stmt_t &root_;
     bool put_innermost_;
-    object_map_t<expr_t, stmt_t> allocs_;
+    std::vector<stmt_t> allocs_;
+    object_map_t<expr_t, stmt_t> alloc_map_;
     object_map_t<expr_t, int> buf_total_refs_;
     object_map_t<expr_t, int> buf_cur_refs_;
 };
