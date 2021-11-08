@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2021 Intel Corporation
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +14,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#ifndef DNNL_AARCH64_USE_ACL // Ref: https://github.com/oneapi-src/oneDNN/issues/1205
 
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
@@ -1396,3 +1398,4 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestPooling_ncdhw, pooling_bwd_test_float,
                                 5, 5, 5, 1, 1, 1, 1, 1, 1)}));
 
 } // namespace dnnl
+#endif // DNNL_AARCH64_USE_ACL
