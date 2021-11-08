@@ -4094,7 +4094,7 @@ public:
         if (!info_.is_output()) return false;
 
         for (int i = 0; i < mem_view().nvdims(); i++) {
-            if ((mask() & (1 << i)) == 0) {
+            if (is_broadcast_dim(i)) {
                 if (reg_layout_.dims()[i] != 1) return true;
             }
         }
@@ -4130,7 +4130,7 @@ public:
         auto dims = tile.dims();
 
         for (int i = 0; i < tile.ndims(); i++) {
-            if (mem_view().vdims()[i] != 1) continue;
+            if (!is_broadcast_dim(i)) continue;
             start[i] = expr_t(0);
             dims[i] = 1;
         }

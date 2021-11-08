@@ -464,7 +464,8 @@ private:
             const expr_t &buf, const expr_t &op_var = expr_t(),
             float scale = 1.0f) {
         ir_assert(view.nvdims() == cp_view_.nvdims());
-        uint32_t mask = compute_mask(view);
+        uint32_t mask
+                = (buf.is_empty() ? ~(1u << cp_ndims()) : compute_mask(view));
         tensor_infos_.emplace_back(
                 is_input, is_output, view, buf, mask, op_var, scale);
         return tensor_infos_.back().op_var();
@@ -474,7 +475,7 @@ private:
         ir_assert(cp_view_.nvdims() == view.nvdims());
         uint32_t mask = 0;
         for (int i = 0; i < view.nvdims(); i++) {
-            if (cp_view_.vdims()[i] == view.vdims()[i]) mask |= (1 << i);
+            if (view.vdims()[i] != 1) mask |= (1 << i);
         }
         return mask;
     }
