@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 
 #include "cpu/cpu_inner_product_pd.hpp"
 
+#include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
@@ -90,6 +91,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             const float alpha = 1.0;
             const float beta = 1.0;
             const float beta_init = 0.0;
+
+            for_(int i_bs = 0; i_bs < 2; i_bs++)
             for_(int i_init = 0; i_init < 2; i_init++)
             for_(int i_M = 0; i_M < 2; i_M++)
             for_(int i_N = 0; i_N < 2; i_N++)
@@ -98,8 +101,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 auto vM = (i_M) ? jbgp_.M_tail : jbgp_.M;
                 auto vN = (i_N) ? jbgp_.N_tail : jbgp_.N;
                 auto vK = (i_K) ? jbgp_.K_tail : jbgp_.K;
-
-                int idx = get_brg_kernel_idx(i_init, i_M, i_N, i_K);
+                int bs = get_brg_batchsize(i_bs, i_K);
+                int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K, bs);
                 if (idx < 0) continue;
                 brgemm_t &brg = brg_descs_[idx];
                 CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, jbgp_.src_dt,
@@ -118,12 +121,14 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 if (isa == avx512_core_bf16_amx_int8
                         || isa == avx512_core_bf16_amx_bf16) {
                     brgemm_attr_t brgattr;
-                    brgattr.max_bs = jbgp_.gemm_batch_size;
+                    brgattr.max_bs = bs;
                     brgattr.wary_tail_read = false;
                     brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.ic;
                     brgattr.hint_expected_B_size = jbgp_.oc * jbgp_.ic;
                     brgattr.hint_expected_C_size = jbgp_.mb * jbgp_.oc;
                     brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
+                    brgattr.use_uker = jbgp_.use_uker;
+                    brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
                 }
@@ -135,16 +140,30 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             return status::success;
         }
 
-        int get_brg_kernel_idx(bool do_initialization, bool is_M_tail,
-                bool is_N_tail, bool is_K_tail) const {
+        int get_brg_kernel_idx(bool is_bs_tail, bool do_initialization,
+                bool is_M_tail, bool is_N_tail, bool is_K_tail, int bs) const {
             auto vM = (is_M_tail) ? jbgp_.M_tail : jbgp_.M;
             auto vN = (is_N_tail) ? jbgp_.N_tail : jbgp_.N;
             auto vK = (is_K_tail) ? jbgp_.K_tail : jbgp_.K;
-            if (vM == 0 || vN == 0 || vK == 0 || jbgp_.LDA < vK
+
+            if (vM == 0 || vN == 0 || vK == 0 || bs == 0 || jbgp_.LDA < vK
                     || jbgp_.LDB < vN || jbgp_.LDC < vN)
                 return -1;
-            return brgemm_inner_product_utils::get_brg_kernel_index(
-                    jbgp_, do_initialization, is_M_tail, is_N_tail, is_K_tail);
+            return brgemm_inner_product_utils::get_brg_kernel_index(jbgp_,
+                    is_bs_tail, do_initialization, is_M_tail, is_N_tail,
+                    is_K_tail);
+        }
+
+        int get_brg_batchsize(bool is_bs_tail, bool is_K_tail) const {
+            auto adj_ic = jbgp_.use_buffer_a
+                    ? utils::rnd_up(jbgp_.ic, jbgp_.ic_block)
+                    : jbgp_.ic;
+            auto bs = (is_K_tail)
+                    ? 1
+                    : ((is_bs_tail) ? (adj_ic / jbgp_.ic_block)
+                                            % jbgp_.gemm_batch_size
+                                    : jbgp_.gemm_batch_size);
+            return bs;
         }
 
         brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
@@ -154,11 +173,13 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
     brgemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
+        for_(int i_bs = 0; i_bs < 2; i_bs++)
         for_(int i_M = 0; i_M < 2; i_M++)
         for_(int i_N = 0; i_N < 2; i_N++)
         for_(int i_K = 0; i_K < 2; i_K++)
         for (int i_init = 0; i_init < 2; i_init++) {
-            int idx = pd()->get_brg_kernel_idx(i_init, i_M, i_N, i_K);
+            int bs = pd()->get_brg_batchsize(i_bs, i_K);
+            int idx = pd()->get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K, bs);
             if (idx < 0) continue;
 
             brgemm_kernel_t *ker = nullptr;
@@ -191,8 +212,8 @@ private:
             brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_copy_to_coarse_t> copy_src_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
-    char brg_kernel_palettes_
-            [brgemm_inner_product_utils::max_num_brg_kernels_ip][64];
+    char brg_kernel_palettes_[brgemm_inner_product_utils::
+                    max_num_brg_kernels_ip][AMX_PALETTE_SIZE];
 };
 
 template <cpu_isa_t isa>
@@ -232,6 +253,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             const float beta = 1.0;
             const float beta_init = 0.0;
 
+            for_(int i_bs = 0; i_bs < 2; i_bs++)
             for_(int i_init = 0; i_init < 2; i_init++)
             for_(int i_M = 0; i_M < 2; i_M++)
             for_(int i_N = 0; i_N < 2; i_N++)
@@ -240,8 +262,8 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                 auto vM = (i_M) ? jbgp_.M_tail : jbgp_.M;
                 auto vN = (i_N) ? jbgp_.N_tail : jbgp_.N;
                 auto vK = (i_K) ? jbgp_.K_tail : jbgp_.K;
-
-                int idx = get_brg_kernel_idx(i_init, i_M, i_N, i_K);
+                int bs = get_brg_batchsize(i_bs, i_K);
+                int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K, bs);
                 if (idx < 0) continue;
 
                 brgemm_t &brg = brg_descs_[idx];
@@ -255,12 +277,14 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
                 if (isa == avx512_core_bf16_amx_bf16) {
                     brgemm_attr_t brgattr;
-                    brgattr.max_bs = jbgp_.gemm_batch_size;
+                    brgattr.max_bs = bs;
                     brgattr.wary_tail_read = false;
                     brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.oc;
                     brgattr.hint_expected_B_size = jbgp_.oc * jbgp_.ic;
                     brgattr.hint_expected_C_size = jbgp_.mb * jbgp_.ic;
                     brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
+                    brgattr.use_uker = jbgp_.use_uker;
+                    brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
                 }
@@ -272,16 +296,30 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             return status::success;
         }
 
-        int get_brg_kernel_idx(bool do_initialization, bool is_M_tail,
-                bool is_N_tail, bool is_K_tail) const {
+        int get_brg_kernel_idx(bool is_bs_tail, bool do_initialization,
+                bool is_M_tail, bool is_N_tail, bool is_K_tail, int bs) const {
             auto vM = (is_M_tail) ? jbgp_.M_tail : jbgp_.M;
             auto vN = (is_N_tail) ? jbgp_.N_tail : jbgp_.N;
             auto vK = (is_K_tail) ? jbgp_.K_tail : jbgp_.K;
-            if (vM == 0 || vN == 0 || vK == 0 || jbgp_.LDA < vK
+
+            if (vM == 0 || vN == 0 || vK == 0 || bs == 0 || jbgp_.LDA < vK
                     || jbgp_.LDB < vN || jbgp_.LDC < vN)
                 return -1;
-            return brgemm_inner_product_utils::get_brg_kernel_index(
-                    jbgp_, do_initialization, is_M_tail, is_N_tail, is_K_tail);
+            return brgemm_inner_product_utils::get_brg_kernel_index(jbgp_,
+                    is_bs_tail, do_initialization, is_M_tail, is_N_tail,
+                    is_K_tail);
+        }
+
+        int get_brg_batchsize(bool is_bs_tail, bool is_K_tail) const {
+            auto adj_oc = jbgp_.use_buffer_a
+                    ? utils::rnd_up(jbgp_.oc, jbgp_.oc_block)
+                    : jbgp_.oc;
+            auto bs = (is_K_tail) ? 1
+                                  : ((is_bs_tail) ? (adj_oc / jbgp_.oc_block)
+                                                          % jbgp_.nb_oc_blocking
+                                                  : jbgp_.nb_oc_blocking);
+
+            return bs;
         }
 
         brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
@@ -292,11 +330,13 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         const auto &jbgp = pd()->jbgp_;
+        for_(int i_bs = 0; i_bs < 2; i_bs++)
         for_(int i_M = 0; i_M < 2; i_M++)
         for_(int i_N = 0; i_N < 2; i_N++)
         for_(int i_K = 0; i_K < 2; i_K++)
         for (int i_init = 0; i_init < 2; i_init++) {
-            int idx = pd()->get_brg_kernel_idx(i_init, i_M, i_N, i_K);
+            int bs = pd()->get_brg_batchsize(i_bs, i_K);
+            int idx = pd()->get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K, bs);
             if (idx < 0) continue;
 
             brgemm_kernel_t *ker = nullptr;
@@ -336,8 +376,8 @@ private:
     std::unique_ptr<jit_brgemm_copy_to_coarse_t> copy_diff_dst_kernel_;
     std::unique_ptr<jit_brgemm_trans_wei_t> trans_B_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
-    char brg_kernel_palettes_
-            [brgemm_inner_product_utils::max_num_brg_kernels_ip][64];
+    char brg_kernel_palettes_[brgemm_inner_product_utils::
+                    max_num_brg_kernels_ip][AMX_PALETTE_SIZE];
 };
 
 template <cpu_isa_t isa>
@@ -376,6 +416,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             const float beta = 1.0;
             const float beta_init = 0.0;
 
+            for_(int i_bs = 0; i_bs < 2; i_bs++)
             for_(int i_init = 0; i_init < 2; i_init++)
             for_(int i_M = 0; i_M < 2; i_M++)
             for_(int i_N = 0; i_N < 2; i_N++)
@@ -384,7 +425,8 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 auto vM = (i_M) ? jbgp_.M_tail : jbgp_.M;
                 auto vN = (i_N) ? jbgp_.N_tail : jbgp_.N;
                 auto vK = (i_K) ? jbgp_.K_tail : jbgp_.K;
-                int idx = get_brg_kernel_idx(i_init, i_M, i_N, i_K);
+                int bs = get_brg_batchsize(i_bs, i_K);
+                int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K, bs);
                 if (idx < 0) continue;
                 brgemm_t &brg = brg_descs_[idx];
                 CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, jbgp_.src_dt,
@@ -392,12 +434,14 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                         vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
                 if (isa == avx512_core_bf16_amx_bf16) {
                     brgemm_attr_t brgattr;
-                    brgattr.max_bs = jbgp_.gemm_batch_size;
+                    brgattr.max_bs = bs;
                     brgattr.wary_tail_read = false;
                     brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.ic;
                     brgattr.hint_expected_B_size = jbgp_.mb * jbgp_.oc;
                     brgattr.hint_expected_C_size = jbgp_.ic * jbgp_.oc;
                     brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
+                    brgattr.use_uker = jbgp_.use_uker;
+                    brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
                 }
@@ -409,16 +453,28 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             return status::success;
         }
 
-        int get_brg_kernel_idx(bool do_initialization, bool is_M_tail,
-                bool is_N_tail, bool is_K_tail) const {
+        int get_brg_kernel_idx(bool is_bs_tail, bool do_initialization,
+                bool is_M_tail, bool is_N_tail, bool is_K_tail, int bs) const {
             auto vM = (is_M_tail) ? jbgp_.M_tail : jbgp_.M;
             auto vN = (is_N_tail) ? jbgp_.N_tail : jbgp_.N;
             auto vK = (is_K_tail) ? jbgp_.K_tail : jbgp_.K;
-            if (vM == 0 || vN == 0 || vK == 0 || jbgp_.LDA < vK
+
+            if (vM == 0 || vN == 0 || vK == 0 || bs == 0 || jbgp_.LDA < vK
                     || jbgp_.LDB < vN || jbgp_.LDC < vN)
                 return -1;
-            return brgemm_inner_product_utils::get_brg_kernel_index(
-                    jbgp_, do_initialization, is_M_tail, is_N_tail, is_K_tail);
+            return brgemm_inner_product_utils::get_brg_kernel_index(jbgp_,
+                    is_bs_tail, do_initialization, is_M_tail, is_N_tail,
+                    is_K_tail);
+        }
+
+        int get_brg_batchsize(bool is_bs_tail, bool is_K_tail) const {
+            auto adj_os = jbgp_.os
+                    + ((isa == avx512_core_bf16_amx_bf16) ? jbgp_.os % 2 : 0);
+            auto bs = (is_K_tail) ? 1
+                                  : ((is_bs_tail) ? (adj_os / jbgp_.os_block)
+                                                          % jbgp_.nb_os_blocking
+                                                  : jbgp_.nb_os_blocking);
+            return bs;
         }
 
         brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
@@ -429,11 +485,13 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         const auto &jbgp = pd()->jbgp_;
+        for_(int i_bs = 0; i_bs < 2; i_bs++)
         for_(int i_M = 0; i_M < 2; i_M++)
         for_(int i_N = 0; i_N < 2; i_N++)
         for_(int i_K = 0; i_K < 2; i_K++)
         for (int i_init = 0; i_init < 2; i_init++) {
-            int idx = pd()->get_brg_kernel_idx(i_init, i_M, i_N, i_K);
+            int bs = pd()->get_brg_batchsize(i_bs, i_K);
+            int idx = pd()->get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K, bs);
             if (idx < 0) continue;
 
             brgemm_kernel_t *ker = nullptr;
@@ -511,8 +569,8 @@ private:
             const int icb, int oc_size, int ic_size,
             bool is_reduction = false) const;
 
-    char brg_kernel_palettes_
-            [brgemm_inner_product_utils::max_num_brg_kernels_ip][64];
+    char brg_kernel_palettes_[brgemm_inner_product_utils::
+                    max_num_brg_kernels_ip][AMX_PALETTE_SIZE];
     dim_t get_wei_offset(int ocb, int icb) const;
     char *get_wei_acc_ptr(const thread_info_t *ti, int ocb, int icb,
             int reduction_buf_idx = -1) const;

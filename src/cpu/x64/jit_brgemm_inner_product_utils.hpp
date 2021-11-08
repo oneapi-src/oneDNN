@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,10 +51,11 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_primitive_conf_t &jbgp);
 
-static const int max_num_brg_kernels_ip = 2 * 2 * 2 * 2;
+static const int max_num_brg_kernels_ip = 2 * 2 * 2 * 2 * 2;
 
 int get_brg_kernel_index(const jit_brgemm_primitive_conf_t &jbgp,
-        bool do_initialization, bool is_M_tail, bool is_N_tail, bool is_K_tail);
+        bool is_bs_tail, bool do_initialization, bool is_M_tail, bool is_N_tail,
+        bool is_K_tail);
 
 int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
         bool is_adjustment);

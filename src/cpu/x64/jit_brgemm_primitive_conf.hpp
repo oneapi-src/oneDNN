@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,6 +78,9 @@ struct jit_brgemm_primitive_conf_t {
 
     cpu_isa_t isa;
     bool ip_bwd_d_global_b_transpose;
+    bool use_uker;
+    bool use_interleave_stores;
+    static constexpr int tile_wsp_per_thread = 4096;
 };
 
 } // namespace x64

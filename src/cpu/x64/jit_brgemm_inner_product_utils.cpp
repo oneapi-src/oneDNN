@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,10 +32,10 @@ using namespace data_type;
 namespace brgemm_inner_product_utils {
 
 int get_brg_kernel_index(const jit_brgemm_primitive_conf_t &jbgp,
-        bool do_initialization, bool is_M_tail, bool is_N_tail,
+        bool is_bs_tail, bool do_initialization, bool is_M_tail, bool is_N_tail,
         bool is_K_tail) {
-    int idx = 8 * (int)do_initialization + 4 * (int)is_M_tail
-            + 2 * (int)is_N_tail + (int)is_K_tail;
+    int idx = 16 * (int)is_bs_tail + 8 * (int)do_initialization
+            + 4 * (int)is_M_tail + 2 * (int)is_N_tail + (int)is_K_tail;
 
     assert(idx < max_num_brg_kernels_ip);
     return idx;
@@ -926,6 +926,9 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     jbgp.brg_type = brgemm_addr;
     jbgp.nthr = nthreads;
 
+    jbgp.use_uker = true;
+    jbgp.use_interleave_stores = true;
+
     CHECK(set_or_check_tags());
     CHECK(attr.set_default_formats(&dst_md));
 
@@ -1036,8 +1039,9 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
 
     if (jbgp.isa == avx512_core_bf16_amx_int8
             || jbgp.isa == avx512_core_bf16_amx_bf16)
-        scratchpad.book(
-                key_conv_amx_tile_buffer, jbgp.nthr * 1024, sizeof(char));
+        scratchpad.book(key_conv_amx_tile_buffer,
+                jbgp.nthr * jit_brgemm_primitive_conf_t::tile_wsp_per_thread,
+                sizeof(char));
 }
 
 } // namespace brgemm_inner_product_utils

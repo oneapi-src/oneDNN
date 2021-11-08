@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     bool is_oc_tail = (jbgp.oc < jbgp.oc_block);
     int base_brg_ker_idx = brgemm_inner_product_utils::
             get_brg_kernel_index( // TODO: Can be calculated on initialization stage
-                    jbgp, false, is_os_tail, is_oc_tail, false);
+                    jbgp, false, false, is_os_tail, is_oc_tail, false);
 
     const auto ker = [&](int ithr_oc_mb, int nthr_oc_mb, int ithr_ic, int n,
                              int ocb, int icc, bool do_init, int buffer_a_osb,
@@ -153,7 +153,11 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             c_buffer = c_buffer_global + c_buffer_off;
         }
 
-        char *wsp_tile = is_amx ? wsp_tile_base + ithr * 1024 : nullptr;
+        char *wsp_tile = is_amx ? wsp_tile_base
+                        + ithr
+                                * jit_brgemm_primitive_conf_t::
+                                        tile_wsp_per_thread
+                                : nullptr;
         int icb = icc * jbgp.nb_ic_blocking;
         int ic = icb * jbgp.ic_block;
 
@@ -170,8 +174,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         const int gemm_batch = nstl::min(
                 jbgp.gemm_batch_size, remaining_ic_blks / jbgp.ic_block);
 
+        auto is_bs_tail = (gemm_batch != jbgp.gemm_batch_size);
         int brg_ker_idx = brgemm_inner_product_utils::get_brg_kernel_index(
-                jbgp, kernel_init, is_os_tail, is_oc_tail, false);
+                jbgp, is_bs_tail, kernel_init, is_os_tail, is_oc_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
 
         if (copy_buffer_a) {
@@ -234,7 +239,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
             auto use_init_ker = (kernel_init && gemm_batch == 0);
             int brg_ker_idx = brgemm_inner_product_utils::get_brg_kernel_index(
-                    jbgp, use_init_ker, is_os_tail, is_oc_tail, true);
+                    jbgp, false, use_init_ker, is_os_tail, is_oc_tail, true);
             auto brg_kernel_ic_tail = brg_kernels_[brg_ker_idx].get();
             if (is_amx)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
@@ -414,7 +419,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                                     = (jbgp.oc - ocb * jbgp.oc_block
                                             < jbgp.oc_block);
                             const int brg_ker_idx = brgemm_inner_product_utils::
-                                    get_brg_kernel_index(jbgp, false,
+                                    get_brg_kernel_index(jbgp, false, false,
                                             is_os_tail, is_oc_tail, false);
                             const auto brg_kernel
                                     = brg_kernels_[brg_ker_idx].get();
@@ -428,9 +433,11 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                             auto ptr_C = (jbgp.with_sum ? c_buffer_global : dst)
                                     + get_dst_reduced_off(0, osb, ocb);
 
-                            char *wsp_tile = is_amx
-                                    ? wsp_tile_base + ithr * 1024
-                                    : nullptr;
+                            char *wsp_tile = is_amx ? wsp_tile_base
+                                            + ithr
+                                                    * jit_brgemm_primitive_conf_t::
+                                                            tile_wsp_per_thread
+                                                    : nullptr;
 
                             void *scratch = is_amx
                                     ? static_cast<void *>(wsp_tile)
@@ -521,7 +528,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
 
     const int base_brg_ker_idx = brgemm_inner_product_utils::
             get_brg_kernel_index( // TODO: Can be calculated on initialization stage
-                    jbgp, false, is_os_tail, is_ic_tail, is_oc_tail);
+                    jbgp, false, false, is_os_tail, is_ic_tail, is_oc_tail);
 
     const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     const int work_amount = jbgp.nb_ic * os_chunks;
@@ -619,7 +626,11 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         char *a_buffer = jbgp.use_buffer_a
                 ? a_buffer_global + ithr * a_buffer_size_per_thr
                 : diff_dst;
-        char *wsp_tile = is_amx ? wsp_tile_base + ithr * 1024 : nullptr;
+        char *wsp_tile = is_amx ? wsp_tile_base
+                        + ithr
+                                * jit_brgemm_primitive_conf_t::
+                                        tile_wsp_per_thread
+                                : nullptr;
 
         bool kernel_init = do_init;
 
@@ -633,9 +644,10 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         const int nb_oc_b
                 = nstl::min((rnd_oc - oc) / jbgp.oc_block, jbgp.nb_oc_blocking);
 
+        auto is_bs_tail = (nb_oc_b != jbgp.nb_oc_blocking);
         const int brg_ker_idx
-                = brgemm_inner_product_utils::get_brg_kernel_index(
-                        jbgp, kernel_init, is_os_tail, is_ic_tail, false);
+                = brgemm_inner_product_utils::get_brg_kernel_index(jbgp,
+                        is_bs_tail, kernel_init, is_os_tail, is_ic_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
 
         const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
@@ -708,8 +720,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
 
             auto use_init_ker = (kernel_init && nb_oc_b == 0);
             const int brg_kernel_oc_tail_idx
-                    = brgemm_inner_product_utils::get_brg_kernel_index(
-                            jbgp, use_init_ker, is_os_tail, is_ic_tail, true);
+                    = brgemm_inner_product_utils::get_brg_kernel_index(jbgp,
+                            false, use_init_ker, is_os_tail, is_ic_tail, true);
             auto brg_kernel_oc_tail
                     = brg_kernels_[brg_kernel_oc_tail_idx].get();
             if (is_amx)
@@ -1176,8 +1188,9 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                                                 * jbgp.oc_block)
                                          : nullptr;
 
-        char *wsp_tile = is_amx_bf16 ? wsp_tile_global + ti->ithr * tile_size
-                                     : nullptr;
+        char *wsp_tile = is_amx_bf16
+                ? wsp_tile_global + ti->ithr * 4 * tile_size
+                : nullptr;
         int ic = icb * jbgp.ic_block;
         int oc = ocb * jbgp.oc_block;
         int n = osc * jbgp.nb_os_blocking * jbgp.os_block;
@@ -1200,9 +1213,10 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
         auto nb_os_b = is_os_tail ? (jbgp.mb - n) / jbgp.os_block
                                   : jbgp.nb_os_blocking;
 
+        auto is_bs_tail = (nb_os_b != jbgp.nb_os_blocking);
         const int brg_ker_idx
-                = brgemm_inner_product_utils::get_brg_kernel_index(
-                        jbgp, kernel_init, is_ic_tail, is_oc_tail, false);
+                = brgemm_inner_product_utils::get_brg_kernel_index(jbgp,
+                        is_bs_tail, kernel_init, is_ic_tail, is_oc_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
 
         if (kernel_init && (is_ic_tail || is_oc_tail))
@@ -1318,8 +1332,8 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
 
             auto use_init_ker = (kernel_init && nb_os_b == 0);
             const int brg_ker_idx_os_tail
-                    = brgemm_inner_product_utils::get_brg_kernel_index(
-                            jbgp, use_init_ker, is_ic_tail, is_oc_tail, true);
+                    = brgemm_inner_product_utils::get_brg_kernel_index(jbgp,
+                            false, use_init_ker, is_ic_tail, is_oc_tail, true);
             auto brg_kernel_os_tail = brg_kernels_[brg_ker_idx_os_tail].get();
             if (brg_kernel_os_tail != nullptr) {
                 if (is_amx_bf16)
