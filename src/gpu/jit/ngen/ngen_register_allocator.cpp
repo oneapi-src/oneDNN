@@ -328,7 +328,7 @@ Subregister RegisterAllocator::try_alloc_sub(DataType type, Bundle bundle)
 
     auto find_alloc_sub = [&,bundle,dwords](bool search_full_grf) -> bool {
         static const uint16_t alloc_patterns[4] = {0b1111111111111111, 0b0101010101010101, 0, 0b0001000100010001};
-        uint8_t alloc_pattern = alloc_patterns[(dwords - 1) & 3];
+        auto alloc_pattern = alloc_patterns[(dwords - 1) & 3];
         int64_t *free_whole64 = (int64_t *) free_whole;
 
         for (int rchunk = 0; rchunk < (max_regs >> 6); rchunk++) {
