@@ -5318,13 +5318,14 @@ layout_t convert_to_fma_friendly_type(const conv_config_t &cfg,
 layout_t convert_to_fma_friendly_layout(const conv_config_t &cfg,
         abc_kind_t abc_kind, const bmnk_mapper_t &bmnk_mapper,
         const layout_t &layout, const type_t &a_type, const type_t &b_type,
-        bool *changed = nullptr) {
+        bool is_slm, bool *changed = nullptr) {
     if (changed) *changed = false;
     if (!cfg.allow_grf_reorder) return layout;
 
     // GRF reorder is only supported with dpas/dpasw.
     if (!utils::one_of(cfg.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw)) {
-        // mad may require type conversion.
+        if (is_slm) return layout;
+        // mad may require type conversion, supported for GRF layouts only.
         return convert_to_fma_friendly_type(
                 cfg, abc_kind, layout, a_type, b_type, changed);
     }
@@ -5669,7 +5670,8 @@ private:
 
         bool changed;
         auto fma_layout = convert_to_fma_friendly_layout(cfg_, abc_kind,
-                bmnk_mapper, reg_layout, a_type(), b_type(), &changed);
+                bmnk_mapper, reg_layout, a_type(), b_type(), /*is_slm=*/false,
+                &changed);
 
         if (changed) {
             if (fma_layout.type() != reg_layout.type()) {
@@ -6188,7 +6190,8 @@ private:
         auto &a_type = gemm_schedule_.a_view().type();
         auto &b_type = gemm_schedule_.b_view().type();
         auto ret = convert_to_fma_friendly_layout(cfg_, abc_kind,
-                gemm_schedule_.bmnk_mapper(), layout, a_type, b_type);
+                gemm_schedule_.bmnk_mapper(), layout, a_type, b_type,
+                /*is_slm=*/true);
         if (cfg_.pad_slm) ret = pad_slm_layout(ret, load_grid);
         return ret;
     }
