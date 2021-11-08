@@ -76,7 +76,7 @@ public:
 
     void inject() {
         expr_t src2_base;
-        extract_dpas_calls(src2_base);
+        if (!extract_dpas_calls(src2_base)) return;
 
         grf_permutator_t grf_perm(hw_, c_buf_);
 
@@ -277,7 +277,7 @@ private:
         return true;
     }
 
-    void extract_dpas_calls(expr_t &src2_base) {
+    bool extract_dpas_calls(expr_t &src2_base) {
         object_eq_map_t<expr_t, stmt_t> buf2send;
 
         auto set_src2_base = [&](const expr_t &ptr) {
@@ -286,7 +286,6 @@ private:
                 src2_base = ptr_base;
                 return;
             }
-            // This may need a fix in the future.
             ir_assert(src2_base.is_same(ptr_base));
         };
 
@@ -313,14 +312,21 @@ private:
                 auto it = buf2send.find(buf);
                 if (it == buf2send.end()) continue;
                 auto &send_info = find_send_info(it->second);
-                // Ensure read size matches DPAS src2 size.
-                // FIXME: This may not be always the case.
-                ir_assert(send_info.reg_buf_size() == dpas_info.src2_size());
+                // For simplicity require full size match between load and dpas
+                // instructions. That is dpas src2 buffer should be fully
+                // loaded by the corresponding send message.
+                if (send_info.reg_buf_size() != dpas_info.src2_size()) {
+                    ir_warning() << "Can't inject dpasw: different register "
+                                    "sizes in send and dpas."
+                                 << std::endl;
+                    return false;
+                }
                 dpas_info.send_producer = send_info.call;
                 send_info.dpas_consumers.push_back(s);
                 dpas_infos_.push_back(dpas_info);
             }
         }
+        return true;
     }
 
     // Checks for the following pattern:
