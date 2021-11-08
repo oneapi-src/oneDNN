@@ -96,8 +96,11 @@ if(NOT OpenMP_CXX_FOUND AND MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "(Clang|Intel
 endif()
 
 # add flags unconditionally to always utilize openmp-simd for any threading runtime
-if(OpenMP_CXX_FOUND)
+if(OpenMP_C_FOUND)
     append(CMAKE_C_FLAGS ${OpenMP_C_FLAGS})
+endif()
+
+if(OpenMP_CXX_FOUND)
     append(CMAKE_CXX_FLAGS ${OpenMP_CXX_FLAGS})
 endif()
 
