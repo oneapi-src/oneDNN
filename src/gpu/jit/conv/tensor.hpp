@@ -1513,8 +1513,15 @@ public:
             if (!is_const(inv_vstart)) return false;
 
             buf_view.set_vdim(buf_vvar, buf_vdim, buf_vstart);
-            // TODO: Check that mask doesn't contain vvars.
-            buf_view.set_tdim(i, buf_vvar, tdim.mask());
+
+            // Check that mask doesn't contain vvars - they can't be accessed
+            // in the buffered view.
+            auto &tmask = tdim.mask();
+            for (auto &vvar : vvars()) {
+                if (contains_object(tmask, vvar)) { return false; }
+            }
+
+            buf_view.set_tdim(i, buf_vvar, tmask);
             inv_view.set_tdim(i, tdim.expr() - inv_vstart);
         }
         buf_view.set_tlayout(tlayout_);
