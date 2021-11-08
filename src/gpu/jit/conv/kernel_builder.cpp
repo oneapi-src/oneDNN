@@ -6739,6 +6739,20 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     if (check_src_mb) src_mb_mask = (x < src_mb);
     if (check_dst_mb) dst_mb_mask = (x < dst_mb);
 
+    std::function<expr_t(const expr_t &)> iw_mapping;
+    if (cfg_.optimize_strided) {
+        // Apply mapping to iw to ensure each thread group has the same
+        // stride condition when evaluating skip conditions.
+        iw_mapping = [&](const expr_t &e) {
+            int iw_bound = utils::rnd_up(cfg_.iw, cfg_.iw_tg_blk);
+            ir_assert(iw_bound % cfg_.iw_thr_blk == 0);
+            int iw_same_mod_blk = ir_utils::safe_divide(iw_bound, cfg_.sw);
+            return (e % iw_same_mod_blk) * cfg_.sw + (e / iw_same_mod_blk);
+        };
+    } else {
+        iw_mapping = [](const expr_t &e) { return e; };
+    }
+
     // Destination.
     dst_view = view_t({mb, oc, id, ih, iw, kd, kh, kw}, 5);
     dst_view.set_vdim(mb, cfg_.mb);
@@ -6754,7 +6768,7 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
 
     auto od = id - kd * (1 + cfg_.dd) + cfg_.pd;
     auto oh = ih - kh * (1 + cfg_.dh) + cfg_.ph;
-    auto ow = iw - kw * (1 + cfg_.dw) + cfg_.pw;
+    auto ow = iw_mapping(iw) - kw * (1 + cfg_.dw) + cfg_.pw;
 
     // When stride optimization is enabled, stride conditions are handled by
     // continue calls in the outer loops.
@@ -6794,7 +6808,7 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     src_view.set_tdim(1, ic, src_ic_mask);
     src_view.set_tdim(2, id, id_mask);
     src_view.set_tdim(3, ih, ih_mask);
-    src_view.set_tdim(4, iw, iw_mask);
+    src_view.set_tdim(4, iw_mapping(iw), iw_mask);
     src_view.set_tlayout(src_layout);
 
     // Initialize GEMM schedule.
@@ -6830,14 +6844,6 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     gemm_schedule.tensorize(oc_inner);
 
     if (cfg_.optimize_strided) {
-        // Apply mapping to iw to ensure each thread group has the same
-        // stride condition when evaluating skip conditions.
-        auto iw_shuffle = [&](const expr_t &x) {
-            int iw_same_mod_blk = ir_utils::safe_divide(
-                    gemm_schedule.var_bound(iw), cfg_.sw);
-            return (x % iw_same_mod_blk) * cfg_.sw + (x / iw_same_mod_blk);
-        };
-        gemm_schedule.set_mapping(iw, iw_shuffle(iw));
         gemm_schedule.set_skip_condition(kd, od % cfg_.sd != 0);
         gemm_schedule.set_skip_condition(kh, oh % cfg_.sh != 0);
         gemm_schedule.set_skip_condition(kw, ow % cfg_.sw != 0);

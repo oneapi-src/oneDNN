@@ -585,14 +585,6 @@ public:
         }
     }
 
-    // Applies variable mapping, all occurrences of the variable are replaced
-    // to var_mapping expression.
-    void set_mapping(const expr_t &var, const expr_t &var_mapping) {
-        auto &loop = find_loop(var);
-        ir_assert(loop.is_root()) << "Variable is non-root: " << var;
-        var_mappings_[var] = var_mapping;
-    }
-
     // Adds a skip condition to the loop defined by `var`:
     //   for (var = 0; var < bound; var++) {
     //      if (cond) continue;
@@ -630,10 +622,6 @@ public:
             if (!has_loop(v)) continue;
             auto &loop = find_loop(v);
             auto v_value = loop.expand_var(loops_, /*skip_fused=*/true);
-            auto mapping_it = var_mappings_.find(v);
-            if (mapping_it != var_mappings_.end()) {
-                v_value = substitute(mapping_it->second, v, v_value);
-            }
             ret = substitute(ret, v, v_value);
         }
         if (expand_trivial_vars) {
@@ -992,7 +980,6 @@ private:
     object_map_t<expr_t, loop_t> loops_;
 
     object_map_t<expr_t, expr_t> skip_conditions_;
-    object_map_t<expr_t, expr_t> var_mappings_;
 
     bmnk_mapper_t bmnk_mapper_;
 
