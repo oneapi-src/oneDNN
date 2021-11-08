@@ -13,25 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #===============================================================================
-set(OBJ_LIB ${LIB_NAME}_interface_unit_test)
 
-add_library(${OBJ_LIB} OBJECT
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_engine.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_logger.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_v2_patterns.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
+file(GLOB SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
     )
 
-set(sycl_rt_pattern "(DPCPP)")
-if(DNNL_GRAPH_CPU_RUNTIME MATCHES ${sycl_rt_pattern} OR DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
-    add_subdirectory(sycl)
-endif()
+set(OBJ_LIB ${LIB_NAME}_unit_test_sycl)
+add_library(${OBJ_LIB} OBJECT ${SOURCES})
+
+target_include_directories(${OBJ_LIB}
+    PRIVATE
+    ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
+    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
+    ${PROJECT_SOURCE_DIR}/tests # gtest related headers
+    PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/
+    ${PROJECT_SOURCE_DIR}/include # Public but need to set manually for OBJECT target
+    )
 
 set_property(GLOBAL APPEND PROPERTY ${LIB_NAME}_UNIT_TEST_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)

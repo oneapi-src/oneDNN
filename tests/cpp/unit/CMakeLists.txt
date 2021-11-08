@@ -46,5 +46,15 @@ target_link_libraries(${LIB_NAME}_unit_test
     ${DNNL_GRAPH_COMMON_LINK_FLAGS} # FIXME: consider target_link_options from cmake 3.13
     )
 
-add_test("${LIB_NAME}_unit_test" "${LIB_NAME}_unit_test")
+set(sycl_rt_pattern "(DPCPP)")
+add_test("${LIB_NAME}_unit_test" "${LIB_NAME}_unit_test" "--engine=cpu")
 maybe_configure_windows_test("${LIB_NAME}_unit_test" TEST)
+
+# Add GPU test if GPU runtime is enabled
+if(DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
+    add_test("${LIB_NAME}_unit_test_gpu" "${LIB_NAME}_unit_test" "--engine=gpu"
+        "--gtest_filter=int8_subgraph_mode.*:operator_kernel.*:operator_compile.*:\ 
+        *TestConvtranspose_compile*:*TestReluAddCompile*:*TestBatchnormCompile*:\
+        TestConcatCompile*:compiled_partition.*:scratchpad.*")
+    maybe_configure_windows_test("${LIB_NAME}_unit_test_gpu" TEST)
+endif()

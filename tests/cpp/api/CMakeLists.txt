@@ -36,9 +36,17 @@ set(API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_constant_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_api_common.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition_cache_mt.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/api_test_main.cpp
     )
 
-add_executable(${LIB_NAME}_api_test ${API_TEST_SRCS})
+set(sycl_rt_pattern "(DPCPP)")
+if(DNNL_GRAPH_CPU_RUNTIME MATCHES ${sycl_rt_pattern} OR DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
+    add_subdirectory(sycl)
+endif()
+
+get_property(API_TEST_DEPS GLOBAL PROPERTY ${LIB_NAME}_API_TEST_DEPS)
+
+add_executable(${LIB_NAME}_api_test ${API_TEST_SRCS} ${API_TEST_DEPS})
 
 target_link_libraries(${LIB_NAME}_api_test
     LINK_PRIVATE
@@ -69,5 +77,12 @@ set(TEST_FILES_NEED_VERSION ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_version.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_version.cpp)
 APPLY_VERSION_DEFINITIONS("${TEST_FILES_NEED_VERSION}")
 
-add_test("${LIB_NAME}_api_test" "${LIB_NAME}_api_test")
+add_test("${LIB_NAME}_api_test" "${LIB_NAME}_api_test" "--engine=cpu")
 maybe_configure_windows_test("${LIB_NAME}_api_test" TEST)
+
+# Add GPU test if GPU runtime is enabled
+if(DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
+    add_test("${LIB_NAME}_api_test_gpu" "${LIB_NAME}_api_test" "--engine=gpu"
+    "--gtest_filter=c_api_test.compile*:*Test_CompileConv*:*Test_Max_Pool_Compile*:*Test_Average_Pool_Compile*")
+    maybe_configure_windows_test("${LIB_NAME}_api_test_gpu" TEST)
+endif()

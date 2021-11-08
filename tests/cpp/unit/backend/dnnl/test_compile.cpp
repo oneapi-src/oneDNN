@@ -6680,11 +6680,18 @@ TEST(operator_kernel, max_pool_backward_with_incides) {
             0.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12.0};
 
     test::vector<float> diff_dst {4.0, 16.0, 8.0, 12.0};
-#if DNNL_GRAPH_WITH_SYCL
-    test::vector<int32_t> indices {2, 0, 1, 3};
-#else
-    test::vector<uint8_t> indices {2, 0, 1, 3};
-#endif
+
+    void *indices_data = nullptr;
+    test::vector<int32_t> s32_indices;
+    test::vector<uint8_t> u8_indices {2, 0, 1, 3};
+    if (get_test_engine_kind() == impl::engine_kind::cpu) {
+        u8_indices = test::vector<uint8_t> {2, 0, 1, 3};
+        indices_data = u8_indices.data();
+
+    } else {
+        s32_indices = test::vector<int32_t> {2, 0, 1, 3};
+        indices_data = s32_indices.data();
+    }
 
     impl::op_t max_pool_bwd_op(impl::op_kind::MaxPoolBackprop);
 
@@ -6701,13 +6708,14 @@ TEST(operator_kernel, max_pool_backward_with_incides) {
             1, {1, 1, 4, 4}, impl::data_type::f32, impl::layout_type::any);
     impl::logical_tensor_t diff_dst_lt
             = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-#if DNNL_GRAPH_WITH_SYCL
-    impl::logical_tensor_t indices_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::s32);
-#else
-    impl::logical_tensor_t indices_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::u8);
-#endif
+    impl::logical_tensor_t indices_lt;
+    if (get_test_engine_kind() == impl::engine_kind::cpu) {
+        indices_lt = utils::logical_tensor_init(
+                4, {1, 1, 2, 2}, impl::data_type::u8);
+    } else {
+        indices_lt = utils::logical_tensor_init(
+                4, {1, 1, 2, 2}, impl::data_type::s32);
+    }
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto max_pool_bwd_kernel = op_factory.create_kernel(max_pool_bwd_op);
@@ -6719,7 +6727,7 @@ TEST(operator_kernel, max_pool_backward_with_incides) {
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
     impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
-    impl::tensor_t indices_ts(indices_lt, &eng, indices.data());
+    impl::tensor_t indices_ts(indices_lt, &eng, indices_data);
 
     impl::stream_t &strm = get_stream();
     max_pool_bwd_kernel->execute(&max_pool_bwd_op, &strm,

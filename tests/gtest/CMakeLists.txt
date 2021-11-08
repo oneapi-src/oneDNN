@@ -19,7 +19,7 @@
 # Do not modify this file
 
 set(TARGET_NAME ${LIB_NAME}_gtest)
-set(MAIN_SRC "src/gtest-all.cc" "src/gtest_main.cc")
+set(MAIN_SRC "src/gtest-all.cc")
 source_group("" FILES ${MAIN_SRC})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/..)

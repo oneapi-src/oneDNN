@@ -36,38 +36,79 @@ void *sycl_alloc(size_t n, const void *dev, const void *ctx);
 void sycl_free(void *ptr, const void *ctx);
 #endif // DNNL_GRAPH_WITH_SYCL
 
-impl::engine_t &get_engine(dnnl::graph::impl::engine_kind_t engine_kind
-        = dnnl::graph::impl::engine_kind::any_engine);
+impl::engine_t &get_engine();
 
 impl::stream_t &get_stream();
+
+impl::engine_kind_t get_test_engine_kind();
+
+void set_test_engine_kind(impl::engine_kind_t kind);
 
 namespace test {
 
 #if DNNL_GRAPH_WITH_SYCL
 constexpr size_t usm_alignment = 16;
-
-template <typename T>
-using AllocatorBase = cl::sycl::usm_allocator<T, cl::sycl::usm::alloc::shared,
-        usm_alignment>;
-#else
-template <typename T>
-using AllocatorBase = std::allocator<T>;
-#endif // DNNL_GRAPH_WITH_SYCL
-
-template <typename T>
-class TestAllocator : public AllocatorBase<T> {
-public:
-#if DNNL_GRAPH_WITH_SYCL
-    TestAllocator() : AllocatorBase<T>(get_context(), get_device()) {}
-#else
-    TestAllocator() : AllocatorBase<T>() {}
 #endif
+
+template <typename T>
+class TestAllocator {
+public:
+    typedef T value_type;
+
+    T *allocate(size_t num_elements) {
+        if (get_test_engine_kind() == impl::engine_kind::cpu) {
+#if DNNL_GRAPH_CPU_SYCL
+            return reinterpret_cast<T *>(cl::sycl::aligned_alloc(usm_alignment,
+                    num_elements * sizeof(T), get_device(), get_context(),
+                    cl::sycl::usm::alloc::shared));
+#else
+            return reinterpret_cast<T *>(malloc(num_elements * sizeof(T)));
+#endif
+        } else if (get_test_engine_kind() == impl::engine_kind::gpu) {
+#if DNNL_GRAPH_GPU_SYCL
+            return reinterpret_cast<T *>(cl::sycl::aligned_alloc(usm_alignment,
+                    num_elements * sizeof(T), get_device(), get_context(),
+                    cl::sycl::usm::alloc::shared));
+#else
+            return nullptr;
+#endif
+        } else {
+            return nullptr;
+        }
+    }
+
+    void deallocate(T *ptr, size_t) {
+        if (!ptr) return;
+
+        if (get_test_engine_kind() == impl::engine_kind::cpu) {
+#if DNNL_GRAPH_CPU_SYCL
+            cl::sycl::free(ptr, get_context());
+#else
+            free(ptr);
+#endif
+        } else if (get_test_engine_kind() == impl::engine_kind::gpu) {
+#if DNNL_GRAPH_GPU_SYCL
+            cl::sycl::free(ptr, get_context());
+#endif
+        } else {
+        }
+    }
 
     template <typename U>
     struct rebind {
         using other = TestAllocator<U>;
     };
 };
+
+template <class T, class U>
+bool operator==(const TestAllocator<T> &, const TestAllocator<U> &) {
+    return true;
+}
+
+template <class T, class U>
+bool operator!=(const TestAllocator<T> &, const TestAllocator<U> &) {
+    return false;
+}
 
 template <typename T>
 #if DNNL_GRAPH_WITH_SYCL

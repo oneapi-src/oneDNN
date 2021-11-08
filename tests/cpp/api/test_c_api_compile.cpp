@@ -1378,7 +1378,7 @@ TEST(c_api_test, compile_maxpool_with_strided_output) {
 TEST(c_api_test, compile_add) {
     dnnl_graph_graph_t *agraph = NULL;
     dnnl_graph_op_t *add = NULL;
-    dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
+    dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kAdd;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     dnnl_graph_partition_t *partition = NULL;
@@ -2219,7 +2219,7 @@ TEST(c_api_test, compile_matmul_add_activation) {
 TEST(c_api_test, compile_softmax) {
     dnnl_graph_graph_t *agraph = NULL;
     dnnl_graph_op_t *softmax = NULL;
-    dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
+    dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kSoftMax;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     dnnl_graph_partition_t *partition = NULL;
@@ -2296,7 +2296,7 @@ TEST(c_api_test, compile_softmax) {
 TEST(c_api_test, compile_softmax_bwd) {
     dnnl_graph_graph_t *agraph = NULL;
     dnnl_graph_op_t *softmax = NULL;
-    dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
+    dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kSoftMaxBackprop;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     dnnl_graph_partition_t *partition = NULL;
@@ -2381,7 +2381,7 @@ TEST(c_api_test, compile_softmax_bwd) {
 TEST(c_api_test, compile_logsoftmax) {
     dnnl_graph_graph_t *agraph = NULL;
     dnnl_graph_op_t *logsoftmax = NULL;
-    dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
+    dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kLogSoftmax;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     dnnl_graph_partition_t *partition = NULL;
