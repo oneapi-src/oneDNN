@@ -2868,6 +2868,12 @@ public:
             body = replace_stmt_body(outer_loop_info.alloc_stmt(), body);
         }
 
+        // When compute loop is part of outer loop and SLM buffering is used
+        // then synchronization is required between outer iterations.
+        if (loop_nest_.compute_loop_level() != 0 && params_.use_slm) {
+            body = funcs::barrier().append(body);
+        }
+
         auto ret = substitute(root_, step_.compute_loop(), body, 1);
         if (params_.use_slm) {
             alloc_updater_t alloc_updater;
