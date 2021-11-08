@@ -21,7 +21,10 @@
 
 #include "interface/c_types_map.hpp"
 
+#include "backend/dnnl/common.hpp"
 #include "backend/dnnl/scratchpad.hpp"
+
+#include "cpp/unit/unit_test_common.hpp"
 
 #include <dnnl.hpp>
 
@@ -29,25 +32,25 @@ TEST(scratchpad, temporary_scratchpad) {
     using dnnl::graph::impl::allocator_t;
     using dnnl::graph::impl::dnnl_impl::temporary_scratchpad_t;
 
-    allocator_t &alloc = *allocator_t::create();
-    dnnl::engine eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    allocator_t *alloc = g_eng.get_allocator();
+    dnnl::engine p_eng = dnnl::graph::impl::dnnl_impl::make_dnnl_engine(g_eng);
 
     // No seg fault here because the memory will be deleted when
     // temporary_scratchpad_t is destroyed
     std::vector<size_t> buf_sizes = {512, 1024, 2048, 4096};
     for (size_t i = 0; i < buf_sizes.size(); i++) {
-        temporary_scratchpad_t scratchpad(buf_sizes[i], eng, alloc);
+        temporary_scratchpad_t scratchpad(buf_sizes[i], p_eng, *alloc);
         // the scratchpad size will be changed
         ASSERT_EQ(buf_sizes[i], scratchpad.size());
     }
 
     buf_sizes = {4096, 2048, 1024, 512};
     for (size_t i = 0; i < buf_sizes.size(); i++) {
-        temporary_scratchpad_t scratchpad(buf_sizes[i], eng, alloc);
+        temporary_scratchpad_t scratchpad(buf_sizes[i], p_eng, *alloc);
         // the scratchpad size will be changed
         ASSERT_EQ(buf_sizes[i], scratchpad.size());
     }
-    alloc.release();
 }
 
 TEST(scratchpad, registry) {

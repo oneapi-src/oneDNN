@@ -221,7 +221,7 @@ TEST(operator_compile, convolution_compile_fp32) {
     conv_op.add_input(weight);
     conv_op.add_output(dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -273,7 +273,7 @@ TEST(operator_compile, convolution_backward_data_compile_fp32) {
     conv_op.add_input(weights);
     conv_op.add_output(diff_src);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -361,7 +361,7 @@ TEST(operator_compile, convtranspose_compile_fp32) {
     convtranspose_op.add_input(weight);
     convtranspose_op.add_output(dst);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&convtranspose_op);
     g.build_graph();
 
@@ -2039,7 +2039,7 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
     matmul_op.add_input(bias);
     matmul_op.add_output(dst);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&matmul_op);
     g.build_graph();
 
@@ -2116,7 +2116,7 @@ TEST(operator_kernel, matmul_compile_fwd_f16f16f16) {
     matmul_op.add_input(weight);
     matmul_op.add_output(dst);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&matmul_op);
     g.build_graph();
 
@@ -2172,7 +2172,7 @@ TEST(operator_kernel, matmul_compile_fwd_bf16bf16bf16) {
     matmul_op.add_input(weight);
     matmul_op.add_output(dst);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&matmul_op);
     g.build_graph();
 
@@ -2250,7 +2250,7 @@ TEST(operator_kernel, matmul_ndx1d) {
             matmul_op.add_input(weight);
             matmul_op.add_output(dst);
 
-            impl::graph_t g;
+            impl::graph_t g(engine.kind());
             g.add_op(&matmul_op);
             g.build_graph();
 
@@ -2343,7 +2343,7 @@ TEST(operator_kernel, matmul_1dxnd) {
             matmul_op.add_input(weight);
             matmul_op.add_output(dst);
 
-            impl::graph_t g;
+            impl::graph_t g(engine.kind());
             g.add_op(&matmul_op);
             g.build_graph();
 
@@ -2412,7 +2412,7 @@ TEST(operator_kernel, matmul_3dx3d) {
     matmul_op.add_input(weight);
     matmul_op.add_output(dst);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&matmul_op);
     g.build_graph();
 
@@ -2471,7 +2471,7 @@ TEST(operator_kernel, matmul_relu_fusion) {
     relu_op.add_input(dst);
     relu_op.add_output(relu_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
     g.build_graph();
@@ -2530,7 +2530,7 @@ TEST(operator_kernel, matmul_bias_fusion) {
     matmul_op.add_input(bias);
     matmul_op.add_output(dst);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&matmul_op);
     g.build_graph();
 
@@ -2595,7 +2595,7 @@ TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
     add_op.add_input(add_src1);
     add_op.add_output(add_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     g.build_graph();
@@ -2632,6 +2632,8 @@ TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
 }
 
 TEST(operator_kernel, matmul_sum_fusion) {
+    impl::engine_t &engine = get_engine();
+
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t add_op(1, impl::op_kind::Add, "add_op");
 
@@ -2660,7 +2662,7 @@ TEST(operator_kernel, matmul_sum_fusion) {
     add_op.add_input(add_src1);
     add_op.add_output(add_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     g.build_graph();
@@ -2679,8 +2681,6 @@ TEST(operator_kernel, matmul_sum_fusion) {
     std::vector<const impl::logical_tensor_t *> inputs {
             &src, &weight, &add_src1};
     std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
-
-    impl::engine_t &engine = get_engine();
 
     p.compile(&cp, inputs, outputs, &engine);
 
@@ -2734,7 +2734,7 @@ TEST(operator_kernel, matmul_sum_gelu_fusion) {
     gelu_op.add_input(add_dst);
     gelu_op.add_output(gelu_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     ASSERT_EQ(g.add_op(&gelu_op), impl::status::success);
@@ -2806,7 +2806,7 @@ TEST(operator_kernel, matmul_sum_relu_fusion) {
     relu_op.add_input(add_dst);
     relu_op.add_output(relu_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
@@ -2872,7 +2872,7 @@ TEST(operator_kernel, matmul_bias_relu_fusion) {
     relu_op.add_input(dst);
     relu_op.add_output(relu_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
     g.build_graph();
@@ -2936,7 +2936,7 @@ TEST(operator_kernel, matmul_bias_gelu_fusion) {
     gelu_op.add_input(dst);
     gelu_op.add_output(gelu_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&gelu_op), impl::status::success);
     g.build_graph();
@@ -3003,7 +3003,7 @@ TEST(operator_kernel, matmul_bias_relu6_fusion) {
     hardtanh_op.add_input(dst);
     hardtanh_op.add_output(hardtanh_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&hardtanh_op), impl::status::success);
     g.build_graph();
@@ -3070,7 +3070,7 @@ TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
     hardtanh_op.add_input(dst);
     hardtanh_op.add_output(hardtanh_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&hardtanh_op), impl::status::success);
     g.build_graph();
@@ -3136,7 +3136,7 @@ TEST(operator_kernel, matmul_bias_elu_fusion) {
     elu_op.add_input(dst);
     elu_op.add_output(elu_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&elu_op), impl::status::success);
     g.build_graph();
@@ -3200,7 +3200,7 @@ TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
     sigmoid_op.add_input(dst);
     sigmoid_op.add_output(sigmoid_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&sigmoid_op), impl::status::success);
     g.build_graph();
@@ -3268,7 +3268,7 @@ TEST(operator_kernel, matmul_bias_add_fusion) {
     add_op.add_input(post_src);
     add_op.add_output(add_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     g.build_graph();
@@ -3343,7 +3343,7 @@ TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
         add_op.add_input(post_src);
         add_op.add_output(add_dst);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
         ASSERT_EQ(g.add_op(&add_op), impl::status::success);
         g.build_graph();
@@ -3417,7 +3417,7 @@ TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
         add_op.add_input(post_src);
         add_op.add_output(add_dst);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
         ASSERT_EQ(g.add_op(&add_op), impl::status::success);
         g.build_graph();
@@ -3484,7 +3484,7 @@ TEST(operator_kernel, matmul_bias_unsupported_broadcast_add_fusion) {
         add_op.add_input(post_src);
         add_op.add_output(add_dst);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
         ASSERT_EQ(g.add_op(&add_op), impl::status::success);
         g.build_graph();
@@ -3548,7 +3548,7 @@ TEST(operator_kernel, matmul_bias_add_relu_fusion) {
     relu_op.add_input(add_dst);
     relu_op.add_output(relu_dst);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
@@ -3876,7 +3876,7 @@ TEST(operator_compile, Convolution_NCX_OIX) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -3943,7 +3943,7 @@ TEST(operator_compile, Convtranspose_with_groups) {
     convtranspose_op.add_input(weight_lt);
     convtranspose_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&convtranspose_op);
     g.build_graph();
 
@@ -4036,7 +4036,7 @@ public:
         }
         convtranspose_op.add_output(dst_lt);
 
-        impl::graph_t g;
+        impl::graph_t g(eng.kind());
         g.add_op(&convtranspose_op);
         g.build_graph();
 
@@ -4170,7 +4170,7 @@ TEST(operator_compile, Convolution3D_NCX_OIX) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4237,7 +4237,7 @@ TEST(operator_compile, Convolution_NCX_XIO) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4304,7 +4304,7 @@ TEST(operator_compile, Convolution3D_NCX_XIO) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4372,7 +4372,7 @@ TEST(operator_compile, Convolution_NXC_XIO) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4440,7 +4440,7 @@ TEST(operator_compile, Convolution3D_NXC_XIO) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4507,7 +4507,7 @@ TEST(operator_compile, Convolution_NXC_OIX) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4574,7 +4574,7 @@ TEST(operator_compile, Convolution3D_NXC_OIX) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4642,7 +4642,7 @@ TEST(operator_compile, ConvolutionF16F16F16) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4673,9 +4673,6 @@ TEST(operator_compile, ConvolutionF16F16F16) {
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
 }
 
 TEST(operator_compile, ConvolutionBF16BF16BF16) {
@@ -4714,7 +4711,7 @@ TEST(operator_compile, ConvolutionBF16BF16BF16) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4782,7 +4779,7 @@ TEST(operator_compile, ConvolutionBF16BF16F32) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4842,7 +4839,7 @@ TEST(operator_kernel, group_convolution) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -4916,7 +4913,7 @@ TEST(operator_kernel, ConvolutionBackpropData) {
     conv_op.add_input(weight_lt);
     conv_op.add_output(diff_src_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.build_graph();
 
@@ -5043,7 +5040,7 @@ TEST(operator_compile, conv_relu_unfused) {
     relu_op.add_input(conv_dst_lt);
     relu_op.add_output(relu_dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.add_op(&relu_op);
     g.build_graph();
@@ -5147,7 +5144,7 @@ TEST(operator_compile, convolution_bn_fp32) {
     bn_op.add_input(shift_lt);
     bn_op.add_output(bn_dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&conv_op);
     g.add_op(&bn_op);
     g.build_graph();
@@ -5245,7 +5242,7 @@ TEST(operator_kernel, conv_add) {
         }
         add_op.add_output(add_dst_lt);
 
-        impl::graph_t g;
+        impl::graph_t g(eng.kind());
         g.add_op(&in_op);
         g.add_op(&conv_op);
         g.add_op(&add_op);
@@ -5331,7 +5328,7 @@ TEST(operator_kernel, conv_per_tensor_broadcast_add) {
     add_op.add_input(post_src_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
@@ -5413,7 +5410,7 @@ TEST(operator_kernel, conv_expanded_per_tensor_broadcast_add) {
     add_op.add_input(post_src_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
@@ -5496,7 +5493,7 @@ TEST(operator_kernel, conv_per_channel_broadcast_add) {
     add_op.add_input(post_src_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
@@ -5579,7 +5576,7 @@ TEST(operator_kernel, conv_nxc_per_channel_broadcast_add) {
     add_op.add_input(post_src_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
@@ -5659,7 +5656,7 @@ TEST(operator_kernel, conv_unsupported_broadcast_add) {
     add_op.add_input(post_src_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
@@ -5732,7 +5729,7 @@ TEST(operator_kernel, conv_add_relu) {
     relu_op.add_input(add_dst_lt);
     relu_op.add_output(relu_dst_lt);
 
-    impl::graph_t g;
+    impl::graph_t g(eng.kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
@@ -5853,7 +5850,7 @@ void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
     cp.execute(&strm, {src_ts}, {dst_ts});
     strm.wait();
 
-    if (op_kind == impl::op_kind::Log) {
+    if (op_kind == impl::op_kind::Log || op_kind == impl::op_kind::GELU) {
         for (size_t i = 0; i < src.size(); ++i) {
             ASSERT_TRUE(std::fabs(dst[i] - ref_dst[i]) < 0.00001);
         }
@@ -6130,7 +6127,7 @@ TEST(operator_compile, conv_bias_eltwise) {
         eltwise_op.add_input(dst_lt);
         eltwise_op.add_output(eltwise_dst_lt);
 
-        impl::graph_t g;
+        impl::graph_t g(eng.kind());
         g.add_op(&conv_op);
         g.add_op(&eltwise_op);
         g.build_graph();
@@ -6236,7 +6233,7 @@ TEST(operator_compile, conv_bias_add_eltwise) {
         eltwise_op.add_input(add_dst_lt);
         eltwise_op.add_output(eltwise_dst_lt);
 
-        impl::graph_t g;
+        impl::graph_t g(eng.kind());
         g.add_op(&in_op);
         g.add_op(&conv_op);
         g.add_op(&add_op);
@@ -6341,7 +6338,7 @@ TEST(operator_compile, conv_add_eltwise) {
         eltwise_op.add_input(add_dst_lt);
         eltwise_op.add_output(eltwise_dst_lt);
 
-        impl::graph_t g;
+        impl::graph_t g(eng.kind());
         g.add_op(&in_op);
         g.add_op(&conv_op);
         g.add_op(&add_op);
@@ -7516,7 +7513,7 @@ TEST(int8_subgraph_mode, int8_conv1d_conv2d_conv3d) {
         qout_node.add_input(dst_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -7695,7 +7692,7 @@ TEST(int8_subgraph_mode, int8_convtranspose_1d_2d_3d) {
         qout_node.add_input(dst_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&convtranspose_node);
@@ -7865,7 +7862,7 @@ TEST(int8_subgraph_mode, int8_conv2d_relu) {
         qout_node.add_input(dst_relu_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -8063,7 +8060,7 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
         qout_node.add_input(dst_relu_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -8276,7 +8273,7 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_NXC) {
         qout_node.add_input(dst_relu_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -8467,7 +8464,7 @@ TEST(int8_subgraph_mode, x8s8f32_conv1d_conv2d_conv3d) {
         if (with_bias) conv_node.add_input(bias_f32);
         conv_node.add_output(dst_f32);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -8634,7 +8631,7 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_relu) {
         relu_node.add_input(dst_f32);
         relu_node.add_output(dst_relu_f32);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -8820,7 +8817,7 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu) {
         relu_node.add_input(dst_add_f32);
         relu_node.add_output(dst_relu_f32);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -9030,7 +9027,7 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu_NXC) {
         relu_node.add_input(dst_add_f32);
         relu_node.add_output(dst_relu_f32);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -9214,7 +9211,7 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d) {
         qout_op.add_input(dst_f32);
         qout_op.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
@@ -9356,7 +9353,7 @@ TEST(int8_subgraph_mode, int8_matmul_ndx1d) {
             qout_op.add_input(dst_f32);
             qout_op.add_output(dst_s8);
 
-            impl::graph_t g;
+            impl::graph_t g(engine.kind());
             g.add_op(&dqdata_op);
             g.add_op(&dqweight_op);
             g.add_op(&matmul_op);
@@ -9511,7 +9508,7 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d_with_transpose) {
             qout_op.add_input(dst_f32);
             qout_op.add_output(dst_s8);
 
-            impl::graph_t g;
+            impl::graph_t g(engine.kind());
             g.add_op(&dqdata_op);
             g.add_op(&dqweight_op);
             g.add_op(&matmul_op);
@@ -9657,7 +9654,7 @@ TEST(int8_subgraph_mode, int8_matmul_relu_fusion) {
     qout_op.add_input(dst_relu_f32);
     qout_op.add_output(dst_s8);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     g.add_op(&dqdata_op);
     g.add_op(&dqweight_op);
     g.add_op(&matmul_op);
@@ -9994,7 +9991,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
         qout_op.add_input(dst_add_f32);
         qout_op.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
@@ -10168,7 +10165,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_sum_ndx2d) {
         add_op.add_input(other_f32_dq);
         add_op.add_output(dst_add_f32);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
@@ -10314,7 +10311,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_ndx2d) {
         matmul_op.add_input(bias_f32);
         matmul_op.add_output(dst_f32);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
@@ -10448,7 +10445,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_ndx2d) {
         matmul_op.add_input(weight_f32_dq);
         matmul_op.add_output(dst_f32);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
@@ -10594,7 +10591,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_gelu_ndx2d) {
         gelu_op.add_input(dst_f32);
         gelu_op.add_output(gelu_f32);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
@@ -10786,7 +10783,7 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_get_inplace_pair) {
         qout_node2.add_input(dst_f32_2);
         qout_node2.add_output(dst_s8_2);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -10887,7 +10884,7 @@ public:
         }
         add_op.add_output(add_dst_lt);
 
-        impl::graph_t g;
+        impl::graph_t g(eng.kind());
         g.add_op(&relu_op);
         g.add_op(&add_op);
         g.build_graph();
@@ -10978,9 +10975,9 @@ TEST(operator_kernel, avgpool_add) {
             post_src_shape.erase(post_src_shape.begin() + 1);
         }
 
-        std::vector<float> src(product(src_shape), 4.0);
-        std::vector<float> dst(product(dst_shape), 0.0);
-        std::vector<float> post_src(product(post_src_shape), 2.0);
+        test::vector<float> src(product(src_shape), 4.0);
+        test::vector<float> dst(product(dst_shape), 0.0);
+        test::vector<float> post_src(product(post_src_shape), 2.0);
 
         impl::op_t avgpool_op(0, impl::op_kind::AvgPool, "avgpool");
         avgpool_op.set_attr<dims>("strides", dims(spatial_size, 2));
@@ -11006,7 +11003,7 @@ TEST(operator_kernel, avgpool_add) {
         add_op.add_input(post_src_lt);
         add_op.add_output(add_dst_lt);
 
-        impl::graph_t g;
+        impl::graph_t g(eng.kind());
         g.add_op(&avgpool_op);
         g.add_op(&add_op);
         g.build_graph();
@@ -11078,9 +11075,9 @@ TEST(operator_kernel, maxpool_add) {
             post_src_shape.erase(post_src_shape.begin() + 1);
         }
 
-        std::vector<float> src(product(src_shape), 4.0);
-        std::vector<float> dst(product(dst_shape), 0.0);
-        std::vector<float> post_src(product(post_src_shape), 2.0);
+        test::vector<float> src(product(src_shape), 4.0);
+        test::vector<float> dst(product(dst_shape), 0.0);
+        test::vector<float> post_src(product(post_src_shape), 2.0);
 
         impl::op_t maxpool_op(0, impl::op_kind::MaxPool, "maxpool");
         maxpool_op.set_attr<dims>("strides", dims(spatial_size, 2));
@@ -11106,7 +11103,7 @@ TEST(operator_kernel, maxpool_add) {
         add_op.add_input(post_src_lt);
         add_op.add_output(add_dst_lt);
 
-        impl::graph_t g;
+        impl::graph_t g(eng.kind());
         g.add_op(&maxpool_op);
         g.add_op(&add_op);
         g.build_graph();
@@ -11227,7 +11224,7 @@ TEST(int8_subgraph_mode, int8_maxpool) {
         qout_op.add_input(dst_f32);
         qout_op.add_output(dst_u8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&maxpool_op);
         g.add_op(&qout_op);
@@ -11358,7 +11355,7 @@ TEST(int8_subgraph_mode, int8_avgpool) {
         qout_op.add_input(dst_f32);
         qout_op.add_output(dst_u8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&avgpool_op);
         g.add_op(&qout_op);
@@ -11404,8 +11401,9 @@ TEST(int8_subgraph_mode, int8_avgpool) {
 
 TEST(operator_compile, matmul_add_get_inplace_pair) {
     using dims = impl::dnnl_impl::dims;
+    impl::engine_t &eng = get_engine();
 
-    impl::graph_t agraph;
+    impl::graph_t agraph(eng.kind());
     impl::op_t mm {0, impl::op_kind::MatMul, "matmul"};
     impl::op_t add {1, impl::op_kind::Add, "add"};
     impl::op_t mm2 {2, impl::op_kind::MatMul, "matmul2"};
@@ -11453,7 +11451,6 @@ TEST(operator_compile, matmul_add_get_inplace_pair) {
     p2.init(part2);
 
     impl::compiled_partition_t cp1(p1), cp2(p2);
-    impl::engine_t &eng = get_engine();
 
     // compile matmul partition
     std::vector<const impl::logical_tensor_t *> inputs2 {
@@ -11608,7 +11605,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_conv2d_sum_relu) {
         qout_node.add_input(dst_relu_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_node);
         g.add_op(&qweight_node);
         g.add_op(&dqweight_node);
@@ -11847,7 +11844,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
         qout_op.add_input(dst_add_f32);
         qout_op.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&qweight_op);
         g.add_op(&dqweight_op);
@@ -12037,7 +12034,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_ndx2d_with_transpose) {
         qout_op.add_input(dst_f32);
         qout_op.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&qweight_op);
         g.add_op(&dqweight_op);
@@ -12223,7 +12220,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_relu_ndx2d) {
         qout_op.add_input(dst_relu_f32);
         qout_op.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&qweight_op);
         g.add_op(&dqweight_op);
@@ -12398,7 +12395,7 @@ TEST(int8_subgraph_mode, int8_matmul_2dx3d_with_transpose) {
         qout_op.add_input(dst_f32);
         qout_op.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op);
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
@@ -12585,7 +12582,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
         qout_op.add_input(dst_add_f32);
         qout_op.add_output(dst_s8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_op2);
         g.add_op(&dqweight_op2);
         g.add_op(&matmul_op2);
@@ -12836,7 +12833,7 @@ TEST(int8_subgraph_mode, u8u8f32_bmm) {
     matmul_op.add_input(weight_f32_dq);
     matmul_op.add_output(dst_f32);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     g.add_op(&dqdata_op);
     g.add_op(&dqweight_op);
     g.add_op(&matmul_op);
@@ -12958,7 +12955,7 @@ TEST(int8_subgraph_mode, u8u8f32_bmm_div) {
     binary_op.add_input(div_src1);
     binary_op.add_output(div_f32);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     g.add_op(&dqdata_op);
     g.add_op(&dqweight_op);
     g.add_op(&matmul_op);
@@ -13364,7 +13361,7 @@ TEST(int8_subgraph_mode, x8x8bf16_bmm_div_blocked) {
             binary_op.add_input(div_src1);
             binary_op.add_output(div_bf16);
 
-            impl::graph_t g;
+            impl::graph_t g(engine.kind());
             g.add_op(&dqdata_op);
             g.add_op(&dqweight_op);
             g.add_op(&matmul_op);
@@ -13491,7 +13488,7 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias) {
     matmul_op.add_input(bias_f32);
     matmul_op.add_output(dst_bf16);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     g.add_op(&dqdata_op);
     g.add_op(&dqweight_op);
     g.add_op(&matmul_op);
@@ -13643,7 +13640,7 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias_add) {
     add_op.add_input(matmul_bf16);
     add_op.add_output(dst_bf16);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     g.add_op(&dqdata_op);
     g.add_op(&dqweight_op);
     g.add_op(&dqother_op);
@@ -13937,7 +13934,7 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias_gelu) {
     qout_op.add_input(gelu_f32);
     qout_op.add_output(dst_u8);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     g.add_op(&dqdata_op);
     g.add_op(&dqweight_op);
     g.add_op(&matmul_op);

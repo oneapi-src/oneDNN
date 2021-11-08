@@ -35,6 +35,11 @@ endif()
 
 # Register demo
 function(register_example name srcs)
+    if(TARGET ${name})
+        message(STATUS "target with the same name already exists")
+        return()
+    endif()
+
     add_executable(${name} ${srcs})
     target_include_directories(${name}
         PRIVATE
@@ -59,7 +64,7 @@ foreach(src ${sources})
     string(REGEX REPLACE "[/_\\.]" "-" example_name ${src_rel_path})
 
     set(cpu_rt_pattern "(SEQ|OMP)")
-    set(gpu_rt_pattern "(DPCPP)")
+    set(sycl_rt_pattern "(DPCPP)")
     if(DNNL_GRAPH_CPU_RUNTIME MATCHES ${cpu_rt_pattern})
 	# Adding examples for OMP CPU
         if(${example_name} MATCHES "cpu-*")
@@ -68,18 +73,24 @@ foreach(src ${sources})
             maybe_configure_windows_test("${example_name}" TEST)
         endif()
     endif()
-    if(DNNL_GRAPH_GPU_RUNTIME MATCHES ${gpu_rt_pattern})
+    if(DNNL_GRAPH_CPU_RUNTIME MATCHES ${sycl_rt_pattern})
+	# Adding examples for SYCL CPU
+        if(${example_name} MATCHES "sycl-*")
+            register_example(${example_name} ${src})
+            add_test("${example_name}-cpu" "${example_name}" cpu)
+            maybe_configure_windows_test("${example_name}-cpu" TEST)
+        endif()
+    endif()
+    if(DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
 	# Adding examples for SYCL GPU
         if(${example_name} MATCHES "gpu-*")
             register_example(${example_name} ${src})
             add_test("${example_name}" "${example_name}" gpu)
             maybe_configure_windows_test("${example_name}" TEST)
         endif()
-	# Adding examples for SYCL CPU and GPU
+	# Adding examples for SYCL GPU
         if(${example_name} MATCHES "sycl-*")
             register_example(${example_name} ${src})
-            add_test("${example_name}-cpu" "${example_name}" cpu)
-            maybe_configure_windows_test("${example_name}-cpu" TEST)
             add_test("${example_name}-gpu" "${example_name}" gpu)
             maybe_configure_windows_test("${example_name}-gpu" TEST)
         endif()

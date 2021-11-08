@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -91,7 +91,23 @@ int set_global_engine_kind() {
 
 dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
         dnnl::graph::engine::kind engine_kind) {
-#if DNNL_GRAPH_WITH_SYCL
+    if (engine_kind == dnnl::graph::engine::kind::cpu) {
+#if DNNL_GRAPH_CPU_SYCL
+        static cl::sycl::device dev {cl::sycl::cpu_selector {}};
+        static cl::sycl::context ctx {dev};
+        static dnnl::graph::allocator alloc
+                = dnnl::graph::sycl_interop::make_allocator(
+                        sycl_alloc, sycl_free);
+        static dnnl::graph::engine eng
+                = dnnl::graph::sycl_interop::make_engine(dev, ctx);
+        eng.set_allocator(alloc);
+#else
+        static dnnl::graph::engine eng(engine_kind, 0);
+#endif
+        return eng;
+    }
+
+#if DNNL_GRAPH_GPU_SYCL
     static cl::sycl::device dev {cl::sycl::gpu_selector {}};
     static cl::sycl::context ctx {dev};
     static dnnl::graph::allocator alloc
@@ -99,10 +115,11 @@ dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
     static dnnl::graph::engine eng
             = dnnl::graph::sycl_interop::make_engine(dev, ctx);
     eng.set_allocator(alloc);
+    return eng;
 #else
     static dnnl::graph::engine eng(engine_kind, 0);
-#endif // DNNL_GRAPH_WITH_SYCL
     return eng;
+#endif
 }
 
 int any = set_global_engine_kind();

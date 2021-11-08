@@ -18,6 +18,8 @@
 
 #include "interface/engine.hpp"
 
+#include "cpp/unit/unit_test_common.hpp"
+
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
@@ -36,16 +38,15 @@ TEST(engine_test, simple_engine) {
     ASSERT_EQ(engine_gpu.device_id(), 0);
 }
 
-#if DNNL_GRAPH_WITH_SYCL
+#if DNNL_GRAPH_GPU_SYCL
 TEST(engine_test, create_with_default_allocator) {
     namespace impl = dnnl::graph::impl;
     namespace sycl = cl::sycl;
 
-    sycl::queue q {sycl::gpu_selector {}};
-    impl::engine_t eng(impl::engine_kind::gpu, q.get_device(), q.get_context());
+    impl::engine_t eng(impl::engine_kind::gpu, get_device(), get_context());
 
-    impl::allocator_t::attribute_t attr {impl::allocator_lifetime::output, 128};
-    ASSERT_EQ(attr.data.type, impl::allocator_lifetime::output);
+    impl::allocator_t::attribute_t attr {impl::allocator_lifetime::temp, 128};
+    ASSERT_EQ(attr.data.type, impl::allocator_lifetime::temp);
     ASSERT_EQ(attr.data.alignment, 128);
 
     auto *mem_ptr = eng.get_allocator()->allocate(
