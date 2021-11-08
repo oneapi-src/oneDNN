@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2022 Intel Corporation
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -134,6 +135,15 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
+
+#if DNNL_AARCH64_USE_ACL
+    // Since ACL supports only forward pass.
+    // Ref: https://github.com/oneapi-src/oneDNN/issues/1205
+    if (prb->dir & FLAG_BWD) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+#endif
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {

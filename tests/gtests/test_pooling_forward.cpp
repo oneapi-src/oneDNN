@@ -286,7 +286,6 @@ protected:
             // test construction from a C pd
             pool_prim_desc
                     = pooling_forward::primitive_desc(pool_prim_desc.get());
-
             check_prim_desc<pooling_forward::primitive_desc>(pool_prim_desc);
             if (p.src_format != memory::format_tag::any) {
                 ASSERT_TRUE(p_src_desc == pool_prim_desc.src_desc());
@@ -343,7 +342,6 @@ protected:
                                     {DNNL_ARG_WORKSPACE, workspace}});
         }
         strm.wait();
-
         check_pool_fwd<data_t>(p, p_src, p_dst, workspace);
         check_zero_tail<data_t>(0, p_dst);
     }
@@ -354,6 +352,11 @@ using pooling_test_s8 = pooling_test_t<int8_t>;
 using pooling_test_u8 = pooling_test_t<uint8_t>;
 using pooling_test_s32 = pooling_test_t<int32_t>;
 using pool_test_params_float = pool_test_params_t;
+
+// Since ACL supports only forward, to avoid triggering workspace check which is not available.
+#if DNNL_AARCH64_USE_ACL
+#define forward_training forward_inference
+#endif
 
 // sizes with explicit opposite side paddings
 #define EXPAND_SIZES_3D_XPADD(...) \
