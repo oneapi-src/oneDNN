@@ -2692,6 +2692,11 @@ public:
             s2r_mul_body = if_t::make(cond, s2r_mul_body);
             g2s_store = g2s_store.append(funcs::barrier());
         } else {
+            // In general we have to use SLM fence before signal to flush all
+            // previous SLM stores. However any SLM load behaves as implicit
+            // SLM fence for all previous SLM stores. This means we don't need
+            // explicit SLM fence when we perform SLM load/multiplication
+            // before signal.
             auto fence_signal = funcs::slm_fence().append(funcs::signal());
             s2r_mul_body = s2r_mul_body.append(funcs::signal());
             s2r_mul_body = if_t::make(cond, s2r_mul_body, fence_signal);
@@ -2711,7 +2716,12 @@ public:
         int mul_start = std::max(0, rem_iters - loop_nest_.size());
         for (int i = 0; i < rem_iters; i++) {
             if (cfg_.slm_bufs == 3) loop = loop.append(funcs::barrier_wait());
-            if (i >= mul_start) loop = loop.append(s2r_mul_tail);
+            if (i >= mul_start) {
+                // SLM load/multiplication works as implicit SLM fence.
+                loop = loop.append(s2r_mul_tail);
+            } else {
+                loop = loop.append(funcs::slm_fence());
+            }
             loop = loop.append(slm_idx_update);
             if (cfg_.slm_bufs == 3 && i + 1 < rem_iters)
                 loop = loop.append(funcs::signal());
