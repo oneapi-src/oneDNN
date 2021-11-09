@@ -960,7 +960,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                             && all_ip_padding_zero) {
                         const auto reduction_xmm = get_temp_xmm();
                         const auto xmm_reorder_result = Xmm(ur);
-                        uni_vcvttps2dq(reduction_xmm, xmm_reorder_result);
+                        uni_vcvtps2dq(reduction_xmm, xmm_reorder_result);
                         uni_vphaddd(
                                 reduction_xmm, reduction_xmm, reduction_xmm);
                         uni_vphaddd(
@@ -985,7 +985,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         const auto xmm_reorder_result_dq = get_temp_xmm();
                         const auto xmm_reorder_result = Xmm(ur);
                         const auto comp_addr = c_addr(c_off[ur]);
-                        uni_vcvttps2dq(
+                        uni_vcvtps2dq(
                                 xmm_reorder_result_dq, xmm_reorder_result);
                         uni_vpaddd_wrapper(xmm_reorder_result_dq, comp_addr);
                         uni_vmovups(comp_addr, xmm_reorder_result_dq);
@@ -994,7 +994,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
                     const auto xmm_reorder_result_dq = get_temp_xmm();
                     const auto xmm_reorder_result = Xmm(ur);
-                    uni_vcvttps2dq(xmm_reorder_result_dq, xmm_reorder_result);
+                    uni_vcvtps2dq(xmm_reorder_result_dq, xmm_reorder_result);
 
                     for (int r = ur; r < ur + ur_step; ++r) {
                         if (zero_padding[r] == 0 || !tail_processing) {
@@ -1013,7 +1013,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         const auto xmm_reorder_result_dq = get_temp_xmm();
                         const auto xmm_reorder_result = Xmm(ur);
                         const auto comp_addr = c_addr(c_off[ur]);
-                        uni_vcvttps2dq(
+                        uni_vcvtps2dq(
                                 xmm_reorder_result_dq, xmm_reorder_result);
                         uni_vpaddd_wrapper(xmm_reorder_result_dq, comp_addr);
                         uni_vmovss(comp_addr, xmm_reorder_result_dq);
