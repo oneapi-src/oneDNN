@@ -2979,6 +2979,17 @@ public:
         , expr_binding_(expr_binding)
         , simd_size_(host->cfg_.simd_size) {}
 
+    ~ir_to_ngen_t() {
+#ifdef GEN_CONV_DEBUG
+        if (bank_conflicts_ > 0)
+            ir_warning() << "Found bank conflicts: " << bank_conflicts_
+                         << std::endl;
+        if (bundle_conflicts_ > 0)
+            ir_warning() << "Found bundle conflicts: " << bundle_conflicts_
+                         << std::endl;
+#endif
+    }
+
     void _visit(const alloc_t &obj) override {
         auto scope = register_scope();
         bool do_alloc = (obj.kind == alloc_kind_t::grf);
@@ -3148,6 +3159,50 @@ private:
         return ngen_register_scope_t(host_->ra_);
     }
 
+#ifdef GEN_CONV_DEBUG
+    void check_bank_conflicts(const ngen::InstructionModifier &mod,
+            const ngen::RegData &_src0, const ngen::RegData &_src1,
+            const ngen::RegData &_src2, bool is_dpas = false) {
+        int esize = mod.getExecSize();
+        int hw_simd = (hw >= ngen::HW::XeHPC ? 16 : 8);
+        auto shift = [](const ngen::RegData &rd, int exec_off) {
+            if (exec_off == 0 || rd.isNull()) return rd;
+            int type_size = ngen::getBytes(rd.getType());
+            int w = (exec_off % rd.getWidth());
+            int h = (exec_off / rd.getWidth());
+            int off = rd.getByteOffset()
+                    + (w * rd.getHS() + h * rd.getVS()) * type_size;
+            int grf_size = ngen::GRF::bytes(hw);
+            int shifted_base = rd.getBase() + off / grf_size;
+            int shifted_off = off % grf_size;
+            auto ret = rd;
+            ret.setBase(shifted_base);
+            ret.setOffset(ir_utils::safe_divide(shifted_off, type_size));
+            return ret;
+        };
+        for (int i = 0; i < esize; i += hw_simd) {
+            auto src0 = shift(_src0, i);
+            auto src1 = shift(_src1, i);
+            auto src2 = shift(_src2, i);
+            bool same_bank01 = ngen::Bundle::same_bank(hw, src0, src1);
+            bool same_bank02 = ngen::Bundle::same_bank(hw, src0, src2);
+            if (is_dpas) {
+                if (same_bank02) bank_conflicts_++;
+            } else {
+                if (same_bank01 && same_bank02) bank_conflicts_++;
+                if (ngen::Bundle::conflicts(hw, src0, src1)
+                        || ngen::Bundle::conflicts(hw, src0, src2)
+                        || ngen::Bundle::conflicts(hw, src1, src2)) {
+                    bundle_conflicts_++;
+                }
+            }
+        }
+    }
+#else
+    template <typename... ArgsT>
+    void check_bank_conflicts(const ArgsT &...) {}
+#endif
+
     void signal(const func_call_attr_t &attr) {
         ngen::InstructionModifier mod;
         if (!attr.is_empty())
@@ -3206,6 +3261,7 @@ private:
         ngen::InstructionModifier mod = simd_size_;
         if (!attr.is_empty())
             mod = mod | to_ngen(attr.as<instruction_modifier_attr_t>().mod);
+        check_bank_conflicts(mod, src0, src1, src2, /*is_dpas=*/true);
         if (dpas_func.is_dpasw) {
             host_->dpasw(mod, dpas_func.sdepth, dpas_func.rcount, dst, src0,
                     src1, src2);
@@ -3248,6 +3304,7 @@ private:
         if (!attr.is_empty())
             mod = mod | to_ngen(attr.as<instruction_modifier_attr_t>().mod);
 
+        check_bank_conflicts(mod, src0, src1, src2, /*is_dpas=*/false);
         if (src0.isNull()) {
             host_->mul(mod, dst, src1, src2);
         } else {
@@ -3449,6 +3506,11 @@ private:
     int simd_size_;
 
     std::vector<ngen::Label> loop_end_labels_;
+
+#ifdef GEN_CONV_DEBUG
+    int bank_conflicts_ = 0;
+    int bundle_conflicts_ = 0;
+#endif
 };
 
 template <ngen::HW hw>
