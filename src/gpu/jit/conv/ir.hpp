@@ -211,6 +211,12 @@ public:
         MAYBE_UNUSED(ret);
     }
 
+    void add_attr(const expr_t &buf, const alloc_attr_t &attr) {
+        auto ret = attrs_.insert({buf, attr});
+        ir_assert(ret.second) << buf;
+        MAYBE_UNUSED(ret);
+    }
+
     void remove(const expr_t &buf) {
         auto ret = removes_.insert(buf);
         ir_assert(ret.second) << buf;
@@ -223,7 +229,9 @@ public:
         auto new_obj = ir_mutator_t::_mutate(obj);
 
         if (try_remove(new_obj)) return new_obj;
-        if (try_resize(new_obj)) return new_obj;
+
+        try_resize(new_obj);
+        try_add_attr(new_obj);
 
         return new_obj;
     }
@@ -250,8 +258,23 @@ private:
         return true;
     }
 
+    bool try_add_attr(object_t &obj) {
+        auto &alloc = obj.as<alloc_t>();
+        auto it = attrs_.find(alloc.buf);
+        if (it == attrs_.end()) return false;
+
+        auto new_attrs = alloc.attrs;
+        new_attrs.push_back(it->second);
+
+        obj = alloc_t::make(
+                alloc.buf, alloc.size, alloc.kind, new_attrs, alloc.body);
+        attrs_.erase(it);
+        return true;
+    }
+
     object_set_t<expr_t> removes_;
     object_map_t<expr_t, int> resizes_;
+    object_map_t<expr_t, alloc_attr_t> attrs_;
 };
 
 template <typename T>
