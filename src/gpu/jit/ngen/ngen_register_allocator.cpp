@@ -321,6 +321,12 @@ GRFRange RegisterAllocator::try_alloc_range(int nregs, Bundle base_bundle, Bundl
     return GRFRange();
 }
 
+GRF RegisterAllocator::try_alloc(Bundle bundle)
+{
+    auto range = try_alloc_range(1, bundle);
+    return range.isInvalid() ? GRF() : range[0];
+}
+
 Subregister RegisterAllocator::try_alloc_sub(DataType type, Bundle bundle)
 {
     int dwords = getDwords(type);

@@ -112,7 +112,7 @@ public:
     // Attempted allocation. Return value is invalid if allocation failed.
     GRFRange try_alloc_range(int nregs, Bundle base_bundle = Bundle(),
                              BundleGroup bundle_mask = BundleGroup::AllBundles());
-    GRF try_alloc(Bundle bundle = Bundle()) { return alloc_range(1, bundle)[0]; }
+    GRF try_alloc(Bundle bundle = Bundle());
 
     Subregister try_alloc_sub(DataType type, Bundle bundle = Bundle());
     template <typename T>
