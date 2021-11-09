@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
+#include <memory>
 #include <numeric>
 #include <string>
 
@@ -81,6 +82,7 @@ enum ir_type_id_t {
     nary_op_t,
     stmt_impl_t,
     grf_alloc_attr_t,
+    grf_permute_attr_t,
     instruction_modifier_attr_t,
     builtin_t,
     pexpr_t,
@@ -1567,6 +1569,33 @@ private:
         ir_assert(dynamic_cast<const alloc_attr_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
+};
+
+class grf_permutation_t;
+
+// Allocation attribute specifying permutation for a GRF buffer.
+class grf_permute_attr_t : public alloc_attr_impl_t {
+public:
+    IR_DECL_TYPE_ID(grf_permute_attr_t)
+
+    static alloc_attr_t make(
+            const std::shared_ptr<grf_permutation_t> &grf_perm) {
+        return alloc_attr_t(new grf_permute_attr_t(grf_perm));
+    }
+
+    bool is_equal(const object_impl_t &obj) const override {
+        return this == &obj;
+    }
+
+    size_t get_hash() const override {
+        return std::hash<const self_type *>()(this);
+    }
+
+    std::shared_ptr<grf_permutation_t> grf_perm;
+
+private:
+    grf_permute_attr_t(const std::shared_ptr<grf_permutation_t> &grf_perm)
+        : grf_perm(grf_perm) {}
 };
 
 // Allocation attribute for GRF.

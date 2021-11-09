@@ -30,76 +30,44 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-// Helper class to permute registers. Used to restore registers after applying
-// DPAS -> DPASW transformation.
-class grf_permutator_t {
+// Helper class to permute registers. Used to permute registers after applying
+// dpas -> dpasw transformation.
+class grf_permutation_t {
 public:
-    grf_permutator_t(ngen::HW hw, const expr_t &grf_buf_base = expr_t())
-        : hw_(hw), grf_buf_base_(grf_buf_base) {
-        permutation_.fill(-1);
+    grf_permutation_t() { permutation_.fill(-1); }
+
+    int map(int off) const {
+        ir_assert(off >= 0 && off < max_regs);
+        if (permutation_[off] == -1) return off;
+        return permutation_[off];
     }
 
-    const expr_t &grf_buf_base() const { return grf_buf_base_; }
+    bool is_empty() const { return is_empty_; }
 
-    int map(int base) const {
-        ir_assert(grf_base_ != -1) << "GRF base not bound.";
-        ir_assert(base >= 0 && base < max_regs);
-        if (permutation_[base] == -1) return base;
-        return permutation_[base];
-    }
-
-    bool is_empty() const {
-        if (grf_buf_base_.is_empty()) return true;
-        for (int i = 0; i < int(permutation_.size()); i++) {
-            if (permutation_[i] != -1 && permutation_[i] != i) return false;
-        }
-        return true;
-    }
-
-    void set_permute(const expr_t &old_grf, const expr_t &new_grf) {
-        auto &old_base = old_grf.as<ptr_t>().base;
-        auto &new_base = new_grf.as<ptr_t>().base;
-        ir_assert(old_base.is_same(grf_buf_base_));
-        ir_assert(new_base.is_same(grf_buf_base_));
-
-        int old_off = to_cpp<int>(old_grf.as<ptr_t>().off);
-        int new_off = to_cpp<int>(new_grf.as<ptr_t>().off);
-
-        const int grf_size = ngen::GRF::bytes(hw_);
-
-        ir_assert(old_off % grf_size == 0)
-                << "Must be aligned to GRF boundary.";
-        ir_assert(new_off % grf_size == 0)
-                << "Must be aligned to GRF boundary.";
-
-        old_off /= grf_size;
-        new_off /= grf_size;
-
+    void set_permute(int old_off, int new_off) {
+        ir_assert(old_off >= 0 && old_off < max_regs);
+        if (old_off == new_off || new_off == -1) return;
+        is_empty_ = false;
         ir_assert(permutation_[old_off] == -1) << "Already assigned.";
         permutation_[old_off] = new_off;
     }
 
-    void set_grf_base(int grf_base) {
-        ir_assert(grf_base_ == -1) << "Can't set GRF base twice.";
-        grf_base_ = grf_base;
-        // Update offsets.
-        auto old_perm = permutation_;
-        permutation_.fill(-1);
-        for (int i = 0; i < (int)old_perm.size(); i++) {
-            if (old_perm[i] != -1 && old_perm[i] != i) {
-                ir_assert(grf_base + i < int(permutation_.size()));
-                permutation_[grf_base + i] = grf_base + old_perm[i];
-            }
+    bool operator==(const grf_permutation_t &other) const {
+        for (int i = 0; i < max_regs; i++) {
+            if (permutation_[i] != other.permutation_[i]) return false;
         }
+        return true;
+    }
+
+    bool operator!=(const grf_permutation_t &other) const {
+        return !operator==(other);
     }
 
 private:
     static const int max_regs = 256;
 
-    ngen::HW hw_;
-    int grf_base_ = -1;
-    expr_t grf_buf_base_;
     std::array<int, max_regs> permutation_;
+    bool is_empty_ = true;
 };
 
 // Implements reorder between GRF buffers in given layouts. Conversion between
@@ -108,9 +76,8 @@ class reorder_t : public func_impl_t {
 public:
     IR_DECL_DERIVED_TYPE_ID(reorder_t, func_impl_t)
 
-    static func_t make(const layout_t &src_layout, const layout_t &dst_layout,
-            const std::shared_ptr<grf_permutator_t> &grf_perm = nullptr) {
-        return func_t(new reorder_t(src_layout, dst_layout, grf_perm));
+    static func_t make(const layout_t &src_layout, const layout_t &dst_layout) {
+        return func_t(new reorder_t(src_layout, dst_layout));
     }
 
     bool is_equal(const object_impl_t &obj) const override {
@@ -118,12 +85,11 @@ public:
         auto &other = obj.as<self_type>();
 
         return (src_layout == other.src_layout)
-                && (dst_layout == other.dst_layout)
-                && (grf_perm.get() == other.grf_perm.get());
+                && (dst_layout == other.dst_layout);
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(src_layout, dst_layout, grf_perm.get());
+        return ir_utils::get_hash(src_layout, dst_layout);
     }
 
     std::string str() const override {
@@ -138,12 +104,9 @@ public:
     layout_t src_layout;
     layout_t dst_layout;
 
-    std::shared_ptr<grf_permutator_t> grf_perm;
-
 private:
-    reorder_t(const layout_t &src_layout, const layout_t &dst_layout,
-            const std::shared_ptr<grf_permutator_t> &grf_perm)
-        : src_layout(src_layout), dst_layout(dst_layout), grf_perm(grf_perm) {}
+    reorder_t(const layout_t &src_layout, const layout_t &dst_layout)
+        : src_layout(src_layout), dst_layout(dst_layout) {}
 };
 
 } // namespace jit

@@ -39,25 +39,6 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-class permutation_injector_t : public ir_mutator_t {
-public:
-    permutation_injector_t(const grf_permutator_t &grf_perm)
-        : grf_perm_(new grf_permutator_t(grf_perm)) {}
-
-    object_t _mutate(const func_call_t &obj) override {
-        if (!is_func_call<reorder_t>(&obj)) return ir_mutator_t::_mutate(obj);
-
-        auto &func = obj.func.as<reorder_t>();
-        auto new_func
-                = reorder_t::make(func.src_layout, func.dst_layout, grf_perm_);
-
-        return new_func.call(obj.args);
-    }
-
-private:
-    std::shared_ptr<grf_permutator_t> grf_perm_;
-};
-
 class dpasw_injector_t {
 public:
     dpasw_injector_t(ngen::HW hw, const stmt_t &load_mul_stmt,
@@ -78,7 +59,7 @@ public:
         expr_t src2_base;
         if (!extract_dpas_calls(src2_base)) return;
 
-        grf_permutator_t grf_perm(hw_, c_buf_);
+        grf_permutation_t grf_perm;
 
         bool was_injected = false;
         int dpas_count = int(dpas_infos_.size());
@@ -147,11 +128,13 @@ public:
             }
         }
 
-        // Apply permutation to C store.
-        c_store_stmt_ = apply_permutation_to_reorder(c_store_stmt_, grf_perm);
-
         // Update src2 size after applying send updates.
         alloc_updater_.resize(src2_base, src2_size);
+
+        // Apply permutation to C buffer.
+        alloc_updater_.add_attr(c_buf_,
+                grf_permute_attr_t::make(
+                        std::make_shared<grf_permutation_t>(grf_perm)));
     }
 
 private:
@@ -346,7 +329,7 @@ private:
     }
 
     bool try_convert_to_dpasw(
-            dpas_info_t &a, dpas_info_t &b, grf_permutator_t &grf_perm) {
+            dpas_info_t &a, dpas_info_t &b, grf_permutation_t &grf_perm) {
         if (hw_ >= ngen::HW::XeHPC) return false;
 
         // Check if DPAS -> DPASW transformation is possible.
@@ -390,8 +373,8 @@ private:
             } else {
                 grf_new = dpas_t::arg_dst(b_args)[grf_size * k];
             }
-            grf_perm.set_permute(a_old, grf_new);
-            grf_perm.set_permute(b_old, grf_new + grf_size * rcount / 2);
+            set_grf_permute(grf_perm, a_old, grf_new);
+            set_grf_permute(grf_perm, b_old, grf_new + grf_size * rcount / 2);
         }
 
         auto &a_send = find_send_info(a.send_producer);
@@ -412,6 +395,24 @@ private:
         return true;
     }
 
+    void set_grf_permute(grf_permutation_t &grf_perm, const expr_t &old_grf,
+            const expr_t &new_grf) {
+        int old_off = to_cpp<int>(old_grf.as<ptr_t>().off);
+        int new_off = to_cpp<int>(new_grf.as<ptr_t>().off);
+
+        const int grf_size = ngen::GRF::bytes(hw_);
+
+        ir_assert(old_off % grf_size == 0)
+                << "Must be aligned to GRF boundary.";
+        ir_assert(new_off % grf_size == 0)
+                << "Must be aligned to GRF boundary.";
+
+        old_off /= grf_size;
+        new_off /= grf_size;
+
+        grf_perm.set_permute(old_off, new_off);
+    }
+
     static bool can_convert_to_dpasw(const dpas_info_t &a_dpas,
             const send_info_t &a_send, const expr_t &tg_idx0) {
         if (contains_object(a_send.call, tg_idx0)) return false;
@@ -428,7 +429,7 @@ private:
         return _s;
     }
 
-    bool try_convert_to_dpasw(dpas_info_t &a, grf_permutator_t &grf_perm) {
+    bool try_convert_to_dpasw(dpas_info_t &a, grf_permutation_t &grf_perm) {
         if (hw_ >= ngen::HW::XeHPC) return false;
         if (!can_convert_to_dpasw(a, find_send_info(a.send_producer), tg_idx0_))
             return false;
@@ -446,14 +447,6 @@ private:
 
         a.set_new_call(dpasw.call(a.args()), 0);
 
-        // Real permutation is not required but it needs to be set anyway.
-        const auto grf_size = ngen::GRF::bytes(hw_);
-        const auto rcount = a.dpas().rcount;
-        for (int j = 0; j < rcount; j++) {
-            auto grf = dpas_t::arg_dst(a.args()) + grf_size * j;
-            grf_perm.set_permute(grf, grf);
-        }
-
         auto &a_send = find_send_info(a.send_producer);
         auto new_send_args = a_send.args();
         send_t::arg_mem_off(new_send_args)
@@ -462,11 +455,6 @@ private:
                 create_half_send(a_send.send()).call(new_send_args));
 
         return true;
-    }
-
-    static stmt_t apply_permutation_to_reorder(
-            const stmt_t &stmt, const grf_permutator_t &grf_perm) {
-        return permutation_injector_t(grf_perm).mutate(stmt);
     }
 
     ngen::HW hw_;
