@@ -228,8 +228,10 @@ public:
     object_t _mutate(const alloc_t &obj) override {
         auto new_obj = ir_mutator_t::_mutate(obj);
 
+        // If removal succeeds, stop any further updates.
         if (try_remove(new_obj)) return new_obj;
 
+        // Otherwise try to apply other modifications one by one.
         try_resize(new_obj);
         try_add_attr(new_obj);
 
