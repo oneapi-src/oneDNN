@@ -31,6 +31,7 @@ namespace jit {
 // Possible backend instruction sets
 enum class fma_kind_t {
     mad,
+    dp4a,
     dpas,
     dpasw,
     unknown,
@@ -100,6 +101,8 @@ public:
                 dpas.dst_type, dpas.src1_type, dpas.src2_type));
     }
 
+    bool is_dp4a() const { return rcount == 1 && sdepth == 1; }
+
     bool is_equal(const object_impl_t &obj) const override {
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
@@ -117,8 +120,8 @@ public:
 
     std::string str() const override {
         std::ostringstream oss;
-        oss << (is_dpasw ? "dpasw" : "dpas");
-        oss << "." << sdepth << "x" << rcount;
+        oss << (is_dpasw ? "dpasw" : is_dp4a() ? "dp4a" : "dpas");
+        if (!is_dp4a()) oss << "." << sdepth << "x" << rcount;
         return oss.str();
     }
 

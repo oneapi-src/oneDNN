@@ -3543,6 +3543,72 @@ stmt_t inject_bank_conflict_attribute(const stmt_t &s) {
     return ret;
 }
 
+class dp4a_injector_t : public ir_mutator_t {
+public:
+    object_t _mutate(const func_call_t &obj) {
+        auto *dpas = obj.func.as_ptr<dpas_t>();
+        if (!dpas) return obj;
+
+        int M = dpas->simd_size;
+        int N = dpas->rcount;
+        int K = dpas->sdepth * 4;
+
+        auto &dst = dpas_t::arg_dst(obj);
+        auto &src0 = dpas_t::arg_src0(obj);
+        auto &src1 = dpas_t::arg_src1(obj);
+        auto &src2 = dpas_t::arg_src2(obj);
+        int dst_size = dpas->dst_type.size();
+        int src0_size = dpas->dst_type.size();
+        int src1_size = dpas->src1_type.size();
+        int src2_size = dpas->src2_type.size();
+        auto dst_type = to_dp4a_type(dpas->dst_type);
+        auto src1_type = to_dp4a_type(dpas->src1_type);
+        auto src2_type = to_dp4a_type(dpas->src2_type);
+        bool is_src0_zero = is_zero(src0);
+
+        stmt_t stmt;
+        auto _dp4a = dpas_t::make(
+                /*is_dpasw=*/false, M, 1, 1, dst_type, src1_type, src2_type);
+        auto &dp4a = _dp4a.as<dpas_t>();
+        auto zero = shuffle_t::make_broadcast(0, M);
+        int k0 = (is_src0_zero ? -4 : 0);
+        for (int k = k0; k < K; k += 4) {
+            for (int n = 0; n < N; n++) {
+                int dst_off = n * M * dst_size;
+                int src0_off = n * M * src0_size;
+                int src1_off = k * M * src1_size;
+                int src2_off = (n * K + k) * src2_size;
+                auto _dst = dst + dst_off;
+                auto _src0 = is_src0_zero ? _dst : (src0 + src0_off);
+                auto _src1 = src1 + src1_off;
+                auto _src2 = src2 + src2_off;
+                if (k < 0) {
+                    stmt = stmt.append(store_t::make(_dst, 0, zero));
+                } else {
+                    stmt = stmt.append(dp4a(_dst, _src0, _src1, _src2));
+                }
+            }
+        }
+        return stmt;
+    }
+
+private:
+    static type_t to_dp4a_type(const type_t &type) {
+        if (type.is_x32()) return type;
+        if (type.is_s8()) return type_t::s32();
+        if (type.is_u8()) return type_t::u32();
+        ir_error_not_expected();
+        return type_t();
+    };
+};
+
+// Converts dpas to dp4a.
+stmt_t inject_dp4a(const stmt_t &s) {
+    auto ret = dp4a_injector_t().mutate(s);
+    trace_pass("inject_dp4a", ret);
+    return ret;
+}
+
 class alloc_injector_t : public ir_mutator_t {
 public:
     alloc_injector_t(const stmt_t &root, const std::vector<stmt_t> &allocs,
@@ -4999,8 +5065,9 @@ public:
         , b_buf_(b_buf)
         , c_buf_(c_buf) {
         switch (cfg.fma_kind) {
-            case fma_kind_t::dpasw:
+            case fma_kind_t::dp4a:
             case fma_kind_t::dpas:
+            case fma_kind_t::dpasw:
                 if (try_build_dpas()) return;
                 break;
             case fma_kind_t::mad:
@@ -5389,7 +5456,7 @@ layout_t convert_to_fma_friendly_layout(const conv_config_t &cfg,
     if (!cfg.allow_grf_reorder) return layout;
 
     // GRF reorder is only supported with dpas/dpasw.
-    if (!utils::one_of(cfg.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw)) {
+    if (!cfg.is_dp_fma()) {
         if (is_slm) return layout;
         // mad may require type conversion, supported for GRF layouts only.
         return convert_to_fma_friendly_type(
@@ -6526,6 +6593,7 @@ void kernel_builder_t::build() {
     stmt_ = optimize_let(stmt_);
     stmt_ = optimize_peephole(stmt_);
     stmt_ = optimize_barrier(stmt_);
+    if (cfg_.fma_kind == fma_kind_t::dp4a) stmt_ = inject_dp4a(stmt_);
     stmt_ = inject_bank_conflict_attribute(stmt_);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 

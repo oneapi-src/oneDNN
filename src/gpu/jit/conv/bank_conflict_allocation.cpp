@@ -631,7 +631,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
         auto &s = attr.instructions[0];
         auto &func = s.as<func_call_t>().func;
         if (func.is<dpas_t>()) {
-            is_dpas = true;
+            is_dpas = !func.as<dpas_t>().is_dp4a();
             dst_base = get_base(dpas_t::arg_dst(s));
         } else if (func.is<mad_t>()) {
             dst_base = mad_t::arg_dst(s);
@@ -684,11 +684,11 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
             simd = dpas.simd_size;
             src0_stride_bytes = dpas.dst_type.size();
             src1_stride_bytes = dpas.src1_type.size();
-            src2_stride_bytes = dpas.src2_type.size();
+            src2_stride_bytes = dpas.is_dp4a() ? 0 : dpas.src2_type.size();
             src0 = dpas_t::arg_src0(call);
             src1 = dpas_t::arg_src1(call);
             src2 = dpas_t::arg_src2(call);
-            ir_assert(simd == hw_simd);
+            if (!dpas.is_dp4a()) ir_assert(simd == hw_simd);
         } else if (call.func.is<mad_t>()) {
             auto &mad = call.func.as<mad_t>();
             simd = mad.simd_size;

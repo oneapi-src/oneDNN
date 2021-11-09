@@ -224,7 +224,7 @@ public:
     status_t init_fwd(convolution_pd_t *conv_pd, engine_t *engine) {
         using namespace ir_utils;
 
-        if (ic < 16 && !is_dpas_fma() && !is_dw) return status::unimplemented;
+        if (ic < 16 && !is_dp_fma() && !is_dw) return status::unimplemented;
 
         bool is_src_nhwc = is_nhwc("src", conv_pd);
         bool is_dst_nhwc = is_nhwc("dst", conv_pd);
@@ -277,7 +277,7 @@ public:
             ic_thr_dim = 1;
             kw_blk = 1;
             ic_blk = (is_small_ic() ? ic : 16);
-        } else if (is_dpas_fma()) {
+        } else if (is_dp_fma()) {
             g_tg_blk = 1;
             mb_thr_blk = is_small_ic() ? 8 : (mb < 16 ? 1 : mb == 16 ? 16 : 32);
             mb_thr_dim = (is_small_ic())
@@ -417,7 +417,7 @@ public:
             ic_thr_blk = 16;
             iw_thr_blk = (mb < 16) ? 16 : 1;
             oc_blk = is_s32_accumulator() ? 32 : 16;
-        } else if (is_dpas_fma()) {
+        } else if (is_dp_fma()) {
             // Set dispatch and kernel parameters.
             mb_thr_blk = (mb < 16 ? 1 : mb == 16 ? 16 : 32);
             ic_thr_blk = 32;
@@ -532,7 +532,7 @@ public:
             mb_blk = mb < 16 ? 1 : 16;
             mb_tg_blk = mb_blk;
             ow_thr_blk = mb < 16 ? std::min(16, utils::rnd_up_pow2(ow)) : 1;
-        } else if (is_dpas_fma()) {
+        } else if (is_dp_fma()) {
             oc_thr_blk = (oc <= 16 ? 16 : 32);
             if (hw >= ngen::HW::XeHPC) oc_thr_blk = (oc <= 16 ? 16 : 64);
             // Value required due to blocking in dpas data format
@@ -600,7 +600,7 @@ public:
         init_bwd_w_spatial_blocks();
 
         mb_unroll = mb_tg_blk / mb_blk;
-        ow_unroll = mb < 16 && is_dpas_fma() ? ow_tg_blk / ow_thr_blk : 1;
+        ow_unroll = mb < 16 && is_dp_fma() ? ow_tg_blk / ow_thr_blk : 1;
 
         m_tg_blk = ic_tg_blk * kw_tg_blk;
         n_tg_blk = oc_tg_blk;
@@ -628,8 +628,8 @@ public:
 
         // Set BWD_W-specific settings.
         do_b_reduction = with_bias;
-        do_loop_unroll = (hw >= ngen::HW::XeHPC && is_dpas_fma() && mb_blk > 1);
-        allow_grf_reorder = is_dpas_fma();
+        do_loop_unroll = (hw >= ngen::HW::XeHPC && is_dp_fma() && mb_blk > 1);
+        allow_grf_reorder = is_dp_fma();
         do_atomic_update = true;
 
         if (!with_sum_post_op(conv_pd)) {
@@ -744,7 +744,7 @@ public:
 
         do_b_reduction = false;
         pad_slm = true;
-        assign_sbids = is_dpas_fma();
+        assign_sbids = is_dp_fma();
         do_loop_unroll = hw > ngen::HW::XeLP;
         reduce_grf_usage = true;
         do_atomic_update = false;
@@ -873,7 +873,11 @@ public:
         return utils::one_of(dst_data_type, data_type::s8, data_type::u8);
     }
     bool is_small_ic() const { return ic < simd_size; }
-    bool is_dpas_fma() const {
+    bool is_dp_fma() const {
+        return utils::one_of(fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw,
+                fma_kind_t::dp4a);
+    }
+    bool is_dpas_or_dpasw_fma() const {
         return utils::one_of(fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw);
     }
 
@@ -1578,7 +1582,7 @@ private:
             int pref_slm_bufs = (tg_grid_dim[0] * tg_grid_dim[1] <= 8 ? 2 : 3);
             if (do_loop_unroll) {
                 slm_bufs = pref_slm_bufs;
-                gmem_bufs = (is_dpas_fma() ? 2 : 1);
+                gmem_bufs = (is_dp_fma() ? 2 : 1);
             } else {
                 // Double/triple SLM buffering is not supported when only one
                 // matrix is SLM-buffered.

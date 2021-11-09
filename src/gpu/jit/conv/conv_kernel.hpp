@@ -969,7 +969,7 @@ public:
         requireLocalSize();
         requireGRF(cfg.regs);
         requireSIMD(cfg.simd_size);
-        if (cfg.is_dpas_fma()) requireDPAS();
+        if (cfg.is_dpas_or_dpasw_fma()) requireDPAS();
 
         for (int i = 0; i < kernel_info.nargs(); i++) {
             auto &name = kernel_info.arg_name(i);
@@ -1118,7 +1118,7 @@ public:
         requireLocalSize();
         requireGRF(cfg.regs);
         requireSIMD(cfg.simd_size);
-        if (cfg.is_dpas_fma()) requireDPAS();
+        if (cfg.is_dpas_or_dpasw_fma()) requireDPAS();
 
         for (int i = 0; i < kernel_info.nargs(); i++) {
             auto &name = kernel_info.arg_name(i);
@@ -3051,7 +3051,7 @@ public:
         requireLocalSize();
         requireGRF(cfg.regs);
         requireSIMD(simd_size_);
-        if (cfg.is_dpas_fma()) requireDPAS();
+        if (cfg.is_dpas_or_dpasw_fma()) requireDPAS();
 
         for (int i = 0; i < kernel_info.nargs(); i++) {
             auto &name = kernel_info.arg_name(i);
@@ -4091,7 +4091,10 @@ private:
 
         dst = dst.format(0, to_ngen(dpas_func.dst_type), simd, 1);
         src1 = src1.format(0, to_ngen(dpas_func.src1_type), simd, 1);
-        src2 = src2.format(0, to_ngen(dpas_func.src2_type), simd, 1);
+        int src2_width = (dpas_func.is_dp4a() ? 1 : simd);
+        int src2_stride = (dpas_func.is_dp4a() ? 0 : 1);
+        src2 = src2.format(
+                0, to_ngen(dpas_func.src2_type), src2_width, src2_stride);
 
         ngen::InstructionModifier mod = simd_size_;
         if (!attr.is_empty())
@@ -4100,6 +4103,13 @@ private:
         if (dpas_func.is_dpasw) {
             host_->dpasw(mod, dpas_func.sdepth, dpas_func.rcount, dst, src0,
                     src1, src2);
+        } else if (dpas_func.is_dp4a()) {
+            if (src0.isNull()) {
+                host_->mov(mod, dst, 0);
+                host_->dp4a(mod, dst, dst, src1, src2);
+            } else {
+                host_->dp4a(mod, dst, src0, src1, src2);
+            }
         } else {
             host_->dpas(mod, dpas_func.sdepth, dpas_func.rcount, dst, src0,
                     src1, src2);

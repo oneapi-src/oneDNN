@@ -24,6 +24,7 @@ namespace jit {
 std::string fma_kind::to_string(fma_kind_t val) {
     switch (val) {
         case fma_kind_t::mad: return "mad";
+        case fma_kind_t::dp4a: return "dp4a";
         case fma_kind_t::dpas: return "dpas";
         case fma_kind_t::dpasw: return "dpasw";
         case fma_kind_t::unknown: return "unknown";
@@ -57,8 +58,10 @@ fma_kind_t fma_kind::get_supported_kind(
 int fma_kind::get_simd_size(ngen::HW hw, const fma_kind_t kind, const type_t &a,
         const type_t &b, const type_t &c) {
     switch (kind) {
-        case fma_kind_t::dpasw:
-        case fma_kind_t::dpas: return hw >= ngen::HW::XeHPC ? 16 : 8;
+        case fma_kind_t::dp4a:
+            return mad_t::get_simd_size(a.with_elems(4), b.with_elems(4), c);
+        case fma_kind_t::dpas:
+        case fma_kind_t::dpasw: return hw >= ngen::HW::XeHPC ? 16 : 8;
         case fma_kind_t::mad: return mad_t::get_simd_size(a, b, c);
         default: return 0;
     }
