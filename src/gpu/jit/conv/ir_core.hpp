@@ -1065,8 +1065,7 @@ public:
     IR_DECL_EXPR_TYPE_ID(load_t)
 
     // offset and stride are expressed in bytes.
-    // default stride means unit stride (in terms of value.type().scalar()
-    // elements).
+    // default stride means unit stride (in terms of type.scalar() elements).
     static expr_t make(const type_t &type, const expr_t &buf, const expr_t &off,
             int stride = default_stride) {
         return expr_t(new load_t(type, buf, off, stride));

@@ -563,7 +563,7 @@ public:
                 << "Dimension size doesn't match.";
     }
 
-    // Reorders loops defiend by given variables.
+    // Reorders loops defined by given variables.
     void reorder(const std::vector<expr_t> &ordered_vars) {
         for (auto &v : ordered_vars) {
             auto &loop = find_loop(v);

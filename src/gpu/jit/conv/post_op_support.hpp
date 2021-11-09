@@ -188,13 +188,13 @@ private:
 // - Eltwise:          lhs = eltwise(rhs) and rhs must be equal lhs
 //   Eltwise is supported via special IR function eltwise_t
 // - Generic post-op:  lhs = rhs
-// Left-hand side (lhs) represetns a single post-op tensor. Right-hand side
+// Left-hand side (lhs) represents a single post-op tensor. Right-hand side
 // tensor (rhs) is an IR expression over post-op tensors and constants.
 //
 // Post-op tensors support broadcast (when used from rhs) and reduction (when
 // used from lhs) semantics.
 //
-// If lhs is (a x 1) tensor and rhs is (a x b) tensor thenrhs is reduced:
+// If lhs is (a x 1) tensor and rhs is (a x b) tensor then rhs is reduced:
 //     lhs(i, 0) = sum over j rhs(i, j)
 //
 // If lhs is (a x b) tensor and rhs is (a x 1) tensor then rhs is broadcasted:

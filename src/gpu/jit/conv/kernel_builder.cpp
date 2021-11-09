@@ -1066,7 +1066,7 @@ private:
     std::vector<stmt_t> lets_;
 };
 
-// Eliminiates expressions from the statement.
+// Eliminates expressions from the statement.
 class cse_mutator_t : public ir_mutator_t {
 public:
     cse_mutator_t(cse_context_t &ctx) : ctx_(ctx) {}
@@ -4506,7 +4506,7 @@ private:
 // - Reduction and storing output post-op tensors
 //
 // In general C tensor is updated/transformed following the C stages described
-// blow. Each C stage is associated with GRF buffer and its layout.
+// below. Each C stage is associated with GRF buffer and its layout.
 //   Multiplication ->
 //     M_x -> [R_f32] -> [P0_f32] -> ... -> [Pn_f32] -> [Z_f32] -> S_y ->
 //   GMEM
@@ -4516,9 +4516,9 @@ private:
 // - y      is destination data type
 // - M_x    is the stage after multiplication
 // - R_f32  is the stage after reordering from M_x to f32 (optional)
-// - Pi_f32 is tha stage after applying Pi post-op (optional)
-// - Z_f32  is tha stage after restoring zero padding (optional)
-// - S_y    is tha stage before storing C to global memory
+// - Pi_f32 is the stage after applying Pi post-op (optional)
+// - Z_f32  is the stage after restoring zero padding (optional)
+// - S_y    is the stage before storing C to global memory
 class epilogue_builder_t {
 public:
     epilogue_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,

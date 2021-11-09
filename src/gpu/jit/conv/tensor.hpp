@@ -1093,8 +1093,8 @@ public:
             ir_assert(0 <= mask_id && mask_id < int(masks_.size()));
             new_masks[i / new_type.size()] = mask_id;
         }
-        dim_t new_elmes = utils::div_up(bytes, new_type.size());
-        layout_t _1d_layout(new_type, 0, std::vector<dim_t> {new_elmes});
+        dim_t new_elems = utils::div_up(bytes, new_type.size());
+        layout_t _1d_layout(new_type, 0, std::vector<dim_t> {new_elems});
         return mask_tensor_t(_1d_layout, new_masks, mask2ids_, id2masks_);
     }
 
