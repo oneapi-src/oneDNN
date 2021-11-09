@@ -167,7 +167,7 @@ private:
         dims_mask_t dst_rt_dim_mask;
 
         for (int i = 0; i < ndims - 2; ++i) {
-            dst_rt_dim_mask[i] = src_rt_dim_mask[i] | wei_rt_dim_mask[i];
+            dst_rt_dim_mask[i] = src_rt_dim_mask[i] || wei_rt_dim_mask[i];
         }
 
         // m, n mask

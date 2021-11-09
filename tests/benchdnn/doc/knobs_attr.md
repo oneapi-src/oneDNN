@@ -2,6 +2,7 @@
 
 ## Usage
 ```
+    --attr-scratchpad=MODE
     --attr-oscale=POLICY[:SCALE[*]]
     --attr-scales=ARG:POLICY[:SCALE[*]][+...]
     --attr-zero-points=ARG:POLICY:ZEROPOINT[*][+...]
@@ -11,6 +12,11 @@
                     DW_K3S2P1[:DST_DT[:OUTPUTSCALE]]
                     BINARY:DT[:POLICY[:TAG]]
 ```
+
+`--attr-scratchpad` specifies the scratchpad mode to be used for benchmarking.
+`MODE` values can be `library` (the default) or `user`. Refer to
+[scratchpad primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_scratchpad.html)
+for details.
 
 `--attr-oscale` defines output scale primitive attribute. `POLICY` specifies the
 way scale values will be applied to the output tensor. `SCALE` is optional

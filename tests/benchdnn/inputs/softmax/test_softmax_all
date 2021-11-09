@@ -2,7 +2,7 @@
 
 # f32
 --dt=f32
---dir=FWD_D,BWD_D
+--dir=FWD_I,FWD_D,BWD_D
 --alg=SOFTMAX,LOGSOFTMAX
 --inplace=true,false
 

@@ -75,6 +75,12 @@ void check_correctness(const settings_t &s) {
     }
 }
 
+static const std::string help_scales
+        = "FLOAT[:FLOAT...]    (Default: `1.f`)\n    Input scales for source "
+          "values.\n    If a single value is specified, will be broadcasted "
+          "for all sources, otherwise number of scales should match number of "
+          "inputs.\n";
+
 int bench(int argc, char **argv) {
     driver_name = "sum";
     using namespace parser;
@@ -87,13 +93,13 @@ int bench(int argc, char **argv) {
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_multi_tag(s.stag, def.stag, argv[0])
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
-                || parse_multivector_option(
-                        s.scales, def.scales, atof, argv[0], "scales")
+                || parse_multivector_option(s.scales, def.scales, atof, argv[0],
+                        "scales", help_scales)
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
-                || parse_reset(s, argv[0]);
+                || parse_reset(s, argv[0]) || parse_help(argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
