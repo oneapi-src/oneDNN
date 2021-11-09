@@ -4360,6 +4360,8 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
         const convolution_pd_t *pd, const kernel_info_t &kernel_info)
     : cfg_(cfg), ra_(hw) {
 
+    ra_.setRegisterCount(cfg_.regs);
+
     // XXX: BWD_W does 32x32 multiplication in the inner loop which may cause
     // hangs when using with split barrier. Switch to emulation to work around
     // the issue.
