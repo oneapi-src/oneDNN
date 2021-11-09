@@ -1204,8 +1204,6 @@ private:
         std::string wei_tag, user_wei_tag;
         std::string dst_tag, user_dst_tag;
 
-        const bool is_wei16aXb = hw >= ngen::HW::XeHPC;
-        assert(hw != ngen::HW::Unknown);
         bool is_mb_block = mb >= 16;
 
         // Src/Dst buffers should generally be the same format to avoid reorders
@@ -1262,6 +1260,8 @@ private:
                                     : (mb > 16) ? "ABx32a16b" : "ABx16a16b");
         }
 
+        bool is_simd16 = (simd_size == 16);
+
         // Weight reorders are generally small, so reordering weights between
         // FWD and BWD_D/BWD_W implementations for optimization purposes makes
         // sense.
@@ -1270,9 +1270,9 @@ private:
                 if (fma_kind == fma_kind_t::mad)
                     wei_tag = "bAx16a";
                 else if (is_s32_accumulator())
-                    wei_tag = is_wei16aXb ? "ABx16a4b" : "ABx8a4b";
+                    wei_tag = is_simd16 ? "ABx16a4b" : "ABx8a4b";
                 else
-                    wei_tag = is_wei16aXb ? "ABx16a2b" : "ABx8a2b";
+                    wei_tag = is_simd16 ? "ABx16a2b" : "ABx8a2b";
             } else {
                 if (is_dw) {
                     if (is_s32_accumulator())
@@ -1282,9 +1282,9 @@ private:
                 } else if (fma_kind == fma_kind_t::mad) {
                     wei_tag = "BAx16b16a";
                 } else if (is_s32_accumulator()) {
-                    wei_tag = is_wei16aXb ? "ABx2a8b16a4b" : "ABx4a8b8a4b";
+                    wei_tag = is_simd16 ? "ABx2a8b16a4b" : "ABx4a8b8a4b";
                 } else {
-                    wei_tag = is_wei16aXb ? "ABx8b16a2b" : "ABx2a8b8a2b";
+                    wei_tag = is_simd16 ? "ABx8b16a2b" : "ABx2a8b8a2b";
                 }
             }
         } else if (is_bwd_d) {
@@ -1294,17 +1294,17 @@ private:
             if (fma_kind == fma_kind_t::mad)
                 wei_tag = "ABx16a16b";
             else if (is_s32_accumulator()) {
-                user_wei_tag = is_wei16aXb ? "ABx2a8b16a4b" : "ABx4a8b8a4b";
-                wei_tag = is_wei16aXb ? "ABx2b8a16b4a" : "ABx4b8a8b4a";
+                user_wei_tag = is_simd16 ? "ABx2a8b16a4b" : "ABx4a8b8a4b";
+                wei_tag = is_simd16 ? "ABx2b8a16b4a" : "ABx4b8a8b4a";
             } else {
-                user_wei_tag = is_wei16aXb ? "ABx8b16a2b" : "ABx2a8b8a2b";
-                wei_tag = is_wei16aXb ? "ABx8a16b2a" : "ABx2b8a8b2a";
+                user_wei_tag = is_simd16 ? "ABx8b16a2b" : "ABx2a8b8a2b";
+                wei_tag = is_simd16 ? "ABx8a16b2a" : "ABx2b8a8b2a";
             }
         } else if (is_bwd_w) {
             if (is_small_ic()) {
-                wei_tag = is_wei16aXb ? "ABx16a2b" : "ABx8a2b";
+                wei_tag = is_simd16 ? "ABx16a2b" : "ABx8a2b";
             } else {
-                wei_tag = is_wei16aXb ? "ABx8b16a2b" : "ABx2a8b8a2b";
+                wei_tag = is_simd16 ? "ABx8b16a2b" : "ABx2a8b8a2b";
             }
         }
 
