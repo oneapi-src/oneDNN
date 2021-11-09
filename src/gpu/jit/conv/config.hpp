@@ -1333,13 +1333,16 @@ private:
                 is_dst_output(), dst_layout);
 
         if (src_tag != user_src_tag)
-            tensor_config.set_compute_layout("src", layout_t(src_md, src_tag));
+            tensor_config.set_compute_layout(
+                    "src", make_layout(src_md, src_tag));
 
         if (wei_tag != user_wei_tag)
-            tensor_config.set_compute_layout("wei", layout_t(wei_md, wei_tag));
+            tensor_config.set_compute_layout(
+                    "wei", make_layout(wei_md, wei_tag));
 
         if (dst_tag != user_dst_tag)
-            tensor_config.set_compute_layout("dst", layout_t(dst_md, dst_tag));
+            tensor_config.set_compute_layout(
+                    "dst", make_layout(dst_md, dst_tag));
 
         return status::success;
     }
@@ -1701,11 +1704,18 @@ private:
         return "a" + ret;
     }
 
-    static layout_t init_layout(memory_desc_t &md, const std::string &tag) {
-        if (md.format_kind != format_kind::any) return make_layout(md);
-        auto ret = make_layout(md, tag);
-        md = ret.to_dnnl(md.dims);
-        return ret;
+    static layout_t init_layout(
+            memory_desc_t &user_md, const std::string &optimal_tag) {
+        auto optimal = make_layout(user_md, optimal_tag);
+        if (user_md.format_kind != format_kind::any) {
+            auto user = make_layout(user_md);
+            // If layouts are physically different return the layout passed by
+            // the user and return unimplemented later.
+            if (user != optimal) return user;
+        } else {
+            user_md = optimal.to_dnnl(user_md.dims);
+        }
+        return optimal;
     }
 
     static layout_t make_layout(const memory_desc_t &md) {
@@ -1734,7 +1744,7 @@ private:
         }
 
         if (!memory_desc_wrapper(md).is_plain()) return false;
-        if (layout != make_layout(*md, "axb")) return false;
+        if (!layout.is_strictly_equal(make_layout(*md, "axb"))) return false;
 
         return true;
     }
