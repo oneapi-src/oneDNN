@@ -1582,11 +1582,18 @@ private:
         return "a" + ret;
     }
 
-    static layout_t init_layout(memory_desc_t &md, const std::string &tag) {
-        if (md.format_kind != format_kind::any) return make_layout(md);
-        auto ret = make_layout(md, tag);
-        md = ret.to_dnnl(md.dims);
-        return ret;
+    static layout_t init_layout(
+            memory_desc_t &user_md, const std::string &optimal_tag) {
+        auto optimal = make_layout(user_md, optimal_tag);
+        if (user_md.format_kind != format_kind::any) {
+            auto user = make_layout(user_md);
+            // If layouts are physically different return the layout passed by
+            // the user and return unimplemented later.
+            if (user != optimal) return user;
+        } else {
+            user_md = optimal.to_dnnl(user_md.dims);
+        }
+        return optimal;
     }
 
     static layout_t make_layout(const memory_desc_t &md) {
