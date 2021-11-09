@@ -483,9 +483,23 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
     return OK;
 }
 
+void check_post_op_relu_alpha(const prb_t *prb, res_t *res) {
+    const auto &po = prb->attr.post_ops;
+    const auto relu_idx = po.find(attr_t::post_ops_t::kind_t::RELU);
+    if (relu_idx >= 0) {
+        const auto &e = po.entry[relu_idx];
+        float alpha = e.eltwise.alpha;
+        if (alpha != 0.f && (!(prb->dir & FLAG_INF) || !is_cpu())) {
+            res->state = SKIPPED;
+            res->reason = CASE_NOT_SUPPORTED;
+        }
+    }
+}
+
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
     check_sum_post_ops(prb->attr, res);
+    check_post_op_relu_alpha(prb, res);
     if (res->state == SKIPPED) return;
 
     if (prb->use_ss() && (prb->use_sc() || prb->use_sh()))
