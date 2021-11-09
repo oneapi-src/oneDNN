@@ -2145,6 +2145,13 @@ private:
     object_set_t<stmt_t> mul_lets_;
 };
 
+// Helper class to access the outer loop index after pipelining. Pipelining
+// in general requires tracking two versions of a loop index:
+// - Multiplication version - corresponding to the iteration that is currently
+//   used for multiplication
+// - Preload version - corresponding to the iteration that is currently used
+//   for preload for one of the next multiplications
+// The multiplilcation version is a few steps behind the preload version.
 class outer_loop_info_t : public loop_info_t {
 public:
     outer_loop_info_t() = default;
@@ -2156,33 +2163,59 @@ public:
         // outer loop iteration.
         if (count_object(s.as<for_t>().body, var) != 0) {
             has_var_refs_ = true;
-            var_buf_ = ir_ctx.create_tmp_var(
-                    type_t::byte_ptr(), var.as<var_t>().name + "_buf");
-            alloc_stmt_ = alloc_t::make(
-                    var_buf_, var.type().size(), alloc_kind_t::grf);
-            init_stmt_ = store_t::make(var_buf_, 0, init());
-            post_inc_stmt_ = store_t::make(var_buf_, 0, var_load() + 1);
+            mul_var_buf_ = ir_ctx.create_tmp_var(
+                    type_t::byte_ptr(), var.as<var_t>().name + "_mul_buf");
+            preload_var_buf_ = ir_ctx.create_tmp_var(
+                    type_t::byte_ptr(), var.as<var_t>().name + "_preload_buf");
+
+            auto mul_alloc = alloc_t::make(
+                    mul_var_buf_, var.type().size(), alloc_kind_t::grf);
+            auto preload_alloc = alloc_t::make(
+                    preload_var_buf_, var.type().size(), alloc_kind_t::grf);
+            allocs_.push_back(mul_alloc);
+            allocs_.push_back(preload_alloc);
+
+            auto mul_init = store_t::make(mul_var_buf_, 0, init());
+            auto preload_init = store_t::make(preload_var_buf_, 0, init());
+            init_stmt_ = mul_init.append(preload_init);
+
+            mul_post_inc_stmt_
+                    = store_t::make(mul_var_buf_, 0, mul_var_load() + 1);
+            preload_post_inc_stmt_ = store_t::make(
+                    preload_var_buf_, 0, preload_var_load() + 1);
         }
     }
 
     bool has_var_refs() const { return has_var_refs_; }
 
-    expr_t var_load() const { return load_t::make(var.type(), var_buf_, 0); }
+    expr_t mul_var_load() const {
+        return load_t::make(var.type(), mul_var_buf_, 0);
+    }
+    expr_t preload_var_load() const {
+        return load_t::make(var.type(), preload_var_buf_, 0);
+    }
 
-    const stmt_t &alloc_stmt() const { return alloc_stmt_; }
+    stmt_t inject_alloc_stmts(const stmt_t &stmt) const {
+        return jit::inject_alloc_stmts(stmt, allocs_);
+    }
 
     const stmt_t &init_stmt() const { return init_stmt_; }
 
-    const stmt_t &post_inc_stmt() const { return post_inc_stmt_; }
+    const stmt_t &mul_post_inc_stmt() const { return mul_post_inc_stmt_; }
+    const stmt_t &preload_post_inc_stmt() const {
+        return preload_post_inc_stmt_;
+    }
 
 private:
     bool has_var_refs_ = false;
 
     // Helper expressions/statements to partially unroll the loop.
-    expr_t var_buf_;
-    stmt_t alloc_stmt_;
+    expr_t mul_var_buf_;
+    expr_t preload_var_buf_;
+    std::vector<stmt_t> allocs_;
     stmt_t init_stmt_;
-    stmt_t post_inc_stmt_;
+    stmt_t mul_post_inc_stmt_;
+    stmt_t preload_post_inc_stmt_;
 };
 
 // Helper class to work with loop nest of the compute loop.
@@ -2775,14 +2808,24 @@ public:
         sbid_manager_t sbid_mgr;
 
         auto &outer_loop_info = loop_nest_.outer_loop_info();
-        auto outer_var_post_inc_stmt = outer_loop_info.post_inc_stmt();
+
+        auto append_outer_post_inc = [&](const stmt_t &_s) {
+            auto &mul = outer_loop_info.mul_post_inc_stmt();
+            auto &preload = outer_loop_info.preload_post_inc_stmt();
+            auto s = _s;
+            if (it.mul_loop_it.is_outer_loop_end() && it.do_mul()) {
+                s = s.append(mul);
+            }
+            if (it.preload_loop_it.is_outer_loop_end() && it.do_preload()) {
+                s = s.append(preload);
+            }
+            return s;
+        };
 
         // Ramp-up.
         for (int i = 0; i < it.ramp_up_iters; i++) {
             body = stmt_seq_t::make(body, create_iteration(it, sbid_mgr));
-            if (it.do_mul() && it.mul_loop_it.is_outer_loop_end()) {
-                body = body.append(outer_var_post_inc_stmt);
-            }
+            body = append_outer_post_inc(body);
             ++it;
         }
 
@@ -2796,9 +2839,8 @@ public:
                 loop_body = loop_body.append(create_iteration(
                         it, sbid_mgr, /*in_loop_body=*/has_loop));
                 ir_assert(it.do_mul());
-                if (it.mul_loop_it.is_outer_loop_end()) {
-                    loop_body = loop_body.append(outer_var_post_inc_stmt);
-                }
+                ir_assert(it.do_preload());
+                loop_body = append_outer_post_inc(loop_body);
                 ++it;
             }
             if (!has_loop) {
@@ -2813,19 +2855,15 @@ public:
 
         // Ramp-down.
         for (int i = 0; i < it.ramp_down_iters; i++) {
-            body = body.append(create_iteration(it, sbid_mgr));
             ir_assert(it.do_mul());
-            if (it.mul_loop_it.is_outer_loop_end()) {
-                body = body.append(outer_var_post_inc_stmt);
-            }
+            body = body.append(create_iteration(it, sbid_mgr));
+            body = append_outer_post_inc(body);
             ++it;
         }
 
         if (outer_loop_info.has_var_refs()) {
-            body = substitute(
-                    body, outer_loop_info.var, outer_loop_info.var_load());
             body = outer_loop_info.init_stmt().append(body);
-            body = replace_stmt_body(outer_loop_info.alloc_stmt(), body);
+            body = outer_loop_info.inject_alloc_stmts(body);
         }
 
         auto ret = substitute(root_, step_.compute_loop(), body, 1);
@@ -2888,11 +2926,8 @@ private:
             expr_t preload_var_value;
             if (v.is_same(outer_loop_info.var) && in_loop_body
                     && outer_loop_info.has_var_refs()) {
-                mul_var_value = outer_loop_info.var_load();
-                // XXX: Outer var references are not expected in pre-load
-                // statements. Otherwise we need to introduce extra
-                // buffer/updates for pre-load version of the variable.
-                preload_var_value = expr_t();
+                mul_var_value = outer_loop_info.mul_var_load();
+                preload_var_value = outer_loop_info.preload_var_load();
             } else {
                 mul_var_value = it.mul_loop_it.var_value(v);
                 preload_var_value = it.preload_loop_it.var_value(v);
