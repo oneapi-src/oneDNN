@@ -408,7 +408,7 @@ stmt_t replace_stmt_body(const stmt_t &stmt, const stmt_t &new_body) {
     auto *alloc = stmt.as_ptr<alloc_t>();
     if (alloc) {
         return alloc_t::make(
-                alloc->buf, alloc->size, alloc->kind, alloc->attr, new_body);
+                alloc->buf, alloc->size, alloc->kind, alloc->attrs, new_body);
     }
 
     auto *_for = stmt.as_ptr<for_t>();

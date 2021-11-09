@@ -373,7 +373,7 @@ object_t ir_mutator_t::_mutate(const alloc_t &obj) {
 
     if (buf.is_same(obj.buf) && body.is_same(obj.body)) return obj;
 
-    return alloc_t::make(buf, obj.size, obj.kind, obj.attr, body);
+    return alloc_t::make(buf, obj.size, obj.kind, obj.attrs, body);
 }
 
 object_t ir_mutator_t::_mutate(const binary_op_t &obj) {

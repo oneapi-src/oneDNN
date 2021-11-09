@@ -3839,8 +3839,10 @@ public:
             int grf_size = ngen::GRF::bytes(hw);
             int regs = utils::div_up(obj.size, grf_size);
             ngen::Bundle bundle;
-            auto *grf_attr = obj.attr.as_ptr<grf_alloc_attr_t>();
-            if (grf_attr) bundle = to_ngen(grf_attr->bundle);
+            if (obj.has_attr<grf_alloc_attr_t>()) {
+                auto &grf_attr = obj.get_attr<grf_alloc_attr_t>();
+                bundle = to_ngen(grf_attr.bundle);
+            }
             auto reg_range = scope.alloc_range(regs, bundle);
             expr_binding_.bind(obj.buf, reg_range[0]);
         }

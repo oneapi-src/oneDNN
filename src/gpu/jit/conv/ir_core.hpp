@@ -1606,8 +1606,19 @@ public:
     IR_DECL_STMT_TYPE_ID(alloc_t)
 
     static stmt_t make(const expr_t &buf, int size, alloc_kind_t kind,
-            const alloc_attr_t &attr = {}, const stmt_t &body = {}) {
-        return stmt_t(new alloc_t(buf, size, kind, attr, body));
+            const std::vector<alloc_attr_t> &attrs, const stmt_t &body = {}) {
+        return stmt_t(new alloc_t(buf, size, kind, attrs, body));
+    }
+
+    static stmt_t make(const expr_t &buf, int size, alloc_kind_t kind,
+            const alloc_attr_t &attr, const stmt_t &body = {}) {
+        std::vector<alloc_attr_t> attrs = {attr};
+        return make(buf, size, kind, attrs, body);
+    }
+
+    static stmt_t make(const expr_t &buf, int size, alloc_kind_t kind,
+            const stmt_t &body = {}) {
+        return make(buf, size, kind, std::vector<alloc_attr_t>(), body);
     }
 
     bool is_equal(const object_impl_t &obj) const override {
@@ -1615,12 +1626,28 @@ public:
         auto &other = obj.as<self_type>();
 
         return buf.is_equal(other.buf) && (size == other.size)
-                && (kind == other.kind) && attr.is_equal(other.attr)
+                && (kind == other.kind)
+                && ir_utils::is_equal(attrs, other.attrs)
                 && body.is_equal(other.body);
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(buf, size, kind, attr, body);
+        return ir_utils::get_hash(buf, size, kind, attrs, body);
+    }
+
+    template <typename T>
+    bool has_attr() const {
+        for (auto &a : attrs)
+            if (a.is<T>()) return true;
+        return false;
+    }
+
+    template <typename T>
+    const T &get_attr() const {
+        for (auto &a : attrs)
+            if (a.is<T>()) return a.as<T>();
+        ir_error_not_expected() << "Can't find attribute.";
+        return attrs[0].as<T>();
     }
 
     IR_DECLARE_TRAVERSERS()
@@ -1628,13 +1655,13 @@ public:
     expr_t buf;
     int size;
     alloc_kind_t kind;
-    alloc_attr_t attr;
+    std::vector<alloc_attr_t> attrs;
     stmt_t body;
 
 private:
     alloc_t(const expr_t &buf, int size, alloc_kind_t kind,
-            const alloc_attr_t &attr, const stmt_t &body)
-        : buf(buf), size(size), kind(kind), attr(attr), body(body) {
+            const std::vector<alloc_attr_t> &attrs, const stmt_t &body)
+        : buf(buf), size(size), kind(kind), attrs(attrs), body(body) {
         ir_assert(buf.type().is_ptr()) << buf;
     }
 };

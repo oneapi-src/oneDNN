@@ -245,7 +245,7 @@ private:
         if (it == resizes_.end()) return false;
 
         obj = alloc_t::make(
-                alloc.buf, it->second, alloc.kind, alloc.attr, alloc.body);
+                alloc.buf, it->second, alloc.kind, alloc.attrs, alloc.body);
         resizes_.erase(it);
         return true;
     }

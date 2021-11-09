@@ -589,7 +589,7 @@ stmt_t merge_slm_buffers(const stmt_t &_stmt) {
     slm_buffer_merger_t merger;
     stmt = merger.mutate(stmt);
     stmt = alloc_t::make(
-            merger.slm_base(), merger.slm_size(), alloc_kind_t::slm, {}, stmt);
+            merger.slm_base(), merger.slm_size(), alloc_kind_t::slm, stmt);
     trace_pass("merge_slm_buffers", stmt);
     return stmt;
 }
@@ -651,7 +651,7 @@ public:
 
         // Allocate header.
         return alloc_t::make(
-                header_buf, send->header_size(), alloc_kind_t::grf, {}, body);
+                header_buf, send->header_size(), alloc_kind_t::grf, body);
     }
 
 private:
@@ -710,7 +710,8 @@ public:
             // Outermost loop.
             for (auto it = allocs_.rbegin(); it != allocs_.rend(); ++it) {
                 auto &a = it->as<alloc_t>();
-                new_obj = alloc_t::make(a.buf, a.size, a.kind, a.attr, new_obj);
+                new_obj = alloc_t::make(
+                        a.buf, a.size, a.kind, a.attrs, new_obj);
             }
             allocs_.resize(0);
         }
@@ -2730,8 +2731,7 @@ public:
         if (cfg_.assign_sbids) loop = sbid_assigner_t().assign(loop);
 
         const auto grf_size = ngen::GRF::bytes(hw_);
-        loop = alloc_t::make(
-                slm_idx_buf, grf_size, alloc_kind_t::grf, {}, loop);
+        loop = alloc_t::make(slm_idx_buf, grf_size, alloc_kind_t::grf, loop);
 
         alloc_updater_t alloc_updater;
 
@@ -3532,7 +3532,8 @@ private:
             }
             if (do_inject) {
                 auto &a = it->second.as<alloc_t>();
-                new_obj = alloc_t::make(a.buf, a.size, a.kind, a.attr, new_obj);
+                new_obj = alloc_t::make(
+                        a.buf, a.size, a.kind, a.attrs, new_obj);
                 it->second = stmt_t();
             }
         }
@@ -4327,7 +4328,7 @@ private:
             auto &a = _a.as<alloc_t>();
             if (a.buf.is_same(buf)) {
                 if (size > a.size) {
-                    _a = alloc_t::make(a.buf, a.size, a.kind, a.attr);
+                    _a = alloc_t::make(a.buf, a.size, a.kind, a.attrs);
                 }
                 return;
             }
@@ -4824,7 +4825,7 @@ private:
             auto ret = seen.insert(buf);
             if (i == 0 || !ret.second) continue;
             tile_stmt = alloc_t::make(
-                    buf, s.buf_size(), alloc_kind_t::grf, {}, tile_stmt);
+                    buf, s.buf_size(), alloc_kind_t::grf, tile_stmt);
         }
 
         stmt_ = stmt_.append(tile_stmt);
