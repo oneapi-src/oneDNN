@@ -1161,21 +1161,26 @@ private:
         simd_size = fma_kind::get_simd_size(
                 hw, fma_kind, a_data_type, b_data_type, acc_data_type);
 
-        bool use_mad = false;
+        // Force mad for some cases.
         if (is_small_ic() && !is_dw) {
             if (is_fwd && (kw != 7 || mb % 8 != 0))
-                use_mad = true;
+                fma_kind = fma_kind_t::mad;
             else if (is_bwd_d)
-                use_mad = true;
+                fma_kind = fma_kind_t::mad;
         } else if (is_dw) {
-            use_mad = true;
+            fma_kind = fma_kind_t::mad;
         }
 
-        if (use_mad) {
-            fma_kind = fma_kind_t::mad;
-            simd_size = fma_kind::get_simd_size(
-                    hw, fma_kind, a_data_type, b_data_type, acc_data_type);
+        // Downgrade dpas/dpasw -> dp4a for some cases. dpas generally operates
+        // on lower frequency than dp4a so for smaller sizes dp4a can be faster.
+        if (is_dpas_or_dpasw_fma()) {
+            bool is_xe_hpg = (hw == ngen::HW::XeHPG);
+            if (is_fwd && is_xe_hpg && mb < 16) fma_kind = fma_kind_t::dp4a;
         }
+
+        // Requery SIMD size as FMA kind may be changed.
+        simd_size = fma_kind::get_simd_size(
+                hw, fma_kind, a_data_type, b_data_type, acc_data_type);
 
 #ifdef GEN_CONV_DEBUG
         fma_kind = fma_kind::from_string(ir_utils::getenv_str(
@@ -1649,6 +1654,9 @@ private:
             if (is_bwd_w && allow_grf_reorder && (!use_a_slm || !use_b_slm))
                 fma_kind = fma_kind_t::dpas;
         }
+
+        // Unrolling with dp4a results in too large kernels.
+        if (fma_kind == fma_kind_t::dp4a) do_loop_unroll = false;
     }
 
     bool try_reduce_grf_usage() {
