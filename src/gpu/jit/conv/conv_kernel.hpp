@@ -19,6 +19,7 @@
 
 #include "common/cpp_compat.hpp"
 
+#include "gpu/jit/conv/bank_conflict_allocation.hpp"
 #include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/conv/fma_support.hpp"
 #include "gpu/jit/conv/ir.hpp"
@@ -3788,19 +3789,26 @@ public:
     void _visit(const alloc_t &obj) override {
         auto scope = register_scope();
         bool do_alloc = (obj.kind == alloc_kind_t::grf);
+        bool use_bc_alloc = false;
         if (do_alloc) {
-            int grf_size = ngen::GRF::bytes(hw);
-            int regs = utils::div_up(obj.size, grf_size);
-            ngen::Bundle bundle;
-            if (obj.has_attr<grf_alloc_attr_t>()) {
-                auto &grf_attr = obj.get_attr<grf_alloc_attr_t>();
-                bundle = to_ngen(grf_attr.bundle);
+            reg_buf_t rb;
+            if (obj.has_attr<bank_conflict_attr_t>()) {
+                rb = create_bank_conflict_allocation(obj);
+                use_bc_alloc = true;
+            } else {
+                int grf_size = ngen::GRF::bytes(hw);
+                int regs = utils::div_up(obj.size, grf_size);
+                rb = scope.alloc_reg_buf(regs);
             }
-            auto reg_range = scope.alloc_range(regs, bundle);
-            expr_binding_.bind(obj.buf, reg_range[0]);
+            if (obj.has_attr<grf_permute_attr_t>()) {
+                auto &attr = obj.get_attr<grf_permute_attr_t>();
+                rb.set_grf_permutation(*attr.grf_perm);
+            }
+            expr_binding_.bind(obj.buf, reg_buf_data_t(rb));
         }
         visit(obj.body);
         if (do_alloc) expr_binding_.unbind(obj.buf);
+        if (use_bc_alloc) release_bank_conflict_allocation(obj);
     }
 
     void _visit(const for_t &obj) override {
@@ -4000,6 +4008,29 @@ private:
     void check_bank_conflicts(const ArgsT &...) {}
 #endif
 
+    reg_buf_t create_bank_conflict_allocation(const alloc_t &alloc) {
+        auto &bc_attr = alloc.get_attr<bank_conflict_attr_t>();
+        auto it = bc_allocations_.find(bc_attr);
+        if (it != bc_allocations_.end()) {
+            it->second.retain();
+            return it->second.get_reg_buf(alloc.buf);
+        }
+        auto bca = bank_conflict_allocation_t::create(
+                host_->ra_, host_->cfg_.regs, bc_attr);
+        if (bca.is_empty()) return {};
+
+        auto ret = bc_allocations_.emplace(bc_attr, std::move(bca));
+        return ret.first->second.get_reg_buf(alloc.buf);
+    }
+
+    void release_bank_conflict_allocation(const alloc_t &alloc) {
+        auto &bc_attr = alloc.get_attr<bank_conflict_attr_t>();
+        auto it = bc_allocations_.find(bc_attr);
+        ir_assert(it != bc_allocations_.end());
+        it->second.release();
+        if (it->second.refs() == 0) { bc_allocations_.erase(bc_attr); }
+    }
+
     void signal(const func_call_attr_t &attr) {
         ngen::InstructionModifier mod;
         if (!attr.is_empty())
@@ -4060,6 +4091,7 @@ private:
 
         dst = dst.format(0, to_ngen(dpas_func.dst_type), simd, 1);
         src1 = src1.format(0, to_ngen(dpas_func.src1_type), simd, 1);
+        src2 = src2.format(0, to_ngen(dpas_func.src2_type), simd, 1);
 
         ngen::InstructionModifier mod = simd_size_;
         if (!attr.is_empty())
@@ -4117,7 +4149,6 @@ private:
             auto _src1 = src1;
             auto _src2 = src2;
             maybe_fix_mad_src(dst, _src1, _src2, mad_func, scope);
-            check_bank_conflicts(mod, src0, _src1, _src2);
             host_->mad(mod, dst, src0, _src1, _src2);
         }
     }
@@ -4339,6 +4370,8 @@ private:
     int bank_conflicts_ = 0;
     int bundle_conflicts_ = 0;
 #endif
+
+    object_map_t<alloc_attr_t, bank_conflict_allocation_t> bc_allocations_;
 };
 
 template <ngen::HW hw>

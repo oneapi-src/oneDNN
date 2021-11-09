@@ -81,8 +81,8 @@ enum ir_type_id_t {
     expr_impl_t = end_visitable_ir_objects,
     nary_op_t,
     stmt_impl_t,
-    grf_alloc_attr_t,
     grf_permute_attr_t,
+    bank_conflict_attr_t,
     instruction_modifier_attr_t,
     builtin_t,
     pexpr_t,
@@ -1598,30 +1598,31 @@ private:
         : grf_perm(grf_perm) {}
 };
 
-// Allocation attribute for GRF.
-class grf_alloc_attr_t : public alloc_attr_impl_t {
+// Allocation attribute to store extra information to avoid bank conflicts.
+class bank_conflict_attr_t : public alloc_attr_impl_t {
 public:
-    IR_DECL_TYPE_ID(grf_alloc_attr_t)
+    IR_DECL_TYPE_ID(bank_conflict_attr_t)
 
-    static alloc_attr_t make(const ngen_proxy::Bundle &bundle) {
-        return alloc_attr_t(new grf_alloc_attr_t(bundle));
+    static alloc_attr_t make(const object_map_t<expr_t, int> &buf_sizes,
+            const std::vector<stmt_t> &instructions) {
+        return alloc_attr_t(new bank_conflict_attr_t(buf_sizes, instructions));
     }
 
     bool is_equal(const object_impl_t &obj) const override {
-        if (!obj.is<self_type>()) return false;
-        auto &other = obj.as<self_type>();
-
-        return bundle == other.bundle;
+        return this == &obj;
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(bundle.bundle_id, bundle.bank_id);
+        return std::hash<const self_type *>()(this);
     }
 
-    ngen_proxy::Bundle bundle;
+    object_map_t<expr_t, int> buf_sizes;
+    std::vector<stmt_t> instructions;
 
 private:
-    grf_alloc_attr_t(const ngen_proxy::Bundle &bundle) : bundle(bundle) {}
+    bank_conflict_attr_t(const object_map_t<expr_t, int> &buf_sizes,
+            const std::vector<stmt_t> &instructions)
+        : buf_sizes(buf_sizes), instructions(instructions) {}
 };
 
 // Allocation for SLM and GRF buffers.

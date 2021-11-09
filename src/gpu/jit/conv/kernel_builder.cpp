@@ -3466,6 +3466,83 @@ stmt_t unroll_loops(const stmt_t &s, ir_context_t &ir_ctx) {
     return ret;
 }
 
+class bank_conflict_attribute_injector_t : public ir_mutator_t {
+public:
+    object_t _mutate(const alloc_t &obj) override {
+        all_buf_sizes_.emplace(obj.buf, obj.size);
+
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        if (bufs_.count(obj.buf) == 0) return new_obj;
+
+        init_attr();
+
+        auto new_attrs = obj.attrs;
+        new_attrs.push_back(attr_);
+        auto &body = new_obj.as<alloc_t>().body;
+        return alloc_t::make(obj.buf, obj.size, obj.kind, new_attrs, body);
+    }
+
+    object_t _mutate(const func_call_t &obj) override {
+        if (is_frozen) return ir_mutator_t::_mutate(obj);
+
+        bool is_mad = obj.func.is<mad_t>();
+        bool is_dpas = obj.func.is<dpas_t>();
+        if (!is_mad && !is_dpas) return ir_mutator_t::_mutate(obj);
+
+        auto dst_buf = ptr_base(obj.args[0]);
+        auto src0_buf = ptr_base(obj.args[1]);
+        auto src1_buf = ptr_base(obj.args[2]);
+        auto src2_buf = ptr_base(obj.args[3]);
+
+        // src0 may be null in some cases, skip it.
+        if (!src0_buf.is_empty()) bufs_.insert(src0_buf);
+        bufs_.insert(src1_buf);
+        bufs_.insert(src2_buf);
+
+        instructions_.insert(obj);
+
+        return obj;
+    }
+
+private:
+    void init_attr() {
+        if (!attr_.is_empty()) return;
+
+        is_frozen = true;
+        std::vector<stmt_t> instructions;
+        for (auto &s : instructions_)
+            instructions.push_back(s);
+
+        object_map_t<expr_t, int> buf_sizes;
+        for (auto &buf : bufs_)
+            buf_sizes[buf] = all_buf_sizes_.at(buf);
+        attr_ = bank_conflict_attr_t::make(buf_sizes, instructions);
+    }
+
+    static expr_t ptr_base(const expr_t &e) {
+        if (e.is<var_t>()) return e;
+        auto *ptr = e.as_ptr<ptr_t>();
+        if (ptr) return e.as<ptr_t>().base;
+        return expr_t();
+    }
+
+    object_map_t<expr_t, int> all_buf_sizes_;
+    object_set_t<expr_t> bufs_;
+    object_eq_set_t<stmt_t> instructions_;
+    bool is_frozen = false;
+
+    alloc_attr_t attr_;
+};
+
+// Injects an allocation attribute to store information about buffer usages in
+// instructions. This information is used during nGEN lowering to avoid bank
+// conflicts in allocated buffers.
+stmt_t inject_bank_conflict_attribute(const stmt_t &s) {
+    auto ret = bank_conflict_attribute_injector_t().mutate(s);
+    trace_pass("inject_bank_conflict_attribute", ret);
+    return ret;
+}
+
 class alloc_injector_t : public ir_mutator_t {
 public:
     alloc_injector_t(const stmt_t &root, const std::vector<stmt_t> &allocs,
@@ -4940,20 +5017,6 @@ public:
 
     const layout_t &c_layout() const { return c_layout_; }
 
-    ngen_proxy::Bundle a_grf_bundle() {
-        if (!do_transpose_) return ngen_proxy::Bundle();
-        return ngen_proxy::Bundle(1, ngen_proxy::Bundle::any);
-    }
-
-    ngen_proxy::Bundle b_grf_bundle() {
-        if (do_transpose_) return ngen_proxy::Bundle();
-        return ngen_proxy::Bundle(1, ngen_proxy::Bundle::any);
-    }
-
-    ngen_proxy::Bundle c_grf_bundle() {
-        return ngen_proxy::Bundle(0, ngen_proxy::Bundle::any);
-    }
-
     std::string str() const {
         std::ostringstream oss;
         oss << "A view:    " << a_view_ << std::endl;
@@ -5512,8 +5575,6 @@ public:
 
     const layout_t &c_reg_layout() const { return c_reg_layout_; }
 
-    const alloc_attr_t &c_attr() const { return c_attr_; }
-
 private:
     struct sub_tile_info_t {
         bool is_loaded = false;
@@ -5624,15 +5685,10 @@ private:
             return;
         }
 
-        c_attr_ = grf_alloc_attr_t::make(mul_builder.c_grf_bundle());
-
-        auto a_attr = grf_alloc_attr_t::make(mul_builder.a_grf_bundle());
-        register_buffer(a_buf_, a_sub_tiles_[i].reg_buf_size, alloc_kind_t::grf,
-                a_attr);
-
-        auto b_attr = grf_alloc_attr_t::make(mul_builder.b_grf_bundle());
-        register_buffer(b_buf_, b_sub_tiles_[j].reg_buf_size, alloc_kind_t::grf,
-                b_attr);
+        register_buffer(
+                a_buf_, a_sub_tiles_[i].reg_buf_size, alloc_kind_t::grf);
+        register_buffer(
+                b_buf_, b_sub_tiles_[j].reg_buf_size, alloc_kind_t::grf);
     }
 
     // Loads A_i or B_j sub-tile.
@@ -5793,7 +5849,6 @@ private:
 
     int c_buf_off_ = 0;
     layout_t c_sub_tile_layout_;
-    alloc_attr_t c_attr_;
 };
 
 class compute_builder_t {
@@ -5913,9 +5968,8 @@ public:
                 load_mul_builder.allocs().end());
 
         auto c_buf = load_mul_builder.c_buf();
-        auto c_attr = load_mul_builder.c_attr();
         int c_size = load_mul_builder.c_reg_layout().size();
-        register_out_buffer(c_buf, c_size, alloc_kind_t::grf, c_attr);
+        register_out_buffer(c_buf, c_size, alloc_kind_t::grf);
 
         auto c_thr_reg_layout = load_mul_builder.c_reg_layout();
         auto thr_tile = gemm_schedule_.c_thr_tile(/*is_relative=*/false);
@@ -6472,6 +6526,7 @@ void kernel_builder_t::build() {
     stmt_ = optimize_let(stmt_);
     stmt_ = optimize_peephole(stmt_);
     stmt_ = optimize_barrier(stmt_);
+    stmt_ = inject_bank_conflict_attribute(stmt_);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
     ir_trace() << "Kernel body:\n" << stmt_ << std::endl;
