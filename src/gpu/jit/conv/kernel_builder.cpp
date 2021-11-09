@@ -1568,26 +1568,38 @@ stmt_t loop_strength_reduce(const stmt_t &s) {
     return ret;
 }
 
-class let_optimizer_t : public ir_mutator_t {
+class alloc_let_optimizer_t : public ir_mutator_t {
 public:
     // Also track alloc_t and for_t to validate all variable usages.
     object_t _mutate(const alloc_t &obj) override {
         return mutate_scope(obj, obj.buf);
     }
+
     object_t _mutate(const for_t &obj) override {
         level_++;
         auto new_obj = mutate_scope(obj, obj.var);
         level_--;
         return new_obj;
     }
+
     object_t _mutate(const let_t &obj) override {
         return mutate_scope(obj, obj.var);
+    }
+
+    object_t _mutate(const store_t &obj) override {
+        auto &base = (obj.buf.is<var_t>() ? obj.buf : obj.buf.as<ptr_t>().base);
+        // Do not count store references. If there are only stores to a buffer
+        // and no other usages, the buffer can be safely removed.
+        skip_var_ = base;
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        skip_var_ = expr_t();
+        return new_obj;
     }
 
     object_t _mutate(const var_t &obj) override {
         ir_assert(refs_.count(obj) == 1)
                 << "Variable is not defined: " << expr_t(&obj);
-        refs_[&obj].update(increment_, level_);
+        if (!skip_var_.is_same(obj)) refs_[&obj].update(increment_, level_);
         return ir_mutator_t::_mutate(obj);
     }
 
@@ -1617,8 +1629,11 @@ private:
         auto new_obj = ir_mutator_t::_mutate(obj);
         auto &ref_info = refs_[var];
 
-        if (std::is_same<T, let_t>())
+        if (std::is_same<T, let_t>()) {
             new_obj = mutate_let(new_obj.template as<let_t>(), ref_info);
+        } else if (std::is_same<T, alloc_t>()) {
+            new_obj = mutate_alloc(new_obj.template as<alloc_t>(), ref_info);
+        }
 
         refs_.erase(var);
         return new_obj;
@@ -1642,20 +1657,42 @@ private:
         return obj;
     }
 
+    object_t mutate_alloc(const alloc_t &obj, const ref_info_t &ref_info) {
+        ir_assert(ref_info.refs >= 1);
+        // Buffer is not used, single reference from alloc_t itself. Remove
+        // stores to the buffer if any.
+        if (ref_info.refs == 1) return remove_stores(obj.body, obj.buf);
+        return obj;
+    }
+
     void remove_refs(const let_t &obj) {
         increment_ = -1;
         mutate(obj.value);
         increment_ = 1;
     }
 
+    // Removes all nested stores to the buffer.
+    stmt_t remove_stores(const stmt_t &stmt, const expr_t &buf) {
+        auto ret = stmt;
+        auto stores = find_objects<store_t>(stmt);
+        for (auto &_s : stores) {
+            auto &s = _s.as<store_t>();
+            auto &base = (s.buf.is<var_t>() ? s.buf : s.buf.as<ptr_t>().base);
+            if (base.is_same(buf)) ret = substitute(ret, _s, stmt_t());
+        }
+        return ret;
+    }
+
     int increment_ = 1;
     int level_ = 0;
+
+    expr_t skip_var_;
     object_map_t<expr_t, ref_info_t> refs_;
 };
 
-stmt_t optimize_let(const stmt_t &s) {
-    auto ret = let_optimizer_t().mutate(s);
-    trace_pass("optimize_let", ret);
+stmt_t optimize_alloc_let(const stmt_t &s) {
+    auto ret = alloc_let_optimizer_t().mutate(s);
+    trace_pass("optimize_alloc_let", ret);
     return ret;
 }
 
@@ -6531,7 +6568,7 @@ void kernel_builder_t::build() {
     stmt_ = eliminate_common_subexprs(stmt_, ir_ctx);
     stmt_ = hoist_exprs(stmt_, ir_ctx);
     if (cfg_.do_loop_unroll) stmt_ = loop_strength_reduce(stmt_);
-    stmt_ = optimize_let(stmt_);
+    stmt_ = optimize_alloc_let(stmt_);
     if (cfg_.do_loop_unroll) {
         stmt_ = update_loops_for_unrolling(stmt_, cfg_);
         stmt_ = inject_unrolling(stmt_, cfg_, ir_ctx, cb.ab_slm_size());
@@ -6539,7 +6576,7 @@ void kernel_builder_t::build() {
     stmt_ = fixup_if_conditions(stmt_, cfg_);
     stmt_ = unroll_loops(stmt_, ir_ctx);
     stmt_ = simplify_pass(stmt_, init_cset);
-    stmt_ = optimize_let(stmt_);
+    stmt_ = optimize_alloc_let(stmt_);
     stmt_ = optimize_peephole(stmt_);
     stmt_ = optimize_barrier(stmt_);
     if (cfg_.fma_kind == fma_kind_t::dp4a) stmt_ = inject_dp4a(stmt_);
