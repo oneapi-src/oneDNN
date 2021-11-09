@@ -279,6 +279,17 @@ private:
     object_map_t<expr_t, alloc_attr_t> attrs_;
 };
 
+// Returns a new statement with injected buffer allocations from `allocs`.
+// - If put_innermost is false, then `stmt` is nested to all allocations
+// - If put_innermost is true, then every allocation is injected as innermost
+//   as possible
+stmt_t inject_alloc_stmts(const stmt_t &stmt, const std::vector<stmt_t> &allocs,
+        bool put_innermost = false);
+
+// Returns a new statement with injected let statements, `stmt` is nested to
+// all let statements.
+stmt_t inject_let_stmts(const stmt_t &stmt, const std::vector<stmt_t> &lets);
+
 template <typename T>
 struct expr_cast_helper_t {
     static T call(const expr_t &e) { return to_cpp<T>(e); }
