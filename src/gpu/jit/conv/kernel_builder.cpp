@@ -1819,6 +1819,8 @@ public:
         return oss.str();
     }
 
+    IR_DEFINE_DUMP()
+
 private:
     std::vector<loop_info_t> loops_;
     std::vector<int> var_values_;
@@ -2768,7 +2770,7 @@ public:
         // Ramp-up.
         for (int i = 0; i < it.ramp_up_iters; i++) {
             body = stmt_seq_t::make(body, create_iteration(it, sbid_mgr));
-            if (it.mul_loop_it.is_outer_loop_end()) {
+            if (it.do_mul() && it.mul_loop_it.is_outer_loop_end()) {
                 body = body.append(outer_var_post_inc_stmt);
             }
             ++it;
@@ -2783,6 +2785,7 @@ public:
             for (int i = 0; i < it.unroll(); i++) {
                 loop_body = loop_body.append(create_iteration(
                         it, sbid_mgr, /*in_loop_body=*/has_loop));
+                ir_assert(it.do_mul());
                 if (it.mul_loop_it.is_outer_loop_end()) {
                     loop_body = loop_body.append(outer_var_post_inc_stmt);
                 }
@@ -2801,6 +2804,7 @@ public:
         // Ramp-down.
         for (int i = 0; i < it.ramp_down_iters; i++) {
             body = body.append(create_iteration(it, sbid_mgr));
+            ir_assert(it.do_mul());
             if (it.mul_loop_it.is_outer_loop_end()) {
                 body = body.append(outer_var_post_inc_stmt);
             }
