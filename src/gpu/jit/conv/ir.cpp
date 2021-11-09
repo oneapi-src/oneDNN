@@ -312,17 +312,17 @@ expr_t cast(const expr_t &e, const type_t &type, bool saturate) {
 }
 
 bool is_zero(const expr_t &e) {
-    if (!e.type().is_scalar()) return false;
+    if (!e.type().is_scalar() || e.type().is_ptr()) return false;
     return e.is_equal(to_expr(0, e.type()));
 }
 
 bool is_one(const expr_t &e) {
-    if (!e.type().is_scalar()) return false;
+    if (!e.type().is_scalar() || e.type().is_ptr()) return false;
     return e.is_equal(to_expr(1, e.type()));
 }
 
 bool is_minus_one(const expr_t &e) {
-    if (!e.type().is_scalar()) return false;
+    if (!e.type().is_scalar() || e.type().is_ptr()) return false;
     return e.is_equal(to_expr(-1, e.type()));
 }
 
