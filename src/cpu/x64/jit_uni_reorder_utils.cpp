@@ -39,6 +39,14 @@ namespace tr {
 
 /** ad-hoc structure to describe blocked memory layout */
 struct layout_desc_t {
+    layout_desc_t()
+        : dt(dnnl_data_type_undef)
+        , ndims(0)
+        , id {-1}
+        , dims {0}
+        , tails {0}
+        , is_blk {false}
+        , strides {0} {}
     data_type_t dt;
     int ndims;
     dims_t id;
