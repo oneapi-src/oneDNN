@@ -400,17 +400,6 @@ public:
                 && (mb_thr_blk == 1 || is_src_nhwc || is_dst_nhwc))
             allow_grf_reorder = true;
 
-        if (mb >= 16) {
-            // Large batch performance is slightly behind for some cases.
-            bool large_batch_ok = false;
-            if (hw >= ngen::HW::XeHPC) large_batch_ok = true;
-            if (is_src_nhwc) large_batch_ok = true;
-            if (zp_cfg.do_src_compensation || zp_cfg.do_dst_compensation)
-                large_batch_ok = true;
-            // TODO: Fix issues with mb zero padding
-            if (is_small_ic() && mb % 16 == 0) large_batch_ok = true;
-            if (!large_batch_ok) return status::unimplemented;
-        }
         // Source zero points performance is behind for small batch
         if (mb < 8 && zp_cfg.do_src_compensation) return status::unimplemented;
 
@@ -524,10 +513,6 @@ public:
         if (hw >= ngen::HW::XeHPC
                 && (mb_thr_blk == 1 || is_src_nhwc || is_dst_nhwc))
             allow_grf_reorder = true;
-
-        if (hw < ngen::HW::XeHPC)
-            // Blocked large batch performance is slightly behind.
-            if (!is_src_nhwc && mb >= 16) return status::unimplemented;
 
         return status::success;
     }

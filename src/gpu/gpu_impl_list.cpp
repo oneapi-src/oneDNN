@@ -19,7 +19,6 @@
 #include "gpu/jit/conv/gen_convolution.hpp"
 #include "gpu/jit/gemm/gen_gemm.hpp"
 #include "gpu/jit/gemm/xe_hp_systolic_gemm.hpp"
-#include "gpu/jit/xe_hp_convolution.hpp"
 #include "gpu/ocl/convolution_inner_product.hpp"
 #include "gpu/ocl/gemm/gemm_with_post_ops.hpp"
 #include "gpu/ocl/gemm/gen9_gemm.hpp"
@@ -97,9 +96,6 @@ const impl_list_item_t gpu_impl_list[] = {
         INSTANCE(ocl::xe_hpc_bf16_convolution_bwd_weights_t),
         INSTANCE(ocl::xe_hpc_convolution_fwd_t),
         INSTANCE(ocl::xe_hpc_convolution_bwd_data_t),
-        INSTANCE(jit::xe_hp_convolution_fwd_t),
-        INSTANCE(jit::xe_hp_convolution_bwd_data_t),
-        INSTANCE(jit::xe_hp_convolution_bwd_weights_t),
         INSTANCE(ocl::xe_hp_1x1_convolution_fwd_t),
         INSTANCE(ocl::xe_hp_1st_convolution_bwd_weights_t),
         INSTANCE(ocl::xe_hp_bf16_convolution_bwd_weights_t),
