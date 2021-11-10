@@ -2538,7 +2538,12 @@ dnnl_status_t jit_avx_gemm_f32(int nthrs, const char *transa,
             }
         }
     });
-    CHECK(st);
+
+    if (st != dnnl_success) {
+        free(ompstatus_);
+        free(c_buffers);
+        return st;
+    }
 
     // handle C summation later
     if (nthr_k > 1 && ompstatus[0] == 0) {
