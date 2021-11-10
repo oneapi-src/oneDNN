@@ -89,8 +89,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d(
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
             ? reinterpret_cast<int32_t *>(&w[offset])
-                    + (jcp.signed_input ? jcp.ngroups * jcp.oc_without_padding
-                                        : 0)
+                    + (jcp.signed_input ? jcp.ngroups * jcp.oc : 0)
             : nullptr;
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk;
     int nb_groups = jcp.nb_ch;
@@ -261,7 +260,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_1d(
     size_t extra_data_offset
             = weights_d.size() - weights_d.additional_buffer_size();
     size_t ch_offset = jcp.is_depthwise ? jcp.nb_ch * jcp.ch_block
-                                        : jcp.ngroups * jcp.oc_without_padding;
+                                        : jcp.ngroups * jcp.oc;
     auto w = const_cast<char *>(weights);
     const int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(&w[extra_data_offset])
@@ -533,8 +532,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_3d(
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
             ? reinterpret_cast<int32_t *>(&w[offset])
-                    + (jcp.signed_input ? jcp.ngroups * jcp.oc_without_padding
-                                        : 0)
+                    + (jcp.signed_input ? jcp.ngroups * jcp.oc : 0)
             : nullptr;
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk;
     int nb_groups = jcp.nb_ch;
