@@ -76,6 +76,7 @@ struct conv_graph_prb_t : public graph_prb_t {
 private:
     std::vector<float> oscales;
     std::vector<int64_t> src_zero_points;
+    std::vector<int64_t> wei_zero_points;
     std::vector<int64_t> dst_zero_points;
 
     spec_t spec_;
@@ -95,7 +96,7 @@ private:
 public:
     const spec_t &spec() const noexcept { return spec_; }
 
-    std::vector<float> get_oscales() noexcept { return oscales; }
+    const std::vector<float> &get_oscales() const noexcept { return oscales; }
 };
 
 int doit(const ::conv::prb_t *prb, res_t *res);

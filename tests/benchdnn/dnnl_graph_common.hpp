@@ -352,13 +352,81 @@ protected:
 };
 
 struct low_precision_attr {
-    const dt &dst_dt_;
-    const dims_t &dst_dims_;
-    const std::string &dtag_;
-    low_precision_attr(
-            const dt &dst_dt, const dims_t &dst_dims, const std::string &dtag)
-        : dst_dt_(dst_dt), dst_dims_(dst_dims), dtag_(dtag) {};
+    const dt &src_dt;
+    const dt &wei_dt;
+    const dt &dst_dt;
+    const std::string &stag;
+    const std::string &wtag;
+    const std::string &dtag;
+    dims_t wei_strides;
+    const attr_t::policy_t &oscale_policy;
+    std::vector<float> *oscales;
+    const std::vector<int64_t> *src_zp;
+    const std::vector<int64_t> *wei_zp;
+    const std::vector<int64_t> *dst_zp;
+
+    const float *scales;
+    const int n_oc;
+    const bool with_typecast;
+    const bool def_oscales;
+    const float dst_scale;
+
+    // For matmul, conv and deconv
+    static low_precision_attr lp_attr(const dt &src_dt, const dt &wei_dt,
+            const dt &dst_dt, const std::string &stag, const std::string &wtag,
+            const std::string &dtag, const attr_t::policy_t &oscale_policy,
+            std::vector<float> *oscales, const float &dst_scale,
+            const std::vector<int64_t> *src_zp,
+            const std::vector<int64_t> *wei_zp,
+            const std::vector<int64_t> *dst_zp, const float *scales,
+            const int &n_oc, const bool &def_oscales,
+            const bool &with_typecast = false) {
+        return low_precision_attr(src_dt, wei_dt, dst_dt, stag, wtag, dtag,
+                oscale_policy, oscales, dst_scale, src_zp, wei_zp, dst_zp,
+                scales, n_oc, def_oscales, with_typecast);
+    };
+
+    // For op with no additional attributes e.g. pool
+    static low_precision_attr lp_attr(const dt &src_dt, const dt &dst_dt,
+            const std::string &data_format) {
+        return low_precision_attr(src_dt, dt::undef, dst_dt, data_format,
+                data_format, data_format);
+    };
+
+    void set_wei_strides(const dims_t &wei_dims) {
+        this->wei_strides = wei_dims;
+    }
+
+private:
+    low_precision_attr(const dt &src_dt, const dt &wei_dt, const dt &dst_dt,
+            const std::string &stag, const std::string &wtag,
+            const std::string &dtag,
+            const attr_t::policy_t &oscale_policy = attr_t::policy_t::COMMON,
+            std::vector<float> *oscales = nullptr, const float dst_scale = 1.f,
+            const std::vector<int64_t> *src_zp = nullptr,
+            const std::vector<int64_t> *wei_zp = nullptr,
+            const std::vector<int64_t> *dst_zp = nullptr,
+            const float *scales = nullptr, const int n_oc = 0,
+            const bool def_oscales = false, const bool with_typecast = false)
+        : src_dt(src_dt)
+        , dst_dt(dst_dt)
+        , wei_dt(wei_dt)
+        , stag(stag)
+        , wtag(wtag)
+        , dtag(dtag)
+        , wei_strides(0)
+        , oscale_policy(oscale_policy)
+        , oscales(oscales)
+        , dst_scale(dst_scale)
+        , src_zp(src_zp)
+        , wei_zp(wei_zp)
+        , dst_zp(dst_zp)
+        , scales(scales)
+        , n_oc(n_oc)
+        , def_oscales(def_oscales)
+        , with_typecast(with_typecast) {};
 };
+
 struct po_handlers_t {
     using dt = dnnl::graph::logical_tensor::data_type;
     using lt = dnnl::graph::logical_tensor::layout_type;
@@ -384,6 +452,12 @@ private:
     };
 
     struct low_precision_handler_t {
+        fill_status handle_low_precision_src(
+                graph_prb_t &p, const low_precision_attr &lp_attr);
+        fill_status handle_low_precision_wei(
+                graph_prb_t &p, const low_precision_attr &lp_attr);
+        fill_status handle_low_precision_dst(
+                graph_prb_t &p, const low_precision_attr &lp_attr);
         fill_status handle_low_precision_post_sum(graph_prb_t &p,
                 const low_precision_attr &lp_attr,
                 const std::vector<attr_t::post_ops_t::entry_t> &po_entry);
@@ -398,6 +472,10 @@ public:
             binary_po_handler_t bin_handler;
             low_precision_handler_t low_precision_handler;
         } conv;
+
+        struct {
+            low_precision_handler_t low_precision_handler;
+        } deconv;
 
         struct {
             bias_po_handler_t bias_handler;
@@ -423,6 +501,7 @@ public:
 
         struct {
             binary_po_handler_t bin_handler;
+            low_precision_handler_t low_precision_handler;
         } pool;
     };
 };

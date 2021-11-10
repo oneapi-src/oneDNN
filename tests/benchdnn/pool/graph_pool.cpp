@@ -164,44 +164,20 @@ fill_status_t pool_graph_prb_t::handle_bin_(
 fill_status_t pool_graph_prb_t::handle_low_precision_() {
     using op = dnnl::graph::op;
 
-    const std::string SRC = tensor_id["main"].back() + "_SRC";
-    const std::string DST = curr_out_map_ids_.back() + "_DST";
+    low_precision_attr lp_attr = low_precision_attr::lp_attr(
+            spec_.src_dt, spec_.dst_dt, spec_.raw_data_format);
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["dequant"].push_back(TENSOR_ID);
-    const std::string QSRC {TENSOR_ID + "_SRC"};
-    const std::string QDST {TENSOR_ID + "_DST"};
+    fill_status_t ctor_status;
+    ctor_status
+            = po_handler.pool.low_precision_handler.handle_low_precision_src(
+                    *this, lp_attr);
+    if (ctor_status != fill_status::DONE) return ctor_status;
 
-    const std::string qsrc_dtype = spec_.src_dt == dt::u8 ? "uint8" : "int8";
-    const std::string qdst_dtype = spec_.dst_dt == dt::u8 ? "uint8" : "int8";
+    ctor_status
+            = po_handler.pool.low_precision_handler.handle_low_precision_dst(
+                    *this, lp_attr);
 
-    tensor_descs_.emplace(
-            QSRC, spec_.src_dt, spec_.src_dims, spec_.raw_data_format);
-    tensor_descs_.emplace(
-            QDST, spec_.dst_dt, spec_.dst_dims, spec_.raw_data_format);
-
-    op dequant_src(ops_.size(), op::kind::Dequantize, {tensor_descs_[QSRC]},
-            {tensor_descs_[SRC]}, "dequant_src");
-    dequant_src.set_attr("scales", std::vector<float> {1.f})
-            .set_attr("zps", std::vector<int64_t> {0})
-            .set_attr("qtype", std::string("per_tensor"))
-            .set_attr("in_type", qsrc_dtype)
-            .set_attr("axis", static_cast<int64_t>(0));
-    ops_.emplace_back(dequant_src);
-
-    op quant_dst(ops_.size(), op::kind::Quantize, {tensor_descs_[DST]},
-            {tensor_descs_[QDST]}, "quant");
-    quant_dst.set_attr("scales", std::vector<float> {1.f})
-            .set_attr("zps", std::vector<int64_t> {0L})
-            .set_attr("qtype", std::string("per_tensor"))
-            .set_attr("out_type", qdst_dtype)
-            .set_attr("axis", static_cast<int64_t>(0));
-    ops_.emplace_back(quant_dst);
-
-    curr_out_map_ids_.assign({TENSOR_ID});
-
-    return fill_status_t::DONE;
+    return ctor_status;
 }
 
 int doit(const ::pool::prb_t *prb, res_t *res) {

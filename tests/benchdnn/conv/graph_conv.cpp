@@ -101,39 +101,9 @@ fill_status_t conv_graph_prb_t::handle_sum_() {
 }
 
 fill_status_t conv_graph_prb_t::handle_low_precision_(
-        const ::conv::prb_t *prb) {
-    const std::string SRC = tensor_id["main"].back() + "_SRC";
-    const std::string WEI = tensor_id["main"].back() + "_WEI";
-    const std::string DST = curr_out_map_ids_.back() + "_DST";
+        const ::conv::prb_t *prb_) {
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["dequant"].push_back(TENSOR_ID);
-    const std::string QSRC {TENSOR_ID + "_SRC"};
-    const std::string QWEI {TENSOR_ID + "_WEI"};
-    const std::string QDST {TENSOR_ID + "_DST"};
-
-    const std::string qsrc_type = spec_.src_dt == dt::u8 ? "uint8" : "int8";
-    const std::string qwei_type = spec_.wei_dt == dt::u8 ? "uint8" : "int8";
-    const std::string qdst_type = spec_.dst_dt == dt::u8 ? "uint8" : "int8";
-
-    // `with_qdst == false` means that we are dealing
-    // with x8s8f32 pattern
-    const bool with_qdst = dt::f32 != spec_.dst_dt;
-
-    // oscale for wei
-    const std::string wei_qtype = prb->attr.oscale.policy == policy_t::COMMON
-            ? "per_tensor"
-            : "per_channel";
-
-    const int64_t oscale_count
-            = prb->attr.oscale.policy == policy_t::COMMON ? 1 : prb->oc;
-    oscales.resize(oscale_count, 1.f);
-    // if oscale is not default, copy values and pass it to oneDNN Graph
-    if (!prb->attr.oscale.is_def()) {
-        for (int64_t c = 0; c < oscale_count; ++c)
-            oscales[c] = prb->scales[c];
-    }
+    const bool def_oscales = prb_->attr.oscale.is_def();
 
     // currently, only policy_t::COMMON is supported for asymmetric quant
     // for src and dst, other policy is not suppoted by oneDNN Graph.
@@ -143,83 +113,72 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
     src_zero_points.resize(common_zp_count, dflt_zp_val);
 
     // if zp is not default, copy values and pass it to oneDNN Graph
-    if (!prb->attr.zero_points.is_def(DNNL_ARG_SRC)) {
-        const auto &src_zp_e = prb->attr.zero_points.get(DNNL_ARG_SRC);
+    if (!prb_->attr.zero_points.is_def(DNNL_ARG_SRC)) {
+        const auto &src_zp_e = prb_->attr.zero_points.get(DNNL_ARG_SRC);
         if (src_zp_e.policy != policy_t::COMMON)
             return fill_status::UNSUPPORTED_CONFIG;
-        src_zero_points[0] = prb->src_zp[0];
+        src_zero_points[0] = prb_->src_zp[0];
     }
+
+    const int64_t oscale_count
+            = prb_->attr.oscale.policy == policy_t::COMMON ? 1 : prb_->oc;
+    wei_zero_points = std::vector<int64_t>(oscale_count, 0L);
 
     // zps for dst
     dst_zero_points.resize(common_zp_count, dflt_zp_val);
     // if zp is not default, copy values and pass it to oneDNN Graph
-    if (!prb->attr.zero_points.is_def(DNNL_ARG_DST)) {
-        const auto &dst_zp_e = prb->attr.zero_points.get(DNNL_ARG_DST);
+    if (!prb_->attr.zero_points.is_def(DNNL_ARG_DST)) {
+        const auto &dst_zp_e = prb_->attr.zero_points.get(DNNL_ARG_DST);
         if (dst_zp_e.policy != policy_t::COMMON)
             return fill_status::UNSUPPORTED_CONFIG;
-        dst_zero_points[0] = prb->dst_zp[0];
-    }
-    dims_t wei_dims = spec_.wei_dims;
-    if (prb->has_groups) {
-        // group convolution convert
-        dim_t groups = wei_dims[0];
-        wei_dims.erase(wei_dims.begin());
-        wei_dims[0] *= groups;
+        dst_zero_points[0] = prb_->dst_zp[0];
     }
 
-    tensor_descs_.emplace(QSRC, spec_.src_dt, spec_.src_dims, prb->stag);
-    tensor_descs_.emplace(QWEI, spec_.wei_dt, wei_dims, prb->wtag,
-            tensor_descs_t::property_type::constant);
-    if (with_qdst)
-        tensor_descs_.emplace(QDST, spec_.dst_dt, spec_.dst_dims, prb->dtag);
-
-    graph::op dequant_src(ops_.size(), graph::op::kind::Dequantize,
-            {tensor_descs_[QSRC]}, {tensor_descs_[SRC]}, "dequant_src");
-    dequant_src.set_attr("scales", std::vector<float> {1.f})
-            .set_attr("zps", src_zero_points)
-            .set_attr<std::string>("qtype", "per_tensor")
-            .set_attr("in_type", qsrc_type)
-            .set_attr("axis", static_cast<int64_t>(0));
-    ops_.emplace_back(dequant_src);
-
-    graph::op dequant_wei(ops_.size(), graph::op::kind::Dequantize,
-            {tensor_descs_[QWEI]}, {tensor_descs_[WEI]}, "dequant_wei");
-    dequant_wei.set_attr("scales", oscales)
-            .set_attr("zps", std::vector<int64_t>(oscale_count, 0L))
-            .set_attr("qtype", wei_qtype)
-            .set_attr("in_type", qwei_type)
-            .set_attr("axis", static_cast<int64_t>(0));
-    ops_.emplace_back(dequant_wei);
-
-    if (with_qdst) {
-        float common_scale = 1.f;
+    const float common_scale = [&prb_, this]() {
         if (has_post_eltwise()) {
             const float post_eltwise_scale
-                    = get_post_eltwise_scale(prb->attr.post_ops.entry);
+                    = get_post_eltwise_scale(prb_->attr.post_ops.entry);
             // benchdnn ext. need to convert post relu scale to quant scale to
             // get same result as benchdnn primitive did
-            common_scale *= 1 / post_eltwise_scale;
+            return 1.f * (1 / post_eltwise_scale);
+        } else {
+            return 1.f;
         }
+    }();
 
-        graph::op quant_dst(ops_.size(), graph::op::kind::Quantize,
-                {tensor_descs_[DST]}, {tensor_descs_[QDST]}, "quant");
-        quant_dst.set_attr("scales", std::vector<float> {common_scale})
-                .set_attr("zps", dst_zero_points)
-                .set_attr<std::string>("qtype", "per_tensor")
-                .set_attr("out_type", qdst_type)
-                .set_attr("axis", static_cast<int64_t>(0));
-        ops_.emplace_back(quant_dst);
+    low_precision_attr lp_attr = low_precision_attr::lp_attr(spec_.src_dt,
+            spec_.wei_dt, spec_.dst_dt, spec_.raw_src_tag, spec_.raw_wei_tag,
+            spec_.raw_dst_tag, prb_->attr.oscale.policy, &oscales, common_scale,
+            &src_zero_points, &wei_zero_points, &dst_zero_points, prb_->scales,
+            prb_->oc, def_oscales);
+
+    fill_status_t ctor_status;
+    ctor_status
+            = po_handler.conv.low_precision_handler.handle_low_precision_src(
+                    *this, lp_attr);
+    if (ctor_status != fill_status::DONE) return ctor_status;
+
+    ctor_status
+            = po_handler.conv.low_precision_handler.handle_low_precision_wei(
+                    *this, lp_attr);
+    if (ctor_status != fill_status::DONE) return ctor_status;
+
+    // `with_qdst == false` means that we are dealing
+    // with x8s8f32 pattern
+    const bool with_qdst = dt::f32 != spec_.dst_dt;
+    if (with_qdst) {
+        ctor_status = po_handler.conv.low_precision_handler
+                              .handle_low_precision_dst(*this, lp_attr);
     }
+    if (ctor_status != fill_status::DONE) return ctor_status;
 
     if (has_post_sum()) {
-        const low_precision_attr lp_attr(
-                spec_.dst_dt, spec_.dst_dims, prb->dtag);
-        po_handler.conv.low_precision_handler.handle_low_precision_post_sum(
-                *this, lp_attr, prb->attr.post_ops.entry);
+        ctor_status = po_handler.conv.low_precision_handler
+                              .handle_low_precision_post_sum(*this, lp_attr,
+                                      prb_->attr.post_ops.entry);
     }
-    curr_out_map_ids_.assign({TENSOR_ID});
 
-    return fill_status::DONE;
+    return ctor_status;
 }
 
 fill_status_t conv_graph_prb_t::handle_bin_(

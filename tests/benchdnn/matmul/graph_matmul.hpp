@@ -68,7 +68,7 @@ struct matmul_graph_prb_t : public graph_prb_t {
         ctor_status = fill_status::DONE;
     };
 
-    const std::vector<float> &get_oscales() const { return oscales_; }
+    const std::vector<float> &get_oscales() const noexcept { return oscales_; }
 
     std::vector<dt> get_dtypes() const {
         return {spec_.src_dt, spec_.wei_dt, spec_.dst_dt};
