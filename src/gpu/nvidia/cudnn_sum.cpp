@@ -25,7 +25,7 @@ namespace nvidia {
 
 namespace {
 
-const impl_list_item_t cuda_sum_impl_list[] = {
+constexpr impl_list_item_t cuda_sum_impl_list[] = {
         impl_list_item_t::sum_type_deduction_helper_t<cudnn_ref_sum_t::pd_t>(),
         nullptr};
 } // namespace

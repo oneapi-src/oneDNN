@@ -26,7 +26,7 @@ namespace gpu {
 namespace {
 
 // clang-format off
-const impl_list_item_t impl_list[] = REG_BINARY_P({
+constexpr impl_list_item_t impl_list[] = REG_BINARY_P({
         INSTANCE(ocl::gen9_binary_t)
         INSTANCE(ocl::ref_binary_t)
         nullptr,

@@ -26,7 +26,7 @@ namespace gpu {
 namespace {
 
 // clang-format off
-const impl_list_item_t impl_list[] = REG_SHUFFLE_P({
+constexpr impl_list_item_t impl_list[] = REG_SHUFFLE_P({
         INSTANCE(ocl::shuffle_by_reorder_t)
         INSTANCE(ocl::ref_shuffle_t)
         nullptr,

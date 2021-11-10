@@ -30,7 +30,7 @@ using namespace dnnl::impl::data_type;
     impl_list_item_t(impl_list_item_t::concat_type_deduction_helper_t< \
             __VA_ARGS__::pd_t>()),
 // clang-format off
-const impl_list_item_t cpu_concat_impl_list[] = REG_CONCAT_P({
+constexpr impl_list_item_t cpu_concat_impl_list[] = REG_CONCAT_P({
         INSTANCE(simple_concat_t<f32>)
         INSTANCE(simple_concat_t<u8>)
         INSTANCE(simple_concat_t<s8>)
