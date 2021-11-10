@@ -487,6 +487,7 @@ public:
         BiasAdd = kBiasAdd,
         Interpolate = kInterpolate,
         DynamicTranspose = kDynamicTranspose,
+        StaticTranspose = kStaticTranspose,
         Index = kIndex,
         InterpolateBackprop = kInterpolateBackprop,
         PowBackpropExponent = kPowBackpropExponent,

@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -13,7 +13,8 @@ DynamicTranspose
 **Short description**: *DynamicTranspose* operation reorders the input tensor
 dimensions. In DynamicTranspose, the target shape order is given as an input
 tensor at runtime. It's useful when the target order is unknown during the
-operator creation.
+operator creation. Use DynamicTranspose if *order* is not constant or is not
+available until runtime. Otherwise, use StaticTranspose.
 
 **Detailed description**: *DynamicTranspose* operation reorders the input tensor
 dimensions. Source indices and destination indices are bound by the formula:
