@@ -26,16 +26,11 @@ namespace dnnl {
 namespace impl {
 namespace itt {
 
-static setting_t<int> itt_task_level {__itt_task_level_high};
-
 bool get_itt(__itt_task_level level) {
-    if (!itt_task_level.initialized()) {
-        // Assumes that all threads see the same environment
-        static int val
-                = getenv_int_user("ITT_TASK_LEVEL", itt_task_level.get());
-        itt_task_level.set(val);
-    }
-    return level <= itt_task_level.get();
+    static int itt_task_level
+            = getenv_int_user("ITT_TASK_LEVEL", __itt_task_level_high);
+
+    return level <= itt_task_level;
 }
 
 #if defined(DNNL_ENABLE_ITT_TASKS)
