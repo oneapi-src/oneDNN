@@ -2347,8 +2347,6 @@ void jit_uni_reorder_t::reduce_compensation(char *out,
     const size_t offset = od.size() - od.additional_buffer_size();
 
     static constexpr auto comp_dt_size = sizeof(int32_t);
-    const size_t zp_offset
-            = offset + (pd()->prb_.req_s8s8_comp ? G * N * comp_dt_size : 0);
     static constexpr int32_t comp_s8s8_shift = 128;
 
     // zero out the compensation memory in case of padding
@@ -2358,6 +2356,8 @@ void jit_uni_reorder_t::reduce_compensation(char *out,
     const auto GN = G * N;
     const bool req_s8s8_comp = pd()->prb_.req_s8s8_comp;
     const bool req_asymmetric_comp = pd()->prb_.req_asymmetric_comp;
+    const size_t zp_offset = offset
+            + (pd()->prb_.req_s8s8_comp ? GN_padded_elems * comp_dt_size : 0);
 
     if (GN_padded_elems != GN) {
         if (req_s8s8_comp)

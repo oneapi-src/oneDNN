@@ -151,8 +151,7 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
             ? reinterpret_cast<int32_t *>(w + offset)
-                    + (jcp.signed_input ? jcp.ngroups * jcp.oc_without_padding
-                                        : 0)
+                    + (jcp.signed_input ? jcp.ngroups * jcp.oc : 0)
             : nullptr;
 
     auto p = jit_1x1_conv_call_s();
