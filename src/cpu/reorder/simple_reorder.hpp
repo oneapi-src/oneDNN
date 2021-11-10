@@ -461,6 +461,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t IC = dims[2];
         const dim_t H = is_1d ? 1 : dims[3];
         const dim_t W = dims[4 - is_1d];
+        const dim_t OC_padded = pdims[1];
+        const dim_t GOC_padded_elems = Gp * OC_padded;
+
         const bool zero_padding_needed = !output_d.is_dense();
 
         const size_t D_mask = utils::array_product(input_d.dims(),
@@ -506,7 +509,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         };
 
         size_t offset = output_d.size() - output_d.additional_buffer_size();
-        size_t zp_offset = offset + (req_comp ? Gp * OC * sizeof(int32_t) : 0);
+        size_t zp_offset
+                = offset + (req_comp ? GOC_padded_elems * sizeof(int32_t) : 0);
         int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
                                : nullptr;
         int32_t *zp = has_asymmetric_comp
