@@ -74,14 +74,20 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             const auto src_dt = src_md()->data_type;
             const auto dst_dt = dst_md()->data_type;
             bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(src_dt, f32, bf16, s8, u8)
-                    && utils::one_of(dst_dt, f32, bf16, s8, u8)
+                    && utils::one_of(src_dt, f32, bf16, f16, s8, u8)
+                    && utils::one_of(dst_dt, f32, bf16, f16, s8, u8)
                     // s8/u8 are temporary limitations due to priorities
                     && IMPLICATION(
                             (utils::one_of(bf16, src_dt, dst_dt)
                                     || utils::one_of(s8, src_dt, dst_dt)
                                     || utils::one_of(u8, src_dt, dst_dt)),
                             is_superset(isa, avx512_core))
+                    // for f16 we reuse avx512_core just to avoid additional
+                    // instantiation. Possible because we do not currently
+                    // support post-ops for this primitive
+                    && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
+                            is_superset(isa, avx512_core)
+                                    && mayiuse(avx512_core_fp16))
                     && attr()->has_default_values(skip_mask_t::oscale_runtime)
                     && attr_oscale_ok()
                     && set_default_formats() == status::success;
@@ -157,13 +163,20 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
 
             using namespace data_type;
             bool ok = mayiuse(isa) && !is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(dst_md()->data_type, f32, bf16)
-                    && utils::one_of(diff_dst_md()->data_type, f32, bf16)
-                    && utils::one_of(diff_src_md()->data_type, f32, bf16)
+                    && utils::one_of(dst_md()->data_type, f32, bf16, f16)
+                    && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
+                    && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
                     && IMPLICATION(utils::one_of(bf16, dst_md()->data_type,
                                            diff_dst_md()->data_type,
                                            diff_src_md()->data_type),
                             is_superset(isa, avx512_core))
+                    // for f16 we reuse avx512_core just to avoid additional
+                    // instantiation.
+                    && IMPLICATION(utils::one_of(f16, dst_md()->data_type,
+                                           diff_dst_md()->data_type,
+                                           diff_src_md()->data_type),
+                            is_superset(isa, avx512_core)
+                                    && mayiuse(avx512_core_fp16))
                     && attr()->has_default_values()
                     && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;

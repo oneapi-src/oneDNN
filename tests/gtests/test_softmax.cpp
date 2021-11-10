@@ -329,7 +329,7 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestSoftmaxForwardBfloat16,
                         tag::nChw8c, tag::undef, {2, 1011, 32, 1}, 2}));
 
 TEST_P(softmax_forward_test_half, TestsSoftmax) {}
-GPU_INSTANTIATE_TEST_SUITE_P(TestSoftmaxForwardHalf, softmax_forward_test_half,
+INSTANTIATE_TEST_SUITE_P(TestSoftmaxForwardHalf, softmax_forward_test_half,
         ::testing::Values(test_params<float16_t> {prop_kind::forward_training,
                                   tag::nchw, tag::undef, {2, -2, 128, 256}, 0,
                                   true, dnnl_invalid_arguments},

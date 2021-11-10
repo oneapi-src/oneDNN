@@ -103,6 +103,7 @@ struct jit_softmax_base_t : public jit_generator {
     Vmm vsaturation_ubound = vneg_flt_max;
 
     bool is_bf16_ = false;
+    bool is_f16_ = false;
     bool is_softmax_ = pd_->is_softmax();
     bool is_logsoftmax_ = pd_->is_logsoftmax();
     bool axis_is_blocked_;
@@ -309,6 +310,8 @@ struct jit_softmax_base_t : public jit_generator {
         , diff_dst_d_(pd_->diff_dst_md()) {
         is_bf16_ = utils::one_of(
                 data_type::bf16, src_d_.data_type(), dst_d_.data_type());
+        is_f16_ = utils::one_of(
+                data_type::f16, src_d_.data_type(), dst_d_.data_type());
         simd_w_ = vlen / sizeof(float); // bf16 works on ymms
         need_scratchpad_ = utils::one_of(
                 dst_d_.data_type(), data_type::u8, data_type::s8);
@@ -337,7 +340,8 @@ struct jit_softmax_t<avx512_core> : public jit_softmax_base_t<avx512_core> {
         Vmm src_vmm = vmm;
 
         if (tail) {
-            if (utils::one_of(dt, data_type::f32, data_type::bf16)) {
+            if (utils::one_of(
+                        dt, data_type::f32, data_type::bf16, data_type::f16)) {
                 if (axis_is_blocked_) {
                     src_vmm = vzero | tail_opmask;
                     uni_vxorps(vzero, vzero, vzero);
@@ -360,6 +364,9 @@ struct jit_softmax_t<avx512_core> : public jit_softmax_base_t<avx512_core> {
                 else
                     vcvtneps2bf16(bf16_cvt_ymm, src_vmm);
                 vmovdqu16(effective_addr, bf16_cvt_ymm);
+                break;
+            case data_type::f16:
+                vcvtps2ph(effective_addr, src_vmm, _op_mxcsr);
                 break;
             case data_type::u8:
                 uni_vxorps(vzero, vzero, vzero); // since vzero might be spoiled
@@ -393,6 +400,7 @@ struct jit_softmax_t<avx512_core> : public jit_softmax_base_t<avx512_core> {
                 vpmovzxwd(effective_vmm, addr);
                 vpslld(effective_vmm, effective_vmm, 0x10);
                 break;
+            case data_type::f16: vcvtph2psx(effective_vmm, addr); break;
             case data_type::u8:
                 vpmovzxbd(effective_vmm, addr);
                 vcvtdq2ps(effective_vmm, effective_vmm);
