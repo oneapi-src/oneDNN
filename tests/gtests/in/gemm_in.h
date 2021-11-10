@@ -121,6 +121,12 @@ CPU_INST_TEST_CASE(TestGEMM_smalln,
         test_params {'n', 't', 8, 512, 2048, 1.0f, 1.0f, 2048, 2048, 512},
         test_params {'n', 't', 8, 2048, 512, 1.0f, 1.0f, 512, 512, 2048});
 
+CPU_INST_TEST_CASE(TestGEMM_stkmem,
+        test_params {'n', 'n', 2, 48, 83, 1.0f, 0.0f, 83, 48, 48},
+        test_params {'n', 'n', 2, 48, 200, 1.0f, 0.0f, 200, 48, 48},
+        test_params {'n', 'n', 2, 16, 251, 1.0f, 0.0f, 251, 16, 16},
+        test_params {'n', 'n', 2, 16, 256, 1.0f, 0.0f, 256, 16, 16});
+
 #if defined(FP32) || defined(BF16BF16F32)
 INST_TEST_CASE(TestGEMM_packed,
         test_params {'t', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, {false, true},

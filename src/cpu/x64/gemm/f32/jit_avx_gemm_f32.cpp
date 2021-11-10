@@ -43,9 +43,10 @@ namespace x64 {
 
 #define STACKSIZE get_size_of_abi_save_regs()
 #ifdef _WIN32
-#define STACK_K_CAPACITY 128
+#define STACK_CAPACITY 8448
 #else
-#define STACK_K_CAPACITY 8192
+// Roughly 4 4kB pages for kernel.
+#define STACK_CAPACITY (4 * PAGE_4K)
 #endif
 #define SIZE 4
 #define OFFSET 32
@@ -72,7 +73,8 @@ struct xbyak_gemm_t : public jit_generator {
         , isBeta0(beta == 0.0)
         , isBetaN(!isBeta0 && beta != 1.0)
         , PREFETCHSIZEA(128)
-        , PREFETCHSIZEB((!isTransB) ? -16 : 0) {}
+        , PREFETCHSIZEB((!isTransB) ? -16 : 0)
+        , STACK_K_CAPACITY((STACK_CAPACITY - 256) / (SIZE * UNROLL_M)) {}
 
     // Fused multiply add; may become one or two instructions
     void fma(bool useFma, const Ymm &reg0, const Ymm &reg1, const Ymm &reg2,
@@ -2005,7 +2007,7 @@ struct xbyak_gemm_t : public jit_generator {
 
         // Create buffer and align to 4kB page
         lea(rax, ptr[K * SIZE]);
-        sal(rax, 4);
+        sal(rax, math::ilog2q(UNROLL_M));
         add(rax, 256);
         sub(rsp, rax);
         and_(rsp, -PAGE_4K);
@@ -2114,6 +2116,10 @@ struct xbyak_gemm_t : public jit_generator {
         postamble();
     }
 
+public:
+    int unroll_m() const { return UNROLL_M; }
+    dim_t stack_k_capacity() const { return STACK_K_CAPACITY; }
+
 private:
     const char isTransA;
     const char isTransB;
@@ -2125,6 +2131,7 @@ private:
     const bool isBetaN;
     const int PREFETCHSIZEA;
     const int PREFETCHSIZEB;
+    const dim_t STACK_K_CAPACITY;
 
     // Register allocation (for convenience)
     const Reg64 ARG_M = abi_param1;
@@ -2224,7 +2231,7 @@ xbyak_gemm_t *get_xbyak_gemm(
 dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
         dim_t m, dim_t n, dim_t k, const float *alpha, const float *a,
         dim_t lda, const float *b, dim_t ldb, const float *beta, float *c,
-        dim_t ldc, const float *bias, float *ws) {
+        dim_t ldc, const float *bias) {
 
     bool isTransA = (*transa == 'T' || *transa == 't');
     bool isTransB = (*transb == 'T' || *transb == 't');
@@ -2262,6 +2269,19 @@ dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
     dim_t BM = 4032;
     dim_t BN = isTransA ? 96 : 48;
     dim_t BK = isTransB ? 96 : 256;
+
+    float *ws = nullptr;
+    bool use_heap_mem = BK > ker_b1->stack_k_capacity();
+    if (use_heap_mem) {
+        // Kernel uses sizeK * unroll_m + 64 elements as workspace.
+        const dim_t um = ker_b1->unroll_m();
+        const dim_t max_sizeK = BK;
+        const size_t ws_size = sizeof *ws * (max_sizeK * um + 64);
+
+        ws = (float *)malloc(ws_size, PAGE_4K);
+        if (!ws) return dnnl_out_of_memory;
+    }
+
     const float *curA, *curB, *curBias = nullptr;
     float *curC;
 
@@ -2321,6 +2341,8 @@ dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
             }
         }
     }
+
+    free(ws);
     msan_unpoison_matrix(c, m, n, ldc, sizeof(*c));
 
     return dnnl_success;
@@ -2369,7 +2391,6 @@ dnnl_status_t jit_avx_gemm_f32(int nthrs, const char *transa,
     unsigned char volatile *ompstatus = nullptr;
 
     float *c_buffers = nullptr;
-    float *ws_buffers = nullptr;
 
     if (nthr_k > 1) {
         ompstatus_ = (unsigned char *)malloc(
@@ -2391,23 +2412,9 @@ dnnl_status_t jit_avx_gemm_f32(int nthrs, const char *transa,
         }
     }
 
-    const size_t ws_elems_per_thr
-            = (size_t)rnd_up(div_up(k, nthr_k), KB) * 16 + 64;
-    const size_t ws_size_per_thr
-            = rnd_up(ws_elems_per_thr * sizeof(float), PAGE_4K);
-    if (k > STACK_K_CAPACITY) {
-        ws_buffers = (float *)malloc(nthr_to_use * ws_size_per_thr, PAGE_4K);
-        if (!ws_buffers) {
-            free(ompstatus_);
-            free(c_buffers);
-            return dnnl_out_of_memory;
-        }
-    }
-
     if (nthr_to_use == 1) {
         auto status = sgemm_nocopy_driver(transa, transb, m, n, k, p_alpha, A,
-                lda, B, ldb, p_beta, C, ldc, bias, ws_buffers);
-        if (ws_buffers) free(ws_buffers);
+                lda, B, ldb, p_beta, C, ldc, bias);
         return status;
     }
 
@@ -2427,9 +2434,6 @@ dnnl_status_t jit_avx_gemm_f32(int nthrs, const char *transa,
         int cbase, ibase;
         const float *myA, *myB, *myBias = nullptr;
         float *myC = C, myBeta;
-        float *ws = ws_buffers
-                ? ws_buffers + ithr * ws_size_per_thr / sizeof(float)
-                : nullptr;
         dim_t ld = ldc;
 
         int sum_later = (nthr < nthr_m * nthr_n * nthr_k);
@@ -2491,7 +2495,7 @@ dnnl_status_t jit_avx_gemm_f32(int nthrs, const char *transa,
 
                 dnnl_status_t st_thr = sgemm_nocopy_driver(transa, transb, myM,
                         myN, myK, p_alpha, myA, lda, myB, ldb, &myBeta, myC, ld,
-                        myBias, ws);
+                        myBias);
                 if (st_thr != dnnl_success) {
                     st = st_thr;
                     return;
@@ -2607,7 +2611,6 @@ dnnl_status_t jit_avx_gemm_f32(int nthrs, const char *transa,
 
     free(c_buffers);
     free(ompstatus_);
-    free(ws_buffers);
 
     return dnnl_success;
 }
