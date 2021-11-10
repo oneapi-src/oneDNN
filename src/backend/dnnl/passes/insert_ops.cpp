@@ -35,36 +35,42 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 // TODO(xxx): extend to support other ops
 static bool need_insert_reorder(op_kind_t kind) {
     static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
-            impl::op_kind::Convolution, impl::op_kind::MatMul,
-            impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool,
-            op_kind::dnnl_conv_bwd_data, op_kind::dnnl_convtranspose,
-            impl::op_kind::ConvTranspose, impl::op_kind::Abs,
+            impl::op_kind::Convolution, op_kind::dnnl_convtranspose,
+            impl::op_kind::ConvTranspose, op_kind::dnnl_conv_bwd_data,
+            impl::op_kind::MatMul, impl::op_kind::MaxPool,
+            impl::op_kind::AvgPool, op_kind::dnnl_pool, impl::op_kind::Abs,
             impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
             impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::ReLU,
-            impl::op_kind::Sigmoid, impl::op_kind::Sqrt, impl::op_kind::Square,
-            impl::op_kind::Tanh};
+            impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
+            impl::op_kind::Square, impl::op_kind::Tanh};
     return ops.count(kind) != 0;
 }
 
 // TODO(xxx): extend to support other ops
 // for those ops with data_format/filter_format attributes
 static bool need_insert_permute(op_kind_t kind) {
-    static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
-            impl::op_kind::Convolution, impl::op_kind::MaxPool,
-            impl::op_kind::AvgPool, op_kind::dnnl_pool,
-            impl::op_kind::ConvTranspose, op_kind::dnnl_convtranspose};
+    static const std::set<op_kind_t> ops {
+            op_kind::dnnl_convolution,
+            impl::op_kind::Convolution,
+            impl::op_kind::ConvTranspose,
+            op_kind::dnnl_convtranspose,
+            impl::op_kind::MaxPool,
+            impl::op_kind::AvgPool,
+            op_kind::dnnl_pool,
+    };
     return ops.count(kind) != 0;
 }
 
 // TODO(xxx): extend to support other ops
 // for those ops whose input's format must be defined, such as pool, eltwise,...
 static bool require_input_format(op_kind_t kind) {
-    static const std::set<op_kind_t> ops {impl::op_kind::MaxPool,
-            impl::op_kind::AvgPool, op_kind::dnnl_pool, impl::op_kind::Abs,
+    static const std::set<op_kind_t> ops {op_kind::dnnl_pool,
+            // eltwise algorithms
+            impl::op_kind::Abs, impl::op_kind::MaxPool, impl::op_kind::AvgPool,
             impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
             impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::ReLU,
-            impl::op_kind::Sigmoid, impl::op_kind::Sqrt, impl::op_kind::Square,
-            impl::op_kind::Tanh};
+            impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
+            impl::op_kind::Square, impl::op_kind::Tanh};
     return ops.count(kind) != 0;
 }
 

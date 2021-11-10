@@ -578,11 +578,11 @@ void fuse_to_int8_pool(std::vector<op_ptr> &subgraph) {
 
 status_t fuse_post_ops(
         std::vector<op_ptr> &subgraph, primitive_attr_mgr_t &prm_attr_mgr) {
-    const std::set<op_kind_t> post_ops_kinds {impl::op_kind::ReLU,
-            impl::op_kind::GELU, impl::op_kind::Sigmoid, impl::op_kind::Elu,
-            impl::op_kind::HardTanh, impl::op_kind::Abs, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Add,
-            impl::op_kind::Divide, op_kind::dnnl_swish};
+    const std::set<op_kind_t> post_ops_kinds {impl::op_kind::Abs,
+            impl::op_kind::Add, impl::op_kind::GELU, impl::op_kind::Divide,
+            impl::op_kind::Elu, impl::op_kind::HardTanh, impl::op_kind::ReLU,
+            impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
+            impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_swish};
 
     // lambda function to fuse one post op into base primitive
     auto fuse_post_ops_func = [&](std::vector<op_ptr> &subgraph,

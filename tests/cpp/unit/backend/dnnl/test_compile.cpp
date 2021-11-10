@@ -5795,6 +5795,14 @@ test::vector<float> sqrt_func(const test::vector<float> &ref_dst) {
     return std::move(out);
 }
 
+test::vector<float> round_func(const test::vector<float> &ref_dst) {
+    test::vector<float> out;
+    for (auto &rdst : ref_dst) {
+        out.emplace_back(static_cast<float>(round(rdst)));
+    }
+    return std::move(out);
+}
+
 void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
         dnnl::graph::impl::dims &dims, const dnnl_graph_op_kind_t op_kind,
         const std::string &op_name,
@@ -5868,6 +5876,15 @@ TEST(operator_kernel, abs) {
     dnnl::graph::impl::dims dims {1, 2, 3};
 
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::Abs, "abs");
+}
+
+TEST(operator_kernel, round) {
+    test::vector<float> src {1.1, -2.3, 4.7, 1.0, 0.0, -8.34};
+    test::vector<float> ref_dst = round_func(src);
+
+    dnnl::graph::impl::dims dims {1, 2, 3};
+
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Round, "round");
 }
 
 TEST(operator_kernel, elu) {
