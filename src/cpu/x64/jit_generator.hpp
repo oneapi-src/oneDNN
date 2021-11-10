@@ -1215,13 +1215,6 @@ public:
         vcvtps2dq(x, op);
     }
 
-    void uni_vcvttps2dq(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
-        if (is_valid_isa(avx))
-            vcvttps2dq(x, op);
-        else
-            cvttps2dq(x, op);
-    }
-
     void uni_vcvtdq2ps(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
         if (is_valid_isa(avx))
             vcvtdq2ps(x, op);
