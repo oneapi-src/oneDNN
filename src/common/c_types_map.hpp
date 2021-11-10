@@ -660,6 +660,14 @@ const format_tag_t aBdefC16c48b4c = dnnl_aBdefC16c48b4c;
 const format_tag_t aBdefC16c64b2c = dnnl_aBdefC16c64b2c;
 const format_tag_t aBdefC16c64b4c = dnnl_aBdefC16c64b4c;
 const format_tag_t decbA16a = dnnl_decbA16a;
+const format_tag_t aCB16c2b = dnnl_aCB16c2b;
+const format_tag_t aCB16c4b = dnnl_aCB16c4b;
+const format_tag_t BA16b2a = dnnl_BA16b2a;
+const format_tag_t BA16b4a = dnnl_BA16b4a;
+const format_tag_t aBC16b16c = dnnl_aBC16b16c;
+const format_tag_t aBC16b32c = dnnl_aBC16b32c;
+const format_tag_t AB16a16b = dnnl_AB16a16b;
+const format_tag_t AB16a32b = dnnl_AB16a32b;
 
 const format_tag_t last = dnnl_format_tag_last;
 
