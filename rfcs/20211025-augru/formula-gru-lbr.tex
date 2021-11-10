@@ -1,0 +1,15 @@
+\documentclass{article}
+\thispagestyle{empty}
+\usepackage{amsmath}
+\usepackage{xcolor}
+
+\begin{document}
+
+\begin{align*}
+    u_{t} &= \sigma(W_{u} \cdot h_{t,l-1} + U_{u} \cdot h_{t-1,l} + B_{u}) \\
+	r_{t} &= \sigma(W_{r} \cdot h_{t,l-1} + U_{r} \cdot h_{t-1,l} + B_{r}) \\
+	o_{t} &= \tanh(W_{o} \cdot h_{t,l-1} + r_{t} * (U_{o} \cdot h_{t-1,l} + B_{u'}) + B_{o}) \\
+	h_{t} &= u_{t} * h_{t-1,l} + (1 - u_{t}) * o_{t}
+\end{align*}
+
+\end{document}
