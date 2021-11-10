@@ -636,7 +636,7 @@ status_t brgemm_convolution_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
         if (is_amx) {
             // Workaround: for some machines SEGFAULT possible on tile load
             // if the page was not touched before it
-            for (size_t i = 0; i < jcp.inp_buffer_size;
+            for (dim_t i = 0; i < jcp.inp_buffer_size;
                     i += brgemm_convolution_utils::P4K)
                 inp_buffer[i] = 0;
         }
