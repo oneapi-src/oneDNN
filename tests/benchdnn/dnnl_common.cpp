@@ -17,6 +17,7 @@
 #include <algorithm> // for std::reverse and std::copy
 #include <cctype> // for std::isdigit
 #include <functional> // for std::bind and std::placeholders
+#include <list>
 #include <string> // for std::string
 #include <utility> // for std::pair
 #include <vector> // for std::vector
@@ -69,6 +70,124 @@ int check_primitive_cache(dnnl_primitive_t p) {
         return FAIL;
     }
 #endif
+    return OK;
+}
+
+size_t set_primitive_cache_capacity_without_clearing(size_t capacity) {
+    return dnnl::impl::set_primitive_cache_capacity_without_clearing(capacity);
+}
+
+int get_cache_blob_id(std::vector<uint8_t> &id, dnnl_primitive_desc_t pd) {
+    dnnl_dim_t count;
+    const uint8_t *c_id;
+    DNN_SAFE(dnnl_primitive_desc_query(
+                     pd, dnnl_query_cache_blob_id_size_s64, 0, (void *)&count),
+            WARN);
+    DNN_SAFE(dnnl_primitive_desc_query(
+                     pd, dnnl_query_cache_blob_id, 0, (void **)&c_id),
+            WARN);
+    id = {c_id, c_id + count};
+    return OK;
+}
+
+int get_cache_blob(std::vector<uint8_t> &cache_blob, dnnl_primitive_t prim) {
+    size_t size = 0;
+    DNN_SAFE(dnnl_primitive_get_cache_blob(prim, &size, nullptr), WARN);
+
+    cache_blob.resize(size);
+    DNN_SAFE(dnnl_primitive_get_cache_blob(prim, &size, cache_blob.data()),
+            WARN);
+    return OK;
+}
+
+struct lru_cache_t {
+    lru_cache_t(size_t capacity) : capacity_(capacity) {}
+
+    const std::vector<uint8_t> &get(const std::vector<uint8_t> &key) {
+        auto it = cache_mapper_.find(key);
+        if (it == cache_mapper_.end()) { return dummy_; }
+        cache_list_.splice(cache_list_.begin(), cache_list_, it->second);
+        return cache_list_.front().value_;
+    }
+
+    void add(const std::vector<uint8_t> &key,
+            const std::vector<uint8_t> &value) {
+        assert(!cache_mapper_.count(key));
+        if (cache_mapper_.size() >= capacity_) {
+            cache_mapper_.erase(cache_list_.back().key_);
+            cache_list_.pop_back();
+        }
+        cache_list_.push_front(entry_t(key, value));
+        cache_mapper_.insert({key, cache_list_.begin()});
+    }
+
+private:
+    lru_cache_t(const lru_cache_t &other) = delete;
+    lru_cache_t(lru_cache_t &&other) = delete;
+    lru_cache_t &operator=(const lru_cache_t &other) = delete;
+    lru_cache_t &operator=(lru_cache_t &&other) = delete;
+
+    struct entry_t {
+        entry_t(const std::vector<uint8_t> &key,
+                const std::vector<uint8_t> &value)
+            : key_(key), value_(value) {}
+        std::vector<uint8_t> key_;
+        std::vector<uint8_t> value_;
+    };
+
+    size_t capacity_;
+    std::list<entry_t> cache_list_;
+    std::map<std::vector<uint8_t>, std::list<entry_t>::iterator> cache_mapper_;
+
+    const std::vector<uint8_t> dummy_;
+};
+
+lru_cache_t &get_test_cache() {
+    static lru_cache_t cache(1024);
+    return cache;
+}
+
+int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
+        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd) {
+    if (!is_gpu() || (is_gpu() && DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL)) {
+        return OK;
+    }
+
+    // Start testing persistent cache API.
+    // 1. Disable primitive cache to make sure that the next primitive will
+    // be created from the cache blob and not fetched from the primitive cache.
+    const auto old_capacity = set_primitive_cache_capacity_without_clearing(0);
+    // 2. Get primitive descriptor ID to use it as a key for the `test_cache`.
+    std::vector<uint8_t> id;
+    SAFE(get_cache_blob_id(id, pd), WARN);
+    // 3. Check if a cache blob for the obtained ID is present in the
+    //    `test_cache`.
+    //    a) If the cache blob is found the primitive is created from it.
+    //    b) If the cache blob is not found then get it from the previously
+    //       created primitive, store it in the cache and create the primitive
+    //       from it.
+    dnnl_primitive_t p {};
+    auto &cache = get_test_cache();
+    auto cache_value = cache.get(id);
+    if (!cache_value.empty()) {
+        const size_t size = cache_value.size();
+        const uint8_t *cache_blob = cache_value.data();
+        DNN_SAFE(
+                dnnl_primitive_create_from_cache_blob(&p, pd, size, cache_blob),
+                WARN);
+    } else {
+        std::vector<uint8_t> cache_blob;
+        SAFE(get_cache_blob(cache_blob, prim), WARN);
+        DNN_SAFE(dnnl_primitive_create_from_cache_blob(
+                         &p, pd, cache_blob.size(), cache_blob.data()),
+                WARN);
+        cache.add(id, cache_blob);
+    }
+    prim.reset(p);
+
+    // 4. Restore the original primitive cache capacity to make it functional.
+    set_primitive_cache_capacity_without_clearing(old_capacity);
+
     return OK;
 }
 

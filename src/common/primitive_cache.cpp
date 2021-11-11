@@ -81,6 +81,13 @@ bool is_primitive_in_cache(const primitive_iface_t *p_iface) {
     return is_pd_in_cache(p_iface->pd());
 }
 
+size_t set_primitive_cache_capacity_without_clearing(size_t capacity) {
+    size_t old_capacity = primitive_cache().get_capacity();
+    static_cast<lru_primitive_cache_t &>((primitive_cache())).capacity_
+            = capacity;
+    return old_capacity;
+}
+
 status_t lru_primitive_cache_t::set_capacity(int capacity) {
     utils::lock_write_t lock_w(rw_mutex());
     capacity_ = (size_t)capacity;

@@ -111,6 +111,10 @@ private:
     // an element*, since it invokes the copy constructor of std::atomic, which
     // is deleted.
     std::unique_ptr<std::unordered_map<key_t, timed_entry_t>> cache_mapper_;
+
+    // Used for testing.
+    friend size_t DNNL_API set_primitive_cache_capacity_without_clearing(
+            size_t capacity);
 };
 
 primitive_cache_t &primitive_cache();
@@ -119,6 +123,7 @@ primitive_cache_t &primitive_cache();
 status_t DNNL_API get_primitive_cache_size(int *size);
 bool DNNL_API is_primitive_in_cache(const primitive_iface_t *p_iface);
 bool DNNL_API is_pd_in_cache(const primitive_desc_iface_t *pd_iface);
+size_t DNNL_API set_primitive_cache_capacity_without_clearing(size_t capacity);
 
 } // namespace impl
 } // namespace dnnl
