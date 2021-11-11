@@ -206,26 +206,28 @@ unsigned get_jit_profiling_flags() {
     return flag;
 }
 
-static setting_t<std::string> jit_profiling_jitdumpdir;
+static std::string &jit_profiling_jitdumpdir() {
+    // initialize on first use with default values from environmenet
+    static std::string s = []() -> std::string {
+        char buf[PATH_MAX];
+        if (getenv("JITDUMPDIR", buf, sizeof(buf)) > 0)
+            return buf;
+        else if (getenv("HOME", buf, sizeof(buf)) > 0)
+            return buf;
+        else
+            return ".";
+    }();
+    return s;
+}
+
 dnnl_status_t init_jit_profiling_jitdumpdir(
         const char *jitdumpdir, bool overwrite) {
 #ifdef __linux__
     static std::mutex m;
-    std::lock_guard<std::mutex> g(m);
-
-    if (jit_profiling_jitdumpdir.initialized() && !overwrite)
-        return status::success;
-
-    if (!jitdumpdir) {
-        char buf[PATH_MAX];
-        if (getenv("JITDUMPDIR", buf, sizeof(buf)) > 0)
-            jit_profiling_jitdumpdir.set(buf);
-        else if (getenv("HOME", buf, sizeof(buf)) > 0)
-            jit_profiling_jitdumpdir.set(buf);
-        else
-            jit_profiling_jitdumpdir.set(".");
-    } else
-        jit_profiling_jitdumpdir.set(jitdumpdir);
+    if (overwrite) {
+        std::lock_guard<std::mutex> g(m);
+        jit_profiling_jitdumpdir() = jitdumpdir;
+    }
 
     return status::success;
 #else
@@ -237,9 +239,7 @@ dnnl_status_t init_jit_profiling_jitdumpdir(
 std::string get_jit_profiling_jitdumpdir() {
     std::string jitdumpdir;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    if (!jit_profiling_jitdumpdir.initialized())
-        init_jit_profiling_jitdumpdir(nullptr, false);
-    jitdumpdir = jit_profiling_jitdumpdir.get();
+    jitdumpdir = jit_profiling_jitdumpdir();
 #endif
     return jitdumpdir;
 }
