@@ -70,7 +70,9 @@ public:
     status_t create_stream(stream_t **stream, ::sycl::queue &queue);
 
     status_t create_kernel(gpu::compute::kernel_t *kernel,
-            gpu::jit::jit_generator_base &jitter) const override {
+            gpu::jit::jit_generator_base &jitter,
+            cache_blob_t cache_blob) const override {
+        UNUSED(cache_blob);
         if (kind() != engine_kind::gpu) {
             assert(!"not expected");
             return status::invalid_arguments;
@@ -102,7 +104,9 @@ public:
 
     status_t create_kernels(std::vector<gpu::compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
-            const gpu::compute::kernel_ctx_t &kernel_ctx) const override {
+            const gpu::compute::kernel_ctx_t &kernel_ctx,
+            cache_blob_t cache_blob) const override {
+        UNUSED(cache_blob);
         if (kind() != engine_kind::gpu) {
             assert(!"not expected");
             return status::invalid_arguments;
@@ -115,7 +119,7 @@ public:
 
         std::vector<gpu::compute::kernel_t> ocl_kernels;
         CHECK(ocl_engine->create_kernels(
-                &ocl_kernels, kernel_names, kernel_ctx));
+                &ocl_kernels, kernel_names, kernel_ctx, cache_blob));
         *kernels = std::vector<gpu::compute::kernel_t>(kernel_names.size());
         for (size_t i = 0; i < ocl_kernels.size(); ++i) {
             if (!ocl_kernels[i]) continue;

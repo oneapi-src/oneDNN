@@ -47,10 +47,14 @@ struct primitive_t : public c_compatible {
 
     virtual status_t init(engine_t *engine) { return status::success; }
 
-    status_t init(engine_t *engine, bool use_global_scratchpad) {
+    status_t init(engine_t *engine, bool use_global_scratchpad,
+            const cache_blob_t &cache_blob) {
+        cache_blob_ = cache_blob;
         CHECK(init(engine));
         CHECK(init_cached_resource(engine));
         use_global_scratchpad_ = use_global_scratchpad;
+        // The `cache_blob_` is no longer needed after primitive creation.
+        cache_blob_ = cache_blob_t();
         return status::success;
     }
 
@@ -92,12 +96,14 @@ struct primitive_t : public c_compatible {
     }
 
     bool use_global_scratchpad() const { return use_global_scratchpad_; }
+    cache_blob_t cache_blob() const { return cache_blob_; }
 
 protected:
     template <typename impl_type, typename pd_t>
     static status_t create_primitive_common(
             std::pair<std::shared_ptr<primitive_t>, bool> &primitive,
-            const pd_t *pd, engine_t *engine, bool use_global_scratchpad) {
+            const pd_t *pd, engine_t *engine, bool use_global_scratchpad,
+            const cache_blob_t &cache_blob) {
 
         auto &global_primitive_cache = primitive_cache();
         primitive_hashing::key_t key(pd, engine);
@@ -125,7 +131,7 @@ protected:
             // we have to create it and notify the waiting threads
             // once the creation is done.
             p = std::make_shared<impl_type>(pd);
-            status = p->init(engine, use_global_scratchpad);
+            status = p->init(engine, use_global_scratchpad, cache_blob);
             if (status != status::success) {
                 // Communicate an error.
                 p_promise.set_value({nullptr, status});
@@ -157,6 +163,7 @@ protected:
 
     std::shared_ptr<primitive_desc_t> pd_;
     bool use_global_scratchpad_;
+    cache_blob_t cache_blob_;
 
 private:
     primitive_t() = delete;

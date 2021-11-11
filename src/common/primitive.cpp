@@ -85,23 +85,28 @@ nested_scratchpad_t::~nested_scratchpad_t() = default;
 #endif
 
 status_t primitive_create(primitive_iface_t **primitive_iface,
-        const primitive_desc_iface_t *primitive_desc_iface) {
+        const primitive_desc_iface_t *primitive_desc_iface,
+        const cache_blob_t &cache_blob = cache_blob_t()) {
 
     std::pair<primitive_iface_t *, bool> p_iface;
 
     if (get_verbose() >= 2) {
         double start_ms = get_msec();
-        CHECK(primitive_desc_iface->create_primitive_iface(p_iface));
+        CHECK(primitive_desc_iface->create_primitive_iface(
+                p_iface, cache_blob));
         double duration_ms = get_msec() - start_ms;
 
         const char *str = p_iface.second ? "cache_hit" : "cache_miss";
+        if (cache_blob) str = "from_cache_blob";
+
         std::string stamp;
         if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
         printf("onednn_verbose%s,create:%s,%s,%g\n", stamp.c_str(), str,
                 p_iface.first->pd()->info(), duration_ms);
         fflush(stdout);
     } else {
-        CHECK(primitive_desc_iface->create_primitive_iface(p_iface));
+        CHECK(primitive_desc_iface->create_primitive_iface(
+                p_iface, cache_blob));
     }
     return safe_ptr_assign((*primitive_iface), p_iface.first);
 }
@@ -172,6 +177,27 @@ status_t dnnl_primitive_create(primitive_iface_t **primitive_iface,
     }
 #endif
     return dnnl::impl::primitive_create(primitive_iface, primitive_desc_iface);
+}
+
+status_t dnnl_primitive_create_from_cache_blob(
+        primitive_iface_t **primitive_iface,
+        const primitive_desc_iface_t *primitive_desc_iface, size_t size,
+        const uint8_t *cache_blob) {
+    if (utils::any_null(primitive_iface, primitive_desc_iface, cache_blob)
+            || size == 0) {
+        return invalid_arguments;
+    }
+    const auto ekind = primitive_desc_iface->engine()->kind();
+    const auto runtime_kind = primitive_desc_iface->engine()->runtime_kind();
+    if (ekind != engine_kind::gpu
+            || (ekind == engine_kind::gpu
+                    && runtime_kind != runtime_kind::ocl)) {
+        return status::unimplemented;
+    }
+
+    cache_blob_t cb(const_cast<uint8_t *>(cache_blob), size);
+    return dnnl::impl::primitive_create(
+            primitive_iface, primitive_desc_iface, cb);
 }
 
 status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,

@@ -54,11 +54,13 @@ public:
     status_t create_stream(stream_t **stream, cl_command_queue queue);
 
     status_t create_kernel(compute::kernel_t *kernel,
-            jit::jit_generator_base &jitter) const override;
+            jit::jit_generator_base &jitter,
+            cache_blob_t cache_blob) const override;
 
     status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
-            const compute::kernel_ctx_t &kernel_ctx) const override;
+            const compute::kernel_ctx_t &kernel_ctx,
+            cache_blob_t cache_blob) const override;
 
     status_t create_kernels_from_ocl_source(
             std::vector<compute::kernel_t> *kernels,

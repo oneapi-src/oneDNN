@@ -46,10 +46,11 @@ int primitive_desc_t::n_prelu_po_inputs() const {
 }
 
 status_t dnnl_primitive_desc::create_primitive_iface(
-        std::pair<primitive_iface_t *, bool> &primitive_iface) const {
+        std::pair<primitive_iface_t *, bool> &primitive_iface,
+        const cache_blob_t &cache_blob) const {
     // Step 1: create impl::primitive_t or get it from primitive cache
     std::pair<std::shared_ptr<primitive_t>, bool> p;
-    auto status = pd_->create_primitive(p, engine());
+    auto status = pd_->create_primitive(p, engine(), cache_blob);
     if (status != status::success) return status;
     // Step 2: create primitive_iface_t, init and return it to user
     primitive_iface_t *p_iface = nullptr;

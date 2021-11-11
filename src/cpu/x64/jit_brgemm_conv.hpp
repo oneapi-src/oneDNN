@@ -63,10 +63,11 @@ struct brgemm_convolution_fwd_t : public primitive_t {
 
         status_t create_primitive(
                 std::pair<std::shared_ptr<primitive_t>, bool> &primitive,
-                engine_t *engine) const override {
+                engine_t *engine,
+                const cache_blob_t &cache_blob) const override {
             return primitive_t::create_primitive_common<
                     brgemm_convolution_fwd_t, pd_t>(
-                    primitive, this, engine, false);
+                    primitive, this, engine, false, cache_blob);
         }
 
         const char *name() const override {

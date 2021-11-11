@@ -82,10 +82,58 @@ status_t ocl_gpu_engine_t::create_stream(
     return ocl_stream_t::create_stream(stream, this, queue);
 }
 
-status_t ocl_gpu_engine_t::create_kernel(
-        compute::kernel_t *kernel, jit::jit_generator_base &jitter) const {
+namespace {
 
+status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
+        cache_blob_t cache_blob, const std::vector<const char *> &kernel_names,
+        std::vector<compute::kernel_t> *kernels) {
+    auto dev = ocl_engine->device();
+    auto ctx = ocl_engine->context();
+    cl_int err = CL_SUCCESS;
+    for (size_t i = 0; i < kernel_names.size(); i++) {
+        if (!kernel_names[i]) continue;
+        const uint8_t *binary = nullptr;
+        size_t binary_size = 0;
+
+        CHECK(cache_blob.get_binary(&binary, &binary_size));
+
+        auto program = make_ocl_wrapper(clCreateProgramWithBinary(
+                ctx, 1, &dev, &binary_size, &binary, nullptr, &err));
+        OCL_CHECK(err);
+        err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
+        OCL_CHECK(err);
+
+        auto ocl_kernel = make_ocl_wrapper(
+                clCreateKernel(program, kernel_names[i], &err));
+        OCL_CHECK(err);
+        std::vector<gpu::compute::scalar_type_t> arg_types;
+        CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
+        OCL_CHECK(err);
+
+        auto shared_binary = std::make_shared<compute::binary_t>(
+                binary, binary + binary_size);
+        (*kernels)[i] = compute::kernel_t(new ocl_gpu_kernel_t(
+                shared_binary, kernel_names[i], arg_types));
+        dump_kernel_binary(ocl_engine, (*kernels)[i]);
+        OCL_CHECK(clReleaseProgram(program));
+    }
+
+    return status::success;
+}
+} // namespace
+
+status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
+        jit::jit_generator_base &jitter, cache_blob_t cache_blob) const {
     auto kernel_name = jitter.kernel_name();
+
+    if (cache_blob) {
+        std::vector<compute::kernel_t> kernels(1);
+        auto status = create_ocl_kernel_from_cache_blob(
+                this, cache_blob, {kernel_name}, &kernels);
+        CHECK(status);
+        (*kernel) = kernels[0];
+        return status::success;
+    }
 
     ocl_wrapper_t<cl_kernel> ocl_kernel
             = jitter.get_kernel(context(), device());
@@ -105,9 +153,16 @@ status_t ocl_gpu_engine_t::create_kernel(
 status_t ocl_gpu_engine_t::create_kernels(
         std::vector<compute::kernel_t> *kernels,
         const std::vector<const char *> &kernel_names,
-        const compute::kernel_ctx_t &kernel_ctx) const {
+        const compute::kernel_ctx_t &kernel_ctx,
+        cache_blob_t cache_blob) const {
 
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
+
+    if (cache_blob) {
+        return create_ocl_kernel_from_cache_blob(
+                this, cache_blob, kernel_names, kernels);
+    }
+
     compute::kernel_list_t kernel_list;
     for (size_t i = 0; i < kernels->size(); ++i) {
         if (kernel_names[i]) kernel_list.add(kernel_names[i], &(*kernels)[i]);

@@ -164,10 +164,9 @@ struct gpu_primitive_t : public primitive_t {
 
     status_t create_kernel(engine_t *engine, compute::kernel_t *kernel,
             jit::jit_generator_base &jitter) {
-
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
-        CHECK(compute_engine->create_kernel(kernel, jitter));
+        CHECK(compute_engine->create_kernel(kernel, jitter, cache_blob()));
         register_kernels({*kernel});
         return status::success;
     }
@@ -179,7 +178,7 @@ struct gpu_primitive_t : public primitive_t {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         CHECK(compute_engine->create_kernels(
-                kernels, kernel_names, kernel_ctx));
+                kernels, kernel_names, kernel_ctx, cache_blob()));
         register_kernels(*kernels);
         return status::success;
     }
@@ -196,7 +195,7 @@ struct gpu_primitive_t : public primitive_t {
 
     status_t create_nested_primitive(std::shared_ptr<primitive_t> &primitive,
             const std::shared_ptr<primitive_desc_t> &pd, engine_t *engine) {
-        CHECK(pd->create_primitive(primitive, engine));
+        CHECK(pd->create_primitive(primitive, engine, cache_blob()));
         register_primitive(primitive.get());
         return status::success;
     }

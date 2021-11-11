@@ -226,6 +226,18 @@ int DNNL_API dnnl_primitive_desc_query_s32(
 dnnl_status_t DNNL_API dnnl_primitive_create(dnnl_primitive_t *primitive,
         const_dnnl_primitive_desc_t primitive_desc);
 
+/// Creates a primitive from a cache blob.
+///
+/// @param primitive Output primitive.
+/// @param primitive_desc Primitive descriptor used to create the primitive.
+/// @param size Size of the cache blob in bytes.
+/// @param blob Cache blob of size @p size.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_create_from_cache_blob(
+        dnnl_primitive_t *primitive, const_dnnl_primitive_desc_t primitive_desc,
+        size_t size, const uint8_t *cache_blob);
+
 /// Executes a primitive.
 ///
 /// @param primitive Primitive to execute.
