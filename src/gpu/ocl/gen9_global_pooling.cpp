@@ -21,17 +21,24 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-int calculate_spatial_chunk(const pool_conf_t &conf, int hw_threads) {
+int calculate_spatial_chunk(const pool_conf_t &conf, engine_t *engine) {
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    const int hw_threads = compute_engine->device_info()->hw_threads();
+    const bool is_xe_hp_plus = compute_engine->is_xe_hp()
+            || compute_engine->is_xe_hpg() || compute_engine->is_xe_hpc();
+
     const int spatial_dim = conf.id * conf.ih * conf.iw;
     int chunk_size = spatial_dim;
-    const int desired_wi_per_thread = 4;
+
+    // Experimentally selected values for XeHP family
+    const int desired_wi_per_thread = is_xe_hp_plus && conf.is_plain ? 1024 : 4;
+
     const auto get_work_items_num = [&]() {
-        return conf.c * conf.mb
-                * ceil(static_cast<float>(spatial_dim) / chunk_size);
+        return conf.c * conf.mb * utils::div_up(spatial_dim, chunk_size);
     };
     while (get_work_items_num() < hw_threads * desired_wi_per_thread
             && chunk_size > 1) {
-        chunk_size = ceil(chunk_size / 2.0f);
+        chunk_size = utils::div_up(chunk_size, 2);
     }
     return chunk_size;
 }
@@ -62,8 +69,9 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     set_offsets(dst_mdw, off.dst_off);
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    const int hw_threads = compute_engine->device_info()->hw_threads();
-    conf.global_pool_spatial_chunk = calculate_spatial_chunk(conf, hw_threads);
+
+    conf.is_plain = src_mdw.is_plain();
+    conf.global_pool_spatial_chunk = calculate_spatial_chunk(conf, engine);
 
     const int spatial_dim_padded = utils::rnd_up(
             conf.id * conf.ih * conf.iw, conf.global_pool_spatial_chunk);
