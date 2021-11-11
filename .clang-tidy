@@ -70,7 +70,9 @@ Checks: >
     misc-unused-using-decls,
     cppcoreguidelines-prefer-member-initializer,
 
-HeaderFilterRegex: '.*\/src\/.*'
+# Scan headers under "src" but not in "third_party" where also contains a "src"
+# folder.
+HeaderFilterRegex: '^(?=.*src)(?:(?!third_party).)+$'
 WarningsAsErrors: '*'
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase
