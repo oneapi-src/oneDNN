@@ -768,7 +768,7 @@ void jit_brdgmm_kernel_base_t::generate() {
     }
 }
 
-brdgmm_kernel_t::brdgmm_kernel_t(const brgemm_t abrd) : brgemm_kernel_t(abrd) {
+brdgmm_kernel_t::brdgmm_kernel_t(const brgemm_t abrd) {
     brgemm_kernel_ = new jit_brdgmm_kernel_base_t(abrd);
 }
 

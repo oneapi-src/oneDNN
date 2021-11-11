@@ -247,7 +247,7 @@ struct jit_brgemm_amx_uker_base_t;
 struct jit_brdgmm_kernel_base_t;
 
 struct brgemm_kernel_t {
-    brgemm_kernel_t(const brgemm_t abrd) {};
+    brgemm_kernel_t() {};
     virtual ~brgemm_kernel_t() {};
     virtual status_t create_kernel() = 0;
     virtual void operator()(brgemm_kernel_params_t *) const = 0;
