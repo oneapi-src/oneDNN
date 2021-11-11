@@ -19,6 +19,7 @@
 
 #include <cassert>
 
+#include "common/cache_blob.hpp"
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
@@ -103,6 +104,63 @@ struct gpu_primitive_t : public primitive_t {
         return status::success;
     }
 #endif
+
+    status_t get_cache_blob_size(size_t *size) const override {
+        if (!size) return status::invalid_arguments;
+        // Query binary size for each created kernel.
+        for (const auto &cb : compute_blocks()) {
+            if (!cb) continue;
+
+            switch (cb.kind()) {
+                case compute_block_t::kind_t::kernel: {
+                    size_t sz = 0;
+                    CHECK(cb.kernel().binary_size(&sz));
+                    // We need additional sizeof(size_t) bytes to store the size
+                    // of the binary when packing.
+                    (*size) += sz + sizeof(size_t);
+                    break;
+                }
+                case compute_block_t::kind_t::primitive:
+                    CHECK(cb.primitive()->get_cache_blob_size(size));
+                    break;
+                default: assert(!"unexpected"); return status::runtime_error;
+            }
+        }
+        return status::success;
+    }
+
+    status_t get_cache_blob(
+            engine_t *engine, cache_blob_t &blob) const override {
+        for (const auto &cb : compute_blocks()) {
+            if (!cb) continue;
+
+            switch (cb.kind()) {
+                case compute_block_t::kind_t::kernel: {
+                    compute::binary_t binary;
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+                    const resource_mapper_t *rm = cached_mapper();
+                    ;
+                    const auto *resource = rm->get<gpu_resource_t>(this);
+                    const auto &realized_kernel
+                            = resource->get_kernel(cb.kernel().id());
+                    // Get binaries for all kernels within current primitive.
+                    // TODO: Copy binary directly to `blob` when binary cache
+                    // mode is removed.
+                    CHECK(realized_kernel.binary(engine, binary));
+#else
+                    binary = *(cb.kernel().binary());
+#endif
+                    CHECK(blob.add_binary(binary.data(), binary.size()));
+                    break;
+                }
+                case compute_block_t::kind_t::primitive:
+                    CHECK(cb.primitive()->get_cache_blob(engine, blob));
+                    break;
+                default: assert(!"unexpected"); return status::runtime_error;
+            }
+        }
+        return status::success;
+    }
 
     status_t create_kernel(engine_t *engine, compute::kernel_t *kernel,
             jit::jit_generator_base &jitter) {

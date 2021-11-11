@@ -209,6 +209,16 @@ status_t ocl_gpu_kernel_t::realize(compute::kernel_t *kernel,
     return status::success;
 }
 
+status_t ocl_gpu_kernel_t::binary(
+        engine_t *engine, compute::binary_t &binary) const {
+    const auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
+    std::shared_ptr<compute::binary_t> shared_binary;
+    CHECK(get_ocl_program_binary(
+            ocl_kernel_, ocl_engine->device(), shared_binary));
+    binary = std::move(*shared_binary);
+    return status::success;
+}
+
 } // namespace ocl
 } // namespace gpu
 } // namespace impl

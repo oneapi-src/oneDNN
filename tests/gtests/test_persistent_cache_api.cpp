@@ -36,6 +36,7 @@ TEST(persistent_cache_api_test, TestPersistentCacheAPI) {
     auto p = convolution_forward(pd);
 
     std::vector<uint8_t> cache_blob_id;
+    std::vector<uint8_t> cache_blob;
 
     ASSERT_NO_THROW(cache_blob_id = pd.get_cache_blob_id());
     ASSERT_EQ(cache_blob_id, pd.get_cache_blob_id());
@@ -44,8 +45,12 @@ TEST(persistent_cache_api_test, TestPersistentCacheAPI) {
             || (get_test_engine_kind() == engine::kind::gpu
                     && DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL)) {
         ASSERT_EQ(cache_blob_id.empty(), true);
+        EXPECT_ANY_THROW(cache_blob = p.get_cache_blob());
+        ASSERT_EQ(cache_blob.empty(), true);
     } else {
         ASSERT_EQ(cache_blob_id.empty(), false);
+        ASSERT_NO_THROW(cache_blob = p.get_cache_blob());
+        ASSERT_EQ(cache_blob.empty(), false);
     }
 }
 

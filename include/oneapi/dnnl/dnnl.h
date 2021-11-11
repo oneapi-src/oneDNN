@@ -262,6 +262,17 @@ dnnl_status_t DNNL_API dnnl_primitive_get_primitive_desc(
         const_dnnl_primitive_t primitive,
         const_dnnl_primitive_desc_t *primitive_desc);
 
+/// Retrieves a cache blob associated with the given primitive.
+///
+/// @param primitive Primitive to query for the cache blob.
+/// @param size Size of the cache blob in bytes.
+/// @param cache_blob Cache blob of size @p size. If the @p cache_blob is
+///     nullptr then the size of the cache blob is returned in @p size.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_get_cache_blob(
+        const_dnnl_primitive_t primitive, size_t *size, uint8_t *cache_blob);
+
 /// Destroys a primitive.
 ///
 /// @param primitive The primitive to destroy.

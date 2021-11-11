@@ -341,6 +341,11 @@ struct primitive : public handle<dnnl_primitive_t> {
     /// @returns The primitive kind.
     inline kind get_kind() const;
 
+    /// Returns a cache blob for the primitive.
+    ///
+    /// @returns Vector containing the cache blob.
+    inline std::vector<uint8_t> get_cache_blob() const;
+
     /// Executes computations specified by the primitive in a specified stream.
     ///
     /// Arguments are passed via an arguments map containing <index,
@@ -381,6 +386,18 @@ dnnl::primitive::kind primitive::get_kind() const {
                               pd, dnnl_query_primitive_kind, 0, (void *)&kind),
             "could not get a primitive kind from a primitive descriptor");
     return static_cast<dnnl::primitive::kind>(kind);
+}
+
+std::vector<uint8_t> primitive::get_cache_blob() const {
+    size_t size;
+    error::wrap_c_api(dnnl_primitive_get_cache_blob(get(), &size, nullptr),
+            "could not get cache blob size from a primitive");
+
+    std::vector<uint8_t> cache_blob(size);
+    error::wrap_c_api(
+            dnnl_primitive_get_cache_blob(get(), &size, cache_blob.data()),
+            "could not get a cache blob from a primitive");
+    return cache_blob;
 }
 
 /// @} dnnl_api_primitives_common

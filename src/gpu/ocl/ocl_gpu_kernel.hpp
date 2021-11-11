@@ -38,6 +38,7 @@ public:
         : state_(state_t::binary)
         , ocl_kernel_(nullptr)
         , binary_(binary)
+        , binary_size_(binary->size())
         , kernel_name_(kernel_name)
         , arg_types_(arg_types) {
         MAYBE_UNUSED(state_);
@@ -61,10 +62,12 @@ public:
         return kernel_name_.c_str();
     }
 
-    const std::shared_ptr<compute::binary_t> &binary() const {
+    const std::shared_ptr<compute::binary_t> &binary() const override {
         assert(state_ == state_t::binary);
         return binary_;
     }
+
+    status_t binary(engine_t *engine, compute::binary_t &binary) const override;
 
     const std::vector<gpu::compute::scalar_type_t> &arg_types() const {
         return arg_types_;
@@ -76,6 +79,12 @@ public:
         kernel_name_.clear();
         arg_types_.clear();
     }
+
+    status_t binary_size(size_t *binary_size) const override {
+        (*binary_size) = binary_size_;
+        return status::success;
+    }
+
     enum class state_t { binary, kernel };
 
 protected:
@@ -90,6 +99,10 @@ protected:
     state_t state_;
     cl_kernel ocl_kernel_;
     std::shared_ptr<compute::binary_t> binary_;
+    // When DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE is defined the binary_ is
+    // cleared via `clear()` to reduce memory footprint. Because of that the
+    // binary size is stored separately to avoid querying it.
+    size_t binary_size_;
     std::string kernel_name_;
 
     std::vector<gpu::compute::scalar_type_t> arg_types_;

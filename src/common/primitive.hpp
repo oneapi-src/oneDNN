@@ -23,6 +23,7 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
+#include "cache_blob.hpp"
 #include "memory_storage.hpp"
 #include "memory_tracking.hpp"
 #include "primitive_desc.hpp"
@@ -56,6 +57,17 @@ struct primitive_t : public c_compatible {
     const std::shared_ptr<primitive_desc_t> &pd() const { return pd_; }
     primitive_kind_t kind() const { return pd_->kind(); }
     virtual status_t execute(const exec_ctx_t &ctx) const = 0;
+
+    virtual status_t get_cache_blob(
+            engine_t *engine, cache_blob_t &cache_blob) const {
+        assert(!"unexpected");
+        return status::runtime_error;
+    }
+
+    virtual status_t get_cache_blob_size(size_t *size) const {
+        assert(!"unexpected");
+        return status::runtime_error;
+    }
 
     virtual status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const {
@@ -275,6 +287,9 @@ struct dnnl_primitive : public dnnl::impl::c_compatible {
     dnnl::impl::status_t init();
     dnnl::impl::engine_t *engine() const;
     const primitive_desc_iface_t *pd() const;
+    dnnl::impl::status_t get_cache_blob_size(size_t *size) const;
+    dnnl::impl::status_t get_cache_blob(
+            dnnl::impl::cache_blob_t cache_blob) const;
     dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
 
     void retain() { counter_++; }

@@ -29,6 +29,9 @@ namespace sycl {
 
 class sycl_interop_gpu_kernel_t : public gpu::compute::kernel_impl_t {
 public:
+    // Tell the compiler that we need both `binary` function from the base
+    // class and the one that is defined here to silent warning.
+    using kernel_impl_t::binary;
     sycl_interop_gpu_kernel_t(
             const std::shared_ptr<gpu::compute::binary_t> &binary,
             const std::string &kernel_name,
@@ -57,7 +60,7 @@ public:
         return kernel_name_.c_str();
     }
 
-    const std::shared_ptr<gpu::compute::binary_t> &binary() const {
+    const std::shared_ptr<gpu::compute::binary_t> &binary() const override {
         assert(state_ == state_t::binary);
         return binary_;
     }

@@ -55,6 +55,10 @@ public:
             program_list_t *programs) const;
 
     void clear();
+    status_t binary_size(size_t *binary_size) const;
+
+    status_t binary(engine_t *engine, compute::binary_t &binary) const;
+    const std::shared_ptr<compute::binary_t> &binary() const;
 
 private:
     std::shared_ptr<kernel_impl_t> impl_;
@@ -76,6 +80,16 @@ public:
             program_list_t *programs) const = 0;
 
     virtual void clear() = 0;
+    virtual status_t binary_size(size_t *binary_size) const {
+        assert(!"unexpected");
+        return status::runtime_error;
+    }
+    virtual status_t binary(engine_t *engine, compute::binary_t &binary) const {
+        assert(!"unexpected");
+        return status::runtime_error;
+    }
+
+    virtual const std::shared_ptr<compute::binary_t> &binary() const = 0;
 };
 
 inline kernel_t::id_t kernel_t::id() const {
@@ -92,6 +106,19 @@ inline status_t kernel_t::realize(kernel_t *kernel, const engine_t *engine,
 
 inline void kernel_t::clear() {
     impl_->clear();
+}
+
+inline status_t kernel_t::binary_size(size_t *binary_size) const {
+    return impl_->binary_size(binary_size);
+}
+
+inline status_t kernel_t::binary(
+        engine_t *engine, compute::binary_t &binary) const {
+    return impl_->binary(engine, binary);
+}
+
+inline const std::shared_ptr<compute::binary_t> &kernel_t::binary() const {
+    return impl_->binary();
 }
 
 } // namespace compute

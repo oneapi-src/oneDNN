@@ -208,6 +208,31 @@ status_t dnnl_primitive_get_primitive_desc(
     return safe_ptr_assign(*primitive_desc_iface, primitive_iface->pd());
 }
 
+status_t dnnl_primitive_get_cache_blob(const primitive_iface_t *primitive_iface,
+        size_t *size, uint8_t *cache_blob) {
+    if (utils::any_null(primitive_iface, size)) {
+        return status::invalid_arguments;
+    }
+
+    const auto ekind = primitive_iface->engine()->kind();
+    const auto runtime_kind = primitive_iface->engine()->runtime_kind();
+    if (ekind != engine_kind::gpu
+            || (ekind == engine_kind::gpu
+                    && runtime_kind != runtime_kind::ocl)) {
+        return status::unimplemented;
+    }
+
+    if (!cache_blob) {
+        size_t sz = 0;
+        CHECK(primitive_iface->get_cache_blob_size(&sz));
+        (*size) = sz;
+        return status::success;
+    }
+
+    cache_blob_t cb(cache_blob, *size);
+    return primitive_iface->get_cache_blob(cb);
+}
+
 status_t dnnl_primitive_destroy(primitive_iface_t *primitive_iface) {
     if (primitive_iface != nullptr) primitive_iface->release();
     return success;
@@ -293,6 +318,15 @@ status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
     auto status = primitive_->execute(ctx);
     ctx.set_scratchpad_grantor(nullptr);
     return status;
+}
+
+status_t dnnl_primitive::get_cache_blob_size(size_t *size) const {
+    (*size) = 0;
+    return primitive_->get_cache_blob_size(size);
+}
+
+status_t dnnl_primitive::get_cache_blob(cache_blob_t cache_blob) const {
+    return primitive_->get_cache_blob(engine(), cache_blob);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
