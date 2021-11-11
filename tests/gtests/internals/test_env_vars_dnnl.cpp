@@ -41,12 +41,12 @@ void custom_setenv(const char *name, const char *value, int overwrite) {
 
 namespace dnnl {
 
+#if DNNL_X64
 TEST(dnnl_max_cpu_isa_env_var_test, TestEnvVars) {
     custom_setenv("DNNL_MAX_CPU_ISA", "SSE41", 1);
     auto got = dnnl_get_effective_cpu_isa();
 
-#if DNNL_X64 && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE) \
-        && defined(DNNL_ENABLE_MAX_CPU_ISA)
+#if (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE) && defined(DNNL_ENABLE_MAX_CPU_ISA)
     // Expect set values only for X64...
     EXPECT_EQ(got, dnnl_cpu_isa_sse41);
 
@@ -59,12 +59,14 @@ TEST(dnnl_max_cpu_isa_env_var_test, TestEnvVars) {
     EXPECT_EQ(got, dnnl_cpu_isa_all);
 #endif
 }
+#endif // DNNL_X64
 
+#if DNNL_X64
 TEST(dnnl_cpu_isa_hints_var_test, TestEnvVars) {
     custom_setenv("DNNL_CPU_ISA_HINTS", "PREFER_YMM", 1);
     auto got = dnnl_get_cpu_isa_hints();
 
-#if DNNL_X64 && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE) \
+#if (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE) \
         && defined(DNNL_ENABLE_CPU_ISA_HINTS)
     // Expect set values only for X64...
     EXPECT_EQ(got, dnnl_cpu_isa_prefer_ymm);
@@ -78,6 +80,7 @@ TEST(dnnl_cpu_isa_hints_var_test, TestEnvVars) {
     EXPECT_EQ(got, dnnl_cpu_isa_no_hints);
 #endif
 }
+#endif // DNNL_X64
 
 TEST(dnnl_primitive_cache_capacity_env_var_test, TestEnvVars) {
     custom_setenv("DNNL_PRIMITIVE_CACHE_CAPACITY", "10", 1);

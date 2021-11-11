@@ -99,6 +99,7 @@ if(NOT DNNL_TARGET_ARCH)
         set(DNNL_TARGET_ARCH "X64")
     endif()
 endif()
+message(STATUS "DNNL_TARGET_ARCH: ${DNNL_TARGET_ARCH}")
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
