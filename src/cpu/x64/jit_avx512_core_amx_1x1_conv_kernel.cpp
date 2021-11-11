@@ -1123,6 +1123,8 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.nb_ic_int = div_up(jcp.ic_without_padding, jcp.ic_block_int_np);
 
     jcp.max_width = amx::get_max_rows(amx::get_max_palette());
+    if (jcp.max_width <= 0) return status::unimplemented;
+
     const int size_treshold = 32;
     const int min_width
             = 1; // TODO: Possible optimizations: do not use small values
