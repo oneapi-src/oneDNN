@@ -170,6 +170,7 @@ protected:
 
         ASSERT_EQ(concat_pd.dst_desc().data.ndims, dst_desc.data.ndims);
 
+        EXPECT_ANY_THROW(concat(concat_pd, {}));
         concat c(concat_pd);
         std::unordered_map<int, memory> args = {{DNNL_ARG_DST, dst}};
         for (int i = 0; i < (int)srcs.size(); i++) {

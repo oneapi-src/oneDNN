@@ -143,6 +143,7 @@ protected:
             if (!has_zero_dim)
                 test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
 
+            EXPECT_ANY_THROW(binary(pd, {}));
             // default primitive ctor
             auto prim = binary();
             // regular primitive ctor

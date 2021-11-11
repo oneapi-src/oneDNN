@@ -416,6 +416,7 @@ protected:
         ASSERT_TRUE(eltwise_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == eltwise_prim_desc.dst_desc());
 
+        EXPECT_ANY_THROW(eltwise_forward(eltwise_prim_desc, {}));
         eltwise_forward(eltwise_prim_desc)
                 .execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
         strm.wait();

@@ -280,6 +280,7 @@ protected:
         check_zero_tail<data_t>(1, src->get());
         check_zero_tail<data_t>(1, dst->get());
 
+        EXPECT_ANY_THROW(lrn_forward(lrn_fwd_prim_desc, {}));
         // Execute
         auto l = lrn_forward(lrn_fwd_prim_desc);
         std::unordered_map<int, memory> args
@@ -328,6 +329,7 @@ protected:
                 lrn_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == lrn_prim_desc.workspace_desc());
 
+        EXPECT_ANY_THROW(lrn_backward(lrn_prim_desc, {}));
         // Execute
         lrn_backward(lrn_prim_desc)
                 .execute(strm,

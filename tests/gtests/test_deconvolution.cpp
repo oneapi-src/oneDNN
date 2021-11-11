@@ -277,6 +277,7 @@ protected:
                             query::exec_arg_md, DNNL_ARG_BIAS)
                 == deconv_primitive_desc.bias_desc());
 
+        EXPECT_ANY_THROW(deconvolution_forward(deconv_primitive_desc, {}));
         deconvolution_forward(deconv_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_SRC, src->get()},

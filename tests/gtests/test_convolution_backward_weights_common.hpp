@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -267,6 +267,8 @@ protected:
                             query::exec_arg_md, DNNL_ARG_DIFF_BIAS)
                 == conv_bwd_weights_primitive_desc.diff_bias_desc());
 
+        EXPECT_ANY_THROW(convolution_backward_weights(
+                conv_bwd_weights_primitive_desc, {}));
         convolution_backward_weights(conv_bwd_weights_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_DIFF_DST, c_diff_dst.get()},

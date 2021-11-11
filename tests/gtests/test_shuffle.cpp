@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -138,6 +138,7 @@ protected:
         check_zero_tail<data_t>(1, src.get());
         check_zero_tail<data_t>(1, dst.get());
 
+        EXPECT_ANY_THROW(shuffle_forward(shuffle_fwd_prim_desc, {}));
         shuffle_forward(shuffle_fwd_prim_desc)
                 .execute(strm,
                         {{DNNL_ARG_SRC, src.get()}, {DNNL_ARG_DST, dst.get()}});
@@ -173,6 +174,7 @@ protected:
         check_zero_tail<data_t>(1, diff_dst.get());
         check_zero_tail<data_t>(1, diff_src.get());
 
+        EXPECT_ANY_THROW(shuffle_backward(shuffle_prim_desc, {}));
         // Execute
         shuffle_backward(shuffle_prim_desc)
                 .execute(strm,

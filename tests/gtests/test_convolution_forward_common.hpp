@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -233,6 +233,7 @@ protected:
                 conv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_BIAS)
                 == conv_primitive_desc.bias_desc());
 
+        EXPECT_ANY_THROW(convolution_forward(conv_primitive_desc, {}));
         convolution_forward(conv_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_SRC, c_src.get()},

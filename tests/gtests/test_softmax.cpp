@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,6 +88,7 @@ protected:
         test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
         pd_fwd_hint = std::make_shared<pd_t>(pd);
 
+        EXPECT_ANY_THROW(softmax_forward(pd, {}));
         // default primitive ctor
         auto softmax = softmax_forward();
         // regular primitive ctor
@@ -166,6 +167,7 @@ protected:
         test_bwd_pd_constructors<op_desc_t, pd_t, hint_pd_t>(
                 op_desc, pd, *pd_fwd_hint, aa);
 
+        EXPECT_ANY_THROW(softmax_backward(pd, {}));
         // default primitive ctor
         auto softmax = softmax_backward();
         // regular primitive ctor

@@ -246,6 +246,7 @@ protected:
             args.insert({DNNL_ARG_VARIANCE, variance});
         }
 
+        EXPECT_ANY_THROW(layer_normalization_forward(lnorm_fwd_pd, {}));
         layer_normalization_forward(lnorm_fwd_pd).execute(strm, args);
         strm.wait();
     }
@@ -278,6 +279,7 @@ protected:
                 args.insert({DNNL_ARG_DIFF_SHIFT, diff_bias});
         }
 
+        EXPECT_ANY_THROW(layer_normalization_backward(lnorm_bwd_pd, {}));
         layer_normalization_backward(lnorm_bwd_pd).execute(strm, args);
         strm.wait();
     }

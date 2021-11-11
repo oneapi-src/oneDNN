@@ -372,6 +372,7 @@ protected:
             auto p_workspace_desc = prim_desc.pool_prim_desc.workspace_desc();
             workspace = test::make_memory(p_workspace_desc, eng);
 
+            EXPECT_ANY_THROW(pooling_forward(prim_desc.pool_prim_desc, {}));
             pooling_forward(prim_desc.pool_prim_desc)
                     .execute(strm,
                             {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},
@@ -387,6 +388,8 @@ protected:
                     = prim_desc.pool_v2_prim_desc.workspace_desc();
             workspace = test::make_memory(p_workspace_desc, eng);
 
+            EXPECT_ANY_THROW(
+                    pooling_v2_forward(prim_desc.pool_v2_prim_desc, {}));
             pooling_v2_forward(prim_desc.pool_v2_prim_desc)
                     .execute(strm,
                             {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},

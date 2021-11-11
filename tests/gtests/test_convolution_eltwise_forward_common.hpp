@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -255,6 +255,7 @@ protected:
         auto conv_primitive_desc
                 = convolution_forward::primitive_desc(conv_desc, attr, eng);
 
+        EXPECT_ANY_THROW(convolution_forward(conv_primitive_desc, {}));
         convolution_forward(conv_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_SRC, c_src}, {DNNL_ARG_WEIGHTS, c_weights},

@@ -295,6 +295,7 @@ protected:
         ASSERT_TRUE(matmul_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == matmul_pd.dst_desc());
 
+        EXPECT_ANY_THROW(matmul(matmul_pd, {}));
         auto matmul_p = matmul(matmul_pd);
 
         auto src_m = test::make_memory(init_md(p.base.src, true), eng);

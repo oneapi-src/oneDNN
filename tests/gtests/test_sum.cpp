@@ -230,6 +230,7 @@ protected:
             dnnl::impl::parallel_nd(
                     (ptrdiff_t)sz, [&](ptrdiff_t i) { dst_data[i] = -32; });
         }
+        EXPECT_ANY_THROW(sum(sum_pd, {}));
         sum c(sum_pd);
         std::unordered_map<int, memory> args = {{DNNL_ARG_DST, dst}};
         for (int i = 0; i < (int)num_srcs; i++) {

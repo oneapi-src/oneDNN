@@ -47,10 +47,13 @@ TEST(persistent_cache_api_test, TestPersistentCacheAPI) {
         ASSERT_EQ(cache_blob_id.empty(), true);
         EXPECT_ANY_THROW(cache_blob = p.get_cache_blob());
         ASSERT_EQ(cache_blob.empty(), true);
+        EXPECT_ANY_THROW(convolution_forward(pd, cache_blob));
     } else {
         ASSERT_EQ(cache_blob_id.empty(), false);
         ASSERT_NO_THROW(cache_blob = p.get_cache_blob());
         ASSERT_EQ(cache_blob.empty(), false);
+        ASSERT_NO_THROW(p = convolution_forward(pd, cache_blob));
+        ASSERT_EQ(cache_blob, p.get_cache_blob());
     }
 }
 

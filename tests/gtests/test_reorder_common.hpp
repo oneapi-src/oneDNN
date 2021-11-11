@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -168,6 +168,7 @@ protected:
         ASSERT_TRUE(r_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == r_pd.dst_desc());
 
+        EXPECT_ANY_THROW(reorder(r_pd, {}));
         auto r = reorder(r_pd);
         auto strm = make_stream(r_pd.get_engine());
         r.execute(strm, src, dst);

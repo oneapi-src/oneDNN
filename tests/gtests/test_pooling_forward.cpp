@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -301,6 +301,7 @@ protected:
             auto workspace_desc = pool_prim_desc.workspace_desc();
             workspace = test::make_memory(workspace_desc, eng);
 
+            EXPECT_ANY_THROW(pooling_forward(pool_prim_desc, {}));
             pooling_forward(pool_prim_desc)
                     .execute(strm,
                             {{DNNL_ARG_SRC, p_src}, {DNNL_ARG_DST, p_dst},
@@ -320,6 +321,7 @@ protected:
             auto workspace_desc = pool_prim_desc.workspace_desc();
             workspace = test::make_memory(workspace_desc, eng);
 
+            EXPECT_ANY_THROW(pooling_v2_forward(pool_prim_desc, {}));
             pooling_v2_forward(pool_prim_desc)
                     .execute(strm,
                             {{DNNL_ARG_SRC, p_src}, {DNNL_ARG_DST, p_dst},

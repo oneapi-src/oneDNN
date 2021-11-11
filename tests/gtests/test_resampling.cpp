@@ -298,6 +298,7 @@ protected:
         fill_data<data_t>(src.get_desc().get_size() / sizeof(data_t), src);
         check_zero_tail<data_t>(1, src);
 
+        EXPECT_ANY_THROW(resampling_forward(resampling_pd, {}));
         resampling_forward(resampling_pd)
                 .execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
         strm.wait();
@@ -328,6 +329,7 @@ protected:
         check_zero_tail<data_t>(1, diff_dst);
         check_zero_tail<data_t>(1, diff_src);
 
+        EXPECT_ANY_THROW(resampling_backward(resampling_bwd_pd, {}));
         resampling_backward(resampling_bwd_pd)
                 .execute(strm,
                         {{DNNL_ARG_DIFF_SRC, diff_src},

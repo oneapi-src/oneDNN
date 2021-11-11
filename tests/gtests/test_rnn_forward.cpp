@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -359,6 +359,7 @@ protected:
                 init_zero_tensor(src_iter_c_ref, memory::format_tag::ldnc);
         }
 
+        EXPECT_ANY_THROW(T(ref_pd, {}));
         // run the non packed version
         T(ref_pd).execute(strm,
                 {{DNNL_ARG_SRC_LAYER, src_layer_ref},
@@ -384,6 +385,7 @@ protected:
         typename T::primitive_desc tgt_pd(tgt_d, eng);
         testExecArgQueries(tgt_pd);
 
+        EXPECT_ANY_THROW(T(tgt_pd, {}));
         T(tgt_pd).execute(strm,
                 {{DNNL_ARG_SRC_LAYER, src_layer_tgt},
                         {DNNL_ARG_SRC_ITER, src_iter_tgt},

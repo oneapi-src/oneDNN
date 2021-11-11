@@ -353,6 +353,7 @@ protected:
             args.insert({DNNL_ARG_VARIANCE, variance});
         }
 
+        EXPECT_ANY_THROW(batch_normalization_forward(bnorm_fwd_pd, {}));
         batch_normalization_forward(bnorm_fwd_pd).execute(strm, args);
         strm.wait();
     }
