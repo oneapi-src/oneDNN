@@ -423,7 +423,7 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     float est_eff();
     void iterate_ker_block(brg_blocking_t &best_brgb, int kd_block,
             int kh_block, bool maybe_use_buffer, int max_ow_block_thr);
-    void calc_blocks();
+    status_t calc_blocks();
 
     bool fast_check_oc_block_1x1() const;
     float est_eff_1x1();
@@ -1110,7 +1110,7 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
     }
 }
 
-void brg_blocking_t::calc_blocks() {
+status_t brg_blocking_t::calc_blocks() {
     sp = ow;
 
     nb_ic_blocking = 1;
@@ -1145,6 +1145,9 @@ void brg_blocking_t::calc_blocks() {
         }
     }
     *this = best_brgb;
+    if (!IMPLICATION(!is_os_blocking, sp_block > 0))
+        return status::unimplemented;
+
     if (is_os_blocking) {
         ow_block = ow;
         os_block = ow * oh_block;
@@ -1155,6 +1158,7 @@ void brg_blocking_t::calc_blocks() {
         ow_tail = ow % ow_block;
     }
     update_blocks();
+    return status::success;
 }
 
 bool brg_blocking_t::fast_check_oc_block_1x1() const {
@@ -1766,7 +1770,9 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             cur_brgb.nb_oc = utils::div_up(jcp.oc, cur_brgb.oc_block);
             if (!cur_brgb.fast_check_oc_block()) continue;
 
-            cur_brgb.calc_blocks();
+            const status_t blocking_ok = cur_brgb.calc_blocks();
+            if (blocking_ok != status::success) continue;
+
             const status_t st = cur_brgb.get_brgemm_ur(&attr, dst_md);
             if (st != status::success) continue;
             cur_brgb.eff = cur_brgb.est_eff();
