@@ -1894,8 +1894,7 @@ brgemm_attr_t::brgemm_attr_t()
     , use_uker(false)
     , use_interleave_stores(false) {}
 
-brgemm_kernel_common_t::brgemm_kernel_common_t(const brgemm_t abrd)
-    : brgemm_kernel_t(abrd) {
+brgemm_kernel_common_t::brgemm_kernel_common_t(const brgemm_t abrd) {
     brgemm_kernel_ = new jit_brgemm_kernel_t(abrd);
 }
 
