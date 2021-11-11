@@ -4,7 +4,7 @@ oneDNN Graph supports the following build-time options.
 
 | CMake Option                | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
-| DNNL_GRAPH_LIBRARY_TYPE     | **SHARED**, STATIC                  | Defines the resulting library type
+| DNNL_GRAPH_LIBRARY_TYPE     | **SHARED**, STATIC, SDL             | Defines the resulting library type
 | DNNL_GRAPH_CPU_RUNTIME      | **OMP**, TBB, SEQ, THREADPOOL, DPCPP| Defines the threading runtime for CPU engines
 | DNNL_GRAPH_GPU_RUNTIME      | **NONE**, DPCPP                     | Defines the offload runtime for GPU engines
 | DNNL_GRAPH_BUILD_EXAMPLES   | ON, **OFF**                         | Controls building the examples

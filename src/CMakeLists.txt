@@ -59,7 +59,11 @@ add_subdirectory(interface)
 
 get_property(LIB_DEPS GLOBAL PROPERTY ${LIB_NAME}_LIB_DEPS)
 
-add_library(${LIB_NAME} ${DNNL_GRAPH_LIBRARY_TYPE} ${HEADERS_ONEAPI} ${SOURCES} ${LIB_DEPS})
+if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "STATIC")
+    add_library(${LIB_NAME} STATIC ${HEADERS_ONEAPI} ${SOURCES} ${LIB_DEPS})
+else()
+    add_library(${LIB_NAME} SHARED ${HEADERS_ONEAPI} ${SOURCES} ${LIB_DEPS})
+endif()
 
 if (NOT DNNL_GRAPH_LOGGER)
     message(STATUS "DNNL Graph logger is disabled")

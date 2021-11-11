@@ -52,7 +52,8 @@ option(DNNL_GRAPH_ENABLE_DUMP
 # =============================
 
 set(DNNL_GRAPH_LIBRARY_TYPE "SHARED" CACHE STRING
-    "specifies whether oneDNN Graph library should be SHARED or STATIC")
+    "specifies whether oneDNN Graph library should be SHARED, STATIC, or
+    SDL (single dynamic library).")
 
 option(DNNL_GRAPH_BUILD_EXAMPLES "builds examples"  OFF)
 
