@@ -198,11 +198,6 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         return conv_p_->execute(conv_ctx);
     }
 
-protected:
-    primitive_list_t nested_primitives() const override {
-        return {conv_p_.get()};
-    }
-
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> conv_p_;
@@ -294,11 +289,6 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
         conv_ctx.set_scratchpad_grantor(ns.grantor());
         // Executing the convolution kernel
         return conv_p_->execute(conv_ctx);
-    }
-
-protected:
-    primitive_list_t nested_primitives() const override {
-        return {conv_p_.get()};
     }
 
 private:
@@ -448,11 +438,6 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
             status = parallel_for(ctx, nd_range, bias_kernel_, arg_list);
         }
         return status::success;
-    }
-
-protected:
-    primitive_list_t nested_primitives() const override {
-        return {conv_p_.get()};
     }
 
 private:

@@ -124,11 +124,6 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
         return reorder_->execute(r_ctx);
     }
 
-protected:
-    primitive_list_t nested_primitives() const override {
-        return {reorder_.get()};
-    }
-
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> reorder_;

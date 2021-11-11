@@ -73,10 +73,6 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
     status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 protected:
-    primitive_list_t nested_primitives() const override {
-        primitive_list_t list = {gemm_prim_.get()};
-        return list;
-    }
     status_t init_res_storage(
             engine_t *engine, gpu_resource_t *r) const override {
         const auto *attr = pd()->attr();

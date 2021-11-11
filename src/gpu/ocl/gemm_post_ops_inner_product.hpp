@@ -221,10 +221,6 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
     }
 
 protected:
-    primitive_list_t nested_primitives() const override {
-        return {gemm_.get()};
-    }
-
     status_t init_res_storage(
             engine_t *engine, gpu_resource_t *r) const override {
         if (!pd()->attr_info_.with_oscales) return status::success;

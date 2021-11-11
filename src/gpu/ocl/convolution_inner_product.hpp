@@ -112,11 +112,6 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
         return execute_forward(ctx);
     }
 
-protected:
-    primitive_list_t nested_primitives() const override {
-        return {conv_.get(), postop_reorder_.get(), dst_reorder_.get()};
-    }
-
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

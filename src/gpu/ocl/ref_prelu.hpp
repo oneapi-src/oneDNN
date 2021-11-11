@@ -157,14 +157,6 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
         return execute_backward(ctx);
     }
 
-protected:
-    primitive_list_t nested_primitives() const override {
-        if (pd()->conf.reduce_diff_weights) {
-            return {reduction_p_.get()};
-        } else
-            return {};
-    }
-
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

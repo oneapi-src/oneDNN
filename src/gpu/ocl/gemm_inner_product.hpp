@@ -104,11 +104,6 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         return execute_forward(ctx);
     }
 
-protected:
-    primitive_list_t nested_primitives() const override {
-        return {gemm_.get()};
-    }
-
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -177,11 +172,6 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
-    }
-
-protected:
-    primitive_list_t nested_primitives() const override {
-        return {gemm_.get()};
     }
 
 private:
@@ -304,11 +294,6 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
-    }
-
-protected:
-    primitive_list_t nested_primitives() const override {
-        return {gemm_.get(), reduction_.get()};
     }
 
 private:

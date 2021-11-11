@@ -154,8 +154,6 @@ protected:
         }
     }
 
-    virtual primitive_list_t nested_primitives() const { return {}; }
-
     virtual status_t init_res_storage(
             engine_t *engine, gpu_resource_t *r) const {
         return status::success;

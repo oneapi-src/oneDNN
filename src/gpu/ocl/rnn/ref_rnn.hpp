@@ -176,14 +176,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
     }
 
 protected:
-    primitive_list_t nested_primitives() const override {
-        return {gemm_layer_fwd_.get(), gemm_iter_fwd_.get(),
-                gemm_iter_fwd_2_.get(), gemm_layer_bwd_.get(),
-                gemm_iter_bwd_.get(), gemm_iter_bwd_2_.get(),
-                gemm_diff_wei_layer_.get(), gemm_diff_wei_iter_.get(),
-                gemm_diff_wei_iter_2_.get()};
-    }
-
     status_t init_res_storage(
             engine_t *engine, gpu_resource_t *r) const override;
 

@@ -304,16 +304,6 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
         return status::success;
     }
 
-    primitive_list_t nested_primitives() const override {
-        primitive_list_t prim_list;
-        if (pd()->conf.reorder_wei)
-            prim_list.emplace(prim_list.begin(), wei_reorder_.get());
-        if (pd()->conf.reorder_bias)
-            prim_list.emplace(prim_list.begin(), bia_reorder_.get());
-
-        return prim_list;
-    }
-
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
     }
