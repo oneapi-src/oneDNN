@@ -19,6 +19,7 @@
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 
+#include "engine.hpp"
 #include "primitive.hpp"
 #include "primitive_desc.hpp"
 
@@ -90,10 +91,18 @@ dnnl::impl::engine_t *dnnl_primitive_desc::scratchpad_engine() const {
 
 status_t dnnl_primitive_desc::query(query_t what, int idx, void *result) const {
     auto status = status::success;
-    if (what == query::engine) {
-        *(engine_t **)result = engine();
-    } else {
-        status = pd_->query(what, idx, result);
+    switch (what) {
+        case query::engine: *(engine_t **)result = engine(); break;
+        case query::cache_blob_id_size_s64:
+            *(dim_t *)result = (dim_t)pd_->get_cache_blob_id(engine()).size();
+            break;
+        case query::cache_blob_id:
+            *(const uint8_t **)result = pd_->get_cache_blob_id(engine()).empty()
+                    ? nullptr
+                    : pd_->get_cache_blob_id(engine()).data();
+            break;
+
+        default: status = pd_->query(what, idx, result);
     }
     return status;
 }

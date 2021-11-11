@@ -27,7 +27,6 @@ namespace dnnl {
 namespace impl {
 namespace serialization {
 
-void serialize_nthr(serialization_stream_t &sstream);
 void serialize_attr(
         serialization_stream_t &sstream, const primitive_attr_t &attr);
 void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md);

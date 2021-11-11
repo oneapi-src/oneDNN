@@ -825,6 +825,12 @@ enum class query {
     /// propagation kind
     prop_kind = dnnl_query_prop_kind,
 
+    /// size of cache blob ID in bytes
+    cache_blob_id_size_s64 = dnnl_query_cache_blob_id_size_s64,
+
+    /// cache blob ID (pointer to array)
+    cache_blob_id = dnnl_query_cache_blob_id,
+
     /// operation descriptor
     op_d = dnnl_query_op_d,
     /// convolution descriptor
@@ -3954,6 +3960,23 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
                                   dnnl_query_primitive_kind, 0, (void *)&kind),
                 "could not get primitive kind from a primitive descriptor");
         return static_cast<dnnl::primitive::kind>(kind);
+    }
+
+    std::vector<uint8_t> get_cache_blob_id() const {
+        dnnl_dim_t count;
+        const uint8_t *c_id;
+        error::wrap_c_api(
+                dnnl_primitive_desc_query(get(),
+                        dnnl::convert_to_c(query::cache_blob_id_size_s64), 0,
+                        (void *)&count),
+                "could not get size of cache blob ID from a primitive "
+                "descriptor");
+        error::wrap_c_api(dnnl_primitive_desc_query(get(),
+                                  dnnl::convert_to_c(query::cache_blob_id), 0,
+                                  (void **)&c_id),
+                "could not get cache blob ID from a primitive descriptor");
+        std::vector<uint8_t> id(c_id, c_id + count);
+        return id;
     }
 
 protected:

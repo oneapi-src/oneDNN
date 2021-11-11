@@ -50,6 +50,7 @@ endif()
 
 # TODO: enable me!
 file(GLOB PRIM_TEST_CASES_SRC
+                              test_persistent_cache_api.cpp
                               test_primitive_cache_mt.cpp
                               test_iface_primitive_cache.cpp
                               test_iface_pd.cpp

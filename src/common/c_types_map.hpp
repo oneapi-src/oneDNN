@@ -1259,6 +1259,9 @@ const query_t reorder_dst_engine = dnnl_query_reorder_dst_engine;
 
 const query_t prop_kind = dnnl_query_prop_kind;
 
+const query_t cache_blob_id_size_s64 = dnnl_query_cache_blob_id_size_s64;
+const query_t cache_blob_id = dnnl_query_cache_blob_id;
+
 const query_t some_d = dnnl_query_some_d;
 const query_t op_d = dnnl_query_op_d;
 const query_t convolution_d = dnnl_query_convolution_d;

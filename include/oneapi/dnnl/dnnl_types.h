@@ -2848,6 +2848,7 @@ typedef struct {
 /// dnnl_query_*_md                 | const #dnnl_memory_desc_t **
 /// dnnl_query_*_\<op\>_d           | const dnnl_\<op\>_desc_t **
 /// dnnl_query_*_pd                 | #const_dnnl_primitive_desc_t *
+/// dnnl_query_cache_blob_id        | const uint8_t **
 ///
 /// @note
 ///     Rule of thumb: all opaque types and structures are returned by
@@ -2883,6 +2884,9 @@ typedef enum {
     dnnl_query_reorder_dst_engine, ///< destination engine
 
     dnnl_query_prop_kind, ///< propagation kind
+
+    dnnl_query_cache_blob_id_size_s64, ///< size of cache blob ID in bytes
+    dnnl_query_cache_blob_id, ///< cache blob  ID (pointer to array)
 
     // memory and op descriptor section
     dnnl_query_some_d = 64, ///< stub

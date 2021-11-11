@@ -15,18 +15,12 @@
 *******************************************************************************/
 
 #include "common/serialization.hpp"
-#include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace serialization {
-
-void serialize_nthr(serialization_stream_t &sstream) {
-    int nthr = dnnl_get_max_threads();
-    sstream.write(&nthr);
-}
 
 status_t serialize_desc(
         serialization_stream_t &sstream, const op_desc_t *op_desc) {

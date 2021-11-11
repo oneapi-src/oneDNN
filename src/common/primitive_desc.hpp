@@ -22,6 +22,7 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
+#include "cache_blob_id.hpp"
 #include "memory_tracking.hpp"
 #include "nstl.hpp"
 #include "primitive_attr.hpp"
@@ -64,6 +65,10 @@ struct primitive_desc_t : public c_compatible {
     }
 
     virtual const op_desc_t *op_desc() const { return nullptr; }
+
+    const std::vector<uint8_t> &get_cache_blob_id(engine_t *engine) const {
+        return cache_blob_id_.get(engine, this);
+    }
 
     static bool post_op_has_proper_input(const primitive_attr_t *attr,
             const primitive_kind_t prim, const int idx, const int arg,
@@ -266,6 +271,7 @@ protected:
     memory_desc_t scratchpad_md_;
 
     mutable pd_info_t info_;
+    mutable cache_blob_id_t cache_blob_id_;
 
     memory_tracking::registry_t scratchpad_registry_;
 
