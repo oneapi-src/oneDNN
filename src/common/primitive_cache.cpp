@@ -175,6 +175,10 @@ lru_primitive_cache_t::value_t lru_primitive_cache_t::get(const key_t &key) {
 std::shared_ptr<primitive_desc_t> lru_primitive_cache_t::get_pd(
         const key_t &key) {
     lock_read();
+    if (capacity_ == 0) {
+        unlock_read();
+        return nullptr;
+    }
     auto e = get(key);
     unlock_read();
 
@@ -184,6 +188,12 @@ std::shared_ptr<primitive_desc_t> lru_primitive_cache_t::get_pd(
 
 void lru_primitive_cache_t::remove_if_invalidated(const key_t &key) {
     lock_write();
+
+    if (capacity_ == 0) {
+        unlock_write();
+        return;
+    }
+
     auto it = cache_mapper().find(key);
     if (it == cache_mapper().end()) {
         // The entry has been already evicted at this point
@@ -205,7 +215,13 @@ void lru_primitive_cache_t::remove_if_invalidated(const key_t &key) {
 
 void lru_primitive_cache_t::update_entry(
         const key_t &key, const primitive_desc_t *pd) {
-    utils::lock_write_t lock_w(rw_mutex());
+    lock_write();
+
+    if (capacity_ == 0) {
+        unlock_write();
+        return;
+    }
+
     auto it = cache_mapper().find(key);
 
     // There is nothing to do in two cases:
@@ -213,8 +229,11 @@ void lru_primitive_cache_t::update_entry(
     //    by another thread
     // 2. After the requested entry had been evicted it was inserted again
     //    by another thread
-    if (it == cache_mapper().end() || it->first.thread_id() != key.thread_id())
+    if (it == cache_mapper().end()
+            || it->first.thread_id() != key.thread_id()) {
+        unlock_write();
         return;
+    }
 
     const auto *op_desc = pd->op_desc();
     const auto *attr = pd->attr();
@@ -222,6 +241,7 @@ void lru_primitive_cache_t::update_entry(
     // Update key in cache_mapper()
     it->first.op_desc_ = op_desc;
     it->first.attr_ = attr;
+    unlock_write();
 }
 
 // Evicts n the least recently used entries
