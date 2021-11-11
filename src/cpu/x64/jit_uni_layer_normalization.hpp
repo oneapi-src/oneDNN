@@ -98,8 +98,10 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
             const memory_desc_wrapper src_d(src_md());
 
             const bool ok = is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(src_md()->data_type, f32, bf16, s8, u8)
-                    && utils::one_of(dst_md()->data_type, f32, bf16, s8, u8)
+                    && utils::one_of(
+                            src_md()->data_type, f32, bf16, f16, s8, u8)
+                    && utils::one_of(
+                            dst_md()->data_type, f32, bf16, f16, s8, u8)
                     && platform::has_data_type_support(src_md()->data_type)
                     && platform::has_data_type_support(dst_md()->data_type)
                     && stat_md()->data_type == f32
@@ -225,9 +227,9 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
 
             const bool ok = is_bwd() && !has_zero_dim_memory()
                     && mayiuse(avx2) // sse41 is not supported yet
-                    && utils::one_of(src_md()->data_type, f32, bf16)
-                    && utils::one_of(diff_dst_md()->data_type, f32, bf16)
-                    && utils::one_of(diff_src_md()->data_type, f32, bf16)
+                    && utils::one_of(src_md()->data_type, f32, bf16, f16)
+                    && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
+                    && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
                     && platform::has_data_type_support(src_md()->data_type)
                     && platform::has_data_type_support(diff_dst_md()->data_type)
                     && platform::has_data_type_support(diff_src_md()->data_type)
