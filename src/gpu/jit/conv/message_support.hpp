@@ -180,10 +180,10 @@ public:
         return mask_granularity_t::undef;
     }
 
-    bool is_per_dword_mask() {
+    bool is_per_dword_mask() const {
         return mask_granularity() == mask_granularity_t::per_dword;
     }
-    bool is_per_slot_mask() {
+    bool is_per_slot_mask() const {
         return mask_granularity() == mask_granularity_t::per_slot;
     }
 
@@ -240,15 +240,27 @@ public:
 
     // Size of the register buffer in bytes.
     int register_size() const {
-        int sz;
-        if (is_transposing()) {
-            sz = data_elems * data_elems_stride();
-        } else {
-            sz = slots * slots_stride();
+        int dw_size = sizeof(uint32_t);
+        int size = 0;
+        for (int i = 0; i < slots; i++) {
+            if (is_per_slot_mask() && i >= eff_mask_count) continue;
+            for (int j = 0; j < data_elems; j++) {
+                for (int k = 0; k < data_type.size(); k += dw_size) {
+                    if (is_per_dword_mask()) {
+                        int off = j * data_type.size() + k;
+                        int mask_idx = (off / dw_size) % 16;
+                        if (mask_idx >= eff_mask_count) continue;
+                    }
+                    int off = 0;
+                    off += i * slots_stride() * data_type.size();
+                    off += j * data_elems_stride() * data_type.size();
+                    off += k;
+                    size = std::max(size, off + 1);
+                }
+            }
         }
-        sz *= data_type.size();
         // Round up to the full register length.
-        return utils::rnd_up(sz, grf_size());
+        return utils::rnd_up(size, grf_size());
     }
 
     // Size of address elements.
