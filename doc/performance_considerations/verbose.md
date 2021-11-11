@@ -95,7 +95,7 @@ list contains, in order of appearance in the line from left to right:
 * if `ONEDNN_VERBOSE_TIMESTAMP=1` is specified, start time of the call. On Linux
   this number represents amount of milliseconds since Unix epoch. On Windows
   this number represents amount of milliseconds since the last system start.
-* operation: `create:<cache_hit|cache_miss>` or `exec`
+* operation: `create:<cache_hit|cache_miss|from_cache_blob>` or `exec`
 * engine kind: `cpu` or `gpu` (`cpu2gpu` or `gpu2cpu` for cross-engine reorder)
 * primitive name: `convolution`, `reorder`, `sum`, etc
 * primitive implementation

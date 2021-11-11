@@ -9,4 +9,5 @@ Advanced Topics
    dev_guide_understanding_memory_formats
    dev_guide_int8_computations
    dev_guide_primitive_cache
+   dev_guide_persistent_cache
    dev_guide_threadpool
