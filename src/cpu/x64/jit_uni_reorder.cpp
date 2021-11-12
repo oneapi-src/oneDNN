@@ -2064,7 +2064,7 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         prb_dump(prb);
     });
 
-    int ndims_ker_max;
+    int ndims_ker_max {};
     int nthr = dnnl_get_max_threads();
     prb_thread_kernel_balance(prb, ndims_ker_max, nthr);
 
