@@ -74,7 +74,8 @@ static bool require_input_format(op_kind_t kind) {
     return ops.count(kind) != 0;
 }
 
-void insert_reorder(std::vector<op_ptr> &subgraph) {
+impl::status_t insert_reorder(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
         if (!need_insert_reorder(cur_op->get_kind())) continue;
@@ -108,9 +109,11 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
 
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
+    return impl::status::success;
 }
 
-void insert_permute(std::vector<op_ptr> &subgraph) {
+impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<op_ptr> to_be_removed_ops;
     for (auto &cur_op : subgraph) {
@@ -210,9 +213,12 @@ void insert_permute(std::vector<op_ptr> &subgraph) {
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
+    return impl::status::success;
 }
 
-void insert_to_group_for_conv_or_deconv(std::vector<op_ptr> &subgraph) {
+impl::status_t insert_to_group_for_conv_or_deconv(
+        std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<op_ptr> to_be_removed_ops;
     for (auto &cur_op : subgraph) {
@@ -260,9 +266,11 @@ void insert_to_group_for_conv_or_deconv(std::vector<op_ptr> &subgraph) {
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
+    return impl::status::success;
 }
 
-void insert_transpose_for_matmul(std::vector<op_ptr> &subgraph) {
+impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
@@ -292,9 +300,12 @@ void insert_transpose_for_matmul(std::vector<op_ptr> &subgraph) {
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
+    return impl::status::success;
 }
 
-void insert_expand_and_squeeze_for_matmul(std::vector<op_ptr> &subgraph) {
+impl::status_t insert_expand_and_squeeze_for_matmul(
+        std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
@@ -381,10 +392,13 @@ void insert_expand_and_squeeze_for_matmul(std::vector<op_ptr> &subgraph) {
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
+    return impl::status::success;
 }
 
-void insert_u8_to_s8_for_matmul(
-        std::vector<op_ptr> &subgraph, primitive_attr_mgr_t &prm_attr_mgr) {
+impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    auto &prm_attr_mgr = sg->prm_attr_mgr_;
+
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
@@ -419,6 +433,7 @@ void insert_u8_to_s8_for_matmul(
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
+    return impl::status::success;
 }
 
 } // namespace dnnl_impl

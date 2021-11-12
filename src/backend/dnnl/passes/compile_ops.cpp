@@ -20,6 +20,7 @@
 
 #include "interface/c_types_map.hpp"
 #include "interface/value.hpp"
+#include "utils/compatible.hpp"
 
 #include "backend/dnnl/passes/compile_ops.hpp"
 #include "backend/dnnl/passes/op_executable.hpp"
@@ -36,39 +37,38 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 /// each op in the subgraph will has complete attributes and each edge will have
 /// complete shape/dtype/layout information. We can create executable for these
 /// ops.
-impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        executable_mgr_t &exec_mgr, pd_cache_t &pd_cache) {
-    for (auto &cur_op : subgraph) {
-        if (cur_op->has_attr("executable_key")) continue; // already compiled
+impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
+    auto &prm_attr_mgr = sg->prm_attr_mgr_;
+    const auto &p_engine = *(sg->p_engine_);
+    auto &pd_cache = sg->pd_cache_;
 
-        int64_t key = exec_mgr.init_executable();
-        cur_op->set_attr<int64_t>("executable_key", key);
-        std::shared_ptr<op_executable_t> &prm = exec_mgr.get_executable(key);
+    return impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
+        auto cur_op = op->shared_from_this();
+        std::shared_ptr<op_executable_t> exec;
 
         if (cur_op->get_kind() == impl::op_kind::Convolution
                 || cur_op->get_kind() == op_kind::dnnl_convolution) {
-            prm = std::make_shared<conv_fwd_executable_t>(
+            exec = std::make_shared<conv_fwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose
                 || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
-            prm = std::make_shared<deconv_fwd_executable_t>(
+            exec = std::make_shared<deconv_fwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
-            prm = std::make_shared<matmul_executable_t>(
+            exec = std::make_shared<matmul_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (is_eltwise_kind(cur_op->get_kind())) {
-            prm = std::make_shared<eltwise_executable_t>(
+            exec = std::make_shared<eltwise_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::MaxPool
                 || cur_op->get_kind() == impl::op_kind::AvgPool
                 || cur_op->get_kind() == op_kind::dnnl_pool) {
-            prm = std::make_shared<pool_executable_t>(
+            exec = std::make_shared<pool_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::mul_scales
                 || cur_op->get_kind() == impl::op_kind::Reorder
                 || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
-            prm = std::make_shared<reorder_executable_t>(
+            exec = std::make_shared<reorder_executable_t>(
                     cur_op, p_engine, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group
@@ -76,18 +76,22 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
                 || cur_op->get_kind() == op_kind::squeeze) {
             // For preprocess ops. The memory_reparser will not do
             // computation, it only re-parses the existing buffer.
-            prm = std::make_shared<memory_reparser_t>();
+            exec = std::make_shared<memory_reparser_t>();
         } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
-            prm = std::make_shared<bn_folding_t>(cur_op, p_engine);
+            exec = std::make_shared<bn_folding_t>(cur_op, p_engine);
         } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
-            prm = std::make_shared<conv_bwd_data_executable_t>(
+            exec = std::make_shared<conv_bwd_data_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else {
             assertm(false, "unimplemented op, can't compile it");
             return impl::status::compile_fail;
         }
-    }
-    return impl::status::success;
+
+        sg->execs_.emplace_back(exec);
+        sg->is_constant_.push_back(op->has_attr("is_constant")
+                && op->get_attr<bool>("is_constant"));
+        return impl::status::success;
+    });
 }
 
 } // namespace dnnl_impl

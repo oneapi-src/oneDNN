@@ -29,19 +29,19 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-void insert_reorder(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t insert_reorder(std::shared_ptr<subgraph_t> &sg);
 
-void insert_permute(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg);
 
-void insert_to_group_for_conv_or_deconv(
-        std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t insert_to_group_for_conv_or_deconv(
+        std::shared_ptr<subgraph_t> &sg);
 
 /// Insert a transpose op for matmul's input tensors
 ///
 /// Only valid for below scenarios:
 /// (1) src or weight's ndims is greater than 1
 /// (2) either `transpose_a` or `transpose_b` is true
-void insert_transpose_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg);
 
 /// Insert an expand-squeeze pair for matmul
 ///
@@ -60,15 +60,14 @@ void insert_transpose_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 ///     this is inconsistent with the results derived from the shape inference.
 ///     So we use squeeze here to remove the extra 1 dimension to produce output
 ///     with [3].
-void insert_expand_and_squeeze_for_matmul(
-        std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t insert_expand_and_squeeze_for_matmul(
+        std::shared_ptr<subgraph_t> &sg);
 
 /// Insert an dnnl_u8_to_s8 op for matmul's weight tensor
 ///
 /// Only valid for below scenarios:
 /// src and weight's dtype are both uint8
-void insert_u8_to_s8_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph,
-        primitive_attr_mgr_t &prm_attr_mgr);
+impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl
 } // namespace impl

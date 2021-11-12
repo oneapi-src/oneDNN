@@ -50,13 +50,8 @@ private:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;
 
-    primitive_attr_mgr_t prm_attr_mgr_;
-    executable_mgr_t exec_mgr_;
+    std::shared_ptr<subgraph_t> subgraph_;
     memory_planner_t memory_planner_;
-
-    std::vector<op_executable_t *> execs_;
-
-    std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
 
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
@@ -65,10 +60,6 @@ private:
             = reinterpret_cast<constant_cache_t::key_t>(this);
 
     bool enable_constant_cache_ = is_constant_cache_enabled();
-
-    std::vector<bool> is_constant_;
-
-    pd_cache_t pd_cache_;
 
 public:
     ~matmul_t() override {
@@ -88,119 +79,94 @@ public:
         p_engine_ = make_dnnl_engine(*g_engine);
         g_alloc_ = g_engine->get_allocator();
 
-        std::vector<std::shared_ptr<op_t>> subgraph = part->get_ops();
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
+
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
 
         if (quantized) {
-            fuse_typecast_to_matmul(subgraph);
-            fuse_typecast_to_add(subgraph);
-            fuse_post_typecast_to_matmul(subgraph);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_matmul);
         }
 
-        set_all_layout_to_any(subgraph);
-
-        // have to set the given inputs and outputs before infer shape and
-        // compile
-        //
-        // FIXME(wuxun): currently, matmul op need to check ndims when decide
-        // whether to insert transpose/expand op into subgraph, however
-        // PyTorch doesn't have ndims info when adding op to graph, so here
-        // directly used the input logical tensors passed from compilation stage
-        BACKEND_DNNL_CHECK(set_given_inputs_outputs(subgraph, inputs, outputs));
-
-        fuse_bias_add(subgraph);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
         // check if bias exists
-        check_with_bias(subgraph);
-        fuse_mul_sigmoid_to_swish(subgraph);
+        BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
 
-        BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         if (quantized) {
             // split quant/dequant to pairs of mul_scales and add_zps
-            split_quant_dequant(subgraph);
-            BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
-            fuse_to_int8_matmul(subgraph);
-            folding_mul_scales(subgraph);
-            fuse_output_scales(subgraph, prm_attr_mgr_);
+            BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
+            BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_matmul);
+            BACKEND_DNNL_ADD_PASS(pipeline, folding_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
         }
 
-        BACKEND_DNNL_CHECK(fuse_post_ops(subgraph, prm_attr_mgr_));
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
 
         if (quantized) {
-            fuse_zero_points(subgraph, prm_attr_mgr_);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points);
             // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
-            fuse_mul_scales_add_zps(subgraph);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_scales_add_zps);
         }
 
-        insert_u8_to_s8_for_matmul(subgraph, prm_attr_mgr_);
-        BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
-        insert_transpose_for_matmul(subgraph);
-        BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
-        insert_expand_and_squeeze_for_matmul(subgraph);
-        insert_reorder(subgraph);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_u8_to_s8_for_matmul);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_transpose_for_matmul);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_expand_and_squeeze_for_matmul);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_reorder);
 
-        subgraph_visualizer_t vis(part->id());
-        vis.run(subgraph, "after_lower_down", false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
-        impl::graph_t agraph(subgraph);
-        BACKEND_DNNL_CHECK(agraph.infer_shape());
-        BACKEND_DNNL_CHECK(infer_type(agraph));
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         // do constant propagation here so that we can
         // prepare constant info for other optimizations.
-        if (enable_constant_cache_) { constant_propagation(subgraph, false); }
-
-        vis.run(subgraph, "after_infer_shape_infer_type", true);
-
-        BACKEND_DNNL_CHECK(layout_propagation(
-                subgraph, p_engine_, prm_attr_mgr_, pd_cache_));
-
-        vis.run(subgraph, "after_layout_propagation", true);
-
-        // fill layout information for outputs logical tensors
-        for (size_t i = 0; i < outputs.size(); i++) {
-            for (auto out_val : impl::graph_t(subgraph).get_output_values()) {
-                auto compiled_lt = out_val->get_logical_tensor();
-                if (compiled_lt.id == outputs[i].id) {
-                    auto lt = const_cast<impl::logical_tensor_t *>(&outputs[i]);
-                    auto md = make_dnnl_memory_desc(compiled_lt);
-                    lt->ndims = compiled_lt.ndims;
-                    impl::utils::array_copy(
-                            lt->dims, compiled_lt.dims, DNNL_GRAPH_MAX_NDIMS);
-                    impl::utils::array_copy(lt->layout.strides,
-                            compiled_lt.layout.strides, DNNL_GRAPH_MAX_NDIMS);
-                    fill_layout_info(lt, md);
-                }
-            }
+        if (enable_constant_cache_) {
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<false>);
         }
+
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         // do constant propagation again since layout propagation may
         // insert/delete operators
-        if (enable_constant_cache_) { constant_propagation(subgraph); }
-
-        BACKEND_DNNL_CHECK(compile_ops(
-                subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
+        if (enable_constant_cache_) {
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<true>);
+        }
 
         // bind the memory for each op
-        BACKEND_DNNL_CHECK(memory_planner_.run(
-                subgraph, inputs, outputs, p_engine_, prm_attr_mgr_));
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
 
-        vis.run(subgraph, "after_memory_planning", true, true,
-                [this](const value_t *val) {
-                    return this->memory_planner_.get_memory_info(val);
-                });
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
 
-        // topologically sort the executables
-        impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),
-                [this](impl::op_t *op) {
-                    auto exec_key = op->get_attr<int64_t>("executable_key");
-                    auto &exec = exec_mgr_.get_executable(exec_key);
-                    execs_.emplace_back(exec.get());
+        // fill information for inputs logical tensors
+        for (size_t i = 0; i < inputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(inputs[i]),
+                    subgraph_->ins_[i]));
+        }
 
-                    is_constant_.push_back(op->has_attr("is_constant")
-                            && op->get_attr<bool>("is_constant"));
-                    return impl::status::success;
-                });
-
-        opt_subgraph_ = subgraph;
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
+        }
 
         resource_ctor_ = [this]() {
             return this->memory_planner_.get_exec_args_set().clone();
@@ -279,18 +245,19 @@ public:
                             c_grantor.get(mem_offkey.second));
                 }
 
-                for (size_t i = 0; i < execs_.size(); i++) {
-                    if (!is_constant_[i]) continue;
-                    execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+                for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+                    if (!subgraph_->is_constant_[i]) continue;
+                    subgraph_->execs_[i]->execute(
+                            p_stream, res->get_exec_args()[i]);
                 }
 
                 c_promise.set_value(c_buffer);
             }
         }
 
-        for (size_t i = 0; i < execs_.size(); i++) {
-            if (is_constant_[i]) continue;
-            execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            if (subgraph_->is_constant_[i]) continue;
+            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
         return impl::status::success;
@@ -302,7 +269,7 @@ public:
         UNUSED(g_engine);
 
         op_t *matmul_op = nullptr;
-        for (auto &op : opt_subgraph_) {
+        for (auto &op : subgraph_->get_ops()) {
             if (op->get_kind() == impl::op_kind::MatMul) {
                 matmul_op = op.get();
                 break;

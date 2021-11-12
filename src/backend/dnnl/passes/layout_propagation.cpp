@@ -524,9 +524,12 @@ static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
 /// \note The layout propagation function for each op should be bidirectional to
 /// support propagating layout both from inputs to outputs and from outputs to
 /// inputs. See the following figure for example:
-impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache) {
+impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    const auto &p_engine = *(sg->p_engine_);
+    auto &prm_attr_mgr = sg->prm_attr_mgr_;
+    auto &pd_cache = sg->pd_cache_;
+
     auto need_prop = [&](op_t *op) {
         for (const auto &in : op->get_input_values()) {
             if (ltw(in->get_logical_tensor()).layout_type()
@@ -647,6 +650,28 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
     if (cnt > max_num_limit) return impl::status::unsupported;
 
     remove_unnecessary_reorder(subgraph);
+
+    // fill layout information for subgraph's inputs
+    for (size_t i = 0; i < sg->ins_.size(); i++) {
+        for (auto in_val : sg->get_input_values()) {
+            auto lt = in_val->get_logical_tensor();
+            if (lt.id == sg->ins_[i].id) {
+                auto md = make_dnnl_memory_desc(lt);
+                fill_layout_info(&(sg->ins_[i]), md);
+            }
+        }
+    }
+
+    // fill layout information for subgraph's outputs
+    for (size_t i = 0; i < sg->outs_.size(); i++) {
+        for (auto out_val : sg->get_output_values()) {
+            auto lt = out_val->get_logical_tensor();
+            if (lt.id == sg->outs_[i].id) {
+                auto md = make_dnnl_memory_desc(lt);
+                fill_layout_info(&(sg->outs_[i]), md);
+            }
+        }
+    }
 
     return impl::status::success;
 }

@@ -19,6 +19,7 @@
 #include "interface/logical_tensor.hpp"
 
 #include "backend/dnnl/internal_ops.hpp"
+#include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -47,16 +48,16 @@ using ltw = impl::logical_tensor_wrapper_t;
 /// Users specify the pattern's inputs to be u8/s8 and the outputs to be u8;
 /// According to the u8/s8 inputs, we can't deduce dnnl_conv's output dtype; We
 /// have to deduce it according to convert op's output dtype.
-impl::status_t infer_type(impl::graph_t &subgraph) {
+impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
     // Check inputs dtype
-    for (impl::value_t *in : subgraph.get_input_values()) {
+    for (impl::value_t *in : sg->get_input_values()) {
         impl::logical_tensor_t lt = in->get_logical_tensor();
         if (ltw(lt).data_type() == impl::data_type::undef)
             return impl::status::invalid_type;
     }
 
     // Check outputs dtype
-    for (impl::value_t *out : subgraph.get_output_values()) {
+    for (impl::value_t *out : sg->get_output_values()) {
         impl::logical_tensor_t lt = out->get_logical_tensor();
         if (ltw(lt).data_type() == impl::data_type::undef)
             return impl::status::invalid_type;
@@ -65,7 +66,7 @@ impl::status_t infer_type(impl::graph_t &subgraph) {
     bool changed;
     do {
         changed = false;
-        impl::topo_order_visit(subgraph.get_output_ops(), [&](impl::op_t *op) {
+        impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
             if (op->get_kind() == op_kind::mul_scales) {
                 auto out_lt = op->get_output_value(0)->get_logical_tensor();
                 if (out_lt.data_type == impl::data_type::undef) {

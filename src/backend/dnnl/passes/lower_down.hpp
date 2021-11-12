@@ -29,59 +29,33 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-class primitive_attr_mgr_t {
-public:
-    primitive_attr_mgr_t() = default;
+impl::status_t check_with_bias(std::shared_ptr<subgraph_t> &sg);
 
-    // Disable assignment and copy
-    primitive_attr_mgr_t(const primitive_attr_mgr_t &) = delete;
-    primitive_attr_mgr_t(primitive_attr_mgr_t &&) = delete;
-    primitive_attr_mgr_t &operator=(const primitive_attr_mgr_t &) = delete;
-    primitive_attr_mgr_t &operator=(primitive_attr_mgr_t &&) = delete;
+impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg);
 
-    int64_t init_attr() {
-        auto ret = data_.insert({counter++, dnnl::primitive_attr()});
-        return ret.first->first;
-    }
+impl::status_t split_quant_dequant(std::shared_ptr<subgraph_t> &sg);
 
-    dnnl::primitive_attr &get_attr(int64_t key) { return data_[key]; }
+impl::status_t folding_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
-private:
-    std::unordered_map<int64_t, dnnl::primitive_attr> data_;
-    int64_t counter {0};
-};
+impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg);
 
-void check_with_bias(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg);
 
-void fuse_bias_add(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg);
 
-void split_quant_dequant(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg);
 
-void folding_mul_scales(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg);
 
-void fuse_to_int8_conv_or_deconv(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg);
 
-void fuse_to_int8_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t fuse_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
 
-void fuse_to_int8_pool(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg);
 
-void fuse_output_scales(std::vector<std::shared_ptr<op_t>> &subgraph,
-        primitive_attr_mgr_t &prm_attr_mgr);
+impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
-status_t fuse_post_ops(std::vector<std::shared_ptr<op_t>> &subgraph,
-        primitive_attr_mgr_t &prm_attr_mgr);
-
-void fuse_zero_points(std::vector<std::shared_ptr<op_t>> &subgraph,
-        primitive_attr_mgr_t &prm_attr_mgr);
-
-void fuse_mul_scales_add_zps(std::vector<std::shared_ptr<op_t>> &subgraph);
-
-void insert_bn_folding(std::vector<std::shared_ptr<op_t>> &subgraph);
-
-void conv_bwd_data_canonicalization(
-        std::vector<std::shared_ptr<op_t>> &subgraph);
-
-void fuse_mul_sigmoid_to_swish(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg);
 
 /// translate mixed int8/bf16 matmul subgraph to x8x8bf16 subgraph
 ///
@@ -93,7 +67,7 @@ void fuse_mul_sigmoid_to_swish(std::vector<std::shared_ptr<op_t>> &subgraph);
 ///        matmul                               | (bf16)
 ///          | (bf16)
 ///
-void fuse_typecast_to_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t fuse_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg);
 
 /// translate mixed int8/bf16 matmul+add subgraph to x8x8bf16 subgraph
 ///
@@ -105,7 +79,7 @@ void fuse_typecast_to_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 ///     (bf16) \   / (bf16)                                 add
 ///             add                                          | (bf16)
 ///              | (bf16)
-void fuse_typecast_to_add(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg);
 
 /// translate mixed int8/bf16 matmul(+post_ops) subgraph to int8 subgraph
 ///
@@ -120,7 +94,7 @@ void fuse_typecast_to_add(std::vector<std::shared_ptr<op_t>> &subgraph);
 ///          | (fp32)                           | (u8/s8)
 ///        quant
 ///          | (u8/s8)
-void fuse_post_typecast_to_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
+impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl
 } // namespace impl

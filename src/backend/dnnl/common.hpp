@@ -109,6 +109,9 @@ void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td);
 void fill_layout_info(
         std::shared_ptr<impl::value_t> &val, const memory::desc &td);
 
+impl::status_t set_shape_and_layout(
+        impl::logical_tensor_t &dst, const impl::logical_tensor_t &src);
+
 #ifndef NDEBUG
 #define BACKEND_DNNL_ENFORCE(condition, message) \
     do { \

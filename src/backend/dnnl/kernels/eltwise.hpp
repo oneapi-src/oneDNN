@@ -41,16 +41,10 @@ private:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;
 
-    primitive_attr_mgr_t prm_attr_mgr_;
+    std::shared_ptr<subgraph_t> subgraph_;
     memory_planner_t memory_planner_;
-    executable_mgr_t exec_mgr_;
 
-    std::vector<op_executable_t *> execs_;
-
-    std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
-
-    pd_cache_t pd_cache_;
 
 public:
     ~eltwise_fwd_t() override {
@@ -65,71 +59,41 @@ public:
         p_engine_ = make_dnnl_engine(*g_engine);
         g_alloc_ = g_engine->get_allocator();
 
-        std::vector<std::shared_ptr<impl::op_t>> subgraph = part->get_ops();
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
 
-        set_all_layout_to_any(subgraph);
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
 
-        // have to set the given inputs and outputs before infer shape and
-        // compile
-        BACKEND_DNNL_CHECK(set_given_inputs_outputs(subgraph, inputs, outputs));
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_reorder);
 
-        BACKEND_DNNL_CHECK(fuse_post_ops(subgraph, prm_attr_mgr_));
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
-        insert_reorder(subgraph);
-
-        subgraph_visualizer_t vis(part->id());
-        vis.run(subgraph, "after_lower_down", false);
-
-        impl::graph_t agraph(subgraph);
-        BACKEND_DNNL_CHECK(agraph.infer_shape());
-        BACKEND_DNNL_CHECK(infer_type(agraph));
-
-        vis.run(subgraph, "after_infer_shape_infer_type", true);
-
-        BACKEND_DNNL_CHECK(layout_propagation(
-                subgraph, p_engine_, prm_attr_mgr_, pd_cache_));
-
-        vis.run(subgraph, "after_layout_propagation", true);
-
-        // fill layout information for outputs logical tensors
-        for (size_t i = 0; i < outputs.size(); i++) {
-            for (auto out_val : impl::graph_t(subgraph).get_output_values()) {
-                auto compiled_lt = out_val->get_logical_tensor();
-                if (compiled_lt.id == outputs[i].id) {
-                    auto lt = const_cast<impl::logical_tensor_t *>(&outputs[i]);
-                    auto md = make_dnnl_memory_desc(compiled_lt);
-                    lt->ndims = compiled_lt.ndims;
-                    impl::utils::array_copy(
-                            lt->dims, compiled_lt.dims, DNNL_GRAPH_MAX_NDIMS);
-                    impl::utils::array_copy(lt->layout.strides,
-                            compiled_lt.layout.strides, DNNL_GRAPH_MAX_NDIMS);
-                    fill_layout_info(lt, md);
-                }
-            }
-        }
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         // bind the memory for each op
-        BACKEND_DNNL_CHECK(memory_planner_.run(
-                subgraph, inputs, outputs, p_engine_, prm_attr_mgr_));
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
 
-        vis.run(subgraph, "after_memory_planning", true, true,
-                [this](const value_t *val) {
-                    return this->memory_planner_.get_memory_info(val);
-                });
-        BACKEND_DNNL_CHECK(compile_ops(
-                subgraph, p_engine_, prm_attr_mgr_, exec_mgr_, pd_cache_));
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
 
-        // topologically sort the executables
-        impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),
-                [this](impl::op_t *op) {
-                    auto exec_key = op->get_attr<int64_t>("executable_key");
-                    auto &exec = exec_mgr_.get_executable(exec_key);
-                    execs_.emplace_back(exec.get());
-
-                    return impl::status::success;
-                });
-
-        opt_subgraph_ = subgraph;
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
+        }
 
         // generate a hash key for exec_args_mgr
         resource_ctor_ = [this]() {
@@ -175,8 +139,8 @@ public:
                     var_grantor.get(mem_offkey.second));
         }
 
-        for (size_t i = 0; i < execs_.size(); i++) {
-            execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
         return impl::status::success;

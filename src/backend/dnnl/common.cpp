@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "interface/backend.hpp"
+#include "interface/shape_infer.hpp"
 #include "utils/utils.hpp"
 
 #include "common.hpp"
@@ -368,6 +369,23 @@ void fill_layout_info(
         val->set_layout_id(
                 dnnl_backend::get_singleton().set_mem_desc(td).value());
     }
+}
+
+impl::status_t set_shape_and_layout(
+        impl::logical_tensor_t &dst, const impl::logical_tensor_t &src) {
+    auto src_ltw = impl::logical_tensor_wrapper_t(src);
+    auto dst_ltw = impl::logical_tensor_wrapper_t(dst);
+    // set the shape and if dst is in strided layout type, we also set the
+    // calculated strides
+    auto shape = src_ltw.vdims();
+    impl::set_shape_and_strides(dst, shape);
+    // if dst is in any layout type, we should copy the layout id of src to it
+    if (dst_ltw.is_any()) {
+        if (src_ltw.is_strided()) return impl::status::invalid_argument;
+        dst.layout.layout_id = src.layout.layout_id;
+        dst.layout_type = src.layout_type;
+    }
+    return impl::status::success;
 }
 
 } // namespace dnnl_impl

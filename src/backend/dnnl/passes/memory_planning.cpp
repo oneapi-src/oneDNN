@@ -562,11 +562,14 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
 // - Assign internal allocated temporary buffer to corresponding edges.
 // - Assign internal allocated persistent buffer to conresponding edges.
 // - Prepare the memory objects which will be used in execution.
-impl::status_t memory_planner_t::run(std::vector<op_ptr> &subgraph,
-        const std::vector<impl::logical_tensor_t> &inputs,
-        const std::vector<impl::logical_tensor_t> &outputs,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
     status_t ret;
+
+    auto &subgraph = sg->get_mutable_ops();
+    auto &prm_attr_mgr = sg->prm_attr_mgr_;
+    const auto &p_engine = *(sg->p_engine_);
+    const auto &inputs = sg->ins_;
+    const auto &outputs = sg->outs_;
 
     clear(); // clear state to make the method be reentrant
 

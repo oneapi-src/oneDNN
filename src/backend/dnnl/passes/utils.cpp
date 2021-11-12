@@ -23,6 +23,7 @@
 #include <vector>
 #include <unordered_map>
 
+#include "interface/shape_infer.hpp"
 #include "interface/value.hpp"
 #include "utils/debug.hpp"
 
@@ -152,12 +153,15 @@ void insert_op_after(op_ptr &inserted_op, op_ptr &base_op, size_t offset) {
     inserted_op->add_input(new_val);
 }
 
-status_t set_given_inputs_outputs(std::vector<op_ptr> &subgraph,
+status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs) {
+    sg->ins_ = inputs;
+    sg->outs_ = outputs;
+
     // set the inputs's layout to subgraph's inputs value
-    auto graph_in_vals = impl::graph_t(subgraph).get_input_values();
-    auto graph_out_vals = impl::graph_t(subgraph).get_output_values();
+    auto graph_in_vals = sg->get_input_values();
+    auto graph_out_vals = sg->get_output_values();
 
     auto func = [](std::vector<value_t *> &edges,
                         const std::vector<impl::logical_tensor_t> &givens,
@@ -202,6 +206,13 @@ status_t set_given_inputs_outputs(std::vector<op_ptr> &subgraph,
 
     ret = func(graph_out_vals, outputs, true, false);
     return ret;
+}
+
+status_t set_given_inputs_outputs(std::vector<op_ptr> &subgraph,
+        const std::vector<impl::logical_tensor_t> &inputs,
+        const std::vector<impl::logical_tensor_t> &outputs) {
+    auto sg = std::make_shared<subgraph_t>(subgraph);
+    return set_given_inputs_outputs(sg, inputs, outputs);
 }
 
 void set_all_layout_to_any(std::vector<op_ptr> &subgraph) {
@@ -316,10 +327,9 @@ std::string property2str(impl::property_type_t ptype) {
 }
 } // namespace
 
-status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
+status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
         const std::string &name_suffix, bool is_layout_sensitive,
-        bool is_memory_sensitive,
-        const std::function<std::string(const value_t *)> &mem_info_func) {
+        bool is_memory_sensitive) {
 #ifdef DNNL_GRAPH_ENABLE_DUMP
     if (!enabled_) return status::success;
 
@@ -344,7 +354,7 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
 
     out.open(file_name);
     out << "digraph G {\n";
-    topo_order_visit(impl::graph_t(subgraph).get_output_ops(), [&](op_t *op) {
+    topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
         const auto &cur_op_name = kind2str(op->get_kind());
         const size_t cur_op_id = get_op_identifier(op);
         if (op->num_inputs() > 0) {
@@ -368,7 +378,7 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
 
     // value str: (data_type):(logical tensor id):(layout type):(dims):(layout
     // desc):(property):(mem_info)
-    auto val2str = [is_layout_sensitive, is_memory_sensitive, mem_info_func](
+    auto val2str = [this, is_layout_sensitive, is_memory_sensitive](
                            const value_t *val) {
         auto dims2str = [](const impl::dims &dims) {
             if (dims.size() < 1) return std::string("");
@@ -396,13 +406,13 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
                 + (is_layout_sensitive ? layout2str(make_dnnl_memory_desc(lt))
                                        : "")
                 + ":" + property2str(ltw.property_type()) + ":"
-                + (is_memory_sensitive ? mem_info_func(val) : "");
+                + (is_memory_sensitive ? this->mem_info_func_(val) : "");
         return str;
     };
 
     // dump inputs/outputs info
     // in(no)_(lt str) or out(no)_(lt str)
-    topo_order_visit(impl::graph_t(subgraph).get_output_ops(), [&](op_t *op) {
+    topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
         const auto &op_name = kind2str(op->get_kind());
         const size_t op_id = get_op_identifier(op);
         out << "\"" << op_name << "_" << op_id << "\"[label=\"" << op_name
@@ -427,11 +437,10 @@ status_t subgraph_visualizer_t::run(const std::vector<op_ptr> &subgraph,
     out << "}\n";
     out.close();
 #else
-    UNUSED(subgraph);
+    UNUSED(sg);
     UNUSED(name_suffix);
     UNUSED(is_layout_sensitive);
     UNUSED(is_memory_sensitive);
-    UNUSED(mem_info_func);
 #endif
 
     return status::success;
@@ -450,6 +459,57 @@ void replace_op(op_ptr &org_op, op_ptr &new_op) {
         auto out_val = org_op->get_output_value(i);
         new_op->add_output(out_val);
     }
+}
+
+std::vector<value_t *> get_constant_block_output_values(
+        const std::vector<op_ptr> &subgraph) {
+    using ltw = impl::logical_tensor_wrapper_t;
+    std::vector<value_t *> ret;
+    for (auto &cur_op : subgraph) {
+        auto out_vals = cur_op->get_output_values();
+        for (auto &val : out_vals) {
+            if (!ltw(val->get_logical_tensor()).is_constant()) continue;
+            // if a constant value feed into a consumer whose output is not
+            // constant, then the value is the final output of a constant block
+            auto consumers = val->get_consumers();
+            for (auto &csm : consumers) {
+                // A consumer is not constant
+                if (!csm.get_op().get_attr<bool>("is_constant")) {
+                    ret.emplace_back(val.get());
+                    break;
+                }
+            }
+        }
+    }
+    return ret;
+}
+
+impl::status_t infer_shape(std::shared_ptr<subgraph_t> &sg) {
+    auto ret = sg->infer_shape();
+
+    // Fill the inferred shape and strides to subgraph's outputs
+    for (size_t i = 0; i < sg->outs_.size(); i++) {
+        for (auto val : sg->get_output_values()) {
+            auto lt = val->get_logical_tensor();
+            if (lt.id == sg->outs_[i].id) {
+                auto inferred_shape = ltw(lt).vdims();
+                set_shape_and_strides(sg->outs_[i], inferred_shape);
+            }
+        }
+    }
+
+    return ret;
+}
+
+subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
+        bool reset_layout)
+    : impl::graph_t(ops), p_engine_(&eng) {
+    if (reset_layout) { set_all_layout_to_any(get_mutable_ops()); }
+}
+
+subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, bool reset_layout)
+    : impl::graph_t(ops), p_engine_(nullptr) {
+    if (reset_layout) { set_all_layout_to_any(get_mutable_ops()); }
 }
 
 } // namespace dnnl_impl

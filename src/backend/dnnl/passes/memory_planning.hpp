@@ -281,10 +281,7 @@ public:
 
     execution_args_set_t &get_exec_args_set() { return exec_args_set_; }
 
-    impl::status_t run(std::vector<std::shared_ptr<impl::op_t>> &subgraph,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr);
+    impl::status_t run(std::shared_ptr<subgraph_t> &sg);
 
     std::string get_memory_info(const value_t *val) const {
         std::string str;

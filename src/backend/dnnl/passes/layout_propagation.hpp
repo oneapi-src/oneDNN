@@ -30,10 +30,7 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-impl::status_t layout_propagation(
-        std::vector<std::shared_ptr<impl::op_t>> &subgraph,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache);
+impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl
 } // namespace impl

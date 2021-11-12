@@ -16,14 +16,18 @@
 #ifndef BACKEND_DNNL_PASSES_INFER_TYPE_HPP
 #define BACKEND_DNNL_PASSES_INFER_TYPE_HPP
 
+#include <memory>
+
 #include "interface/c_types_map.hpp"
+
+#include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-impl::status_t infer_type(impl::graph_t &subgraph);
+impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl
 } // namespace impl
