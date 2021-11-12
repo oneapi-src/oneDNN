@@ -1729,9 +1729,13 @@ private:
         bool prefer_prefetch = false;
         if (hw >= ngen::HW::XeHPC) prefer_prefetch = true;
 
+#ifdef GEN_CONV_DEBUG
+        prefer_prefetch
+                = ir_utils::getenv_bool("prefer_prefetch", prefer_prefetch);
+#endif
         if (use_preload) {
             // Prefetches are only supported with loop unrolling.
-            if (prefer_prefetch && do_loop_unroll) {
+            if (prefer_prefetch) {
                 enable_prefetch();
             } else {
                 enable_slm_buffering();

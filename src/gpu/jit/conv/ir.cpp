@@ -474,6 +474,21 @@ stmt_t find_stmt_group(const object_t &root, const stmt_label_t &label) {
     return groups[0];
 }
 
+class stmt_group_remover_t : public ir_mutator_t {
+public:
+    stmt_group_remover_t(stmt_label_t label) : label_(label) {}
+    object_t _mutate(const stmt_group_t &obj) override {
+        if (obj.label == label_) return stmt_t();
+        return ir_mutator_t::_mutate(obj);
+    }
+    stmt_label_t label_;
+};
+
+object_t remove_stmt_group(const object_t &root, stmt_label_t label) {
+    stmt_group_remover_t remover(label);
+    return remover.mutate(root);
+}
+
 stmt_t get_stmt_body(const stmt_t &stmt) {
     auto *alloc = stmt.as_ptr<alloc_t>();
     if (alloc) return alloc->body;

@@ -508,6 +508,9 @@ std::vector<stmt_t> find_stmt_groups(
 // occurrence.
 stmt_t find_stmt_group(const object_t &root, const stmt_label_t &label);
 
+// Removes all statement groups matching the label.
+object_t remove_stmt_group(const object_t &root, stmt_label_t label);
+
 class scope_visitor_t : public ir_visitor_t {
 public:
     bool is_expr_defined(const expr_t &e) const {

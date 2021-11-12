@@ -1802,6 +1802,8 @@ struct loop_info_t {
     }
 
     int size() const { return size_; }
+    const stmt_t &body() const { return stmt.as<for_t>().body; }
+    int unroll() const { return stmt.as<for_t>().unroll; }
 
     stmt_t stmt;
     expr_t var;
@@ -2655,6 +2657,118 @@ private:
     sbid_manager_t local_sbid_mgr_;
     sbid_manager_t *external_sbid_mgr_ = nullptr;
 };
+
+// Perform pipelining operation. The goal is to transform
+// the loop structure from:
+//
+// for i in range(init, bound):
+//     A_block(i);
+//     B_block(i);
+//
+// to the following
+//
+// for i in range(init, init + length):
+//     A_block(i);
+// for i in range(init, bound):
+//     if (i < bound - length):
+//         A_block(i + length);
+//      B_block(i);
+//
+// Since A_block and B_block have to be independent to maintain correctness,
+// this transform ignores the operations within the for_loop and relies on a
+// correct substitution for A_block and B_block.
+
+struct pipeline_ctx_t {
+    pipeline_ctx_t(const stmt_t &prologue, const stmt_t &body)
+        : prologue_(prologue), body_(body) {}
+    stmt_t stmt() const { return prologue_.append(body_); }
+    stmt_t prologue() { return prologue_; }
+    stmt_t body() { return body_; }
+
+private:
+    stmt_t prologue_;
+    stmt_t body_;
+};
+
+pipeline_ctx_t pipeline(
+        int length, const loop_info_t &loop, stmt_t A_block, stmt_t B_block) {
+
+    expr_t idx = loop.var;
+    int bound = loop.bound();
+    int init = loop.init();
+
+    int pipe_len = std::min(init + length, bound);
+
+    stmt_t prefetch_idx = var_t::make(
+            idx.as<var_t>().type, "prefetch_" + idx.as<var_t>().name);
+    stmt_t prologue = for_t::make(prefetch_idx, init, pipe_len,
+            substitute(A_block, idx, prefetch_idx),
+            pipe_len <= loop.unroll() ? pipe_len : 1);
+
+    expr_t A_idx = idx + pipe_len;
+    stmt_t body = if_t::make(
+            idx < (bound - pipe_len), substitute(A_block, idx, A_idx));
+    body = body.append(B_block);
+    body = for_t::make(idx, init, bound, body, loop.unroll());
+
+    return pipeline_ctx_t(prologue, body);
+}
+
+class prefetch_pipeliner_t {
+public:
+    prefetch_pipeliner_t(
+            const stmt_t &root, const conv_config_t &cfg, ir_context_t &ir_ctx)
+        : root_(root), cfg_(cfg), ir_ctx_(ir_ctx) {}
+    stmt_t inject() {
+        auto compute_loop
+                = find_stmt_group(root_, stmt_label_t::compute_loop());
+        auto loop_nest = compute_loop_nest_t(compute_loop, ir_ctx_);
+        auto &loops = loop_nest.loops();
+
+        // No loops to pipeline
+        if (loops.size() == 0) return root_;
+        auto &loop_body = loops[0].body();
+
+        auto A_block = find_stmt_group(loop_body, stmt_label_t::prefetch());
+        auto B_block = remove_stmt_group(loop_body, stmt_label_t::prefetch());
+        size_t prefetch_count = 0;
+        for (size_t i = 0; i < loops.size(); i++) {
+            if (prefetch_count < 1) {
+                if (!contains_object(A_block, loops[i].var)) {
+                    // No point in prefetching a constant in a loop
+                    B_block = for_t::make(loops[i].var, loops[i].init(),
+                            loops[i].bound(), B_block, loops[i].unroll());
+                    continue;
+                }
+
+                auto next = pipeline(
+                        cfg_.prefetch_bufs, loops[i], A_block, B_block);
+                A_block = next.prologue();
+                B_block = next.body();
+                prefetch_count++;
+
+            } else {
+                B_block = for_t::make(loops[i].var, loops[i].init(),
+                        loops[i].bound(), A_block.append(B_block),
+                        loops[i].unroll());
+                A_block = stmt_t();
+            }
+        }
+        return substitute(root_, compute_loop, A_block.append(B_block));
+    }
+
+private:
+    stmt_t root_;
+    const conv_config_t &cfg_;
+    ir_context_t &ir_ctx_;
+};
+
+stmt_t inject_prefetch_pipeline(
+        const stmt_t &s, const conv_config_t &cfg, ir_context_t &ir_ctx) {
+    auto ret = prefetch_pipeliner_t(s, cfg, ir_ctx).inject();
+    trace_pass("inject_prefetch_pipeline", ret);
+    return ret;
+}
 
 class simple_slm_buffering_injector_t {
 public:
@@ -6561,6 +6675,10 @@ void kernel_builder_t::build() {
     if (!cfg_.do_loop_unroll && (cfg_.use_a_slm || cfg_.use_b_slm)) {
         stmt_ = inject_simple_slm_buffering(
                 cfg_.hw, stmt_, cfg_, ir_ctx, cb.ab_slm_size());
+    } else if (!cfg_.do_loop_unroll && cfg_.use_prefetch) {
+        // Simplify to remove loops with only 1 iteration
+        stmt_ = simplify_pass(stmt_, init_cset);
+        stmt_ = inject_prefetch_pipeline(stmt_, cfg_, ir_ctx);
     }
     stmt_ = lift_buffer_offsets_in_send(stmt_);
     stmt_ = simplify_pass(stmt_, init_cset);
