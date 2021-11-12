@@ -136,78 +136,143 @@ applications.
 
 #### API
 
-The API will be responsible for providing a user with an ID for the binary
-representation of a kernel and the binary representation itself.
+The primitive descriptor and primitive abstractions will get a new API:
+* Primitive
+    * API to provide a cache blob associated with the primitive
+    * API to create the primitive from the cache blob
+* Primitive descriptor
+    * API to provide a cache blob ID that serves as a unique identifier for the
+      cache blob
 
-* ID is an array of bytes represented as `std::vector<unsigned char>` that is a
-unique identifier for a binary representation. ID should take into account that
-binaries compiled for different devices are different binaries. The binaries
-compiled for a sub-device considered compatible with the main device.
-* Binary representation is an array of bytes represented as `std::vector<unsigned char>`.
-Since oneDNN primitive can consist of multiple kernels the API return
-`std::vector<std::vector<unsigned char>>`.
+The cache blob ID and cache blob objects are represented as one-dimensional
+`uint8_t` arrays.
 
-This proposal covers only providing binary representations of kernels. However,
-it's possible that oneDNN will support serialization of the primitives in the future
-so that users can cache the whole model on disk. Given that, it makes sense to
-make API more common and scalable.
+Note: The format and content of cache blob ID and cache blob arrays are not
+specified.
 
-The suggestion is to introduce a binary kind to distinguish binary representation of
-a kernel from primitive.
+Note: Git hash will affect equality of the cache blob IDs.
 
+The capability the API provides is different from serialization because the
+cache blob object cannot be used alone to reconstruct the associated primitive.
+Users will have to create and provide the corresponding primitive descriptor
+along with the cache blob to create the primitive.
+
+The API for obtaining the cache blob ID and cache blob arrays is defined in the
+next sections.
+
+##### Querying Cache Blob ID
+
+The primitive descriptor query mechanism will be extended to support querying
+the size of the cache blob ID and a pointer to the cache blob ID. Similar to the
+other queries, the pointer to cache blob ID is valid only during the lifetime
+of the primitive descriptor.
+
+###### C API
+```c
+// dnnl_types.h
+
+/// Query kind                      | Type of query result
+/// --------------------------------|-----------------------------
+/// ...                             | ...
+/// dnnl_query_cache_blob_id        | const uint8_t **
+
+typedef enum {
+    dnnl_query_undef = 0, ///< no query
+    // ... //
+
+    // New queries
+    dnnl_query_cache_blob_id_size_s64, ///< size of cache blob ID in bytes
+    dnnl_query_cache_blob_id, ///< cache blob ID (pointer to array)
+
+    // memory and op descriptor section
+    dnnl_query_some_d = 64, ///< stub
+    // ... //
+} dnnl_query_t;
+```
+
+###### C++ API
 ```cpp
-struct primitive {
-    enum class binary_kind {
-        kernel,
-        /*primitive - unimplemented */
-    };
-    /* ... */
+struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
+// ... //
+    std::vector<uint8_t> get_cache_blob_id() const;
 };
 ```
 
-The API for obtaining ID will be provided by the `primitive_desc_base` class
-therefore the API will be available in each `primitive_desc` class.
+##### Querying Cache Blob
+
+The API for querying the cache blob from a primitive is different from other
+query API because it doesn't return a pointer to encapsulated cache blob but
+writes the cache blob content to the passed buffer. The rationale behind that
+is that the cache blob is not stored inside the primitive and is constructed on
+demand during the query call. 
+
+###### C API
+```c
+/// Retrieves a cache blob associated with the given primitive.
+///
+/// @param primitive Primitive to query for the cache blob.
+/// @param size Size of the cache blob in bytes.
+/// @param cache_blob Cache blob of size @p size. If the @p cache_blob is
+///     nullptr then the size of the cache blob is returned in @p size.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_get_cache_blob(
+        const_dnnl_primitive_t primitive, size_t *size, uint8_t *cache_blob);
+
+/// Creates a primitive from a cache blob.
+///
+/// @param primitive Output primitive.
+/// @param primitive_desc Primitive descriptor used to create the primitive.
+/// @param size Size of the cache blob in bytes.
+/// @param blob Cache blob of size @p size.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_create_from_cache_blob(
+        dnnl_primitive_t *primitive, const_dnnl_primitive_desc_t primitive_desc,
+        size_t size, const uint8_t *cache_blob);
+```
+
+###### C++ API
+A new constructor that takes a blob will be added to primitive classes for each
+primitive kind.
+There is an alternative to extend all existing primitive constructors so that they
+take an optional argument `blob`. I think that having the distinct constructors
+will keep the API clean and intuitive.
 
 ```cpp
-struct primitive_desc_base {
-    /* ... */
-    std::vector<unsigned char> get_id() const;
+struct primitive : public handle<dnnl_primitive_t> {
+    /// Returns a cache blob for the primitive.
+    ///
+    /// @returns Vector containing the cache blob.
+    std::vector<uint8_t> get_cache blob() const;
+};
+
+struct convolution_forward : public primitive {
+    /// Constructs a <primitive name> primitive.
+    /// @param pd Primitive descriptor for a convolution forward propagation
+            primitive.
+    /// @param cache_blob Vector that containing the cache blob.
+    convolution_forward(const primitive_desc &pd,
+            const std::vector<uint8_t> &cache_blob) : primitive(pd) {}
 };
 ```
 
-The `primitive` class will get a new constructor to take a binary and new API
-to provide user with the binary.
-
-```cpp
-struct primitive {
-    /* ... */
-    primitive(const primitive_desc &pd, const std::vector<std::vector<unsigned char>> &binaries, binary_kind kind);
-    // Primitives that are not supported return an empty vector.
-    std::vector<std::vector<unsigned char>> get_binaries(binary_kind kind) const;
-};
-```
-
-##### API usage example
-
+##### API Usage Example
 ```cpp
 using namespace dnnl;
-
 {
     convolution_forward::primitive_desc conv_pd(desc, attr, engine);
-    primitive conv(conv_pd);
-
-    auto key = conv_pd.get_id();
-    auto binaries = conv.get_binaries(primitive::binary_kind::kernel);
-    // Store the binaries on disk.
-    store_to_persistent_cache(key, binaries);
+    convolution_forward conv(conv_pd);
+    std::vector<uint8_t> key = conv_pd.get_cache_blob_id();
+    std::vector<uint8_t> value = conv.get_cache_blob();
+    store_cache_blob_on_disk(key, value);
 }
 
 {
     convolution_forward::primitive_desc conv_pd(desc, attr, engine);
-    auto key = conv_pd.get_id();
-    // Load binaries from disk.
-    auto binaries = load_from_persistent_cache(key);
-    primitive conv_from_cache(pd, binary, primitive::binary_kind::kernel);
+    std::vector<uint8_t> key = conv_pd.get_cache_blob_id();
+    std::vector<uint8_t> value = load_cache_blob_from_disk(key);
+    convolution_forward conv_from_cache_blob(conv_pd, value);
 }
 ```
 
@@ -257,3 +322,4 @@ that users can implement a persistent cache that fulfils their needs.
     * Start with primitives that are used by OpenVINO
     * Extend the list of supported primitives by request
 * No support for CPU primitive at this point
+
