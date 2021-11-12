@@ -40,33 +40,33 @@ const impl_list_map_t comp_s8_s8_impl_list_map REG_REORDER_P({
     // s8 -> s8
     {{s8, s8, 3}, {
         DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-        REG_REORDER_P(REG_SR(s8, any, s8, wio, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(s8, any, s8, wio, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
 
         nullptr,
     }},
     {{s8, s8, 4}, {
         DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-        REG_REORDER_P(REG_SR(s8, any, s8, hwio, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(s8, any, s8, wigo, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(s8, goiw, s8, Goiw16g, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(s8, goiw, s8, Goiw8g, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(s8, goiw, s8, Goiw4g, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(s8, any, s8, hwio, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
+        REG_REORDER_P(REG_SR(s8, any, s8, wigo, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
+        REG_REORDER_P(REG_SR(s8, goiw, s8, Goiw16g, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
+        REG_REORDER_P(REG_SR(s8, goiw, s8, Goiw8g, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
+        REG_REORDER_P(REG_SR(s8, goiw, s8, Goiw4g, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
 
         nullptr,
     }},
     {{s8, s8, 5}, {
         DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-        REG_REORDER_P(REG_SR(s8, any, s8, hwigo, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(s8, any, s8, dhwio, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(s8, goihw, s8, Goihw16g, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(s8, goihw, s8, Goihw8g, fmt_order::keep, spec::conv_req_comp))
-        REG_REORDER_P(REG_SR(s8, goihw, s8, Goihw4g, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(s8, any, s8, hwigo, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
+        REG_REORDER_P(REG_SR(s8, any, s8, dhwio, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
+        REG_REORDER_P(REG_SR(s8, goihw, s8, Goihw16g, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
+        REG_REORDER_P(REG_SR(s8, goihw, s8, Goihw8g, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
+        REG_REORDER_P(REG_SR(s8, goihw, s8, Goihw4g, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
 
         nullptr,
     }},
     {{s8, s8, 6}, {
         DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-        REG_REORDER_P(REG_SR(s8, any, s8, dhwigo, fmt_order::keep, spec::conv_req_comp))
+        REG_REORDER_P(REG_SR(s8, any, s8, dhwigo, fmt_order::keep, spec::conv_req_comp)) // required for non-x64 only
 
         nullptr,
     }},

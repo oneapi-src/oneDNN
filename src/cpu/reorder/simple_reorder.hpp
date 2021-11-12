@@ -117,6 +117,7 @@ inline bool simple_attr_check(const primitive_attr_t *attr,
 } // namespace
 
 /* specific reorders: implementation */
+// required for non-x64 only
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
@@ -394,6 +395,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 };
 
+// required for non-x64 only
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<false
