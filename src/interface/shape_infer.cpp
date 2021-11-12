@@ -1115,6 +1115,58 @@ status_t infer_static_reshape_output_shape(op_t *n,
     set_shape_and_strides(*outputs[0], out_dims);
     return status::success;
 }
+
+status_t infer_static_transpose_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    if (!out0.is_shape_unknown()) return status::success;
+
+    // check if partial set shape aligns with inferred shape
+    if (out0.ndims() != -1) {
+        if (!validate(in0.vdims(), out0.vdims())) {
+            return status::invalid_shape;
+        }
+    }
+
+    const dims &in_dims = in0.vdims();
+    const int32_t in_ndims = in0.ndims();
+    std::vector<int64_t> order = n->get_attr<dims>("order");
+    std::vector<bool> order_covered_flg(in_ndims, false);
+    // check order should be in [-n, n-1] and cover all input axis
+    // if order < 0, convert it to postive order
+    if (!order.empty()) {
+        if (order.size() != in_ndims) return status::invalid_shape;
+        for (int64_t &axis : order) {
+            if (axis < -in_ndims || axis > in_ndims - 1)
+                return status::invalid_shape;
+            if (axis < 0) axis += in_ndims;
+            if (order_covered_flg[axis]) {
+                return status::invalid_shape;
+            } else {
+                order_covered_flg[axis] = true;
+            }
+        }
+    }
+
+    dims out_dims;
+    out_dims.reserve(in_ndims);
+    if (order.empty()) {
+        // If order is not given, will transpose to (n-1...0),
+        for (int i = in_ndims - 1; i >= 0; --i)
+            out_dims.push_back(in_dims[i]);
+    } else {
+        for (const int64_t &axis : order) {
+            out_dims.push_back(
+                    axis >= 0 ? in_dims[axis] : in_dims[axis + in_ndims]);
+        }
+    }
+    // We should compute output dense strides instead of
+    // directly copying input strides to it
+    set_shape_and_strides(*outputs[0], out_dims);
+    return status::success;
+}
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

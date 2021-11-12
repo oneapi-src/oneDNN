@@ -82,7 +82,6 @@
     _(Wildcard) \
     _(BiasAdd) \
     _(Interpolate) \
-    _(Transpose) \
     _(Index) \
     _(InterpolateBackprop) \
     _(PowBackpropExponent) \
@@ -92,7 +91,9 @@
     _(Reorder) \
     _(TypeCast) \
     _(StaticReshape) \
-    _(DynamicReshape)
+    _(StaticTranspose) \
+    _(DynamicReshape) \
+    _(DynamicTranspose)
 
 #endif
 

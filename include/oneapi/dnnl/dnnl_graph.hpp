@@ -798,7 +798,6 @@ public:
         Wildcard = kWildcard,
         BiasAdd = kBiasAdd,
         Interpolate = kInterpolate,
-        Transpose = kTranspose,
         Index = kIndex,
         InterpolateBackprop = kInterpolateBackprop,
         PowBackpropExponent = kPowBackpropExponent,
@@ -808,7 +807,9 @@ public:
         Reorder = kReorder,
         TypeCast = kTypeCast,
         StaticReshape = kStaticReshape,
+        StaticTranspose = kStaticTranspose,
         DynamicReshape = kDynamicReshape,
+        DynamicTranspose = kDynamicTranspose,
         LastSymbol = kLastSymbol,
     };
 

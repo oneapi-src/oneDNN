@@ -38,12 +38,13 @@ TEST(pass_test, fake_single_op_replacement) {
     auto fake_pm = pass::pass_manager_t(fake_backend_ptr.get_pass_registry());
     std::vector<op_kind_t> single_op_set_unsupported = {
             /* not enabling ops = */ Concat, Divide, DynamicReshape,
-            EluBackprop, LayerNormBackprop, Round, Sigmoid, SigmoidBackprop,
-            SqrtBackprop, TanhBackprop, StaticReshape,
+            DynamicTranspose, EluBackprop, LayerNormBackprop, Round, Sigmoid,
+            SigmoidBackprop, SqrtBackprop, TanhBackprop, StaticReshape,
+            StaticTranspose,
             /* no dnnl primitive support = */ BiasAdd, BiasAddBackprop, Clamp,
             ClampBackprop, Erf, HardTanhBackprop, PowBackprop, ReduceSum,
             SoftPlus, SoftPlusBackprop, Wildcard, End, Interpolate,
-            InterpolateBackprop, Transpose, Index, PowBackpropExponent};
+            InterpolateBackprop, Index, PowBackpropExponent};
     for (auto akind : single_op_set_unsupported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);

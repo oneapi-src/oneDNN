@@ -128,7 +128,6 @@ const op_kind_t TanhBackprop = kTanhBackprop;
 const op_kind_t Wildcard = kWildcard;
 const op_kind_t BiasAdd = kBiasAdd;
 const op_kind_t Interpolate = kInterpolate;
-const op_kind_t Transpose = kTranspose;
 const op_kind_t Index = kIndex;
 const op_kind_t InterpolateBackprop = kInterpolateBackprop;
 const op_kind_t PowBackpropExponent = kPowBackpropExponent;
@@ -138,7 +137,9 @@ const op_kind_t Dequantize = kDequantize;
 const op_kind_t Reorder = kReorder;
 const op_kind_t TypeCast = kTypeCast;
 const op_kind_t StaticReshape = kStaticReshape;
+const op_kind_t StaticTranspose = kStaticTranspose;
 const op_kind_t DynamicReshape = kDynamicReshape;
+const op_kind_t DynamicTranspose = kDynamicTranspose;
 const op_kind_t LastSymbol = kLastSymbol;
 
 #define REGISTER_SYMBOL(s) #s,

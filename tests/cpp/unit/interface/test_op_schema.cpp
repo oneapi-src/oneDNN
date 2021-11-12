@@ -2939,12 +2939,32 @@ TEST(op_schema_test, logsoftmax_bf16) {
     EXPECT_TRUE(schema->verify(&logsoftmax));
 }
 
+TEST(OpSchema, VerifyDynamicTranspose) {
+    const op_kind_t op_kind_ = op_kind::DynamicTranspose;
+    const size_t expected_in_size = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 0;
+    const std::map<std::string, bool> attrs_data {};
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
 TEST(OpSchema, VerifyDynamicReshape) {
     const op_kind_t op_kind_ = op_kind::DynamicReshape;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
     const std::map<std::string, bool> attrs_data = {{"special_zero", true}};
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, VerifyStaticTranspose) {
+    const op_kind_t op_kind_ = op_kind::StaticTranspose;
+    const size_t expected_in_size = 1;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 1;
+    const std::map<std::string, bool> attrs_data = {{"order", true}};
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
 }
@@ -2958,6 +2978,84 @@ TEST(OpSchema, VerifyStaticReshape) {
             = {{"shape", true}, {"special_zero", true}};
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferStaticTransposeShape) {
+    const op_schema_t *static_transpose_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::StaticTranspose);
+
+    op_t static_transpose_op {
+            op_kind::StaticTranspose, op_t::kind2str(op_kind::StaticTranspose)};
+    static_transpose_op.set_attr("order", std::vector<int64_t> {2, 0, 1});
+
+    logical_tensor_t lt_in1
+            = logical_tensor_init(0, {1024, 64, 32}, data_type::f32);
+    std::vector<logical_tensor_t *> lt_in {&lt_in1};
+    logical_tensor_t lt_o1
+            = logical_tensor_init(1, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out1 {&lt_o1};
+
+    static_transpose_op_schema->shape_infer(
+            &static_transpose_op, lt_in, lt_out1);
+
+    const std::vector<int64_t> infered_out_shape1
+            = logical_tensor_wrapper_t(lt_o1).vdims();
+    const std::vector<int64_t> expected_out_shape1 = {32, 1024, 64};
+    EXPECT_EQ(infered_out_shape1, expected_out_shape1);
+
+    // negative order
+    static_transpose_op.set_attr("order", std::vector<int64_t> {-2, 2, 0});
+    lt_in1 = logical_tensor_init(0, {2, 4, 1024}, data_type::f32);
+    logical_tensor_t lt_o2
+            = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out2 {&lt_o2};
+    static_transpose_op_schema->shape_infer(
+            &static_transpose_op, lt_in, lt_out2);
+
+    const std::vector<int64_t> infered_out_shape2
+            = logical_tensor_wrapper_t(lt_o2).vdims();
+    const std::vector<int64_t> expected_out_shape2 = {4, 1024, 2};
+    EXPECT_EQ(infered_out_shape2, expected_out_shape2);
+
+    // repeat order
+    static_transpose_op.set_attr("order", std::vector<int64_t> {1, 1, 0});
+    logical_tensor_t lt_o3
+            = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out3 {&lt_o3};
+    status_t infer_status = static_transpose_op_schema->shape_infer(
+            &static_transpose_op, lt_in, lt_out3);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // order not cover all input axis
+    static_transpose_op.set_attr("order", std::vector<int64_t> {1, 0});
+    logical_tensor_t lt_o4
+            = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out4 {&lt_o4};
+    infer_status = static_transpose_op_schema->shape_infer(
+            &static_transpose_op, lt_in, lt_out4);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // order out of range
+    static_transpose_op.set_attr("order", std::vector<int64_t> {1, 3, 0});
+    logical_tensor_t lt_o5
+            = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out5 {&lt_o5};
+    infer_status = static_transpose_op_schema->shape_infer(
+            &static_transpose_op, lt_in, lt_out5);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // order is empty
+    static_transpose_op.set_attr("order", std::vector<int64_t> {});
+    logical_tensor_t lt_o6
+            = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out6 {&lt_o6};
+    infer_status = static_transpose_op_schema->shape_infer(
+            &static_transpose_op, lt_in, lt_out6);
+
+    const std::vector<int64_t> infered_out_shape6
+            = logical_tensor_wrapper_t(lt_o6).vdims();
+    const std::vector<int64_t> expected_out_shape6 = {1024, 4, 2};
+    EXPECT_EQ(infered_out_shape6, expected_out_shape6);
 }
 
 TEST(OpSchema, InferStaticReshapeShape) {

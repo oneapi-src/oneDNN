@@ -1047,18 +1047,6 @@ DNNL_GRAPH_OP_SCHEMA(TanhBackprop, 1,
                         false, attribute_kind::b, true)
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(Transpose, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "data", "the tensor to be transposed")
-                .set_input(1, "shape",
-                        "the permutation to apply to the axes of the input "
-                        "shape")
-                .set_output(0, "output",
-                        "A tensor with shape and type matching 1st tensor.")
-                .set_shape_inference_function(infer_unsupported_output_shape))
-
 DNNL_GRAPH_OP_SCHEMA(Wildcard, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::variadic)
@@ -1165,7 +1153,7 @@ DNNL_GRAPH_OP_SCHEMA(DynamicReshape, 1,
                 .set_input(0, "data", "multidimensional input tensor",
                         {data_type::f32, data_type::bf16, data_type::f16})
                 .set_input(1, "shape", "1D tensor describing output shape",
-                        {data_type::f32})
+                        data_type::f32)
                 .set_output(0, "output",
                         "Output tensor with the same content as a tensor at "
                         "input data but with shape defined by input shape",
@@ -1175,6 +1163,38 @@ DNNL_GRAPH_OP_SCHEMA(DynamicReshape, 1,
                         "shape",
                         true, attribute_kind::b)
                 .set_shape_inference_function(infer_unsupported_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(StaticTranspose, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "data", "the tensor to be transposed",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output",
+                        "A tensor with shape and type matching 1st tensor.",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_attr("order",
+                        "the permutation to apply to the axes of the input "
+                        "shape",
+                        true, attribute_kind::is)
+                .set_shape_inference_function(
+                        infer_static_transpose_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(DynamicTranspose, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "data", "the tensor to be transposed",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "order",
+                        "the permutation to apply to the axes of the input "
+                        "shape",
+                        data_type::f32)
+                .set_output(0, "output",
+                        "A tensor with shape and type matching 1st tensor.",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(infer_unsupported_output_shape))
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

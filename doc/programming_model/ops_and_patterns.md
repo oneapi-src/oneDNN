@@ -24,6 +24,7 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - ConvTranspose
 - Dequantize
 - DynamicReshape
+- DynamicTranspose
 - Divide
 - Elu
 - EluBackprop
@@ -66,10 +67,10 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - Sqrt
 - SqrtBackprop
 - StaticReshape
+- StaticTranspose
 - Square
 - Tanh
 - TanhBackprop
-- Transpose
 - TypeCast
 - Wildcard
 

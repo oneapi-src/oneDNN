@@ -84,7 +84,6 @@ TEST(api_op, create_all_ops) {
             op::kind::Wildcard,
             op::kind::BiasAdd,
             op::kind::Interpolate,
-            op::kind::Transpose,
             op::kind::Index,
             op::kind::InterpolateBackprop,
             op::kind::PowBackpropExponent,
@@ -94,7 +93,9 @@ TEST(api_op, create_all_ops) {
             op::kind::Reorder,
             op::kind::TypeCast,
             op::kind::StaticReshape,
+            op::kind::StaticTranspose,
             op::kind::DynamicReshape,
+            op::kind::DynamicTranspose,
     };
 
     const auto num_ops = all_kind_enums.size();
