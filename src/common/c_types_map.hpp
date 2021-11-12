@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -114,6 +114,8 @@ const alg_kind_t vanilla_rnn = dnnl_vanilla_rnn;
 const alg_kind_t vanilla_lstm = dnnl_vanilla_lstm;
 const alg_kind_t vanilla_gru = dnnl_vanilla_gru;
 const alg_kind_t lbr_gru = dnnl_lbr_gru;
+const alg_kind_t vanilla_augru = dnnl_vanilla_augru;
+const alg_kind_t lbr_augru = dnnl_lbr_augru;
 const alg_kind_t binary_add = dnnl_binary_add;
 const alg_kind_t binary_mul = dnnl_binary_mul;
 const alg_kind_t binary_max = dnnl_binary_max;

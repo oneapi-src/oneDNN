@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -621,6 +621,10 @@ enum class algorithm {
     /// LRB GRU expects 4 bias tensors on input:
     /// \f$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]\f$
     lbr_gru = dnnl_lbr_gru,
+    /// AUGRU cell
+    vanilla_augru = dnnl_vanilla_augru,
+    /// AUGRU cell with linear before reset
+    lbr_augru = dnnl_lbr_augru,
     /// Binary add
     binary_add = dnnl_binary_add,
     /// Binary mul
@@ -8273,6 +8277,12 @@ struct rnn_primitive_desc_base : public primitive_desc {
         return base::query_md(query::exec_arg_md, DNNL_ARG_SRC_LAYER);
     }
 
+    /// Returns AUGRU attention memory descriptor.
+    /// @returns AUGRU attention memory descriptor.
+    memory::desc augru_attention_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_AUGRU_ATTENTION);
+    }
+
     /// Returns source iteration memory descriptor.
     /// @returns Source iteration memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
@@ -8343,6 +8353,13 @@ struct rnn_primitive_desc_base : public primitive_desc {
     /// @returns Diff source layer memory descriptor.
     memory::desc diff_src_layer_desc() const {
         return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_SRC_LAYER);
+    }
+
+    /// Returns diff AUGRU attention memory descriptor.
+    /// @returns Diff AUGRU attention memory descriptor.
+    memory::desc diff_augru_attention_desc() const {
+        return base::query_md(
+                query::exec_arg_md, DNNL_ARG_DIFF_AUGRU_ATTENTION);
     }
 
     /// Returns diff source iteration memory descriptor.
@@ -10461,6 +10478,819 @@ struct lbr_gru_backward : public primitive {
     ///     primitive.
     /// @param cache_blob Cache blob.
     lbr_gru_backward(
+            const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
+        : primitive(pd, cache_blob) {}
+};
+
+/// AUGRU forward propagation primitive.
+struct augru_forward : public primitive {
+    /// Descriptor for an AUGRU forward propagation primitive.
+    struct desc {
+        dnnl_rnn_desc_t data;
+
+        /// Constructs a descriptor for an AUGRU forward propagation primitive.
+        ///
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc,
+        /// - @p bias_desc,
+        /// - @p dst_iter_desc.
+        ///
+        /// This would then indicate that the AUGRU forward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
+        ///
+        /// @note
+        ///     All memory descriptors except @p src_iter_desc may be
+        ///     initialized with an #dnnl::memory::format_tag::any value of @p
+        ///     format_tag.
+        ///
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param direction RNN direction. See @ref dnnl::rnn_direction for
+        ///     more info.
+        /// @param src_layer_desc Memory descriptor for the input vector.
+        /// @param src_iter_desc Memory descriptor for the input recurrent
+        ///     hidden state vector.
+        /// @param attention_desc Memory descriptor for the attention vector.
+        /// @param weights_layer_desc Memory descriptor for the weights
+        ///     applied to the layer input.
+        /// @param weights_iter_desc Memory descriptor for the weights applied
+        ///     to the recurrent input.
+        /// @param bias_desc Bias memory descriptor.
+        /// @param dst_layer_desc Memory descriptor for the output vector.
+        /// @param dst_iter_desc Memory descriptor for the output recurrent
+        ///     hidden state vector.
+        /// @param flags Unused.
+        desc(prop_kind aprop_kind, rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &attention_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(
+                    dnnl_augru_forward_desc_init(&data,
+                            dnnl::convert_to_c(aprop_kind),
+                            dnnl::convert_to_c(direction), &src_layer_desc.data,
+                            &src_iter_desc.data, &attention_desc.data,
+                            &weights_layer_desc.data, &weights_iter_desc.data,
+                            &bias_desc.data, &dst_layer_desc.data,
+                            &dst_iter_desc.data, dnnl::convert_to_c(flags)),
+                    "could not create a descriptor for an AUGRU forward "
+                    "propagation primitive");
+        }
+    };
+
+    /// Primitive descriptor for an AUGRU forward propagation primitive.
+    struct primitive_desc : public rnn_primitive_desc_base {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
+
+        /// Constructs a primitive descriptor for an AUGRU forward propagation
+        /// primitive.
+        ///
+        /// @param adesc Descriptor for an AUGRU forward propagation primitive.
+        /// @param aengine Engine to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const engine &aengine,
+                bool allow_empty = false)
+            : rnn_primitive_desc_base(
+                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for an AUGRU forward propagation
+        /// primitive.
+        ///
+        /// @param adesc Descriptor for an AUGRU forward propagation primitive.
+        /// @param attr Primitive attributes to use.
+        /// @param aengine Engine to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const primitive_attr &attr,
+                const engine &aengine, bool allow_empty = false)
+            : rnn_primitive_desc_base(
+                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for an AUGRU forward propagation
+        /// primitive from a C API primitive descriptor that must have a
+        /// matching kind.
+        ///
+        /// @param pd C API primitive descriptor for an AUGRU forward
+        ///     propagation primitive.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : rnn_primitive_desc_base(pd, dnnl::prop_kind::forward_training,
+                    dnnl::prop_kind::forward_inference,
+                    dnnl::algorithm::vanilla_augru) {}
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
+        memory::desc src_layer_desc() const {
+            return rnn_base::src_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        memory::desc attention_desc() const {
+            return rnn_base::augru_attention_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc()const
+        memory::desc weights_layer_desc() const {
+            return rnn_base::weights_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc()const
+        memory::desc weights_iter_desc() const {
+            return rnn_base::weights_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc()const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc()const
+        memory::desc dst_layer_desc() const {
+            return rnn_base::dst_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc()const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc()const
+        memory::desc workspace_desc() const {
+            return rnn_base::workspace_desc();
+        }
+    };
+
+    /// Default constructor. Produces an empty object.
+    augru_forward() = default;
+
+    /// Constructs an AUGRU forward propagation primitive.
+    /// @param pd Primitive descriptor for an AUGRU forward propagation
+    ///     primitive.
+    augru_forward(const primitive_desc &pd) : primitive(pd) {}
+
+    /// Constructs an AUGRU forward propagation primitive from a cache blob.
+    /// @param pd Primitive descriptor for an AUGRU forward propagation
+    ///     primitive.
+    /// @param cache_blob Cache blob.
+    augru_forward(
+            const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
+        : primitive(pd, cache_blob) {}
+};
+
+/// AUGRU backward propagation primitive.
+struct augru_backward : public primitive {
+    /// Descriptor for an AUGRU backward propagation primitive.
+    struct desc {
+        dnnl_rnn_desc_t data;
+
+        /// Constructs a descriptor for an AUGRU backward propagation primitive.
+        ///
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p diff_src_iter_desc,
+        /// - @p bias_desc together with @p diff_bias_desc,
+        /// - @p dst_iter_desc together with @p diff_dst_iter_desc.
+        ///
+        /// This would then indicate that the AUGRU backward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
+        ///
+        /// @note
+        ///     All memory descriptors may be initialized with
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// @param aprop_kind Propagation kind. Must be
+        ///     #dnnl::prop_kind::backward.
+        /// @param direction RNN direction. See @ref dnnl::rnn_direction for
+        ///     more info.
+        /// @param src_layer_desc Memory descriptor for the input vector.
+        /// @param src_iter_desc Memory descriptor for the input recurrent
+        ///     hidden state vector.
+        /// @param attention_desc Memory descriptor for the attention vector.
+        /// @param weights_layer_desc Memory descriptor for the weights
+        ///     applied to the layer input.
+        /// @param weights_iter_desc Memory descriptor for the weights applied
+        ///     to the recurrent input.
+        /// @param bias_desc Bias memory descriptor.
+        /// @param dst_layer_desc Memory descriptor for the output vector.
+        /// @param dst_iter_desc Memory descriptor for the output recurrent
+        ///     hidden state vector.
+        /// @param diff_src_layer_desc Memory descriptor for the diff of input
+        ///     vector.
+        /// @param diff_src_iter_desc Memory descriptor for the diff of input
+        ///     recurrent hidden state vector.
+        /// @param diff_attention_desc Memory descriptor for the diff of
+        ///     attention vector.
+        /// @param diff_weights_layer_desc Memory descriptor for the diff of
+        ///     weights applied to the layer input.
+        /// @param diff_weights_iter_desc Memory descriptor for the diff of
+        ///     weights applied to the recurrent input.
+        /// @param diff_bias_desc Diff bias memory descriptor.
+        /// @param diff_dst_layer_desc Memory descriptor for the diff of
+        ///     output vector.
+        /// @param diff_dst_iter_desc Memory descriptor for the diff of output
+        ///     recurrent hidden state vector.
+        /// @param flags Unused.
+        desc(prop_kind aprop_kind, rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &attention_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                const memory::desc &diff_src_layer_desc,
+                const memory::desc &diff_src_iter_desc,
+                const memory::desc &diff_attention_desc,
+                const memory::desc &diff_weights_layer_desc,
+                const memory::desc &diff_weights_iter_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_layer_desc,
+                const memory::desc &diff_dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(
+                    dnnl_augru_backward_desc_init(&data,
+                            dnnl::convert_to_c(aprop_kind),
+                            dnnl::convert_to_c(direction), &src_layer_desc.data,
+                            &src_iter_desc.data, &attention_desc.data,
+                            &weights_layer_desc.data, &weights_iter_desc.data,
+                            &bias_desc.data, &dst_layer_desc.data,
+                            &dst_iter_desc.data, &diff_src_layer_desc.data,
+                            &diff_src_iter_desc.data, &diff_attention_desc.data,
+                            &diff_weights_layer_desc.data,
+                            &diff_weights_iter_desc.data, &diff_bias_desc.data,
+                            &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                            dnnl::convert_to_c(flags)),
+                    "could not create a descriptor for an AUGRU backward "
+                    "propagation primitive");
+        }
+    };
+
+    /// Primitive descriptor for an AUGRU backward propagation primitive.
+    struct primitive_desc : public rnn_primitive_desc_base {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
+
+        /// Constructs a primitive descriptor for an AUGRU backward propagation
+        /// primitive.
+        ///
+        /// @param adesc Descriptor for an AUGRU backward propagation primitive.
+        /// @param aengine Engine to use.
+        /// @param hint_fwd_pd Primitive descriptor for an AUGRU
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const engine &aengine,
+                const augru_forward::primitive_desc &hint_fwd_pd,
+                bool allow_empty = false)
+            : rnn_primitive_desc_base(&adesc.data, nullptr, aengine,
+                    hint_fwd_pd.get(), allow_empty) {}
+
+        /// Constructs a primitive descriptor for an AUGRU backward propagation
+        /// primitive.
+        ///
+        /// @param adesc Descriptor for an AUGRU backward propagation primitive.
+        /// @param attr Primitive attributes to use.
+        /// @param aengine Engine to use.
+        /// @param hint_fwd_pd Primitive descriptor for an AUGRU
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const primitive_attr &attr,
+                const engine &aengine,
+                const augru_forward::primitive_desc &hint_fwd_pd,
+                bool allow_empty = false)
+            : rnn_primitive_desc_base(&adesc.data, &attr, aengine,
+                    hint_fwd_pd.get(), allow_empty) {}
+
+        /// Constructs a primitive descriptor for an AUGRU backward propagation
+        /// primitive from a C API primitive descriptor that must have a
+        /// matching kind.
+        ///
+        /// @param pd C API primitive descriptor for an AUGRU backward
+        ///     propagation primitive.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
+                    dnnl::algorithm::vanilla_augru) {}
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
+        memory::desc src_layer_desc() const {
+            return rnn_base::src_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        memory::desc attention_desc() const {
+            return rnn_base::augru_attention_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc()const
+        memory::desc weights_layer_desc() const {
+            return rnn_base::weights_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc()const
+        memory::desc weights_iter_desc() const {
+            return rnn_base::weights_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc()const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc()const
+        memory::desc dst_layer_desc() const {
+            return rnn_base::dst_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc()const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc()const
+        memory::desc workspace_desc() const {
+            return rnn_base::workspace_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_layer_desc()const
+        memory::desc diff_src_layer_desc() const {
+            return rnn_base::diff_src_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_iter_desc()const
+        memory::desc diff_src_iter_desc() const {
+            return rnn_base::diff_src_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_attention_desc()const
+        memory::desc diff_attention_desc() const {
+            return rnn_base::diff_augru_attention_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_layer_desc()const
+        memory::desc diff_weights_layer_desc() const {
+            return rnn_base::diff_weights_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_iter_desc()const
+        memory::desc diff_weights_iter_desc() const {
+            return rnn_base::diff_weights_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_bias_desc()const
+        memory::desc diff_bias_desc() const {
+            return rnn_base::diff_bias_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_layer_desc()const
+        memory::desc diff_dst_layer_desc() const {
+            return rnn_base::diff_dst_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_iter_desc()const
+        memory::desc diff_dst_iter_desc() const {
+            return rnn_base::diff_dst_iter_desc();
+        }
+    };
+
+    /// Default constructor. Produces an empty object.
+    augru_backward() = default;
+
+    /// Constructs an AUGRU backward propagation primitive.
+    /// @param pd Primitive descriptor for an AUGRU backward propagation
+    ///     primitive.
+    augru_backward(const primitive_desc &pd) : primitive(pd) {}
+
+    /// Constructs an AUGRU backward propagation primitive from a cache blob.
+    /// @param pd Primitive descriptor for an AUGRU backward propagation
+    ///     primitive.
+    /// @param cache_blob Cache blob.
+    augru_backward(
+            const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
+        : primitive(pd, cache_blob) {}
+};
+
+/// LBR AUGRU forward propagation primitive.
+struct lbr_augru_forward : public primitive {
+    /// Descriptor for an LBR AUGRU forward propagation primitive.
+    struct desc {
+        dnnl_rnn_desc_t data;
+
+        /// Constructs a descriptor for LBR AUGRU forward propagation primitive.
+        ///
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc,
+        /// - @p bias_desc,
+        /// - @p dst_iter_desc.
+        ///
+        /// This would then indicate that the LBR AUGRU forward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
+        ///
+        /// @note
+        ///     All memory descriptors except @p src_iter_desc may be
+        ///     initialized with an #dnnl::memory::format_tag::any value of @p
+        ///     format_tag.
+        ///
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param direction RNN direction. See @ref dnnl::rnn_direction for
+        ///     more info.
+        /// @param src_layer_desc Memory descriptor for the input vector.
+        /// @param src_iter_desc Memory descriptor for the input recurrent
+        ///     hidden state vector.
+        /// @param attention_desc Memory descriptor for the attention vector.
+        /// @param weights_layer_desc Memory descriptor for the weights
+        ///     applied to the layer input.
+        /// @param weights_iter_desc Memory descriptor for the weights applied
+        ///     to the recurrent input.
+        /// @param bias_desc Bias memory descriptor.
+        /// @param dst_layer_desc Memory descriptor for the output vector.
+        /// @param dst_iter_desc Memory descriptor for the output recurrent
+        ///     hidden state vector.
+        /// @param flags Unused.
+        desc(prop_kind aprop_kind, rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &attention_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(
+                    dnnl_lbr_augru_forward_desc_init(&data,
+                            dnnl::convert_to_c(aprop_kind),
+                            dnnl::convert_to_c(direction), &src_layer_desc.data,
+                            &src_iter_desc.data, &attention_desc.data,
+                            &weights_layer_desc.data, &weights_iter_desc.data,
+                            &bias_desc.data, &dst_layer_desc.data,
+                            &dst_iter_desc.data, dnnl::convert_to_c(flags)),
+                    "could not create a descriptor for an LBR AUGRU forward "
+                    "propagation primitive");
+        }
+    };
+
+    /// Primitive descriptor for an LBR AUGRU forward propagation primitive.
+    struct primitive_desc : public rnn_primitive_desc_base {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
+
+        /// Constructs a primitive descriptor for an LBR AUGRU forward
+        /// propagation primitive.
+        ///
+        /// @param adesc Descriptor for an LBR AUGRU forward propagation
+        ///     primitive.
+        /// @param aengine Engine to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const engine &aengine,
+                bool allow_empty = false)
+            : rnn_primitive_desc_base(
+                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for an LBR AUGRU forward
+        /// propagation primitive.
+        ///
+        /// @param adesc Descriptor for an LBR AUGRU forward propagation
+        ///     primitive.
+        /// @param attr Primitive attributes to use.
+        /// @param aengine Engine to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const primitive_attr &attr,
+                const engine &aengine, bool allow_empty = false)
+            : rnn_primitive_desc_base(
+                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for an LBR AUGRU forward propagation
+        /// primitive from a C API primitive descriptor that must have a
+        /// matching kind.
+        ///
+        /// @param pd C API primitive descriptor for an LBR AUGRU forward
+        ///     propagation primitive.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : rnn_primitive_desc_base(pd, dnnl::prop_kind::forward_training,
+                    dnnl::prop_kind::forward_inference,
+                    dnnl::algorithm::lbr_augru) {}
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
+        memory::desc src_layer_desc() const {
+            return rnn_base::src_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        memory::desc attention_desc() const {
+            return rnn_base::augru_attention_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc()const
+        memory::desc weights_layer_desc() const {
+            return rnn_base::weights_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc()const
+        memory::desc weights_iter_desc() const {
+            return rnn_base::weights_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc()const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc()const
+        memory::desc dst_layer_desc() const {
+            return rnn_base::dst_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc()const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc()const
+        memory::desc workspace_desc() const {
+            return rnn_base::workspace_desc();
+        }
+    };
+
+    /// Default constructor. Produces an empty object.
+    lbr_augru_forward() = default;
+
+    /// Constructs an LBR AUGRU forward propagation primitive.
+    /// @param pd Primitive descriptor for an LBR AUGRU forward propagation
+    ///     primitive.
+    lbr_augru_forward(const primitive_desc &pd) : primitive(pd) {}
+
+    /// Constructs an LBR AUGRU forward propagation primitive from a cache blob.
+    /// @param pd Primitive descriptor for an LBR AUGRU forward propagation
+    ///     primitive.
+    /// @param cache_blob Cache blob.
+    lbr_augru_forward(
+            const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
+        : primitive(pd, cache_blob) {}
+};
+
+/// LBR AUGRU backward propagation primitive.
+struct lbr_augru_backward : public primitive {
+    /// Descriptor for an LBR AUGRU backward propagation primitive.
+    struct desc {
+        dnnl_rnn_desc_t data;
+
+        /// Constructs a descriptor for LBR AUGRU backward propagation
+        /// primitive.
+        ///
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p diff_src_iter_desc,
+        /// - @p bias_desc together with @p diff_bias_desc,
+        /// - @p dst_iter_desc together with @p diff_dst_iter_desc.
+        ///
+        /// This would then indicate that the LBR AUGRU backward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
+        ///
+        /// @note
+        ///     All memory descriptors may be initialized with
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// @param aprop_kind Propagation kind. Must be
+        ///     #dnnl::prop_kind::backward.
+        /// @param direction RNN direction. See @ref dnnl::rnn_direction for
+        ///     more info.
+        /// @param src_layer_desc Memory descriptor for the input vector.
+        /// @param src_iter_desc Memory descriptor for the input recurrent
+        ///     hidden state vector.
+        /// @param attention_desc Memory descriptor for the attention vector.
+        /// @param weights_layer_desc Memory descriptor for the weights
+        ///     applied to the layer input.
+        /// @param weights_iter_desc Memory descriptor for the weights applied
+        ///     to the recurrent input.
+        /// @param bias_desc Bias memory descriptor.
+        /// @param dst_layer_desc Memory descriptor for the output vector.
+        /// @param dst_iter_desc Memory descriptor for the output recurrent
+        ///     hidden state vector.
+        /// @param diff_src_layer_desc Memory descriptor for the diff of input
+        ///     vector.
+        /// @param diff_src_iter_desc Memory descriptor for the diff of input
+        ///     recurrent hidden state vector.
+        /// @param diff_attention_desc Memory descriptor for the diff of
+        ///     attention vector.
+        /// @param diff_weights_layer_desc Memory descriptor for the diff of
+        ///     weights applied to the layer input.
+        /// @param diff_weights_iter_desc Memory descriptor for the diff of
+        ///     weights applied to the recurrent input.
+        /// @param diff_bias_desc Diff bias memory descriptor.
+        /// @param diff_dst_layer_desc Memory descriptor for the diff of
+        ///     output vector.
+        /// @param diff_dst_iter_desc Memory descriptor for the diff of output
+        ///     recurrent hidden state vector.
+        /// @param flags Unused.
+        desc(prop_kind aprop_kind, rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &attention_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                const memory::desc &diff_src_layer_desc,
+                const memory::desc &diff_src_iter_desc,
+                const memory::desc &diff_attention_desc,
+                const memory::desc &diff_weights_layer_desc,
+                const memory::desc &diff_weights_iter_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_layer_desc,
+                const memory::desc &diff_dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(
+                    dnnl_lbr_augru_backward_desc_init(&data,
+                            dnnl::convert_to_c(aprop_kind),
+                            dnnl::convert_to_c(direction), &src_layer_desc.data,
+                            &src_iter_desc.data, &attention_desc.data,
+                            &weights_layer_desc.data, &weights_iter_desc.data,
+                            &bias_desc.data, &dst_layer_desc.data,
+                            &dst_iter_desc.data, &diff_src_layer_desc.data,
+                            &diff_src_iter_desc.data, &diff_attention_desc.data,
+                            &diff_weights_layer_desc.data,
+                            &diff_weights_iter_desc.data, &diff_bias_desc.data,
+                            &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                            dnnl::convert_to_c(flags)),
+                    "could not create a descriptor for an LBR AUGRU backward "
+                    "propagation primitive");
+        }
+    };
+
+    /// Primitive descriptor for an LBR AUGRU backward propagation primitive.
+    struct primitive_desc : public rnn_primitive_desc_base {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
+
+        /// Constructs a primitive descriptor for an LBR AUGRU backward
+        /// propagation primitive.
+        ///
+        /// @param adesc Descriptor for an LBR AUGRU backward propagation
+        ///     primitive.
+        /// @param aengine Engine to use.
+        /// @param hint_fwd_pd Primitive descriptor for an LBR AUGRU
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const engine &aengine,
+                const lbr_augru_forward::primitive_desc &hint_fwd_pd,
+                bool allow_empty = false)
+            : rnn_primitive_desc_base(&adesc.data, nullptr, aengine,
+                    hint_fwd_pd.get(), allow_empty) {}
+
+        /// Constructs a primitive descriptor for an LBR AUGRU backward
+        /// propagation primitive.
+        ///
+        /// @param adesc Descriptor for an LBR AUGRU backward propagation
+        ///     primitive.
+        /// @param attr Primitive attributes to use.
+        /// @param aengine Engine to use.
+        /// @param hint_fwd_pd Primitive descriptor for an LBR AUGRU
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const primitive_attr &attr,
+                const engine &aengine,
+                const lbr_augru_forward::primitive_desc &hint_fwd_pd,
+                bool allow_empty = false)
+            : rnn_primitive_desc_base(&adesc.data, &attr, aengine,
+                    hint_fwd_pd.get(), allow_empty) {}
+
+        /// Constructs a primitive descriptor for an LBR AUGRU backward
+        /// propagation primitive from a C API primitive descriptor that must
+        /// have a matching kind.
+        ///
+        /// @param pd C API primitive descriptor for an LBR AUGRU backward
+        ///     propagation primitive.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
+                    dnnl::algorithm::lbr_augru) {}
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
+        memory::desc src_layer_desc() const {
+            return rnn_base::src_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        memory::desc attention_desc() const {
+            return rnn_base::augru_attention_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc()const
+        memory::desc weights_layer_desc() const {
+            return rnn_base::weights_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc()const
+        memory::desc weights_iter_desc() const {
+            return rnn_base::weights_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc()const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc()const
+        memory::desc dst_layer_desc() const {
+            return rnn_base::dst_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc()const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc()const
+        memory::desc workspace_desc() const {
+            return rnn_base::workspace_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_layer_desc()const
+        memory::desc diff_src_layer_desc() const {
+            return rnn_base::diff_src_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_iter_desc()const
+        memory::desc diff_src_iter_desc() const {
+            return rnn_base::diff_src_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_attention_desc()const
+        memory::desc diff_attention_desc() const {
+            return rnn_base::diff_augru_attention_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_layer_desc()const
+        memory::desc diff_weights_layer_desc() const {
+            return rnn_base::diff_weights_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_iter_desc()const
+        memory::desc diff_weights_iter_desc() const {
+            return rnn_base::diff_weights_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_bias_desc()const
+        memory::desc diff_bias_desc() const {
+            return rnn_base::diff_bias_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_layer_desc()const
+        memory::desc diff_dst_layer_desc() const {
+            return rnn_base::diff_dst_layer_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_iter_desc()const
+        memory::desc diff_dst_iter_desc() const {
+            return rnn_base::diff_dst_iter_desc();
+        }
+    };
+
+    /// Default constructor. Produces an empty object.
+    lbr_augru_backward() = default;
+
+    /// Constructs an LBR AUGRU backward propagation primitive.
+    /// @param pd Primitive descriptor for an LBR AUGRU backward propagation
+    ///     primitive.
+    lbr_augru_backward(const primitive_desc &pd) : primitive(pd) {}
+
+    /// Constructs an LBR AUGRU backward propagation primitive from a cache blob.
+    /// @param pd Primitive descriptor for an LBR AUGRU backward propagation
+    ///     primitive.
+    /// @param cache_blob Cache blob.
+    lbr_augru_backward(
             const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
         : primitive(pd, cache_blob) {}
 };

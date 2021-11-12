@@ -1143,6 +1143,8 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_vanilla_lstm) return "vanilla_lstm";
     if (v == dnnl_vanilla_gru) return "vanilla_gru";
     if (v == dnnl_lbr_gru) return "lbr_gru";
+    if (v == dnnl_vanilla_augru) return "vanilla_augru";
+    if (v == dnnl_lbr_augru) return "lbr_augru";
     if (v == dnnl_binary_add) return "binary_add";
     if (v == dnnl_binary_mul) return "binary_mul";
     if (v == dnnl_binary_max) return "binary_max";

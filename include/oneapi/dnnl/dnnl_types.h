@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1507,6 +1507,10 @@ typedef enum {
     /// Primitive expects 4 biases on input:
     /// \f$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]\f$
     dnnl_lbr_gru = 0x4fff,
+    /// AUGRU cell
+    dnnl_vanilla_augru = 0x5fff,
+    /// AUGRU cell with linear before reset
+    dnnl_lbr_augru = 0x6fff,
     /// Binary add
     dnnl_binary_add = 0x1fff0,
     /// Binary mul
@@ -2651,6 +2655,12 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// #DNNL_ARG_SRC_2.
 #define DNNL_ARG_SRC_ITER_C DNNL_ARG_SRC_2
 
+/// Source argument #3.
+#define DNNL_ARG_SRC_3 4
+/// A special mnemonic for RNN input recurrent cell attention vector. An alias for
+/// #DNNL_ARG_SRC_3.
+#define DNNL_ARG_AUGRU_ATTENTION DNNL_ARG_SRC_3
+
 /// Destination argument #0.
 #define DNNL_ARG_DST_0 17
 /// A special mnemonic for destination argument for primitives that have a
@@ -2743,6 +2753,12 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// A special mnemonic for gradient (diff) of RNN input recurrent cell state
 /// vector. An alias for #DNNL_ARG_DIFF_SRC_1.
 #define DNNL_ARG_DIFF_SRC_ITER_C DNNL_ARG_DIFF_SRC_2
+
+/// Gradient (diff) of the source argument #3.
+#define DNNL_ARG_DIFF_SRC_3 132
+/// A special mnemonic for gradient (diff) of RNN input recurrent cell attention
+/// vector. An alias for #DNNL_ARG_DIFF_SRC_3.
+#define DNNL_ARG_DIFF_AUGRU_ATTENTION DNNL_ARG_DIFF_SRC_3
 
 /// Gradient (diff) of the destination argument #0.
 #define DNNL_ARG_DIFF_DST_0 145

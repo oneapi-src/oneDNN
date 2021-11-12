@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "primitive_desc.hpp"
 #include "rnn.hpp"
 #include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -54,6 +55,17 @@ struct rnn_pd_t : public primitive_desc_t {
         if (index == 2 && with_src_iter_c()) return &src_iter_c_md_;
         return &glob_zero_md;
     }
+
+    memory_desc_t &augru_attention_md() {
+        if (with_augru_attention()) return weights_peephole_md_;
+        return glob_zero_md;
+    }
+
+    const memory_desc_t &const_augru_attention_md() const {
+        if (with_augru_attention()) return weights_peephole_md_;
+        return glob_zero_md;
+    }
+
     const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_layer_md_;
         if (index == 1) return &weights_iter_md_;
@@ -118,6 +130,8 @@ struct rnn_pd_t : public primitive_desc_t {
         return !memory_desc_wrapper(desc_.bias_desc).is_zero();
     }
 
+    bool with_augru_attention() const { return is_augru(); }
+
     bool with_src_iter() const {
         return !(memory_desc_wrapper(desc_.src_iter_desc).is_zero());
     }
@@ -140,12 +154,19 @@ struct rnn_pd_t : public primitive_desc_t {
         return desc_.activation_kind;
     }
 
-    bool is_lbr() const { return cell_kind() == dnnl_lbr_gru; }
+    bool is_lbr() const {
+        return utils::one_of(cell_kind(), dnnl_lbr_gru, dnnl_lbr_augru);
+    }
+
+    bool is_augru() const {
+        return utils::one_of(cell_kind(), dnnl_vanilla_augru, dnnl_lbr_augru);
+    }
 
     bool is_lstm() const { return cell_kind() == dnnl_vanilla_lstm; }
 
     bool is_lstm_peephole() const {
-        return !memory_desc_wrapper(weights_peephole_md_).is_zero();
+        return is_lstm()
+                && !memory_desc_wrapper(weights_peephole_md_).is_zero();
     }
 
     bool is_lstm_projection() const {
@@ -198,6 +219,9 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC_LAYER) return arg_usage_t::input;
 
+        if (arg == DNNL_ARG_AUGRU_ATTENTION && with_augru_attention())
+            return arg_usage_t::input;
+
         if (arg == DNNL_ARG_SRC_ITER && with_src_iter())
             return arg_usage_t::input;
 
@@ -232,6 +256,7 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
     const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC_LAYER: return src_md(0);
+            case DNNL_ARG_AUGRU_ATTENTION: return &const_augru_attention_md();
             case DNNL_ARG_SRC_ITER: return src_md(1);
             case DNNL_ARG_SRC_ITER_C: return src_md(2);
             case DNNL_ARG_WEIGHTS_LAYER: return weights_md(0);
@@ -253,7 +278,7 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
 
     int n_inputs() const override {
         return 3 + is_lstm_peephole() + is_lstm_projection() + with_bias()
-                + with_src_iter() + with_src_iter_c();
+                + with_src_iter() + with_src_iter_c() + is_augru();
     }
     int n_outputs() const override {
         return 1 + with_dst_iter() + with_dst_iter_c() + is_training();
@@ -278,6 +303,12 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         if (utils::one_of(arg, DNNL_ARG_DIFF_SRC_LAYER,
                     DNNL_ARG_DIFF_WEIGHTS_LAYER, DNNL_ARG_DIFF_WEIGHTS_ITER))
             return arg_usage_t::output;
+
+        if (with_augru_attention()) {
+            if (arg == DNNL_ARG_AUGRU_ATTENTION) return arg_usage_t::input;
+            if (arg == DNNL_ARG_DIFF_AUGRU_ATTENTION)
+                return arg_usage_t::output;
+        }
 
         if (is_lstm_peephole()) {
             if (arg == DNNL_ARG_WEIGHTS_PEEPHOLE) return arg_usage_t::input;
@@ -329,9 +360,12 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
     const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC_LAYER: return src_md(0);
+            case DNNL_ARG_AUGRU_ATTENTION: return &const_augru_attention_md();
             case DNNL_ARG_SRC_ITER: return src_md(1);
             case DNNL_ARG_SRC_ITER_C: return src_md(2);
             case DNNL_ARG_DIFF_SRC_LAYER: return diff_src_md(0);
+            case DNNL_ARG_DIFF_AUGRU_ATTENTION:
+                return &const_diff_augru_attention_md();
             case DNNL_ARG_DIFF_SRC_ITER: return diff_src_md(1);
             case DNNL_ARG_DIFF_SRC_ITER_C: return diff_src_md(2);
             case DNNL_ARG_WEIGHTS_LAYER: return weights_md(0);
@@ -371,6 +405,14 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         if (index == 2 && with_src_iter_c()) return &diff_src_iter_c_md_;
         return &glob_zero_md;
     }
+    memory_desc_t &diff_augru_attention_md() {
+        if (with_augru_attention()) return diff_weights_peephole_md_;
+        return glob_zero_md;
+    }
+    const memory_desc_t &const_diff_augru_attention_md() const {
+        if (with_augru_attention()) return diff_weights_peephole_md_;
+        return glob_zero_md;
+    }
     const memory_desc_t *diff_weights_md(int index = 0) const override {
         if (index == 0) return &diff_weights_layer_md_;
         if (index == 1) return &diff_weights_iter_md_;
@@ -398,11 +440,11 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
     int n_inputs() const override {
         return 6 + with_src_iter() + with_src_iter_c()
                 + 2 * (with_dst_iter() + with_dst_iter_c()) + is_lstm_peephole()
-                + is_lstm_projection() + with_bias();
+                + is_lstm_projection() + with_bias() + is_augru();
     }
     int n_outputs() const override {
         return 3 + with_src_iter() + with_src_iter_c() + is_lstm_peephole()
-                + is_lstm_projection() + with_bias();
+                + is_lstm_projection() + with_bias() + is_augru();
     }
 
 protected:
