@@ -1590,6 +1590,22 @@ DECL_OP_TRAITS(op_kind_t::_le, <=)
 
 DECL_OP_TRAITS(op_kind_t::_and, &&)
 
+template <>
+struct op_traits_t<op_kind_t::_min> {
+    template <typename T>
+    static T compute(T a, T b) {
+        return std::min(a, b);
+    }
+};
+
+template <>
+struct op_traits_t<op_kind_t::_max> {
+    template <typename T>
+    static T compute(T a, T b) {
+        return std::max(a, b);
+    }
+};
+
 #undef DECL_OP_TRAITS
 
 template <op_kind_t op_kind, typename T, typename = void>
@@ -1634,6 +1650,8 @@ public:
             CASE(op_kind_t::_le)
 
             CASE(op_kind_t::_and)
+            CASE(op_kind_t::_min)
+            CASE(op_kind_t::_max)
 
             default: ir_error_not_expected();
 
