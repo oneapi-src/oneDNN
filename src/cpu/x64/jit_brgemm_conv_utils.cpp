@@ -406,7 +406,7 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     void get_from_jcp(const jit_brgemm_conv_conf_t &jcp) { *this = jcp; }
     void save_to_jcp(jit_brgemm_conv_conf_t &jcp) const { jcp = *this; }
 
-    status_t estimate_brgemm_ur(int spb);
+    status_t estimate_brgemm_ur();
     status_t get_brgemm_ur(
             const primitive_attr_t *attr, const memory_desc_t &dst_md);
 
@@ -569,7 +569,7 @@ void brg_blocking_t::select_ic_block() {
     nb_ic = utils::div_up(ic, ic_block);
 }
 
-status_t brg_blocking_t::estimate_brgemm_ur(int spb) {
+status_t brg_blocking_t::estimate_brgemm_ur() {
     // Simple simulation of brgemm_desc init
     if (sp_block <= 0) return status::invalid_arguments;
     LDA = is_rtus
@@ -644,9 +644,9 @@ status_t brg_blocking_t::estimate_brgemm_ur(int spb) {
 status_t brg_blocking_t::get_brgemm_ur(
         const primitive_attr_t *attr, const memory_desc_t &dst_md) {
     // Detailed simulation of brgemm convolution init
-    if (sp_block <= 0 || ic_block <= 0 || sp_block <= 0 || oc_block <= 0)
+    if (sp_block <= 0 || ic_block <= 0 || oc_block <= 0)
         return status::invalid_arguments;
-    CHECK(estimate_brgemm_ur(is_os_blocking ? os_block : ow_block));
+    CHECK(estimate_brgemm_ur());
 
     LDD = oc_without_padding;
 
@@ -1099,7 +1099,7 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
             use_buffer = use_buffer || (maybe_use_buffer && iwp != iw);
         if (is_amx(isa)) use_buffer = use_buffer || (use_M_mask > 0);
 
-        const status_t st = estimate_brgemm_ur(ow_block);
+        const status_t st = estimate_brgemm_ur();
         if (st != status::success) continue;
         os_block = sp_block = ow_block;
         update_blocks();
@@ -1535,7 +1535,7 @@ void brg_blocking_t::calc_blocks_1x1() {
         prev_spb = spb;
         os_block = ow_block = sp_block = spb;
         select_ic_block();
-        const status_t st = estimate_brgemm_ur(spb);
+        const status_t st = estimate_brgemm_ur();
         if (st != status::success) continue;
         update_blocks();
 
