@@ -105,6 +105,7 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
     if (is_adjustment) max_os_block /= 2;
     int os_block = 1;
     for (int osb = max_os_block; osb >= min_os_block; osb--) {
+        if (osb == 0) break;
         if (jbgp.os % osb == 0) {
             os_block = osb;
             break;
