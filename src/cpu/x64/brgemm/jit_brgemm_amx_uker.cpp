@@ -264,11 +264,14 @@ void jit_brgemm_amx_uker_base_t::prepare_bd_mask() noexcept {
     const auto bd_mask_size = brg.bcast_dim;
     adj_bd_mask_buffer.resize(bd_mask_size);
     adj_bd_mask_buffer_ptr = adj_bd_mask_buffer.data();
-    size_t acc = 0;
-    for (int i = 0; i < bd_mask_size; i++) {
-        adj_bd_mask_buffer_ptr[i] = acc;
-        acc += bd_mask_buffer_ptr[i];
-    }
+    if (!utils::any_null(bd_mask_buffer_ptr, adj_bd_mask_buffer_ptr)) {
+        size_t acc = 0;
+        for (int i = 0; i < bd_mask_size; i++) {
+            adj_bd_mask_buffer_ptr[i] = acc;
+            acc += bd_mask_buffer_ptr[i];
+        }
+    } else
+        assert(!"struct nullptr error");
 }
 
 int jit_brgemm_amx_uker_base_t::skipped_bd_mask(int bd_ind) noexcept {
