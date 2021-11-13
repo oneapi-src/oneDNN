@@ -1111,16 +1111,6 @@ static std::string trim_letter(const std::string &tag_, char c) {
     return tag;
 }
 
-// Removes extra dimensions from a tag according to ndims.
-static std::string trim_tag(const std::string &tag, int ndims) {
-    std::string trimmed_tag = tag;
-    for (char c = 'a' + ndims; c <= 'a' + (char)(DNNL_MAX_NDIMS - 1); c++) {
-        trimmed_tag = trim_letter(trimmed_tag, c);
-        trimmed_tag = trim_letter(trimmed_tag, std::toupper(c));
-    }
-    return trimmed_tag;
-}
-
 // Tries to map a tag to an abc-tag according to a logical tag. For example:
 // nchw -> abcd.
 static std::string try_map_tag(
@@ -1189,6 +1179,15 @@ static std::string map_tag_letters(const std::string &tag) {
     if (!tag_ldigo.empty()) return tag_ldigo;
 
     return tag;
+}
+
+std::string trim_tag(const std::string &tag, int ndims) {
+    std::string trimmed_tag = tag;
+    for (char c = 'a' + ndims; c <= 'a' + (char)(DNNL_MAX_NDIMS - 1); c++) {
+        trimmed_tag = trim_letter(trimmed_tag, c);
+        trimmed_tag = trim_letter(trimmed_tag, std::toupper(c));
+    }
+    return trimmed_tag;
 }
 
 std::string normalize_tag(const std::string &tag_, int ndims) {

@@ -480,6 +480,9 @@ int check_tag(const std::string &tag_, bool check_enum_tags_only = false);
 // Validates a tag in abc notation.
 int check_abc_tag(const std::string &tag, bool check_enum_tags_only = false);
 
+// Removes extra dimensions from a tag according to ndims.
+std::string trim_tag(const std::string &tag, int ndims);
+
 // Converts a tag/meta-tag to abc notation.
 std::string normalize_tag(const std::string &tag, int ndims = -1);
 
