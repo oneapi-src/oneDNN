@@ -95,7 +95,8 @@ const impl_list_item_t gpu_impl_list[] = {
         INSTANCE(jit::gen_convolution_bwd_weights_t),
         INSTANCE(ocl::xe_hpc_1x1_convolution_fwd_t),
         INSTANCE(ocl::xe_hpc_bf16_convolution_bwd_weights_t),
-        INSTANCE(ocl::xe_hpc_convolution_fwd_t),
+        // XXX: Disable implementation due to compilation errors.
+        // INSTANCE(ocl::xe_hpc_convolution_fwd_t),
         INSTANCE(ocl::xe_hpc_convolution_bwd_data_t),
         INSTANCE(jit::xe_hp_convolution_fwd_t),
         INSTANCE(jit::xe_hp_convolution_bwd_data_t),
