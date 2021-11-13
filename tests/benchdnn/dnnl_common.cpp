@@ -639,6 +639,8 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
 
     *md = dnnl_memory_desc_t();
     md->ndims = ndims;
+    if (ndims < 0 || ndims > DNNL_MAX_NDIMS) return FAIL;
+
     std::copy(tmp_dims, tmp_dims + ndims, md->dims);
     md->data_type = data_type;
     md->format_kind = dnnl_blocked;

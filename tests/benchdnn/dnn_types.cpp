@@ -1096,17 +1096,17 @@ int check_abc_tag(const std::string &tag_, bool check_enum_tags_only) {
 
 static std::string trim_letter(const std::string &tag_, char c) {
     auto tag = tag_;
-    auto pos = tag.find(c);
-    if (pos == std::string::npos) return tag;
-
-    tag.replace(pos, 1, "");
-    if (pos == 0) return tag;
-
-    pos--;
-    while (std::isdigit(tag[pos])) {
+    for (size_t pos = tag.find(c); pos != std::string::npos;
+            pos = tag.find(c)) {
         tag.replace(pos, 1, "");
-        if (pos == 0) break;
+        if (pos == 0) return tag;
+
         pos--;
+        while (std::isdigit(tag[pos])) {
+            tag.replace(pos, 1, "");
+            if (pos == 0) break;
+            pos--;
+        }
     }
     return tag;
 }
