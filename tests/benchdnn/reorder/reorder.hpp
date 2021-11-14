@@ -33,6 +33,7 @@ enum flag_bit_t {
     FLAG_NONE = 0x0U,
     FLAG_S8S8_COMP = 0x1U,
     FLAG_ZP_COMP = 0x2U,
+    FLAG_ANY = ~FLAG_NONE, // For internal use only.
 };
 using flag_t = std::pair<flag_bit_t, int>;
 flag_t str2flag(const char *str);
@@ -120,9 +121,8 @@ struct prb_t : public prb_dims_t {
     float *scales;
     int32_t *src_zp, *dst_zp;
 
-    bool is_reorder_with_compensation() const {
-        return !oflag.empty() && oflag[0].first != FLAG_NONE;
-    }
+    bool is_reorder_with_compensation(flag_bit_t flag) const;
+    dims_t get_compensation_dims(flag_bit_t flag) const;
     float *generate_oscales();
     int32_t *generate_zero_points(int arg) const;
 };

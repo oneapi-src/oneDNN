@@ -87,6 +87,27 @@ const char *cross_engine2str(cross_engine_t cross_engine) {
     }
 }
 
+bool prb_t::is_reorder_with_compensation(flag_bit_t flag) const {
+    if (oflag.empty()) return false;
+
+    return std::any_of(oflag.cbegin(), oflag.cend(),
+            [&](const flag_t &oflag) { return (oflag.first & flag); });
+}
+
+dims_t prb_t::get_compensation_dims(flag_bit_t flag) const {
+    dims_t comp_dims;
+    if (is_reorder_with_compensation(flag)) {
+        for (const auto &i_oflag : oflag) {
+            if (i_oflag.first != flag) continue;
+
+            const int mask = i_oflag.second;
+            for (int d = 0; d < ndims; ++d)
+                if (mask & (1 << d)) comp_dims.push_back(dims[d]);
+        }
+    }
+    return comp_dims;
+}
+
 float *prb_t::generate_oscales() {
     const attr_t::scale_t &oscale = this->attr.oscale;
     const int mask = attr_t::get_default_mask(oscale.policy);
