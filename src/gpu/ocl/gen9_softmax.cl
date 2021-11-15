@@ -81,3 +81,43 @@ gen9_softmax_fwd(__global DATA_T *src, __global DATA_T *dst) {
 }
 
 #endif
+#if IS_BWD
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
+gen9_softmax_bwd(__global DATA_T *dst, __global DATA_T *diff_src,
+        __global DATA_T *diff_dst) {
+    const int data_off = (get_global_id(0) / GROUP_SIZE) * SOFTMAX_AXIS_SIZE;
+
+    float8 diff_d[NUM_BUF];
+    float8 dst_[NUM_BUF];
+
+    float sbr = 0.f;
+
+    diff_dst += data_off;
+    dst += data_off;
+
+    for (int k = 0; k < NUM_BUF; ++k) {
+        diff_d[k] = LOAD_DATA_8x16(&diff_dst[k * VECT_SIZE * SUB_GROUP_SIZE]);
+        dst_[k] = LOAD_DATA_8x16(&dst[k * VECT_SIZE * SUB_GROUP_SIZE]);
+        for (int i = 0; i < VECT_SIZE; ++i) {
+#if LOGSOFTMAX
+            sbr += diff_d[k][i];
+#else
+            sbr += dst_[k][i] * diff_d[k][i];
+#endif
+        }
+    }
+
+    sbr = sub_group_reduce_add(sbr);
+
+    diff_src += data_off;
+    for (int k = 0; k < NUM_BUF; ++k) {
+#if LOGSOFTMAX
+        diff_d[k] = diff_d[k] - exp(dst_[k]) * sbr;
+#else
+        diff_d[k] = (diff_d[k] - sbr) * dst_[k];
+#endif
+        STORE_DATA_8x16(&diff_src[k * VECT_SIZE * SUB_GROUP_SIZE], diff_d[k]);
+    }
+}
+#endif

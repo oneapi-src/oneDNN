@@ -122,6 +122,94 @@ protected:
     compute::kernel_t kernel_;
 };
 
+struct gen9_softmax_bwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
+    struct pd_t : public gpu_softmax_bwd_pd_t {
+        pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
+                const softmax_fwd_pd_t *hint_fwd_pd)
+            : gpu_softmax_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
+
+        DECLARE_COMMON_PD_T("ocl:gen9", gen9_softmax_bwd_t);
+
+        status_t init(engine_t *engine) {
+            using namespace dnnl::impl::format_tag;
+
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+
+            const int nelems = desc()->data_desc.dims[desc()->softmax_axis];
+            const memory_desc_wrapper diff_src_d(diff_src_md(0));
+            bool ok = true && nelems % 128 == 0
+                    && desc()->softmax_axis == diff_src_md(0)->ndims - 1
+                    && set_default_formats_common()
+                    && desc()->prop_kind == prop_kind::backward_data
+                    && utils::one_of(desc()->data_desc.data_type,
+                            data_type::f32, data_type::bf16)
+                    && attr()->has_default_values()
+                    && (diff_src_d.matches_one_of_tag(nwc, nhwc, ndhwc)
+                            == undef);
+            if (!ok) return status::unimplemented;
+
+            group_size = 16;
+
+            if (!compute_engine->mayiuse_sub_group((int)group_size))
+                return status::unimplemented;
+
+            lws[0] = group_size;
+            lws[1] = lws[2] = 1;
+
+            gws[0] = utils::array_product(
+                             &diff_src_md(0)->padded_dims[0], ndims() - 1)
+                    * group_size;
+            gws[1] = gws[2] = 1;
+
+            return status::success;
+        }
+
+        size_t gws[3] = {};
+        size_t lws[3] = {};
+        size_t block[3] = {};
+        size_t group_size = 0;
+    };
+
+    status_t init(engine_t *engine) override {
+        if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
+            return status::success;
+
+        compute::kernel_ctx_t kernel_ctx;
+
+        const auto *desc = pd()->desc();
+        kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
+        kernel_ctx.define_int(
+                "SOFTMAX_AXIS_SIZE", desc->data_desc.dims[desc->softmax_axis]);
+        kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
+        kernel_ctx.define_int("SUB_GROUP_SIZE", pd()->group_size);
+        kernel_ctx.define_int("IS_BWD", 1);
+        kernel_ctx.add_option("-cl-std=CL2.0");
+        kernel_ctx.define_int("LOGSOFTMAX",
+                desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
+
+        kernel_ctx.set_data_type(desc->data_desc.data_type);
+        set_offsets(kernel_ctx, *pd()->diff_src_md(), "DATA");
+
+        for (int i = 0; i < 3; ++i)
+            kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
+
+        create_kernel(engine, &kernel_, "gen9_softmax_bwd", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
+
+        return status::success;
+    }
+
+    status_t execute(const exec_ctx_t &ctx) const override {
+        return execute_generic(ctx);
+    }
+
+protected:
+    status_t execute_generic(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    compute::kernel_t kernel_;
+};
 } // namespace ocl
 } // namespace gpu
 } // namespace impl

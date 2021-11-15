@@ -146,6 +146,7 @@ const impl_list_item_t gpu_impl_list[] = {
 
         // Softmax
         INSTANCE(ocl::gen9_softmax_fwd_t),
+        INSTANCE(ocl::gen9_softmax_bwd_t),
         INSTANCE(ocl::ref_softmax_fwd_t),
         INSTANCE(ocl::ref_softmax_bwd_t),
 
