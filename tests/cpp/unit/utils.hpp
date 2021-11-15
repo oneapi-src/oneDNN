@@ -281,19 +281,52 @@ static inline void verify_shape_infer_for_arithmetic_op_with_broadcast(
 }
 #undef for_
 
-static inline void set_conv_common_attr(dnnl::graph::impl::op_t &op_,
-        std::vector<int64_t> &strides, std::vector<int64_t> &pads_begin,
-        std::vector<int64_t> &pads_end, std::vector<int64_t> &dilations,
-        std::string auto_pad, std::string data_format,
-        std::string filter_format, int64_t groups) {
-    op_.set_attr("strides", strides);
-    op_.set_attr("pads_begin", pads_begin);
-    op_.set_attr("pads_end", pads_end);
-    op_.set_attr("dilations", dilations);
-    op_.set_attr("auto_pad", auto_pad);
-    op_.set_attr("data_format", data_format);
-    op_.set_attr("filter_format", filter_format);
-    op_.set_attr("groups", groups);
+static inline void set_conv_common_attr(impl::op_t &conv,
+        std::vector<int64_t> strides = {1, 1},
+        std::vector<int64_t> pads_begin = {0, 0},
+        std::vector<int64_t> pads_end = {0, 0},
+        std::vector<int64_t> dilations = {1, 1}, std::string auto_pad = "None",
+        std::string data_format = "NXC", std::string filter_format = "XIO",
+        int64_t groups = 1) {
+    conv.set_attr("strides", strides);
+    conv.set_attr("pads_begin", pads_begin);
+    conv.set_attr("pads_end", pads_end);
+    conv.set_attr("dilations", dilations);
+    conv.set_attr("auto_pad", auto_pad);
+    conv.set_attr("data_format", data_format);
+    conv.set_attr("filter_format", filter_format);
+    conv.set_attr("groups", groups);
+}
+
+static inline void set_conv_dw_base_op_attr(impl::op_t &conv) {
+    std::vector<int64_t> conv_strides {1, 1};
+    std::vector<int64_t> conv_pads_begin {0, 0};
+    std::vector<int64_t> conv_pads_end {0, 0};
+    std::vector<int64_t> conv_dilations {1, 1};
+    std::string conv_auto_pad = "None";
+    std::string conv_data_format = "NCX";
+    std::string conv_filter_format = "OIX";
+    int64_t conv_groups = 1;
+    set_conv_common_attr(conv, conv_strides, conv_pads_begin, conv_pads_end,
+            conv_dilations, conv_auto_pad, conv_data_format, conv_filter_format,
+            conv_groups);
+}
+
+static inline void set_conv_dw_post_op_attr(
+        impl::op_t &dw, const std::string &dw_type) {
+    std::vector<int64_t> dw_strides = ("k3s1p1" == dw_type)
+            ? std::vector<int64_t> {1, 1}
+            : std::vector<int64_t> {2, 2};
+    std::vector<int64_t> dw_pads_begin {1, 1};
+    std::vector<int64_t> dw_pads_end {1, 1};
+    std::vector<int64_t> dw_dilations {1, 1};
+    std::string dw_auto_pad = "None";
+    std::string dw_data_format = "NCX";
+    std::string dw_filter_format = "OIX";
+    int64_t dw_groups = 4;
+    set_conv_common_attr(dw, dw_strides, dw_pads_begin, dw_pads_end,
+            dw_dilations, dw_auto_pad, dw_data_format, dw_filter_format,
+            dw_groups);
 }
 
 static inline void set_convtranspose_common_attr(dnnl::graph::impl::op_t &op_,

@@ -599,10 +599,11 @@ impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
 
 status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
     const std::set<op_kind_t> post_ops_kinds {impl::op_kind::Abs,
-            impl::op_kind::Add, impl::op_kind::GELU, impl::op_kind::Divide,
-            impl::op_kind::Elu, impl::op_kind::HardTanh, impl::op_kind::ReLU,
-            impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_swish};
+            impl::op_kind::Add, impl::op_kind::Convolution, impl::op_kind::GELU,
+            impl::op_kind::Divide, impl::op_kind::Elu, impl::op_kind::HardTanh,
+            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sigmoid,
+            impl::op_kind::Sqrt, impl::op_kind::Square, impl::op_kind::Tanh,
+            op_kind::dnnl_swish};
 
     auto &subgraph = sg->get_mutable_ops();
     auto &prm_attr_mgr = sg->prm_attr_mgr_;
@@ -656,6 +657,8 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
             dnnl::primitive_attr &prm_attr = prm_attr_mgr.get_attr(key);
 
             dnnl::post_ops pops = prm_attr.get_post_ops();
+
+            bool with_op_replacement = false;
 
             if (is_eltwise_kind(post_op->get_kind())) {
                 float scale = 1.f;
@@ -809,6 +812,66 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                 const auto &post_src = make_dnnl_memory_desc(
                         post_op->get_input_value(1)->get_logical_tensor());
                 pops.append_binary(dnnl::algorithm::binary_div, post_src);
+            } else if (post_op->get_kind() == impl::op_kind::Convolution) {
+                const auto get_dnn_dt = [](const value_ptr &val) {
+                    const auto graph_dt
+                            = ltw(val->get_logical_tensor()).data_type();
+                    return static_cast<dnnl::memory::data_type>(graph_dt);
+                };
+
+                const size_t wei_offset = 1;
+                const size_t dst_offset = 0;
+                const auto wei_dt
+                        = get_dnn_dt(post_op->get_input_value(wei_offset));
+                const auto dst_dt
+                        = get_dnn_dt(post_op->get_output_value(dst_offset));
+                const auto bia_dt = dnnl::memory::data_type::undef;
+                const int mask = 0;
+                const std::string dw_type
+                        = (post_op->get_attr<std::vector<int64_t>>("strides")[0]
+                                  == 1)
+                        ? "k3s1p1"
+                        : "k3s2p1";
+                if (dw_type == "k3s1p1")
+                    pops.append_dw_k3s1p1(wei_dt, bia_dt, dst_dt, mask,
+                            std::vector<float> {});
+                else
+                    pops.append_dw_k3s2p1(wei_dt, bia_dt, dst_dt, mask,
+                            std::vector<float> {});
+
+                op_ptr conv_dw
+                        = std::make_shared<op_t>(op_kind::conv_depthwise);
+                const auto dw_groups = post_op->get_attr<int64_t>("groups");
+                const auto dw_filter_format
+                        = post_op->get_attr<std::string>("filter_format");
+                conv_dw->set_attr("dw_groups", dw_groups);
+                conv_dw->set_attr("dw_filter_format", dw_filter_format);
+                conv_dw->set_attr("dw_type", dw_type);
+
+                auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                        [base_op](const op_ptr &f_op) {
+                            return base_op == f_op.get();
+                        });
+                assert(pos != subgraph.end());
+                replace_op(*pos, conv_dw);
+
+                fuse_op_to_predecessor(
+                        post_op, subgraph, fuse_op_predecessor_offset);
+                // conv_depthwise op may have additional output, which is
+                // intermediate base conv output. It is needed in layout
+                // propagation step.
+                auto base_out_lt
+                        = base_op->get_output_value(0)->get_logical_tensor();
+                op_t &conv_dw_ref = *conv_dw.get();
+                auto intermediate_out = std::make_shared<value_t>(
+                        conv_dw_ref, conv_dw->num_outputs(), base_out_lt, true);
+                conv_dw->connect_output(
+                        conv_dw->num_outputs(), intermediate_out);
+
+                subgraph.erase(pos);
+                subgraph.emplace_back(conv_dw);
+
+                with_op_replacement = true;
             } else {
                 // unsupported post ops
                 continue;
@@ -816,9 +879,11 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
 
             prm_attr.set_post_ops(pops);
 
-            // remove the fused post_ops op
-            fuse_op_to_predecessor(
-                    post_op, subgraph, fuse_op_predecessor_offset);
+            if (!with_op_replacement) {
+                // remove the fused post_ops op
+                fuse_op_to_predecessor(
+                        post_op, subgraph, fuse_op_predecessor_offset);
+            }
         }
 
         changed = true;

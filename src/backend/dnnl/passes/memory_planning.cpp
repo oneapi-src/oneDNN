@@ -148,6 +148,10 @@ void memory_planner_t::prepare_args_for_conv_and_matmul(op_t *op,
                     op->get_input_value(index++).get(), mem);
             args.insert(
                     {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
+        } else if (pops.kind(i) == dnnl::primitive::kind::convolution) {
+            exec_args_set_.find_value_mem_map(
+                    op->get_input_value(index++).get(), mem);
+            args.insert({DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, mem});
         } else {
         }
     }
@@ -517,7 +521,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::dnnl_convolution
                         || op->get_kind() == impl::op_kind::MatMul
                         || op->get_kind() == impl::op_kind::ConvTranspose
-                        || op->get_kind() == op_kind::dnnl_convtranspose) {
+                        || op->get_kind() == op_kind::dnnl_convtranspose
+                        || op->get_kind() == op_kind::conv_depthwise) {
                     prepare_args_for_conv_and_matmul(
                             op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == impl::op_kind::MaxPool

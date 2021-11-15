@@ -64,8 +64,17 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
             op->get_input_value(0)->get_logical_tensor());
     auto weight = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
+    size_t dst_offset = 0;
+    if (op->get_kind() == op_kind::conv_depthwise) {
+        // at this stage conv_depthwise op should have two outputs
+        assertm(op->num_outputs() == 2,
+                "conv_depthwise op should have two outputs.");
+        // we want to take 2nd output as it represent base conv output
+        // (needed to create pd)
+        dst_offset = 1;
+    }
     auto dst = make_dnnl_memory_desc(
-            op->get_output_value(0)->get_logical_tensor());
+            op->get_output_value(dst_offset)->get_logical_tensor());
 
     dnnl::convolution_forward::primitive_desc pd;
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {

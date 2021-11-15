@@ -48,6 +48,36 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
     return status::success;
 }
 
+status_t infer_dnnl_conv_depthwise_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    logical_tensor_t tmp_out = empty_logical_tensor_with_default_id();
+    std::vector<logical_tensor_t *> tmp_outs {&tmp_out};
+    const status_t ret = infer_conv_output_shape(n, inputs, tmp_outs);
+    if (ret != status::success) return ret;
+
+    // at this stage tmp_out corresponds to conv_1x1 dst
+    // we now just need to adjust oh and ow in case of dw_k3s2p1 post-op
+    dims output_dims(logical_tensor_wrapper_t(&tmp_out).vdims());
+    if (n->get_attr<std::string>("dw_type") == "k3s2p1") {
+        const std::string src_fmt = n->get_attr<std::string>("data_format");
+        const size_t oh_offset
+                = (src_fmt == "NCX") ? output_dims.size() - 2 : 1;
+        const size_t ow_offset
+                = (src_fmt == "NCX") ? output_dims.size() - 1 : 2;
+        const dim_t stride = 2;
+        const dim_t new_oh = static_cast<dim_t>(
+                std::ceil(output_dims[oh_offset] / stride));
+        const dim_t new_ow = static_cast<dim_t>(
+                std::ceil(output_dims[ow_offset] / stride));
+        output_dims[oh_offset] = new_oh;
+        output_dims[ow_offset] = new_ow;
+    }
+
+    set_shape_and_strides(*outputs[0], output_dims);
+    return status::success;
+}
+
 status_t infer_dnnl_convtranspose_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {

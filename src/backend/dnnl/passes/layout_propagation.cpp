@@ -54,28 +54,35 @@ static value_ptr insert_workspace(op_ptr &op) {
 static bool layout_propagation_for_conv(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache) {
-    std::shared_ptr<impl::value_t> src, wei, bias, dst;
-    src = op->get_input_value(0);
-    wei = op->get_input_value(1);
-    dst = op->get_output_value(0);
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
-        bias = op->get_input_value(2);
-    }
+    const bool is_dw = op->get_kind() == op_kind::conv_depthwise;
+    value_ptr src = op->get_input_value(0);
+    value_ptr wei = op->get_input_value(1);
+    value_ptr dst = op->get_output_value(0);
 
     assertm(ltw(src->get_logical_tensor()).is_any()
                     && ltw(wei->get_logical_tensor()).is_any()
                     && ltw(dst->get_logical_tensor()).is_any(),
             "conv's src, weight, dst should be any layout_type");
+    if (is_dw) {
+        assertm(ltw(op->get_input_value(2)->get_logical_tensor()).is_any(),
+                "conv_depthwise's dw_weight should be any layout_type");
+    }
 
     auto pd = create_conv_pd(op, p_engine, prm_attr_mgr, pd_cache);
 
     fill_layout_info(src, pd.src_desc());
     fill_layout_info(wei, pd.weights_desc());
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
-        fill_layout_info(bias, pd.bias_desc());
-    }
-
     fill_layout_info(dst, pd.dst_desc());
+
+    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+        value_ptr bias = op->get_input_value(2);
+        fill_layout_info(bias, pd.bias_desc());
+    } else if (is_dw) {
+        value_ptr dw_wei = op->get_input_value(2);
+        fill_layout_info(dw_wei,
+                pd.query_md(query::exec_arg_md,
+                        DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS));
+    }
 
     // fill scratchpads dimensions and data type to scratchpad value_t
     auto scratchpad_val = insert_scratchpad(op);
@@ -474,6 +481,52 @@ static bool layout_propagation_for_conv_bwd_data(op_ptr &op,
     return true;
 }
 
+static void remove_optional_conv_dw_output(
+        std::vector<op_ptr> &subgraph, pd_cache_t &pd_cache) {
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::conv_depthwise) continue;
+
+        op_ptr new_conv_dw
+                = std::make_shared<impl::op_t>(op_kind::conv_depthwise);
+        new_conv_dw->merge_attributes(cur_op->get_attributes());
+
+        for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
+            new_conv_dw->connect_input(i, cur_op->get_input_value(i));
+        }
+        // connect outputs, omit optional one with offset = 1
+        value_ptr conv_dw_dst = cur_op->get_output_value(0);
+        new_conv_dw->connect_output(0, conv_dw_dst);
+        if (cur_op->num_outputs() == 3) {
+            value_ptr scratchpad = cur_op->get_output_value(2);
+            new_conv_dw->connect_output(1, scratchpad);
+        }
+
+        auto pos = pd_cache.find(cur_op.get());
+        if (pos != pd_cache.end()) {
+            // we are replacing op, but we want to keep it's cached pd,
+            // so later, during compile_ops execution, removed optional
+            // output will not be required.
+            auto &pd = pd_cache.at(cur_op.get());
+            pd_cache.insert({new_conv_dw.get(), pd});
+            pd_cache.erase(pos);
+        }
+
+        to_be_inserted_ops.emplace_back(new_conv_dw);
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops)
+        subgraph.emplace_back(op);
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+}
+
 static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
     std::vector<op_t *> fuse_to_precursor;
     std::vector<op_t *> fuse_to_successor;
@@ -555,6 +608,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
 
             if (cur_op->get_kind() == impl::op_kind::Convolution
                     || cur_op->get_kind() == op_kind::dnnl_convolution
+                    || cur_op->get_kind() == op_kind::conv_depthwise
                     || cur_op->get_kind() == impl::op_kind::MatMul
                     || cur_op->get_kind() == op_kind::dnnl_conv_bwd_data)
                 continue;
@@ -602,7 +656,8 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
         if (!need_prop(cur_op.get())) continue;
 
         if (cur_op->get_kind() == impl::op_kind::Convolution
-                || cur_op->get_kind() == op_kind::dnnl_convolution) {
+                || cur_op->get_kind() == op_kind::dnnl_convolution
+                || cur_op->get_kind() == op_kind::conv_depthwise) {
             layout_propagation_for_conv(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
@@ -649,6 +704,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
     assertm(cnt <= max_num_limit, "Failed to propagate layout for all ops");
     if (cnt > max_num_limit) return impl::status::unsupported;
 
+    remove_optional_conv_dw_output(subgraph, pd_cache);
     remove_unnecessary_reorder(subgraph);
 
     // fill layout information for subgraph's inputs

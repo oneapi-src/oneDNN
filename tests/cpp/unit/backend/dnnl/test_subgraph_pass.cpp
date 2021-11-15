@@ -56,22 +56,6 @@ dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     return *find;
 }
 
-void set_conv_common_attr(op_t &conv, std::vector<int64_t> strides = {1, 1},
-        std::vector<int64_t> pads_begin = {0, 0},
-        std::vector<int64_t> pads_end = {0, 0},
-        std::vector<int64_t> dilations = {1, 1},
-        std::string data_format = "NXC", std::string filter_format = "XIO",
-        int64_t groups = 1, std::string auto_pad = "None") {
-    conv.set_attr("strides", strides);
-    conv.set_attr("pads_begin", pads_begin);
-    conv.set_attr("pads_end", pads_end);
-    conv.set_attr("dilations", dilations);
-    conv.set_attr("data_format", data_format);
-    conv.set_attr("filter_format", filter_format);
-    conv.set_attr("groups", groups);
-    conv.set_attr("auto_pad", auto_pad);
-}
-
 const impl::op_t *get_fused_op(
         const std::shared_ptr<dnnl::graph::impl::partition_impl_t> &part) {
     return dynamic_cast<

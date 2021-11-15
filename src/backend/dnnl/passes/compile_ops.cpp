@@ -47,7 +47,8 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         std::shared_ptr<op_executable_t> exec;
 
         if (cur_op->get_kind() == impl::op_kind::Convolution
-                || cur_op->get_kind() == op_kind::dnnl_convolution) {
+                || cur_op->get_kind() == op_kind::dnnl_convolution
+                || cur_op->get_kind() == op_kind::conv_depthwise) {
             exec = std::make_shared<conv_fwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose

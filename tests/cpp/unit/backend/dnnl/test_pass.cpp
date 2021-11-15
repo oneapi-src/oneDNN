@@ -50,22 +50,6 @@ dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     return *find;
 }
 
-void set_conv_common_attr(op_t &conv, std::vector<int64_t> strides = {1, 1},
-        std::vector<int64_t> pads_begin = {0, 0},
-        std::vector<int64_t> pads_end = {0, 0},
-        std::vector<int64_t> dilations = {1, 1},
-        std::string data_format = "NXC", std::string filter_format = "XIO",
-        int64_t groups = 1, std::string auto_pad = "None") {
-    conv.set_attr("strides", strides);
-    conv.set_attr("pads_begin", pads_begin);
-    conv.set_attr("pads_end", pads_end);
-    conv.set_attr("dilations", dilations);
-    conv.set_attr("data_format", data_format);
-    conv.set_attr("filter_format", filter_format);
-    conv.set_attr("groups", groups);
-    conv.set_attr("auto_pad", auto_pad);
-}
-
 const impl::op_t *get_fused_op(
         const std::shared_ptr<dnnl::graph::impl::partition_impl_t> &part) {
     return dynamic_cast<
@@ -1426,6 +1410,226 @@ TEST(pass_priority_test, conv_bias_sum_relu6) {
     ASSERT_TRUE(pass4->get_priority() > pass5->get_priority());
     ASSERT_TRUE(pass2->get_priority() > pass5->get_priority());
 }
+
+TEST(pass_test, conv_depthwise_fusion) {
+    /*   conv
+          |
+         conv (depthwise)
+    */
+    const std::vector<std::string> dw_types {"k3s1p1", "k3s2p1"};
+    // N, IC, IH, IW
+    const std::vector<int64_t> conv_src_shape {4, 4, 4, 4};
+    // OC, IC/G, KH, KW
+    const std::vector<int64_t> conv_wei_shape {4, 4, 1, 1};
+    // N, OC, OH, OW
+    const std::vector<int64_t> conv_dst_shape {4, 4, 4, 4};
+    // OC, IC/G, KH, KW
+    const std::vector<int64_t> dw_wei_shape {4, 1, 3, 3};
+    // N, OC, OH, OW
+    const std::vector<int64_t> dw_dst_shape {4, 4, 4, 4};
+
+    const auto apply_str_for_ncx = [](const std::vector<int64_t> &shape,
+                                           const std::string &dw_type) {
+        std::vector<int64_t> new_shape = shape;
+        const int64_t str_val = (dw_type == "k3s1p1") ? 1 : 2;
+        for (size_t i = 0; i < new_shape.size() - 2; ++i) {
+            new_shape[2 + i] /= str_val;
+        }
+        return new_shape;
+    };
+
+    for (const auto &dw_type : dw_types) {
+        op_t conv {0, Convolution, "conv"};
+        set_conv_dw_base_op_attr(conv);
+
+        op_t depthwise {1, Convolution, "depthwise"};
+        set_conv_dw_post_op_attr(depthwise, dw_type);
+
+        logical_tensor_t conv_src
+                = logical_tensor_init(0, conv_src_shape, data_type::f32);
+        logical_tensor_t conv_wei
+                = logical_tensor_init(1, conv_wei_shape, data_type::f32);
+        logical_tensor_t conv_dst
+                = logical_tensor_init(2, conv_dst_shape, data_type::f32);
+
+        logical_tensor_t dw_wei
+                = logical_tensor_init(3, dw_wei_shape, data_type::f32);
+        logical_tensor_t dw_dst = logical_tensor_init(
+                4, apply_str_for_ncx(dw_dst_shape, dw_type), data_type::f32);
+
+        conv.add_input(conv_src);
+        conv.add_input(conv_wei);
+        conv.add_output(conv_dst);
+
+        depthwise.add_input(conv_dst);
+        depthwise.add_input(dw_wei);
+        depthwise.add_output(dw_dst);
+
+        graph_t agraph;
+        ASSERT_EQ(agraph.add_op(&conv), status::success);
+        ASSERT_EQ(agraph.add_op(&depthwise), status::success);
+        agraph.build_graph();
+
+        pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+                dnnl_impl::op_kind::conv_depthwise);
+    }
+}
+
+enum class dw_attr { STR, PAD };
+typedef dw_attr dw_attr_t;
+
+TEST(pass_test, conv_depthwise_fusion_fail) {
+    /*   conv
+          |
+         conv (depthwise)
+    */
+    const std::string dw_type {"k3s1p1"};
+    // N, IC, IH, IW
+    const std::vector<int64_t> conv_src_shape {4, 4, 4, 4};
+    // OC, IC/G, KH, KW
+    const std::vector<int64_t> conv_wei_shape {4, 4, 1, 1};
+    // N, OC, OH, OW
+    const std::vector<int64_t> conv_dst_shape {4, 4, 4, 4};
+    // OC, IC/G, KH, KW
+    const std::vector<int64_t> dw_wei_shape {4, 1, 3, 3};
+    // N, OC, OH, OW
+    const std::vector<int64_t> dw_dst_shape {4, 4, 4, 4};
+
+    std::vector<dw_attr_t> configs {dw_attr::STR, dw_attr::PAD};
+
+    for (const auto config : configs) {
+        std::vector<int64_t> dw_strides {1, 1};
+        // set strides to not supported values
+        if (config == dw_attr::STR) dw_strides = {3, 3};
+        std::vector<int64_t> dw_pads_begin {1, 1};
+        std::vector<int64_t> dw_pads_end {1, 1};
+        // set padding to not supported values
+        if (config == dw_attr::PAD) {
+            dw_pads_begin = {0, 0};
+            dw_pads_end = {0, 0};
+        }
+        std::vector<int64_t> dw_dilations {1, 1};
+        std::string dw_auto_pad = "None";
+        std::string dw_data_format = "NCX";
+        std::string dw_filter_format = "OIX";
+        int64_t dw_groups = 4;
+
+        op_t conv {0, Convolution, "conv"};
+        set_conv_dw_base_op_attr(conv);
+
+        op_t depthwise {1, Convolution, "depthwise"};
+        set_conv_common_attr(depthwise, dw_strides, dw_pads_begin, dw_pads_end,
+                dw_dilations, dw_auto_pad, dw_data_format, dw_filter_format,
+                dw_groups);
+
+        logical_tensor_t conv_src
+                = logical_tensor_init(0, conv_src_shape, data_type::f32);
+        logical_tensor_t conv_wei
+                = logical_tensor_init(1, conv_wei_shape, data_type::f32);
+        logical_tensor_t conv_dst
+                = logical_tensor_init(2, conv_dst_shape, data_type::f32);
+
+        logical_tensor_t dw_wei
+                = logical_tensor_init(3, dw_wei_shape, data_type::f32);
+        logical_tensor_t dw_dst
+                = logical_tensor_init(4, dw_dst_shape, data_type::f32);
+
+        conv.add_input(conv_src);
+        conv.add_input(conv_wei);
+        conv.add_output(conv_dst);
+
+        depthwise.add_input(conv_dst);
+        depthwise.add_input(dw_wei);
+        depthwise.add_output(dw_dst);
+
+        graph_t agraph;
+        ASSERT_EQ(agraph.add_op(&conv), status::success);
+        ASSERT_EQ(agraph.add_op(&depthwise), status::success);
+        agraph.build_graph();
+
+        pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 0);
+    }
+}
+
+struct dnnl_graph_test_conv_dw_fail_params {
+    const std::vector<int64_t> conv_src_shape;
+    const std::vector<int64_t> conv_wei_shape;
+    const std::vector<int64_t> conv_dst_shape;
+    const std::vector<int64_t> dw_wei_shape;
+    const std::vector<int64_t> dw_dst_shape;
+};
+
+class test_conv_dw_pass_fail
+    : public ::testing::TestWithParam<dnnl_graph_test_conv_dw_fail_params> {
+public:
+    void TestConvDw() {
+        const auto params = ::testing::TestWithParam<
+                dnnl_graph_test_conv_dw_fail_params>::GetParam();
+
+        const std::string dw_type {"k3s1p1"};
+
+        op_t conv {0, Convolution, "conv"};
+        set_conv_dw_base_op_attr(conv);
+
+        op_t depthwise {1, Convolution, "depthwise"};
+        set_conv_dw_post_op_attr(depthwise, dw_type);
+
+        logical_tensor_t conv_src
+                = logical_tensor_init(0, params.conv_src_shape, data_type::f32);
+        logical_tensor_t conv_wei
+                = logical_tensor_init(1, params.conv_wei_shape, data_type::f32);
+        logical_tensor_t conv_dst
+                = logical_tensor_init(2, params.conv_dst_shape, data_type::f32);
+
+        logical_tensor_t dw_wei
+                = logical_tensor_init(3, params.dw_wei_shape, data_type::f32);
+        logical_tensor_t dw_dst
+                = logical_tensor_init(4, params.dw_dst_shape, data_type::f32);
+
+        conv.add_input(conv_src);
+        conv.add_input(conv_wei);
+        conv.add_output(conv_dst);
+
+        depthwise.add_input(conv_dst);
+        depthwise.add_input(dw_wei);
+        depthwise.add_output(dw_dst);
+
+        graph_t agraph;
+        ASSERT_EQ(agraph.add_op(&conv), status::success);
+        ASSERT_EQ(agraph.add_op(&depthwise), status::success);
+        agraph.build_graph();
+
+        pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 0);
+    }
+};
+
+TEST_P(test_conv_dw_pass_fail, TestConvDwPassFail) {
+    TestConvDw();
+}
+
+INSTANTIATE_TEST_SUITE_P(TestConvDwPassFail, test_conv_dw_pass_fail,
+        ::testing::Values(
+                // 3D spatial dims
+                dnnl_graph_test_conv_dw_fail_params {{4, 4, 4, 4, 4},
+                        {4, 4, 1, 1, 1}, {4, 4, 4, 4, 4}, {4, 1, 3, 3, 3},
+                        {4, 4, 4, 4, 4}},
+                // wrong conv kernel spatial dims
+                dnnl_graph_test_conv_dw_fail_params {{4, 4, 5, 5}, {4, 4, 2, 2},
+                        {4, 4, 4, 4}, {4, 1, 3, 3}, {4, 4, 4, 4}},
+                // wrong dw kernel spatial dims
+                dnnl_graph_test_conv_dw_fail_params {{4, 4, 4, 4}, {4, 4, 1, 1},
+                        {4, 4, 4, 4}, {4, 1, 2, 2}, {4, 4, 5, 5}},
+                // groups != OC
+                dnnl_graph_test_conv_dw_fail_params {{4, 4, 4, 4}, {4, 4, 1, 1},
+                        {4, 4, 4, 4}, {3, 1, 3, 3}, {4, 3, 3, 3}}));
 
 TEST(pass_test, binary_sum_fusion) {
     /* binary here represents Multiply, Minimum, Maximum

@@ -35,14 +35,14 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 // TODO(xxx): extend to support other ops
 static bool need_insert_reorder(op_kind_t kind) {
     static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
-            impl::op_kind::Convolution, op_kind::dnnl_convtranspose,
-            impl::op_kind::ConvTranspose, op_kind::dnnl_conv_bwd_data,
-            impl::op_kind::MatMul, impl::op_kind::MaxPool,
-            impl::op_kind::AvgPool, op_kind::dnnl_pool, impl::op_kind::Abs,
-            impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
-            impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::ReLU,
-            impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh};
+            op_kind::conv_depthwise, impl::op_kind::Convolution,
+            op_kind::dnnl_convtranspose, impl::op_kind::ConvTranspose,
+            op_kind::dnnl_conv_bwd_data, impl::op_kind::MatMul,
+            impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool,
+            impl::op_kind::Abs, impl::op_kind::Elu, impl::op_kind::Exp,
+            impl::op_kind::GELU, impl::op_kind::HardTanh, impl::op_kind::Log,
+            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sigmoid,
+            impl::op_kind::Sqrt, impl::op_kind::Square, impl::op_kind::Tanh};
     return ops.count(kind) != 0;
 }
 
@@ -51,6 +51,7 @@ static bool need_insert_reorder(op_kind_t kind) {
 static bool need_insert_permute(op_kind_t kind) {
     static const std::set<op_kind_t> ops {
             op_kind::dnnl_convolution,
+            op_kind::conv_depthwise,
             impl::op_kind::Convolution,
             impl::op_kind::ConvTranspose,
             op_kind::dnnl_convtranspose,
@@ -74,18 +75,21 @@ static bool require_input_format(op_kind_t kind) {
     return ops.count(kind) != 0;
 }
 
+// for ops with optional outputs, we want to limit number of output reorders
+static size_t limit_output_reorders(op_kind_t kind, size_t n_outputs) {
+    if (kind == op_kind::conv_depthwise) return n_outputs - 1;
+    return n_outputs;
+}
+
 impl::status_t insert_reorder(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
         if (!need_insert_reorder(cur_op->get_kind())) continue;
 
-        bool with_bias = cur_op->has_attr("with_bias")
-                ? cur_op->get_attr<bool>("with_bias")
-                : false;
-        size_t in_bound = with_bias ? 3 : 2;
-
-        for (size_t i = 0; i < cur_op->num_outputs(); i++) {
+        size_t n_outputs = limit_output_reorders(
+                cur_op->get_kind(), cur_op->num_outputs());
+        for (size_t i = 0; i < n_outputs; i++) {
             op_ptr reorder_op
                     = std::make_shared<impl::op_t>(impl::op_kind::Reorder);
             insert_op_after(reorder_op, cur_op, i);
@@ -95,6 +99,12 @@ impl::status_t insert_reorder(std::shared_ptr<subgraph_t> &sg) {
         // for those primitive whose input's format must be defined (not any),
         // we don't need to insert reorder
         if (require_input_format(cur_op->get_kind())) continue;
+
+        bool with_bias = cur_op->has_attr("with_bias")
+                ? cur_op->get_attr<bool>("with_bias")
+                : false;
+        bool with_dw_wei = cur_op->get_kind() == op_kind::conv_depthwise;
+        size_t in_bound = with_bias || with_dw_wei ? 3 : 2;
 
         for (size_t i = 0; i < cur_op->num_inputs(); i++) {
             if (i >= in_bound) break;
@@ -126,6 +136,10 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
         const bool need_permute_1 = cur_op->has_attr("filter_format")
                 ? (cur_op->get_attr<std::string>("filter_format") == "XIO")
                 : false;
+        // conv + depthwise case
+        const bool need_permute_2 = cur_op->has_attr("dw_filter_format")
+                ? (cur_op->get_attr<std::string>("dw_filter_format") == "XIO")
+                : false;
         const bool need_permute_sum_1 = cur_op->has_attr("with_sum")
                 ? (cur_op->get_attr<bool>("with_sum") && need_permute_0)
                 : false;
@@ -133,8 +147,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
                 ? (cur_op->get_attr<bool>("with_binary") && need_permute_0)
                 : false;
 
-        if (!(need_permute_0 || need_permute_1 || need_permute_sum_1
-                    || need_permute_binary_src_1))
+        if (!(need_permute_0 || need_permute_1 || need_permute_2
+                    || need_permute_sum_1 || need_permute_binary_src_1))
             continue;
 
         for (size_t i = 0; i < cur_op->num_inputs(); i++) {
@@ -143,7 +157,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
             if (i == 0 && need_permute_0) {
                 perm_op->set_attr<std::string>("from_format", "NXC");
                 perm_op->set_attr<std::string>("to_format", "NCX");
-            } else if (i == 1 && need_permute_1) {
+            } else if ((i == 1 && need_permute_1)
+                    || (i == 2 && need_permute_2)) {
                 perm_op->set_attr<std::string>("from_format", "XIO");
                 perm_op->set_attr<std::string>("to_format", "OIX");
             } else if (i == cur_op->num_inputs() - 1 && need_permute_sum_1) {
@@ -174,6 +189,9 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
         // remove the attrs in cur_op to avoid re-permute
         cur_op->set_attr<std::string>("data_format", "NCX");
         cur_op->set_attr<std::string>("filter_format", "OIX");
+        // conv + depthwise case
+        if (need_permute_2)
+            cur_op->set_attr<std::string>("dw_filter_format", "OIX");
 
         if (cur_op->get_kind() == impl::op_kind::Convolution) {
             // replace impl::op_kind::Convolution to be
@@ -221,21 +239,41 @@ impl::status_t insert_to_group_for_conv_or_deconv(
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<op_ptr> to_be_removed_ops;
-    for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::dnnl_convolution
-                && cur_op->get_kind() != impl::op_kind::Convolution
-                && cur_op->get_kind() != op_kind::dnnl_convtranspose
-                && cur_op->get_kind() != impl::op_kind::ConvTranspose)
-            continue;
 
-        auto groups = cur_op->get_attr<int64_t>("groups");
-        if (groups <= 1) continue;
+    auto insert_to_group
+            = [&to_be_inserted_ops](op_ptr &op, const std::string &attr_name,
+                      const size_t offset) -> bool {
+        auto groups = op->get_attr<int64_t>(attr_name);
+        if (groups <= 1) return false;
 
         op_ptr to_group_op = std::make_shared<impl::op_t>(op_kind::to_group);
         to_group_op->set_attr<int64_t>("groups", groups);
 
-        insert_op_before(to_group_op, cur_op, 1);
+        insert_op_before(to_group_op, op, offset);
         to_be_inserted_ops.emplace_back(to_group_op);
+
+        if (op->get_kind() == impl::op_kind::ConvTranspose
+                || op->get_kind() == op_kind::dnnl_convtranspose)
+            to_group_op->set_attr<bool>("is_convtranspose", true);
+
+        return true;
+    };
+
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_convolution
+                && cur_op->get_kind() != impl::op_kind::Convolution
+                && cur_op->get_kind() != op_kind::dnnl_convtranspose
+                && cur_op->get_kind() != impl::op_kind::ConvTranspose
+                && cur_op->get_kind() != op_kind::conv_depthwise)
+            continue;
+
+        if (cur_op->get_kind() == op_kind::conv_depthwise) {
+            const auto inserted = insert_to_group(cur_op, "dw_groups", 2);
+            if (!inserted) continue;
+        }
+
+        const auto inserted = insert_to_group(cur_op, "groups", 1);
+        if (!inserted) continue;
 
         if (cur_op->get_kind() == impl::op_kind::Convolution) {
             // replace impl::op_kind::Convolution to be
@@ -254,10 +292,6 @@ impl::status_t insert_to_group_for_conv_or_deconv(
             to_be_inserted_ops.emplace_back(new_op);
             to_be_removed_ops.emplace_back(cur_op);
         }
-
-        if (cur_op->get_kind() == impl::op_kind::ConvTranspose
-                || cur_op->get_kind() == op_kind::dnnl_convtranspose)
-            to_group_op->set_attr<bool>("is_convtranspose", true);
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);

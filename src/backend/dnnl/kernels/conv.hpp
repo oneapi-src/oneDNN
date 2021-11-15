@@ -266,6 +266,9 @@ public:
             }
         }
 
+        // conv_depthwise case, no support for sum
+        if (conv_op == nullptr) return impl::status::success;
+
         bool with_sum = conv_op->has_attr("with_sum")
                 ? conv_op->get_attr<bool>("with_sum")
                 : false;

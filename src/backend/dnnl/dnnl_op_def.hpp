@@ -773,6 +773,39 @@ DNNL_GRAPH_OP_SCHEMA(conv_relu, 1,
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(conv_depthwise, 1,
+        op_schema_t()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_input(1, "weight", "weight tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_input(2, "other",
+                        "weight tensor for depthwise convolution",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {impl::data_type::f32, impl::data_type::bf16,
+                                impl::data_type::f16})
+                .set_attr("dw_groups",
+                        "the number of groups input / output channels are "
+                        "divided into (for depthwise post-op)",
+                        false, attribute_kind::i, (int64_t)1)
+                .set_attr("dw_filter_format",
+                        "the format of post depthwise weight, the options are "
+                        "OIX, XIO",
+                        false, attribute_kind::s, "XIO")
+                .set_attr("dw_type",
+                        "the type of post depthwise operation, the options are "
+                        "k3s1p1 and k3s2p1",
+                        true, attribute_kind::s)
+                .set_shape_inference_function(
+                        infer_dnnl_conv_depthwise_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
 DNNL_GRAPH_OP_SCHEMA(bn_relu, 1,
         op_schema_t()
                 .set_num_inputs(5)

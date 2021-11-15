@@ -6397,6 +6397,111 @@ TEST(operator_compile, conv_add_eltwise) {
     }
 }
 
+TEST(fp32_subgraph_mode, conv_depthwise) {
+    using dims = impl::dnnl_impl::dims;
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu,
+            "Skip for GPU - not supported yet.");
+
+    // N, IC, IH, IW
+    std::vector<int64_t> conv_src_shape {4, 4, 4, 4};
+    // OC, IC/G, KH, KW
+    std::vector<int64_t> conv_wei_shape {4, 4, 1, 1};
+    // N, OC, OH, OW
+    std::vector<int64_t> conv_dst_shape {4, 4, 4, 4};
+    // OC, IC/G, KH, KW
+    std::vector<int64_t> dw_wei_shape {4, 1, 3, 3};
+    // N, OC, OH, OW
+    std::vector<int64_t> dw_dst_shape {4, 4, 2, 2};
+
+    std::string dw_type {"k3s2p1"};
+
+    test::vector<float> src_data(product(conv_src_shape));
+    test::vector<float> wei_data(product(conv_wei_shape));
+    test::vector<float> dw_wei_data(product(dw_wei_shape));
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(wei_data.begin(), wei_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(dw_wei_data.begin(), dw_wei_data.end(),
+            [&]() { return f32_distribution(generator); });
+
+    impl::op_t conv {0, impl::op_kind::Convolution, "conv"};
+    utils::set_conv_dw_base_op_attr(conv);
+
+    impl::op_t depthwise {1, impl::op_kind::Convolution, "depthwise"};
+    utils::set_conv_dw_post_op_attr(depthwise, dw_type);
+
+    impl::logical_tensor_t conv_src = utils::logical_tensor_init(
+            0, conv_src_shape, impl::data_type::f32);
+    impl::logical_tensor_t conv_wei = utils::logical_tensor_init(
+            1, conv_wei_shape, impl::data_type::f32);
+    impl::logical_tensor_t conv_dst = utils::logical_tensor_init(
+            2, conv_dst_shape, impl::data_type::f32);
+
+    impl::logical_tensor_t dw_wei
+            = utils::logical_tensor_init(3, dw_wei_shape, impl::data_type::f32);
+    impl::logical_tensor_t dw_dst
+            = utils::logical_tensor_init(4, dw_dst_shape, impl::data_type::f32);
+
+    conv.add_input(conv_src);
+    conv.add_input(conv_wei);
+    conv.add_output(conv_dst);
+
+    depthwise.add_input(conv_dst);
+    depthwise.add_input(dw_wei);
+    depthwise.add_output(dw_dst);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&conv);
+    g.add_op(&depthwise);
+    g.build_graph();
+
+    impl::tensor_t conv_src_ts(conv_src, &engine, src_data.data());
+    impl::tensor_t conv_wei_ts(conv_wei, &engine, wei_data.data());
+    impl::tensor_t dw_wei_ts(dw_wei, &engine, dw_wei_data.data());
+
+    // -------------------------case 1----------------------------------
+    test::vector<float> case1_out_data(product(dw_dst_shape));
+    impl::tensor_t dw_dst_ts(dw_dst, &engine, case1_out_data.data());
+
+    ASSERT_EQ(run_graph(g, {conv_src_ts, conv_wei_ts, dw_wei_ts}, {dw_dst_ts},
+                      engine, strm),
+            impl::status::success);
+
+    // -------------------------case 2----------------------------------
+    impl::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {
+            &conv_src, &conv_wei, &dw_wei};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dw_dst};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    test::vector<float> case2_out_data(product(dw_dst_shape));
+    impl::tensor_t dw_dst_ts2(dw_dst, &engine, case2_out_data.data());
+
+    cp.execute(&strm, {conv_src_ts, conv_wei_ts, dw_wei_ts}, {dw_dst_ts2});
+    strm.wait();
+
+    for (size_t i = 0; i < case1_out_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
+    }
+}
+
 TEST(operator_kernel, softmax) {
     impl::op_t softmax_op(impl::op_kind::SoftMax);
     impl::engine_t &eng = get_engine();
