@@ -50,7 +50,7 @@ static dim_t offset(const memory_desc_wrapper &mem, dims_t dims) {
 
 static dim_t weights_offset(
         const int mask, const memory_desc_wrapper &mem, dims_t &dims) {
-    dims_t dims_w;
+    dims_t dims_w {};
     std::copy(dims, dims + max_supported_ndims, dims_w);
     utils::apply_mask_on_dims(dims_w, mem.ndims(), mask);
     return offset(mem, dims_w);
