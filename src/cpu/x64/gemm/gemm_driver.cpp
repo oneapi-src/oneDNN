@@ -208,7 +208,7 @@ static inline dim_t get_m_padd_parallel_a(int ithr, dim_t m,
     if (!arg->a_packed) {
         constexpr auto multiplier = 10;
 
-        m_padd *= nstl::max(nthrs, multiplier);
+        m_padd *= nstl::min(nthrs, multiplier);
         if (m_padd > m) m_padd = utils::rnd_up(m, arg->um);
     }
 
