@@ -785,6 +785,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // required granularity for k dimension
     bgmmc.required_k_granularity
             = bgmmc.is_amx ? data_type_vnni_granularity(bgmmc.wei_dt) : 1;
+    if (bgmmc.required_k_granularity == 0) return status::unimplemented;
     bgmmc.wei_k_blk = data_type_vnni_simd_elems<avx512_core>(bgmmc.wei_dt);
 
     bgmmc.wei_n_blk = get_default_n_block(format_tag::undef);
