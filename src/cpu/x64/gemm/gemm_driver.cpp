@@ -402,12 +402,6 @@ void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
     constexpr bool is_f32 = data_traits<a_type>::data_type == data_type::f32;
     bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
 
-    // Unconditionally zero initialize these arrays
-    for (dim_t i = 0; i < m; i++)
-        col_offset[i] = 0;
-    for (dim_t i = 0; i < n; i++)
-        row_offset[i] = 0;
-
     if (is_int8) {
         c_type ao = arg->ao;
         c_type bo = arg->bo;
@@ -429,6 +423,9 @@ void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
         }
 
         if (col_req) {
+            for (dim_t i = 0; i < m; i++)
+                col_offset[i] = 0;
+
             if (offsetc == offset_type::column) {
                 for (dim_t i = 0; i < m; i++)
                     col_offset[i] += co[i];
@@ -441,6 +438,9 @@ void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
         }
 
         if (row_req) {
+            for (dim_t i = 0; i < n; i++)
+                row_offset[i] = 0;
+
             if (offsetc == offset_type::row) {
                 for (dim_t i = 0; i < n; i++)
                     row_offset[i] += co[i];
