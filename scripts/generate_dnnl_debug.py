@@ -46,10 +46,11 @@ def banner(year_from):
 *******************************************************************************/
 
 // DO NOT EDIT, AUTO-GENERATED
+// Use this script to update the file: scripts/%s
 
 // clang-format off
 
-''' % banner_year
+''' % (banner_year, os.path.basename(__file__))
 
 
 def template(body, year_from):

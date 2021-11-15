@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 // DO NOT EDIT, AUTO-GENERATED
+// Use this script to update the file: scripts/generate_dnnl_debug.py
 
 // clang-format off
 

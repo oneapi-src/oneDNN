@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 // DO NOT EDIT, AUTO-GENERATED
+// Use this script to update the file: scripts/generate_dnnl_debug.py
 
 // clang-format off
 
@@ -435,10 +436,6 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_abCd32c) return "abCd32c";
     if (v == dnnl_abdCe32c) return "abdCe32c";
     if (v == dnnl_abdCE32c2e) return "abdCE32c2e";
-    if (v == dnnl_BA16a16b) return "BA16a16b";
-    if (v == dnnl_BA16a32b) return "BA16a32b";
-    if (v == dnnl_BA16a48b) return "BA16a48b";
-    if (v == dnnl_BA16a64b) return "BA16a64b";
     if (v == dnnl_BA16a16b2a) return "BA16a16b2a";
     if (v == dnnl_BA16a32b2a) return "BA16a32b2a";
     if (v == dnnl_BA16a48b2a) return "BA16a48b2a";
@@ -561,6 +558,10 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_BA4b8a16b4a) return "BA4b8a16b4a";
     if (v == dnnl_aCB4c8b16c2b) return "aCB4c8b16c2b";
     if (v == dnnl_aCB4c8b16c4b) return "aCB4c8b16c4b";
+    if (v == dnnl_BA16a16b) return "BA16a16b";
+    if (v == dnnl_BA16a32b) return "BA16a32b";
+    if (v == dnnl_BA16a48b) return "BA16a48b";
+    if (v == dnnl_BA16a64b) return "BA16a64b";
     if (v == dnnl_format_tag_last) return "format_tag_last";
     if (v == dnnl_x) return "x";
     if (v == dnnl_nc) return "nc";
