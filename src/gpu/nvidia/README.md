@@ -14,17 +14,26 @@ Nvidia GPUs. The stream in Nvidia backend for oneDNN defines an out-of-order
 SYCL queue by default. Similar to the existing oneDNN API, user can specify an
 in-order queue when creating a stream if needed.
 
+## Additional prerequisites
+
+Installing oneDNN with the Nvidia backend requires a compatible CUDA toolkit (> 10.2) and the DPC++ SYCL compiler.
+Build instructions for the DPC++ compiler using the Nvidia CUDA backend can be found here:
+
+https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md
+
+###Clarification
+
+Please note that the oneDNN Nvidia backend cannot be compiled using the DPC++ compiler from the oneAPI HPC toolkit.
+
 ## Build command
 
-These build instructions have been validated with the latest CUDA 11.4 toolkit and DPC++ compiler release 2021.4.0.
-In order that the correct OpenCL headers are used it is necessary to manually specify their path using the OpenCL_INCLUDE_DIR cmake variable.
-The up to date headers can be found [here](https://github.com/KhronosGroup/OpenCL-Headers).
+These build instructions have been validated with the CUDA 11.4 toolkit.
+
 
 ```bash
 $ mkdir build
 $ cd build
-$ cmake -DCMAKE_C_COMPILER=/path/to/DPC++_bin/clang -DCMAKE_CXX_COMPILER=/path/to/DPC++_bin/clang++ \
--DOpenCL_INCLUDE_DIR=/path/to/OpenCL-Headers/ \
+$ cmake -DCMAKE_C_COMPILER=/path/to/DPC++_install/bin/clang -DCMAKE_CXX_COMPILER=/path/to/DPC++_install/bin/clang++ \
 -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP -DDNNL_GPU_VENDOR=NVIDIA \
 -DCUBLAS_LIBRARY=/path/to/cuda/lib64/libcublas.so \
 -DCUBLAS_INCLUDE_DIR=/path/to/cuda/include/ \
@@ -33,23 +42,9 @@ $ cmake -DCMAKE_C_COMPILER=/path/to/DPC++_bin/clang -DCMAKE_CXX_COMPILER=/path/t
 $ ninja
 ```
 
-The /path/to/cuda/ for a default cuda installation is /usr/local/cuda/
-
-The /path/to/OpenCLlib/ using the 2021.4.0 DPC++ compiler release is /opt/intel/oneapi/compiler/2021.4.0/linux/lib/
-
-The /path/to/DPC++_bin/ using the 2021.4.0 DPC++ compiler release is /opt/intel/oneapi/compiler/2021.4.0/linux/bin/
-
-If you have a manual, non-packaged build of DPC++ in your home directory, then it is also necessary to add `-DOPENCLROOT=/path/to/OpenCLlib/` to the cmake invocation.
-
 ## Running Tests
 
-If you have a manual, non-packaged build of DPC++ in your home directory, then it is also necessary to add the path to the dynamic libraries from DPC++ to `LD_LIBRARY_PATH`:
-
-```bash
-export LD_LIBRARY_PATH=/path/to/OpenCLlib/:$LD_LIBRARY_PATH
-```
-
-Run tests:
+Following the above build instructions you can run tests:
 
 ```bash
 ctest
