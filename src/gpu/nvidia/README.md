@@ -21,7 +21,7 @@ Build instructions for the DPC++ compiler using the Nvidia CUDA backend can be f
 
 https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md
 
-###Clarification
+### Clarification
 
 Please note that the oneDNN Nvidia backend cannot be compiled using the DPC++ compiler from the oneAPI HPC toolkit.
 
@@ -44,7 +44,7 @@ $ ninja
 
 ## Running Tests
 
-Following the above build instructions you can run tests:
+Following the above build instructions you can run the tests:
 
 ```bash
 ctest
@@ -56,7 +56,7 @@ All tests are expected to pass.
 
 Currently, only the buffer-based oneDNN API is supported for Nvidia backend.
 
-## Suported Data Types
+## Supported Data Types
 
 The following table documents the supported data types.
 
