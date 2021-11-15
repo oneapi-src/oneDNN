@@ -288,7 +288,7 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
                     : single_gemm_conv_chunk_desc_t {};
 
             parallel(0, [&](int ithr, int nthr) {
-                dim_t _start, _end;
+                dim_t _start {}, _end {};
                 balance211(N * jcp.oc, nthr, ithr, _start, _end);
 
                 (*pp_ker_)(dst, acc, bia_base, scales, sum_scale,
