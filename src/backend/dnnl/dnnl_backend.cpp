@@ -360,9 +360,14 @@ impl::utils::optional<impl::utils::any_t> dnnl_backend::get_mem_desc(
     return layout_id_manager_.get_mem_desc(layout_id);
 }
 
-DNNL_GRAPH_REGISTER_BACKEND(dnnl_backend::get_singleton())
-
 } // namespace dnnl_impl
+
+// This function should be called by backend_registry_t
+void register_dnnl_backend() {
+    backend_registry_t::get_singleton().register_backend(
+            &dnnl_impl::dnnl_backend::get_singleton());
+}
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

@@ -50,7 +50,7 @@ TEST(graph_test, get_partitions_fake) {
     ASSERT_EQ(agraph.add_op(&end), status::success);
     ASSERT_EQ(agraph.num_ops(), 3);
 
-    auto &bkd = fake_impl::fake_backend::get_singleton();
+    auto &bkd = fake_impl::fake_backend_t::get_singleton();
     bkd.get_partitions(agraph, partition_policy::fusion);
     ASSERT_EQ(agraph.get_num_partitions(), 3);
     auto partition = agraph.get_partitions()[0].get();

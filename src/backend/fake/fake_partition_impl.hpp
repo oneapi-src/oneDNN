@@ -36,7 +36,7 @@ namespace impl {
 namespace fake_impl {
 
 class fake_partition_impl_t : public impl::partition_impl_t {
-    friend class fake_backend;
+    friend class fake_backend_t;
 
 public:
     fake_partition_impl_t(impl::engine_kind_t engine_kind)
@@ -120,7 +120,7 @@ public:
     }
 
     const impl::backend *get_assigned_backend() const override {
-        return &fake_backend::get_singleton();
+        return &fake_backend_t::get_singleton();
     }
 
     impl::status_t compile(impl::compiled_partition_t *compiled_partition,

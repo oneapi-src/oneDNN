@@ -27,20 +27,25 @@ namespace graph {
 namespace impl {
 namespace fake_impl {
 
-fake_backend::fake_backend(const std::string &name, float priority)
+fake_backend_t::fake_backend_t(const std::string &name, float priority)
     : backend(name, priority) {
     bool ret = register_passes();
     if (!ret) { throw std::runtime_error(name + " initialize failed"); }
 }
 
-bool fake_backend::register_passes() {
+bool fake_backend_t::register_passes() {
     FAKE_BACKEND_REGISTER_PASSES_CALL(single_op_pass, pass_registry_);
     return true;
 }
 
-DNNL_GRAPH_REGISTER_BACKEND(fake_backend::get_singleton())
-
 } // namespace fake_impl
+
+// This function must be called by backend_registry_t
+void register_fake_backend() {
+    backend_registry_t::get_singleton().register_backend(
+            &fake_impl::fake_backend_t::get_singleton());
+}
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

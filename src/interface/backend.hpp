@@ -38,6 +38,12 @@
 namespace dnnl {
 namespace graph {
 namespace impl {
+
+// register dnnl backend
+void register_dnnl_backend();
+// register fake backend
+void register_fake_backend();
+
 class backend {
 public:
     backend(const std::string &name, float priority)
@@ -153,19 +159,23 @@ public:
         return const_cast<backend *>(abackend);
     }
 
-    // The returned backends is sorted. The highest priority backend will
-    // be at the front of vector
+    // This interface will firstly register all available backends and then
+    // return sorted backends. The highest priority backend will be at the front
+    // of vector
     std::vector<const backend *> &get_registered_backends() {
+        invoke_backend_registration();
         std::lock_guard<std::mutex> lock(m_);
         return sorted_backends_;
     }
 
+    // This interface will also try to register all available backends.
     // In order to use get_mem_size() API, we need to dispatch to specific
     // backend according to the backend specific layout id.
     // In this function, we will first decode the layout id to a backend id
     // and a native layout id. Then we will use the backend id to get the
     // backend from the backend registry
     const backend *get_registered_backend(size_t layout_id) {
+        invoke_backend_registration();
         size_t backend_id = extract_backend_id(layout_id);
         std::lock_guard<std::mutex> lock(m_);
         return backends_[backend_id];
@@ -186,7 +196,16 @@ private:
     backend_registry_t &operator=(const backend_registry_t &) = delete;
     backend_registry_t &operator=(backend_registry_t &&) = delete;
 
+    inline void invoke_backend_registration() {
+        std::call_once(register_flag_, []() {
+            register_dnnl_backend();
+            register_fake_backend();
+        });
+    }
+
     std::mutex m_;
+
+    std::once_flag register_flag_;
 
     // sorted backends by priority
     std::vector<const backend *> sorted_backends_;
@@ -194,17 +213,6 @@ private:
     // the map from backend id to backend shared pointer
     std::unordered_map<size_t, const backend *> backends_;
 };
-
-#define DNNL_GRAPH_STR_CONCAT_(__x, __y) __x##__y
-#define DNNL_GRAPH_STR_CONCAT(__x, __y) DNNL_GRAPH_STR_CONCAT_(__x, __y)
-
-#define DNNL_GRAPH_BACKEND_REG_VAR_DEF static impl::backend *dnnl_graph_backend_
-
-// This macro is used to register a backend instance to backend registry
-#define DNNL_GRAPH_REGISTER_BACKEND(backend_ins_) \
-    DNNL_GRAPH_STR_CONCAT(DNNL_GRAPH_BACKEND_REG_VAR_DEF, __COUNTER__) \
-            = impl::backend::register_backend( \
-                    static_cast<impl::backend *>(&(backend_ins_)));
 
 // Backend API used by each backend to check the constant cache enabling status
 bool is_constant_cache_enabled();

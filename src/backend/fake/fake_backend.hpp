@@ -34,12 +34,12 @@ namespace graph {
 namespace impl {
 namespace fake_impl {
 
-class fake_backend : public backend {
+class fake_backend_t : public backend {
     friend class fake_partition_impl_t;
 
 public:
-    static fake_backend &get_singleton() {
-        static fake_backend ins("fake_backend", /*priority*/ 0.f);
+    static fake_backend_t &get_singleton() {
+        static fake_backend_t ins("fake_backend", /*priority*/ 0.f);
         return ins;
     }
 
@@ -58,7 +58,7 @@ public:
     }
 
 private:
-    fake_backend(const std::string &name, float priority);
+    fake_backend_t(const std::string &name, float priority);
     bool register_passes();
     impl::pass::pass_registry_t pass_registry_;
 };

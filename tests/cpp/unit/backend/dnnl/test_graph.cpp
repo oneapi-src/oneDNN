@@ -60,7 +60,7 @@ TEST(graph_test, get_partitions) {
     ASSERT_EQ(agraph.build_graph(), status::success);
     auto &dnnl_bkd = dnnl_impl::dnnl_backend::get_singleton();
     dnnl_bkd.get_partitions(agraph, partition_policy::fusion);
-    auto &fake_bkd = fake_impl::fake_backend::get_singleton();
+    auto &fake_bkd = fake_impl::fake_backend_t::get_singleton();
     fake_bkd.get_partitions(agraph, partition_policy::fusion);
     ASSERT_EQ(agraph.get_num_partitions(), 2);
     auto p1 = agraph.get_partitions()[0].get();
