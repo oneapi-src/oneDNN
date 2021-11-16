@@ -245,8 +245,13 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 #if NCHW == 1
                             uchar4 res = 0;
                             for (int j = 0; j < IC; j++) {
+#if IH * IW * ID % 4 == 0
                                 res[j] = intel_sub_group_block_read_uc(
                                         src + i + j * IH * IW * ID);
+#else
+                                res[j] = src[i + j * IH * IW * ID
+                                        + get_sub_group_local_id()];
+#endif
                             }
                             WRITE_SLM_BLOCK(S_part + i, as_int(res));
 #else
