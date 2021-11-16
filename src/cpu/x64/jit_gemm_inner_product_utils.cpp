@@ -333,6 +333,7 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
                         broadcasting_strategy_t::per_oc,
                         broadcasting_strategy_t::per_oc_spatial,
                         broadcasting_strategy_t::per_mb_spatial,
+                        broadcasting_strategy_t::per_mb_w,
                         broadcasting_strategy_t::no_broadcast};
         const binary_injector::static_params_t binary_static_params {
                 reg_binary_inj_param_, enabled_bcast_strategy,
