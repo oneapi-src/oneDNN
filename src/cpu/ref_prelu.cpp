@@ -383,6 +383,7 @@ status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
         case broadcasting_strategy_t::per_oc:
         case broadcasting_strategy_t::per_oc_spatial:
         case broadcasting_strategy_t::per_mb_spatial:
+        case broadcasting_strategy_t::per_mb_w:
         case broadcasting_strategy_t::shared_axes:
             calculate_shared_axes(src, weights, diff_weights, diff_dst,
                     diff_src, scratchpad_buf);
