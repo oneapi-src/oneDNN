@@ -74,7 +74,10 @@ int check_primitive_cache(dnnl_primitive_t p) {
 }
 
 size_t set_primitive_cache_capacity_without_clearing(size_t capacity) {
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     return dnnl::impl::set_primitive_cache_capacity_without_clearing(capacity);
+#endif
+    return size_t(0);
 }
 
 int get_cache_blob_id(std::vector<uint8_t> &id, dnnl_primitive_desc_t pd) {
