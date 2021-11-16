@@ -148,6 +148,7 @@ policy_t attr_t::str2policy(const std::string &str) {
     CASE(PER_DIM_01);
     CASE(PER_MB_SPATIAL);
     CASE(PER_SPATIAL);
+    CASE(PER_MB_W);
     CASE(PER_TENSOR);
 #undef CASE
     assert(!"unknown attr_t::policy_t policy");
@@ -162,6 +163,7 @@ const char *attr_t::policy2str(policy_t policy) {
     if (policy == PER_DIM_01) return "per_dim_01";
     if (policy == PER_MB_SPATIAL) return "per_mb_spatial";
     if (policy == PER_SPATIAL) return "per_spatial";
+    if (policy == PER_MB_W) return "per_mb_w";
     if (policy == PER_TENSOR) return "per_tensor";
     assert(!"unknown attr_t::policy_t policy");
     return "unknown attr_t::policy_t policy";
@@ -175,6 +177,7 @@ int attr_t::get_default_mask(policy_t policy) {
         case PER_DIM_01: return (1 << 0) + (1 << 1);
         case PER_MB_SPATIAL: return (1 << 0) + (1 << 2) + (1 << 3);
         case PER_SPATIAL: return (1 << 2) + (1 << 3);
+        case PER_MB_W: return (1 << 0) + (1 << 3);
         case PER_TENSOR: return (1 << DNNL_MAX_NDIMS) - 1;
         case COMMON: return 0;
         default: SAFE(FAIL, CRIT); return 0;
