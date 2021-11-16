@@ -914,9 +914,25 @@ memory_kind_ext_t str2memory_kind(const char *str) {
     return memory_kind_ext_t::usm;
 }
 
+static void print_cpu_engine_error_message() {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+    fprintf(stderr,
+            "ERROR: can't create CPU engine. Possible reasons for this error:\n"
+            "- Incorrect SYCL_DEVICE_FILTER. The filter must be either empty "
+            "or include 'opencl:cpu' devices.\n"
+            "- Missing TBB library which is required for OpenCL CPU runtime. "
+            "Check that TBB library is available in the system.\n"
+            "- Missing OpenCL CPU runtime or other issues with OpenCL CPU "
+            "runtime. Check that output from `sycl-ls` or `clinfo -l` commands "
+            "include any CPU devices.\n");
+#endif
+}
+
 engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
     size_t idx = engine_kind == dnnl_cpu ? 0 : engine_index;
-    DNN_SAFE_V(dnnl_engine_create(&engine_, engine_kind, idx));
+    dnnl_status_t status = dnnl_engine_create(&engine_, engine_kind, idx);
+    if (status != dnnl_success) print_cpu_engine_error_message();
+    DNN_SAFE_V(status);
 }
 
 engine_t::engine_t(dnnl_engine_t engine) : engine_(engine), is_owner_(false) {}
@@ -940,7 +956,9 @@ engine_t::engine_t(const engine_t &other) {
         DNN_SAFE_V(dnnl_sycl_interop_engine_get_context(other.engine_, &ctx));
         DNN_SAFE_V(dnnl_sycl_interop_engine_create(&engine_, dev, ctx));
 #else
-        DNN_SAFE_V(dnnl_engine_create(&engine_, dnnl_cpu, 0));
+        dnnl_status_t status = dnnl_engine_create(&engine_, dnnl_cpu, 0);
+        if (status != dnnl_success) print_cpu_engine_error_message();
+        DNN_SAFE_V(status);
 #endif
     } else if (engine_kind == dnnl_gpu) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
