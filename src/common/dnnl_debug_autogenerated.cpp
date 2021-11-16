@@ -570,7 +570,6 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_aBC16b32c) return "aBC16b32c";
     if (v == dnnl_AB16a16b) return "AB16a16b";
     if (v == dnnl_AB16a32b) return "AB16a32b";
-
     if (v == dnnl_format_tag_last) return "format_tag_last";
     if (v == dnnl_x) return "x";
     if (v == dnnl_nc) return "nc";
