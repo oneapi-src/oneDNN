@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
     logical_tensor conv0_weight_desc {
             1, data_type::bf16, conv0_weight_dims, layout_type::strided};
     logical_tensor conv0_bias_desc {
-            2, data_type::f32, conv0_bias_dims, layout_type::strided};
+            2, data_type::bf16, conv0_bias_dims, layout_type::strided};
 
     /// don't know the output shape of conv1, let the library to infer
     logical_tensor conv0_dst_desc {3, data_type::bf16, 4, layout_type::strided};
@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
     logical_tensor conv1_weight_desc {
             9, data_type::bf16, conv1_weight_dims, layout_type::strided};
     logical_tensor conv1_bias_desc {
-            10, data_type::f32, conv1_bias_dims, layout_type::strided};
+            10, data_type::bf16, conv1_bias_dims, layout_type::strided};
     logical_tensor conv1_dst_desc {
             11, data_type::bf16, 4, layout_type::strided};
 
@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
     /// memory allocation.
     std::vector<uint16_t> conv0_src_data(8 * 3 * 227 * 227);
     std::vector<uint16_t> conv0_weight_data(96 * 3 * 11 * 11);
-    std::vector<float> conv0_bias_data(96);
+    std::vector<uint16_t> conv0_bias_data(96);
 
     std::vector<uint16_t> relu0_dst_data(
             relu0_dst_desc_q.get_mem_size() / sizeof(uint16_t));
@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
     /// prepare data for cp1 execution, we use uint16_t to mimic bf16 for memory
     /// allocation.
     std::vector<uint16_t> conv1_weight_data(96 * 96 * 1 * 1);
-    std::vector<float> conv1_bias_data(96);
+    std::vector<uint16_t> conv1_bias_data(96);
     std::vector<uint16_t> relu1_dst_data(
             relu1_dst_desc_q.get_mem_size() / sizeof(uint16_t));
 

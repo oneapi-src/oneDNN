@@ -123,15 +123,9 @@ DNNL_GRAPH_OP_SCHEMA(avgpool_add, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(1, "other", "the second input tensor of add",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
                 .set_attr("strides", "the distance to slide the filter", true,
                         attribute_kind::is)
                 .set_attr("pads_begin", "top and left padding", true,
@@ -156,15 +150,9 @@ DNNL_GRAPH_OP_SCHEMA(maxpool_add, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(1, "other", "the second input tensor of add",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
                 .set_attr("strides", "the distance to slide the filter", true,
                         attribute_kind::is)
                 .set_attr("pads_begin", "top and left padding", true,
@@ -192,10 +180,8 @@ DNNL_GRAPH_OP_SCHEMA(int8_maxpool, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("strides", "the distance to slide the filter", true,
                         attribute_kind::is)
                 .set_attr("pads_begin", "top and left padding", true,
@@ -234,10 +220,8 @@ DNNL_GRAPH_OP_SCHEMA(int8_avgpool, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("strides", "the distance to slide the filter", true,
                         attribute_kind::is)
                 .set_attr("pads_begin", "top and left padding", true,
@@ -359,33 +343,19 @@ DNNL_GRAPH_OP_SCHEMA(relu_add, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(1, "other", "the second input tensor of add",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(conv_bias, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(1, "weight", "weight tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(2, "bias", "bias tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -404,21 +374,11 @@ DNNL_GRAPH_OP_SCHEMA(conv_bias_add, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(1, "weight", "weight tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(2, "bias", "bias tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(3, "other", "the second input tensor of add",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -761,15 +721,9 @@ DNNL_GRAPH_OP_SCHEMA(conv_relu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(1, "weight", "weight tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -777,19 +731,11 @@ DNNL_GRAPH_OP_SCHEMA(conv_depthwise, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(1, "weight", "weight tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(2, "other",
-                        "weight tensor for depthwise convolution",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(
+                        2, "other", "weight tensor for depthwise convolution")
+                .set_output(0, "output", "output tensor")
                 .set_attr("dw_groups",
                         "the number of groups input / output channels are "
                         "divided into (for depthwise post-op)",
@@ -1058,12 +1004,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1082,11 +1025,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1105,13 +1046,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_bias, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1130,12 +1068,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_relu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1154,11 +1089,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_relu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1177,15 +1110,11 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_bias_add, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1204,13 +1133,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_bias_relu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1229,15 +1155,11 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_bias_add_relu, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1256,14 +1178,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_add_relu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1282,13 +1200,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_add_relu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_input(2, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1307,14 +1222,11 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_bias_add_relu, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1333,12 +1245,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_bias_relu, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1357,12 +1267,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_conv_bias, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1381,10 +1289,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1403,11 +1310,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_bias, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1426,10 +1332,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_relu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1448,11 +1353,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_bias_relu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1471,13 +1375,11 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_bias_add_relu, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1496,12 +1398,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_conv_add_relu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1520,10 +1420,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1542,11 +1441,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_bias, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1565,10 +1463,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_relu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1587,11 +1484,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_bias_relu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1610,13 +1506,11 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_bias_add_relu, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1635,12 +1529,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_conv_add_relu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1659,18 +1551,10 @@ DNNL_GRAPH_OP_SCHEMA(convtranspose_bias, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(1, "weight", "weight tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(2, "bias", "bias tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("output_padding",
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
@@ -1683,12 +1567,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_convtranspose, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "weight", "weight tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("output_padding",
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
@@ -1701,13 +1582,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_convtranspose_bias, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "weight", "weight tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("output_padding",
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
@@ -1720,12 +1598,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1744,11 +1619,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1767,13 +1640,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1792,12 +1662,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1816,12 +1684,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_relu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1840,11 +1705,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_relu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1863,13 +1726,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_relu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1888,14 +1748,11 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_relu, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1914,12 +1771,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_sigmoid, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1938,11 +1792,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_sigmoid, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1961,13 +1813,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_sigmoid, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -1986,14 +1835,11 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_sigmoid, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2012,12 +1858,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_gelu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2036,11 +1879,9 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_gelu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2059,13 +1900,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_gelu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2084,12 +1922,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_gelu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2108,12 +1944,9 @@ DNNL_GRAPH_OP_SCHEMA(x8x8float_matmul, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2132,12 +1965,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_bias, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2156,11 +1987,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_relu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2179,12 +2008,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_relu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2203,11 +2030,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_sigmoid, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2226,12 +2051,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_sigmoid, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2250,11 +2073,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_gelu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2273,12 +2094,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_matmul_bias_gelu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2297,14 +2116,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_add, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2323,13 +2138,10 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_add, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::f32)
-                .set_input(2, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2348,15 +2160,11 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_bias_add, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2375,15 +2183,11 @@ DNNL_GRAPH_OP_SCHEMA(int8_quant_wei_matmul_bias_add, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2402,13 +2206,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_add, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2427,14 +2228,10 @@ DNNL_GRAPH_OP_SCHEMA(x8x8float_matmul_div, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(2, "other", "div src1 tensor",
-                        {impl::data_type::f32, impl::data_type::bf16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "other", "div src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2453,14 +2250,11 @@ DNNL_GRAPH_OP_SCHEMA(x8s8float_matmul_bias_add, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2479,11 +2273,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2502,12 +2294,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2526,11 +2316,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_relu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2549,12 +2337,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_relu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2573,11 +2359,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_sigmoid, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2596,12 +2380,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_sigmoid, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2620,11 +2402,9 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_gelu, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2643,12 +2423,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_gelu, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2667,12 +2445,10 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_add, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2691,13 +2467,11 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_add, 1,
         op_schema_t()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_input(1, "filter", "filter tensor", impl::data_type::s8)
-                .set_input(2, "bias", "bias tensor", impl::data_type::f32)
-                .set_input(3, "other", "add src1 tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
-                .set_output(0, "output", "output tensor", impl::data_type::f32)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "add src1 tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("qtype",
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
@@ -2716,10 +2490,8 @@ DNNL_GRAPH_OP_SCHEMA(mul_scales, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "x", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8,
-                                impl::data_type::f32})
-                .set_output(0, "y", "output tensor", impl::data_type::f32)
+                .set_input(0, "x", "input tensor")
+                .set_output(0, "y", "output tensor")
                 .set_attr("qtype", "quantization type", false,
                         attribute_kind::s, "per_tensor")
                 .set_attr("axis", "quantization type", false, attribute_kind::i,
@@ -2731,11 +2503,8 @@ DNNL_GRAPH_OP_SCHEMA(add_zps, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "x", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8,
-                                impl::data_type::f32})
-                .set_output(0, "y", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8})
+                .set_input(0, "x", "input tensor")
+                .set_output(0, "y", "output tensor")
                 .set_attr("qtype", "quantization type", false,
                         attribute_kind::s, "per_tensor")
                 .set_attr("axis", "quantization type", false, attribute_kind::i,
@@ -2747,12 +2516,8 @@ DNNL_GRAPH_OP_SCHEMA(permute, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "x", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8,
-                                impl::data_type::f32})
-                .set_output(0, "y", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8,
-                                impl::data_type::f32})
+                .set_input(0, "x", "input tensor")
+                .set_output(0, "y", "output tensor")
                 .set_attr("from_format",
                         "the format of input, the options are NCX and NXC",
                         false, attribute_kind::s, "NXC")
@@ -2769,12 +2534,8 @@ DNNL_GRAPH_OP_SCHEMA(to_group, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "x", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8,
-                                impl::data_type::f32})
-                .set_output(0, "y", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8,
-                                impl::data_type::f32})
+                .set_input(0, "x", "input tensor")
+                .set_output(0, "y", "output tensor")
                 .set_attr("groups", "the groups", false, attribute_kind::i,
                         (int64_t)1)
                 .set_attr("is_convtranspose",
@@ -2786,12 +2547,8 @@ DNNL_GRAPH_OP_SCHEMA(expand, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "x", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8,
-                                impl::data_type::f32})
-                .set_output(0, "y", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8,
-                                impl::data_type::f32})
+                .set_input(0, "x", "input tensor")
+                .set_output(0, "y", "output tensor")
                 .set_attr("insert_1dim", "where to insert 1 dim", false,
                         attribute_kind::s, "none")
                 .set_attr("expand_to", "target ndims to expand", false,
@@ -2802,12 +2559,8 @@ DNNL_GRAPH_OP_SCHEMA(squeeze, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "x", "input tensor",
-                        {impl::data_type::s8, impl::data_type::u8,
-                                impl::data_type::f32, impl::data_type::bf16})
-                .set_output(0, "y", "output tensor",
-                        {impl::data_type::s8, impl::data_type::u8,
-                                impl::data_type::f32, impl::data_type::bf16})
+                .set_input(0, "x", "input tensor")
+                .set_output(0, "y", "output tensor")
                 .set_attr("axes",
                         "which dims to be squeezed, negative "
                         "value means counting dimensions from the back",
@@ -2819,20 +2572,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16, impl::data_type::u8,
-                                impl::data_type::s8})
-                .set_input(1, "filter", "filter tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16, impl::data_type::s8})
-                .set_input(2, "bias", "bias tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16, impl::data_type::s32})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16, impl::data_type::u8,
-                                impl::data_type::s8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_dnnl_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -2841,20 +2584,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16, impl::data_type::u8,
-                                impl::data_type::s8})
-                .set_input(1, "weight", "weight tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16, impl::data_type::s8})
-                .set_input(2, "bias", "bias tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16, impl::data_type::s32})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16, impl::data_type::u8,
-                                impl::data_type::s8})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("output_padding",
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
@@ -2897,8 +2630,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_u8_to_s8, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "x", "input tensor", impl::data_type::u8)
-                .set_output(0, "y", "output tensor", impl::data_type::s8)
+                .set_input(0, "x", "input tensor")
+                .set_output(0, "y", "output tensor")
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_bn_folding, 1,
@@ -2906,31 +2639,15 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_bn_folding, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({5, 6}))
                 .set_num_outputs(2)
-                .set_input(0, "weight", "weight tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(1, "bias", "bias tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(2, "gamma", "gamma scaling for normalized value",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(3, "beta",
-                        "beta added to the scaled normalized value",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(4, "mean", "value for mean normalization",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(5, "variance", "value for variance normalization",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "updated_weight", "updated weight tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(1, "updated_bias", "updated bias tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "weight", "weight tensor")
+                .set_input(1, "bias", "bias tensor")
+                .set_input(2, "gamma", "gamma scaling for normalized value")
+                .set_input(
+                        3, "beta", "beta added to the scaled normalized value")
+                .set_input(4, "mean", "value for mean normalization")
+                .set_input(5, "variance", "value for variance normalization")
+                .set_output(0, "updated_weight", "updated weight tensor")
+                .set_output(1, "updated_bias", "updated bias tensor")
                 .set_shape_inference_function(infer_bn_folding_output_shape)
                 .set_attr("epsilon",
                         "the number to be added to the variance to avoid "
@@ -2945,15 +2662,9 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_input(1, "weight", "weight tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_output(0, "output", "output tensor")
                 .set_attr("output_padding",
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
@@ -2978,12 +2689,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_swish, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
-                .set_output(0, "output", "output tensor",
-                        {impl::data_type::f32, impl::data_type::bf16,
-                                impl::data_type::f16})
+                .set_input(0, "input", "input tensor")
+                .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_identity_output_shape))
 
 } // namespace dnnl_impl

@@ -88,20 +88,10 @@ std::set<size_t> op_schema_t::get_num_outputs() const {
 }
 
 op_schema_t &op_schema_t::set_input(size_t in_offset, std::string &&in_name,
-        std::string &&in_description, data_type_t dtype) {
+        std::string &&in_description, std::string &&dtype_string) {
     verify_input_(in_offset);
-    inputs_.emplace_back(op_parameter_t(
-            std::move(in_name), std::move(in_description), dtype));
-
-    return *this;
-}
-
-op_schema_t &op_schema_t::set_input(size_t in_offset, std::string &&in_name,
-        std::string &&in_description, std::set<data_type_t> &&dtypes) {
-    verify_input_(in_offset);
-    inputs_.emplace_back(op_parameter_t(
-            std::move(in_name), std::move(in_description), std::move(dtypes)));
-
+    inputs_.emplace_back(op_parameter_t(std::move(in_name),
+            std::move(in_description), std::move(dtype_string)));
     return *this;
 }
 
@@ -111,20 +101,16 @@ op_schema_t::get_inputs() const {
 }
 
 op_schema_t &op_schema_t::set_output(size_t out_offset, std::string &&out_name,
-        std::string &&out_description, data_type_t dtype) {
+        std::string &&out_description, std::string &&dtype_string) {
     verify_output_(out_offset);
-    outputs_.emplace_back(op_parameter_t(
-            std::move(out_name), std::move(out_description), dtype));
-
+    outputs_.emplace_back(op_parameter_t(std::move(out_name),
+            std::move(out_description), std::move(dtype_string)));
     return *this;
 }
 
-op_schema_t &op_schema_t::set_output(size_t out_offset, std::string &&out_name,
-        std::string &&out_description, std::set<data_type_t> &&dtype) {
-    verify_output_(out_offset);
-    outputs_.emplace_back(op_parameter_t(
-            std::move(out_name), std::move(out_description), std::move(dtype)));
-
+op_schema_t &op_schema_t::set_type_constraints(
+        std::string &&dtype_string, std::set<data_type_t> &&dtypes) {
+    op_parameter_dtype_map_[std::move(dtype_string)] = std::move(dtypes);
     return *this;
 }
 
@@ -195,15 +181,25 @@ bool op_schema_t::verify_param_num(size_t actual_num,
 bool op_schema_t::verify_param_dtype(
         const std::vector<std::shared_ptr<value_t>> &actual_values,
         const std::vector<op_schema_t::op_parameter_t> &expected_params,
-        param_num_option option) const {
+        param_num_option option,
+        std::unordered_map<std::string, std::set<data_type_t>>
+                &dtype_constraints) const {
     size_t offset = 0;
     for (auto &v : actual_values) {
         const logical_tensor_t &lt = v->get_logical_tensor();
-        const std::set<data_type_t> &expected_dtypes
-                = expected_params[offset].allowed_dtypes_;
-        if (expected_dtypes.find(lt.data_type) == expected_dtypes.end()) {
+        const std::string &dtype_string = expected_params[offset].dtype_string_;
+        if (dtype_string == "internal") continue;
+        std::set<data_type_t> &expected_dtypes
+                = dtype_constraints[dtype_string];
+        if (expected_dtypes.find(lt.data_type) == expected_dtypes.end())
             return false;
+
+        if (expected_dtypes.size() != 1) {
+            // dtype for current dtype_string has not been fixed
+            // fix the dtype for current dtype_string
+            dtype_constraints[dtype_string] = {lt.data_type};
         }
+
         if (option != param_num_option::variadic) { offset += 1; }
     }
 
@@ -257,8 +253,13 @@ bool op_schema_t::verify(const op_t *l_op) const {
     bool param_num_verify_result = verify_param_num(
             actual_num_inputs, expected_num_inputs, inputs_option);
     if (!param_num_verify_result) { return false; }
-    bool param_dtype_verify_result = verify_param_dtype(
-            l_op->get_input_values(), inputs_, inputs_option);
+
+    // this is used to pass input dtype constraints to output
+    std::unordered_map<std::string, std::set<data_type_t>> dtype_constraints
+            = op_parameter_dtype_map_;
+    bool param_dtype_verify_result
+            = verify_param_dtype(l_op->get_input_values(), inputs_,
+                    inputs_option, dtype_constraints);
     if (!param_dtype_verify_result) { return false; }
 
     size_t actual_num_outputs = l_op->num_outputs();
@@ -266,8 +267,9 @@ bool op_schema_t::verify(const op_t *l_op) const {
     param_num_verify_result = verify_param_num(
             actual_num_outputs, expected_num_outputs, outputs_option);
     if (!param_num_verify_result) { return false; }
-    param_dtype_verify_result = verify_param_dtype(
-            l_op->get_output_values(), outputs_, outputs_option);
+
+    param_dtype_verify_result = verify_param_dtype(l_op->get_output_values(),
+            outputs_, outputs_option, dtype_constraints);
     if (!param_dtype_verify_result) { return false; }
 
     bool attr_verify_result

@@ -2906,8 +2906,7 @@ TEST(op_schema_test, layernorm_bf16_gamma) {
     lnorm.add_input(lt_beta);
     lnorm.add_output(lt_output);
 
-    // gamma/beta should always be f32. Here schema check should fail.
-    EXPECT_FALSE(schema->verify(&lnorm));
+    EXPECT_TRUE(schema->verify(&lnorm));
 }
 
 TEST(op_schema_test, softmax_bf16) {
@@ -2937,6 +2936,67 @@ TEST(op_schema_test, logsoftmax_bf16) {
 
     logsoftmax.set_attr<int64_t>("axis", 1);
     EXPECT_TRUE(schema->verify(&logsoftmax));
+}
+
+TEST(op_schema_test, typecast_bf16_to_f32) {
+    const op_schema_t *schema
+            = op_schema_registry_t::get_op_schema(op_kind::TypeCast);
+    EXPECT_TRUE(schema != nullptr);
+
+    op_t typecast {0, op_kind::TypeCast, std::string("typecast")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t lt_output = logical_tensor_init(1, data_type::f32);
+
+    typecast.add_input(lt_data);
+    typecast.add_output(lt_output);
+
+    EXPECT_TRUE(schema->verify(&typecast));
+}
+
+TEST(op_schema_test, batchnorminference_bf16_data_case) {
+    const op_schema_t *schema
+            = op_schema_registry_t::get_op_schema(op_kind::BatchNormInference);
+
+    op_t bn {0, op_kind::BatchNormInference, std::string("bn")};
+    bn.set_attr("epsilon", 0.001f);
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t lt_beta = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t lt_mean = logical_tensor_init(3, data_type::f32);
+    logical_tensor_t lt_var = logical_tensor_init(4, data_type::f32);
+    logical_tensor_t lt_output = logical_tensor_init(5, data_type::bf16);
+
+    bn.add_input(lt_data);
+    bn.add_input(lt_gamma);
+    bn.add_input(lt_beta);
+    bn.add_input(lt_mean);
+    bn.add_input(lt_var);
+    bn.add_output(lt_output);
+
+    EXPECT_TRUE(schema->verify(&bn));
+}
+
+TEST(op_schema_test, batchnorminference_bf16_data_case2) {
+    const op_schema_t *schema
+            = op_schema_registry_t::get_op_schema(op_kind::BatchNormInference);
+
+    op_t bn {0, op_kind::BatchNormInference, std::string("bn")};
+    bn.set_attr("epsilon", 0.001f);
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::bf16);
+    logical_tensor_t lt_beta = logical_tensor_init(2, data_type::bf16);
+    logical_tensor_t lt_mean = logical_tensor_init(3, data_type::bf16);
+    logical_tensor_t lt_var = logical_tensor_init(4, data_type::bf16);
+    logical_tensor_t lt_output = logical_tensor_init(5, data_type::bf16);
+
+    bn.add_input(lt_data);
+    bn.add_input(lt_gamma);
+    bn.add_input(lt_beta);
+    bn.add_input(lt_mean);
+    bn.add_input(lt_var);
+    bn.add_output(lt_output);
+
+    EXPECT_TRUE(schema->verify(&bn));
 }
 
 TEST(OpSchema, VerifyDynamicTranspose) {

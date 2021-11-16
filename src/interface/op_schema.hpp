@@ -53,17 +53,10 @@ public:
         op_parameter_t() = default;
 
         explicit op_parameter_t(std::string &&name, std::string &&description,
-                data_type_t dtype)
+                std::string &&dtype_string)
             : name_(std::move(name))
             , description_(std::move(description))
-            , allowed_dtypes_({dtype})
-            , is_initialized(true) {}
-
-        explicit op_parameter_t(std::string &&name, std::string &&description,
-                std::set<data_type_t> &&dtype)
-            : name_(std::move(name))
-            , description_(std::move(description))
-            , allowed_dtypes_(std::move(dtype))
+            , dtype_string_(std::move(dtype_string))
             , is_initialized(true) {}
 
         // op parameter name.
@@ -72,8 +65,8 @@ public:
         // op parameter description.
         std::string description_;
 
-        // op parameter allowed data types.
-        std::set<data_type_t> allowed_dtypes_;
+        // op parameter dtype string.
+        std::string dtype_string_;
 
         // Flag marking whether this parameter has already been initialized
         bool is_initialized = false;
@@ -170,22 +163,21 @@ public:
      */
     op_schema_t &set_num_outputs(std::set<size_t> &&output_num);
 
-    /*! @brief Get num of outputs of the op schema. */
+    /*! @brief Get num of outputs of the op schema.*/
     std::set<size_t> get_num_outputs() const;
 
     /*! @brief Set a particular input of the op schema. */
     op_schema_t &set_input(size_t in_offset, std::string &&in_name,
-            std::string &&in_description, data_type_t dtype = data_type::f32);
-
-    op_schema_t &set_input(size_t in_offset, std::string &&in_name,
-            std::string &&in_description, std::set<data_type_t> &&dtype);
+            std::string &&in_description,
+            std::string &&dtype_string = "internal");
 
     /*! @brief Set a particular output of the op schema. */
     op_schema_t &set_output(size_t out_offset, std::string &&out_name,
-            std::string &&out_description, data_type_t dtype = data_type::f32);
+            std::string &&out_description,
+            std::string &&dtype_string = "internal");
 
-    op_schema_t &set_output(size_t out_offset, std::string &&out_name,
-            std::string &&out_description, std::set<data_type_t> &&dtype);
+    op_schema_t &set_type_constraints(
+            std::string &&dtype_string, std::set<data_type_t> &&dtypes);
 
     /*! @brief Set a particular attribute of the op schema. */
     op_schema_t &set_attr(const std::string &name, std::string &&description,
@@ -249,8 +241,10 @@ private:
             param_num_option option) const;
     bool verify_param_dtype(
             const std::vector<std::shared_ptr<value_t>> &actual_values,
-            const std::vector<op_parameter_t> &expected_params,
-            param_num_option option) const;
+            const std::vector<op_schema_t::op_parameter_t> &expected_params,
+            param_num_option option,
+            std::unordered_map<std::string, std::set<data_type_t>>
+                    &dtype_constraints) const;
     bool verify_attributes(
             const std::unordered_map<std::string, utils::attribute_value_t>
                     &actual_attrs,
@@ -266,6 +260,9 @@ private:
     std::set<size_t> num_outputs_;
     std::set<size_t> inputs_offset;
     std::set<size_t> outputs_offset;
+    // allowed data types for each dtype string
+    std::unordered_map<std::string, std::set<data_type_t>>
+            op_parameter_dtype_map_;
     param_num_option inputs_option = param_num_option::fixed;
     param_num_option outputs_option = param_num_option::fixed;
     std::vector<op_parameter_t> inputs_;

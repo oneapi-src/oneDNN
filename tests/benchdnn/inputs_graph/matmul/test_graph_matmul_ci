@@ -75,7 +75,7 @@
 # x8s8bf16 - matmul + bias
 --reset
 --cfg=u8s8bf16
---bia_dt=f32
+--bia_dt=bf16
 --attr-oscale=per_oc:2.25
 --batch=shapes_int8_2d
 

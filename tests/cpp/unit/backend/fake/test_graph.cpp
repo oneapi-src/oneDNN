@@ -36,7 +36,7 @@ TEST(graph_test, get_partitions_fake) {
     op_t end {2, op_kind::End, std::string("end")};
     logical_tensor_t input = logical_tensor_init(0, data_type::f32);
     logical_tensor_t wildcard_out = logical_tensor_init(1, data_type::f32);
-    logical_tensor_t index_in_2 = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t index_in_2 = logical_tensor_init(2, data_type::u8);
     logical_tensor_t index_out = logical_tensor_init(3, data_type::f32);
 
     wildcard.add_input(input);

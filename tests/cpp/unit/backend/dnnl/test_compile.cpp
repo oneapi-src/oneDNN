@@ -4744,74 +4744,6 @@ TEST(operator_compile, ConvolutionBF16BF16BF16) {
     strm.wait();
 }
 
-TEST(operator_compile, ConvolutionBF16BF16F32) {
-    using dims = impl::dnnl_impl::dims;
-
-    impl::engine_t &eng = get_engine();
-    static auto isa = dnnl_get_effective_cpu_isa();
-    SKIP_IF(isa < dnnl_cpu_isa_avx512_core
-                    && eng.kind() == impl::engine_kind::cpu,
-            "Skip bf16 examples for systems that do not support avx512_core.");
-
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
-    test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
-    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
-
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-            0, {1, 1, 4, 4}, impl::data_type::bf16);
-    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-            1, {1, 1, 3, 3}, impl::data_type::bf16);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
-
-    conv_op.add_input(src_lt);
-    conv_op.add_input(weight_lt);
-    conv_op.add_output(dst_lt);
-
-    impl::graph_t g(eng.kind());
-    g.add_op(&conv_op);
-    g.build_graph();
-
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
-    apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
-    auto part = g.get_partitions()[0];
-
-    // compile
-    impl::partition_t p;
-    p.init(part);
-
-    impl::compiled_partition_t cp(p);
-
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
-
-    p.compile(&cp, inputs, outputs, &eng);
-
-    impl::logical_tensor_t lt;
-    cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
-    strm.wait();
-}
-
 TEST(operator_kernel, group_convolution) {
     using dims = impl::dnnl_impl::dims;
 
@@ -13324,7 +13256,7 @@ TEST(int8_subgraph_mode, x8x8bf16_bmm_div) {
             impl::logical_tensor_t dst_bf16 = utils::logical_tensor_init(
                     6, dst_shape, impl::data_type::bf16);
             impl::logical_tensor_t div_src1
-                    = utils::logical_tensor_init(7, {1}, impl::data_type::f32);
+                    = utils::logical_tensor_init(7, {1}, impl::data_type::bf16);
             impl::logical_tensor_t div_bf16 = utils::logical_tensor_init(
                     8, dst_shape, impl::data_type::bf16);
 
@@ -13349,13 +13281,13 @@ TEST(int8_subgraph_mode, x8x8bf16_bmm_div) {
             binary_op.add_output(div_bf16);
 
             impl::graph_t g;
-            g.add_op(&dqdata_op);
-            g.add_op(&dqweight_op);
-            g.add_op(&matmul_op);
-            g.add_op(&tcdata_op);
-            g.add_op(&tcweight_op);
-            g.add_op(&binary_op);
-            g.build_graph();
+            ASSERT_EQ(g.add_op(&dqdata_op), impl::status::success);
+            ASSERT_EQ(g.add_op(&dqweight_op), impl::status::success);
+            ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+            ASSERT_EQ(g.add_op(&tcdata_op), impl::status::success);
+            ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
+            ASSERT_EQ(g.add_op(&binary_op), impl::status::success);
+            ASSERT_EQ(g.build_graph(), impl::status::success);
 
             impl::pass::pass_base_ptr apass
                     = get_pass("x8x8bf16_matmul_div_fusion");
@@ -13467,7 +13399,7 @@ TEST(int8_subgraph_mode, x8x8bf16_bmm_div_blocked) {
             impl::logical_tensor_t dst_bf16 = utils::logical_tensor_init(
                     6, dst_shape, impl::data_type::bf16);
             impl::logical_tensor_t div_src1
-                    = utils::logical_tensor_init(7, {1}, impl::data_type::f32);
+                    = utils::logical_tensor_init(7, {1}, impl::data_type::bf16);
             impl::logical_tensor_t div_bf16 = utils::logical_tensor_init(
                     8, dst_shape, impl::data_type::bf16);
 
@@ -13596,8 +13528,8 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias) {
             = utils::logical_tensor_init(4, weight_shape, impl::data_type::f32);
     impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
             5, weight_shape, impl::data_type::bf16);
-    impl::logical_tensor_t bias_f32
-            = utils::logical_tensor_init(6, bias_shape, impl::data_type::f32);
+    impl::logical_tensor_t bias_bf16
+            = utils::logical_tensor_init(6, bias_shape, impl::data_type::bf16);
     impl::logical_tensor_t dst_bf16
             = utils::logical_tensor_init(7, dst_shape, impl::data_type::bf16);
 
@@ -13615,7 +13547,7 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias) {
 
     matmul_op.add_input(src_bf16);
     matmul_op.add_input(weight_bf16);
-    matmul_op.add_input(bias_f32);
+    matmul_op.add_input(bias_bf16);
     matmul_op.add_output(dst_bf16);
 
     impl::graph_t g(engine.kind());
@@ -13638,7 +13570,7 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias) {
     impl::compiled_partition_t cp(p);
 
     std::vector<const impl::logical_tensor_t *> lt_ins {
-            &src_u8, &weight_s8, &bias_f32};
+            &src_u8, &weight_s8, &bias_bf16};
     std::vector<const impl::logical_tensor_t *> lt_outs {&dst_bf16};
 
     p.compile(&cp, lt_ins, lt_outs, &engine);
@@ -13646,9 +13578,9 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias) {
     test::vector<float> dst_data(product(dst_shape));
     impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
     impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
-    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    impl::tensor_t bias_bf16_ts(bias_bf16, &engine, bias_data.data());
     impl::tensor_t dst_ts(dst_bf16, &engine, dst_data.data());
-    cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts}, {dst_ts});
+    cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_bf16_ts}, {dst_ts});
     strm.wait();
 }
 
@@ -13730,8 +13662,8 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias_add) {
             = utils::logical_tensor_init(4, weight_shape, impl::data_type::f32);
     impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
             5, weight_shape, impl::data_type::bf16);
-    impl::logical_tensor_t bias_f32
-            = utils::logical_tensor_init(6, bias_shape, impl::data_type::f32);
+    impl::logical_tensor_t bias_bf16
+            = utils::logical_tensor_init(6, bias_shape, impl::data_type::bf16);
     impl::logical_tensor_t other_u8
             = utils::logical_tensor_init(7, dst_shape, impl::data_type::u8);
     impl::logical_tensor_t other_f32_dq
@@ -13763,7 +13695,7 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias_add) {
 
     matmul_op.add_input(src_bf16);
     matmul_op.add_input(weight_bf16);
-    matmul_op.add_input(bias_f32);
+    matmul_op.add_input(bias_bf16);
     matmul_op.add_output(matmul_bf16);
 
     add_op.add_input(other_bf16);
@@ -13794,7 +13726,7 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias_add) {
     impl::compiled_partition_t cp(p);
 
     std::vector<const impl::logical_tensor_t *> lt_ins {
-            &src_u8, &weight_s8, &bias_f32, &other_u8};
+            &src_u8, &weight_s8, &bias_bf16, &other_u8};
     std::vector<const impl::logical_tensor_t *> lt_outs {&dst_bf16};
 
     p.compile(&cp, lt_ins, lt_outs, &engine);
@@ -13802,10 +13734,10 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias_add) {
     test::vector<float> dst_data(product(dst_shape));
     impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
     impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
-    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    impl::tensor_t bias_bf16_ts(bias_bf16, &engine, bias_data.data());
     impl::tensor_t other_u8_ts(other_u8, &engine, other_data.data());
     impl::tensor_t dst_ts(dst_bf16, &engine, dst_data.data());
-    cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts, other_u8_ts},
+    cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_bf16_ts, other_u8_ts},
             {dst_ts});
     strm.wait();
 }
@@ -13884,8 +13816,8 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias) {
             = utils::logical_tensor_init(4, weight_shape, impl::data_type::f32);
     impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
             5, weight_shape, impl::data_type::bf16);
-    impl::logical_tensor_t bias_f32
-            = utils::logical_tensor_init(6, bias_shape, impl::data_type::f32);
+    impl::logical_tensor_t bias_bf16
+            = utils::logical_tensor_init(6, bias_shape, impl::data_type::bf16);
     impl::logical_tensor_t matmul_bf16
             = utils::logical_tensor_init(7, dst_shape, impl::data_type::bf16);
     impl::logical_tensor_t matmul_f32
@@ -13907,7 +13839,7 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias) {
 
     matmul_op.add_input(src_bf16);
     matmul_op.add_input(weight_bf16);
-    matmul_op.add_input(bias_f32);
+    matmul_op.add_input(bias_bf16);
     matmul_op.add_output(matmul_bf16);
 
     tcdst_op.add_input(matmul_bf16);
@@ -13938,7 +13870,7 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias) {
     impl::compiled_partition_t cp(p);
 
     std::vector<const impl::logical_tensor_t *> lt_ins {
-            &src_u8, &weight_s8, &bias_f32};
+            &src_u8, &weight_s8, &bias_bf16};
     std::vector<const impl::logical_tensor_t *> lt_outs {&dst_u8};
 
     p.compile(&cp, lt_ins, lt_outs, &engine);
@@ -13946,9 +13878,9 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias) {
     test::vector<uint8_t> dst_data(product(dst_shape));
     impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
     impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
-    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    impl::tensor_t bias_bf16_ts(bias_bf16, &engine, bias_data.data());
     impl::tensor_t dst_ts(dst_u8, &engine, dst_data.data());
-    cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts}, {dst_ts});
+    cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_bf16_ts}, {dst_ts});
     strm.wait();
 }
 
@@ -14027,8 +13959,8 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias_gelu) {
             = utils::logical_tensor_init(4, weight_shape, impl::data_type::f32);
     impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
             5, weight_shape, impl::data_type::bf16);
-    impl::logical_tensor_t bias_f32
-            = utils::logical_tensor_init(6, bias_shape, impl::data_type::f32);
+    impl::logical_tensor_t bias_bf16
+            = utils::logical_tensor_init(6, bias_shape, impl::data_type::bf16);
     impl::logical_tensor_t matmul_bf16
             = utils::logical_tensor_init(7, dst_shape, impl::data_type::bf16);
     impl::logical_tensor_t gelu_bf16
@@ -14052,7 +13984,7 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias_gelu) {
 
     matmul_op.add_input(src_bf16);
     matmul_op.add_input(weight_bf16);
-    matmul_op.add_input(bias_f32);
+    matmul_op.add_input(bias_bf16);
     matmul_op.add_output(matmul_bf16);
 
     gelu_op.add_input(matmul_bf16);
@@ -14087,7 +14019,7 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias_gelu) {
     impl::compiled_partition_t cp(p);
 
     std::vector<const impl::logical_tensor_t *> lt_ins {
-            &src_u8, &weight_s8, &bias_f32};
+            &src_u8, &weight_s8, &bias_bf16};
     std::vector<const impl::logical_tensor_t *> lt_outs {&dst_u8};
 
     p.compile(&cp, lt_ins, lt_outs, &engine);
@@ -14095,8 +14027,8 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias_gelu) {
     test::vector<uint8_t> dst_data(product(dst_shape));
     impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
     impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
-    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    impl::tensor_t bias_bf16_ts(bias_bf16, &engine, bias_data.data());
     impl::tensor_t dst_ts(dst_u8, &engine, dst_data.data());
-    cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts}, {dst_ts});
+    cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_bf16_ts}, {dst_ts});
     strm.wait();
 }
