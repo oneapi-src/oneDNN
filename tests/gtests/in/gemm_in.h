@@ -291,6 +291,12 @@ INST_TEST_CASE(TestGEMM_expected_failures,
         test_params {'n', 'd', 3, 2, 1, 1.0, 0.0, 3, 3, 3, {}, {false, true},
                 true, dnnl_invalid_arguments});
 
+CPU_INST_TEST_CASE(TestGEMM_stkmem,
+        test_params {'n', 'n', 10, 4000, 2, 1.0, 0.0, 2, 4000, 4000,
+                fix_use_all_offsets},
+        test_params {'n', 'n', 10, 5000, 2, 1.0, 0.0, 2, 5000, 5000,
+                fix_use_all_offsets});
+
 INST_TEST_CASE(TestGEMM_general_cases_fix_offset,
         test_params {'N', 'n', 30, 20, 10, 1.0, 0.0, 60, 50, 80, fix_use_oc},
         test_params {'n', 'T', 30, 20, 10, 1.0, 0.0, 60, 50, 80, fix_use_oc},

@@ -50,6 +50,11 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
+#ifndef DNNL_WITH_SYCL
+#define MAX_STACK_SZ (4 * PAGE_4K)
+#else
+#define MAX_STACK_SZ 0
+#endif
 
 template <typename c_type>
 struct alignas(64) gemm_per_thread_t {
@@ -374,25 +379,8 @@ template <typename a_type, typename b_type, typename c_type>
 void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
         const a_type *a, const b_type *b, float beta, c_type *c,
         const dim_t ldc, const c_type *a_row_sum, const c_type *b_col_sum,
-        const c_type *co, offset_type offsetc,
-        const gemm_info_t<a_type, b_type, c_type> *arg) {
-
-#ifdef DNNL_WITH_SYCL
-    std::vector<c_type> col_offset_vec(m);
-    std::vector<c_type> row_offset_vec(n);
-    c_type *col_offset = col_offset_vec.data();
-    c_type *row_offset = row_offset_vec.data();
-#else
-    // Since m and n are limited by blocking, stack overflow may not happen;
-    // it's up to 32kB
-#if !defined(_MSC_VER)
-    c_type col_offset[m];
-    c_type row_offset[n];
-#else
-    c_type *col_offset = (c_type *)_alloca(sizeof(*col_offset) * m);
-    c_type *row_offset = (c_type *)_alloca(sizeof(*row_offset) * n);
-#endif
-#endif
+        c_type *row_offset_ws, c_type *col_offset_ws, const c_type *co,
+        offset_type offsetc, const gemm_info_t<a_type, b_type, c_type> *arg) {
 
     bool col_req = false;
     bool row_req = false;
@@ -401,6 +389,25 @@ void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
     constexpr bool is_f32 = data_traits<a_type>::data_type == data_type::f32;
     bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
+
+    dim_t m_stk = col_offset_ws ? 1 : m;
+    dim_t n_stk = row_offset_ws ? 1 : n;
+#if !defined(_MSC_VER)
+    c_type col_offset_stk[m_stk];
+    c_type row_offset_stk[n_stk];
+#else
+    c_type *col_offset_stk = nullptr;
+    if (!col_offset_ws)
+        col_offset_stk = (c_type *)_alloca(sizeof *col_offset_stk * m_stk);
+
+    c_type *row_offset_stk = nullptr;
+    if (!row_offset_ws)
+        row_offset_stk = (c_type *)_alloca(sizeof *row_offset_stk * n_stk);
+#endif
+
+    // Use the heap if already allocated and stack otherwise.
+    c_type *col_offset = col_offset_ws ? col_offset_ws : col_offset_stk;
+    c_type *row_offset = row_offset_ws ? row_offset_ws : row_offset_stk;
 
     if (is_int8) {
         c_type ao = arg->ao;
@@ -581,6 +588,15 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                 + b_col_sum_nelems * sizeof(*c) + PAGE_4K;
     }
 
+    size_t col_offset_ws_nelems = arg->um;
+    size_t row_offset_ws_nelems = n_padd;
+    size_t stk_sz = (col_offset_ws_nelems + row_offset_ws_nelems) * sizeof(*c);
+    const bool use_stack = is_int8 && stk_sz <= MAX_STACK_SZ;
+    if (!use_stack) {
+        mem_size += col_offset_ws_nelems * sizeof(*c) + PAGE_4K;
+        mem_size += row_offset_ws_nelems * sizeof(*c) + PAGE_4K;
+    }
+
     bool need_c_buffer
             = (is_int8 && (alpha != 1.0f || (beta != 1.0f && beta != 0.0f)))
             // AMX bfloat16 kernels don't support alpha scaling yet,
@@ -600,22 +616,33 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
     }
 
     a_type *bufferA = (a_type *)align(mem, PAGE_4K);
-    b_type *bufferB = (b_type *)align(bufferA + a_buf_nelems, PAGE_4K);
+    void *p_next_buf = bufferA + a_buf_nelems;
+
+    b_type *bufferB = (b_type *)align(p_next_buf, PAGE_4K);
+    p_next_buf = bufferB + b_buf_nelems;
 
     c_type *a_row_sum = nullptr;
     c_type *b_col_sum = nullptr;
     if (is_int8) {
-        a_row_sum = (c_type *)align(bufferB + b_buf_nelems, PAGE_4K);
-        b_col_sum = (c_type *)align(a_row_sum + a_row_sum_nelems, PAGE_4K);
+        a_row_sum = (c_type *)align(p_next_buf, PAGE_4K);
+        p_next_buf = a_row_sum + a_row_sum_nelems;
+
+        b_col_sum = (c_type *)align(p_next_buf, PAGE_4K);
+        p_next_buf = b_col_sum + b_col_sum_nelems;
+    }
+
+    c_type *col_offset_ws = nullptr;
+    c_type *row_offset_ws = nullptr;
+    if (!use_stack) {
+        col_offset_ws = (c_type *)align(p_next_buf, PAGE_4K);
+        p_next_buf = col_offset_ws + col_offset_ws_nelems;
+
+        row_offset_ws = (c_type *)align(p_next_buf, PAGE_4K);
+        p_next_buf = row_offset_ws + row_offset_ws_nelems;
     }
 
     c_type *bufferC = nullptr;
-    if (need_c_buffer) {
-        if (is_int8)
-            bufferC = (c_type *)align(b_col_sum + b_col_sum_nelems, PAGE_4K);
-        else
-            bufferC = (c_type *)align(bufferB + b_buf_nelems, PAGE_4K);
-    }
+    if (need_c_buffer) bufferC = (c_type *)align(p_next_buf, PAGE_4K);
 
     int a_block_copied = 0;
     dim_t sizeM = 0;
@@ -726,7 +753,8 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                     if (need_c_buffer) {
                         gemm_kernel(sizeUM, sizeN, sizeK, 1.0f, bufferA_eff,
                                 bufferB, 0.0f, bufferC + Um, ldc_buf,
-                                a_row_sum_eff, b_col_sum, (c_type *)nullptr,
+                                a_row_sum_eff, b_col_sum, row_offset_ws,
+                                col_offset_ws, (c_type *)nullptr,
                                 offset_type::none, arg);
 
                         /* Finish the block adding the necessary alpha, beta
@@ -738,7 +766,8 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                     } else {
                         gemm_kernel(sizeUM, sizeN, sizeK, alpha, bufferA_eff,
                                 bufferB, beta_eff, c_block, ldc, a_row_sum_eff,
-                                b_col_sum, co + co_stride, offsetc_eff, arg);
+                                b_col_sum, row_offset_ws, col_offset_ws,
+                                co + co_stride, offsetc_eff, arg);
                     }
                 }
                 a_block_copied = 1;
@@ -778,7 +807,6 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
     size_t b_buf_nelems = k * n_padd;
     size_t b_col_sum_nelems = n_padd;
-
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
     constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
@@ -786,7 +814,7 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
     bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
     bool is_amx = is_int8_amx || is_bf16_amx;
 
-    // B buffer needs to large due to zero-padding.
+    // B buffer needs to be large due to zero-padding.
     if (is_amx)
         b_buf_nelems
                 = utils::rnd_up(k, arg->uk) * utils::rnd_up(n_padd, arg->un);
@@ -796,6 +824,15 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
     size_t mem_size = b_buf_nelems * sizeof(*b) + PAGE_4K;
 
     if (is_int8) { mem_size += b_col_sum_nelems * sizeof(*c) + PAGE_4K; }
+
+    size_t col_offset_ws_nelems = m;
+    size_t row_offset_ws_nelems = n_padd;
+    size_t stk_sz = (col_offset_ws_nelems + row_offset_ws_nelems) * sizeof(*c);
+    const bool use_stack = is_int8 && stk_sz <= MAX_STACK_SZ;
+    if (!use_stack) {
+        mem_size += col_offset_ws_nelems * sizeof(*c) + PAGE_4K;
+        mem_size += row_offset_ws_nelems * sizeof(*c) + PAGE_4K;
+    }
 
     bool need_c_buffer
             = (is_int8 && (alpha != 1.0f || (beta != 1.0f && beta != 0.0f)))
@@ -816,19 +853,26 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
     }
 
     b_type *bufferB = (b_type *)align(mem, PAGE_4K);
+    void *p_next_buf = bufferB + b_buf_nelems;
 
     c_type *b_col_sum = nullptr;
     if (is_int8) {
-        b_col_sum = (c_type *)align(bufferB + b_buf_nelems, PAGE_4K);
+        b_col_sum = (c_type *)align(p_next_buf, PAGE_4K);
+        p_next_buf = b_col_sum + b_col_sum_nelems;
+    }
+
+    c_type *col_offset_ws = nullptr;
+    c_type *row_offset_ws = nullptr;
+    if (!use_stack) {
+        col_offset_ws = (c_type *)align(p_next_buf, PAGE_4K);
+        p_next_buf = col_offset_ws + col_offset_ws_nelems;
+
+        row_offset_ws = (c_type *)align(p_next_buf, PAGE_4K);
+        p_next_buf = row_offset_ws + row_offset_ws_nelems;
     }
 
     c_type *bufferC = nullptr;
-    if (need_c_buffer) {
-        if (is_int8)
-            bufferC = (c_type *)align(b_col_sum + b_col_sum_nelems, PAGE_4K);
-        else
-            bufferC = (c_type *)align(bufferB + b_buf_nelems, PAGE_4K);
-    }
+    if (need_c_buffer) bufferC = (c_type *)align(p_next_buf, PAGE_4K);
 
     dim_t sizeN = 0;
     for (dim_t Bn = 0; Bn < n; Bn += sizeN) {
@@ -862,15 +906,16 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
         c_type *c_block = c + Bn * ldc;
         if (need_c_buffer) {
             gemm_kernel(m, sizeN, k, 1.0f, bufferA, bufferB, 0.0f, bufferC,
-                    ldc_buf, a_row_sum, b_col_sum, (c_type *)nullptr,
-                    offset_type::none, arg);
+                    ldc_buf, a_row_sum, b_col_sum, row_offset_ws, col_offset_ws,
+                    (c_type *)nullptr, offset_type::none, arg);
 
             // Finish the block adding the necessary alpha, beta and offsets.
             add_results(m, sizeN, alpha, beta, bufferC, ldc_buf, c_block, ldc,
                     co + co_stride, offsetc);
         } else {
             gemm_kernel(m, sizeN, k, alpha, bufferA, bufferB, beta, c_block,
-                    ldc, a_row_sum, b_col_sum, co + co_stride, offsetc, arg);
+                    ldc, a_row_sum, b_col_sum, row_offset_ws, col_offset_ws,
+                    co + co_stride, offsetc, arg);
         }
     }
 
@@ -2001,6 +2046,7 @@ template // Instantiate sgemm
                 pack_type packing, gemm_pack_storage_t *pack_dst,
                 bool measure_only);
 
+#undef MAX_STACK_SZ
 } // namespace x64
 } // namespace cpu
 } // namespace impl
