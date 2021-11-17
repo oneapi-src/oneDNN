@@ -303,6 +303,10 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     packed_b_ = packed_b_ || b_mdw.matches_tag(b_packed_tag);
     packed_c_ = c_mdw.matches_tag(b_packed_tag);
 
+    // No 16x16 copy kernels currently.
+    if ((!packed_a_ && unroll_m_ == 16) || (!packed_b_ && unroll_n_ == 16))
+        return false;
+
     return gpu_gemm_pd_t::set_default_formats();
 }
 
@@ -757,9 +761,6 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
 
     auto tg_m = compute_info_.wg[LoopM];
     auto tg_n = compute_info_.wg[LoopN];
-
-    if (!compute_info_.kRemainderHandling)
-        k = utils::rnd_up(k, compute_info_.unroll[LoopK]);
 
     auto &kernel = kernel_[first_k_block][last_k_block];
 

@@ -9526,7 +9526,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
         if (strategy.splitBarrier) kLoopBarrier(false, KBarrierType::Signal);
     }
 
-    if (unrollK > 1) {
+    if (unrollK > 1 && remainderK) {
         // Bias loop counter by unrollK - 1.
         add(1 | le | state.flagAP, state.K, kInput, int16_t(1 - unrollK));
     } else if (!problem.kPositive) {
@@ -11862,7 +11862,10 @@ bool gemm_kernel_generator_t<hw>::wgRemCheck(
                     && (strategy.remHandling[LoopN]
                             != RemainderHandling::Ignore)
                     && !problem.B.padded)
-            || strategy.kParallelLocal;
+            || strategy.kParallelLocal
+            || (strategy.barrierFreq > 0
+                    && (strategy.prefetchA || strategy.prefetchB
+                            || strategy.prefetchC));
 }
 
 // Do outer-level m/n remainder handling.
