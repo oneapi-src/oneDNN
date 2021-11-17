@@ -94,7 +94,21 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
     , B_any_layout(B_any_layout)
     , C_any_layout(C_any_layout)
     , bias_any_layout(bias_any_layout)
-    , n_blk_fixed(false) {
+    , plain_tensor_layout_tag(utils::pick(bgmmc.ndims - 2, ab, abc, abcd, abcde,
+              abcdef, abcdefg, abcdefgh, abcdefghi, abcdefghij, abcdefghijk,
+              abcdefghijkl))
+    , transposed_tensor_layout_tag(utils::pick(bgmmc.ndims - 2, ba, acb, abdc,
+              abced, abcdfe, abcdegf, abcdefhg, abcdefgih, abcdefghji,
+              abcdefghikj, abcdefghijlk))
+    , blocked_64n_B_layout_tag(pick_blocked_B_layout(64))
+    , blocked_48n_B_layout_tag(pick_blocked_B_layout(48))
+    , blocked_32n_B_layout_tag(pick_blocked_B_layout(32))
+    , blocked_16n_B_layout_tag(pick_blocked_B_layout(16))
+    , blocked_B_layouts_allowed(!utils::one_of(format_tag::undef,
+              blocked_64n_B_layout_tag, blocked_48n_B_layout_tag,
+              blocked_32n_B_layout_tag, blocked_16n_B_layout_tag))
+    , n_blk_fixed((!B_any_layout) && blocked_B_layouts_allowed
+              && check_b_layout_blocked_by_n(bgmmc.wei_tag)) {
     assert(int8_dt || bf16_dt || f32_dt);
 }
 
@@ -722,8 +736,6 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             weights_d.format_kind() == format_kind::any,
             dst_d.format_kind() == format_kind::any,
             bias_md.format_kind == format_kind::any);
-
-    bm_conf_utils.init_layout_params();
 
     CHECK(check_isa_with_datatype(isa, bm_conf_utils));
 
