@@ -58,7 +58,7 @@ namespace sycl {
 
 namespace {
 
-#define ZE_CHECK(f) \
+#define ZE_CHECK_COMMON(f, retval) \
     do { \
         ze_result_t res_ = (f); \
         if (res_ != ZE_RESULT_SUCCESS) { \
@@ -66,9 +66,12 @@ namespace {
                 printf("onednn_verbose,gpu,ze_error,%d\n", (int)(res_)); \
                 fflush(0); \
             } \
-            return status::runtime_error; \
+            return retval; \
         } \
     } while (false)
+
+#define ZE_CHECK(f) ZE_CHECK_COMMON(f, status::runtime_error)
+#define ZE_CHECK_VP(f) ZE_CHECK_COMMON(f, nullptr)
 
 void *find_ze_symbol(const char *symbol) {
 #if defined(__linux__)
@@ -86,11 +89,19 @@ void *find_ze_symbol(const char *symbol) {
         return nullptr;
     }
 
+    using zeInit_decl_t = ze_result_t (*)(ze_init_flags_t flags);
+    const ze_init_flags_t default_ze_flags = 0;
 #if defined(__linux__)
+    static const ze_result_t ze_result = reinterpret_cast<zeInit_decl_t>(
+            dlsym(handle, "zeInit"))(default_ze_flags);
     void *f = reinterpret_cast<void *>(dlsym(handle, symbol));
 #elif defined(_WIN32)
+    static const ze_result_t ze_result = reinterpret_cast<zeInit_decl_t>(
+            GetProcAddress(handle, "zeInit"))(default_ze_flags);
     void *f = reinterpret_cast<void *>(GetProcAddress(handle, symbol));
 #endif
+    ZE_CHECK_VP(ze_result);
+
     if (!f) {
         if (get_verbose())
             printf("onednn_verbose,gpu,error,cannot find symbol: %s\n", symbol);
