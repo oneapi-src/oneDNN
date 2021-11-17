@@ -201,16 +201,20 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
         static constexpr bool sum_at_pos_0_only = true;
         static constexpr bool sum_requires_scale_one = false;
         static constexpr bool sum_requires_zp_zero = false;
+        const auto ndims = dst_d->ndims();
 
-        const bool is_binary_po_channel_bcast
-                = binary_injector_utils::bcast_strategy_present(
-                        binary_injector_utils::extract_bcast_strategies(
-                                post_ops.entry_, *dst_d),
-                        broadcasting_strategy_t::per_mb_spatial);
-        const bool supported_channel_bcast = IMPLICATION(
-                is_binary_po_channel_bcast, (*dst_d).ndims() == 4);
+        bool is_binary_po_channel_bcast {};
+        bool is_binary_po_per_mb_w_bcast {};
+        std::tie(is_binary_po_channel_bcast, is_binary_po_per_mb_w_bcast)
+                = binary_injector_utils::bcast_strategies_present_tup(
+                        post_ops.entry_, *dst_d,
+                        broadcasting_strategy_t::per_mb_spatial,
+                        broadcasting_strategy_t::per_mb_w);
+        const bool supported_binary_bcast
+                = IMPLICATION(is_binary_po_channel_bcast, ndims == 4)
+                && IMPLICATION(is_binary_po_per_mb_w_bcast, ndims == 4);
         const cpu_isa_t isa = get_max_cpu_isa();
-        return supported_channel_bcast
+        return supported_binary_bcast
                 && injector::post_ops_ok({isa, {binary, eltwise, sum}, post_ops,
                         dst_d, sum_at_pos_0_only, sum_requires_scale_one,
                         sum_requires_zp_zero, enabled_bcast_strategy});
