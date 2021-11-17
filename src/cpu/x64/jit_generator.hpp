@@ -454,6 +454,14 @@ public:
         else
             movdqu(x, addr);
     }
+
+    void uni_vmovdqu(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2) {
+        if (is_valid_isa(avx))
+            vmovdqu(x1, x2);
+        else
+            movdqu(x1, x2);
+    }
+
     void uni_vmovdqu(const Xbyak::Ymm &x, const Xbyak::Address &addr) {
         vmovdqu(x, addr);
     }
@@ -1770,6 +1778,16 @@ public:
         vpshufb(x1, x2, op);
     }
 
+    void uni_vcmpgtps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+                      const Xbyak::Operand &op) {
+        if (is_valid_isa(avx))
+            vcmpps(x1, x2, op, _cmp_nle_us);
+        else {
+            assert(x1.getIdx() == x2.getIdx());
+            cmpps(x1, op, _cmp_nle_us);
+        }
+    }
+
     void uni_vpand(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
         if (is_valid_isa(avx512_core) && x1.getBit() == 512)
@@ -1900,15 +1918,17 @@ public:
 
     // End of custom instructions section.
 
-    void uni_vcmpgtps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-                      const Xbyak::Operand &op) {
-        assert(x1.getIdx() == x2.getIdx());
-        cmpps(x1, op, _cmp_nle_us);
-    }
-
     void uni_vcmpgtps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
                       const Xbyak::Operand &op) {
         vcmpgtps(x1, x2, op);
+    }
+
+
+    void uni_vmovshdup(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
+        if (is_valid_isa(avx))
+            vmovshdup(x, op);
+        else
+            movshdup(x, op);
     }
 
     void mul_by_const(
