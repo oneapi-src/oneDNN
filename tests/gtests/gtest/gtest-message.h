@@ -44,11 +44,12 @@
 
 // GOOGLETEST_CM0001 DO NOT DELETE
 
-#ifndef GTEST_INCLUDE_GTEST_GTEST_MESSAGE_H_
-#define GTEST_INCLUDE_GTEST_GTEST_MESSAGE_H_
+#ifndef GOOGLETEST_INCLUDE_GTEST_GTEST_MESSAGE_H_
+#define GOOGLETEST_INCLUDE_GTEST_GTEST_MESSAGE_H_
 
 #include <limits>
 #include <memory>
+#include <sstream>
 
 #include "gtest/internal/gtest-port.h"
 
@@ -179,12 +180,6 @@ class GTEST_API_ Message {
   Message& operator <<(const ::std::wstring& wstr);
 #endif  // GTEST_HAS_STD_WSTRING
 
-#if GTEST_HAS_GLOBAL_WSTRING
-  // Converts the given wide string to a narrow string using the UTF-8
-  // encoding, and streams the result to this Message object.
-  Message& operator <<(const ::wstring& wstr);
-#endif  // GTEST_HAS_GLOBAL_WSTRING
-
   // Gets the text streamed to this object so far as an std::string.
   // Each '\0' character in the buffer is replaced with "\\0".
   //
@@ -221,4 +216,4 @@ std::string StreamableToString(const T& streamable) {
 
 GTEST_DISABLE_MSC_WARNINGS_POP_()  //  4251
 
-#endif  // GTEST_INCLUDE_GTEST_GTEST_MESSAGE_H_
+#endif  // GOOGLETEST_INCLUDE_GTEST_GTEST_MESSAGE_H_
