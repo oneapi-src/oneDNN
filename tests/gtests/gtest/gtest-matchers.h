@@ -57,6 +57,72 @@ GTEST_DISABLE_MSC_WARNINGS_PUSH_(
                               clients of class B */
     /* Symbol involving type with internal linkage not defined */)
 
+#ifdef __linux__
+
+// Disable deprecation warning for `has_trivial_copy_constructor`.
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
+// Add detection of available trait to detect whether types has a trivial
+// copy constructor. The rationale: GNU versions 4.9 and older don't support
+// std::is_trivially_copy_constructible.
+namespace std {
+template <typename T>
+struct is_trivially_copy_constructible;
+template <typename T>
+struct has_trivial_copy_constructor;
+} // namespace std
+
+namespace {
+
+template <class T, class = void>
+struct is_complete_type {
+  static constexpr bool value = false;
+};
+
+template <class T>
+struct is_complete_type<T,
+        typename std::enable_if<(sizeof(T) > 0), void>::type> {
+  static constexpr bool value = true;
+};
+
+template <typename T>
+constexpr typename std::enable_if<
+        is_complete_type<std::is_trivially_copy_constructible<T>>::value,
+        bool>::type
+has_trivial_copy_constructor_impl(int) {
+  return std::is_trivially_copy_constructible<T>::value;
+}
+
+template <typename T>
+constexpr typename std::enable_if<
+        is_complete_type<std::has_trivial_copy_constructor<T>>::value,
+        bool>::type
+has_trivial_copy_constructor_impl(long) {
+  return std::has_trivial_copy_constructor<T>::value;
+}
+
+} // namespace
+
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
+#pragma GCC diagnostic pop
+#endif
+
+#endif
+
+template <typename T>
+constexpr bool has_trivial_copy_constructor() {
+#ifdef __linux__
+  // When both traits are available use std::is_trivially_copy_constructible.
+  return has_trivial_copy_constructor_impl<T>(0);
+#else
+  return std::is_trivially_copy_constructible<T>::value;
+#endif
+}
+// Intel's modification ends.
+
 namespace testing {
 
 // To implement a matcher Foo for type T, define:
@@ -411,7 +477,7 @@ class MatcherBase : private MatcherDescriberInterface {
   template <typename M>
   static constexpr bool IsInlined() {
     return sizeof(M) <= sizeof(Buffer) && alignof(M) <= alignof(Buffer) &&
-           std::is_trivially_copy_constructible<M>::value &&
+           has_trivial_copy_constructor<M>() &&
            std::is_trivially_destructible<M>::value;
   }
 

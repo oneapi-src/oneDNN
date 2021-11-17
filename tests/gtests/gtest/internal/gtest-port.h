@@ -2074,7 +2074,8 @@ inline int ChDir(const char* dir) { return chdir(dir); }
 #endif
 inline FILE* FOpen(const char* path, const char* mode) {
 #if GTEST_OS_WINDOWS && !GTEST_OS_WINDOWS_MINGW
-  struct wchar_codecvt : public std::codecvt<wchar_t, char, std::mbstate_t> {};
+  // Intel's change: use a type alias instead of inheritance.
+  using wchar_codecvt = std::codecvt<wchar_t, char, std::mbstate_t>;
   std::wstring_convert<wchar_codecvt> converter;
   std::wstring wide_path = converter.from_bytes(path);
   std::wstring wide_mode = converter.from_bytes(mode);
