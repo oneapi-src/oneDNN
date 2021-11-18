@@ -58,3 +58,38 @@
 --dtag=abcd
 --attr-oscale=per_oc:2.25,common:2.25
 --batch=shapes_2d_groups
+
+# no groups + post-ops (f32)
+--reset
+--dir=FWD_D,FWD_B
+--cfg=f32
+--attr-post-ops=add:f32:common,add:f32:per_oc
+--batch=shapes_2d
+
+# no groups + post-ops (bf16)
+--reset
+--dir=FWD_D,FWD_B
+--cfg=bf16bf16bf16
+--attr-post-ops=add:bf16:common,add:bf16:per_oc,sum,relu
+--batch=shapes_2d
+
+# with groups + post-ops (f32)
+--reset
+--dir=FWD_D,FWD_B
+--cfg=f32
+--stag=abcd
+--wtag=acbde
+--dtag=abcd
+--attr-post-ops=add:f32:common,add:f32:per_oc
+--batch=shapes_2d_groups
+
+# with groups + post-ops (bf16)
+--reset
+--dir=FWD_D,FWD_B
+--cfg=bf16bf16bf16
+--stag=abcd
+--wtag=acbde
+--dtag=abcd
+--attr-post-ops=add:bf16:common,add:bf16:per_oc,sum,relu
+--batch=shapes_2d_groups
+

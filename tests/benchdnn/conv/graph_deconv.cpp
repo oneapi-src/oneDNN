@@ -19,6 +19,7 @@
 
 #include "dnnl_graph_common.hpp"
 
+#include "binary/binary.hpp"
 #include "conv/graph_deconv.hpp"
 
 #include <algorithm>
@@ -94,15 +95,20 @@ fill_status_t deconv_graph_prb_t::handle_main_op_() {
         wei_dims.erase(wei_dims.begin());
         wei_dims[1] *= groups;
     }
+
+    auto src_dt = benchdnnext::set_main_op_dtype(spec_.src_dt);
+    auto wei_dt = benchdnnext::set_main_op_dtype(spec_.wei_dt);
+    auto dst_dt = benchdnnext::set_main_op_dtype(spec_.dst_dt);
+
     if (spec_.has_groups && spec_.groups > 1) {
         const auto strides_permuted = get_acbdx_strides(wei_dims);
-        tensor_descs_.emplace(WEI, dt::f32, wei_dims, strides_permuted);
+        tensor_descs_.emplace(WEI, wei_dt, wei_dims, strides_permuted);
     } else {
-        tensor_descs_.emplace(WEI, dt::f32, wei_dims, spec_.raw_wei_tag);
+        tensor_descs_.emplace(WEI, wei_dt, wei_dims, spec_.raw_wei_tag);
     }
 
-    tensor_descs_.emplace(SRC, dt::f32, spec_.src_dims, spec_.raw_src_tag);
-    tensor_descs_.emplace(DST, dt::f32, spec_.dst_dims, spec_.raw_dst_tag);
+    tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
+    tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
 
     op deconv_op(new_op_id, op::kind::ConvTranspose,
             {tensor_descs_[SRC], tensor_descs_[WEI]}, {tensor_descs_[DST]},
@@ -121,6 +127,25 @@ fill_status_t deconv_graph_prb_t::handle_main_op_() {
     curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
+}
+
+fill_status_t deconv_graph_prb_t::handle_bia_() {
+    return po_handler.deconv.bias_handler(
+            *this, spec_.data_format, spec_.bia_dt);
+}
+
+fill_status_t deconv_graph_prb_t::handle_sum_() {
+    return po_handler.deconv.sum_handler(*this);
+}
+
+fill_status_t deconv_graph_prb_t::handle_bin_(
+        const attr_t::post_ops_t::entry_t &po) {
+    return po_handler.deconv.bin_handler(*this, spec_.data_format, po);
+}
+
+fill_status_t deconv_graph_prb_t::handle_elt_(
+        const attr_t::post_ops_t::entry_t &po) {
+    return po_handler.deconv.eltw_handler(*this, po);
 }
 
 fill_status_t deconv_graph_prb_t::handle_low_precision_(
@@ -238,32 +263,64 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     auto src_fp = make_dnn_mem(ins[0], spec.src_dims, dt::f32, tag::abx);
     auto wei_fp = make_dnn_mem(ins[1], spec.wei_dims, dt::f32, tag::abx);
     auto dst_fp = make_dnn_mem(outs[0], spec.dst_dims, dt::f32, tag::abx);
+    dnn_mem_t bia_fp;
+    if (graph_prb.has_post_bia())
+        bia_fp = make_dnn_mem(ins[2], dt::f32, tag::x);
 
     auto wei_tr_dims = spec.wei_dims;
     std::swap(wei_tr_dims[1], wei_tr_dims[2]);
     auto wei_tr_fp = make_dnn_mem(ins[1], wei_tr_dims, dt::f32, tag::abx);
-    std::vector<dnn_mem_t> binary_po_fp;
-    dnn_mem_t bia_fp;
 
     auto src_dt = make_dnn_mem(ins[0], spec.src_dims, spec.raw_src_tag);
     auto wei_dt = make_dnn_mem(ins[1], spec.wei_dims, spec.raw_wei_tag);
     auto dst_dt = make_dnn_mem(outs[0], spec.dst_dims, spec.raw_dst_tag);
+    dnn_mem_t bia_dt;
+    if (graph_prb.has_post_bia()) bia_dt = make_dnn_mem(ins[2], tag::x);
 
     SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
     SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);
+    if (graph_prb.has_post_bia())
+        SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
     // NOTE: currently we support only forward pass.
     // In this case, there is no need to fill dst.
 
     SAFE(::deconv::transpose_data_wei(prb, wei_fp, wei_tr_fp), WARN);
+
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    if (graph_prb.has_post_bin()) {
+        binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
+        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), tag::abx));
+        const int idx = 0;
+        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
+                binary_po_dt.back(), binary_po_fp.back());
+    }
 
     dnnl::graph::engine &eng = get_test_engine();
 
     dnnl::graph::tensor src_tensor(ins[0], eng, static_cast<void *>(src_dt));
     dnnl::graph::tensor wei_tensor(ins[1], eng, static_cast<void *>(wei_dt));
     dnnl::graph::tensor dst_tensor(outs[0], eng, static_cast<void *>(dst_dt));
+    dnnl::graph::tensor bia_tensor;
+    dnnl::graph::tensor bin_tensor;
+    dnnl::graph::tensor sum_src1_tensor;
 
     std::vector<dnnl::graph::tensor> tensors_in {src_tensor, wei_tensor};
     std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
+
+    if (graph_prb.has_post_bia()) {
+        bia_tensor
+                = dnnl::graph::tensor(ins[2], eng, static_cast<void *>(bia_dt));
+        tensors_in.emplace_back(bia_tensor);
+    }
+    if (graph_prb.has_post_bin()) {
+        bin_tensor = dnnl::graph::tensor(
+                ins.back(), eng, static_cast<void *>(binary_po_dt.back()));
+        tensors_in.emplace_back(bin_tensor);
+    } else if (graph_prb.has_post_sum()) {
+        sum_src1_tensor = dnnl::graph::tensor(
+                ins.back(), eng, static_cast<void *>(dst_dt));
+        tensors_in.emplace_back(sum_src1_tensor);
+    }
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
     args_t ref_args;

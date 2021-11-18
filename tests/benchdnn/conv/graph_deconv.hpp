@@ -39,6 +39,31 @@ struct deconv_graph_prb_t : public graph_prb_t {
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
 
+        if (prb->dir == FWD_B) {
+            has_post_bia_ = true;
+            ctor_status = handle_bia_();
+            if (stop_work(ctor_status)) return;
+        }
+
+        const std::vector<attr_t::post_ops_t::entry_t> &po_entry
+                = prb->attr.post_ops.entry;
+
+        for (const attr_t::post_ops_t::entry_t &po : po_entry) {
+            if (po.is_eltwise_kind()) {
+                has_post_eltwise_ = true;
+                ctor_status = handle_elt_(po);
+                if (stop_work(ctor_status)) return;
+            } else if (po.is_sum_kind()) {
+                has_post_sum_ = true;
+                ctor_status = handle_sum_();
+                if (stop_work(ctor_status)) return;
+            } else if (po.is_binary_kind()) {
+                has_post_bin_ = true;
+                ctor_status = handle_bin_(po);
+                if (stop_work(ctor_status)) return;
+            }
+        }
+
         if (is_low_precision({spec_.src_dt, spec_.dst_dt})) {
             ctor_status = handle_low_precision_(prb);
             if (stop_work(ctor_status)) return;
@@ -62,6 +87,10 @@ private:
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_();
+    fill_status_t handle_bia_();
+    fill_status_t handle_sum_();
+    fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po);
+    fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po);
     fill_status_t handle_low_precision_(const ::conv::prb_t *prb);
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
