@@ -8,7 +8,7 @@ collection of basic statistics like execution time and primitive parameters.
 When verbose mode is enabled oneDNN will print out information to `stdout`.
 
 
-## Build-time Controls
+## Build-Time Controls
 
 At build-time, support for this feature is controlled via cmake option
 `ONEDNN_VERBOSE`.
@@ -17,7 +17,7 @@ At build-time, support for this feature is controlled via cmake option
 | :---                        | :---                                | :---
 | ONEDNN_VERBOSE              | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose)
 
-## Run-time Controls
+## Run-Time Controls
 
 When the feature is enabled at build-time, the `ONEDNN_VERBOSE` environment
 variable can be used to turn verbose mode on and control the level of verbosity.
