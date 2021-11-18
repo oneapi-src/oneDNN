@@ -426,20 +426,31 @@ struct deconv_fwd_executable_t : public op_executable_t {
             pd_cache_t &pd_cache) {
         pd_ = create_deconv_pd(op, p_engine, prm_attr_mgr, pd_cache);
         prim_ = dnnl::deconvolution_forward(pd_);
+        if (op->has_attr("with_sum"))
+            with_sum_ = op->get_attr<bool>("with_sum");
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
 
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        const std::unordered_map<int, memory> &cached_args = args;
+        if (with_sum_) {
+            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                dnnl::reorder(psrc_mem, dst_mem)
+                        .execute(stream, const_cast<memory &>(psrc_mem),
+                                const_cast<memory &>(dst_mem));
+            }
+        }
 
-        prim_.execute(stream, cached_args);
+        prim_.execute(stream, args);
     }
 
 private:
     dnnl::deconvolution_forward::primitive_desc pd_;
     dnnl::deconvolution_forward prim_;
+    bool with_sum_ {false};
 };
 
 struct matmul_executable_t : public op_executable_t {

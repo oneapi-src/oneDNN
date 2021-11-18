@@ -2881,7 +2881,7 @@ TEST(pass_test, convtranspose_bias_fusion) {
     */
     graph_t agraph;
     op_t convtranspose {0, ConvTranspose, "convtranspose"};
-    set_conv_common_attr(convtranspose);
+    set_convtranspose_common_attr(convtranspose);
     op_t bias {1, BiasAdd, "bias"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
@@ -2908,6 +2908,196 @@ TEST(pass_test, convtranspose_bias_fusion) {
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
+}
+
+TEST(Pass, FuseConvtransposeAdd) {
+    /*   convtranspose
+          |
+         w/wo bias
+          |
+         add
+    */
+    std::vector<bool> with_biases {false, true};
+
+    for (auto with_bias : with_biases) {
+        graph_t agraph;
+        op_t convtranspose {0, ConvTranspose, "convtranspose"};
+        set_convtranspose_common_attr(convtranspose);
+        op_t add {1, Add, "add"};
+
+        std::vector<logical_tensor_t> lt_vec
+                = create_logical_tensors(with_bias ? 6 : 5);
+        int lt_id = -1;
+        convtranspose.add_input(lt_vec[++lt_id]);
+        convtranspose.add_input(lt_vec[++lt_id]);
+        if (with_bias) convtranspose.add_input(lt_vec[++lt_id]);
+        convtranspose.add_output(lt_vec[++lt_id]);
+        add.add_input(lt_vec[lt_id]);
+        add.add_input(lt_vec[++lt_id]);
+        add.add_output(lt_vec[++lt_id]);
+
+        ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
+        ASSERT_EQ(agraph.add_op(&add), status::success);
+        agraph.build_graph();
+        ASSERT_EQ(agraph.num_ops(), 2);
+
+        pass::pass_base_ptr apass = with_bias
+                ? get_pass("convtranspose_bias_add_fusion")
+                : get_pass("convtranspose_add_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
+                with_bias ? 4 : 3);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+        if (with_bias) {
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 2);
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 4);
+        } else {
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 3);
+        }
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id,
+                with_bias ? 5 : 4);
+    }
+}
+
+TEST(Pass, FuseConvtransposeAddTwoInputs) {
+    /*   convtranspose
+          |
+         bias (is a convtranspose third input)
+          |
+         add
+    */
+
+    graph_t agraph;
+    op_t convtranspose {0, ConvTranspose, "convtranspose"};
+    set_convtranspose_common_attr(convtranspose);
+    op_t bias {1, BiasAdd, "bias"};
+    op_t add {2, Add, "add"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
+    convtranspose.add_input(lt_vec[0]);
+    convtranspose.add_input(lt_vec[1]);
+    convtranspose.add_output(lt_vec[2]);
+    bias.add_input(lt_vec[2]);
+    bias.add_input(lt_vec[3]);
+    bias.add_output(lt_vec[4]);
+    add.add_input(lt_vec[4]);
+    add.add_input(lt_vec[5]);
+    add.add_output(lt_vec[6]);
+
+    ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
+    ASSERT_EQ(agraph.add_op(&bias), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    pass::pass_base_ptr apass = get_pass("convtranspose_bias_add_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 5);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
+}
+
+TEST(Pass, FuseConvtransposeRelu) {
+    /*   convtranspose
+          |
+         w/wo bias (is a convtranspose third input)
+          |
+         relu
+    */
+    std::vector<bool> with_biases {false, true};
+
+    for (auto with_bias : with_biases) {
+        graph_t agraph;
+        op_t convtranspose {0, ConvTranspose, "convtranspose"};
+        set_convtranspose_common_attr(convtranspose);
+        op_t relu {1, ReLU, "relu"};
+
+        std::vector<logical_tensor_t> lt_vec
+                = create_logical_tensors(with_bias ? 5 : 4);
+        int lt_id = -1;
+        convtranspose.add_input(lt_vec[++lt_id]);
+        convtranspose.add_input(lt_vec[++lt_id]);
+        if (with_bias) convtranspose.add_input(lt_vec[++lt_id]);
+        convtranspose.add_output(lt_vec[++lt_id]);
+        relu.add_input(lt_vec[lt_id]);
+        relu.add_output(lt_vec[++lt_id]);
+
+        ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
+        ASSERT_EQ(agraph.add_op(&relu), status::success);
+        agraph.build_graph();
+        ASSERT_EQ(agraph.num_ops(), 2);
+
+        pass::pass_base_ptr apass = with_bias
+                ? get_pass("convtranspose_bias_relu_fusion")
+                : get_pass("convtranspose_relu_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
+                with_bias ? 3 : 2);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+        if (with_bias)
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 2);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id,
+                with_bias ? 4 : 3);
+    }
+}
+
+TEST(Pass, FuseConvtransposeReLUTwoInputs) {
+    /*   convtranspose
+          |
+         bias
+          |
+         relu
+    */
+    graph_t agraph;
+    op_t convtranspose {0, ConvTranspose, "convtranspose"};
+    set_convtranspose_common_attr(convtranspose);
+    op_t bias {1, BiasAdd, "bias"};
+    op_t relu {2, ReLU, "relu"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    convtranspose.add_input(lt_vec[0]);
+    convtranspose.add_input(lt_vec[1]);
+    convtranspose.add_output(lt_vec[2]);
+    bias.add_input(lt_vec[2]);
+    bias.add_input(lt_vec[3]);
+    bias.add_output(lt_vec[4]);
+    relu.add_input(lt_vec[4]);
+    relu.add_output(lt_vec[5]);
+
+    ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
+    ASSERT_EQ(agraph.add_op(&bias), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    pass::pass_base_ptr apass = get_pass("convtranspose_bias_relu_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 3);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
 TEST(pass_test, matmul_relu_fusion) {

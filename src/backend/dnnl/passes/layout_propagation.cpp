@@ -609,6 +609,8 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             if (cur_op->get_kind() == impl::op_kind::Convolution
                     || cur_op->get_kind() == op_kind::dnnl_convolution
                     || cur_op->get_kind() == op_kind::conv_depthwise
+                    || cur_op->get_kind() == impl::op_kind::ConvTranspose
+                    || cur_op->get_kind() == op_kind::dnnl_convtranspose
                     || cur_op->get_kind() == impl::op_kind::MatMul
                     || cur_op->get_kind() == op_kind::dnnl_conv_bwd_data)
                 continue;

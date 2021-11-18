@@ -5702,6 +5702,272 @@ TEST(operator_kernel, conv_add_relu) {
     }
 }
 
+struct dnnl_graph_test_convtranspose_add_params {
+    std::vector<impl::dim_t> add_src_shape;
+    test::vector<float> add_src_data;
+    test::vector<float> ref_dst;
+    bool swap;
+    bool with_bias;
+};
+
+class test_convtranspose_add_compile
+    : public ::testing::TestWithParam<
+              dnnl_graph_test_convtranspose_add_params> {
+public:
+    void TestConvTransposeAdd() {
+        const auto params = ::testing::TestWithParam<
+                dnnl_graph_test_convtranspose_add_params>::GetParam();
+        using dims = impl::dnnl_impl::dims;
+
+        impl::engine_t &eng = get_engine();
+        test::vector<float> src_data {-1.0, 2.5, 5.0, 1.5};
+        test::vector<float> weight_data {
+                1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+        test::vector<float> bias_data = {1.0};
+        test::vector<float> add_src_data = params.add_src_data;
+        test::vector<float> ref_dst_data = params.ref_dst;
+        test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+        impl::op_t convtranspose_op(
+                0, impl::op_kind::ConvTranspose, "ConvTranspose");
+        convtranspose_op.set_attr<dims>("strides", dims {1, 1});
+        convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
+        convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
+        convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
+        convtranspose_op.set_attr<int64_t>("groups", 1);
+        convtranspose_op.set_attr<std::string>("data_format", "NXC");
+        convtranspose_op.set_attr<std::string>("filter_format", "OIX");
+        impl::op_t add_op(1, impl::op_kind::Add, "Add");
+
+        // prepare logical tensor
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 2, 2, 1}, impl::data_type::f32);
+        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {1, 1, 3, 3}, impl::data_type::f32);
+        impl::logical_tensor_t bias_lt
+                = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+        impl::logical_tensor_t add_src_lt = utils::logical_tensor_init(
+                3, params.add_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                4, {1, 4, 4, 1}, impl::data_type::f32, impl::layout_type::any);
+        impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+                5, {1, 4, 4, 1}, impl::data_type::f32);
+
+        convtranspose_op.add_input(src_lt);
+        convtranspose_op.add_input(weight_lt);
+        if (params.with_bias) { convtranspose_op.add_input(bias_lt); }
+        convtranspose_op.add_output(dst_lt);
+        if (params.swap) {
+            add_op.add_input(add_src_lt);
+            add_op.add_input(dst_lt);
+        } else {
+            add_op.add_input(dst_lt);
+            add_op.add_input(add_src_lt);
+        }
+        add_op.add_output(add_dst_lt);
+
+        impl::graph_t g(eng.kind());
+        g.add_op(&convtranspose_op);
+        g.add_op(&add_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = params.with_bias
+                ? get_pass("convtranspose_bias_add_fusion")
+                : get_pass("convtranspose_add_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &weight_lt};
+        if (params.with_bias) { inputs.push_back(&bias_lt); }
+        inputs.push_back(&add_src_lt);
+        std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(add_dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+        impl::tensor_t src_ts(src_lt, &eng, src_data.data());
+        impl::tensor_t weight_ts(weight_lt, &eng, weight_data.data());
+        impl::tensor_t bias_ts;
+        if (params.with_bias)
+            bias_ts = impl::tensor_t(bias_lt, &eng, bias_data.data());
+        impl::tensor_t add_src_ts(add_src_lt, &eng, add_src_data.data());
+        impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst_data.data());
+
+        impl::stream_t &strm = get_stream();
+        if (params.with_bias)
+            cp.execute(&strm, {src_ts, weight_ts, bias_ts, add_src_ts},
+                    {add_dst_ts});
+        else
+            cp.execute(&strm, {src_ts, weight_ts, add_src_ts}, {add_dst_ts});
+        strm.wait();
+
+        for (size_t i = 0; i < dst_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+        }
+    }
+};
+
+TEST_P(test_convtranspose_add_compile, TestConvTransposeAddCompile) {
+    TestConvTransposeAdd();
+}
+
+INSTANTIATE_TEST_SUITE_P(TestConvTransposeAddCompile,
+        test_convtranspose_add_compile,
+        ::testing::Values(
+                // with broadcast add, no swap inputs, without bias
+                dnnl_graph_test_convtranspose_add_params {{1, 1, 1, 1}, {1.0},
+                        {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
+                                3.5, 6.0, 2.5, 6.0, 2.5},
+                        false, false},
+                // with broadcast add, swap inputs, without bias
+                dnnl_graph_test_convtranspose_add_params {{1, 1, 1, 1}, {1.0},
+                        {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
+                                3.5, 6.0, 2.5, 6.0, 2.5},
+                        true, false},
+                // no broadcast add (sum), no swap inputs, without bias
+                dnnl_graph_test_convtranspose_add_params {{1, 4, 4, 1},
+                        {3.0, 3.0, 3.0, 3.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0,
+                                2.0, 1.0, 1.0, 1.0, 1.0},
+                        {2.0, 5.5, 2.0, 5.5, 6.0, 1.5, 8.5, 2.5, 1.0, 9.5, 2.5,
+                                4.5, 6.0, 2.5, 6.0, 2.5},
+                        false, false},
+                // no broadcast add (sum), swap inputs, without bias
+                dnnl_graph_test_convtranspose_add_params {{1, 4, 4, 1},
+                        {3.0, 3.0, 3.0, 3.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0,
+                                2.0, 1.0, 1.0, 1.0, 1.0},
+                        {2.0, 5.5, 2.0, 5.5, 6.0, 1.5, 8.5, 2.5, 1.0, 9.5, 2.5,
+                                4.5, 6.0, 2.5, 6.0, 2.5},
+                        true, false},
+                // with broadcast add, no swap inputs, with bias
+                dnnl_graph_test_convtranspose_add_params {{1, 1, 1, 1}, {1.0},
+                        {1.0, 4.5, 1.0, 4.5, 7.0, 2.5, 9.5, 3.5, 1.0, 9.5, 2.5,
+                                4.5, 7.0, 3.5, 7.0, 3.5},
+                        false, true},
+                // with broadcast add, swap inputs, with bias
+                dnnl_graph_test_convtranspose_add_params {{1, 1, 1, 1}, {1.0},
+                        {1.0, 4.5, 1.0, 4.5, 7.0, 2.5, 9.5, 3.5, 1.0, 9.5, 2.5,
+                                4.5, 7.0, 3.5, 7.0, 3.5},
+                        true, true},
+                // no broadcast add (sum), no swap inputs, with bias
+                dnnl_graph_test_convtranspose_add_params {{1, 4, 4, 1},
+                        {3.0, 3.0, 3.0, 3.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0,
+                                2.0, 1.0, 1.0, 1.0, 1.0},
+                        {3.0, 6.5, 3.0, 6.5, 7.0, 2.5, 9.5, 3.5, 2.0, 10.5, 3.5,
+                                5.5, 7.0, 3.5, 7.0, 3.5},
+                        false, true},
+                // no broadcast add (sum), swap inputs, with bias
+                dnnl_graph_test_convtranspose_add_params {{1, 4, 4, 1},
+                        {3.0, 3.0, 3.0, 3.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0,
+                                2.0, 1.0, 1.0, 1.0, 1.0},
+                        {3.0, 6.5, 3.0, 6.5, 7.0, 2.5, 9.5, 3.5, 2.0, 10.5, 3.5,
+                                5.5, 7.0, 3.5, 7.0, 3.5},
+                        true, true}));
+
+TEST(operator_kernel, convtranspose_relu) {
+    using dims = impl::dnnl_impl::dims;
+
+    std::vector<bool> with_biases = {false, true};
+
+    for (auto with_bias : with_biases) {
+        impl::engine_t &eng = get_engine();
+        test::vector<float> src_data {-1.0, 2.5, 5.0, 1.5};
+        test::vector<float> weight_data {
+                1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+        test::vector<float> bias_data = {2.0};
+        test::vector<float> ref_dst_data = with_bias
+                ? test::vector<float> {1.0, 4.5, 1.0, 4.5, 7.0, 2.5, 9.5, 3.5,
+                        1.0, 9.5, 2.5, 4.5, 7.0, 3.5, 7.0, 3.5}
+                : test::vector<float> {0.0, 2.5, 0.0, 2.5, 5.0, 0.5, 7.5, 1.5,
+                        0.0, 7.5, 0.5, 2.5, 5.0, 1.5, 5.0, 1.5};
+        test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+        impl::op_t convtranspose_op(
+                0, impl::op_kind::ConvTranspose, "ConvTranspose");
+        convtranspose_op.set_attr<dims>("strides", dims {1, 1});
+        convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
+        convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
+        convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
+        convtranspose_op.set_attr<int64_t>("groups", 1);
+        convtranspose_op.set_attr<std::string>("data_format", "NXC");
+        convtranspose_op.set_attr<std::string>("filter_format", "XIO");
+        impl::op_t relu_op(1, impl::op_kind::ReLU, "ReLU");
+
+        // prepare logical tensor
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 2, 2, 1}, impl::data_type::f32);
+        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {3, 3, 1, 1}, impl::data_type::f32);
+        impl::logical_tensor_t bias_lt
+                = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                4, {1, 4, 4, 1}, impl::data_type::f32, impl::layout_type::any);
+        impl::logical_tensor_t relu_dst_lt = utils::logical_tensor_init(
+                5, {1, 4, 4, 1}, impl::data_type::f32);
+
+        convtranspose_op.add_input(src_lt);
+        convtranspose_op.add_input(weight_lt);
+        if (with_bias) { convtranspose_op.add_input(bias_lt); }
+        convtranspose_op.add_output(dst_lt);
+
+        relu_op.add_input(dst_lt);
+        relu_op.add_output(relu_dst_lt);
+
+        impl::graph_t g(eng.kind());
+        g.add_op(&convtranspose_op);
+        g.add_op(&relu_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = with_bias
+                ? get_pass("convtranspose_bias_relu_fusion")
+                : get_pass("convtranspose_relu_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &weight_lt};
+        if (with_bias) { inputs.push_back(&bias_lt); }
+        std::vector<const impl::logical_tensor_t *> outputs {&relu_dst_lt};
+
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(relu_dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+        impl::tensor_t src_ts(src_lt, &eng, src_data.data());
+        impl::tensor_t weight_ts(weight_lt, &eng, weight_data.data());
+        impl::tensor_t bias_ts;
+        if (with_bias)
+            bias_ts = impl::tensor_t(bias_lt, &eng, bias_data.data());
+        impl::tensor_t relu_dst_ts(relu_dst_lt, &eng, dst_data.data());
+
+        impl::stream_t &strm = get_stream();
+        if (with_bias)
+            cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {relu_dst_ts});
+        else
+            cp.execute(&strm, {src_ts, weight_ts}, {relu_dst_ts});
+        strm.wait();
+
+        for (size_t i = 0; i < dst_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+        }
+    }
+}
+
 test::vector<float> sigmoid_func(const test::vector<float> &ref_dst) {
     test::vector<float> out;
     for (auto &rdst : ref_dst) {

@@ -64,7 +64,104 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_bias_fusion)
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::convtranspose_bias);
+                            op_kind::convtranspose_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_add_fusion)
+        .set_priority(10.0f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *convtranspose
+                            = apattern->create_op(impl::op_kind::ConvTranspose);
+                    convtranspose->set_attr<int64_t>("num_inputs", 2);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    add->fill_and_connect_input(0, *convtranspose, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::convtranspose_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_bias_add_fusion)
+        .set_priority(10.1f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *convtranspose
+                            = apattern->create_op(impl::op_kind::ConvTranspose);
+                    convtranspose->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    bias->fill_and_connect_input(0, *convtranspose, 0);
+                    add->fill_and_connect_input(0, *bias, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *convtranspose
+                            = apattern->create_op(impl::op_kind::ConvTranspose);
+                    convtranspose->set_attr<int64_t>("num_inputs", 3);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    add->fill_and_connect_input(0, *convtranspose, 0);
+                    add->fill_and_connect_input(1, *wildcard, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::convtranspose_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_relu_fusion)
+        .set_priority(9.8f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *convtranspose
+                            = apattern->create_op(impl::op_kind::ConvTranspose);
+                    convtranspose->set_attr<int64_t>("num_inputs", 2);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    relu->fill_and_connect_input(0, *convtranspose, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::convtranspose_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_bias_relu_fusion)
+        .set_priority(9.9f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *convtranspose
+                            = apattern->create_op(impl::op_kind::ConvTranspose);
+                    convtranspose->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(impl::op_kind::BiasAdd);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    bias->fill_and_connect_input(0, *convtranspose, 0);
+                    relu->fill_and_connect_input(0, *bias, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *convtranspose
+                            = apattern->create_op(impl::op_kind::ConvTranspose);
+                    convtranspose->set_attr<int64_t>("num_inputs", 3);
+                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
+                    relu->fill_and_connect_input(0, *convtranspose, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::convtranspose_fusion);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 

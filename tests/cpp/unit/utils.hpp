@@ -329,21 +329,17 @@ static inline void set_conv_dw_post_op_attr(
             dw_groups);
 }
 
-static inline void set_convtranspose_common_attr(dnnl::graph::impl::op_t &op_,
-        std::vector<int64_t> &strides, std::vector<int64_t> &pads_begin,
-        std::vector<int64_t> &pads_end, std::vector<int64_t> &dilations,
-        std::string auto_pad, std::string data_format,
-        std::string filter_format, int64_t groups,
-        std::vector<int64_t> &output_padding) {
-    op_.set_attr("strides", strides);
-    op_.set_attr("pads_begin", pads_begin);
-    op_.set_attr("pads_end", pads_end);
-    op_.set_attr("dilations", dilations);
-    op_.set_attr("auto_pad", auto_pad);
-    op_.set_attr("data_format", data_format);
-    op_.set_attr("filter_format", filter_format);
-    op_.set_attr("groups", groups);
-    op_.set_attr("output_padding", output_padding);
+static inline void set_convtranspose_common_attr(
+        dnnl::graph::impl::op_t &convtranspose,
+        std::vector<int64_t> strides = {1, 1},
+        std::vector<int64_t> pads_begin = {0, 0},
+        std::vector<int64_t> pads_end = {0, 0},
+        std::vector<int64_t> dilations = {1, 1}, std::string auto_pad = "None",
+        std::string data_format = "NXC", std::string filter_format = "XIO",
+        int64_t groups = 1, std::vector<int64_t> output_padding = {0, 0}) {
+    set_conv_common_attr(convtranspose, strides, pads_begin, pads_end,
+            dilations, auto_pad, data_format, filter_format, groups);
+    convtranspose.set_attr("output_padding", output_padding);
 }
 
 static inline void infer_conv_shape(dnnl::graph::impl::op_kind_t kind) {

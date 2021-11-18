@@ -57,7 +57,7 @@ maybe_configure_windows_test("${LIB_NAME}_unit_test" TEST)
 if(DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
     add_test("${LIB_NAME}_unit_test_gpu" "${LIB_NAME}_unit_test" "--engine=gpu"
         "--gtest_filter=fp32_subgraph_mode.*:int8_subgraph_mode.*:operator_kernel.*:\
-        operator_compile.*:*TestConvtranspose_compile*:*TestReluAddCompile*:\
+        operator_compile.*:*TestConvtranspose_compile*:*TestConvTransposeAddCompile*:*TestReluAddCompile*:\
         *TestBatchnormCompile*:TestConcatCompile*:compiled_partition.*:scratchpad.*")
     maybe_configure_windows_test("${LIB_NAME}_unit_test_gpu" TEST)
 endif()
