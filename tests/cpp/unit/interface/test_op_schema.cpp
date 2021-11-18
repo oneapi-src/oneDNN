@@ -3238,3 +3238,17 @@ TEST(OpSchema, InferStaticReshapeShape) {
             &static_reshape_op, lt_in, lt_out9);
     EXPECT_EQ(infer_status, status::invalid_shape);
 }
+
+TEST(OpSchema, FailToAddWildcard) {
+    const op_schema_t *wildcard_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::Wildcard);
+    op_t wildcard_op {0, kWildcard, std::string("wildcard")};
+    logical_tensor_t lt_data_a = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t lt_data_b = logical_tensor_init(1, data_type::f16);
+    logical_tensor_t lt_out = logical_tensor_init(2, data_type::bf16);
+
+    wildcard_op.add_input(lt_data_a);
+    wildcard_op.add_input(lt_data_b);
+    wildcard_op.add_output(lt_out);
+    EXPECT_TRUE(wildcard_op_schema->verify(&wildcard_op));
+}

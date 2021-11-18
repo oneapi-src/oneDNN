@@ -188,7 +188,7 @@ bool op_schema_t::verify_param_dtype(
     for (auto &v : actual_values) {
         const logical_tensor_t &lt = v->get_logical_tensor();
         const std::string &dtype_string = expected_params[offset].dtype_string_;
-        if (dtype_string == "internal") continue;
+        if (dtype_string == "any") continue;
         std::set<data_type_t> &expected_dtypes
                 = dtype_constraints[dtype_string];
         if (expected_dtypes.find(lt.data_type) == expected_dtypes.end())

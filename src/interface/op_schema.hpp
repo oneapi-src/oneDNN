@@ -168,13 +168,11 @@ public:
 
     /*! @brief Set a particular input of the op schema. */
     op_schema_t &set_input(size_t in_offset, std::string &&in_name,
-            std::string &&in_description,
-            std::string &&dtype_string = "internal");
+            std::string &&in_description, std::string &&dtype_string = "any");
 
     /*! @brief Set a particular output of the op schema. */
     op_schema_t &set_output(size_t out_offset, std::string &&out_name,
-            std::string &&out_description,
-            std::string &&dtype_string = "internal");
+            std::string &&out_description, std::string &&dtype_string = "any");
 
     op_schema_t &set_type_constraints(
             std::string &&dtype_string, std::set<data_type_t> &&dtypes);

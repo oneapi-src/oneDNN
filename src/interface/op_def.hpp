@@ -1155,16 +1155,8 @@ DNNL_GRAPH_OP_SCHEMA(Wildcard, 1,
                 .set_outputs_option(op_schema_t::param_num_option::variadic)
                 .set_num_outputs(std::set<size_t>(
                         {0, std::numeric_limits<size_t>::max()}))
-                .set_input(0, "input", "input tensor", "T1")
-                .set_output(0, "output", "output tensor", "T2")
-                .set_type_constraints("T1",
-                        {data_type::f32, data_type::f16, data_type::bf16,
-                                data_type::s8, data_type::u8, data_type::s32,
-                                data_type::undef})
-                .set_type_constraints("T2",
-                        {data_type::f32, data_type::f16, data_type::bf16,
-                                data_type::s8, data_type::u8, data_type::s32,
-                                data_type::undef})
+                .set_input(0, "input", "input tensor", "any")
+                .set_output(0, "output", "output tensor", "any")
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Quantize, 1,
