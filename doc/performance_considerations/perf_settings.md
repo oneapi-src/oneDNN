@@ -6,9 +6,9 @@ benchdnn. When measuring performance using any deep learning framework, refer
 to its benchmarking documentation. However, the approach outlined below is
 true for almost any compute-intensive application.
 
-# CPU
+## CPU
 
-## Threading Runtimes
+### Threading Runtimes
 
 It is a common practice to affinitize each compute thread to its own CPU core
 when benchmarking performance. The method to do this depends on the threading
@@ -30,7 +30,7 @@ It should be noted that the OpenMP runtime that comes with Microsoft Visual
 studio does not support them nor does it provide any other ways to control
 thread affinity.
 
-## Benchmarking Settings
+### Benchmarking Settings
 
 The general principles below are not operating system-specific. However, of
 all operating systems supported by oneDNN only Linux has the
@@ -57,7 +57,7 @@ There are three most important setup variants when benchmarking oneDNN on CPU:
 This document does not discuss how to actually setup a multi-instance
 environment.
 
-### Whole Machine
+#### Whole Machine
 
 Typically a modern server CPU is configured to have multiple NUMA domains.
 When running benchmarks on a whole machine, it is best to instruct the OS to
@@ -73,7 +73,7 @@ $ export OMP_NUM_THREADS=# number of cores in the system
 $ numactl --interleave=all ./benchdnn ...
 ~~~
 
-### Single NUMA Domain
+#### Single NUMA Domain
 
 Here we instruct `numactl` to affinitize process to NUMA domain 0 both in
 terms of CPU and memory locality.
@@ -85,7 +85,7 @@ $ export OMP_NUM_THREADS=# number of cores in NUMA domain 0
 $ numactl --membind 0 --cpunodebind 0 ./benchdnn ...
 ~~~
 
-### Several Cores Within a NUMA Domain
+#### Several Cores Within a NUMA Domain
 
 In this case we want to use `numactl` options from the single NUMA domain
 scenario, but place OpenMP threads close one to another.

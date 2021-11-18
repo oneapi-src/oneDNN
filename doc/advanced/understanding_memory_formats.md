@@ -15,7 +15,7 @@ address space and why this is important for oneDNN.
 @note For the purpose of this article, data *format* and *layout* are used
 interchangeably.
 
-### Nomenclature used
+### Nomenclature Used
 
 - Channels are the same as feature maps
 - Upper-case letters denote the dimensions (e.g. `N`)
@@ -37,7 +37,7 @@ interchangeably.
   *height*            **H**,
   *width*             **W**
 
-## Data formats
+## Data Formats
 
 Let's first focus on data formats for activations (images).
 
@@ -50,7 +50,7 @@ batch size equal to 1. Hence, the overall dimensionality of activations is 4D
 
 For the sake of simplicity, we will use only 2D spatial in this article.
 
-### Plain data formats
+### Plain Data Formats
 
 It would be simpler to start with an example.
 
@@ -164,11 +164,11 @@ This layout corresponds to #dnnl_chwn or dnnl::memory::format_tag::chwn.
 
 ![Different plain layouts](mem_fmt_img2.png)
 
-#### Relevant reading
+#### Relevant Reading
 
 [TensorFlow Doc. Shapes and Layout](https://www.tensorflow.org/performance/xla/shapes)
 
-### Generalization of the plain data layout
+### Generalization of the Plain Data Layout
 
 #### Strides
 
@@ -230,7 +230,7 @@ oneDNN computes the strides and fills the structure on behalf of the
 user.
 
 
-## Blocked layout
+## Blocked Layout
 
 Plain layouts give great flexibility and are very convenient for use. That's
 why most of the frameworks and applications use either the **NCHW** or **NHWC**
@@ -296,7 +296,7 @@ pseudo-code is:
     md.format_desc.inner_blks[0] = 8; // This 1st dimensions is blocked by 8
 ~~~
 
-### What if channels are not a multiple of 8 (or 16)?
+### What if Channels Are not Multiples of 8 (or 16)?
 
 The blocking data layout gives a significant performance improvement for the
 convolutions, but what to do when the number of channels is not a multiple of
