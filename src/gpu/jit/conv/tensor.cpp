@@ -129,7 +129,7 @@ memory_desc_t layout_t::to_dnnl(const dim_t *dims_hint) const {
             blk.inner_nblks++;
             if (prev_stride > 0) {
                 // Inner block must be dense.
-                ir_assert(prev_stride == b.block * b.stride);
+                ir_assert(prev_stride == b.block * dim_t(b.stride));
             }
             prev_stride = b.stride;
             in_inner_block = true;
