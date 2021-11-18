@@ -172,8 +172,9 @@ status_t dnnl_primitive_create(primitive_iface_t **primitive_iface,
             != std::string::npos;
 
     if (!is_wino) {
+        const cache_blob_t dummy;
         return sc.check(dnnl::impl::primitive_create, primitive_iface,
-                primitive_desc_iface);
+                primitive_desc_iface, std::ref(dummy));
     }
 #endif
     return dnnl::impl::primitive_create(primitive_iface, primitive_desc_iface);
