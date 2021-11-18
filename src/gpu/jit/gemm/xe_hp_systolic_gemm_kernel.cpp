@@ -16,6 +16,7 @@
 
 #include <assert.h>
 
+#include "common/impl_registration.hpp"
 #include "gpu/jit/gemm/xe_hp_systolic_gemm_kernel.hpp"
 
 using namespace ngen;
@@ -1730,8 +1731,8 @@ xehp_systolic_gemm_kernel_t<hw>::xehp_systolic_gemm_kernel_t(config_t cfg_)
         nop();
 }
 
-template class xehp_systolic_gemm_kernel_t<HW::XeHP>;
-template class xehp_systolic_gemm_kernel_t<HW::XeHPG>;
+REG_XEHP_ISA(template class xehp_systolic_gemm_kernel_t<HW::XeHP>);
+REG_XEHPG_ISA(template class xehp_systolic_gemm_kernel_t<HW::XeHPG>);
 
 } // namespace jit
 } // namespace gpu

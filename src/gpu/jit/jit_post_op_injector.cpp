@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 #include "gpu/jit/jit_post_op_injector.hpp"
+#include "common/impl_registration.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -56,12 +57,12 @@ void jit_post_op_injector<hw>::compute(const ngen::GRFRange &regs) {
     }
 }
 
-template struct jit_post_op_injector<gpu_gen9>;
-template struct jit_post_op_injector<gpu_gen11>;
-template struct jit_post_op_injector<gpu_xe_lp>;
-template struct jit_post_op_injector<gpu_xe_hp>;
-template struct jit_post_op_injector<gpu_xe_hpg>;
-template struct jit_post_op_injector<gpu_xe_hpc>;
+REG_GEN9_ISA(template struct jit_post_op_injector<gpu_gen9>);
+REG_GEN11_ISA(template struct jit_post_op_injector<gpu_gen11>);
+REG_XELP_ISA(template struct jit_post_op_injector<gpu_xe_lp>);
+REG_XEHP_ISA(template struct jit_post_op_injector<gpu_xe_hp>);
+REG_XEHPG_ISA(template struct jit_post_op_injector<gpu_xe_hpg>);
+REG_XEHPC_ISA(template struct jit_post_op_injector<gpu_xe_hpc>);
 
 } // namespace jit
 } // namespace gpu

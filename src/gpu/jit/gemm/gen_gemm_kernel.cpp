@@ -16,6 +16,7 @@
 
 #include <cctype>
 
+#include "common/impl_registration.hpp"
 #include "gemm_recipes.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -494,11 +495,11 @@ cl_kernel gen_gemm_kernel_t::get_kernel(
     }
 
     switch (hw_) {
-        ARCH_DISPATCH(Gen9)
-        ARCH_DISPATCH(XeLP)
-        ARCH_DISPATCH(XeHP)
-        ARCH_DISPATCH(XeHPG)
-        ARCH_DISPATCH(XeHPC)
+        REG_GEN9_ISA(ARCH_DISPATCH(Gen9))
+        REG_XELP_ISA(ARCH_DISPATCH(XeLP))
+        REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
+        REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
+        REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
         default: assert(!"Unsupported architecture"); break;
     }
 
@@ -514,11 +515,11 @@ CommonDriverInfo gen_gemm_kernel_t::driver_info() const {
                 problem_, strategy_);
 
     switch (hw_) {
-        ARCH_DISPATCH(Gen9)
-        ARCH_DISPATCH(XeLP)
-        ARCH_DISPATCH(XeHP)
-        ARCH_DISPATCH(XeHPG)
-        ARCH_DISPATCH(XeHPC)
+        REG_GEN9_ISA(ARCH_DISPATCH(Gen9))
+        REG_XELP_ISA(ARCH_DISPATCH(XeLP))
+        REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
+        REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
+        REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
         default: assert(!"Unsupported architecture"); break;
     }
 

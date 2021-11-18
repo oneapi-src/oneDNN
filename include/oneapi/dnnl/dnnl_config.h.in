@@ -140,4 +140,12 @@
 #cmakedefine01 BUILD_AVX2
 #cmakedefine01 BUILD_AVX512
 #cmakedefine01 BUILD_AMX
+// Primitives GPU ISA controls
+#cmakedefine01 BUILD_PRIMITIVE_GPU_ISA_ALL
+#cmakedefine01 BUILD_GEN9
+#cmakedefine01 BUILD_GEN11
+#cmakedefine01 BUILD_XELP
+#cmakedefine01 BUILD_XEHP
+#cmakedefine01 BUILD_XEHPG
+#cmakedefine01 BUILD_XEHPC
 #endif

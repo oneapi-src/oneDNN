@@ -19,6 +19,7 @@
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/float16.hpp"
+#include "common/impl_registration.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/jit/gemm/gemm_walk_orders.hpp"
 #include "gpu/jit/ngen_type_bridge.hpp"
@@ -457,6 +458,7 @@ status_t xe_hp_systolic_gemm_t::init_compute_old(engine_t *engine) {
 
     bool may_k_block = (pd()->desc()->k() > kernel_t::min_block_k(a_type));
     bool got_info = false;
+    UNUSED(got_info); // If none of supported archs were selected by user.
 
     for (bool first_k_block : {false, true}) {
         for (bool last_k_block : {false, true}) {
@@ -481,34 +483,38 @@ status_t xe_hp_systolic_gemm_t::init_compute_old(engine_t *engine) {
                 }
 
                 switch (arch_) {
-                    case arch_t::xe_hp: {
-                        auto kernel = kernel_t(cfg_copy);
+                    case arch_t::xe_hp:
+                        REG_XEHP_ISA({
+                            auto kernel = kernel_t(cfg_copy);
 
-                        create_kernel(engine,
-                                &kernel_[first_k_block][last_k_block], kernel);
+                            create_kernel(engine,
+                                    &kernel_[first_k_block][last_k_block],
+                                    kernel);
 
-                        if (!got_info) {
-                            compute_info_ = kernel.driver_info(eu_count_);
-                            got_info = true;
-                        }
+                            if (!got_info) {
+                                compute_info_ = kernel.driver_info(eu_count_);
+                                got_info = true;
+                            }
+                        });
                         break;
-                    }
-                    case arch_t::xe_hpg: {
-                        using kernel_xe_hpg_t
-                                = xehp_systolic_gemm_kernel_t<gpu_xe_hpg>;
-                        cfg_copy.emulate64 = true;
-                        auto kernel = kernel_xe_hpg_t(
-                                cfg_copy.cast<kernel_xe_hpg_t::config_t>());
+                    case arch_t::xe_hpg:
+                        REG_XEHPG_ISA({
+                            using kernel_xe_hpg_t
+                                    = xehp_systolic_gemm_kernel_t<gpu_xe_hpg>;
+                            cfg_copy.emulate64 = true;
+                            auto kernel = kernel_xe_hpg_t(
+                                    cfg_copy.cast<kernel_xe_hpg_t::config_t>());
 
-                        create_kernel(engine,
-                                &kernel_[first_k_block][last_k_block], kernel);
+                            create_kernel(engine,
+                                    &kernel_[first_k_block][last_k_block],
+                                    kernel);
 
-                        if (!got_info) {
-                            compute_info_ = kernel.driver_info(eu_count_);
-                            got_info = true;
-                        }
+                            if (!got_info) {
+                                compute_info_ = kernel.driver_info(eu_count_);
+                                got_info = true;
+                            }
+                        });
                         break;
-                    }
                     default:
                         assert(!"Unsupported GPU architecture.");
                         return status::unimplemented;

@@ -18,7 +18,8 @@ oneDNN supports the following build-time options.
 | ONEDNN_ENABLE_CPU_ISA_HINTS     | **ON**, OFF                                | Enables [CPU ISA hints](@ref dev_guide_cpu_isa_hints)
 | ONEDNN_ENABLE_WORKLOAD          | **TRAINING**, INFERENCE                    | Specifies a set of functionality to be available based on workload
 | ONEDNN_ENABLE_PRIMITIVE         | **ALL**, PRIMITIVE_NAME                    | Specifies a set of functionality to be available based on primitives
-| ONEDNN_ENABLE_PRIMITIVE_CPU_ISA | **ALL**, ISA_NAME                          | Specifies a set of functionality to be available based on ISA
+| ONEDNN_ENABLE_PRIMITIVE_CPU_ISA | **ALL**, CPU_ISA_NAME                      | Specifies a set of functionality to be available for CPU backend based on CPU ISA
+| ONEDNN_ENABLE_PRIMITIVE_GPU_ISA | **ALL**, GPU_ISA_NAME                      | Specifies a set of functionality to be available for GPU backend based on GPU ISA
 | ONEDNN_VERBOSE                  | **ON**, OFF                                | Enables [verbose mode](@ref dev_guide_verbose)
 | ONEDNN_AARCH64_USE_ACL          | ON, **OFF**                                | Enables integration with Arm Compute Library for AArch64 builds
 | ONEDNN_BLAS_VENDOR              | **NONE**, ARMPL                            | Defines an external BLAS library to link to for GEMM-like operations
@@ -91,6 +92,16 @@ selected ISA and all ISA that are "smaller" will be available. Example that
 enables SSE41 and AVX2 sets:
 ```
 -DONEDNN_ENABLE_PRIMITIVE_CPU_ISA=AVX2
+```
+
+#### ONEDNN_ENABLE_PRIMITIVE_GPU_ISA
+This option supports several values: `ALL` (the default) which enables all
+ISA implementations or any set of `GEN9`, `GEN11`, `XELP`, `XEHP`, `XEHPG` and
+`XEHPC`. Selected ISA will enable correspondent parts in just-in-time kernel
+generation based implementations. OpenCL based kernels and implementations will
+always be available. Example that enables XeLP and XeHP set:
+```
+-DONEDNN_ENABLE_PRIMITIVE_GPU_ISA=XELP;XEHP
 ```
 
 ## CPU Options

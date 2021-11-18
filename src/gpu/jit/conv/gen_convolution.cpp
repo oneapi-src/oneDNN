@@ -19,6 +19,7 @@
 #include <iostream>
 #include <utility>
 
+#include "common/impl_registration.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/jit/conv/config.hpp"
@@ -63,29 +64,20 @@ compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
         gpu_gen_t arch, ArgsT &&... args) {
 
     std::unique_ptr<jit::jit_generator_base> jit_kernel;
+#define CASE(gpu_arch) \
+    case gpu_arch: \
+        jit_kernel = make_generator<KernelT, gpu_arch>( \
+                std::forward<ArgsT>(args)...); \
+        break;
     switch (arch) {
-        case gpu_gen9:
-            jit_kernel = make_generator<KernelT, gpu_gen9>(
-                    std::forward<ArgsT>(args)...);
-            break;
-        case gpu_xe_lp:
-            jit_kernel = make_generator<KernelT, gpu_xe_lp>(
-                    std::forward<ArgsT>(args)...);
-            break;
-        case gpu_xe_hp:
-            jit_kernel = make_generator<KernelT, gpu_xe_hp>(
-                    std::forward<ArgsT>(args)...);
-            break;
-        case gpu_xe_hpg:
-            jit_kernel = make_generator<KernelT, gpu_xe_hpg>(
-                    std::forward<ArgsT>(args)...);
-            break;
-        case gpu_xe_hpc:
-            jit_kernel = make_generator<KernelT, gpu_xe_hpc>(
-                    std::forward<ArgsT>(args)...);
-            break;
+        REG_GEN9_ISA(CASE(gpu_gen9));
+        REG_XELP_ISA(CASE(gpu_xe_lp));
+        REG_XEHP_ISA(CASE(gpu_xe_hp));
+        REG_XEHPG_ISA(CASE(gpu_xe_hpg));
+        REG_XEHPC_ISA(CASE(gpu_xe_hpc));
         default: break;
     }
+#undef CASE
 
 #ifdef GEN_CONV_DEBUG
     auto compute_engine = utils::downcast<compute_engine_t *>(engine);

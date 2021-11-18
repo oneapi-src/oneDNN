@@ -121,14 +121,22 @@ set(DNNL_ENABLE_PRIMITIVE "ALL" CACHE STRING
       primitives to be available in the final binary.")
 
 set(DNNL_ENABLE_PRIMITIVE_CPU_ISA "ALL" CACHE STRING
-    "Specifies a set of implementations using specific ISA to be available at
-    build time. Regardless of value chosen, compiler-based optimized
+    "Specifies a set of implementations using specific CPU ISA to be available
+    at build time. Regardless of value chosen, compiler-based optimized
     implementations will always be available. Valid values:
     - ALL (the default). Includes all ISA to be enabled.
     - <ISA_NAME>. Includes selected and all \"less\" ISA to be enabled.
       Possible values are: SSE41, AVX2, AVX512, AMX. The linear order is
       SSE41 < AVX2 < AVX512 < AMX. It means that if user selects, e.g. AVX2 ISA,
       SSE41 implementations will also be available at build time.")
+
+set(DNNL_ENABLE_PRIMITIVE_GPU_ISA "ALL" CACHE STRING
+    "Specifies a set of implementations using specific GPU ISA to be available
+    at build time. Regardless of value chosen, reference OpenCL-based
+    implementations will always be available. Valid values:
+    - ALL (the default). Includes all ISA to be enabled.
+    - <ISA_NAME>;<ISA_NAME>;... Includes only selected ISA to be enabled.
+      Possible values are: GEN9, GEN11, XELP, XEHP, XEHPG, XEHPC.")
 
 # =============
 # Optimizations

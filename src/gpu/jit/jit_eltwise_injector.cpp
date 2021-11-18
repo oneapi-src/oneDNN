@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/jit/jit_eltwise_injector.hpp"
+#include "common/impl_registration.hpp"
 
 #include <limits>
 
@@ -741,12 +742,12 @@ void jit_eltwise_injector_f32<hw>::prepare() {
     }
 }
 
-template struct jit_eltwise_injector_f32<gpu_gen9>;
-template struct jit_eltwise_injector_f32<gpu_gen11>;
-template struct jit_eltwise_injector_f32<gpu_xe_lp>;
-template struct jit_eltwise_injector_f32<gpu_xe_hp>;
-template struct jit_eltwise_injector_f32<gpu_xe_hpg>;
-template struct jit_eltwise_injector_f32<gpu_xe_hpc>;
+REG_GEN9_ISA(template struct jit_eltwise_injector_f32<gpu_gen9>);
+REG_GEN11_ISA(template struct jit_eltwise_injector_f32<gpu_gen11>);
+REG_XELP_ISA(template struct jit_eltwise_injector_f32<gpu_xe_lp>);
+REG_XEHP_ISA(template struct jit_eltwise_injector_f32<gpu_xe_hp>);
+REG_XEHPG_ISA(template struct jit_eltwise_injector_f32<gpu_xe_hpg>);
+REG_XEHPC_ISA(template struct jit_eltwise_injector_f32<gpu_xe_hpc>);
 
 } // namespace jit
 } // namespace gpu
