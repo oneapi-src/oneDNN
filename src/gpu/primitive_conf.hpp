@@ -1322,6 +1322,8 @@ inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_SRC1_SCALE", attr_info.with_src1_scale);
 
     kernel_ctx.define_int("WITH_SCALES", attr_info.with_oscales);
+    kernel_ctx.define_int(
+            "WITH_RUNTIME_SCALES", attr_info.with_runtime_oscales);
     kernel_ctx.define_int("SCALES_PER_OC", attr_info.with_per_oc_oscales);
     kernel_ctx.define_int("SCALES_COMMON", attr_info.with_common_oscales);
 
