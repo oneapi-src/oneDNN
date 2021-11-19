@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -126,7 +126,8 @@ struct ref_eltwise_bwd_t : public primitive_t {
             if (diff_dst_d != memory_desc_wrapper(data_md()))
                 use_dense_ = false;
 
-            if (data_type == data_type::bf16) init_scratchpad();
+            if (utils::one_of(data_type, data_type::bf16, data_type::f16))
+                init_scratchpad();
 
             return status::success;
         }

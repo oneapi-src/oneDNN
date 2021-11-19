@@ -599,9 +599,9 @@ TEST_P(eltwise_test_s8, TestsEltwise) {}
 #define CPU_INST_TEST_CASE_BF16(str, ...) \
     _CPU_INST_TEST_CASE(str, bf16, __VA_ARGS__);
 #define INST_TEST_CASE_BF16(str, ...) _INST_TEST_CASE(str, bf16, __VA_ARGS__);
-#define GPU_INST_TEST_CASE_F16(str, ...) \
-    GPU_INSTANTIATE_TEST_SUITE_P_(TEST_CONCAT(str, _f16), eltwise_test_f16, \
-            ::testing::Values(__VA_ARGS__));
+#define CPU_INST_TEST_CASE_F16(str, ...) \
+    _CPU_INST_TEST_CASE(str, f16, __VA_ARGS__);
+#define INST_TEST_CASE_F16(str, ...) _INST_TEST_CASE(str, f16, __VA_ARGS__);
 #define CPU_INST_TEST_CASE_F32(str, ...) \
     _CPU_INST_TEST_CASE(str, f32, __VA_ARGS__);
 #define INST_TEST_CASE_F32(str, ...) _INST_TEST_CASE(str, f32, __VA_ARGS__);
@@ -613,13 +613,14 @@ TEST_P(eltwise_test_s8, TestsEltwise) {}
 #define INST_TEST_CASE_S8(str, ...) _INST_TEST_CASE(str, s8, __VA_ARGS__);
 
 #define CPU_INST_TEST_CASE(str, ...) \
+    CPU_INST_TEST_CASE_F16(str, __VA_ARGS__) \
     CPU_INST_TEST_CASE_F32(str, __VA_ARGS__) \
     CPU_INST_TEST_CASE_BF16(str, __VA_ARGS__) \
     CPU_INST_TEST_CASE_S32(str, __VA_ARGS__) \
     CPU_INST_TEST_CASE_S8(str, __VA_ARGS__)
 
 #define INST_TEST_CASE(str, ...) \
-    GPU_INST_TEST_CASE_F16(str, __VA_ARGS__) \
+    INST_TEST_CASE_F16(str, __VA_ARGS__) \
     INST_TEST_CASE_BF16(str, __VA_ARGS__) \
     INST_TEST_CASE_F32(str, __VA_ARGS__) \
     INST_TEST_CASE_S32(str, __VA_ARGS__) \

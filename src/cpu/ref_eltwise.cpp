@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -228,11 +228,10 @@ status_t ref_eltwise_bwd_t<data_type>::execute_backward_dense(
                         alg_kind, diff_dst_ptr[i], src_ptr[i], alpha, beta);
             }
         });
-    } else if (data_type == data_type::bf16) {
-        const bfloat16_t *src_ptr = static_cast<const bfloat16_t *>(src);
-        const bfloat16_t *diff_dst_ptr
-                = static_cast<const bfloat16_t *>(diff_dst);
-        bfloat16_t *diff_src_ptr = static_cast<bfloat16_t *>(diff_src);
+    } else if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
+        const data_t *src_ptr = static_cast<const data_t *>(src);
+        const data_t *diff_dst_ptr = static_cast<const data_t *>(diff_dst);
+        data_t *diff_src_ptr = static_cast<data_t *>(diff_src);
 
         src_ptr += data_d.offset0();
         diff_dst_ptr += diff_data_d.offset0();
@@ -249,9 +248,8 @@ status_t ref_eltwise_bwd_t<data_type>::execute_backward_dense(
             balance211(nelems, nthr, ithr, start, end);
             if (start == end) return;
 
-            cvt_bfloat16_to_float(
-                    src_f32 + start, src_ptr + start, end - start);
-            cvt_bfloat16_to_float(
+            types::cvt_to_float(src_f32 + start, src_ptr + start, end - start);
+            types::cvt_to_float(
                     diff_dst_f32 + start, diff_dst_ptr + start, end - start);
 
             for (dim_t i = start; i < end; i++) {
@@ -259,7 +257,7 @@ status_t ref_eltwise_bwd_t<data_type>::execute_backward_dense(
                         alg_kind, diff_dst_f32[i], src_f32[i], alpha, beta);
             }
 
-            cvt_float_to_bfloat16(
+            types::cvt_from_float(
                     diff_src_ptr + start, diff_dst_f32 + start, end - start);
         });
     } else {
@@ -270,12 +268,14 @@ status_t ref_eltwise_bwd_t<data_type>::execute_backward_dense(
 
 template struct ref_eltwise_fwd_t<data_type::f32>;
 template struct ref_eltwise_fwd_t<data_type::bf16>;
+template struct ref_eltwise_fwd_t<data_type::f16>;
 template struct ref_eltwise_fwd_t<data_type::s32>;
 template struct ref_eltwise_fwd_t<data_type::s8>;
 template struct ref_eltwise_fwd_t<data_type::u8>;
 
 template struct ref_eltwise_bwd_t<data_type::f32>;
 template struct ref_eltwise_bwd_t<data_type::bf16>;
+template struct ref_eltwise_bwd_t<data_type::f16>;
 
 } // namespace cpu
 } // namespace impl

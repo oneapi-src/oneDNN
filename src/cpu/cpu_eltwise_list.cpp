@@ -67,6 +67,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE_AARCH64_ACL(acl_eltwise_fwd_t)
             CPU_INSTANCE(ref_eltwise_fwd_t<f32>)
             CPU_INSTANCE(ref_eltwise_fwd_t<bf16>)
+            CPU_INSTANCE(ref_eltwise_fwd_t<f16>)
             CPU_INSTANCE(ref_eltwise_fwd_t<s32>)
             CPU_INSTANCE(ref_eltwise_fwd_t<s8>)
             CPU_INSTANCE(ref_eltwise_fwd_t<u8>)
@@ -80,6 +81,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<sse41, f32>)
             CPU_INSTANCE(ref_eltwise_bwd_t<f32>)
             CPU_INSTANCE(ref_eltwise_bwd_t<bf16>)
+            CPU_INSTANCE(ref_eltwise_bwd_t<f16>)
             nullptr,
         })},
     });
