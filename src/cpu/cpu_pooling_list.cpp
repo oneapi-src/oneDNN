@@ -56,6 +56,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE(nhwc_pooling_fwd_t<f32>)
             CPU_INSTANCE(ref_pooling_fwd_t<f32>)
             CPU_INSTANCE(ref_pooling_fwd_t<bf16, f32>)
+            CPU_INSTANCE(ref_pooling_fwd_t<f16, f32>)
             /* int */
             CPU_INSTANCE_X64(jit_uni_i8i8_pooling_fwd_t<avx512_core>)
             CPU_INSTANCE_X64(jit_uni_i8i8_pooling_fwd_t<avx2>)
@@ -79,6 +80,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE(nhwc_pooling_bwd_t<f32>)
             CPU_INSTANCE(ref_pooling_bwd_t<f32>)
             CPU_INSTANCE(ref_pooling_bwd_t<bf16>)
+            CPU_INSTANCE(ref_pooling_bwd_t<f16>)
             nullptr,
         })},
     });

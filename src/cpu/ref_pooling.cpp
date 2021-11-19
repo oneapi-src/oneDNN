@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -348,11 +348,13 @@ status_t ref_pooling_bwd_t<data_type>::execute_backward(
 template struct ref_pooling_fwd_t<data_type::f32>;
 template struct ref_pooling_fwd_t<data_type::s32>;
 template struct ref_pooling_fwd_t<data_type::bf16, data_type::f32>;
+template struct ref_pooling_fwd_t<data_type::f16, data_type::f32>;
 template struct ref_pooling_fwd_t<data_type::s8, data_type::s32>;
 template struct ref_pooling_fwd_t<data_type::u8, data_type::s32>;
 
 template struct ref_pooling_bwd_t<data_type::f32>;
 template struct ref_pooling_bwd_t<data_type::bf16>;
+template struct ref_pooling_bwd_t<data_type::f16>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
