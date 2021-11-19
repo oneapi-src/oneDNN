@@ -1175,7 +1175,8 @@ private:
         // on lower frequency than dp4a so for smaller sizes dp4a can be faster.
         if (is_dpas_or_dpasw_fma()) {
             bool is_xe_hpg = (hw == ngen::HW::XeHPG);
-            if (is_fwd && is_xe_hpg && mb < 16) fma_kind = fma_kind_t::dp4a;
+            if (is_fwd && is_xe_hpg && is_s32_accumulator() && mb < 16)
+                fma_kind = fma_kind_t::dp4a;
         }
 
         // Requery SIMD size as FMA kind may be changed.
@@ -1634,6 +1635,9 @@ private:
         // Can't reuse headers with loop unroll and post-increment offset updates.
         if (reuse_headers) do_loop_unroll = false;
 
+        // Unrolling with dp4a results in too large kernels.
+        if (fma_kind == fma_kind_t::dp4a) do_loop_unroll = false;
+
         bool prefer_prefetch = false;
         if (hw >= ngen::HW::XeHPC) prefer_prefetch = true;
 
@@ -1654,9 +1658,6 @@ private:
             if (is_bwd_w && allow_grf_reorder && (!use_a_slm || !use_b_slm))
                 fma_kind = fma_kind_t::dpas;
         }
-
-        // Unrolling with dp4a results in too large kernels.
-        if (fma_kind == fma_kind_t::dp4a) do_loop_unroll = false;
     }
 
     bool try_reduce_grf_usage() {
