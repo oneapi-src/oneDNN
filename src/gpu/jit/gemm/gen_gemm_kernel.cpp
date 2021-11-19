@@ -125,7 +125,12 @@ status_t gen_gemm_kernel_t::complete_strategy() {
             problem_.C.setAlignment(problem_.Tc_ext.size());
             problem_.CO.setAlignment(problem_.Tco.size());
 
-            return read_strategy(recipe.strategyString);
+            auto status = read_strategy(recipe.strategyString);
+            if (status != status::success) return status;
+
+            if (problem_.batch != BatchMode::None) strategy_.persistent = false;
+
+            return status;
         }
     }
 
