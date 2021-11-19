@@ -675,7 +675,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
     for (auto &s : attr.instructions) {
         auto &call = s.as<func_call_t>();
         expr_t src0, src1, src2;
-        int simd;
+        int simd = 0;
         int src0_stride_bytes;
         int src1_stride_bytes;
         int src2_stride_bytes;

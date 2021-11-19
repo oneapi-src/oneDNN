@@ -495,7 +495,7 @@ private:
 
 class expr_binding_t {
 public:
-    expr_binding_t(ngen::HW hw) : hw_(hw) {}
+    expr_binding_t() = default;
 
     ~expr_binding_t() {
         if (!cpp_compat::uncaught_exceptions()) {
@@ -571,7 +571,6 @@ public:
     }
 
 private:
-    ngen::HW hw_;
     object_map_t<expr_t, ngen_operand_t> expr2dst_;
     object_map_t<expr_t, ngen_operand_t> expr2operand_;
 };
@@ -4430,7 +4429,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     barrierheader(signal_header_);
 
     // Bind "external" variables.
-    expr_binding_t expr_binding(hw);
+    expr_binding_t expr_binding;
 
     // Bind grid indices.
     expr_binding.bind(builder.kernel_grid_idx(0), r0.ud(1));

@@ -3589,7 +3589,7 @@ public:
                 }
             }
         }
-        return stmt;
+        return std::move(stmt);
     }
 
 private:
