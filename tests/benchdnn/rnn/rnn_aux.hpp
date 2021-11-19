@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
         dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_layer_d,
         const dnnl_memory_desc_t *src_iter_d,
         const dnnl_memory_desc_t *src_iter_c_d,
+        const dnnl_memory_desc_t *attention_d,
         const dnnl_memory_desc_t *weights_layer_d,
         const dnnl_memory_desc_t *weights_iter_d,
         const dnnl_memory_desc_t *weights_peephole_d,
@@ -56,6 +57,7 @@ dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
         dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_layer_d,
         const dnnl_memory_desc_t *src_iter_d,
         const dnnl_memory_desc_t *src_iter_c_d,
+        const dnnl_memory_desc_t *attention_d,
         const dnnl_memory_desc_t *weights_layer_d,
         const dnnl_memory_desc_t *weights_iter_d,
         const dnnl_memory_desc_t *weights_peephole_d,
@@ -66,6 +68,7 @@ dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
         const dnnl_memory_desc_t *diff_src_layer_d,
         const dnnl_memory_desc_t *diff_src_iter_d,
         const dnnl_memory_desc_t *diff_src_iter_c_d,
+        const dnnl_memory_desc_t *diff_attention_d,
         const dnnl_memory_desc_t *diff_weights_layer_d,
         const dnnl_memory_desc_t *diff_weights_iter_d,
         const dnnl_memory_desc_t *diff_weights_peephole_d,

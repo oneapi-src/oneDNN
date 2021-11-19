@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ alg_t str2alg(const char *str) {
     CASE(VANILLA_LSTM);
     CASE(VANILLA_GRU);
     CASE(LBR_GRU);
+    CASE(VANILLA_AUGRU);
+    CASE(LBR_AUGRU);
 #undef CASE
     assert(!"unknown algorithm");
     return VANILLA_RNN;
@@ -38,6 +40,8 @@ const char *alg2str(alg_t alg) {
     if (alg == VANILLA_LSTM) return "VANILLA_LSTM";
     if (alg == VANILLA_GRU) return "VANILLA_GRU";
     if (alg == LBR_GRU) return "LBR_GRU";
+    if (alg == VANILLA_AUGRU) return "VANILLA_AUGRU";
+    if (alg == LBR_AUGRU) return "LBR_AUGRU";
     assert(!"unknown algorithm");
     return "unknown algorithm";
 }
@@ -47,6 +51,8 @@ dnnl_alg_kind_t alg2kind(alg_t alg) {
     if (alg == VANILLA_LSTM) return dnnl_vanilla_lstm;
     if (alg == VANILLA_GRU) return dnnl_vanilla_gru;
     if (alg == LBR_GRU) return dnnl_lbr_gru;
+    if (alg == VANILLA_AUGRU) return dnnl_vanilla_augru;
+    if (alg == LBR_AUGRU) return dnnl_lbr_augru;
     assert(!"unknown algorithm");
     return dnnl_alg_kind_undef;
 }
@@ -109,6 +115,7 @@ const char *data_kind2str(data_kind_t kind) {
 #define CASE(KIND) \
     if (kind == (KIND)) return STRINGIFY(KIND)
     CASE(SRC_LAYER);
+    CASE(AUGRU_ATTENTION);
     CASE(SRC_ITER);
     CASE(SRC_ITER_C);
     CASE(WEIGHTS_LAYER);
@@ -121,6 +128,7 @@ const char *data_kind2str(data_kind_t kind) {
     CASE(DST_ITER_C);
 
     CASE(DIFF_SRC_LAYER);
+    CASE(DIFF_AUGRU_ATTENTION);
     CASE(DIFF_SRC_ITER);
     CASE(DIFF_SRC_ITER_C);
     CASE(DIFF_WEIGHTS_LAYER);
@@ -256,6 +264,7 @@ dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
         dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_layer_d,
         const dnnl_memory_desc_t *src_iter_d,
         const dnnl_memory_desc_t *src_iter_c_d,
+        const dnnl_memory_desc_t *attention_d,
         const dnnl_memory_desc_t *weights_layer_d,
         const dnnl_memory_desc_t *weights_iter_d,
         const dnnl_memory_desc_t *weights_peephole_d,
@@ -291,6 +300,18 @@ dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
                     prb.direction, src_layer_d, src_iter_d, weights_layer_d,
                     weights_iter_d, bias_d, dst_layer_d, dst_iter_d, prb.flags);
             break;
+        case dnnl_vanilla_augru:
+            init_status = dnnl_augru_forward_desc_init(rd, prop_kind,
+                    prb.direction, src_layer_d, src_iter_d, attention_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, prb.flags);
+            break;
+        case dnnl_lbr_augru:
+            init_status = dnnl_lbr_augru_forward_desc_init(rd, prop_kind,
+                    prb.direction, src_layer_d, src_iter_d, attention_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, prb.flags);
+            break;
         default: init_status = dnnl_unimplemented;
     }
     return init_status;
@@ -300,6 +321,7 @@ dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
         dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_layer_d,
         const dnnl_memory_desc_t *src_iter_d,
         const dnnl_memory_desc_t *src_iter_c_d,
+        const dnnl_memory_desc_t *attention_d,
         const dnnl_memory_desc_t *weights_layer_d,
         const dnnl_memory_desc_t *weights_iter_d,
         const dnnl_memory_desc_t *weights_peephole_d,
@@ -310,6 +332,7 @@ dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
         const dnnl_memory_desc_t *diff_src_layer_d,
         const dnnl_memory_desc_t *diff_src_iter_d,
         const dnnl_memory_desc_t *diff_src_iter_c_d,
+        const dnnl_memory_desc_t *diff_attention_d,
         const dnnl_memory_desc_t *diff_weights_layer_d,
         const dnnl_memory_desc_t *diff_weights_iter_d,
         const dnnl_memory_desc_t *diff_weights_peephole_d,
@@ -357,6 +380,22 @@ dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
                     diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
                     diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
                     diff_dst_iter_d, prb.flags);
+            break;
+        case dnnl_vanilla_augru:
+            init_status = dnnl_augru_backward_desc_init(rd, prop_kind,
+                    prb.direction, src_layer_d, src_iter_d, attention_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, diff_src_layer_d, diff_src_iter_d,
+                    diff_attention_d, diff_weights_layer_d, diff_weights_iter_d,
+                    diff_bias_d, diff_dst_layer_d, diff_dst_iter_d, prb.flags);
+            break;
+        case dnnl_lbr_augru:
+            init_status = dnnl_lbr_augru_backward_desc_init(rd, prop_kind,
+                    prb.direction, src_layer_d, src_iter_d, attention_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, diff_src_layer_d, diff_src_iter_d,
+                    diff_attention_d, diff_weights_layer_d, diff_weights_iter_d,
+                    diff_bias_d, diff_dst_layer_d, diff_dst_iter_d, prb.flags);
             break;
         default: init_status = dnnl_unimplemented;
     }
@@ -507,8 +546,10 @@ void print_value(const prb_t &prb, data_kind_t kind, int64_t i, float fp,
     int64_t n = 0, t = 0, c = 0, l = 0, d = 0, ic = 0, oc = 0, g = 0;
     switch (kind) {
         case SRC_LAYER:
+        case AUGRU_ATTENTION:
         case DST_LAYER:
         case DIFF_SRC_LAYER:
+        case DIFF_AUGRU_ATTENTION:
         case DIFF_DST_LAYER:
             inv_tnc_off_f(prb, kind, i, t, n, c);
             BENCHDNN_PRINT(0,
@@ -586,7 +627,8 @@ int compare_dat(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
 
     int64_t fwd_acc_dim = 2 * prb.n_gates()
             + 1; // factor 2 is because of the sum of 2 GEMMs
-    if (prb.alg == VANILLA_GRU) fwd_acc_dim *= prb.sic;
+    if (prb.alg == VANILLA_GRU || prb.alg == VANILLA_AUGRU)
+        fwd_acc_dim *= prb.sic;
     int64_t bwdd_acc_dim = prb.n_gates() * prb.dhc;
     int64_t bwdw_acc_dim = prb.mb;
     int64_t acc_dim = fwd_acc_dim;
@@ -667,7 +709,9 @@ int compare_dat(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
 
             // TODO: Dirty hack to make testing green. Find an original source
             // of the problem and find a better solution.
-            if (!ok && (prb.alg == LBR_GRU || prb.alg == VANILLA_RNN)
+            if (!ok
+                    && (prb.alg == LBR_GRU || prb.alg == LBR_AUGRU
+                            || prb.alg == VANILLA_RNN)
                     && prb.prop == dnnl_backward) {
                 ok = diff < diff_threshold;
             }

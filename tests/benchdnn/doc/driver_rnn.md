@@ -10,8 +10,8 @@ where *rnn-knobs* are:
  - `--prop={FWD_I [default], FWD_D, BWD_DW}` -- dnnl_prop_kind_t.
             Refer to [direction](knobs_dir.md) for details.
  - `--cfg={f32 [default], ...}` -- refer to ``Configurations`` below.
- - `--alg={VANILLA_RNN [default], VANILLA_LSTM, VANILLA_GRU, LBR_GRU}`
-            -- RNN algorithm.
+ - `--alg={VANILLA_RNN [default], VANILLA_LSTM, VANILLA_GRU, LBR_GRU,
+            VANILLA_AUGRU, LBR_AUGRU}` -- RNN algorithm.
  - `--direction={left2right [default], right2left, concat, sum}` -- RNN
             evaluation direction.
  - `--activation={RELU [default], LOGISTIC, TANH}` -- `VANILLA_RNN` activation
@@ -23,9 +23,9 @@ where *rnn-knobs* are:
  - `--skip-nonlinear={true, false [default]}` -- specify if transcendental
             activations will be treated as linear. This allows to test longer
             chains avoiding errors coming from non-linear activation functions.
-            Especially relevant for int8 computations. For LSTM and GRU flows
-            changes internal implementation since there is no external control
-            over pre-defined activations in a cell.
+            Especially relevant for int8 computations. For LSTM, GRU and AUGRU
+            flows changes internal implementation since there is no external
+            control over pre-defined activations in a cell.
  - `--trivial-strides={true, false [default]}` -- specify if input tensors
             should have trivial strides or not. Each tensor stride is the
             product of previous dimensions.
@@ -60,7 +60,7 @@ Description of RNN descriptor symbols:
  - `slc` is the feature size of `src_layer`. The default value is `sic`.
  - `dhc` is the hidden feature size. The default value is `sic`.
  - `dic` is the feature size of `dst_iter`. The default value is `dhc`. For GRU
-   it must be equal to `dhc`.
+   and AUGRU it must be equal to `dhc`.
 
 
 ## Precision Configurations

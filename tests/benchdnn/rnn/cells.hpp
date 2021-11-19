@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,25 +55,29 @@ void lstm_bwd(const prb_t &prb, float *diff_src_layer_, float *diff_src_iter_,
 
 void gru_fwd(const prb_t &prb, float *dst_layer_, float *gates_,
         const float *weights_layer_, const float *weights_iter_,
-        const float *bias_, const float *src_layer_, const float *src_iter_);
+        const float *bias_, const float *src_layer_,
+        const float *src_layer_attention_, const float *src_iter_);
 
-void gru_bwd(const prb_t &prb, float *diff_src_layer_, float *diff_src_iter_,
+void gru_bwd(const prb_t &prb, float *diff_src_layer_,
+        float *diff_src_layer_attention_, float *diff_src_iter_,
         float *diff_weights_layer_, float *diff_weights_iter_,
         float *diff_bias_, float *b_gates_, const float *src_layer_,
-        const float *src_iter_, const float *weights_layer_,
-        const float *weights_iter_, const float *bias_, const float *gates_,
-        const float *diff_dst_layer_, const float *diff_dst_iter_,
-        float *cell_scratchpad_);
+        const float *src_layer_attention_, const float *src_iter_,
+        const float *weights_layer_, const float *weights_iter_,
+        const float *bias_, const float *gates_, const float *diff_dst_layer_,
+        const float *diff_dst_iter_, float *cell_scratchpad_);
 
 void lbr_gru_fwd(const prb_t &prb, float *dst_layer_, float *gates_,
         const float *weights_layer_, const float *weights_iter_,
-        const float *bias_, const float *src_layer_, const float *src_iter_,
+        const float *bias_, const float *src_layer_,
+        const float *src_layer_attention_, const float *src_iter_,
         float *cell_scratchpad_);
 
 void lbr_gru_bwd(const prb_t &prb, float *diff_src_layer_,
-        float *diff_src_iter_, float *diff_weights_layer_,
-        float *diff_weights_iter_, float *diff_bias_, float *b_gates_,
-        const float *src_layer_, const float *src_iter_,
+        float *diff_src_layer_attention_, float *diff_src_iter_,
+        float *diff_weights_layer_, float *diff_weights_iter_,
+        float *diff_bias_, float *b_gates_, const float *src_layer_,
+        const float *src_layer_attention_, const float *src_iter_,
         const float *weights_layer_, const float *weights_iter_,
         const float *bias_, const float *gates_, const float *diff_dst_layer_,
         const float *diff_dst_iter_, float *cell_scratchpad_);
