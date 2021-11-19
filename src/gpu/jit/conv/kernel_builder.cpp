@@ -2924,7 +2924,6 @@ public:
                 loop_body = loop_body.append(create_iteration(
                         it, sbid_mgr, /*in_loop_body=*/has_loop));
                 ir_assert(it.do_mul());
-                ir_assert(it.do_preload());
                 loop_body = append_outer_post_inc(loop_body);
                 ++it;
             }
