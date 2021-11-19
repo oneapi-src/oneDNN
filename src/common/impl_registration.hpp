@@ -187,6 +187,6 @@
     { nullptr }
 #endif
 
-// Primitive ISA section in src/cpu/platform.hpp
+// Primitive CPU ISA section is in src/cpu/platform.hpp
 
 #endif

@@ -31,16 +31,19 @@ namespace gpu {
 namespace {
 // TODO: Re-enable nGEN-based implementation after architecture
 // dispatching is implemented.
-// INSTANCE(jit::gen9_simple_sum_t),
-#define INSTANCE(...) \
+// INSTANCE(jit::gen9_simple_sum_t)
+#define SUM_INSTANCE(...) \
     impl_list_item_t(impl_list_item_t::sum_type_deduction_helper_t< \
-            __VA_ARGS__::pd_t>())
-const impl_list_item_t sum_impl_list[] = {
-        INSTANCE(ocl::gen9_sum_t),
-        INSTANCE(ocl::simple_sum_t<data_type::f32>),
-        INSTANCE(ocl::ref_sum_t),
+            __VA_ARGS__::pd_t>()),
+
+// clang-format off
+const impl_list_item_t sum_impl_list[] = REG_SUM_P({
+        SUM_INSTANCE(ocl::gen9_sum_t)
+        SUM_INSTANCE(ocl::simple_sum_t<data_type::f32>)
+        SUM_INSTANCE(ocl::ref_sum_t)
         nullptr,
-};
+});
+// clang-format on
 #undef INSTANCE
 } // namespace
 

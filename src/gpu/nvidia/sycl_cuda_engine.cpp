@@ -180,62 +180,59 @@ void sycl_cuda_engine_t::activate_stream_cudnn(stream_t *stream) {
 
 namespace {
 using namespace dnnl::impl::data_type;
-#define INSTANCE(...) \
-    impl_list_item_t( \
-            impl_list_item_t::type_deduction_helper_t<__VA_ARGS__::pd_t>())
+
 // clang-format off
 const dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         // Elementwise
-        INSTANCE(cudnn_eltwise_fwd_t),
-        INSTANCE(cudnn_eltwise_bwd_t),
+        INSTANCE(cudnn_eltwise_fwd_t)
+        INSTANCE(cudnn_eltwise_bwd_t)
 
         // Deconvolution
-        INSTANCE(cudnn_deconvolution_fwd_t),
-        INSTANCE(cudnn_deconvolution_bwd_data_t),
-        INSTANCE(cudnn_deconvolution_bwd_weights_t),
+        INSTANCE(cudnn_deconvolution_fwd_t)
+        INSTANCE(cudnn_deconvolution_bwd_data_t)
+        INSTANCE(cudnn_deconvolution_bwd_weights_t)
 
         // Convolution
-        INSTANCE(cudnn_convolution_fwd_t),
-        INSTANCE(cudnn_convolution_bwd_data_t),
-        INSTANCE(cudnn_convolution_bwd_weights_t),
+        INSTANCE(cudnn_convolution_fwd_t)
+        INSTANCE(cudnn_convolution_bwd_data_t)
+        INSTANCE(cudnn_convolution_bwd_weights_t)
 
         // Batch Normalization
-        INSTANCE(cudnn_batch_normalization_fwd_t),
-        INSTANCE(cudnn_batch_normalization_bwd_t),
+        INSTANCE(cudnn_batch_normalization_fwd_t)
+        INSTANCE(cudnn_batch_normalization_bwd_t)
 
         // Pooling
-        INSTANCE(cudnn_pooling_fwd_t),
-        INSTANCE(cudnn_pooling_bwd_t),
+        INSTANCE(cudnn_pooling_fwd_t)
+        INSTANCE(cudnn_pooling_bwd_t)
 
         // LRN
-        INSTANCE(cudnn_lrn_fwd_t),
-        INSTANCE(cudnn_lrn_bwd_t),
+        INSTANCE(cudnn_lrn_fwd_t)
+        INSTANCE(cudnn_lrn_bwd_t)
 
         // Inner Product
-        INSTANCE(cudnn_gemm_inner_product_fwd_t),
-        INSTANCE(cudnn_conv_inner_product_fwd_t),
-        INSTANCE(cudnn_gemm_inner_product_bwd_data_t),
-        INSTANCE(cudnn_conv_inner_product_bwd_data_t),
-        INSTANCE(cudnn_gemm_inner_product_bwd_weights_t),
-        INSTANCE(cudnn_conv_inner_product_bwd_weights_t),
+        INSTANCE(cudnn_gemm_inner_product_fwd_t)
+        INSTANCE(cudnn_conv_inner_product_fwd_t)
+        INSTANCE(cudnn_gemm_inner_product_bwd_data_t)
+        INSTANCE(cudnn_conv_inner_product_bwd_data_t)
+        INSTANCE(cudnn_gemm_inner_product_bwd_weights_t)
+        INSTANCE(cudnn_conv_inner_product_bwd_weights_t)
 
         // Softmax
-        INSTANCE(cudnn_softmax_fwd_t),
-        INSTANCE(cudnn_softmax_bwd_t),
+        INSTANCE(cudnn_softmax_fwd_t)
+        INSTANCE(cudnn_softmax_bwd_t)
 
         // Binary
-        INSTANCE(cudnn_binary_t),
+        INSTANCE(cudnn_binary_t)
 
         // MatMul
-        INSTANCE(cudnn_matmul_t),
+        INSTANCE(cudnn_matmul_t)
 
         // Resampling
-        INSTANCE(cudnn_resampling_fwd_t),
-        INSTANCE(cudnn_resampling_bwd_t),
+        INSTANCE(cudnn_resampling_fwd_t)
+        INSTANCE(cudnn_resampling_bwd_t)
         nullptr,
 };
 // clang-format on
-#undef INSTANCE
 } // namespace
 const dnnl::impl::impl_list_item_t *sycl_cuda_engine_t::get_implementation_list(
         const op_desc_t *) const {

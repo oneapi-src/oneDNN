@@ -86,8 +86,7 @@ public:
 
     const impl_list_item_t *get_implementation_list(
             const op_desc_t *desc) const override {
-        UNUSED(desc);
-        return gpu_impl_list_t::get_implementation_list();
+        return gpu_impl_list_t::get_implementation_list(desc);
     }
 
     cl_device_id device() const { return device_; }

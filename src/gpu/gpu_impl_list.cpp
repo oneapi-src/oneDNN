@@ -15,188 +15,44 @@
 *******************************************************************************/
 
 #include "gpu/gpu_impl_list.hpp"
-#include "gpu/jit/binary_format.hpp"
-#include "gpu/jit/conv/gen_convolution.hpp"
-#include "gpu/jit/gemm/gen_gemm.hpp"
-#include "gpu/jit/gemm/xe_hp_systolic_gemm.hpp"
-#include "gpu/ocl/convolution_inner_product.hpp"
-#include "gpu/ocl/gemm/gemm_with_post_ops.hpp"
-#include "gpu/ocl/gemm/gen9_gemm.hpp"
-#include "gpu/ocl/gemm/gen9_gemm_x8x8s32.hpp"
-#include "gpu/ocl/gemm/ref_gemm.hpp"
-#include "gpu/ocl/gemm/xe_lp_gemm.hpp"
-#include "gpu/ocl/gemm_inner_product.hpp"
-#include "gpu/ocl/gemm_matmul.hpp"
-#include "gpu/ocl/gemm_post_ops_inner_product.hpp"
-#include "gpu/ocl/gen9_batch_normalization.hpp"
-#include "gpu/ocl/gen9_binary.hpp"
-#include "gpu/ocl/gen9_convolution.hpp"
-#include "gpu/ocl/gen9_eltwise.hpp"
-#include "gpu/ocl/gen9_global_pooling.hpp"
-#include "gpu/ocl/gen9_pooling.hpp"
-#include "gpu/ocl/gen9_reduction.hpp"
-#include "gpu/ocl/gen9_softmax.hpp"
-#include "gpu/ocl/gen9_wino_convolution.hpp"
-#include "gpu/ocl/ref_batch_normalization.hpp"
-#include "gpu/ocl/ref_binary.hpp"
-#include "gpu/ocl/ref_convolution.hpp"
-#include "gpu/ocl/ref_deconvolution.hpp"
-#include "gpu/ocl/ref_eltwise.hpp"
-#include "gpu/ocl/ref_inner_product.hpp"
-#include "gpu/ocl/ref_layer_normalization.hpp"
-#include "gpu/ocl/ref_lrn.hpp"
-#include "gpu/ocl/ref_matmul.hpp"
-#include "gpu/ocl/ref_pooling.hpp"
-#include "gpu/ocl/ref_prelu.hpp"
-#include "gpu/ocl/ref_reduction.hpp"
-#include "gpu/ocl/ref_resampling.hpp"
-#include "gpu/ocl/ref_shuffle.hpp"
-#include "gpu/ocl/ref_softmax.hpp"
-#include "gpu/ocl/ref_zero_pad.hpp"
-#include "gpu/ocl/rnn/ref_rnn.hpp"
-#include "gpu/ocl/shuffle_by_reorder.hpp"
-#include "gpu/ocl/xe_hp_1st_bwd_convolution.hpp"
-#include "gpu/ocl/xe_hp_1x1_convolution.hpp"
-#include "gpu/ocl/xe_hp_bf16_convolution.hpp"
-#include "gpu/ocl/xe_hp_convolution.hpp"
-#include "gpu/ocl/xe_hpc_1x1_convolution.hpp"
-#include "gpu/ocl/xe_hpc_bf16_convolution.hpp"
-#include "gpu/ocl/xe_hpc_convolution.hpp"
-#include "gpu/ocl/xe_lp_x8s8x_1x1_convolution.hpp"
-#include "gpu/ocl/xe_lp_x8s8x_convolution.hpp"
-#include "oneapi/dnnl/dnnl_config.h"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 
-namespace {
+const impl_list_item_t *gpu_impl_list_t::get_implementation_list(
+        const op_desc_t *desc) {
+    static const impl_list_item_t empty_list[] = {nullptr};
 
-#define INSTANCE(...) \
-    impl_list_item_t( \
-            impl_list_item_t::type_deduction_helper_t<__VA_ARGS__::pd_t>())
-
-const impl_list_item_t gpu_impl_list[] = {
-        // Elementwise
-        INSTANCE(ocl::gen9_eltwise_fwd_t),
-        INSTANCE(ocl::gen9_eltwise_bwd_t),
-        INSTANCE(ocl::ref_eltwise_fwd_t),
-        INSTANCE(ocl::ref_eltwise_bwd_t),
-
-        // Deconvolution
-        INSTANCE(ocl::ref_deconvolution_fwd_t),
-        INSTANCE(ocl::ref_deconvolution_bwd_data_t),
-        INSTANCE(ocl::ref_deconvolution_bwd_weights_t),
-
-        // Convolution
-        INSTANCE(jit::gen_convolution_fwd_t),
-        INSTANCE(jit::gen_convolution_bwd_data_t),
-        INSTANCE(jit::gen_convolution_bwd_weights_t),
-        INSTANCE(ocl::xe_hpc_1x1_convolution_fwd_t),
-        INSTANCE(ocl::xe_hpc_bf16_convolution_bwd_weights_t),
-        INSTANCE(ocl::xe_hpc_convolution_fwd_t),
-        INSTANCE(ocl::xe_hpc_convolution_bwd_data_t),
-        INSTANCE(ocl::xe_hp_1x1_convolution_fwd_t),
-        INSTANCE(ocl::xe_hp_1st_convolution_bwd_weights_t),
-        INSTANCE(ocl::xe_hp_bf16_convolution_bwd_weights_t),
-        INSTANCE(ocl::xe_hp_convolution_fwd_t),
-        INSTANCE(ocl::xe_hp_convolution_bwd_data_t),
-        INSTANCE(ocl::xe_lp_x8s8x_1x1_convolution_fwd_t),
-        INSTANCE(ocl::xe_lp_x8s8x_convolution_fwd_t),
-        INSTANCE(ocl::xe_lp_x8s8x_convolution_bwd_data_t),
-        INSTANCE(ocl::gen9_wino_convolution_fwd_t),
-        // Convolution
-        INSTANCE(ocl::gen9_convolution_fwd_t),
-        INSTANCE(ocl::gen9_convolution_bwd_data_t),
-        INSTANCE(ocl::gen9_convolution_bwd_weights_t),
-        INSTANCE(ocl::ref_convolution_fwd_t),
-        INSTANCE(ocl::ref_convolution_bwd_data_t),
-        INSTANCE(ocl::ref_convolution_bwd_weights_t),
-
-        // Batch Normalization
-        INSTANCE(ocl::gen9_batch_normalization_fwd_t),
-        INSTANCE(ocl::gen9_batch_normalization_bwd_t),
-        INSTANCE(ocl::ref_batch_normalization_fwd_t),
-        INSTANCE(ocl::ref_batch_normalization_bwd_t),
-
-        // Pooling
-        INSTANCE(ocl::gen9_global_pooling_bwd_t),
-        INSTANCE(ocl::gen9_pooling_fwd_t),
-        INSTANCE(ocl::gen9_pooling_bwd_t),
-        INSTANCE(ocl::ref_pooling_fwd_t),
-        INSTANCE(ocl::ref_pooling_bwd_t),
-
-        // Prelu
-        INSTANCE(ocl::ref_prelu_fwd_t),
-        INSTANCE(ocl::ref_prelu_bwd_t),
-
-        // LRN
-        INSTANCE(ocl::ref_lrn_fwd_t),
-        INSTANCE(ocl::ref_lrn_bwd_t),
-
-        // Inner Product
-        INSTANCE(ocl::gemm_inner_product_fwd_t),
-        INSTANCE(ocl::gemm_post_ops_inner_product_fwd_t),
-        INSTANCE(ocl::convolution_inner_product_fwd_t),
-        INSTANCE(ocl::gemm_inner_product_bwd_data_t),
-        INSTANCE(ocl::gemm_inner_product_bwd_weights_t),
-        INSTANCE(ocl::ref_inner_product_fwd_t),
-        INSTANCE(ocl::ref_inner_product_bwd_data_t),
-        INSTANCE(ocl::ref_inner_product_bwd_weights_t),
-
-        // Softmax
-        INSTANCE(ocl::gen9_softmax_fwd_t),
-        INSTANCE(ocl::gen9_softmax_bwd_t),
-        INSTANCE(ocl::ref_softmax_fwd_t),
-        INSTANCE(ocl::ref_softmax_bwd_t),
-
-        // GEMM (internal)
-        INSTANCE(jit::xe_hp_systolic_gemm_t),
-        INSTANCE(ocl::gemm_with_post_ops_t),
-        INSTANCE(jit::gen_gemm_t),
-        INSTANCE(ocl::xe_lp_gemm_t),
-        INSTANCE(ocl::gen9_gemm_x8x8s32_t),
-        INSTANCE(ocl::gen9_gemm_t),
-        INSTANCE(ocl::ref_gemm_t),
-
-        // RNN
-        INSTANCE(ocl::ref_rnn_fwd_t),
-        INSTANCE(ocl::ref_rnn_bwd_t),
-
-        // Shuffle
-        INSTANCE(ocl::shuffle_by_reorder_t),
-        INSTANCE(ocl::ref_shuffle_t),
-
-        // Layer Normalization
-        INSTANCE(ocl::ref_layer_normalization_fwd_t),
-        INSTANCE(ocl::ref_layer_normalization_bwd_t),
-
-        // Binary
-        INSTANCE(ocl::gen9_binary_t),
-        INSTANCE(ocl::ref_binary_t),
-
-        // MatMul
-        INSTANCE(ocl::gemm_matmul_t),
-        INSTANCE(ocl::ref_matmul_t),
-
-        // Reduction
-        INSTANCE(ocl::gen9_reduction_t),
-        INSTANCE(ocl::ref_reduction_t),
-
-        // Resampling
-        INSTANCE(ocl::ref_resampling_fwd_t),
-        INSTANCE(ocl::ref_resampling_bwd_t),
-
-        // Zero Pad
-        INSTANCE(ocl::ref_zero_pad_t),
-        nullptr,
-};
-
-#undef INSTANCE
-} // namespace
-
-const impl_list_item_t *gpu_impl_list_t::get_implementation_list() {
-    return gpu_impl_list;
+    // clang-format off
+#define CASE(kind) \
+    case primitive_kind::kind: \
+        return get_##kind##_impl_list((const kind##_desc_t *)desc);
+        switch ((int)desc->kind) {
+            CASE(batch_normalization);
+            CASE(binary);
+            CASE(convolution);
+            CASE(deconvolution);
+            CASE(eltwise);
+            CASE(gemm);
+            CASE(inner_product);
+            CASE(layer_normalization);
+            CASE(lrn);
+            CASE(logsoftmax);
+            CASE(matmul);
+            case primitive_kind::pooling:
+            CASE(pooling_v2);
+            CASE(prelu);
+            CASE(reduction);
+            CASE(resampling);
+            CASE(rnn);
+            CASE(shuffle);
+            CASE(softmax);
+            CASE(zero_pad);
+            default: assert(!"unknown primitive kind"); return empty_list;
+        }
+#undef CASE
+    // clang-format on
 }
 
 } // namespace gpu

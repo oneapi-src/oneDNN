@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,36 +14,43 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/impl_list_item.hpp"
-
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/ocl/gen9_concat.hpp"
-#include "gpu/ocl/ref_concat.hpp"
-#include "gpu/ocl/simple_concat.hpp"
+#include "gpu/ocl/ref_layer_normalization.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 
 namespace {
-#define CONCAT_INSTANCE(...) \
-    impl_list_item_t(impl_list_item_t::concat_type_deduction_helper_t< \
-            __VA_ARGS__::pd_t>()),
+using namespace dnnl::impl::prop_kind;
 
 // clang-format off
-const impl_list_item_t concat_impl_list[] = REG_CONCAT_P({
-        CONCAT_INSTANCE(ocl::simple_concat_t)
-        CONCAT_INSTANCE(ocl::gen9_concat_t)
-        CONCAT_INSTANCE(ocl::ref_concat_t)
+const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
+        impl_list_map REG_LNORM_P({
+    {{forward}, {
+        INSTANCE(ocl::ref_layer_normalization_fwd_t)
         nullptr,
+    }},
+    {{backward}, REG_BWD_PK({
+        INSTANCE(ocl::ref_layer_normalization_bwd_t)
+        nullptr,
+    })},
 });
 // clang-format on
-#undef INSTANCE
 } // namespace
 
-const impl_list_item_t *gpu_impl_list_t::get_concat_implementation_list() {
-    return concat_impl_list;
+const impl_list_item_t *get_layer_normalization_impl_list(
+        const layer_normalization_desc_t *desc) {
+    static const impl_list_item_t empty_list[] = {nullptr};
+
+    const bool is_fwd = utils::one_of(
+            desc->prop_kind, forward_training, forward_inference);
+    prop_kind_t prop_kind = is_fwd ? forward : backward;
+
+    const auto impl_list_it = impl_list_map.find({prop_kind});
+    return impl_list_it != impl_list_map.cend() ? impl_list_it->second.data()
+                                                : empty_list;
 }
 
 } // namespace gpu

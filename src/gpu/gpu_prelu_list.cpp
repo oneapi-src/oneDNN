@@ -1,6 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,40 +13,45 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include "common/engine.hpp"
-#include "common/impl_list_item.hpp"
-#include "gpu/nvidia/cudnn_reorder.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
-#include "gpu/ocl/cross_engine_reorder.hpp"
+
+#include "gpu/gpu_impl_list.hpp"
+
+#include "gpu/ocl/ref_prelu.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace nvidia {
 
 namespace {
-
-#define REORDER_INSTANCE(...) \
-    impl_list_item_t( \
-            impl_list_item_t::reorder_type_deduction_helper_t<__VA_ARGS__>()),
+using namespace dnnl::impl::prop_kind;
 
 // clang-format off
-const impl_list_item_t cuda_reorder_impl_list[] = {
-        REORDER_INSTANCE(gpu::ocl::cross_engine_reorder_t::pd_t)
-        REORDER_INSTANCE(cudnn_reorder_t::pd_t)
+const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
+        impl_list_map REG_PRELU_P({
+    {{forward}, {
+        INSTANCE(ocl::ref_prelu_fwd_t)
         nullptr,
-};
+    }},
+    {{backward}, REG_BWD_PK({
+        INSTANCE(ocl::ref_prelu_bwd_t)
+        nullptr,
+    })},
+});
 // clang-format on
-
 } // namespace
 
-const impl_list_item_t *
-cuda_gpu_engine_impl_list_t::get_reorder_implementation_list(
-        const memory_desc_t *, const memory_desc_t *) {
-    return cuda_reorder_impl_list;
+const impl_list_item_t *get_prelu_impl_list(const prelu_desc_t *desc) {
+    static const impl_list_item_t empty_list[] = {nullptr};
+
+    const bool is_fwd = utils::one_of(
+            desc->prop_kind, forward_training, forward_inference);
+    prop_kind_t prop_kind = is_fwd ? forward : backward;
+
+    const auto impl_list_it = impl_list_map.find({prop_kind});
+    return impl_list_it != impl_list_map.cend() ? impl_list_it->second.data()
+                                                : empty_list;
 }
 
-} // namespace nvidia
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

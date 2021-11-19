@@ -1,6 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,40 +13,44 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include "common/engine.hpp"
-#include "common/impl_list_item.hpp"
-#include "gpu/nvidia/cudnn_reorder.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
-#include "gpu/ocl/cross_engine_reorder.hpp"
+
+#include "gpu/gpu_impl_list.hpp"
+
+#include "gpu/jit/binary_format.hpp"
+
+#include "gpu/jit/gemm/gen_gemm.hpp"
+#include "gpu/jit/gemm/xe_hp_systolic_gemm.hpp"
+#include "gpu/ocl/gemm/gemm_with_post_ops.hpp"
+#include "gpu/ocl/gemm/gen9_gemm.hpp"
+#include "gpu/ocl/gemm/gen9_gemm_x8x8s32.hpp"
+#include "gpu/ocl/gemm/ref_gemm.hpp"
+#include "gpu/ocl/gemm/xe_lp_gemm.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace nvidia {
 
 namespace {
 
-#define REORDER_INSTANCE(...) \
-    impl_list_item_t( \
-            impl_list_item_t::reorder_type_deduction_helper_t<__VA_ARGS__>()),
-
 // clang-format off
-const impl_list_item_t cuda_reorder_impl_list[] = {
-        REORDER_INSTANCE(gpu::ocl::cross_engine_reorder_t::pd_t)
-        REORDER_INSTANCE(cudnn_reorder_t::pd_t)
+const impl_list_item_t impl_list[] = {
+        INSTANCE(jit::xe_hp_systolic_gemm_t)
+        INSTANCE(ocl::gemm_with_post_ops_t)
+        INSTANCE(jit::gen_gemm_t)
+        INSTANCE(ocl::xe_lp_gemm_t)
+        INSTANCE(ocl::gen9_gemm_x8x8s32_t)
+        INSTANCE(ocl::gen9_gemm_t)
+        INSTANCE(ocl::ref_gemm_t)
         nullptr,
 };
 // clang-format on
-
 } // namespace
 
-const impl_list_item_t *
-cuda_gpu_engine_impl_list_t::get_reorder_implementation_list(
-        const memory_desc_t *, const memory_desc_t *) {
-    return cuda_reorder_impl_list;
+const impl_list_item_t *get_gemm_impl_list(const gemm_desc_t *desc) {
+    UNUSED(desc);
+    return impl_list;
 }
 
-} // namespace nvidia
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
