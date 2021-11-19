@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,11 +55,11 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     // for lstmp, the copy to dst_iter happens after the projection
     const auto dst_iter_postgemm = rnn.is_lstm_projection ? nullptr : dst_iter_;
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            dst_postgemm, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
-            diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-            diff_dst_iter_c_, weights_peephole_, bias_[0], ws_grid_,
-            scratch_cell_, dst_iter_postgemm, weights_scales,
-            rnn.dhc * sizeof(scratch_t));
+            augru_attention_, dst_postgemm, dst_iter_c_, src_iter_, src_iter_c_,
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_,
+            diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+            weights_peephole_, bias_[0], ws_grid_, scratch_cell_,
+            dst_iter_postgemm, weights_scales, rnn.dhc * sizeof(scratch_t));
 
     if (rnn.is_lstm_projection) {
         const auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
@@ -79,9 +79,9 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
         // we have to downconvert the output to dst_layer_t and copy to dst_iter if needed
         rnn_postgemm_->execute_part2(rnn, cell_position, nullptr, dst_proj,
-                dst_layer_, nullptr, nullptr, w_proj_comp, nullptr, nullptr,
+                nullptr, dst_layer_, nullptr, nullptr, w_proj_comp, nullptr,
                 nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                nullptr, dst_iter_, weights_projection_scales,
+                nullptr, nullptr, nullptr, dst_iter_, weights_projection_scales,
                 rnn.dlc * sizeof(dst_layer_t));
     }
 
@@ -158,17 +158,18 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
         T6 gemm_weights_proj_f, T7 rnn_postgemm,
         const rnn_utils::rnn_conf_t &rnn, const cell_position_t cell_position,
         src_data_t *dst_layer_, void *dst_iter_c_, acc_data_t *diff_src_layer_,
-        acc_data_t *diff_src_iter_, acc_data_t *diff_src_iter_c_,
-        weights_data_t **w_layer_, weights_data_t **w_iter_,
-        weights_data_t **w_proj_, const float *weights_peephole_, void **bias_,
-        const src_data_t *src_layer_, const src_data_t *src_iter_,
-        const void *src_iter_c_, acc_data_t *diff_dst_layer_,
-        acc_data_t *diff_dst_iter_, acc_data_t *diff_dst_iter_c_,
-        acc_data_t *diff_w_layer_, acc_data_t *diff_w_iter_,
-        float *diff_weights_projection_, float *diff_weights_peephole_,
-        acc_data_t *diff_bias_, src_data_t *ws_gates_,
-        scratch_data_t *scratch_gates_, src_data_t *ws_ht_,
-        acc_data_t *scratch_diff_ht_, src_data_t *ws_grid_,
+        acc_data_t *diff_augru_attention_, acc_data_t *diff_src_iter_,
+        acc_data_t *diff_src_iter_c_, weights_data_t **w_layer_,
+        weights_data_t **w_iter_, weights_data_t **w_proj_,
+        const float *weights_peephole_, void **bias_,
+        const src_data_t *src_layer_, const src_data_t *augru_attention_,
+        const src_data_t *src_iter_, const void *src_iter_c_,
+        acc_data_t *diff_dst_layer_, acc_data_t *diff_dst_iter_,
+        acc_data_t *diff_dst_iter_c_, acc_data_t *diff_w_layer_,
+        acc_data_t *diff_w_iter_, float *diff_weights_projection_,
+        float *diff_weights_peephole_, acc_data_t *diff_bias_,
+        src_data_t *ws_gates_, scratch_data_t *scratch_gates_,
+        src_data_t *ws_ht_, acc_data_t *scratch_diff_ht_, src_data_t *ws_grid_,
         scratch_data_t *scratch_cell_, src_data_t *dst_iter_) {
 
     if (rnn.is_lstm_projection) {
@@ -186,10 +187,11 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     }
 
     rnn_postgemm->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            dst_layer_, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
-            diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-            diff_dst_iter_c_, weights_peephole_, bias_[0], ws_grid_,
-            scratch_cell_, dst_iter_, nullptr, 0);
+            augru_attention_, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_,
+            diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+            weights_peephole_, bias_[0], ws_grid_, scratch_cell_, dst_iter_,
+            nullptr, 0);
 
     /// bwd by data on the cell
     CHECK(gemm_iter_f(w_iter_[0], scratch_gates_, diff_src_iter_));
@@ -256,13 +258,13 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref) {
     return common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_proj,
             gemm_weights_layer, gemm_weights_iter, gemm_weights_proj,
             rnn_postgemm_, rnn, cell_position, dst_layer_, dst_iter_c_,
-            diff_src_layer_, diff_src_iter_, diff_src_iter_c_, w_layer_,
-            w_iter_, w_projection_, weights_peephole_, bias_, src_layer_,
-            src_iter_, src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-            diff_dst_iter_c_, diff_w_layer_, diff_w_iter_,
-            diff_weights_projection_, diff_weights_peephole_, diff_bias_,
-            ws_gates_, scratch_gates_, proj_ht_, scratch_diff_ht_, ws_grid_,
-            scratch_cell_, dst_iter_);
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_,
+            diff_src_iter_c_, w_layer_, w_iter_, w_projection_,
+            weights_peephole_, bias_, src_layer_, augru_attention_, src_iter_,
+            src_iter_c_, diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+            diff_w_layer_, diff_w_iter_, diff_weights_projection_,
+            diff_weights_peephole_, diff_bias_, ws_gates_, scratch_gates_,
+            proj_ht_, scratch_diff_ht_, ws_grid_, scratch_cell_, dst_iter_);
 }
 
 template <>
@@ -305,13 +307,13 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref) {
     return common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_proj,
             gemm_weights_layer, gemm_weights_iter, gemm_weights_proj,
             rnn_postgemm_, rnn, cell_position, dst_layer_, dst_iter_c_,
-            diff_src_layer_, diff_src_iter_, diff_src_iter_c_, w_layer_,
-            w_iter_, w_projection_, weights_peephole_, bias_, src_layer_,
-            src_iter_, src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-            diff_dst_iter_c_, diff_w_layer_, diff_w_iter_,
-            diff_weights_projection_, diff_weights_peephole_, diff_bias_,
-            ws_gates_, scratch_gates_, proj_ht_, scratch_diff_ht_, ws_grid_,
-            scratch_cell_, dst_iter_);
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_,
+            diff_src_iter_c_, w_layer_, w_iter_, w_projection_,
+            weights_peephole_, bias_, src_layer_, augru_attention_, src_iter_,
+            src_iter_c_, diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+            diff_w_layer_, diff_w_iter_, diff_weights_projection_,
+            diff_weights_peephole_, diff_bias_, ws_gates_, scratch_gates_,
+            proj_ht_, scratch_diff_ht_, ws_grid_, scratch_cell_, dst_iter_);
 }
 
 } // namespace cpu

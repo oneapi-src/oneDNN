@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -147,6 +147,8 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     const AOC<src_layer_t, 4> ws_states_layer(ws_states_layer_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_iter + 1,
             rnn.ws_states_layer_nld * rnn.ws_states_layer_ld);
+    const AOC<const src_layer_t, 3> augru_attention(
+            augru_attention_, rnn.n_iter, rnn.mb, 1);
     const AOC<src_iter_t, 4> ws_states_iter(ws_states_iter_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_iter + 1,
             rnn.ws_states_iter_nld * rnn.ws_states_iter_ld);
@@ -157,6 +159,8 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     const AOC<gemm_acc_t, 4> ws_diff_states_layer(ws_diff_states_layer_,
             rnn.n_layer + 1, rnn.n_dir, rnn.n_iter + 1,
             rnn.ws_diff_states_layer_nld * rnn.ws_diff_states_layer_ld);
+    const AOC<gemm_acc_t, 3> diff_augru_attention(
+            diff_augru_attention_, rnn.n_iter, rnn.mb, 1);
     const AOC<gemm_acc_t, 4> ws_diff_states_iter(ws_diff_states_iter_,
             rnn.n_layer + 1, rnn.n_dir, rnn.n_iter + 1,
             rnn.ws_diff_states_iter_nld * rnn.ws_diff_states_iter_ld);
@@ -237,8 +241,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         ? i
                         : rnn.n_iter - i - 1;
 
-                // We set the FWD parameters to the cell execution
-                // call
+                // We set parameters to the cell execution call
 
                 // dst_layer is equal to dst_iter. To avoid
                 // duplication of memory access we hence use only
@@ -333,6 +336,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 CHECK((this->*cell_func)(ctx, rnn, cell_position,
                         cell_dst_layer, cell_dst_iter_c,
                         SAFE_PTR(ws_diff_states_layer, lay, dir, iter, 0),
+                        SAFE_PTR(diff_augru_attention, iter, 0, 0),
                         SAFE_PTR(ws_diff_states_iter, lay, dir, iter, 0),
                         SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter, 0),
                         SAFE_PTR(weights_layer, lay, dir, 0),
@@ -342,7 +346,8 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         w_proj_comp
                                 ? w_proj_comp + (j * rnn.n_dir + dir) * rnn.dic
                                 : nullptr,
-                        bias(lay, dir), cell_src_layer, cell_src_iter,
+                        bias(lay, dir), cell_src_layer,
+                        SAFE_PTR(augru_attention, iter, 0, 0), cell_src_iter,
                         cell_src_iter_c,
                         SAFE_PTR(ws_diff_states_layer, lay + 1, dir, iter, 0),
                         SAFE_PTR(ws_diff_states_iter, lay, dir, iter + 1, 0),
@@ -362,6 +367,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 CHECK((this->*cell_func)(rnn, cell_position, cell_dst_layer,
                         cell_dst_iter_c,
                         SAFE_PTR(ws_diff_states_layer, lay, dir, iter, 0),
+                        SAFE_PTR(diff_augru_attention, iter, 0, 0),
                         SAFE_PTR(ws_diff_states_iter, lay, dir, iter, 0),
                         SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter, 0),
                         SAFE_PTR(weights_layer, lay, dir, 0),
@@ -371,7 +377,8 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         w_proj_comp
                                 ? w_proj_comp + (j * rnn.n_dir + dir) * rnn.dic
                                 : nullptr,
-                        bias(lay, dir), cell_src_layer, cell_src_iter,
+                        bias(lay, dir), cell_src_layer,
+                        SAFE_PTR(augru_attention, iter, 0, 0), cell_src_iter,
                         cell_src_iter_c,
                         SAFE_PTR(ws_diff_states_layer, lay + 1, dir, iter, 0),
                         SAFE_PTR(ws_diff_states_iter, lay, dir, iter + 1, 0),
@@ -1164,6 +1171,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
         const exec_ctx_t &ctx) const {
     const rnn_conf_t &rnn = this->pd()->rnn_;
     auto src_layer = CTX_IN_MEM(const src_layer_t *, DNNL_ARG_SRC_LAYER);
+    auto augru_attention
+            = CTX_IN_MEM(const src_layer_t *, DNNL_ARG_AUGRU_ATTENTION);
     auto src_iter = CTX_IN_MEM(const char *, DNNL_ARG_SRC_ITER);
     auto src_iter_c = CTX_IN_MEM(const void *, DNNL_ARG_SRC_ITER_C);
     auto layer_weights_n_comp
@@ -1264,6 +1273,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     auto diff_src_iter = CTX_OUT_MEM(gemm_acc_t *, DNNL_ARG_DIFF_SRC_ITER);
     auto diff_src_iter_c = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC_ITER_C);
 
+    auto diff_augru_attention
+            = CTX_OUT_MEM(gemm_acc_t *, DNNL_ARG_DIFF_AUGRU_ATTENTION);
     auto diff_weights_layer
             = CTX_OUT_MEM(gemm_acc_t *, DNNL_ARG_DIFF_WEIGHTS_LAYER);
     auto diff_weights_iter
@@ -1321,16 +1332,18 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
 #endif
             rnn, ptr_wei_layer, ptr_wei_iter, ptr_wei_projection,
             weights_peephole, w_projection_comp, ptr_bias, src_layer,
-            (const src_iter_t *)src_iter, src_iter_c, (dst_layer_t *)dst_layer,
-            (dst_iter_t *)dst_iter, dst_iter_c, ws_states_layer, ws_states_iter,
-            ws_states_iter_c, ws_diff_states_layer, ws_diff_states_iter,
-            ws_diff_states_iter_c, ws_gates, ws_ht, ws_grid, scratch_gates,
-            scratch_ht, scratch_diff_ht, scratch_cell,
+            augru_attention, (const src_iter_t *)src_iter, src_iter_c,
+            (dst_layer_t *)dst_layer, (dst_iter_t *)dst_iter, dst_iter_c,
+            ws_states_layer, ws_states_iter, ws_states_iter_c,
+            ws_diff_states_layer, ws_diff_states_iter, ws_diff_states_iter_c,
+            ws_gates, ws_ht, ws_grid, scratch_gates, scratch_ht,
+            scratch_diff_ht, scratch_cell,
 #if DNNL_X64
             scratch_gates_blocked, scratch_src_layer, scratch_src_iter,
 #endif
-            diff_weights_layer, diff_weights_iter, diff_weights_projection,
-            diff_weights_peephole, diff_bias, amx_scratchpad
+            diff_augru_attention, diff_weights_layer, diff_weights_iter,
+            diff_weights_projection, diff_weights_peephole, diff_bias,
+            amx_scratchpad
 #if DNNL_X64
             ,
             addr_batch_global

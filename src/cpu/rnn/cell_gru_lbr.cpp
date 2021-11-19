@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,10 +50,10 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             src_iter_ld, 0.0, scratch_cell_, rnn.ws_gates_ld));
 
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            dst_layer_, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
-            diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-            nullptr, nullptr, bias_[0], ws_grid_, scratch_cell_, dst_iter_,
-            nullptr, 0);
+            augru_attention_, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_,
+            diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_, nullptr, nullptr,
+            bias_[0], ws_grid_, scratch_cell_, dst_iter_, nullptr, 0);
 
     return dnnl_success;
 }
@@ -79,8 +79,9 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
         T3 gemm_weights_layer_f, T4 gemm_weights_iter_f, T5 rnn_postgemm,
         const rnn_utils::rnn_conf_t &rnn, cell_position_t cell_position,
         src_data_t *dst_layer_, acc_data_t *diff_src_layer_,
-        acc_data_t *diff_src_iter_, weights_data_t **w_layer_,
-        weights_data_t **w_iter_, void **bias_, const src_data_t *src_layer_,
+        acc_data_t *diff_augru_attention_, acc_data_t *diff_src_iter_,
+        weights_data_t **w_layer_, weights_data_t **w_iter_, void **bias_,
+        const src_data_t *src_layer_, const src_data_t *augru_attention_,
         const src_data_t *src_iter_, acc_data_t *diff_dst_layer_,
         acc_data_t *diff_dst_iter_, acc_data_t *diff_w_layer_,
         acc_data_t *diff_w_iter_, acc_data_t *diff_bias_, src_data_t *ws_gates_,
@@ -92,9 +93,10 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     const ws_gates_aoc<scratch_data_t> scratch_gates_r(rnn, scratch_cell_);
 
     rnn_postgemm->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            dst_layer_, nullptr, src_iter_, nullptr, nullptr, diff_src_iter_,
-            nullptr, diff_dst_layer_, diff_dst_iter_, nullptr, nullptr,
-            bias_[0], ws_grid_, scratch_cell_, dst_iter_, nullptr, 0);
+            augru_attention_, dst_layer_, nullptr, src_iter_, nullptr, nullptr,
+            diff_augru_attention_, diff_src_iter_, nullptr, diff_dst_layer_,
+            diff_dst_iter_, nullptr, nullptr, bias_[0], ws_grid_, scratch_cell_,
+            dst_iter_, nullptr, 0);
 
     // dWx +=  dG^t * x
     if (rnn.need_gemm_layer(cell_position))
@@ -153,10 +155,11 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
 
     common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_weights_layer,
             gemm_weights_iter, rnn_postgemm_, rnn, cell_position, dst_layer_,
-            diff_src_layer_, diff_src_iter_, w_layer_, w_iter_, bias_,
-            src_layer_, src_iter_, diff_dst_layer_, diff_dst_iter_,
-            diff_w_layer_, diff_w_iter_, diff_bias_, ws_gates_, ws_grid_,
-            scratch_gates_, scratch_cell_, dst_iter_);
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_, w_layer_,
+            w_iter_, bias_, src_layer_, augru_attention_, src_iter_,
+            diff_dst_layer_, diff_dst_iter_, diff_w_layer_, diff_w_iter_,
+            diff_bias_, ws_gates_, ws_grid_, scratch_gates_, scratch_cell_,
+            dst_iter_);
 
     return dnnl_success;
 }
@@ -189,10 +192,11 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr) {
 
     common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_weights_layer,
             gemm_weights_iter, rnn_postgemm_, rnn, cell_position, dst_layer_,
-            diff_src_layer_, diff_src_iter_, w_layer_, w_iter_, bias_,
-            src_layer_, src_iter_, diff_dst_layer_, diff_dst_iter_,
-            diff_w_layer_, diff_w_iter_, diff_bias_, ws_gates_, ws_grid_,
-            scratch_gates_, scratch_cell_, dst_iter_);
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_, w_layer_,
+            w_iter_, bias_, src_layer_, augru_attention_, src_iter_,
+            diff_dst_layer_, diff_dst_iter_, diff_w_layer_, diff_w_iter_,
+            diff_bias_, ws_gates_, ws_grid_, scratch_gates_, scratch_cell_,
+            dst_iter_);
     return dnnl_success;
 }
 

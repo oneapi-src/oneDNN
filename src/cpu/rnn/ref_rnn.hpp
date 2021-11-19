@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -128,7 +128,8 @@ struct _ref_rnn_common_t : public primitive_t {
             bool ok = true
                     && one_of(cell_kind, alg_kind::vanilla_rnn,
                             alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
-                            alg_kind::lbr_gru)
+                            alg_kind::lbr_gru, alg_kind::vanilla_augru,
+                            alg_kind::lbr_augru)
                     && IMPLICATION(aprop == prop_kind::forward,
                             one_of(this->desc()->prop_kind, forward_training,
                                     forward_inference))
@@ -439,7 +440,10 @@ struct _ref_rnn_common_t : public primitive_t {
             }
 
             const int max_nparts
-                    = this->cell_kind() == alg_kind::vanilla_gru ? 2 : 1;
+                    = utils::one_of(this->cell_kind(), alg_kind::vanilla_gru,
+                              alg_kind::vanilla_augru)
+                    ? 2
+                    : 1;
             const int ptr_wei_sz = rnn_.n_layer * rnn_.n_dir * max_nparts;
             scratchpad.template book<float *>(
                     key_rnn_ptrs_wei_layer, ptr_wei_sz);
@@ -518,8 +522,10 @@ struct _ref_rnn_common_t : public primitive_t {
                         : &class_name::cell_execution_ref;
                 break;
             case alg_kind::vanilla_gru:
+            case alg_kind::vanilla_augru:
                 cell_func = &class_name::cell_execution_gru;
                 break;
+            case alg_kind::lbr_augru:
             case alg_kind::lbr_gru:
                 cell_func = &class_name::cell_execution_gru_lbr;
                 break;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,8 +41,9 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
         T4 src_to_float, T5 reinterpret_as_acc, const float *scales,
         const rnn_utils::rnn_conf_t &rnn,
         rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
-        scratch_data_t *scratch_gates_, src_data_t *dst_layer_,
-        src_data_t *dst_iter_, const src_data_t *src_iter_, const void *bias_) {
+        scratch_data_t *scratch_gates_, const src_data_t *augru_attention_,
+        src_data_t *dst_layer_, src_data_t *dst_iter_,
+        const src_data_t *src_iter_, const void *bias_) {
     const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     const auto bias_aoc = rnn_utils::make_raw_aoc(
@@ -92,8 +93,9 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
         T4 src_to_float, T5 reinterpret_as_float, const float *scales,
         const rnn_utils::rnn_conf_t &rnn,
         rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
-        scratch_data_t *scratch_gates_, src_data_t *dst_layer_,
-        src_data_t *dst_iter_, const src_data_t *src_iter_, const void *bias_) {
+        scratch_data_t *scratch_gates_, const src_data_t *augru_attention_,
+        src_data_t *dst_layer_, src_data_t *dst_iter_,
+        const src_data_t *src_iter_, const void *bias_) {
     const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     const auto bias_aoc = rnn_utils::make_raw_aoc(
@@ -105,6 +107,8 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
     const auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
     const auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
     const auto src_iter_ld = rnn.src_iter_ld(cell_position);
+    const augru_attention_aoc<const src_data_t> augru_attention(
+            rnn, augru_attention_);
     const ws_states_layer_aoc<src_data_t> dst_layer(
             rnn, dst_layer_, dst_layer_ld);
     const ws_states_iter_aoc<src_data_t> dst_iter(rnn, dst_iter_, dst_iter_ld);
@@ -114,11 +118,16 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
     parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
-            const auto G0 = reinterpret_as_float(scratch_gates(i, 0, j));
+            auto G0 = reinterpret_as_float(scratch_gates(i, 0, j));
             const auto G2 // default func1 is tanh
                     = func1(scales + 2,
                             acc_to_float(scratch_gates(i, 2, j), 2, j)
                                     + bias(2, j));
+
+            if (rnn.is_augru) {
+                const auto a = reinterpret_as_float(augru_attention(i, j));
+                G0 = 1 - a * G0;
+            }
 
             const auto tmp = to_src(
                     src_to_float(src_iter(i, j)) * G0 + (1.0f - G0) * G2);
@@ -144,12 +153,12 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part1_postgemm) {
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_fwd_part1_postgemm_template(logistic_f, id, deq_id, id, id, scales,
-                rnn, cell_position, ws_gates_, scratch_gates_, dst_layer_,
-                dst_iter_, src_iter_, bias_);
+                rnn, cell_position, ws_gates_, scratch_gates_, augru_attention_,
+                dst_layer_, dst_iter_, src_iter_, bias_);
     else
         gru_fwd_part1_postgemm_template(linear_f, id, deq_id, id, id, scales,
-                rnn, cell_position, ws_gates_, scratch_gates_, dst_layer_,
-                dst_iter_, src_iter_, bias_);
+                rnn, cell_position, ws_gates_, scratch_gates_, augru_attention_,
+                dst_layer_, dst_iter_, src_iter_, bias_);
 }
 
 template <>
@@ -165,12 +174,12 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part2_postgemm) {
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_fwd_part2_postgemm_template(tanh_f, id, deq_id, id, id, scales, rnn,
-                cell_position, ws_gates_, scratch_gates_, dst_layer_, dst_iter_,
-                src_iter_, bias_);
+                cell_position, ws_gates_, scratch_gates_, augru_attention_,
+                dst_layer_, dst_iter_, src_iter_, bias_);
     else
         gru_fwd_part2_postgemm_template(linear_f, id, deq_id, id, id, scales,
-                rnn, cell_position, ws_gates_, scratch_gates_, dst_layer_,
-                dst_iter_, src_iter_, bias_);
+                rnn, cell_position, ws_gates_, scratch_gates_, augru_attention_,
+                dst_layer_, dst_iter_, src_iter_, bias_);
 }
 
 template <>
@@ -190,11 +199,13 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part1_postgemm) {
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_fwd_part1_postgemm_template(logistic_f, dn_cvt_f32_bf16, deq_id,
                 up_cvt_bf16_f32, id, scales, rnn, cell_position, ws_gates_,
-                scratch_gates_, dst_layer_, dst_iter_, src_iter_, bias_);
+                scratch_gates_, augru_attention_, dst_layer_, dst_iter_,
+                src_iter_, bias_);
     else
         gru_fwd_part1_postgemm_template(linear_f, dn_cvt_f32_bf16, deq_id,
                 up_cvt_bf16_f32, id, scales, rnn, cell_position, ws_gates_,
-                scratch_gates_, dst_layer_, dst_iter_, src_iter_, bias_);
+                scratch_gates_, augru_attention_, dst_layer_, dst_iter_,
+                src_iter_, bias_);
 }
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part2_postgemm) {
@@ -212,11 +223,13 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part2_postgemm) {
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_fwd_part2_postgemm_template(tanh_f, dn_cvt_f32_bf16, deq_id,
                 up_cvt_bf16_f32, id, scales, rnn, cell_position, ws_gates_,
-                scratch_gates_, dst_layer_, dst_iter_, src_iter_, bias_);
+                scratch_gates_, augru_attention_, dst_layer_, dst_iter_,
+                src_iter_, bias_);
     else
         gru_fwd_part2_postgemm_template(linear_f, dn_cvt_f32_bf16, deq_id,
                 up_cvt_bf16_f32, id, scales, rnn, cell_position, ws_gates_,
-                scratch_gates_, dst_layer_, dst_iter_, src_iter_, bias_);
+                scratch_gates_, augru_attention_, dst_layer_, dst_iter_,
+                src_iter_, bias_);
 }
 
 template <>
@@ -257,12 +270,12 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part1_postgemm) {
         gru_fwd_part1_postgemm_template(logistic_f, quantize_f32_u8,
                 dequantize_s32_f32, dequantize_u8_f32, reinterpret_f32_s32,
                 scales, rnn, cell_position, ws_gates_, scratch_gates_,
-                dst_layer_, dst_iter_, src_iter_, bias_);
+                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_);
     else
         gru_fwd_part1_postgemm_template(linear_f, quantize_f32_u8,
                 dequantize_s32_f32, dequantize_u8_f32, reinterpret_f32_s32,
                 scales, rnn, cell_position, ws_gates_, scratch_gates_,
-                dst_layer_, dst_iter_, src_iter_, bias_);
+                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_);
 }
 
 template <>
@@ -302,12 +315,12 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part2_postgemm) {
         gru_fwd_part2_postgemm_template(tanh_f, quantize_f32_u8,
                 dequantize_s32_f32, dequantize_u8_f32, reinterpret_s32_f32,
                 scales, rnn, cell_position, ws_gates_, scratch_gates_,
-                dst_layer_, dst_iter_, src_iter_, bias_);
+                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_);
     else
         gru_fwd_part2_postgemm_template(linear_f, quantize_f32_u8,
                 dequantize_s32_f32, dequantize_u8_f32, reinterpret_s32_f32,
                 scales, rnn, cell_position, ws_gates_, scratch_gates_,
-                dst_layer_, dst_iter_, src_iter_, bias_);
+                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_);
 }
 
 template <>
@@ -324,10 +337,16 @@ template <typename T, typename src_data_t, typename acc_data_t,
         typename scratch_data_t>
 void gru_bwd_part1_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
         cell_position_t cell_position, src_data_t *ws_gates_,
-        scratch_data_t *scratch_gates_, src_data_t *dst_layer_,
-        const src_data_t *src_iter_, acc_data_t *diff_src_iter_,
-        acc_data_t *diff_dst_iter_, acc_data_t *diff_dst_layer_) {
+        scratch_data_t *scratch_gates_, const src_data_t *augru_attention_,
+        src_data_t *dst_layer_, const src_data_t *src_iter_,
+        acc_data_t *diff_src_iter_, acc_data_t *diff_dst_iter_,
+        acc_data_t *diff_augru_attention_, acc_data_t *diff_dst_layer_) {
     const auto src_iter_ld = rnn.src_iter_ld(cell_position);
+
+    const augru_attention_aoc<const src_data_t> augru_attention(
+            rnn, augru_attention_);
+    const augru_attention_aoc<acc_data_t> diff_augru_attention(
+            rnn, diff_augru_attention_);
 
     const ws_states_iter_aoc<const src_data_t> src_iter(
             rnn, src_iter_, src_iter_ld);
@@ -350,8 +369,13 @@ void gru_bwd_part1_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
             const float dHt = diff_dst_iter(i, j) + diff_dst_layer(i, j);
             const float dG2 = (1.0f - ws_gates(i, 0, j)) * dHt
                     * one_m_square(ws_gates(i, 2, j));
-            const float dG0 = (h - ws_gates(i, 2, j)) * dHt
+            float dG0 = (h - ws_gates(i, 2, j)) * dHt
                     * x_m_square(ws_gates(i, 0, j));
+
+            if (rnn.is_augru) {
+                diff_augru_attention(i, j) = dG0 * ws_gates(i, 0, j);
+                dG0 *= augru_attention(i, j);
+            }
 
             diff_src_iter(i, j) = dHt * ws_gates(i, 0, j);
             scratch_gates(i, 0, j) = to_src(dG0);
@@ -406,8 +430,9 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_part1_postgemm) {
     const auto to_src = [](float a) { return a; };
 
     gru_bwd_part1_postgemm_template(to_src, rnn, cell_position, ws_gates_,
-            scratch_gates_, dst_layer_, src_iter_, diff_src_iter_,
-            diff_dst_iter_, diff_dst_layer_);
+            scratch_gates_, augru_attention_, dst_layer_, src_iter_,
+            diff_src_iter_, diff_dst_iter_, diff_augru_attention_,
+            diff_dst_layer_);
 }
 
 template <>
@@ -424,8 +449,9 @@ rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_part1_postgemm) {
     const auto to_src = [](float a) { return bfloat16_t(a); };
 
     gru_bwd_part1_postgemm_template(to_src, rnn, cell_position, ws_gates_,
-            scratch_gates_, dst_layer_, src_iter_, diff_src_iter_,
-            diff_dst_iter_, diff_dst_layer_);
+            scratch_gates_, augru_attention_, dst_layer_, src_iter_,
+            diff_src_iter_, diff_dst_iter_, diff_augru_attention_,
+            diff_dst_layer_);
 }
 
 template <>

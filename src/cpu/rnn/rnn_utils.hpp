@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,9 +36,10 @@
 #define rnn_postgemm_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, gates_t *ws_gates_, \
-            scratch_t *scratch_gates_, dst_layer_t *dst_layer_, \
-            void *dst_iter_c_, const src_iter_t *src_iter_, \
-            const void *src_iter_c_, gemm_acc_t *diff_src_layer_, \
+            scratch_t *scratch_gates_, const dst_layer_t *augru_attention_, \
+            dst_layer_t *dst_layer_, void *dst_iter_c_, \
+            const src_iter_t *src_iter_, const void *src_iter_c_, \
+            gemm_acc_t *diff_src_layer_, gemm_acc_t *diff_augru_attention_, \
             gemm_acc_t *diff_src_iter_, gemm_acc_t *diff_src_iter_c_, \
             gemm_acc_t *diff_dst_layer_, gemm_acc_t *diff_dst_iter_, \
             gemm_acc_t *diff_dst_iter_c_, const float *weights_peephole_, \
@@ -51,11 +52,12 @@
     dnnl_status_t f(const exec_ctx_t &ctx, const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, dst_layer_t *dst_layer_, \
             void *dst_iter_c_, gemm_acc_t *diff_src_layer_, \
-            gemm_acc_t *diff_src_iter_, gemm_acc_t *diff_src_iter_c_, \
-            weights_t **w_layer_, weights_t **w_iter_, \
-            weights_t **w_projection_, const float *weights_peephole_, \
-            const float *w_proj_comp, void **bias_, \
-            const src_layer_t *src_layer_, const src_iter_t *src_iter_, \
+            gemm_acc_t *diff_augru_attention_, gemm_acc_t *diff_src_iter_, \
+            gemm_acc_t *diff_src_iter_c_, weights_t **w_layer_, \
+            weights_t **w_iter_, weights_t **w_projection_, \
+            const float *weights_peephole_, const float *w_proj_comp, \
+            void **bias_, const src_layer_t *src_layer_, \
+            const src_layer_t *augru_attention_, const src_iter_t *src_iter_, \
             const void *src_iter_c_, gemm_acc_t *diff_dst_layer_, \
             gemm_acc_t *diff_dst_iter_, gemm_acc_t *diff_dst_iter_c_, \
             gemm_acc_t *diff_w_layer_, gemm_acc_t *diff_w_iter_, \
@@ -72,7 +74,8 @@
             weights_t **weights_layer_, weights_t **weights_iter_, \
             weights_t **weights_projection_, const float *weights_peephole_, \
             const float *w_proj_comp, void **bias_, \
-            const src_layer_t *src_layer_, const src_iter_t *src_iter_, \
+            const src_layer_t *src_layer_, \
+            const src_layer_t *augru_attention_, const src_iter_t *src_iter_, \
             const void *src_iter_c_, dst_layer_t *dst_layer_, \
             dst_iter_t *dst_iter_, void *dst_iter_c_, \
             src_layer_t *ws_states_layer_, src_iter_t *ws_states_iter_, \
@@ -83,6 +86,7 @@
             ht_t *scratch_ht_, gemm_acc_t *scratch_diff_ht_, \
             scratch_t *scratch_cell_, scratch_t *scratch_gates_blocked_, \
             scratch_t *scratch_src_layer_, scratch_t *scratch_src_iter_, \
+            gemm_acc_t *diff_augru_attention_, \
             gemm_acc_t *diff_weights_layer_, gemm_acc_t *diff_weights_iter_, \
             float *diff_weights_projection_, float *diff_weights_peephole_, \
             float *diff_bias_, gemm_acc_t *amx_scratchpad, \
@@ -92,11 +96,12 @@
     dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, dst_layer_t *dst_layer_, \
             void *dst_iter_c_, gemm_acc_t *diff_src_layer_, \
-            gemm_acc_t *diff_src_iter_, gemm_acc_t *diff_src_iter_c_, \
-            weights_t **w_layer_, weights_t **w_iter_, \
-            weights_t **w_projection_, const float *weights_peephole_, \
-            const float *w_proj_comp, void **bias_, \
-            const src_layer_t *src_layer_, const src_iter_t *src_iter_, \
+            gemm_acc_t *diff_augru_attention_, gemm_acc_t *diff_src_iter_, \
+            gemm_acc_t *diff_src_iter_c_, weights_t **w_layer_, \
+            weights_t **w_iter_, weights_t **w_projection_, \
+            const float *weights_peephole_, const float *w_proj_comp, \
+            void **bias_, const src_layer_t *src_layer_, \
+            const src_layer_t *augru_attention_, const src_iter_t *src_iter_, \
             const void *src_iter_c_, gemm_acc_t *diff_dst_layer_, \
             gemm_acc_t *diff_dst_iter_, gemm_acc_t *diff_dst_iter_c_, \
             gemm_acc_t *diff_w_layer_, gemm_acc_t *diff_w_iter_, \
@@ -111,7 +116,8 @@
             weights_t **weights_layer_, weights_t **weights_iter_, \
             weights_t **weights_projection_, const float *weights_peephole_, \
             const float *w_proj_comp, void **bias_, \
-            const src_layer_t *src_layer_, const src_iter_t *src_iter_, \
+            const src_layer_t *src_layer_, \
+            const src_layer_t *augru_attention_, const src_iter_t *src_iter_, \
             const void *src_iter_c_, dst_layer_t *dst_layer_, \
             dst_iter_t *dst_iter_, void *dst_iter_c_, \
             src_layer_t *ws_states_layer_, src_iter_t *ws_states_iter_, \
@@ -120,10 +126,10 @@
             gemm_acc_t *ws_diff_states_iter_c_, gates_t *ws_gates_, \
             ht_t *ws_ht_, gates_t *ws_grid_, scratch_t *scratch_gates_, \
             ht_t *scratch_ht_, gemm_acc_t *scratch_diff_ht_, \
-            scratch_t *scratch_cell_, gemm_acc_t *diff_weights_layer_, \
-            gemm_acc_t *diff_weights_iter_, float *diff_weights_projection_, \
-            float *diff_weights_peephole_, float *diff_bias_, \
-            gemm_acc_t *amx_scratchpad) const
+            scratch_t *scratch_cell_, gemm_acc_t *diff_augru_attention_, \
+            gemm_acc_t *diff_weights_layer_, gemm_acc_t *diff_weights_iter_, \
+            float *diff_weights_projection_, float *diff_weights_peephole_, \
+            float *diff_bias_, gemm_acc_t *amx_scratchpad) const
 #endif
 
 #define rnn_gemm_sig(f) \
@@ -303,7 +309,7 @@ struct rnn_conf_t {
 
     int weights_iter_compensation_size = 0, weights_layer_compensation_size = 0;
     bool is_fwd = 0, is_training = 0, is_lbr = 0, is_lstm_peephole = 0,
-         is_lstm_projection = 0;
+         is_lstm_projection = 0, is_augru = 0;
     bool use_workspace = 0;
 
     // Size of workspace for each tensor in bytes
@@ -541,11 +547,13 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             prop_kind::forward_inference);
     rnn.is_training = utils::one_of(
             rd.prop_kind, prop_kind::forward_training, prop_kind::backward);
-    rnn.is_lbr = rd.cell_kind == dnnl_lbr_gru;
+    rnn.is_lbr = utils::one_of(rd.cell_kind, dnnl_lbr_gru, dnnl_lbr_augru);
     rnn.is_lstm_peephole = rd.cell_kind == dnnl_vanilla_lstm
             && !memory_desc_wrapper(rd.weights_peephole_desc).is_zero();
     rnn.is_lstm_projection = rd.cell_kind == dnnl_vanilla_lstm
             && !memory_desc_wrapper(rd.weights_projection_desc).is_zero();
+    rnn.is_augru
+            = utils::one_of(rd.cell_kind, dnnl_lbr_augru, dnnl_vanilla_augru);
     rnn.bias_dt = bias_d.is_zero() ? data_type::f32 : bias_d.data_type();
     rnn.src_iter_c_dt = src_iter_c_d.is_zero() ? data_type::f32
                                                : src_iter_c_d.data_type();
@@ -690,7 +698,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             : dst_iter_c_d.blocking_desc().strides[2];
 
     /* Set the correct number of weights parts */
-    const bool is_orig_gru = rd.cell_kind == alg_kind::vanilla_gru;
+    const bool is_orig_gru = utils::one_of(
+            rd.cell_kind, alg_kind::vanilla_gru, alg_kind::vanilla_augru);
     rnn.n_parts_weights_layer = 1;
     rnn.parts_weights_layer[0] = rnn.n_gates;
     rnn.parts_weights_layer[1] = 0;
@@ -710,8 +719,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
      * and if to mergre gemm across iterations */
     const bool is_f32 = rnn.dt_conf == all_f32,
                is_bf16 = rnn.dt_conf == all_bf16;
-    const bool is_gru = utils::one_of(
-            rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
+    const bool is_gru = utils::one_of(rd.cell_kind, alg_kind::vanilla_gru,
+            alg_kind::lbr_gru, alg_kind::vanilla_augru, alg_kind::lbr_augru);
     const bool is_inference = !rnn.is_training;
 
     // To be able to merge the GEMM on the layer input when not
@@ -986,7 +995,8 @@ void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.scratch_cell_size = rnn.is_lbr
             ? (size_t)rnn.scratch_gates_nld * rnn.scratch_gates_ld
                     * sizeof(typename T::gemm_acc_t)
-            : (rd.cell_kind == alg_kind::vanilla_gru
+            : (utils::one_of(rd.cell_kind, alg_kind::vanilla_gru,
+                       alg_kind::vanilla_augru)
                             ? (size_t)rnn.ws_states_layer_nld
                                     * rnn.ws_states_layer_ld
                                     * sizeof(typename T::gemm_acc_t)
@@ -1198,6 +1208,16 @@ struct ws_states_iter_aoc {
     ws_states_iter_aoc(const rnn_conf_t &rnn, T *data)
         : state_(data, rnn.ws_states_iter_nld, rnn.ws_states_iter_ld) {}
     T &operator()(int batch, int dhc) const { return state_(batch, dhc); }
+
+private:
+    const dnnl::impl::utils::array_offset_calculator<T, 2> state_;
+};
+
+template <typename T>
+struct augru_attention_aoc {
+    augru_attention_aoc(const rnn_conf_t &rnn, T *data)
+        : state_(data, rnn.mb, 1) {}
+    T &operator()(int batch, int dhc) const { return state_(batch, 0); }
 
 private:
     const dnnl::impl::utils::array_offset_calculator<T, 2> state_;

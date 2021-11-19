@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,8 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                     = inc_ptr(src_iter_c_, rnn.src_iter_c_dt, m * LDAic + n);
             const auto bias_n = inc_ptr(bias_[0], rnn.bias_dt, n);
             rnn_postgemm_->execute(rnn, cell_position, curr_ws_gates_, C_n,
-                    Dpg_n, Dic_n, Ai_m, Aic_n, diff_src_layer_, diff_src_iter_,
+                    augru_attention_, Dpg_n, Dic_n, Ai_m, Aic_n,
+                    diff_src_layer_, diff_augru_attention_, diff_src_iter_,
                     diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
                     diff_dst_iter_c_, weights_peephole_n, bias_n, ws_grid_,
                     scratch_cell_, Di_n, weights_scales_n, block_step);
@@ -103,11 +104,11 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         const auto wscales_postgemm = pd_->attr()->rnn_weights_qparams_.scales_;
 
         rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-                dst_postgemm, dst_iter_c_, src_iter_, src_iter_c_,
-                diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
-                diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                weights_peephole_, bias_[0], ws_grid_, scratch_cell_,
-                dst_iter_postgemm, wscales_postgemm,
+                augru_attention_, dst_postgemm, dst_iter_c_, src_iter_,
+                src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_[0],
+                ws_grid_, scratch_cell_, dst_iter_postgemm, wscales_postgemm,
                 rnn.dhc * sizeof(scratch_t));
     }
 
@@ -137,9 +138,10 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         : nullptr;
                 const auto Wp_comp_n = w_proj_comp + n;
                 rnn_postgemm_->execute_part2(rnn, cell_position, nullptr, Cp_n,
-                        Dl_n, nullptr, nullptr, Wp_comp_n, nullptr, nullptr,
+                        nullptr, Dl_n, nullptr, nullptr, Wp_comp_n, nullptr,
                         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                        nullptr, nullptr, Di_n, weights_scales_n, block_step);
+                        nullptr, nullptr, nullptr, nullptr, Di_n,
+                        weights_scales_n, block_step);
             };
         }
 
@@ -154,10 +156,10 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             // we have to downconvert the output to dst_layer_t and copy to
             // dst_iter if needed
             rnn_postgemm_->execute_part2(rnn, cell_position, nullptr, Cp,
-                    dst_layer_, nullptr, nullptr, w_proj_comp, nullptr, nullptr,
+                    nullptr, dst_layer_, nullptr, nullptr, w_proj_comp, nullptr,
                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                    nullptr, nullptr, dst_iter_, wscales_proj_postgemm,
-                    rnn.dlc * sizeof(dst_layer_t));
+                    nullptr, nullptr, nullptr, nullptr, dst_iter_,
+                    wscales_proj_postgemm, rnn.dlc * sizeof(dst_layer_t));
         }
     }
 
@@ -188,10 +190,11 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
 #if DNNL_X64
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            dst_layer_, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
-            diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-            diff_dst_iter_c_, weights_peephole_, bias_[0], ws_grid_,
-            scratch_cell_, dst_iter_, nullptr, 0);
+            augru_attention_, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_,
+            diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+            weights_peephole_, bias_[0], ws_grid_, scratch_cell_, dst_iter_,
+            nullptr, 0);
 
     using brgemm_diff_src_calc_t = x64::brgemm_diff_src_layer_iter_t<weights_t,
             scratch_t, gemm_acc_t>;

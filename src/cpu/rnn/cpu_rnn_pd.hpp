@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,6 +41,11 @@ protected:
             CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
         if (dst_layer_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(dst_layer_md_, tnc));
+
+        if (is_augru()) {
+            if (augru_attention_md().format_kind == format_kind::any)
+                CHECK(memory_desc_init_by_tag(augru_attention_md(), tnc));
+        }
 
         // Optional parameters
         if (with_src_iter() && src_iter_md_.format_kind == format_kind::any)
@@ -152,6 +157,13 @@ protected:
         if (dst_layer_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(dst_layer_md_, tnc));
 
+        if (is_augru()) {
+            if (augru_attention_md().format_kind == format_kind::any)
+                CHECK(memory_desc_init_by_tag(augru_attention_md(), tnc));
+            if (diff_augru_attention_md().format_kind == format_kind::any)
+                CHECK(memory_desc_init_by_tag(diff_augru_attention_md(), tnc));
+        }
+
         if (diff_src_layer_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(diff_src_layer_md_, tnc));
         if (diff_weights_layer_md_.format_kind == format_kind::any) {
@@ -247,6 +259,9 @@ protected:
         ok = check_weights_consistency(weights_iter_md_);
 
         ok = ok
+                && IMPLICATION(is_augru(),
+                        memory_desc_matches_tag(augru_attention_md(), tnc));
+        ok = ok
                 && IMPLICATION(is_lstm_peephole(),
                         memory_desc_matches_tag(weights_peephole_md_, ldgo));
         ok = ok
@@ -268,10 +283,15 @@ protected:
                 && IMPLICATION(!is_zero_md(&diff_dst_iter_c_md_),
                         is_blocked(diff_dst_iter_c_md_, 4, true));
 
+        ok = ok
+                && IMPLICATION(is_augru(),
+                        memory_desc_matches_tag(
+                                diff_augru_attention_md(), tnc));
         ok = ok && rnn_utils::is_ldigo(&diff_weights_layer_md_)
                 && rnn_utils::is_ldigo(&diff_weights_iter_md_);
         ok = ok
-                && IMPLICATION(!is_zero_md(&diff_weights_peephole_md_),
+                && IMPLICATION(is_lstm_peephole()
+                                && !is_zero_md(&diff_weights_peephole_md_),
                         memory_desc_matches_tag(
                                 diff_weights_peephole_md_, ldgo));
         ok = ok

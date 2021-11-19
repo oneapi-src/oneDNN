@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,9 +58,10 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     // 3. activation zt and rt + elemwise multiplication rt,ht-1
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
-            diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
-            nullptr, bias_[0], nullptr, nullptr, dst_iter_, nullptr, 0);
+            augru_attention_, dst_layer_, nullptr, src_iter_, nullptr,
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_, nullptr,
+            diff_dst_layer_, diff_dst_iter_, nullptr, nullptr, bias_[0],
+            nullptr, nullptr, dst_iter_, nullptr, 0);
 
     // 4. gemm Wh[2],h~t
     CHECK((this->*gemm_iter_func)('N', 'N', rnn.dhc, rnn.mb, rnn.sic, 1.0,
@@ -70,9 +71,10 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     // 5. activation h~t + calculate ht
     rnn_postgemm_->execute_part2(rnn, cell_position, ws_gates_, scratch_gates_,
-            dst_layer_, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
-            diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
-            nullptr, bias_[0], nullptr, nullptr, dst_iter_, nullptr, 0);
+            augru_attention_, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_, nullptr,
+            diff_dst_layer_, diff_dst_iter_, nullptr, nullptr, bias_[0],
+            nullptr, nullptr, dst_iter_, nullptr, 0);
 
     return dnnl_success;
 }
@@ -90,9 +92,10 @@ dnnl_status_t gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
         const rnn_utils::rnn_conf_t &rnn, cell_position_t cell_position,
         src_data_t *ws_gates_, scratch_data_t *scratch_gates_,
         src_data_t *dst_layer_, const src_data_t *src_iter_,
-        const src_data_t *src_layer_, weights_data_t **w_layer_,
-        weights_data_t **w_iter_, acc_data_t *diff_w_layer_,
-        acc_data_t *diff_w_iter_, acc_data_t *diff_src_layer_,
+        const src_data_t *src_layer_, const src_data_t *augru_attention_,
+        weights_data_t **w_layer_, weights_data_t **w_iter_,
+        acc_data_t *diff_w_layer_, acc_data_t *diff_w_iter_,
+        acc_data_t *diff_src_layer_, acc_data_t *diff_augru_attention_,
         acc_data_t *diff_src_iter_, acc_data_t *diff_dst_iter_,
         acc_data_t *diff_dst_layer_, acc_data_t *diff_bias_,
         scratch_data_t *scratch_cell_, src_data_t *dst_iter_) {
@@ -121,9 +124,10 @@ dnnl_status_t gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
 
     // 1. calculate dG2, dG1, and part of dht-1
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
-            diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
-            nullptr, nullptr, nullptr, scratch_cell_, dst_iter_, nullptr, 0);
+            augru_attention_, dst_layer_, nullptr, src_iter_, nullptr,
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_, nullptr,
+            diff_dst_layer_, diff_dst_iter_, nullptr, nullptr, nullptr, nullptr,
+            scratch_cell_, dst_iter_, nullptr, 0);
 
     // 2. calculate intermediate d(hG1)
     // d(hG1) = dG2 * W2h^t
@@ -132,9 +136,10 @@ dnnl_status_t gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
 
     // 3. calculate dG1^ and part of dht-1
     rnn_postgemm_->execute_part2(rnn, cell_position, ws_gates_, scratch_gates_,
-            dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
-            diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
-            nullptr, nullptr, nullptr, scratch_cell_, dst_iter_, nullptr, 0);
+            augru_attention_, dst_layer_, nullptr, src_iter_, nullptr,
+            diff_src_layer_, diff_augru_attention_, diff_src_iter_, nullptr,
+            diff_dst_layer_, diff_dst_iter_, nullptr, nullptr, nullptr, nullptr,
+            scratch_cell_, dst_iter_, nullptr, 0);
 
     // 4. calculate diff weights
     // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)
@@ -195,9 +200,10 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru) {
     return gru_bwd_cell_exec_template(gemm_layer_f, gemm_iter_f,
             gemm_weights_layer_f, gemm_weights_iter_f, this->rnn_postgemm_, rnn,
             cell_position, ws_gates_, scratch_gates_, dst_layer_, src_iter_,
-            src_layer_, w_layer_, w_iter_, diff_w_layer_, diff_w_iter_,
-            diff_src_layer_, diff_src_iter_, diff_dst_iter_, diff_dst_layer_,
-            diff_bias_, scratch_cell_, dst_iter_);
+            src_layer_, augru_attention_, w_layer_, w_iter_, diff_w_layer_,
+            diff_w_iter_, diff_src_layer_, diff_augru_attention_,
+            diff_src_iter_, diff_dst_iter_, diff_dst_layer_, diff_bias_,
+            scratch_cell_, dst_iter_);
 }
 
 template <>
@@ -231,9 +237,10 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru) {
     return gru_bwd_cell_exec_template(gemm_layer_f, gemm_iter_f,
             gemm_weights_layer_f, gemm_weights_iter_f, this->rnn_postgemm_, rnn,
             cell_position, ws_gates_, scratch_gates_, dst_layer_, src_iter_,
-            src_layer_, w_layer_, w_iter_, diff_w_layer_, diff_w_iter_,
-            diff_src_layer_, diff_src_iter_, diff_dst_iter_, diff_dst_layer_,
-            diff_bias_, scratch_cell_, dst_iter_);
+            src_layer_, augru_attention_, w_layer_, w_iter_, diff_w_layer_,
+            diff_w_iter_, diff_src_layer_, diff_augru_attention_,
+            diff_src_iter_, diff_dst_iter_, diff_dst_layer_, diff_bias_,
+            scratch_cell_, dst_iter_);
 }
 
 #undef AOC

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,18 +82,20 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     rnn_postgemm_sig(execute) {
         if (pd_->desc()->prop_kind == prop_kind::backward)
             execute_bwd(rnn, cell_position, ws_gates_, scratch_gates_,
-                    dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
-                    diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
-                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
-                    dst_iter_, weights_scales_, block_step);
+                    augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
+                    src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                    block_step);
         else
             execute_fwd(rnn, cell_position, ws_gates_, scratch_gates_,
-                    dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
-                    diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
-                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
-                    dst_iter_, weights_scales_, block_step);
+                    augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
+                    src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                    block_step);
     }
 
     template <typename dst_layer_t, typename dst_iter_t, typename src_iter_t,
@@ -103,17 +105,19 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         if (rnn.is_brgemm && !rnn_.unfused_post_gemm) {
             for (int i = 0; i < rnn.m_block; i++)
                 postgemm_fwd_call(i, rnn, cell_position, ws_gates_,
-                        scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
-                        src_iter_c_, weights_peephole_, bias_, ws_grid_,
-                        scratch_cell_, dst_iter_, weights_scales_, block_step);
+                        scratch_gates_, augru_attention_, dst_layer_,
+                        dst_iter_c_, src_iter_, src_iter_c_, weights_peephole_,
+                        bias_, ws_grid_, scratch_cell_, dst_iter_,
+                        weights_scales_, block_step);
         } else {
             // Todo: add parallelization on dhc for the batch 1 case
             // Assumption: the kernel runs a loop on dhc elements
             parallel_nd(rnn.mb, [&](dim_t i) {
                 postgemm_fwd_call(i, rnn, cell_position, ws_gates_,
-                        scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
-                        src_iter_c_, weights_peephole_, bias_, ws_grid_,
-                        scratch_cell_, dst_iter_, weights_scales_, 0);
+                        scratch_gates_, augru_attention_, dst_layer_,
+                        dst_iter_c_, src_iter_, src_iter_c_, weights_peephole_,
+                        bias_, ws_grid_, scratch_cell_, dst_iter_,
+                        weights_scales_, 0);
             });
         }
     }
@@ -122,12 +126,12 @@ struct jit_uni_rnn_postgemm : public jit_generator {
             typename gates_t, typename scratch_t>
     inline void postgemm_fwd_call(int m, const rnn_utils::rnn_conf_t &rnn,
             rnn_utils::cell_position_t cell_position, gates_t *ws_gates_,
-            scratch_t *scratch_gates_, dst_layer_t *dst_layer_,
-            void *dst_iter_c_, const src_iter_t *src_iter_,
-            const void *src_iter_c_, const float *weights_peephole_,
-            const void *bias_, gates_t *ws_grid_, scratch_t *scratch_cell_,
-            dst_iter_t *dst_iter_, float *weights_scales_,
-            int block_step) const {
+            scratch_t *scratch_gates_, const dst_layer_t *augru_attention_,
+            dst_layer_t *dst_layer_, void *dst_iter_c_,
+            const src_iter_t *src_iter_, const void *src_iter_c_,
+            const float *weights_peephole_, const void *bias_,
+            gates_t *ws_grid_, scratch_t *scratch_cell_, dst_iter_t *dst_iter_,
+            float *weights_scales_, int block_step) const {
         const rnn_utils::ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
         const rnn_utils::scratch_gates_aoc<scratch_t> scratch_gates(
                 rnn, scratch_gates_);

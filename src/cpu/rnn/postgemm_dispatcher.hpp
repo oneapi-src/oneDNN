@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,7 +72,8 @@ struct rnn_postgemm_dispatcher {
         if (pd->attr()->rnn_tparams_.test_mode_) {
             const auto ngates = utils::map(pd->cell_kind(), 0,
                     alg_kind::vanilla_rnn, 1, alg_kind::vanilla_lstm, 4,
-                    alg_kind::vanilla_gru, 3, alg_kind::lbr_gru, 3);
+                    alg_kind::vanilla_gru, 3, alg_kind::lbr_gru, 3,
+                    alg_kind::vanilla_augru, 3, alg_kind::lbr_augru, 3);
             assert(pd->attr()->rnn_tparams_.ngates_ == ngates);
             MAYBE_UNUSED(ngates);
         }
@@ -105,10 +106,12 @@ struct rnn_postgemm_dispatcher {
                 }
                 break;
             case alg_kind::vanilla_gru:
+            case alg_kind::vanilla_augru:
                 postgemm_func = &class_name::gru_part1_postgemm;
                 postgemm_part2_func = &class_name::gru_part2_postgemm;
                 break;
             case alg_kind::lbr_gru:
+            case alg_kind::lbr_augru:
                 postgemm_func = &class_name::gru_lbr_postgemm;
                 break;
             default: assert(!"Unsupported algorithm kind"); break;
@@ -140,6 +143,9 @@ struct rnn_postgemm_dispatcher {
                     sizeof(*diff_src_layer_) * (rnn.n_iter + 1)
                             * rnn.ws_diff_states_layer_nld
                             * rnn.ws_diff_states_layer_ld);
+            msan_unpoison(diff_augru_attention_,
+                    sizeof(*diff_augru_attention_) * rnn.n_iter * rnn.mb
+                            * rnn.dhc);
             msan_unpoison(diff_src_iter_,
                     sizeof(*diff_src_iter_) * (rnn.n_iter + 1)
                             * rnn.ws_diff_states_iter_nld
@@ -160,26 +166,37 @@ struct rnn_postgemm_dispatcher {
 #if DNNL_X64
         if (rnn_postgemm_) {
             rnn_postgemm_->execute(rnn, cell_position, ws_gates_,
-                    scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
-                    src_iter_c_, diff_src_layer_, diff_src_iter_,
-                    diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-                    diff_dst_iter_c_, weights_peephole_, bias_, ws_grid_,
-                    scratch_cell_, dst_iter_, weights_scales_, block_step);
-            unpoison(rnn, cell_position, ws_gates_, scratch_gates_, dst_layer_,
-                    dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
-                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
-                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
-                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
-                    block_step);
-            return;
+                    scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
+                    src_iter_, src_iter_c_, diff_src_layer_,
+                    diff_augru_attention_, diff_src_iter_, diff_src_iter_c_,
+                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
+                    dst_iter_, weights_scales_, block_step);
+        } else {
+            (this->*postgemm_func)(rnn, cell_position, ws_gates_,
+                    scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
+                    src_iter_, src_iter_c_, diff_src_layer_,
+                    diff_augru_attention_, diff_src_iter_, diff_src_iter_c_,
+                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
+                    dst_iter_, weights_scales_, block_step);
         }
+        unpoison(rnn, cell_position, ws_gates_, scratch_gates_,
+                augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
+                src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                block_step);
+        return;
 #endif
         (this->*postgemm_func)(rnn, cell_position, ws_gates_, scratch_gates_,
-                dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
-                diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
-                diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                weights_peephole_, bias_, ws_grid_, scratch_cell_, dst_iter_,
-                weights_scales_, block_step);
+                augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
+                src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                block_step);
     }
 
     // template <typename src_data_t, typename acc_data_t>
@@ -187,26 +204,37 @@ struct rnn_postgemm_dispatcher {
 #if DNNL_X64
         if (rnn_postgemm_part2_) {
             rnn_postgemm_part2_->execute(rnn, cell_position, ws_gates_,
-                    scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
-                    src_iter_c_, diff_src_layer_, diff_src_iter_,
-                    diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-                    diff_dst_iter_c_, weights_peephole_, bias_, ws_grid_,
-                    scratch_cell_, dst_iter_, weights_scales_, block_step);
-            unpoison(rnn, cell_position, ws_gates_, scratch_gates_, dst_layer_,
-                    dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
-                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
-                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
-                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
-                    block_step);
-            return;
+                    scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
+                    src_iter_, src_iter_c_, diff_src_layer_,
+                    diff_augru_attention_, diff_src_iter_, diff_src_iter_c_,
+                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
+                    dst_iter_, weights_scales_, block_step);
+        } else {
+            (this->*postgemm_part2_func)(rnn, cell_position, ws_gates_,
+                    scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
+                    src_iter_, src_iter_c_, diff_src_layer_,
+                    diff_augru_attention_, diff_src_iter_, diff_src_iter_c_,
+                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
+                    dst_iter_, weights_scales_, block_step);
         }
+        unpoison(rnn, cell_position, ws_gates_, scratch_gates_,
+                augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
+                src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                block_step);
+        return;
 #endif
         (this->*postgemm_part2_func)(rnn, cell_position, ws_gates_,
-                scratch_gates_, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
-                diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
-                diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                weights_peephole_, bias_, ws_grid_, scratch_cell_, dst_iter_,
-                weights_scales_, block_step);
+                scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
+                src_iter_, src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                block_step);
     }
 
 private:
@@ -264,8 +292,7 @@ private:
             CREATE(rnn_postgemm_part2_, jit_uni_gru_cell_postgemm_part2);
         } else if (pd_->cell_kind() == alg_kind::lbr_gru) {
             CREATE(rnn_postgemm_, jit_uni_gru_lbr_cell_postgemm);
-        } else
-            assert(!"Unsupported algorithm kind");
+        }
 
 #undef CREATE
 #undef CREATE_WITH_DIR
