@@ -20,7 +20,7 @@
 
 #include <vector>
 
-TEST(attribute_value_test, int64_value) {
+TEST(AttributeValue, Int64) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
 
@@ -30,7 +30,7 @@ TEST(attribute_value_test, int64_value) {
     ASSERT_EQ(v1.get<int64_t>(), i);
 }
 
-TEST(attribute_value_test, int64_vector_value) {
+TEST(AttributeValue, Int64Vector) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
 
@@ -40,7 +40,7 @@ TEST(attribute_value_test, int64_vector_value) {
     ASSERT_EQ(v1.get<std::vector<int64_t>>(), is);
 }
 
-TEST(attribute_value_test, float_value) {
+TEST(AttributeValue, Float) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
 
@@ -50,7 +50,7 @@ TEST(attribute_value_test, float_value) {
     ASSERT_EQ(v1.get<float>(), f);
 }
 
-TEST(attribute_value_test, float_vector_value) {
+TEST(AttributeValue, FloatVector) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
 
@@ -60,7 +60,7 @@ TEST(attribute_value_test, float_vector_value) {
     ASSERT_EQ(v1.get<std::vector<float>>(), fs);
 }
 
-TEST(attribute_value_test, bool_value) {
+TEST(AttributeValue, BoolValue) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
 
@@ -70,7 +70,7 @@ TEST(attribute_value_test, bool_value) {
     ASSERT_EQ(v1.get<bool>(), b);
 }
 
-TEST(attribute_value_test, string_value) {
+TEST(AttributeValue, StringValue) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
 
@@ -80,7 +80,7 @@ TEST(attribute_value_test, string_value) {
     ASSERT_EQ(v1.get<std::string>(), s);
 }
 
-TEST(attribute_value_test, copy) {
+TEST(AttributeValue, Copy) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
 
@@ -94,7 +94,7 @@ TEST(attribute_value_test, copy) {
     ASSERT_EQ(v1.get<std::vector<float>>(), fs);
 }
 
-TEST(attribute_value_test, equal) {
+TEST(AttributeValue, Equal) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
 

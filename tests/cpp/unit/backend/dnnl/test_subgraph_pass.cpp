@@ -66,7 +66,7 @@ const impl::op_t *get_fused_op(
 }
 } // namespace
 
-TEST(pass_test, int8_conv_lower_down_pass) {
+TEST(SubgraphPass, LowerDownToInt8Conv) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -199,7 +199,7 @@ TEST(pass_test, int8_conv_lower_down_pass) {
     ASSERT_EQ(post_ops.len(), 2);
 }
 
-TEST(pass_test, int8_matmul_lower_down_pass) {
+TEST(SubgraphPass, LowerDownToInt8Matmul) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -315,7 +315,7 @@ TEST(pass_test, int8_matmul_lower_down_pass) {
     ASSERT_EQ(post_ops.len(), 1);
 }
 
-TEST(pass_test, subgraph_passes) {
+TEST(SubgraphPass, Int8ConvSumRelu) {
     /*
                    | (f32, constant)
                  quant
@@ -629,10 +629,10 @@ struct ut_int8_matmul_params {
     size_t final_subgraph_size;
 };
 
-class int8_matmul_pass_test
+class TestInt8MatmulPassesWithDiffInputs
     : public ::testing::TestWithParam<ut_int8_matmul_params> {};
 
-TEST_P(int8_matmul_pass_test, int8_matmul_layout_propagation) {
+TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -759,7 +759,7 @@ TEST_P(int8_matmul_pass_test, int8_matmul_layout_propagation) {
     ASSERT_EQ(subgraph->get_ops().size(), params.final_subgraph_size);
 }
 
-INSTANTIATE_TEST_SUITE_P(int8_matmul_test_instance, int8_matmul_pass_test,
+INSTANTIATE_TEST_SUITE_P(SubgraphPass, TestInt8MatmulPassesWithDiffInputs,
         testing::Values(ut_int8_matmul_params {{1, 1024}, {1000, 1024}, {1000},
                                 {1, 1000}, false, true, false, 8, 5},
                 ut_int8_matmul_params {{1, 1024}, {1000, 1024}, {1000},
@@ -769,7 +769,7 @@ INSTANTIATE_TEST_SUITE_P(int8_matmul_test_instance, int8_matmul_pass_test,
                 ut_int8_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3},
                         false, true, true, 9, 6}));
 
-TEST(pass_test, subgraph_execution_args_set) {
+TEST(SubgraphPass, ExecutionArgsSet) {
     ///////////////////////////
     // val1    val2
     //   \     /
@@ -908,7 +908,7 @@ TEST(pass_test, subgraph_execution_args_set) {
             && cloned_mem5.get() == cloned_op2_args[DNNL_ARG_DST].get());
 }
 
-TEST(pass_test, memory_planning) {
+TEST(SubgraphPass, MemoryPlanning) {
     /*
                 / -> Reorder -> Reorder
                /

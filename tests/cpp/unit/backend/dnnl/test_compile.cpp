@@ -195,7 +195,7 @@ impl::status_t run_graph(impl::graph_t &agraph,
 }
 } // namespace
 
-TEST(operator_compile, convolution_compile_fp32) {
+TEST(Compile, ConvolutionFp32) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -246,7 +246,7 @@ TEST(operator_compile, convolution_compile_fp32) {
     ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 }
 
-TEST(operator_compile, convolution_backward_data_compile_fp32) {
+TEST(Compile, ConvolutionBackpropDataFp32) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
@@ -296,7 +296,7 @@ TEST(operator_compile, convolution_backward_data_compile_fp32) {
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 }
 
-TEST(operator_compile, convolution_backward_weights_compile_fp32) {
+TEST(Compile, ConvolutionBackpropBiasaddBackpropFp32) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
@@ -335,7 +335,7 @@ TEST(operator_compile, convolution_backward_weights_compile_fp32) {
     ASSERT_EQ(outputs[1].layout_type, impl::layout_type::opaque);
 }
 
-TEST(operator_compile, convtranspose_compile_fp32) {
+TEST(Compile, ConvtransposeFp32) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
@@ -488,7 +488,7 @@ struct dnnl_graph_test_batchnorm_params {
     impl::data_type_t data_type;
 };
 
-class test_batchnorm_compile
+class BatchNorm4D
     : public ::testing::TestWithParam<dnnl_graph_test_batchnorm_params> {
 public:
     void TestBatchnorm(bool dims_in_order = true) {
@@ -605,11 +605,11 @@ public:
     }
 };
 
-TEST_P(test_batchnorm_compile, TestBatchnormCompile) {
+TEST_P(BatchNorm4D, TestBatchnorm) {
     Test();
 }
 
-INSTANTIATE_TEST_SUITE_P(TestBatchnormCompile, test_batchnorm_compile,
+INSTANTIATE_TEST_SUITE_P(Execute, BatchNorm4D,
         ::testing::Values(
                 dnnl_graph_test_batchnorm_params {
                         impl::op_kind::BatchNormInference, 3, 3, 2, 2, 0.001f,
@@ -624,7 +624,7 @@ INSTANTIATE_TEST_SUITE_P(TestBatchnormCompile, test_batchnorm_compile,
                         impl::dnnl_impl::op_kind::bn_relu, 3, 3, 2, 2, 0.001f,
                         "NXC", "dnnl", impl::data_type::f32}));
 
-TEST(operator_compile, bn_compile_bwd_fp32) {
+TEST(Compile, BatchNormBackpropFp32) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::op_t bn_op(impl::op_kind::BatchNormTrainingBackprop);
@@ -734,8 +734,7 @@ struct dnnl_graph_test_concat_params {
     bool is_nhwc;
 };
 
-class test_concat_compile
-    : public ::testing::TestWithParam<dnnl_graph_test_concat_params> {
+class Concat : public ::testing::TestWithParam<dnnl_graph_test_concat_params> {
 public:
     void TestConcat() {
         const auto params = ::testing::TestWithParam<
@@ -793,11 +792,11 @@ public:
     }
 };
 
-TEST_P(test_concat_compile, TestConcatCompile) {
+TEST_P(Concat, TestConcat) {
     TestConcat();
 }
 
-INSTANTIATE_TEST_SUITE_P(TestConcatCompile, test_concat_compile,
+INSTANTIATE_TEST_SUITE_P(Execute, Concat,
         ::testing::Values(
                 // 2D, axis = 0
                 dnnl_graph_test_concat_params {{1, 2}, {1, 2}, {2, 2}, {1., 1.},
@@ -860,7 +859,7 @@ INSTANTIATE_TEST_SUITE_P(TestConcatCompile, test_concat_compile,
                                 8., 8.},
                         -1, false}));
 
-TEST(operator_kernel, add) {
+TEST(Execute, Add) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -919,7 +918,7 @@ TEST(operator_kernel, add) {
     }
 }
 
-TEST(operator_kernel, different_format_add) {
+TEST(Execute, AddWithDifferentFormat) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -955,7 +954,7 @@ TEST(operator_kernel, different_format_add) {
     }
 }
 
-TEST(operator_kernel, broadcast_add) {
+TEST(Execute, BroadcastAdd) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
@@ -1018,7 +1017,7 @@ TEST(operator_kernel, broadcast_add) {
     }
 }
 
-TEST(operator_kernel, multidirectional_broadcast_add_BA) {
+TEST(Execute, MultidirectionalBroadcastAddBA) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {1.0, 1.0, 1.0};
@@ -1075,7 +1074,7 @@ TEST(operator_kernel, multidirectional_broadcast_add_BA) {
     }
 }
 
-TEST(operator_kernel, multidirectional_broadcast_add_AB) {
+TEST(Execute, multidirectionalbBroadcastAddAB) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {1.0, 1.0, 1.0};
@@ -1114,7 +1113,7 @@ TEST(operator_kernel, multidirectional_broadcast_add_AB) {
     }
 }
 
-TEST(operator_kernel, multidirectional_broadcast_add_2x1x4_1x3x1) {
+TEST(Execute, MultidirectionalBroadcastAdd) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0(8, 1.0);
@@ -1153,7 +1152,7 @@ TEST(operator_kernel, multidirectional_broadcast_add_2x1x4_1x3x1) {
     }
 }
 
-TEST(operator_kernel, multidirectional_broadcast_add_2x1x1_3x4) {
+TEST(Execute, MultidirectionalBroadcastAddExpandDim) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0(2, 1.0);
@@ -1192,7 +1191,7 @@ TEST(operator_kernel, multidirectional_broadcast_add_2x1x1_3x4) {
     }
 }
 
-TEST(operator_kernel, add_shape_mismatch_0) {
+TEST(Compile, AddShapeMismatchCase0) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t add_op(impl::op_kind::Add);
@@ -1213,7 +1212,7 @@ TEST(operator_kernel, add_shape_mismatch_0) {
     ASSERT_EQ(ret, impl::status::invalid_shape);
 }
 
-TEST(operator_kernel, add_shape_mismatch_1) {
+TEST(Compile, AddShapeMismatch1) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t add_op(impl::op_kind::Add);
@@ -1234,7 +1233,7 @@ TEST(operator_kernel, add_shape_mismatch_1) {
     ASSERT_EQ(ret, impl::status::success);
 }
 
-TEST(operator_kernel, add_shape_mismatch_2) {
+TEST(Compile, AddShapeMismatch2) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t add_op(impl::op_kind::Add);
@@ -1255,7 +1254,7 @@ TEST(operator_kernel, add_shape_mismatch_2) {
     ASSERT_EQ(ret, impl::status::success);
 }
 
-TEST(operator_kernel, reversed_different_format_broadcast_add) {
+TEST(Execute, ReversedDifferentFormatBroadcastAdd) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src1 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
@@ -1297,7 +1296,7 @@ TEST(operator_kernel, reversed_different_format_broadcast_add) {
     }
 }
 
-TEST(operator_kernel, bias_add) {
+TEST(Execute, BiasAdd) {
     impl::engine_t &eng = get_engine();
     auto &op_factory = get_dnnl_kernel_registry();
 
@@ -1356,7 +1355,7 @@ TEST(operator_kernel, bias_add) {
     }
 }
 
-TEST(operator_kernel, add_mul) {
+TEST(Execute, AddMul) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -1399,7 +1398,7 @@ TEST(operator_kernel, add_mul) {
     }
 }
 
-TEST(operator_kernel, add_mul_post_src_as_nxc) {
+TEST(Execute, AddMulPostSrcAsNxc) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -1443,7 +1442,7 @@ TEST(operator_kernel, add_mul_post_src_as_nxc) {
     }
 }
 
-TEST(operator_kernel, add_relu) {
+TEST(Execute, AddRelu) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -1484,7 +1483,7 @@ TEST(operator_kernel, add_relu) {
     }
 }
 
-TEST(operator_kernel, add_sigmoid) {
+TEST(Execute, AddSigmoid) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -1526,7 +1525,7 @@ TEST(operator_kernel, add_sigmoid) {
     }
 }
 
-TEST(operator_kernel, mul) {
+TEST(Execute, Mul) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
@@ -1563,7 +1562,7 @@ TEST(operator_kernel, mul) {
     }
 }
 
-TEST(operator_kernel, mul_relu) {
+TEST(Execute, MulRelu) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {-2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
@@ -1600,7 +1599,7 @@ TEST(operator_kernel, mul_relu) {
     }
 }
 
-TEST(operator_kernel, mul_sigmoid) {
+TEST(Execute, MulSigmoid) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -1637,7 +1636,7 @@ TEST(operator_kernel, mul_sigmoid) {
     }
 }
 
-TEST(operator_kernel, mul_add) {
+TEST(Execute, MulAdd) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
@@ -1688,7 +1687,7 @@ TEST(operator_kernel, mul_add) {
     }
 }
 
-TEST(operator_kernel, min) {
+TEST(Execute, Min) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -1725,7 +1724,7 @@ TEST(operator_kernel, min) {
     }
 }
 
-TEST(operator_kernel, min_relu) {
+TEST(Execute, MinRelu) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -1762,7 +1761,7 @@ TEST(operator_kernel, min_relu) {
     }
 }
 
-TEST(operator_kernel, min_sigmoid) {
+TEST(Execute, MinSigmoid) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -1799,7 +1798,7 @@ TEST(operator_kernel, min_sigmoid) {
     }
 }
 
-TEST(operator_kernel, min_add) {
+TEST(Execute, MinAdd) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -1850,7 +1849,7 @@ TEST(operator_kernel, min_add) {
     }
 }
 
-TEST(operator_kernel, max) {
+TEST(Execute, Max) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -1887,7 +1886,7 @@ TEST(operator_kernel, max) {
     }
 }
 
-TEST(operator_kernel, max_relu) {
+TEST(Execute, MaxRelu) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {-2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -1924,7 +1923,7 @@ TEST(operator_kernel, max_relu) {
     }
 }
 
-TEST(operator_kernel, max_sigmoid) {
+TEST(Execute, MaxSigmoid) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {
@@ -1962,7 +1961,7 @@ TEST(operator_kernel, max_sigmoid) {
     }
 }
 
-TEST(operator_kernel, max_add) {
+TEST(Execute, MaxAdd) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -2013,7 +2012,7 @@ TEST(operator_kernel, max_add) {
     }
 }
 
-TEST(operator_kernel, matmul_compile_fwd_fp32) {
+TEST(Execute, MatmulFp32) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
     matmul_op.set_attr<bool>("transpose_b", true);
     impl::engine_t &eng = get_engine();
@@ -2091,7 +2090,7 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
     }
 }
 
-TEST(operator_kernel, matmul_compile_fwd_f16f16f16) {
+TEST(Execute, MatmulF16F16F16) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
 
     impl::engine_t &eng = get_engine();
@@ -2145,7 +2144,7 @@ TEST(operator_kernel, matmul_compile_fwd_f16f16f16) {
     strm.wait();
 }
 
-TEST(operator_kernel, matmul_compile_fwd_bf16bf16bf16) {
+TEST(Execute, MatmulBf16Bf16Bf16) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
 
     impl::engine_t &eng = get_engine();
@@ -2208,7 +2207,7 @@ static size_t product(std::vector<int64_t> &in) {
     return static_cast<size_t>(prod);
 }
 
-TEST(operator_kernel, matmul_ndx1d) {
+TEST(Execute, MatmulNdx1d) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -2301,7 +2300,7 @@ TEST(operator_kernel, matmul_ndx1d) {
     }
 }
 
-TEST(operator_kernel, matmul_1dxnd) {
+TEST(Execute, Matmul1dxNd) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -2391,7 +2390,7 @@ TEST(operator_kernel, matmul_1dxnd) {
     }
 }
 
-TEST(operator_kernel, matmul_3dx3d) {
+TEST(Execute, Matmul3dx3d) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
     impl::engine_t &eng = get_engine();
 
@@ -2444,7 +2443,7 @@ TEST(operator_kernel, matmul_3dx3d) {
     }
 }
 
-TEST(operator_kernel, matmul_relu_fusion) {
+TEST(Execute, MatmulReluFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t relu_op(1, impl::op_kind::ReLU, "relu_op");
 
@@ -2504,7 +2503,7 @@ TEST(operator_kernel, matmul_relu_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_fusion) {
+TEST(Execute, MatmulBiasFusion) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
 
     impl::engine_t &eng = get_engine();
@@ -2564,7 +2563,7 @@ TEST(operator_kernel, matmul_bias_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
+TEST(Execute, MatmulSumBroadcast1d) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t add_op(1, impl::op_kind::Add, "add_op");
 
@@ -2631,7 +2630,7 @@ TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
     }
 }
 
-TEST(operator_kernel, matmul_sum_fusion) {
+TEST(Execute, MatmulSumFusion) {
     impl::engine_t &engine = get_engine();
 
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
@@ -2698,7 +2697,7 @@ TEST(operator_kernel, matmul_sum_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_sum_gelu_fusion) {
+TEST(Execute, MatmulSumGeluFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t add_op(1, impl::op_kind::Add, "add_op");
     impl::op_t gelu_op(2, impl::op_kind::GELU, "gelu_op");
@@ -2770,7 +2769,7 @@ TEST(operator_kernel, matmul_sum_gelu_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_sum_relu_fusion) {
+TEST(Execute, MatmulSumReluFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t add_op(1, impl::op_kind::Add, "add_op");
     impl::op_t relu_op(2, impl::op_kind::ReLU, "relu_op");
@@ -2842,7 +2841,7 @@ TEST(operator_kernel, matmul_sum_relu_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_relu_fusion) {
+TEST(Execute, MatmulBiasReluFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t relu_op(1, impl::op_kind::ReLU, "relu_op");
     impl::engine_t &engine = get_engine();
@@ -2906,7 +2905,7 @@ TEST(operator_kernel, matmul_bias_relu_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_gelu_fusion) {
+TEST(Execute, MatmulBiasGeluFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t gelu_op(1, impl::op_kind::GELU, "gelu_op");
     impl::engine_t &engine = get_engine();
@@ -2970,7 +2969,7 @@ TEST(operator_kernel, matmul_bias_gelu_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_relu6_fusion) {
+TEST(Execute, MatmulBiasRelu6Fusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t hardtanh_op(1, impl::op_kind::HardTanh, "hardtanh_op");
     hardtanh_op.set_attr<float>("min", 0.0);
@@ -3037,7 +3036,7 @@ TEST(operator_kernel, matmul_bias_relu6_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
+TEST(Execute, MatmulBiasHardtanhFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t hardtanh_op(1, impl::op_kind::HardTanh, "hardtanh_op");
     hardtanh_op.set_attr<float>("min", -3.0);
@@ -3104,7 +3103,7 @@ TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_elu_fusion) {
+TEST(Execute, MatmulBiasEluFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t elu_op(1, impl::op_kind::Elu, "elu_op");
     elu_op.set_attr<float>("alpha", 1.f);
@@ -3170,7 +3169,7 @@ TEST(operator_kernel, matmul_bias_elu_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
+TEST(Execute, MatmulBiasSigmoidFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t sigmoid_op(1, impl::op_kind::Sigmoid, "sigmoid_op");
     impl::engine_t &engine = get_engine();
@@ -3234,7 +3233,7 @@ TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_add_fusion) {
+TEST(Execute, MatmulBiasAddFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t add_op(1, impl::op_kind::Add, "add_op");
     impl::engine_t &engine = get_engine();
@@ -3304,7 +3303,7 @@ TEST(operator_kernel, matmul_bias_add_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
+TEST(Execute, MatmulBiasAddPerTensorBroadcast) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -3379,7 +3378,7 @@ TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
+TEST(Execute, MatmulBiasAddPerChannelBroadcast) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -3453,7 +3452,7 @@ TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_unsupported_broadcast_add_fusion) {
+TEST(Compile, MatmulBiasAddUnsupportedBroadcast) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -3509,7 +3508,7 @@ TEST(operator_kernel, matmul_bias_unsupported_broadcast_add_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_add_relu_fusion) {
+TEST(Execute, MatmulBiasAddReluFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t add_op(1, impl::op_kind::Add, "add_op");
     impl::op_t relu_op(2, impl::op_kind::ReLU, "relu_op");
@@ -3585,7 +3584,7 @@ TEST(operator_kernel, matmul_bias_add_relu_fusion) {
     }
 }
 
-TEST(operator_kernel, max_pool) {
+TEST(Execute, MaxPool) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
@@ -3647,7 +3646,7 @@ TEST(operator_kernel, max_pool) {
     }
 }
 
-TEST(operator_kernel, max_pool_with_opaque_input) {
+TEST(Execute, MaxPoolWithOpaqueInput) {
     // dequantize - maxpool
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
@@ -3719,7 +3718,7 @@ TEST(operator_kernel, max_pool_with_opaque_input) {
     ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 }
 
-TEST(operator_kernel, avg_pool_exclude_pad) {
+TEST(Execute, AvgPoolExcludePad) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
@@ -3782,7 +3781,7 @@ TEST(operator_kernel, avg_pool_exclude_pad) {
     }
 }
 
-TEST(operator_kernel, avg_pool_include_pad) {
+TEST(Execute, AvgPoolIncludePad) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
@@ -3845,7 +3844,7 @@ TEST(operator_kernel, avg_pool_include_pad) {
     }
 }
 
-TEST(operator_compile, Convolution_NCX_OIX) {
+TEST(Execute, ConvolutionNcxOix) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -3912,7 +3911,7 @@ TEST(operator_compile, Convolution_NCX_OIX) {
     }
 }
 
-TEST(operator_compile, Convtranspose_with_groups) {
+TEST(Execute, ConvtransposeWithGroups) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -3994,7 +3993,7 @@ struct dnnl_graph_test_convtranspose_params {
     test::vector<float> ref_dst;
 };
 
-class test_convtranspose_compile
+class Convtranspose4D5D
     : public ::testing::TestWithParam<dnnl_graph_test_convtranspose_params> {
 public:
     void TestConvtranspose() {
@@ -4080,11 +4079,11 @@ public:
     }
 };
 
-TEST_P(test_convtranspose_compile, TestConvtranspose_compile) {
+TEST_P(Convtranspose4D5D, TestConvtranspose) {
     TestConvtranspose();
 }
 
-INSTANTIATE_TEST_SUITE_P(TestConvtranspose_compile, test_convtranspose_compile,
+INSTANTIATE_TEST_SUITE_P(Execute, Convtranspose4D5D,
         ::testing::Values(
                 dnnl_graph_test_convtranspose_params {"NXC", "OIX",
                         {1, 2, 2, 1}, {1, 1, 3, 3}, false, {1}, {1, 4, 4, 1},
@@ -4139,7 +4138,7 @@ INSTANTIATE_TEST_SUITE_P(TestConvtranspose_compile, test_convtranspose_compile,
                         {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
                                 3.5, 6.0, 2.5, 6.0, 2.5}}));
 
-TEST(operator_compile, Convolution3D_NCX_OIX) {
+TEST(Execute, Convolution3DNcxOix) {
     using dims = std::vector<int64_t>;
 
     // default engine kind is cpu.
@@ -4206,7 +4205,7 @@ TEST(operator_compile, Convolution3D_NCX_OIX) {
     }
 }
 
-TEST(operator_compile, Convolution_NCX_XIO) {
+TEST(Execute, ConvolutionNcxXio) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -4273,7 +4272,7 @@ TEST(operator_compile, Convolution_NCX_XIO) {
     }
 }
 
-TEST(operator_compile, Convolution3D_NCX_XIO) {
+TEST(Execute, Convolution3DNcxXio) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -4340,7 +4339,7 @@ TEST(operator_compile, Convolution3D_NCX_XIO) {
     }
 }
 
-TEST(operator_compile, Convolution_NXC_XIO) {
+TEST(Execute, ConvolutionNxcXio) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -4408,7 +4407,7 @@ TEST(operator_compile, Convolution_NXC_XIO) {
     }
 }
 
-TEST(operator_compile, Convolution3D_NXC_XIO) {
+TEST(Execute, Convolution3DNxcXio) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -4476,7 +4475,7 @@ TEST(operator_compile, Convolution3D_NXC_XIO) {
     }
 }
 
-TEST(operator_compile, Convolution_NXC_OIX) {
+TEST(Execute, ConvolutionNxcOix) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -4543,7 +4542,7 @@ TEST(operator_compile, Convolution_NXC_OIX) {
     }
 }
 
-TEST(operator_compile, Convolution3D_NXC_OIX) {
+TEST(Execute, Convolution3DNxcOix) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -4610,7 +4609,7 @@ TEST(operator_compile, Convolution3D_NXC_OIX) {
     }
 }
 
-TEST(operator_compile, ConvolutionF16F16F16) {
+TEST(Execute, ConvolutionF16F16F16) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
@@ -4675,7 +4674,7 @@ TEST(operator_compile, ConvolutionF16F16F16) {
     strm.wait();
 }
 
-TEST(operator_compile, ConvolutionBF16BF16BF16) {
+TEST(Execute, ConvolutionBf16Bf16Bf16) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
@@ -4744,7 +4743,7 @@ TEST(operator_compile, ConvolutionBF16BF16BF16) {
     strm.wait();
 }
 
-TEST(operator_kernel, group_convolution) {
+TEST(Execute, GroupConvolution) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -4811,7 +4810,7 @@ TEST(operator_kernel, group_convolution) {
     }
 }
 
-TEST(operator_kernel, ConvolutionBackpropData) {
+TEST(Execute, ConvolutionBackpropData) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
@@ -4880,7 +4879,7 @@ TEST(operator_kernel, ConvolutionBackpropData) {
     }
 }
 
-TEST(operator_kernel, conv_bwd_weight_bias) {
+TEST(Execute, ConvBwdBiasaddBwd) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
@@ -4938,7 +4937,7 @@ TEST(operator_kernel, conv_bwd_weight_bias) {
     }
 }
 
-TEST(operator_compile, conv_relu_unfused) {
+TEST(Execute, ConvReluUnfused) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -4995,7 +4994,7 @@ TEST(operator_compile, conv_relu_unfused) {
     }
 }
 
-TEST(operator_compile, convolution_bn_fp32) {
+TEST(Execute, ConvolutionBnFp32) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -5122,7 +5121,7 @@ TEST(operator_compile, convolution_bn_fp32) {
     ASSERT_LT(max_diff, 1e-6f);
 }
 
-TEST(operator_kernel, conv_add) {
+TEST(Execute, ConvAdd) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -5215,7 +5214,7 @@ TEST(operator_kernel, conv_add) {
     }
 }
 
-TEST(operator_kernel, conv_per_tensor_broadcast_add) {
+TEST(Execute, ConvAddPerTensorBroadcast) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -5299,7 +5298,7 @@ TEST(operator_kernel, conv_per_tensor_broadcast_add) {
     }
 }
 
-TEST(operator_kernel, conv_expanded_per_tensor_broadcast_add) {
+TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -5381,7 +5380,7 @@ TEST(operator_kernel, conv_expanded_per_tensor_broadcast_add) {
     }
 }
 
-TEST(operator_kernel, conv_per_channel_broadcast_add) {
+TEST(Execute, ConvAddPerChannelBroadcast) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -5464,7 +5463,7 @@ TEST(operator_kernel, conv_per_channel_broadcast_add) {
     }
 }
 
-TEST(operator_kernel, conv_nxc_per_channel_broadcast_add) {
+TEST(Execute, ConvAddPerChannelBroadcastNxc) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -5547,7 +5546,7 @@ TEST(operator_kernel, conv_nxc_per_channel_broadcast_add) {
     }
 }
 
-TEST(operator_kernel, conv_unsupported_broadcast_add) {
+TEST(Compile, ConvAddUnsupportedBroadcast) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -5612,7 +5611,7 @@ TEST(operator_kernel, conv_unsupported_broadcast_add) {
     ASSERT_NE(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 }
 
-TEST(operator_kernel, conv_add_relu) {
+TEST(Execute, ConvAddRelu) {
     using dims = impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -6067,7 +6066,7 @@ void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
     }
 }
 
-TEST(operator_kernel, abs) {
+TEST(Execute, Abs) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
 
@@ -6076,7 +6075,7 @@ TEST(operator_kernel, abs) {
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::Abs, "abs");
 }
 
-TEST(operator_kernel, round) {
+TEST(Execute, Round) {
     test::vector<float> src {1.1, -2.3, 4.7, 1.0, 0.0, -8.34};
     test::vector<float> ref_dst = round_func(src);
 
@@ -6085,7 +6084,7 @@ TEST(operator_kernel, round) {
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::Round, "round");
 }
 
-TEST(operator_kernel, elu) {
+TEST(Execute, Elu) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst;
 
@@ -6106,7 +6105,7 @@ TEST(operator_kernel, elu) {
             src, ref_dst, dims, impl::op_kind::Elu, "elu", attrs_data);
 }
 
-TEST(operator_kernel, exp) {
+TEST(Execute, Exp) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst;
     for (size_t i = 0; i < src.size(); ++i) {
@@ -6119,7 +6118,7 @@ TEST(operator_kernel, exp) {
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::Exp, "exp");
 }
 
-TEST(operator_kernel, gelu) {
+TEST(Execute, Gelu) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
     test::vector<float> ref_dst {-0.0455001f, -0.10021085f, -0.15865527f,
             -0.15426877f, 0.f, 0.3457312f, 0.84134465f, 1.399789f, 1.9544998f};
@@ -6129,7 +6128,7 @@ TEST(operator_kernel, gelu) {
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::GELU, "gelu");
 }
 
-TEST(operator_kernel, gelu_backward) {
+TEST(Execute, GeluBackward) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
@@ -6166,7 +6165,7 @@ TEST(operator_kernel, gelu_backward) {
     }
 }
 
-TEST(operator_kernel, hardtanh) {
+TEST(Execute, Hardtanh) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};
 
@@ -6177,7 +6176,7 @@ TEST(operator_kernel, hardtanh) {
             attrs_data);
 }
 
-TEST(operator_kernel, relu) {
+TEST(Execute, Relu) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
     test::vector<float> ref_dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.5, 2.0};
 
@@ -6186,7 +6185,7 @@ TEST(operator_kernel, relu) {
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::ReLU, "relu");
 }
 
-TEST(operator_kernel, relu_backward) {
+TEST(Execute, ReluBackward) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
@@ -6223,7 +6222,7 @@ TEST(operator_kernel, relu_backward) {
     }
 }
 
-TEST(operator_kernel, sqrt) {
+TEST(Execute, Sqrt) {
     test::vector<float> src {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
     test::vector<float> ref_dst = sqrt_func(src);
 
@@ -6232,7 +6231,7 @@ TEST(operator_kernel, sqrt) {
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::Sqrt, "sqrt");
 }
 
-TEST(operator_kernel, square) {
+TEST(Execute, Square) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst;
     for (size_t i = 0; i < src.size(); ++i) {
@@ -6245,7 +6244,7 @@ TEST(operator_kernel, square) {
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::Square, "square");
 }
 
-TEST(operator_kernel, log) {
+TEST(Execute, Log) {
     test::vector<float> src {2.f, 1.5f, 1.f, 0.5f, 0.8f, 3.5f};
     test::vector<float> ref_dst;
     for (size_t i = 0; i < src.size(); ++i) {
@@ -6258,7 +6257,7 @@ TEST(operator_kernel, log) {
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::Log, "log");
 }
 
-TEST(operator_kernel, tanh) {
+TEST(Execute, Tanh) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst = tanh_func(src);
 
@@ -6276,7 +6275,7 @@ struct eltwise_param {
     std::vector<std::pair<std::string, float>> attrs;
 };
 
-TEST(operator_compile, conv_bias_eltwise) {
+TEST(Execute, ConvBiasEltwise) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -6382,7 +6381,7 @@ TEST(operator_compile, conv_bias_eltwise) {
     }
 }
 
-TEST(operator_compile, conv_bias_add_eltwise) {
+TEST(Execute, ConvBiasAddEltwise) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -6492,7 +6491,7 @@ TEST(operator_compile, conv_bias_add_eltwise) {
     }
 }
 
-TEST(operator_compile, conv_add_eltwise) {
+TEST(Execute, ConvAddEltwise) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -6595,7 +6594,7 @@ TEST(operator_compile, conv_add_eltwise) {
     }
 }
 
-TEST(fp32_subgraph_mode, conv_depthwise) {
+TEST(ExecuteSubgraphFp32, ConvDepthwise) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
@@ -6700,7 +6699,7 @@ TEST(fp32_subgraph_mode, conv_depthwise) {
     }
 }
 
-TEST(operator_kernel, softmax) {
+TEST(Execute, Softmax) {
     impl::op_t softmax_op(impl::op_kind::SoftMax);
     impl::engine_t &eng = get_engine();
 
@@ -6736,7 +6735,7 @@ TEST(operator_kernel, softmax) {
     }
 }
 
-TEST(operator_kernel, softmax_with_last_dim) {
+TEST(Execute, SoftmaxWithLastDim) {
     impl::op_t softmax_op(impl::op_kind::SoftMax);
     impl::engine_t &eng = get_engine();
 
@@ -6772,7 +6771,7 @@ TEST(operator_kernel, softmax_with_last_dim) {
     }
 }
 
-TEST(operator_kernel, softmax_backward) {
+TEST(Execute, SoftmaxBackward) {
     impl::op_t softmax_op(impl::op_kind::SoftMaxBackprop);
     impl::engine_t &eng = get_engine();
 
@@ -6813,7 +6812,7 @@ TEST(operator_kernel, softmax_backward) {
     }
 }
 
-TEST(operator_kernel, logsoftmax) {
+TEST(Execute, LogSoftmax) {
     impl::op_t logsoftmax_op(impl::op_kind::LogSoftmax);
     impl::engine_t &eng = get_engine();
 
@@ -6850,7 +6849,7 @@ TEST(operator_kernel, logsoftmax) {
     }
 }
 
-TEST(operator_kernel, logsoftmax_backward) {
+TEST(Execute, LogsoftmaxBackward) {
     impl::op_t logsoftmax_op(impl::op_kind::LogSoftmaxBackprop);
     impl::engine_t &eng = get_engine();
 
@@ -6891,7 +6890,7 @@ TEST(operator_kernel, logsoftmax_backward) {
     }
 }
 
-TEST(operator_kernel, avg_pool_backward_exclude_pad) {
+TEST(Execute, AvgPoolBackwardExcludePad) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
@@ -6940,7 +6939,7 @@ TEST(operator_kernel, avg_pool_backward_exclude_pad) {
     }
 }
 
-TEST(operator_kernel, avg_pool_backward_include_pad) {
+TEST(Execute, AvgPoolBackwardIncludePad) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
@@ -6989,7 +6988,7 @@ TEST(operator_kernel, avg_pool_backward_include_pad) {
     }
 }
 
-TEST(operator_kernel, max_pool_backward_with_incides) {
+TEST(Execute, MaxPoolBackwardWithIncides) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
@@ -7059,7 +7058,7 @@ TEST(operator_kernel, max_pool_backward_with_incides) {
     }
 }
 
-TEST(operator_kernel, max_pool_backward_without_incides) {
+TEST(Execute, MaxPoolBackwardWithoutIncides) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
@@ -7108,7 +7107,7 @@ TEST(operator_kernel, max_pool_backward_without_incides) {
     }
 }
 
-TEST(operator_kernel, layernorm_training) {
+TEST(Execute, LayernormTraining) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {2.0, 4.0, 5.0, 2.0, 3.0, 5.0};
@@ -7171,7 +7170,7 @@ TEST(operator_kernel, layernorm_training) {
     }
 }
 
-TEST(operator_kernel, layernorm_inference) {
+TEST(Execute, LayernormInference) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {2.0, 4.0, 3.0, 5.5, 5.0, 4.0, 1.0, 2.5};
@@ -7217,7 +7216,7 @@ TEST(operator_kernel, layernorm_inference) {
     }
 }
 
-TEST(operator_kernel, layernorm_inference_without_scale_shift) {
+TEST(Execute, LayernormInferenceWithoutScaleShift) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {2.0, 4.0, 3.0, 5.5, 5.0, 4.0, 1.0, 2.5};
@@ -7256,7 +7255,7 @@ TEST(operator_kernel, layernorm_inference_without_scale_shift) {
     }
 }
 
-TEST(operator_kernel, reorder_data) {
+TEST(Execute, ReorderData) {
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
@@ -7292,7 +7291,7 @@ TEST(operator_kernel, reorder_data) {
     }
 }
 
-TEST(operator_compile, reorder_negative_test) {
+TEST(Compile, ReorderNegativeInput) {
     impl::engine_t &engine = get_engine();
 
     impl::op_t reorder_op(impl::op_kind::Reorder);
@@ -7310,7 +7309,7 @@ TEST(operator_compile, reorder_negative_test) {
             impl::status::compile_fail);
 }
 
-TEST(operator_kernel, typecast) {
+TEST(Execute, Typecast) {
     impl::engine_t &engine = get_engine();
 
     test::vector<float> f32_val {
@@ -7349,7 +7348,7 @@ TEST(operator_kernel, typecast) {
     }
 }
 
-TEST(operator_compile, typecast_negative_test) {
+TEST(Compile, TypecastNegativeInput) {
     impl::engine_t &engine = get_engine();
 
     impl::op_t typecast_op(impl::op_kind::TypeCast);
@@ -7389,7 +7388,7 @@ TEST(operator_compile, typecast_negative_test) {
             impl::status::compile_fail);
 }
 
-TEST(operator_kernel, quantize_per_tensor) {
+TEST(Execute, QuantizePerTensor) {
     impl::engine_t &engine = get_engine();
     if (engine.kind() == impl::engine_kind::gpu) return;
 
@@ -7427,7 +7426,7 @@ TEST(operator_kernel, quantize_per_tensor) {
     }
 }
 
-TEST(operator_kernel, quantize_per_tensor_any) {
+TEST(Execute, QuantizePerTensorAnyLayout) {
     impl::engine_t &engine = get_engine();
     if (engine.kind() == impl::engine_kind::gpu) return;
 
@@ -7465,7 +7464,7 @@ TEST(operator_kernel, quantize_per_tensor_any) {
     }
 }
 
-TEST(operator_kernel, quantize_per_channel_symmetric) {
+TEST(Execute, QuantizePerChannelSymmetric) {
     impl::engine_t &engine = get_engine();
     if (engine.kind() == impl::engine_kind::gpu) return;
 
@@ -7503,7 +7502,7 @@ TEST(operator_kernel, quantize_per_channel_symmetric) {
     }
 }
 
-TEST(operator_compile, typecast_quantize) {
+TEST(Execute, TypecastQuantize) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
     if (engine.kind() == impl::engine_kind::gpu) return;
@@ -7562,7 +7561,7 @@ TEST(operator_compile, typecast_quantize) {
     strm.wait();
 }
 
-TEST(operator_kernel, dequantize_per_tensor) {
+TEST(Execute, DequantizePerTensor) {
     impl::engine_t &engine = get_engine();
     if (engine.kind() == impl::engine_kind::gpu) return;
 
@@ -7600,7 +7599,7 @@ TEST(operator_kernel, dequantize_per_tensor) {
     }
 }
 
-TEST(operator_kernel, dequantize_per_tensor_any) {
+TEST(Execute, DequantizePerTensorAnyLayout) {
     impl::engine_t &engine = get_engine();
     if (engine.kind() == impl::engine_kind::gpu) return;
 
@@ -7638,7 +7637,7 @@ TEST(operator_kernel, dequantize_per_tensor_any) {
     }
 }
 
-TEST(operator_kernel, dequantize_per_channel_symmetric) {
+TEST(Execute, DequantizePerChannelSymmetric) {
     impl::engine_t &engine = get_engine();
     if (engine.kind() == impl::engine_kind::gpu) return;
 
@@ -7723,7 +7722,7 @@ static bool allclose(const test::vector<T> &a, const test::vector<T> &b,
     q_dq_out.set_attr<std::vector<float>>("scales", {scale_out}); \
     q_dq_out.set_attr<int64_t>("axis", 0);
 
-TEST(int8_subgraph_mode, int8_conv1d_conv2d_conv3d) {
+TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -7901,7 +7900,7 @@ TEST(int8_subgraph_mode, int8_conv1d_conv2d_conv3d) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_convtranspose_1d_2d_3d) {
+TEST(ExecuteSubgraphInt8, Convtranspose1d2d3d) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -8081,7 +8080,7 @@ TEST(int8_subgraph_mode, int8_convtranspose_1d_2d_3d) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_conv2d_relu) {
+TEST(ExecuteSubgraphInt8, Conv2dRelu) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -8251,7 +8250,7 @@ TEST(int8_subgraph_mode, int8_conv2d_relu) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
+TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -8468,7 +8467,7 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_conv2d_sum_relu_NXC) {
+TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -8681,7 +8680,7 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_NXC) {
     }
 }
 
-TEST(int8_subgraph_mode, x8s8f32_conv1d_conv2d_conv3d) {
+TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -8855,7 +8854,7 @@ TEST(int8_subgraph_mode, x8s8f32_conv1d_conv2d_conv3d) {
     }
 }
 
-TEST(int8_subgraph_mode, x8s8f32_conv2d_relu) {
+TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -9021,7 +9020,7 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_relu) {
     }
 }
 
-TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu) {
+TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -9227,7 +9226,7 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu) {
     }
 }
 
-TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu_NXC) {
+TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -9437,7 +9436,7 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu_NXC) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_matmul_ndx2d) {
+TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -9590,7 +9589,7 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_matmul_ndx1d) {
+TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
     // compare results between: case 1: [quantize] - [dequantize] -
     // [fp32_matmul] - [quantize] case 2: [quantize] - [int8_matmul]
     impl::engine_t &engine = get_engine();
@@ -9735,7 +9734,7 @@ TEST(int8_subgraph_mode, int8_matmul_ndx1d) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_matmul_ndx2d_with_transpose) {
+TEST(ExecuteSubgraphInt8, MatmulNdx2dWithTranspose) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -9893,7 +9892,7 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d_with_transpose) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_matmul_relu_fusion) {
+TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [relu] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -10030,7 +10029,7 @@ TEST(int8_subgraph_mode, int8_matmul_relu_fusion) {
                 /*atol*/ 1.f));
 }
 
-TEST(operator_kernel, interpolate_forkward_nearest) {
+TEST(Execute, InterpolateForwardNearest) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
@@ -10067,7 +10066,7 @@ TEST(operator_kernel, interpolate_forkward_nearest) {
     }
 }
 
-TEST(operator_kernel, interpolate_forkward_linear) {
+TEST(Execute, InterpolateForwardLinear) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
@@ -10104,7 +10103,7 @@ TEST(operator_kernel, interpolate_forkward_linear) {
     }
 }
 
-TEST(operator_kernel, interpolate_backward_nearest) {
+TEST(Execute, InterpolateBackwardNearest) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
@@ -10144,7 +10143,7 @@ TEST(operator_kernel, interpolate_backward_nearest) {
     }
 }
 
-TEST(operator_kernel, interpolate_backward_linear) {
+TEST(Execute, InterpolateBackwardLinear) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
@@ -10184,7 +10183,7 @@ TEST(operator_kernel, interpolate_backward_linear) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
+TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
     // skip the test on AArch64 or some older machine without avx support
     SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx,
             "skip on machine without AVX");
@@ -10374,7 +10373,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
     }
 }
 
-TEST(int8_subgraph_mode, x8s8f32_matmul_bias_sum_ndx2d) {
+TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2dX8s8f32) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul]
     // case 2: [quantize] - [int8_matmul]
@@ -10548,7 +10547,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_sum_ndx2d) {
     }
 }
 
-TEST(int8_subgraph_mode, x8s8f32_matmul_bias_ndx2d) {
+TEST(ExecuteSubgraphInt8, MatmulBiasNdx2dX8s8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -10690,7 +10689,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_ndx2d) {
     }
 }
 
-TEST(int8_subgraph_mode, x8s8f32_matmul_ndx2d) {
+TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -10821,7 +10820,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_ndx2d) {
     }
 }
 
-TEST(int8_subgraph_mode, x8s8f32_matmul_bias_gelu_ndx2d) {
+TEST(ExecuteSubgraphInt8, MatmulBiasGeluNdx2dX8s8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -10971,7 +10970,7 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_gelu_ndx2d) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_conv2d_sum_relu_get_inplace_pair) {
+TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -11176,7 +11175,7 @@ struct dnnl_graph_test_relu_add_params {
     bool swap;
 };
 
-class test_relu_add_compile
+class ReluAdd
     : public ::testing::TestWithParam<dnnl_graph_test_relu_add_params> {
 public:
     void TestReluAdd() {
@@ -11251,11 +11250,11 @@ public:
     }
 };
 
-TEST_P(test_relu_add_compile, TestReluAddCompile) {
+TEST_P(ReluAdd, TestReluAdd) {
     TestReluAdd();
 }
 
-INSTANTIATE_TEST_SUITE_P(TestReluAddCompile, test_relu_add_compile,
+INSTANTIATE_TEST_SUITE_P(Execute, ReluAdd,
         ::testing::Values(
                 // with broadcast add and no swap inputs
                 dnnl_graph_test_relu_add_params {{1}, {2.0}, false},
@@ -11268,7 +11267,7 @@ INSTANTIATE_TEST_SUITE_P(TestReluAddCompile, test_relu_add_compile,
                 dnnl_graph_test_relu_add_params {
                         {1, 1, 2, 2}, {2.0, 2.0, 2.0, 2.0}, true}));
 
-TEST(operator_kernel, avgpool_add) {
+TEST(Execute, AvgpoolAdd) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
@@ -11368,7 +11367,7 @@ TEST(operator_kernel, avgpool_add) {
     }
 }
 
-TEST(operator_kernel, maxpool_add) {
+TEST(Execute, MaxpoolAdd) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
@@ -11467,7 +11466,7 @@ TEST(operator_kernel, maxpool_add) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_maxpool) {
+TEST(ExecuteSubgraphInt8, Maxpool) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_maxpool] - [quantize]
     // case 2: [quantize] - [int8_maxpool]
@@ -11596,7 +11595,7 @@ TEST(int8_subgraph_mode, int8_maxpool) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_avgpool) {
+TEST(ExecuteSubgraphInt8, Avgpool) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_avgpool] - [quantize]
     // case 2: [quantize] - [int8_avgpool]
@@ -11727,7 +11726,7 @@ TEST(int8_subgraph_mode, int8_avgpool) {
     }
 }
 
-TEST(operator_compile, matmul_add_get_inplace_pair) {
+TEST(Compile, MatmulAddGetInplacePair) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
@@ -11799,7 +11798,7 @@ TEST(operator_compile, matmul_add_get_inplace_pair) {
     ASSERT_EQ(inplace_pairs[0].output, lt_add_out.id);
 }
 
-TEST(int8_subgraph_mode, int8_quant_wei_conv2d_sum_relu) {
+TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -12026,7 +12025,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_conv2d_sum_relu) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
+TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -12248,7 +12247,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_ndx2d_with_transpose) {
+TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -12429,7 +12428,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_ndx2d_with_transpose) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_relu_ndx2d) {
+TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReluNdx2d) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -12615,7 +12614,7 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_relu_ndx2d) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_matmul_2dx3d_with_transpose) {
+TEST(ExecuteSubgraphInt8, Matmul2dx3dWithTranspose) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
@@ -12757,7 +12756,7 @@ TEST(int8_subgraph_mode, int8_matmul_2dx3d_with_transpose) {
     }
 }
 
-TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
+TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
     // skip the test on AArch64 or some older machine without avx support
     SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx,
             "skip on machine without AVX");
@@ -12964,7 +12963,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
     }
 }
 
-TEST(operator_kernel, mul_add_per_tensor_broadcast) {
+TEST(Execute, MulAddPerTensorBroadcast) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
@@ -13007,7 +13006,7 @@ TEST(operator_kernel, mul_add_per_tensor_broadcast) {
     }
 }
 
-TEST(operator_kernel, mul_add_per_hw_broadcast) {
+TEST(Execute, MulAddPerHwBroadcast) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0(18, 2.0);
@@ -13050,7 +13049,7 @@ TEST(operator_kernel, mul_add_per_hw_broadcast) {
     }
 }
 
-TEST(operator_kernel, mul_add_per_channel_broadcast) {
+TEST(Execute, MulAddPerChannelBroadcast) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
@@ -13093,7 +13092,7 @@ TEST(operator_kernel, mul_add_per_channel_broadcast) {
     }
 }
 
-TEST(int8_subgraph_mode, u8u8f32_bmm) {
+TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -13203,7 +13202,7 @@ TEST(int8_subgraph_mode, u8u8f32_bmm) {
                 /*atol*/ 1.f));
 }
 
-TEST(int8_subgraph_mode, u8u8f32_bmm_div) {
+TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -13317,7 +13316,7 @@ TEST(int8_subgraph_mode, u8u8f32_bmm_div) {
     strm.wait();
 }
 
-TEST(int8_subgraph_mode, x8x8bf16_bmm) {
+TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -13444,7 +13443,7 @@ TEST(int8_subgraph_mode, x8x8bf16_bmm) {
     }
 }
 
-TEST(int8_subgraph_mode, x8x8bf16_bmm_div) {
+TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -13585,7 +13584,7 @@ TEST(int8_subgraph_mode, x8x8bf16_bmm_div) {
     }
 }
 
-TEST(int8_subgraph_mode, x8x8bf16_bmm_div_blocked) {
+TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -13728,7 +13727,7 @@ TEST(int8_subgraph_mode, x8x8bf16_bmm_div_blocked) {
     }
 }
 
-TEST(int8_subgraph_mode, u8s8bf16_matmul_bias) {
+TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -13850,7 +13849,7 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias) {
     strm.wait();
 }
 
-TEST(int8_subgraph_mode, u8s8bf16_matmul_bias_add) {
+TEST(ExecuteSubgraphInt8, MatmulBiasAddU8s8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -14008,7 +14007,7 @@ TEST(int8_subgraph_mode, u8s8bf16_matmul_bias_add) {
     strm.wait();
 }
 
-TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias) {
+TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -14150,7 +14149,7 @@ TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias) {
     strm.wait();
 }
 
-TEST(int8_subgraph_mode, u8s8u8_mix_bf16_matmul_bias_gelu) {
+TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 

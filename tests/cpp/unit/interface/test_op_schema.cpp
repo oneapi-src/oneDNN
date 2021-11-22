@@ -28,7 +28,7 @@ using namespace dnnl::graph::tests::unit::utils;
 
 #ifndef NDEBUG
 
-TEST(op_schema_test, duplicated_attribute) {
+TEST(OpSchema, DuplicateAttribute) {
     EXPECT_DEATH(op_schema_t()
                          .set_attr("kernel", "size of each filter", true,
                                  attribute_kind::b)
@@ -37,7 +37,7 @@ TEST(op_schema_test, duplicated_attribute) {
             "provided attribute has already been set");
 }
 
-TEST(op_schema_test, duplicated_input) {
+TEST(OpSchema, DuplicatedInput) {
     EXPECT_DEATH(op_schema_t()
                          .set_num_inputs(5)
                          .set_input(3, "mean", "value for mean normalization")
@@ -45,7 +45,7 @@ TEST(op_schema_test, duplicated_input) {
             "provided `in_offset` has already been set");
 }
 
-TEST(op_schema_test, duplicated_output) {
+TEST(OpSchema, DuplicatedOutput) {
     EXPECT_DEATH(op_schema_t()
                          .set_num_outputs(1)
                          .set_output(0, "output", "output tensor")
@@ -53,21 +53,21 @@ TEST(op_schema_test, duplicated_output) {
             "provided `out_offset` has already been set");
 }
 
-TEST(op_schema_test, set_input_before_num_inputs) {
+TEST(OpSchema, SetInputBeforeSetNumInputs) {
     EXPECT_DEATH(op_schema_t()
                          .set_input(0, "a", "first input tensor")
                          .set_num_inputs(2),
             "input set before setting num_inputs_");
 }
 
-TEST(op_schema_test, set_output_before_num_outputs) {
+TEST(OpSchema, SetOutputBeforeSetNumOutputs) {
     EXPECT_DEATH(op_schema_t()
                          .set_output(0, "output", "output tensor")
                          .set_num_outputs(1),
             "output set before setting num_outputs_");
 }
 
-TEST(op_schema_test, exceeded_num_inputs) {
+TEST(OpSchema, ExceededNumInputs) {
     EXPECT_DEATH(op_schema_t()
                          .set_num_inputs(1)
                          .set_input(0, "a", "first input tensor")
@@ -75,7 +75,7 @@ TEST(op_schema_test, exceeded_num_inputs) {
             "input offset exceeds declared num of inputs");
 }
 
-TEST(op_schema_test, exceeded_num_outputs) {
+TEST(OpSchema, ExceededNumOutputs) {
     EXPECT_DEATH(op_schema_t()
                          .set_num_outputs(1)
                          .set_output(0, "a", "first output tensor")
@@ -85,7 +85,7 @@ TEST(op_schema_test, exceeded_num_outputs) {
 
 #endif
 
-TEST(op_schema_test, Convolution) {
+TEST(OpSchema, Convolution) {
     const op_kind_t op_kind_ = op_kind::Convolution;
     const std::set<size_t> expected_in_sizes = {2, 3};
     const size_t expected_out_size = 1;
@@ -100,7 +100,7 @@ TEST(op_schema_test, Convolution) {
     }
 }
 
-TEST(op_schema_test, ConvTranspose) {
+TEST(OpSchema, ConvTranspose) {
     const op_kind_t op_kind_ = op_kind::ConvTranspose;
     const std::set<size_t> expected_in_sizes = {2, 3};
     const size_t expected_out_size = 1;
@@ -115,7 +115,7 @@ TEST(op_schema_test, ConvTranspose) {
     }
 }
 
-TEST(op_schema_test, convtranspose_bias_infer_shape_auto_pad) {
+TEST(OpSchema, InferConvtransposeBiasAutoPad) {
     const op_schema_t *a_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::ConvTranspose);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -147,7 +147,7 @@ TEST(op_schema_test, convtranspose_bias_infer_shape_auto_pad) {
     ASSERT_EQ(infered_out_shape, expected_out_shape);
 }
 
-TEST(op_schema_test, convtranspose_bias_infer_shape_with_output_shape) {
+TEST(OpSchema, InferConvtransposeBiasOutputShape) {
     const op_schema_t *a_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::ConvTranspose);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -181,7 +181,7 @@ TEST(op_schema_test, convtranspose_bias_infer_shape_with_output_shape) {
     EXPECT_EQ(pads_end, expected_pads_end);
 }
 
-TEST(op_schema_test, generate_default_attrib) {
+TEST(OpSchema, GenerateDefaultAttribute) {
     const op_schema_t *matmul_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::MatMul);
     op_t matmul_op {0, kMatMul, std::string("matmul")};
@@ -216,7 +216,7 @@ TEST(op_schema_test, generate_default_attrib) {
     EXPECT_FALSE(graph_matmul_op->get_attr<bool>("transpose_b"));
 }
 
-TEST(op_schema_test, verify_function) {
+TEST(OpSchema, TestVerifyFunction) {
     const op_schema_t *conv_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::Convolution);
 
@@ -262,7 +262,7 @@ TEST(op_schema_test, verify_function) {
     EXPECT_TRUE(conv_op_schema->verify(&conv_op));
 }
 
-TEST(op_schema_test, conv_ncx_oix_infer_shape) {
+TEST(OpSchema, InferConvOutputShape) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
     std::string data_format = "NCX";
@@ -286,7 +286,7 @@ TEST(op_schema_test, conv_ncx_oix_infer_shape) {
     }
 }
 
-TEST(op_schema_test, convtranspose_ncx_oix_infer_shape) {
+TEST(OpSchema, InferConvtransposeOutputShape) {
     const op_kind_t op_kind_ = op_kind::ConvTranspose;
 
     std::string data_format = "NCX";
@@ -305,7 +305,7 @@ TEST(op_schema_test, convtranspose_ncx_oix_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv3d_ncx_oix_infer_shape) {
+TEST(OpSchema, InferConv3dOutputShape) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
     std::string data_format = "NCX";
@@ -329,7 +329,7 @@ TEST(op_schema_test, conv3d_ncx_oix_infer_shape) {
     }
 }
 
-TEST(op_schema_test, convtranspose_nxc_oix_infer_shape) {
+TEST(OpSchema, InferConvtransposeOutputShapeWithNxcFormat) {
     const op_kind_t op_kind_ = op_kind::ConvTranspose;
 
     std::string data_format = "NXC";
@@ -348,7 +348,7 @@ TEST(op_schema_test, convtranspose_nxc_oix_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv_nxc_oix_infer_shape) {
+TEST(OpSchema, InferConvOutputShapeWithNxcFormat) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
     std::string data_format = "NXC";
@@ -372,7 +372,7 @@ TEST(op_schema_test, conv_nxc_oix_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv3d_nxc_oix_infer_shape) {
+TEST(OpSchema, InferConv3dOutputShapeWithNxcFormat) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
     std::string data_format = "NXC";
@@ -396,7 +396,7 @@ TEST(op_schema_test, conv3d_nxc_oix_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv_nxc_xio_infer_shape) {
+TEST(OpSchema, InferConvOutputShapeWithNxcXioFormat) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
     std::string data_format = "NXC";
@@ -420,7 +420,7 @@ TEST(op_schema_test, conv_nxc_xio_infer_shape) {
     }
 }
 
-TEST(op_schema_test, convtranspose_nxc_xio_infer_shape) {
+TEST(OpSchema, InferConvtransposeOutputShapeWithNxcXioFormat) {
     const op_kind_t op_kind_ = op_kind::ConvTranspose;
 
     std::string data_format = "NXC";
@@ -439,7 +439,7 @@ TEST(op_schema_test, convtranspose_nxc_xio_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv3d_nxc_xio_infer_shape) {
+TEST(OpSchema, InferConv3dOutputShapeWithNxcXioFormat) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
     std::string data_format = "NXC";
@@ -463,7 +463,7 @@ TEST(op_schema_test, conv3d_nxc_xio_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv_ncx_xio_infer_shape) {
+TEST(OpSchema, InferConvOutputShapeWithXioFormat) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
     std::string data_format = "NCX";
@@ -487,7 +487,7 @@ TEST(op_schema_test, conv_ncx_xio_infer_shape) {
     }
 }
 
-TEST(op_schema_test, convtranspose_ncx_xio_infer_shape) {
+TEST(OpSchema, InferConvtransposeOutputShapeWithXioFormat) {
     const op_kind_t op_kind_ = op_kind::ConvTranspose;
 
     std::string data_format = "NCX";
@@ -506,7 +506,7 @@ TEST(op_schema_test, convtranspose_ncx_xio_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv3d_ncx_xio_infer_shape) {
+TEST(OpSchema, InferConv3dOutputShapeWithXioFormat) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
     std::string data_format = "NCX";
@@ -530,7 +530,7 @@ TEST(op_schema_test, conv3d_ncx_xio_infer_shape) {
     }
 }
 
-TEST(op_schema_test, PowBackpropExponent) {
+TEST(OpSchema, PowBackpropExponent) {
     const op_kind_t op_kind_ = op_kind::PowBackpropExponent;
     const size_t expected_in_size = 4;
     const size_t expected_out_size = 1;
@@ -542,7 +542,7 @@ TEST(op_schema_test, PowBackpropExponent) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, exponent_infer_shape) {
+TEST(OpSchema, InferExponentOutputShape) {
     const op_schema_t *exponent_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::PowBackpropExponent);
 
@@ -575,7 +575,7 @@ TEST(op_schema_test, exponent_infer_shape) {
     EXPECT_EQ(infered_out_strides1, expected_out_strides1);
 }
 
-TEST(op_schema_test, MaxPool) {
+TEST(OpSchema, MaxPool) {
     const op_kind_t op_kind_ = op_kind::MaxPool;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -589,7 +589,7 @@ TEST(op_schema_test, MaxPool) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, maxpool_infer_shape) {
+TEST(OpSchema, InferMaxpoolOutputShape) {
     const op_schema_t *pool_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::MaxPool);
 
@@ -641,7 +641,7 @@ TEST(op_schema_test, maxpool_infer_shape) {
     EXPECT_EQ(infered_pads_end, expected_pads_end);
 }
 
-TEST(op_schema_test, maxpool_ceil_mode) {
+TEST(OpSchema, InferMaxpoolOutputShapeWithCeilMode) {
     const op_schema_t *pool_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::MaxPool);
 
@@ -691,7 +691,7 @@ TEST(op_schema_test, maxpool_ceil_mode) {
     }
 }
 
-TEST(op_schema_test, matmul_infer_shape) {
+TEST(OpSchema, InferMatmulOutputShape) {
     const op_schema_t *matmul_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::MatMul);
 
@@ -755,7 +755,7 @@ TEST(op_schema_test, matmul_infer_shape) {
     EXPECT_EQ(infered_out_strides3, expected_out_strides3);
 }
 
-TEST(op_schema_test, Abs) {
+TEST(OpSchema, Abs) {
     const op_kind_t op_kind_ = op_kind::Abs;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -766,7 +766,7 @@ TEST(op_schema_test, Abs) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Add) {
+TEST(OpSchema, Add) {
     const op_kind_t op_kind_ = op_kind::Add;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -777,19 +777,19 @@ TEST(op_schema_test, Add) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Add_no_broadcast_infer_shape) {
+TEST(OpSchema, InferAddOutputShapeWithoutBroadcast) {
     const op_kind_t op_kind_ = op_kind::Add;
 
     verify_shape_infer_for_arithmetic_op_no_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, Add_with_broadcast_infer_shape) {
+TEST(OpSchema, InferAddOutputShapeWithBroadcast) {
     const op_kind_t op_kind_ = op_kind::Add;
 
     verify_shape_infer_for_arithmetic_op_with_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, BatchNormForwardTraining) {
+TEST(OpSchema, BatchNormForwardTraining) {
     const op_kind_t op_kind_ = op_kind::BatchNormForwardTraining;
     const size_t expected_in_size = 5;
     const size_t expected_out_size = 5;
@@ -801,7 +801,7 @@ TEST(op_schema_test, BatchNormForwardTraining) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, BatchNormForwardTraining_infer_shape) {
+TEST(OpSchema, InferBatchNormForwardTrainingOutputShape) {
     const op_kind_t op_kind_ = op_kind::BatchNormForwardTraining;
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
@@ -851,7 +851,7 @@ TEST(op_schema_test, BatchNormForwardTraining_infer_shape) {
     EXPECT_EQ(result, status::invalid_shape);
 }
 
-TEST(op_schema_test, BatchNormTrainingBackprop) {
+TEST(OpSchema, BatchNormTrainingBackprop) {
     const op_kind_t op_kind_ = op_kind::BatchNormTrainingBackprop;
     const size_t expected_in_size = 6;
     const size_t expected_out_size = 3;
@@ -863,7 +863,7 @@ TEST(op_schema_test, BatchNormTrainingBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, BatchNormTrainingBackprop_infer_shape) {
+TEST(OpSchema, InferBatchNormTrainingBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::BatchNormTrainingBackprop;
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
@@ -907,7 +907,7 @@ TEST(op_schema_test, BatchNormTrainingBackprop_infer_shape) {
     EXPECT_EQ(infered_out_shape2, expected_out_shape_1D);
 }
 
-TEST(op_schema_test, BiasAdd) {
+TEST(OpSchema, BiasAdd) {
     const op_kind_t op_kind_ = op_kind::BiasAdd;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -918,7 +918,7 @@ TEST(op_schema_test, BiasAdd) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, BiasAdd_infer_shape) {
+TEST(OpSchema, InferBiasAddOutputShape) {
     const op_kind_t op_kind_ = op_kind::BiasAdd;
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
@@ -945,7 +945,7 @@ TEST(op_schema_test, BiasAdd_infer_shape) {
     EXPECT_EQ(result, status::invalid_shape);
 }
 
-TEST(op_schema_test, BiasAddBackprop) {
+TEST(OpSchema, BiasAddBackprop) {
     const op_kind_t op_kind_ = op_kind::BiasAddBackprop;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -956,7 +956,7 @@ TEST(op_schema_test, BiasAddBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, BiasAddBackprop_nxc_infer_shape) {
+TEST(OpSchema, InferBiasAddBackpropOutputShapeWithNxcFormat) {
     const op_kind_t op_kind_ = op_kind::BiasAddBackprop;
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
@@ -988,7 +988,7 @@ TEST(op_schema_test, BiasAddBackprop_nxc_infer_shape) {
     EXPECT_EQ(infered_out_shape_expl, expected_out_shape);
 }
 
-TEST(op_schema_test, BiasAddBackprop_ncx_infer_shape) {
+TEST(OpSchema, InferBiasAddBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::BiasAddBackprop;
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
@@ -1010,7 +1010,7 @@ TEST(op_schema_test, BiasAddBackprop_ncx_infer_shape) {
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 }
 
-TEST(op_schema_test, Clamp) {
+TEST(OpSchema, Clamp) {
     const op_kind_t op_kind_ = op_kind::Clamp;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1022,13 +1022,13 @@ TEST(op_schema_test, Clamp) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Clamp_infer_shape) {
+TEST(OpSchema, InferClampOutputShape) {
     const op_kind_t op_kind_ = op_kind::Clamp;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, ClampBackprop) {
+TEST(OpSchema, ClampBackprop) {
     const op_kind_t op_kind_ = op_kind::ClampBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1040,13 +1040,13 @@ TEST(op_schema_test, ClampBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, ClampBackprop_infer_shape) {
+TEST(OpSchema, InferClampBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::ClampBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, ConvolutionBackpropData) {
+TEST(OpSchema, ConvolutionBackpropData) {
     const op_kind_t op_kind_ = op_kind::ConvolutionBackpropData;
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
@@ -1060,7 +1060,7 @@ TEST(op_schema_test, ConvolutionBackpropData) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, conv_bprop_data_ncx_oix_infer_shape) {
+TEST(OpSchema, InferConvolutionBackpropDataOutputShape) {
     const op_kind_t op_kind_ = op_kind::ConvolutionBackpropData;
 
     std::string data_format = "NCX";
@@ -1082,7 +1082,7 @@ TEST(op_schema_test, conv_bprop_data_ncx_oix_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv_bprop_data_nxc_oix_infer_shape) {
+TEST(OpSchema, InferConvolutionBackpropDataOutputShapeWithNxcFormat) {
     const op_kind_t op_kind_ = op_kind::ConvolutionBackpropData;
 
     std::string data_format = "NXC";
@@ -1104,7 +1104,7 @@ TEST(op_schema_test, conv_bprop_data_nxc_oix_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv_bprop_data_nxc_xio_infer_shape) {
+TEST(OpSchema, InferConvolutionBackpropDataOutputShapeWithNxcXioFormat) {
     const op_kind_t op_kind_ = op_kind::ConvolutionBackpropData;
 
     std::string data_format = "NXC";
@@ -1126,7 +1126,7 @@ TEST(op_schema_test, conv_bprop_data_nxc_xio_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv_bprop_data_ncx_xio_infer_shape) {
+TEST(OpSchema, InferConvolutionBackpropDataOutputShapeWithXioFormat) {
     const op_kind_t op_kind_ = op_kind::ConvolutionBackpropData;
 
     std::string data_format = "NCX";
@@ -1148,7 +1148,7 @@ TEST(op_schema_test, conv_bprop_data_ncx_xio_infer_shape) {
     }
 }
 
-TEST(op_schema_test, ConvolutionBackpropFilters) {
+TEST(OpSchema, ConvolutionBackpropFilters) {
     const op_kind_t op_kind_ = op_kind::ConvolutionBackpropFilters;
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
@@ -1162,7 +1162,7 @@ TEST(op_schema_test, ConvolutionBackpropFilters) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, ConvolutionBackpropFilters_infer_shape) {
+TEST(OpSchema, InferConvolutionBackpropFiltersOutputShape) {
     const op_kind_t op_kind_ = op_kind::ConvolutionBackpropFilters;
 
     std::vector<int64_t> strides = {2, 2};
@@ -1202,7 +1202,7 @@ TEST(op_schema_test, ConvolutionBackpropFilters_infer_shape) {
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 }
 
-TEST(op_schema_test, Divide) {
+TEST(OpSchema, Divide) {
     const op_kind_t op_kind_ = op_kind::Divide;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1213,19 +1213,19 @@ TEST(op_schema_test, Divide) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Divide_no_broadcast_infer_shape) {
+TEST(OpSchema, InferDivideOutputShapeWithoutBroadcast) {
     const op_kind_t op_kind_ = op_kind::Divide;
 
     verify_shape_infer_for_arithmetic_op_no_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, Divide_with_broadcast_infer_shape) {
+TEST(OpSchema, InferDivideOutputShapeWithBroadcast) {
     const op_kind_t op_kind_ = op_kind::Divide;
 
     verify_shape_infer_for_arithmetic_op_with_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, Elu) {
+TEST(OpSchema, Elu) {
     const op_kind_t op_kind_ = op_kind::Elu;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1236,13 +1236,13 @@ TEST(op_schema_test, Elu) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Elu_infer_shape) {
+TEST(OpSchema, InferEluOutputShape) {
     const op_kind_t op_kind_ = op_kind::Elu;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, EluBackprop) {
+TEST(OpSchema, EluBackprop) {
     const op_kind_t op_kind_ = op_kind::EluBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1253,13 +1253,13 @@ TEST(op_schema_test, EluBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, EluBackprop_infer_shape) {
+TEST(OpSchema, InferEluBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::EluBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, End) {
+TEST(OpSchema, End) {
     const op_schema_t *op_schema
             = op_schema_registry_t::get_op_schema(op_kind::End);
 
@@ -1270,7 +1270,7 @@ TEST(op_schema_test, End) {
     EXPECT_TRUE(op_schema->verify(&end_op));
 }
 
-TEST(op_schema_test, Reorder) {
+TEST(OpSchema, Reorder) {
     const op_kind_t op_kind_ = op_kind::Reorder;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1281,13 +1281,13 @@ TEST(op_schema_test, Reorder) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Reorder_infer_shape) {
+TEST(OpSchema, InferReorderOutputShape) {
     const op_kind_t op_kind_ = op_kind::Reorder;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Erf) {
+TEST(OpSchema, Erf) {
     const op_kind_t op_kind_ = op_kind::Erf;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1298,13 +1298,13 @@ TEST(op_schema_test, Erf) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Erf_infer_shape) {
+TEST(OpSchema, InferErfOutputShape) {
     const op_kind_t op_kind_ = op_kind::Erf;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Exp) {
+TEST(OpSchema, Exp) {
     const op_kind_t op_kind_ = op_kind::Exp;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1315,13 +1315,13 @@ TEST(op_schema_test, Exp) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Exp_infer_shape) {
+TEST(OpSchema, InferExpOutputShape) {
     const op_kind_t op_kind_ = op_kind::Exp;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, GELU) {
+TEST(OpSchema, Gelu) {
     const op_kind_t op_kind_ = op_kind::GELU;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1332,13 +1332,13 @@ TEST(op_schema_test, GELU) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, GELU_infer_shape) {
+TEST(OpSchema, InferGeluOutputShape) {
     const op_kind_t op_kind_ = op_kind::GELU;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, GELUBackprop) {
+TEST(OpSchema, GELUBackprop) {
     const op_kind_t op_kind_ = op_kind::GELUBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1349,13 +1349,13 @@ TEST(op_schema_test, GELUBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, GELUBackprop_infer_shape) {
+TEST(OpSchema, InferGeluBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::GELUBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, HardTanh) {
+TEST(OpSchema, HardTanh) {
     const op_kind_t op_kind_ = op_kind::HardTanh;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1367,13 +1367,13 @@ TEST(op_schema_test, HardTanh) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, HardTanh_infer_shape) {
+TEST(OpSchema, InferHardTanhOutputShape) {
     const op_kind_t op_kind_ = op_kind::HardTanh;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, HardTanhBackprop) {
+TEST(OpSchema, HardTanhBackprop) {
     const op_kind_t op_kind_ = op_kind::HardTanhBackprop;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1385,13 +1385,13 @@ TEST(op_schema_test, HardTanhBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, HardTanhBackprop_infer_shape) {
+TEST(OpSchema, InferHardTanhBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::HardTanhBackprop;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Index) {
+TEST(OpSchema, Index) {
     const op_kind_t op_kind_ = op_kind::Index;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1403,7 +1403,7 @@ TEST(op_schema_test, Index) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Index_infer_shape_unsupported) {
+TEST(OpSchema, InferIndexOutputShapeUnsupported) {
     const op_kind_t op_kind_ = op_kind::Index;
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
@@ -1421,7 +1421,7 @@ TEST(op_schema_test, Index_infer_shape_unsupported) {
     EXPECT_EQ(status, status::unsupported);
 }
 
-TEST(op_schema_test, LayerNorm) {
+TEST(OpSchema, LayerNorm) {
     const op_kind_t op_kind_ = op_kind::LayerNorm;
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 3;
@@ -1434,7 +1434,7 @@ TEST(op_schema_test, LayerNorm) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, LayerNorm_infer_shape) {
+TEST(OpSchema, InferLayerNormOutputShape) {
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind::LayerNorm);
     op_t op_ {op_kind::LayerNorm, op_t::kind2str(op_kind::LayerNorm)};
@@ -1507,7 +1507,7 @@ TEST(op_schema_test, LayerNorm_infer_shape) {
     }
 }
 
-TEST(op_schema_test, LayerNormBackprop) {
+TEST(OpSchema, LayerNormBackprop) {
     const op_kind_t op_kind_ = op_kind::LayerNormBackprop;
     const size_t expected_in_size = 5;
     const size_t expected_out_size = 3;
@@ -1519,7 +1519,7 @@ TEST(op_schema_test, LayerNormBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, LayerNormBackprop_infer_shape) {
+TEST(OpSchema, InferLayerNormBackpropOutputShape) {
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind::LayerNormBackprop);
     op_t op_ {op_kind::LayerNormBackprop,
@@ -1600,7 +1600,7 @@ TEST(op_schema_test, LayerNormBackprop_infer_shape) {
     }
 }
 
-TEST(op_schema_test, Log) {
+TEST(OpSchema, Log) {
     const op_kind_t op_kind_ = op_kind::Log;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1611,13 +1611,13 @@ TEST(op_schema_test, Log) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Log_infer_shape) {
+TEST(OpSchema, InferLogOutputShape) {
     const op_kind_t op_kind_ = op_kind::Log;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, LogSoftmax) {
+TEST(OpSchema, LogSoftmax) {
     const op_kind_t op_kind_ = op_kind::LogSoftmax;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1628,13 +1628,13 @@ TEST(op_schema_test, LogSoftmax) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, LogSoftmax_infer_shape) {
+TEST(OpSchema, InferLogSoftmaxOutputShape) {
     const op_kind_t op_kind_ = op_kind::LogSoftmax;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, LogSoftmaxBackprop) {
+TEST(OpSchema, LogSoftmaxBackprop) {
     const op_kind_t op_kind_ = op_kind::LogSoftmaxBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1645,13 +1645,13 @@ TEST(op_schema_test, LogSoftmaxBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, LogSoftmaxBackprop_infer_shape) {
+TEST(OpSchema, InferLogSoftmaxBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::LogSoftmaxBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Maximum) {
+TEST(OpSchema, Maximum) {
     const op_kind_t op_kind_ = op_kind::Maximum;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1662,19 +1662,19 @@ TEST(op_schema_test, Maximum) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Maximum_no_broadcast_infer_shape) {
+TEST(OpSchema, InferMaximumOutputShapeWithoutBroadcst) {
     const op_kind_t op_kind_ = op_kind::Maximum;
 
     verify_shape_infer_for_arithmetic_op_no_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, Maximum_with_broadcast_infer_shape) {
+TEST(OpSchema, InferMaximumOutputShapeWihBroadcast) {
     const op_kind_t op_kind_ = op_kind::Maximum;
 
     verify_shape_infer_for_arithmetic_op_with_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, MaxPoolBackprop) {
+TEST(OpSchema, MaxPoolBackprop) {
     const op_kind_t op_kind_ = op_kind::MaxPoolBackprop;
 
     const std::set<size_t> expected_in_sizes = {2, 3};
@@ -1689,12 +1689,12 @@ TEST(op_schema_test, MaxPoolBackprop) {
     }
 }
 
-TEST(op_schema_test, MaxPoolBackprop_infer_shape) {
+TEST(OpSchema, InferMaxPoolBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::MaxPoolBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
 }
-TEST(op_schema_test, Minimum) {
+TEST(OpSchema, Minimum) {
     const op_kind_t op_kind_ = op_kind::Minimum;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1705,19 +1705,19 @@ TEST(op_schema_test, Minimum) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Minimum_no_broadcast_infer_shape) {
+TEST(OpSchema, InferMinimumOutputShapeWithoutBroadcast) {
     const op_kind_t op_kind_ = op_kind::Minimum;
 
     verify_shape_infer_for_arithmetic_op_no_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, Minimum_with_broadcast_infer_shape) {
+TEST(OpSchema, InferMinimumOutputShapeWithBroadcast) {
     const op_kind_t op_kind_ = op_kind::Minimum;
 
     verify_shape_infer_for_arithmetic_op_with_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, Multiply) {
+TEST(OpSchema, Multiply) {
     const op_kind_t op_kind_ = op_kind::Multiply;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1728,19 +1728,19 @@ TEST(op_schema_test, Multiply) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Multiply_no_broadcast_infer_shape) {
+TEST(OpSchema, InferMultiplyOutputShapeWithoutBroadcast) {
     const op_kind_t op_kind_ = op_kind::Multiply;
 
     verify_shape_infer_for_arithmetic_op_no_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, Multiply_with_broadcast_infer_shape) {
+TEST(OpSchema, InferMultiplyOutputShapeWithBroadcast) {
     const op_kind_t op_kind_ = op_kind::Multiply;
 
     verify_shape_infer_for_arithmetic_op_with_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, Pow) {
+TEST(OpSchema, Pow) {
     const op_kind_t op_kind_ = op_kind::Pow;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1751,19 +1751,19 @@ TEST(op_schema_test, Pow) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Pow_no_broadcast_infer_shape) {
+TEST(OpSchema, InferPowOutputShapeWithoutBroadcast) {
     const op_kind_t op_kind_ = op_kind::Pow;
 
     verify_shape_infer_for_arithmetic_op_no_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, Pow_with_broadcast_infer_shape) {
+TEST(OpSchema, InferPowOutputShapeWithBroadcast) {
     const op_kind_t op_kind_ = op_kind::Pow;
 
     verify_shape_infer_for_arithmetic_op_with_broadcast(op_kind_);
 }
 
-TEST(op_schema_test, PowBackprop) {
+TEST(OpSchema, PowBackprop) {
     const op_kind_t op_kind_ = op_kind::PowBackprop;
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
@@ -1774,7 +1774,7 @@ TEST(op_schema_test, PowBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, PowBackprop_infer_shape) {
+TEST(OpSchema, InferPowBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::PowBackprop;
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
@@ -1797,7 +1797,7 @@ TEST(op_schema_test, PowBackprop_infer_shape) {
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 }
 
-TEST(op_schema_test, ReduceSum) {
+TEST(OpSchema, ReduceSum) {
     const op_kind_t op_kind_ = op_kind::ReduceSum;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1808,7 +1808,7 @@ TEST(op_schema_test, ReduceSum) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, ReduceSum_infer_shape) {
+TEST(OpSchema, InferReduceSumOutputShape) {
     const op_kind_t op_kind_ = op_kind::ReduceSum;
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
@@ -1825,7 +1825,7 @@ TEST(op_schema_test, ReduceSum_infer_shape) {
     EXPECT_EQ(ret, status::unsupported);
 }
 
-TEST(op_schema_test, ReLU) {
+TEST(OpSchema, ReLU) {
     const op_kind_t op_kind_ = op_kind::ReLU;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1836,13 +1836,13 @@ TEST(op_schema_test, ReLU) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Relu_infer_shape) {
+TEST(OpSchema, InferReluOutputShape) {
     const op_kind_t op_kind_ = op_kind::ReLU;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, ReLUBackprop) {
+TEST(OpSchema, ReLUBackprop) {
     const op_kind_t op_kind_ = op_kind::ReLUBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1853,13 +1853,13 @@ TEST(op_schema_test, ReLUBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, ReluBackprop_infer_shape) {
+TEST(OpSchema, InferReluBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::ReLUBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Round) {
+TEST(OpSchema, Round) {
     const op_kind_t op_kind_ = op_kind::Round;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1870,13 +1870,13 @@ TEST(op_schema_test, Round) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Round_infer_shape) {
+TEST(OpSchema, InferRoundOutputShape) {
     const op_kind_t op_kind_ = op_kind::Round;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Sigmoid) {
+TEST(OpSchema, Sigmoid) {
     const op_kind_t op_kind_ = op_kind::Sigmoid;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1887,13 +1887,13 @@ TEST(op_schema_test, Sigmoid) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Sigmoid_infer_shape) {
+TEST(OpSchema, InferSigmoidOutputShape) {
     const op_kind_t op_kind_ = op_kind::Sigmoid;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, SigmoidBackprop) {
+TEST(OpSchema, SigmoidBackprop) {
     const op_kind_t op_kind_ = op_kind::SigmoidBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1904,13 +1904,13 @@ TEST(op_schema_test, SigmoidBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, SigmoidBackprop_infer_shape) {
+TEST(OpSchema, InferSigmoidBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::SigmoidBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, SoftMax) {
+TEST(OpSchema, SoftMax) {
     const op_kind_t op_kind_ = op_kind::SoftMax;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1921,13 +1921,13 @@ TEST(op_schema_test, SoftMax) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, SoftMax_infer_shape) {
+TEST(OpSchema, InferSoftMaxOutputShape) {
     const op_kind_t op_kind_ = op_kind::SoftMax;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, SoftMaxBackprop) {
+TEST(OpSchema, SoftMaxBackprop) {
     const op_kind_t op_kind_ = op_kind::SoftMaxBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1938,19 +1938,19 @@ TEST(op_schema_test, SoftMaxBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, SoftMaxBackprop_infer_shape) {
+TEST(OpSchema, InferSoftMaxBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::SoftMaxBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Sqrt_infer_shape) {
+TEST(OpSchema, InferSqrtOutputShape) {
     const op_kind_t op_kind_ = op_kind::Sqrt;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Sqrt) {
+TEST(OpSchema, Sqrt) {
     const op_kind_t op_kind_ = op_kind::Sqrt;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1961,7 +1961,7 @@ TEST(op_schema_test, Sqrt) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, SoftPlus) {
+TEST(OpSchema, SoftPlus) {
     const op_kind_t op_kind_ = op_kind::SoftPlus;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -1972,13 +1972,13 @@ TEST(op_schema_test, SoftPlus) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, SoftPlus_infer_shape) {
+TEST(OpSchema, InferSoftPlusOutputShape) {
     const op_kind_t op_kind_ = op_kind::SoftPlus;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, SoftPlusBackprop) {
+TEST(OpSchema, SoftPlusBackprop) {
     const op_kind_t op_kind_ = op_kind::SoftPlusBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -1989,13 +1989,13 @@ TEST(op_schema_test, SoftPlusBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, SoftPlusBackprop_infer_shape) {
+TEST(OpSchema, InferSoftPlusBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::SoftPlusBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, SqrtBackprop) {
+TEST(OpSchema, SqrtBackprop) {
     const op_kind_t op_kind_ = op_kind::SqrtBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -2006,7 +2006,7 @@ TEST(op_schema_test, SqrtBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Tanh) {
+TEST(OpSchema, Tanh) {
     const op_kind_t op_kind_ = op_kind::Tanh;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -2016,13 +2016,13 @@ TEST(op_schema_test, Tanh) {
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
 }
-TEST(op_schema_test, SqrtBackprop_infer_shape) {
+TEST(OpSchema, InferSqrtBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::SqrtBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Square) {
+TEST(OpSchema, Square) {
     const op_kind_t op_kind_ = op_kind::Square;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -2033,19 +2033,19 @@ TEST(op_schema_test, Square) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Square_infer_shape) {
+TEST(OpSchema, InferSquareOutputShape) {
     const op_kind_t op_kind_ = op_kind::Square;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Tanh_infer_shape) {
+TEST(OpSchema, InferTanhOutputShape) {
     const op_kind_t op_kind_ = op_kind::Tanh;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, TanhBackprop) {
+TEST(OpSchema, TanhBackprop) {
     const op_kind_t op_kind_ = op_kind::TanhBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -2056,13 +2056,13 @@ TEST(op_schema_test, TanhBackprop) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, TanhBackprop_infer_shape) {
+TEST(OpSchema, InferTanhBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::TanhBackprop;
 
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
-TEST(op_schema_test, Wildcard) {
+TEST(OpSchema, Wildcard) {
     const op_schema_t *op_schema
             = op_schema_registry_t::get_op_schema(kWildcard);
     auto inputs_option = op_schema->get_inputs_option();
@@ -2086,7 +2086,7 @@ TEST(op_schema_test, Wildcard) {
     EXPECT_TRUE(op_schema->verify(&wildcard_op));
 }
 
-TEST(op_schema_test, Wildcard_infer_shape) {
+TEST(OpSchema, InferWildcardOutputShape) {
     const op_kind_t op_kind_ = op_kind::Wildcard;
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
@@ -2101,7 +2101,7 @@ TEST(op_schema_test, Wildcard_infer_shape) {
     EXPECT_EQ(ret, status::unsupported);
 }
 
-TEST(op_schema_test, optional_input) {
+TEST(OpSchema, BatchNormOptionalInput) {
     const op_schema_t *bn_op_schema
             = op_schema_registry_t::get_op_schema(kBatchNormForwardTraining);
     auto inputs_option = bn_op_schema->get_inputs_option();
@@ -2143,7 +2143,7 @@ TEST(op_schema_test, optional_input) {
     EXPECT_FALSE(bn_op_schema->verify(&bn_op));
 }
 
-TEST(op_schema_test, variadic_input) {
+TEST(OpSchema, ConcatVariadicInput) {
     const op_schema_t *concat_op_schema
             = op_schema_registry_t::get_op_schema(kConcat);
     auto inputs_option = concat_op_schema->get_inputs_option();
@@ -2166,7 +2166,7 @@ TEST(op_schema_test, variadic_input) {
     EXPECT_TRUE(concat_op_schema->verify(&concat_op));
 }
 
-TEST(op_schema_test, variadic_input_negative) {
+TEST(OpSchema, ConcatVariadicInputNegative) {
     const op_schema_t *concat_op_schema
             = op_schema_registry_t::get_op_schema(kConcat);
 
@@ -2179,7 +2179,7 @@ TEST(op_schema_test, variadic_input_negative) {
     EXPECT_FALSE(concat_op_schema->verify(&concat_op));
 }
 
-TEST(op_schema_test, test_layernorm_optional_inputs) {
+TEST(OpSchema, LayerNormOptionalInputs) {
     const op_schema_t *ln_op_schema
             = op_schema_registry_t::get_op_schema(kLayerNorm);
     auto inputs_option = ln_op_schema->get_inputs_option();
@@ -2220,7 +2220,7 @@ TEST(op_schema_test, test_layernorm_optional_inputs) {
     EXPECT_FALSE(ln_op_schema->verify(&ln_op));
 }
 
-TEST(op_schema_test, test_add_default_attributes) {
+TEST(OpSchema, AddDefaultAttribute) {
     op_kind_t tmp_op_kind = kAdd;
     op_t tmp_op {0, tmp_op_kind, std::string("add")};
 
@@ -2233,7 +2233,7 @@ TEST(op_schema_test, test_add_default_attributes) {
     EXPECT_EQ(*sval, "numpy");
 }
 
-TEST(op_schema_test, test_avgpool_default_attributes) {
+TEST(OpSchema, AvgpoolDefaultAttribute) {
     op_kind_t tmp_op_kind = kAvgPool;
     op_t tmp_op {0, tmp_op_kind, std::string("avgpool")};
 
@@ -2274,7 +2274,7 @@ TEST(op_schema_test, test_avgpool_default_attributes) {
     EXPECT_TRUE(opm->verify(&tmp_op));
 }
 
-TEST(op_schema_test, test_avgpoolbackprop_default_attributes) {
+TEST(OpSchema, AvgBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kAvgPoolBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("avgpool_bp")};
 
@@ -2290,7 +2290,7 @@ TEST(op_schema_test, test_avgpoolbackprop_default_attributes) {
     EXPECT_EQ(*sval, "None");
 }
 
-TEST(op_schema_test, test_batchnorminference_default_attributes) {
+TEST(OpSchema, BatchNormInferenceDefaultAttribute) {
     op_kind_t tmp_op_kind = kBatchNormInference;
     op_t tmp_op {0, tmp_op_kind, std::string("bn_inference")};
 
@@ -2303,7 +2303,7 @@ TEST(op_schema_test, test_batchnorminference_default_attributes) {
     EXPECT_EQ(*sval, "NXC");
 }
 
-TEST(op_schema_test, test_batchnormforwardtraining_default_attributes) {
+TEST(OpSchema, BatchNormForwardTrainingDefaultAttribute) {
     op_kind_t tmp_op_kind = kBatchNormForwardTraining;
     op_t tmp_op {0, tmp_op_kind, std::string("bn_fwd_training")};
 
@@ -2316,7 +2316,7 @@ TEST(op_schema_test, test_batchnormforwardtraining_default_attributes) {
     EXPECT_EQ(*sval, "NXC");
 }
 
-TEST(op_schema_test, test_batchnormtrainingbackprop_default_attributes) {
+TEST(OpSchema, BatchNormTrainingBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kBatchNormTrainingBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("bn_bp")};
 
@@ -2333,7 +2333,7 @@ TEST(op_schema_test, test_batchnormtrainingbackprop_default_attributes) {
     EXPECT_TRUE(*bval);
 }
 
-TEST(op_schema_test, test_biasadd_default_attributes) {
+TEST(OpSchema, BiasaddDefaultAttribute) {
     op_kind_t tmp_op_kind = kBiasAdd;
     op_t tmp_op {0, tmp_op_kind, std::string("bias_add")};
 
@@ -2346,7 +2346,7 @@ TEST(op_schema_test, test_biasadd_default_attributes) {
     EXPECT_EQ(*sval, "NXC");
 }
 
-TEST(op_schema_test, test_biasaddbackprop_default_attributes) {
+TEST(OpSchema, BiasaddBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kBiasAddBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("bias_add_bp")};
 
@@ -2359,7 +2359,7 @@ TEST(op_schema_test, test_biasaddbackprop_default_attributes) {
     EXPECT_EQ(*sval, "NXC");
 }
 
-TEST(op_schema_test, test_convolution_default_attributes) {
+TEST(OpSchema, ConvolutionDefaultAttribute) {
     op_kind_t tmp_op_kind = kConvolution;
     op_t tmp_op {0, tmp_op_kind, std::string("conv")};
 
@@ -2383,7 +2383,7 @@ TEST(op_schema_test, test_convolution_default_attributes) {
     EXPECT_EQ(*ival, int_value);
 }
 
-TEST(op_schema_test, test_convolutionbackpropdata_default_attributes) {
+TEST(OpSchema, ConvolutionBackpropDataDefaultAttribute) {
     op_kind_t tmp_op_kind = kConvolutionBackpropData;
     op_t tmp_op {0, tmp_op_kind, std::string("conv_bpd")};
 
@@ -2412,7 +2412,7 @@ TEST(op_schema_test, test_convolutionbackpropdata_default_attributes) {
     EXPECT_EQ(*ival, int_value);
 }
 
-TEST(op_schema_test, test_convolutionbackpropfilter_default_attributes) {
+TEST(OpSchema, ConvolutionBackpropFiltersDefaultAttribute) {
     op_kind_t tmp_op_kind = kConvolutionBackpropFilters;
     op_t tmp_op {0, tmp_op_kind, std::string("conv_bpf")};
 
@@ -2436,7 +2436,7 @@ TEST(op_schema_test, test_convolutionbackpropfilter_default_attributes) {
     EXPECT_EQ(*ival, int_value);
 }
 
-TEST(op_schema_test, test_divide_default_attributes) {
+TEST(OpSchema, DivideDefaultAttribute) {
     op_kind_t tmp_op_kind = kDivide;
     op_t tmp_op {0, tmp_op_kind, std::string("divide")};
 
@@ -2449,7 +2449,7 @@ TEST(op_schema_test, test_divide_default_attributes) {
     EXPECT_EQ(*sval, "numpy");
 }
 
-TEST(op_schema_test, test_interpolate_default_attributes) {
+TEST(OpSchema, InterpolateDefaultAttribute) {
     op_kind_t tmp_op_kind = kInterpolate;
     op_t tmp_op {0, tmp_op_kind, std::string("interpolate")};
 
@@ -2482,7 +2482,7 @@ TEST(op_schema_test, test_interpolate_default_attributes) {
     EXPECT_FLOAT_EQ(*fval, float_value);
 }
 
-TEST(op_schema_test, test_interpolatebackprop_default_attributes) {
+TEST(OpSchema, InterpolateBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kInterpolateBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("interpolate_bp")};
 
@@ -2515,7 +2515,7 @@ TEST(op_schema_test, test_interpolatebackprop_default_attributes) {
     EXPECT_FLOAT_EQ(*fval, float_value);
 }
 
-TEST(op_schema_test, test_layernorm_default_attributes) {
+TEST(OpSchema, LayerNormDefaultAttribute) {
     op_kind_t tmp_op_kind = kLayerNorm;
     op_t tmp_op {0, tmp_op_kind, std::string("ln")};
 
@@ -2541,7 +2541,7 @@ TEST(op_schema_test, test_layernorm_default_attributes) {
     EXPECT_FLOAT_EQ(*fval, float_value);
 }
 
-TEST(op_schema_test, test_layernormbackprop_default_attributes) {
+TEST(OpSchema, LayerNormBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kLayerNormBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("ln_bp")};
 
@@ -2567,7 +2567,7 @@ TEST(op_schema_test, test_layernormbackprop_default_attributes) {
     EXPECT_FLOAT_EQ(*fval, float_value);
 }
 
-TEST(op_schema_test, test_logsoftmax_default_attributes) {
+TEST(OpSchema, LogSoftmaxDefaultAttribute) {
     op_kind_t tmp_op_kind = kLogSoftmax;
     op_t tmp_op {0, tmp_op_kind, std::string("log_softmax")};
 
@@ -2581,7 +2581,7 @@ TEST(op_schema_test, test_logsoftmax_default_attributes) {
     EXPECT_EQ(*ival, int_value);
 }
 
-TEST(op_schema_test, test_logsoftmaxbackprop_default_attributes) {
+TEST(OpSchema, LogSoftmaxBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kLogSoftmaxBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("log_softmax_bp")};
 
@@ -2595,7 +2595,7 @@ TEST(op_schema_test, test_logsoftmaxbackprop_default_attributes) {
     EXPECT_EQ(*ival, int_value);
 }
 
-TEST(op_schema_test, test_matmul_default_attributes) {
+TEST(OpSchema, MatmulDefaultAttribute) {
     op_kind_t tmp_op_kind = kMatMul;
     op_t tmp_op {0, tmp_op_kind, std::string("matmul")};
 
@@ -2611,7 +2611,7 @@ TEST(op_schema_test, test_matmul_default_attributes) {
     EXPECT_FALSE(*bval);
 }
 
-TEST(op_schema_test, test_maxpool_default_attributes) {
+TEST(OpSchema, MaxPoolDefaultAttribute) {
     op_kind_t tmp_op_kind = kMaxPool;
     op_t tmp_op {0, tmp_op_kind, std::string("max_pool")};
 
@@ -2635,7 +2635,7 @@ TEST(op_schema_test, test_maxpool_default_attributes) {
     EXPECT_EQ(*vval, vector_value);
 }
 
-TEST(op_schema_test, test_maxpoolbackprop_default_attributes) {
+TEST(OpSchema, MaxPoolBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kMaxPoolBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("max_pool_bp")};
 
@@ -2656,7 +2656,7 @@ TEST(op_schema_test, test_maxpoolbackprop_default_attributes) {
     EXPECT_EQ(*sval, "None");
 }
 
-TEST(op_schema_test, test_maximum_default_attributes) {
+TEST(OpSchema, MaximumDefaultAttribute) {
     op_kind_t tmp_op_kind = kMaximum;
     op_t tmp_op {0, tmp_op_kind, std::string("max")};
 
@@ -2669,7 +2669,7 @@ TEST(op_schema_test, test_maximum_default_attributes) {
     EXPECT_EQ(*sval, "numpy");
 }
 
-TEST(op_schema_test, test_minimum_default_attributes) {
+TEST(OpSchema, MinimumDefaultAttribute) {
     op_kind_t tmp_op_kind = kMinimum;
     op_t tmp_op {0, tmp_op_kind, std::string("min")};
 
@@ -2682,7 +2682,7 @@ TEST(op_schema_test, test_minimum_default_attributes) {
     EXPECT_EQ(*sval, "numpy");
 }
 
-TEST(op_schema_test, test_multiply_default_attributes) {
+TEST(OpSchema, MultiplyDefaultAttribute) {
     op_kind_t tmp_op_kind = kMultiply;
     op_t tmp_op {0, tmp_op_kind, std::string("mul")};
 
@@ -2695,7 +2695,7 @@ TEST(op_schema_test, test_multiply_default_attributes) {
     EXPECT_EQ(*sval, "numpy");
 }
 
-TEST(op_schema_test, test_pow_default_attributes) {
+TEST(OpSchema, PowDefaultAttribute) {
     op_kind_t tmp_op_kind = kPow;
     op_t tmp_op {0, tmp_op_kind, std::string("pow")};
 
@@ -2708,7 +2708,7 @@ TEST(op_schema_test, test_pow_default_attributes) {
     EXPECT_EQ(*sval, "numpy");
 }
 
-TEST(op_schema_test, test_reducesum_default_attributes) {
+TEST(OpSchema, ReduceSumDefaultAttribute) {
     op_kind_t tmp_op_kind = kReduceSum;
     op_t tmp_op {0, tmp_op_kind, std::string("reduce_sum")};
 
@@ -2721,7 +2721,7 @@ TEST(op_schema_test, test_reducesum_default_attributes) {
     EXPECT_FALSE(*bval);
 }
 
-TEST(op_schema_test, test_sigmoidbackprop_default_attributes) {
+TEST(OpSchema, SigmoidBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kSigmoidBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("sig_bp")};
 
@@ -2734,7 +2734,7 @@ TEST(op_schema_test, test_sigmoidbackprop_default_attributes) {
     EXPECT_TRUE(bval);
 }
 
-TEST(op_schema_test, test_softmax_default_attributes) {
+TEST(OpSchema, SoftMaxDefaultAttribute) {
     op_kind_t tmp_op_kind = kSoftMax;
     op_t tmp_op {0, tmp_op_kind, std::string("softmax")};
 
@@ -2748,7 +2748,7 @@ TEST(op_schema_test, test_softmax_default_attributes) {
     EXPECT_EQ(*ival, int_value);
 }
 
-TEST(op_schema_test, test_softmaxbackprop_default_attributes) {
+TEST(OpSchema, SoftMaxBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kSoftMaxBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("softmax_bp")};
 
@@ -2762,7 +2762,7 @@ TEST(op_schema_test, test_softmaxbackprop_default_attributes) {
     EXPECT_EQ(*ival, int_value);
 }
 
-TEST(op_schema_test, test_softplus_default_attributes) {
+TEST(OpSchema, SoftPlusDefaultAttribute) {
     op_kind_t tmp_op_kind = kSoftPlus;
     op_t tmp_op {0, tmp_op_kind, std::string("softplus")};
 
@@ -2776,7 +2776,7 @@ TEST(op_schema_test, test_softplus_default_attributes) {
     EXPECT_EQ(*ival, int_value);
 }
 
-TEST(op_schema_test, test_softplusbackprop_default_attributes) {
+TEST(OpSchema, SoftPlusBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kSoftPlusBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("softplus_bp")};
 
@@ -2790,7 +2790,7 @@ TEST(op_schema_test, test_softplusbackprop_default_attributes) {
     EXPECT_EQ(*ival, int_value);
 }
 
-TEST(op_schema_test, test_sqrtbackprop_default_attributes) {
+TEST(OpSchema, SqrtBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kSqrtBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("sqrt_bp")};
 
@@ -2803,7 +2803,7 @@ TEST(op_schema_test, test_sqrtbackprop_default_attributes) {
     EXPECT_TRUE(bval);
 }
 
-TEST(op_schema_test, test_tanhbackprop_default_attributes) {
+TEST(OpSchema, TanhBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kTanhBackprop;
     op_t tmp_op {0, tmp_op_kind, std::string("tanh_bp")};
 
@@ -2816,7 +2816,7 @@ TEST(op_schema_test, test_tanhbackprop_default_attributes) {
     EXPECT_TRUE(bval);
 }
 
-TEST(op_schema_test, test_type_constraints) {
+TEST(OpSchema, MatmulTypeConstraints) {
     const op_schema_t *matmul_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::MatMul);
     op_t matmul_op {0, kMatMul, std::string("matmul")};
@@ -2831,7 +2831,7 @@ TEST(op_schema_test, test_type_constraints) {
     EXPECT_FALSE(matmul_op_schema->verify(&matmul_op));
 }
 
-TEST(op_schema_test, test_quant) {
+TEST(OpSchema, Quantize) {
     const op_schema_t *quant_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::Quantize);
     op_t quant_op {0, kQuantize, std::string("quantize")};
@@ -2845,7 +2845,7 @@ TEST(op_schema_test, test_quant) {
     EXPECT_TRUE(quant_op_schema->verify(&quant_op));
 }
 
-TEST(op_schema_test, test_quant_fail_case) {
+TEST(OpSchema, QuantizeWithFloatZps) {
     const op_schema_t *quant_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::Quantize);
     op_t quant_op {0, kQuantize, std::string("quantize")};
@@ -2861,7 +2861,7 @@ TEST(op_schema_test, test_quant_fail_case) {
     EXPECT_FALSE(quant_op_schema->verify(&quant_op));
 }
 
-TEST(op_schema_test, test_dequant) {
+TEST(OpSchema, Dequantize) {
     const op_schema_t *dequant_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::Dequantize);
     op_t dequant_op {0, kDequantize, std::string("dequantize")};
@@ -2875,7 +2875,7 @@ TEST(op_schema_test, test_dequant) {
     EXPECT_TRUE(dequant_op_schema->verify(&dequant_op));
 }
 
-TEST(op_schema_test, layernorm_bf16) {
+TEST(OpSchema, LayerNormBf16) {
     const op_schema_t *schema = op_schema_registry_t::get_op_schema(kLayerNorm);
 
     op_t lnorm {0, kLayerNorm, std::string("layer_norm")};
@@ -2892,7 +2892,7 @@ TEST(op_schema_test, layernorm_bf16) {
     EXPECT_TRUE(schema->verify(&lnorm));
 }
 
-TEST(op_schema_test, layernorm_bf16_gamma) {
+TEST(OpSchema, LayerNormBf16WithGamma) {
     const op_schema_t *schema = op_schema_registry_t::get_op_schema(kLayerNorm);
 
     op_t lnorm {0, kLayerNorm, std::string("layer_norm")};
@@ -2909,7 +2909,7 @@ TEST(op_schema_test, layernorm_bf16_gamma) {
     EXPECT_TRUE(schema->verify(&lnorm));
 }
 
-TEST(op_schema_test, softmax_bf16) {
+TEST(OpSchema, SoftmaxBf16) {
     const op_schema_t *schema = op_schema_registry_t::get_op_schema(kSoftMax);
 
     op_t softmax {0, kSoftMax, std::string("softmax")};
@@ -2923,7 +2923,7 @@ TEST(op_schema_test, softmax_bf16) {
     EXPECT_TRUE(schema->verify(&softmax));
 }
 
-TEST(op_schema_test, logsoftmax_bf16) {
+TEST(OpSchema, LogSoftmaxBf16) {
     const op_schema_t *schema
             = op_schema_registry_t::get_op_schema(kLogSoftmax);
 
@@ -2938,7 +2938,7 @@ TEST(op_schema_test, logsoftmax_bf16) {
     EXPECT_TRUE(schema->verify(&logsoftmax));
 }
 
-TEST(op_schema_test, typecast_bf16_to_f32) {
+TEST(OpSchema, TypeCast) {
     const op_schema_t *schema
             = op_schema_registry_t::get_op_schema(op_kind::TypeCast);
     EXPECT_TRUE(schema != nullptr);
@@ -2953,7 +2953,7 @@ TEST(op_schema_test, typecast_bf16_to_f32) {
     EXPECT_TRUE(schema->verify(&typecast));
 }
 
-TEST(op_schema_test, batchnorminference_bf16_data_case) {
+TEST(OpSchema, BatchNormInferenceWithBf16Data) {
     const op_schema_t *schema
             = op_schema_registry_t::get_op_schema(op_kind::BatchNormInference);
 
@@ -2976,7 +2976,7 @@ TEST(op_schema_test, batchnorminference_bf16_data_case) {
     EXPECT_TRUE(schema->verify(&bn));
 }
 
-TEST(op_schema_test, batchnorminference_bf16_data_case2) {
+TEST(OpSchema, BatchNormInferenceWithBf16Inputs) {
     const op_schema_t *schema
             = op_schema_registry_t::get_op_schema(op_kind::BatchNormInference);
 
@@ -2999,7 +2999,7 @@ TEST(op_schema_test, batchnorminference_bf16_data_case2) {
     EXPECT_TRUE(schema->verify(&bn));
 }
 
-TEST(OpSchema, VerifyDynamicTranspose) {
+TEST(OpSchema, DynamicTranspose) {
     const op_kind_t op_kind_ = op_kind::DynamicTranspose;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -3009,7 +3009,7 @@ TEST(OpSchema, VerifyDynamicTranspose) {
             expected_attr_size, attrs_data);
 }
 
-TEST(OpSchema, VerifyDynamicReshape) {
+TEST(OpSchema, DynamicReshape) {
     const op_kind_t op_kind_ = op_kind::DynamicReshape;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
@@ -3019,7 +3019,7 @@ TEST(OpSchema, VerifyDynamicReshape) {
             expected_attr_size, attrs_data);
 }
 
-TEST(OpSchema, VerifyStaticTranspose) {
+TEST(OpSchema, StaticTranspose) {
     const op_kind_t op_kind_ = op_kind::StaticTranspose;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
@@ -3029,7 +3029,7 @@ TEST(OpSchema, VerifyStaticTranspose) {
             expected_attr_size, attrs_data);
 }
 
-TEST(OpSchema, VerifyStaticReshape) {
+TEST(OpSchema, StaticReshape) {
     const op_kind_t op_kind_ = op_kind::StaticReshape;
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;

@@ -40,7 +40,7 @@ const oport_t OUT2 = 2;
 //
 // All pattern starts with a "pb_graph"
 //
-TEST(v2_pattern_test, graph) {
+TEST(PatternMatcherV2, Graph) {
     auto pgraph = make_shared<pb_graph_t>("pgraph");
 
     ASSERT_NE(pgraph, nullptr);
@@ -103,7 +103,7 @@ TEST(v2_pattern_test, graph) {
 // exposed as part of the match. The order depends on matcher
 // implementation.
 //
-TEST(v2_pattern_test, graph_append_leaf_op) {
+TEST(PatternMatcherV2, GraphAppendLeafOp) {
     auto graphp = make_shared<pb_graph_t>("pgraph");
     // Grow internal graph
     // Leaf pattern op "Add"
@@ -117,7 +117,7 @@ TEST(v2_pattern_test, graph_append_leaf_op) {
 // A vector of all in coming edges to the new op can passed to
 // append_op for non leaf pattern ops
 //
-TEST(v2_pattern_test, graph_append_non_leaf_op) {
+TEST(PatternMatcherV2, GraphAppendNonLeafOp) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
     auto graphp = make_shared<pb_graph_t>("conv_bias");
     // Grow internal graph
@@ -170,7 +170,7 @@ TEST(v2_pattern_test, graph_append_non_leaf_op) {
     EXPECT_FALSE(match_pattern(a, graphp, m4));
 }
 
-TEST(v2_pattern_test, graph_no_allow_side_output) {
+TEST(PatternMatcherV2, GraphNoAllowSideOutput) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
     auto graphp = make_shared<pb_graph_t>("pgraph");
     auto op0 = graphp->append_op(Convolution, "pconv");
@@ -196,7 +196,7 @@ TEST(v2_pattern_test, graph_no_allow_side_output) {
     EXPECT_FALSE(match_pattern(a, graphp, m1));
 }
 
-TEST(v2_pattern_test, graph_auto_allow_side_output) {
+TEST(PatternMatcherV2, GraphAutoAllowSideOutput) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
     auto graphp = make_shared<pb_graph_t>("pgraph");
     auto op0 = graphp->append_op(Convolution, "pconv");
@@ -224,7 +224,7 @@ TEST(v2_pattern_test, graph_auto_allow_side_output) {
     ASSERT_EQ(m1.outputs.size(), 2);
 }
 
-TEST(v2_pattern_test, graph_manual_allow_side_output) {
+TEST(PatternMatcherV2, GraphManualAllowSideOutput) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
     auto graphp = make_shared<pb_graph_t>("pgraph");
     auto op0 = graphp->append_op(Convolution, "pconv");
@@ -253,7 +253,7 @@ TEST(v2_pattern_test, graph_manual_allow_side_output) {
     ASSERT_EQ(m1.outputs.size(), 2);
 }
 
-TEST(v2_pattern_test, conv_add_fusion) {
+TEST(PatternMatcherV2, ConvAddFusion) {
     // conv + add fusion
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
     shared_ptr<pb_graph_t> pattern_graph = make_shared<pb_graph_t>("pgraph");
@@ -279,7 +279,7 @@ TEST(v2_pattern_test, conv_add_fusion) {
     ASSERT_EQ(a_matcher.outputs.size(), 1);
 }
 
-TEST(v2_pattern_test, conv_add_fusion_2) {
+TEST(PatternMatcherV2, ConvAddFusionCase2) {
     // (Jihui)  conv + add fusion
     // when dnnl backend want to use this pattern, it always has such
     // requirement: one of add's inputs comes from conv, and the other one can
@@ -332,7 +332,7 @@ TEST(v2_pattern_test, conv_add_fusion_2) {
     EXPECT_TRUE(match_pattern(c2, pattern_graph, b_matcher));
 }
 
-TEST(v2_pattern_test, no_allow_unmatched_edge_from_internal) {
+TEST(PatternMatcherV2, NoAllowUnmatchedEdgeFromInternal) {
     // conv + add fusion
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(3);
     shared_ptr<pb_graph_t> pattern_graph = make_shared<pb_graph_t>("pgraph");
@@ -355,7 +355,7 @@ TEST(v2_pattern_test, no_allow_unmatched_edge_from_internal) {
     EXPECT_FALSE(match_pattern(c, pattern_graph, a_matcher));
 }
 
-TEST(v2_pattern_test, auto_allow_unmatched_edge_from_internal) {
+TEST(PatternMatcherV2, AutoAllowUnmatchedEdgeFromInternal) {
     // conv + add fusion
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(3);
     shared_ptr<pb_graph_t> pattern_graph = make_shared<pb_graph_t>("pgraph");
@@ -381,7 +381,7 @@ TEST(v2_pattern_test, auto_allow_unmatched_edge_from_internal) {
     ASSERT_EQ(a_matcher.outputs.size(), 1);
 }
 
-TEST(v2_pattern_test, commutative_input_both_constrained) {
+TEST(PatternMatcherV2, CommutativeInputBothConstrained) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     shared_ptr<pb_graph_t> pattern_graph = make_shared<pb_graph_t>("pgraph");
 
@@ -435,7 +435,7 @@ TEST(v2_pattern_test, commutative_input_both_constrained) {
     ASSERT_EQ(m2.outputs.size(), 1);
 }
 
-TEST(v2_pattern_test, test_commutative_input) {
+TEST(PatternMatcherV2, CommutativeInput) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     shared_ptr<pb_graph_t> pattern_graph = make_shared<pb_graph_t>("pgraph");
     auto conv0 = pattern_graph->append_op(Convolution, "pconv0");
@@ -487,7 +487,7 @@ TEST(v2_pattern_test, test_commutative_input) {
 // Convolution + BiasAdd + Tanh
 // Convolution + BiasAdd + Sqrt
 //
-TEST(v2_pattern_test, conv_bias_activation_fusion) {
+TEST(PatternMatcherV2, ConvBiasActivationFusion) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     auto graphp = make_shared<pb_graph_t>("pgraph");
     auto conv = graphp->append_op(Convolution, "pconv");
@@ -526,7 +526,7 @@ TEST(v2_pattern_test, conv_bias_activation_fusion) {
 // Convolution + BiasAdd + Add + ReLU
 // Convolution + BiasAdd + Add + ELU
 //
-TEST(v2_pattern_test, conv_bias_sum_activation_fusion) {
+TEST(PatternMatcherV2, ConvBiasSumActivationFusion) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
     auto graphp = make_shared<pb_graph_t>("pgraph");
     auto conv = graphp->append_op(Convolution, "pconv");
@@ -571,7 +571,7 @@ TEST(v2_pattern_test, conv_bias_sum_activation_fusion) {
 //
 // MatMul + BiasAdd + Add
 //
-TEST(v2_pattern_test, matmul_bias_sum_fusion) {
+TEST(PatternMatcherV2, MatmulBiasSumFusion) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
     auto graphp = make_shared<pb_graph_t>("pgraph");
     auto matmul = graphp->append_op(MatMul, "pmatmul");
@@ -615,7 +615,7 @@ TEST(v2_pattern_test, matmul_bias_sum_fusion) {
 // MatMul + Sigmoid
 // MatMul + HardTanh
 //
-TEST(v2_pattern_test, matmul_activation_fusion) {
+TEST(PatternMatcherV2, MatmulActivationFusion) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
     auto graphp = make_shared<pb_graph_t>("pgraph");
     auto mat = graphp->append_op(MatMul, "pmatmul");
@@ -648,7 +648,7 @@ TEST(v2_pattern_test, matmul_activation_fusion) {
     ASSERT_EQ(m3.outputs.size(), 1);
 }
 
-TEST(v2_pattern_test, conv_swish_fusion) {
+TEST(PatternMatcherV2, ConvSwishFusion) {
     // conv_swish pass
     //   conv
     //   |   |
@@ -689,7 +689,7 @@ TEST(v2_pattern_test, conv_swish_fusion) {
     ASSERT_EQ(b_matcher.outputs.size(), 1);
 }
 
-TEST(v2_pattern_test, conv_sum_elem_fusion) {
+TEST(PatternMatcherV2, ConvSumEltwiseFusion) {
     // conv + sum + (Relu / Elu / HardTanh / Square / Tanh / Abs / Sqrt)
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     shared_ptr<pb_graph_t> pattern_graph = make_shared<pb_graph_t>("pgraph");
@@ -743,7 +743,7 @@ TEST(v2_pattern_test, conv_sum_elem_fusion) {
 // Input or Output "n" of the alternation node connects to
 // Input of Output "n" of the alternative.
 //
-TEST(v2_pattern_test, alternation) {
+TEST(PatternMatcherV2, Alternation) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
     auto graphp = make_shared<pb_graph_t>("pgraph");
     // MatMul -> (Add | Multiply)
@@ -804,7 +804,7 @@ TEST(v2_pattern_test, alternation) {
 // output port to input port mapping.
 // The mapping has to be given as an argument to append_repetition.
 //
-TEST(v2_pattern_test, repetition) {
+TEST(PatternMatcherV2, Repetition) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
     auto graphp = make_shared<pb_graph_t>("pgraph");
     // Pattern that captures
@@ -853,7 +853,7 @@ TEST(v2_pattern_test, repetition) {
 // output to input port mapping isn't needed since the body does not repeat
 // more than once.
 //
-TEST(v2_pattern_test, optional) {
+TEST(PatternMatcherV2, Optional) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     auto graphp = make_shared<pb_graph_t>("pgraph");
     // Pattern that captures
@@ -927,7 +927,7 @@ TEST(v2_pattern_test, optional) {
 // create_input_port/create_output_port is still needed for
 // setting up the contact interface for nested patterns.
 //
-TEST(v2_pattern_test, complex_repetition) {
+TEST(PatternMatcherV2, ComplexRepetition) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(20);
     auto graphp = make_shared<pb_graph_t>("pmaingraph");
     // Basic building block
@@ -1041,7 +1041,7 @@ TEST(v2_pattern_test, complex_repetition) {
 // Shared input can be expressed by using create_input_port()
 // to forward a single graph input to multiple node inputs.
 //
-TEST(v2_pattern_test, shared_input) {
+TEST(PatternMatcherV2, SharedInput) {
     auto graphp = make_shared<pb_graph_t>("pgraph");
     // Pattern that captures shared input to three MatMuls
     //        |--> MatMul

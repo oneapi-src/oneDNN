@@ -26,7 +26,7 @@
 namespace impl = dnnl::graph::impl;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(value_test, create) {
+TEST(Value, Create) {
     impl::op_t matmul {0, impl::op_kind::MatMul, std::string("matmul")};
     impl::logical_tensor_t lt
             = utils::logical_tensor_init(1, impl::data_type::f32);
@@ -35,7 +35,7 @@ TEST(value_test, create) {
     ASSERT_EQ(val.is_internal(), false);
 }
 
-TEST(value_test, create_internal) {
+TEST(Value, CreateInternal) {
     impl::op_t matmul {0, impl::op_kind::MatMul, std::string("matmul")};
     impl::logical_tensor_t lt
             = utils::logical_tensor_init(1, impl::data_type::f32);
@@ -44,7 +44,7 @@ TEST(value_test, create_internal) {
     ASSERT_EQ(val.is_internal(), true);
 }
 
-TEST(value_test, get_logical_tensor) {
+TEST(Value, GetLogicalTensor) {
     impl::op_t matmul {0, impl::op_kind::MatMul, std::string("matmul")};
     impl::logical_tensor_t lt
             = utils::logical_tensor_init(1, impl::data_type::f32);
@@ -54,7 +54,7 @@ TEST(value_test, get_logical_tensor) {
     ASSERT_TRUE(impl::logical_tensor_wrapper_t(lt)
             == impl::logical_tensor_wrapper_t(lt1));
 }
-TEST(value_test, get_producer) {
+TEST(Value, GetProducer) {
     impl::op_t matmul {0, impl::op_kind::MatMul, std::string("matmul")};
     impl::logical_tensor_t lt
             = utils::logical_tensor_init(1, impl::data_type::f32);
@@ -66,7 +66,7 @@ TEST(value_test, get_producer) {
     ASSERT_EQ(&prod, &matmul);
 }
 
-TEST(value_test, set_producer) {
+TEST(Value, SetProducer) {
     impl::logical_tensor_t lt
             = utils::logical_tensor_init(1, impl::data_type::f32);
     impl::value_t val {lt, false};
@@ -80,7 +80,7 @@ TEST(value_test, set_producer) {
     ASSERT_EQ(&prod, &matmul);
 }
 
-TEST(value_test, equal) {
+TEST(Value, Equal) {
     impl::logical_tensor_t lt
             = utils::logical_tensor_init(1, impl::data_type::f32);
     impl::value_t val1 {lt, false};
@@ -101,7 +101,7 @@ TEST(value_test, equal) {
     ASSERT_NE(val1, val4);
 }
 
-TEST(value_test, offset) {
+TEST(Value, Offset) {
     impl::logical_tensor_t lt
             = utils::logical_tensor_init(1, impl::data_type::f32);
     impl::op_t matmul {0, impl::op_kind::MatMul, std::string("matmul")};
@@ -114,7 +114,7 @@ TEST(value_test, offset) {
     ASSERT_EQ(offset, 2);
 }
 
-TEST(value_test, default_offset) {
+TEST(Value, DefaultOffset) {
     impl::logical_tensor_t lt
             = utils::logical_tensor_init(1, impl::data_type::f32);
     impl::value_t val {lt};
@@ -127,7 +127,7 @@ TEST(value_test, default_offset) {
     ASSERT_EQ(offset, 2);
 }
 
-TEST(value_test, add_consumer) {
+TEST(Value, AddConsumer) {
     impl::logical_tensor_t lt
             = utils::logical_tensor_init(1, impl::data_type::f32);
     impl::op_t matmul {0, impl::op_kind::MatMul, std::string("matmul")};

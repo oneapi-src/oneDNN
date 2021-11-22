@@ -25,7 +25,7 @@
 
 using namespace dnnl::graph::impl;
 
-TEST(partition_test, fake_partition) {
+TEST(Partition, Unsupported) {
     fake_impl::fake_partition_impl_t p(engine_kind::cpu);
     size_t id = 100;
     std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));

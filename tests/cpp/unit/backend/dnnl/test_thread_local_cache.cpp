@@ -34,7 +34,7 @@ struct test_resource_t {
     size_t data_;
 };
 
-TEST(resource, thread_local_cache) {
+TEST(ThreadLocalCache, SingleThread) {
     thread_local_cache_t<test_resource_t> cache;
     cache.clear();
 
@@ -62,7 +62,7 @@ TEST(resource, thread_local_cache) {
     cache.remove_if_exist(key2);
 }
 
-TEST(resource, thread_local_cache_multithreading) {
+TEST(ThreadLocalCache, Multithreading) {
     auto func = []() {
         thread_local_cache_t<test_resource_t> cache;
         cache.clear();

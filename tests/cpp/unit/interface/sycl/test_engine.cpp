@@ -27,9 +27,9 @@ struct test_engine_params {
     impl::engine_kind_t eng_kind_;
 };
 
-class test_engine : public ::testing::TestWithParam<test_engine_params> {
+class TestEngine : public ::testing::TestWithParam<test_engine_params> {
 public:
-    void TestEngine() {
+    void sycl_engine() {
         auto param = ::testing::TestWithParam<test_engine_params>::GetParam();
 
         impl::engine_kind_t kind = param.eng_kind_;
@@ -53,16 +53,16 @@ public:
     }
 };
 
-TEST_P(test_engine, create_with_default_allocator) {
-    TestEngine();
+TEST_P(TestEngine, CreateWithDefaultAllocator) {
+    sycl_engine();
 }
 
 #ifdef DNNL_GRAPH_GPU_SYCL
-INSTANTIATE_TEST_SUITE_P(TestGPUEngine, test_engine,
+INSTANTIATE_TEST_SUITE_P(SyclEngineGpu, TestEngine,
         ::testing::Values(test_engine_params {impl::engine_kind::gpu}));
 #endif
 
 #ifdef DNNL_GRAPH_CPU_SYCL
-INSTANTIATE_TEST_SUITE_P(TestCPUEngine, test_engine,
+INSTANTIATE_TEST_SUITE_P(SyclEngineCpu, TestEngine,
         ::testing::Values(test_engine_params {impl::engine_kind::cpu}));
 #endif

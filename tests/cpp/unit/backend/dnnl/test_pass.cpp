@@ -67,7 +67,7 @@ const impl::op_t *get_fused_op(
  * 4. Pass the graph to the pass
  * 5. Check if conv_bn can be fused
  */
-TEST(pass_test, conv_bn_fusion) {
+TEST(Pass, FuseConvBn) {
     /*   conv
           |
          bn
@@ -119,7 +119,7 @@ TEST(pass_test, conv_bn_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
-TEST(pass_test, conv_bn_fusion_fail) {
+TEST(Pass, FailToFuseConvBnWithBias) {
     /*   conv
           |
         bias
@@ -156,7 +156,7 @@ TEST(pass_test, conv_bn_fusion_fail) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_test, conv_bn_fusion_fail_case2) {
+TEST(Pass, FailToFuseConvBnWithConvSecondOutput) {
     /*   conv
         /    \
        bn   relu
@@ -192,7 +192,7 @@ TEST(pass_test, conv_bn_fusion_fail_case2) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_test, conv_relu_fusion) {
+TEST(Pass, FuseConvRelu) {
     /*   conv
           |
          relu
@@ -227,7 +227,7 @@ TEST(pass_test, conv_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_test, conv_relu_fusion_fail) {
+TEST(Pass, FailToFuseConvReluWithBias) {
     /*   conv
           |
          bias
@@ -256,7 +256,7 @@ TEST(pass_test, conv_relu_fusion_fail) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_test, conv_relu_fusion_fail_case2) {
+TEST(Pass, FailToFuseConvReluWithConvSecondOutput) {
     /*   conv
         /   \
      relu   relu
@@ -287,7 +287,7 @@ TEST(pass_test, conv_relu_fusion_fail_case2) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_test, conv_bias_fusion) {
+TEST(Pass, FuseConvBiasadd) {
     /*   conv
           |
          bias
@@ -323,7 +323,7 @@ TEST(pass_test, conv_bias_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, conv_bias_fusion_case2) {
+TEST(Pass, FuseConvWithInputBias) {
     /*   conv
           |
          bias
@@ -363,7 +363,7 @@ TEST(pass_test, conv_bias_fusion_case2) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_test, conv_sum_fusion) {
+TEST(Pass, FuseConvSum) {
     /*   conv
            \  /
            add
@@ -399,7 +399,7 @@ TEST(pass_test, conv_sum_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, conv_sum_fusion_fail) {
+TEST(Pass, FailToFuseConvSumWithInputBias) {
     /*   conv
            |
          bias
@@ -430,7 +430,7 @@ TEST(pass_test, conv_sum_fusion_fail) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_test, conv_bias_bn_fusion) {
+TEST(Pass, FuseConvBiasaddBn) {
     /*   conv
           |
          bias
@@ -483,7 +483,7 @@ TEST(pass_test, conv_bias_bn_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(pass_test, conv_bias_bn_fusion_case2) {
+TEST(Pass, FuseConvBiasBnWithInputBias) {
     /*   conv
           |
          bias
@@ -532,7 +532,7 @@ TEST(pass_test, conv_bias_bn_fusion_case2) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
 }
 
-TEST(pass_test, conv_bias_relu_fusion) {
+TEST(Pass, FuseConvBiasaddRelu) {
     /*   conv
           |
          bias
@@ -576,7 +576,7 @@ TEST(pass_test, conv_bias_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_bias_relu_fusion_case2) {
+TEST(Pass, FuseConvBiasReluWithInputBias) {
     /*   conv
           |
          bias
@@ -616,7 +616,7 @@ TEST(pass_test, conv_bias_relu_fusion_case2) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, conv_bias_relu6_fusion) {
+TEST(Pass, FuseConvBiasaddRelu6) {
     /*   conv
           |
          bias
@@ -662,7 +662,7 @@ TEST(pass_test, conv_bias_relu6_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_bias_relu6_fusion_fail) {
+TEST(Pass, FailToFuseConvBiasRelu6WithWrongAttr) {
     /*   conv
           |
          bias
@@ -698,7 +698,7 @@ TEST(pass_test, conv_bias_relu6_fusion_fail) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_priority_test, conv_bias_relu6_fusion) {
+TEST(PassPriority, FuseConvBiasRelu6) {
     pass::pass_base_ptr pass1 = get_pass("conv_bias_relu6_fusion");
     pass::pass_base_ptr pass2 = get_pass("conv_bias_hardtanh_fusion");
     pass::pass_base_ptr pass3 = get_pass("conv_bias_fusion");
@@ -706,7 +706,7 @@ TEST(pass_priority_test, conv_bias_relu6_fusion) {
     ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
 }
 
-TEST(pass_test, conv_bias_elu_fusion) {
+TEST(Pass, FuseConvBiasElu) {
     /*   conv
           |
          bias
@@ -747,7 +747,7 @@ TEST(pass_test, conv_bias_elu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, conv_bias_sigmoid_fusion) {
+TEST(Pass, FuseConvBiasSigmoid) {
     /*   conv
           |
          bias
@@ -787,7 +787,7 @@ TEST(pass_test, conv_bias_sigmoid_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, conv_bias_swish_fusion) {
+TEST(Pass, FuseConvBiasSwish) {
     // swish: f(x) = x * sigmoid(x)
     /*   conv
           |
@@ -836,7 +836,7 @@ TEST(pass_test, conv_bias_swish_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_bias_swish_fail_fusion) {
+TEST(Pass, FailToFuseConvBiasSwish) {
     // swish: f(x) = x * sigmoid(x)
     /*   conv
           |
@@ -875,7 +875,7 @@ TEST(pass_test, conv_bias_swish_fail_fusion) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_test, conv_bias_hardtanh_fusion) {
+TEST(Pass, FuseConvBiasHardtanh) {
     /*   conv
           |
          bias
@@ -921,7 +921,7 @@ TEST(pass_test, conv_bias_hardtanh_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_bias_square_fusion) {
+TEST(Pass, FuseConvBiasSquare) {
     /*   conv
           |
          bias
@@ -965,7 +965,7 @@ TEST(pass_test, conv_bias_square_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_bias_tanh_fusion) {
+TEST(Pass, FuseConvBiasTanh) {
     /*   conv
           |
          bias
@@ -1009,7 +1009,7 @@ TEST(pass_test, conv_bias_tanh_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_bias_abs_fusion) {
+TEST(Pass, FuseConvBiasAbs) {
     /*   conv
           |
          bias
@@ -1053,7 +1053,7 @@ TEST(pass_test, conv_bias_abs_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_bias_sqrt_fusion) {
+TEST(Pass, FuseConvBiasSqrt) {
     /*   conv
           |
          bias
@@ -1097,7 +1097,7 @@ TEST(pass_test, conv_bias_sqrt_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_bias_sum_fusion) {
+TEST(Pass, FuseConvBiasaddSum) {
     /*   conv
           |
          bias
@@ -1143,7 +1143,7 @@ TEST(pass_test, conv_bias_sum_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(pass_test, conv_bias_sum_fusion_case2) {
+TEST(Pass, FuseConvBiasSum) {
     /*   conv
           |
          bias
@@ -1185,7 +1185,7 @@ TEST(pass_test, conv_bias_sum_fusion_case2) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_bias_sum_relu_fusion) {
+TEST(Pass, FuseConvBiasaddSumRelu) {
     /*   conv
           |
          bias
@@ -1237,7 +1237,7 @@ TEST(pass_test, conv_bias_sum_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
-TEST(pass_priority_test, conv_bias_sum_relu) {
+TEST(PassPriority, TestConvRelated) {
     /*   conv
           |
          bias conv
@@ -1262,7 +1262,7 @@ TEST(pass_priority_test, conv_bias_sum_relu) {
     ASSERT_TRUE(pass3->get_priority() > pass7->get_priority());
 }
 
-TEST(pass_test, conv_bias_sum_elu_fusion) {
+TEST(Pass, FuseConvBiasaddSumElu) {
     /*   conv
           |
          bias
@@ -1315,7 +1315,7 @@ TEST(pass_test, conv_bias_sum_elu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
-TEST(pass_priority_test, conv_bias_sum_elu) {
+TEST(PassPriority, TestConvBiasSumElu) {
     /*   conv
           |
          bias conv
@@ -1336,7 +1336,7 @@ TEST(pass_priority_test, conv_bias_sum_elu) {
     ASSERT_TRUE(pass2->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, conv_bias_sum_relu6_fusion) {
+TEST(Pass, FuseConvBiasaddSumRelu6) {
     /*   conv
           |
          bias
@@ -1390,7 +1390,7 @@ TEST(pass_test, conv_bias_sum_relu6_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
-TEST(pass_priority_test, conv_bias_sum_relu6) {
+TEST(PassPriority, TestConvBiasSumRelu6) {
     /*   conv
           |
          bias conv
@@ -1411,7 +1411,7 @@ TEST(pass_priority_test, conv_bias_sum_relu6) {
     ASSERT_TRUE(pass2->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, conv_depthwise_fusion) {
+TEST(Pass, FuseConvDepthwise) {
     /*   conv
           |
          conv (depthwise)
@@ -1482,7 +1482,7 @@ TEST(pass_test, conv_depthwise_fusion) {
 enum class dw_attr { STR, PAD };
 typedef dw_attr dw_attr_t;
 
-TEST(pass_test, conv_depthwise_fusion_fail) {
+TEST(Pass, FailToFuseConvDepthwiseWithWrongPadding) {
     /*   conv
           |
          conv (depthwise)
@@ -1565,7 +1565,7 @@ struct dnnl_graph_test_conv_dw_fail_params {
     const std::vector<int64_t> dw_dst_shape;
 };
 
-class test_conv_dw_pass_fail
+class FailToFuseConvDepthwiseWithWrongAttr
     : public ::testing::TestWithParam<dnnl_graph_test_conv_dw_fail_params> {
 public:
     void TestConvDw() {
@@ -1611,11 +1611,11 @@ public:
     }
 };
 
-TEST_P(test_conv_dw_pass_fail, TestConvDwPassFail) {
+TEST_P(FailToFuseConvDepthwiseWithWrongAttr, TestConvDwPassFail) {
     TestConvDw();
 }
 
-INSTANTIATE_TEST_SUITE_P(TestConvDwPassFail, test_conv_dw_pass_fail,
+INSTANTIATE_TEST_SUITE_P(Pass, FailToFuseConvDepthwiseWithWrongAttr,
         ::testing::Values(
                 // 3D spatial dims
                 dnnl_graph_test_conv_dw_fail_params {{4, 4, 4, 4, 4},
@@ -1631,7 +1631,7 @@ INSTANTIATE_TEST_SUITE_P(TestConvDwPassFail, test_conv_dw_pass_fail,
                 dnnl_graph_test_conv_dw_fail_params {{4, 4, 4, 4}, {4, 4, 1, 1},
                         {4, 4, 4, 4}, {3, 1, 3, 3}, {4, 3, 3, 3}}));
 
-TEST(pass_test, binary_sum_fusion) {
+TEST(Pass, FuseBinarySum) {
     /* binary here represents Multiply, Minimum, Maximum
 
         binary
@@ -1685,7 +1685,7 @@ TEST(pass_test, binary_sum_fusion) {
     }
 }
 
-TEST(pass_priority_test, binary_sum_fusion) {
+TEST(PassPriority, TestConvSumAndBinary) {
     /* binary here represents Multiply, Minimum, Maximum
 
         binary conv
@@ -1713,7 +1713,7 @@ TEST(pass_priority_test, binary_sum_fusion) {
     ASSERT_TRUE(pass7->get_priority() > pass8->get_priority());
 }
 
-TEST(pass_test, binary_sum_fusion_supported_broadcast) {
+TEST(Pass, FuseBinarySumWithSupportBroadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
@@ -1755,7 +1755,7 @@ TEST(pass_test, binary_sum_fusion_supported_broadcast) {
     }
 }
 
-TEST(pass_test, binary_sum_fusion_unsupported_broadcast) {
+TEST(Pass, FailToFuseBinarySumWithUnsupportBroadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
@@ -1807,7 +1807,7 @@ TEST(pass_test, binary_sum_fusion_unsupported_broadcast) {
     }
 }
 
-TEST(pass_test, binary_sum_fusion_unknown_shape) {
+TEST(Pass, FailToFuseBinarySumWithUnknownShape) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
@@ -1846,7 +1846,7 @@ TEST(pass_test, binary_sum_fusion_unknown_shape) {
     }
 }
 
-TEST(pass_test, binary_add_mul_fusion) {
+TEST(Pass, FuseBinaryAddMul) {
     /*
          \  /
           add
@@ -1885,7 +1885,7 @@ TEST(pass_test, binary_add_mul_fusion) {
     ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::add_multiply);
 }
 
-TEST(pass_test, binary_eltwise_fusion) {
+TEST(Pass, FuseBinaryEltwise) {
     /* binary here represents Add, Multiply, Minimum, Maximum
        eltwise here represents Sigmoid, ReLU
 
@@ -1940,7 +1940,7 @@ TEST(pass_test, binary_eltwise_fusion) {
     }
 }
 
-TEST(pass_priority_test, binary_eltwise_fusion) {
+TEST(PassPriority, TestBinaryEltwise) {
     /* binary here represents Add, Multiply, Minimum, Maximum
        eltwise here represents Sigmoid, ReLU
 
@@ -1977,7 +1977,7 @@ TEST(pass_priority_test, binary_eltwise_fusion) {
     ASSERT_TRUE(pass11->get_priority() > pass10->get_priority());
 }
 
-TEST(pass_test, bn_relu_fusion) {
+TEST(Pass, FuseBnRelu) {
     /*
          bn
          |
@@ -2021,7 +2021,7 @@ TEST(pass_test, bn_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(pass_priority_test, bn_relu) {
+TEST(PassPriority, TestBnRelu) {
     /*
          bn
          |
@@ -2034,7 +2034,7 @@ TEST(pass_priority_test, bn_relu) {
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
 }
 
-TEST(pass_test, bn_bwd_relu_bwd_fusion) {
+TEST(Pass, FuseBnBwdReluBwd) {
     /*
         ReLUBackprop
          |
@@ -2087,7 +2087,7 @@ TEST(pass_test, bn_bwd_relu_bwd_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[2].id, 10);
 }
 
-TEST(pass_priority_test, bn_bwd_relu_bwd) {
+TEST(PassPriority, TestBnBwdReluBwd) {
     /*
         ReLUBackprop
          |
@@ -2100,7 +2100,7 @@ TEST(pass_priority_test, bn_bwd_relu_bwd) {
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
 }
 
-TEST(pass_test, conv_sum_relu_fusion) {
+TEST(Pass, FuseConvSumRelu) {
     /*   conv
            \   /
             add
@@ -2144,7 +2144,7 @@ TEST(pass_test, conv_sum_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_sum_elu_fusion) {
+TEST(Pass, FuseConvSumElu) {
     /*   conv
            \   /
             add
@@ -2189,7 +2189,7 @@ TEST(pass_test, conv_sum_elu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_sum_relu6_fusion) {
+TEST(Pass, FuseConvSumRelu6) {
     /*   conv
            \   /
             add
@@ -2235,7 +2235,7 @@ TEST(pass_test, conv_sum_relu6_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, conv_bias_sum_sum) {
+TEST(Pass, FuseConvBiasaddSumSum) {
     /*  conv
           |
         bias   conv
@@ -2310,7 +2310,7 @@ TEST(pass_test, conv_bias_sum_sum) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 12);
 }
 
-TEST(pass_test, conv_bn_sum_fusion) {
+TEST(Pass, FuseConvBnSum) {
     /*   conv
           |
           bn
@@ -2363,7 +2363,7 @@ TEST(pass_test, conv_bn_sum_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(pass_test, conv_bn_sum_fusion_case2) {
+TEST(Pass, FuseConvBnSumWithRelu) {
     /*   conv
           |
           bn   relu
@@ -2420,7 +2420,7 @@ TEST(pass_test, conv_bn_sum_fusion_case2) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_test, conv_bn_sum_fusion_fail) {
+TEST(Pass, FailToFuseConvBnSumWithInputBias) {
     /*   conv
           |
          bias
@@ -2462,7 +2462,7 @@ TEST(pass_test, conv_bn_sum_fusion_fail) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_test, conv_bias_bn_sum_fusion) {
+TEST(Pass, FuseConvBiasBnSum) {
     /*   conv
           |
          bias
@@ -2519,7 +2519,7 @@ TEST(pass_test, conv_bias_bn_sum_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_priority_test, conv_bias_bn_sum) {
+TEST(PassPriority, TestConvBiasBnSum) {
     /*   conv
           |
          bias  conv
@@ -2535,7 +2535,7 @@ TEST(pass_priority_test, conv_bias_bn_sum) {
     ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
 }
 
-TEST(pass_test, conv_bn_relu_fusion) {
+TEST(Pass, FuseConvBnRelu) {
     /*   conv
           |
           bn
@@ -2586,7 +2586,7 @@ TEST(pass_test, conv_bn_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
 }
 
-TEST(pass_priority_test, conv_bn_relu) {
+TEST(PassPriority, TestConvBnRelu) {
     /*   conv
           |
          bn
@@ -2600,7 +2600,7 @@ TEST(pass_priority_test, conv_bn_relu) {
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
 }
 
-TEST(pass_test, conv_bias_bn_relu_fusion) {
+TEST(Pass, FuseConvBiasaddBnRelu) {
     /*   conv
           |
          bias
@@ -2659,7 +2659,7 @@ TEST(pass_test, conv_bias_bn_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_test, conv_bias_bn_relu_fusion_case2) {
+TEST(Pass, FuseConvBiasBnReluWithInputBias) {
     /*   conv
           |
          bias
@@ -2714,7 +2714,7 @@ TEST(pass_test, conv_bias_bn_relu_fusion_case2) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(pass_priority_test, conv_bias_bn_relu) {
+TEST(PassPriority, TestConvBiasBnRelu) {
     /*   conv
           |
          bias
@@ -2732,7 +2732,7 @@ TEST(pass_priority_test, conv_bias_bn_relu) {
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
 }
 
-TEST(pass_test, conv_bn_sum_relu_fusion) {
+TEST(Pass, FuseConvBnSumRelu) {
     /*   conv
           |
          bn
@@ -2791,7 +2791,7 @@ TEST(pass_test, conv_bn_sum_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_test, conv_bias_bn_sum_relu_fusion) {
+TEST(Pass, FuseConvBiasBnSumRelu) {
     /*   conv
           |
          bias
@@ -2854,7 +2854,7 @@ TEST(pass_test, conv_bias_bn_sum_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 11);
 }
 
-TEST(pass_priority_test, conv_bias_bn_sum_relu) {
+TEST(PassPriority, TestConvBiasBnSumRelu) {
     /*   conv
           |
          bias
@@ -2874,7 +2874,7 @@ TEST(pass_priority_test, conv_bias_bn_sum_relu) {
     ASSERT_TRUE(pass3->get_priority() > pass4->get_priority());
 }
 
-TEST(pass_test, convtranspose_bias_fusion) {
+TEST(Pass, FuseConvtransposeBiasadd) {
     /*   conv
           |
          bias
@@ -3100,7 +3100,7 @@ TEST(Pass, FuseConvtransposeReLUTwoInputs) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, matmul_relu_fusion) {
+TEST(Pass, FuseMatmulRelu) {
     /*  matmul
           |
         relu
@@ -3136,7 +3136,7 @@ TEST(pass_test, matmul_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_test, matmul_relu_fail_fusion) {
+TEST(Pass, FailToFuseMatmulRelu) {
     /*  matmul
           |
         relu
@@ -3176,7 +3176,7 @@ TEST(pass_test, matmul_relu_fail_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, relu_matmul) {
+TEST(Pass, FailToFuseReluMatmul) {
     /*  relu
           |
         matmul
@@ -3202,7 +3202,7 @@ TEST(pass_test, relu_matmul) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_test, matmul_elu_fusion) {
+TEST(Pass, FuseMatmulElu) {
     /*  matmul
           |
         elu
@@ -3239,7 +3239,7 @@ TEST(pass_test, matmul_elu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_test, matmul_sigmoid_fusion) {
+TEST(Pass, FuseMatmulSigmoid) {
     /*  matmul
           |
         sigmoid
@@ -3275,7 +3275,7 @@ TEST(pass_test, matmul_sigmoid_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_test, matmul_hardtanh_fusion) {
+TEST(Pass, FuseMatmulHardtanh) {
     /*  matmul
           |
         hardtanh
@@ -3313,7 +3313,7 @@ TEST(pass_test, matmul_hardtanh_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_test, matmul_gelu_fusion) {
+TEST(Pass, FuseMatmulGelu) {
     /*  matmul
           |
         gelu
@@ -3349,7 +3349,7 @@ TEST(pass_test, matmul_gelu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_test, matmul_sum_fusion) {
+TEST(Pass, FuseMatmulSum) {
     /*  matmul  wildcard
           \    /
             add
@@ -3390,7 +3390,7 @@ TEST(pass_test, matmul_sum_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, matmul_sum_fusion_opposite_order) {
+TEST(Pass, FuseMatmulSumWithCommunicativeOrder) {
     /* wildcard matmul
           \    /
             add
@@ -3431,7 +3431,7 @@ TEST(pass_test, matmul_sum_fusion_opposite_order) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, matmul_sum_gelu_fusion) {
+TEST(Pass, FuseMatmulSumGelu) {
     /*  matmul  wildcard
           \    /
             add
@@ -3478,7 +3478,7 @@ TEST(pass_test, matmul_sum_gelu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_priority_test, matmul_sum_gelu) {
+TEST(PassPriority, TestMatmulSum) {
     /*  matmul
           \    /
             add
@@ -3492,7 +3492,7 @@ TEST(pass_priority_test, matmul_sum_gelu) {
     ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
 }
 
-TEST(pass_test, matmul_sum_relu_fusion) {
+TEST(Pass, FuseMatmulSumRelu) {
     /*  matmul wildcard
           \    /
             add
@@ -3539,7 +3539,7 @@ TEST(pass_test, matmul_sum_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_priority_test, matmul_sum_relu) {
+TEST(PassPriority, TestMatmulSumRelu) {
     /*  matmul
           \    /
             add
@@ -3553,7 +3553,7 @@ TEST(pass_priority_test, matmul_sum_relu) {
     ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
 }
 
-TEST(pass_test, conv_bwd_f_biasadd_bwd_fusion) {
+TEST(Pass, FuseConvBwdBiasaddBwd) {
     /*  ConvolutionBackpropFilters
               |
         BiasAddBackprop
@@ -3593,7 +3593,7 @@ TEST(pass_test, conv_bwd_f_biasadd_bwd_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, matmul_bias_fusion) {
+TEST(Pass, FuseMatmulBiasadd) {
     /*  matmul
            |
          bias
@@ -3631,7 +3631,7 @@ TEST(pass_test, matmul_bias_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, matmul_bias_fusion_case2) {
+TEST(Pass, FuseMatmulBias) {
     /*  matmul
            |
          bias
@@ -3665,7 +3665,7 @@ TEST(pass_test, matmul_bias_fusion_case2) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_test, matmul_bias_sigmoid_fusion) {
+TEST(Pass, FuseMatmulBiasSigmoid) {
     /*  matmul
            |
          bias
@@ -3710,7 +3710,7 @@ TEST(pass_test, matmul_bias_sigmoid_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_priority_test, matmul_bias_sigmoid) {
+TEST(PassPriority, TestMatmulBiasSigmoid) {
     /*  matmul
            |
          bias
@@ -3724,7 +3724,7 @@ TEST(pass_priority_test, matmul_bias_sigmoid) {
     ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
 }
 
-TEST(pass_test, matmul_bias_elu_fusion) {
+TEST(Pass, FuseMatmulBiasaddElu) {
     /*  matmul
            |
          bias
@@ -3769,7 +3769,7 @@ TEST(pass_test, matmul_bias_elu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, matmul_bias_relu_fusion) {
+TEST(Pass, FuseMatmulBiasaddRelu) {
     /*  matmul
            |
          bias
@@ -3813,7 +3813,7 @@ TEST(pass_test, matmul_bias_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, matmul_bias_hardtanh_fusion) {
+TEST(Pass, FuseMatmulBiasaddHardtanh) {
     /*  matmul
            |
          bias
@@ -3860,7 +3860,7 @@ TEST(pass_test, matmul_bias_hardtanh_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, matmul_relu_sum_fusion) {
+TEST(Pass, FuseMatmulReluSum) {
     /*  matmul
            |
          bias  relu
@@ -3906,7 +3906,7 @@ TEST(pass_test, matmul_relu_sum_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(pass_test, matmul_bias_sum_relu_fusion) {
+TEST(Pass, FuseMatmulBiasSumRelu) {
     /*  matmul
            |
          bias  wildcard
@@ -3959,7 +3959,7 @@ TEST(pass_test, matmul_bias_sum_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
-TEST(pass_priority_test, matmul_bias_sum_relu) {
+TEST(PassPriority, TestMatmulBiasSumRelu) {
     /*  matmul
            |
          bias  wildcard
@@ -3977,7 +3977,7 @@ TEST(pass_priority_test, matmul_bias_sum_relu) {
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
 }
 
-TEST(pass_test, matmul_bias_swish_fusion) {
+TEST(Pass, FuseMatmulBiasaddSwish) {
     /*       matmul
                |
               bias
@@ -4029,7 +4029,7 @@ TEST(pass_test, matmul_bias_swish_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(pass_priority_test, matmul_bias_swish) {
+TEST(PassPriority, TestMatmulBiasaddSwish) {
     /*       matmul
                |
               bias
@@ -4050,7 +4050,7 @@ TEST(pass_priority_test, matmul_bias_swish) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, matmul_bias_relu6_fusion) {
+TEST(Pass, FuseMatmulBiasaddRelu6) {
     /*  matmul
            |
          bias
@@ -4092,7 +4092,7 @@ TEST(pass_test, matmul_bias_relu6_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, matmul_bias_relu6_fusion_fail) {
+TEST(Pass, FailToFuseMatmulBiasaddRelu6) {
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
     op_t relu6 {1, HardTanh, "hardtanh"};
@@ -4117,7 +4117,7 @@ TEST(pass_test, matmul_bias_relu6_fusion_fail) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_priority_test, matmul_bias_relu6) {
+TEST(PassPriority, TestMatmulBiasaddRelu6) {
     /*  matmul
            |
          bias
@@ -4134,7 +4134,7 @@ TEST(pass_priority_test, matmul_bias_relu6) {
 }
 
 /*
-TEST(pass_test, layernorm_fusion) {
+TEST(Pass, layernorm_fusion) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
 
@@ -4165,7 +4165,7 @@ TEST(pass_test, layernorm_fusion) {
     }
 }*/
 
-TEST(pass_test, gelu_erf_based_fusion) {
+TEST(Pass, FuseGeluErf) {
     /*   \  /
         Divide
            |
@@ -4224,7 +4224,7 @@ TEST(pass_test, gelu_erf_based_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(pass_test, gelu_tanh_based_fusion) {
+TEST(Pass, FuseGelutanh) {
     /*   \  /
           Pow
             \    /
@@ -4309,7 +4309,7 @@ TEST(pass_test, gelu_tanh_based_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 15);
 }
 
-TEST(pass_test, single_op_replacement) {
+TEST(Pass, DnnlSingleOpReplacement) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
 
@@ -4338,7 +4338,7 @@ TEST(pass_test, single_op_replacement) {
     }
 }
 
-TEST(pass_test, conv_single_op_replacement) {
+TEST(Pass, ConvSingleOpReplacement) {
     graph_t agraph;
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
@@ -4369,7 +4369,7 @@ TEST(pass_test, conv_single_op_replacement) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2);
 }
 
-TEST(pass_test, conv_single_op_replacement_case2) {
+TEST(Pass, ConvSingleOpReplacementWithBias) {
     graph_t agraph;
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
@@ -4403,7 +4403,7 @@ TEST(pass_test, conv_single_op_replacement_case2) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_test, save_load_json) {
+TEST(Pass, SaveLoadJson) {
     /*   \  /
           conv
             |
@@ -4480,7 +4480,7 @@ TEST(pass_test, save_load_json) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 8);
 }
 
-TEST(pass_test, valid_json) {
+TEST(Pass, InputJsonIsValid) {
     /*   \   /
           conv
            |
@@ -4538,7 +4538,7 @@ TEST(pass_test, valid_json) {
     ASSERT_EQ(agraph.get_num_partitions(), 2);
 }
 
-TEST(pass_test, invalid_json_for_incompatible_hash) {
+TEST(Pass, InputJsonIsInvalidWithIncompleteHash) {
     /*   \   /
           conv
            |
@@ -4598,7 +4598,7 @@ TEST(pass_test, invalid_json_for_incompatible_hash) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
-TEST(pass_test, invalid_json_for_missing_field) {
+TEST(Pass, InputJsonIsInvalidWithMissingFiled) {
     /*   \   /
           conv
            |
@@ -4651,7 +4651,7 @@ TEST(pass_test, invalid_json_for_missing_field) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
-TEST(pass_test, invalid_json_for_wrong_format) {
+TEST(Pass, InputJsonIsInvalidWithWrongFormat) {
     /*   \   /
           conv
            |
@@ -4699,7 +4699,7 @@ TEST(pass_test, invalid_json_for_wrong_format) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
-TEST(pass_test, two_conv_with_shared_weight) {
+TEST(Pass, FuseTwoConvReluWithSharedWeight) {
     /*    \   /\    /
           conv  conv
             |     |
@@ -4758,7 +4758,7 @@ TEST(pass_test, two_conv_with_shared_weight) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, multi_values_between_two_ops) {
+TEST(Pass, CheckSameInput) {
     /*     conv
             ||
            add
@@ -4801,7 +4801,7 @@ TEST(pass_test, multi_values_between_two_ops) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2);
 }
 
-TEST(pass_test, int8_conv_fusion) {
+TEST(Pass, FuseToInt8Conv) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -4866,7 +4866,7 @@ TEST(pass_test, int8_conv_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_priority_test, int8_conv_fusion) {
+TEST(PassPriority, TestInt8) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -4887,7 +4887,7 @@ TEST(pass_priority_test, int8_conv_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, int8_conv_fail_fusion) {
+TEST(Pass, FailToFuseToInt8Conv) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -4948,7 +4948,7 @@ wildcard     | (f32)
     ASSERT_EQ(agraph.get_num_partitions(), 4);
 }
 
-TEST(pass_test, int8_conv_bias_fusion) {
+TEST(Pass, FuseToInt8ConvBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5020,7 +5020,7 @@ TEST(pass_test, int8_conv_bias_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(pass_priority_test, int8_conv_bias_fusion) {
+TEST(PassPriority, TestInt8ConvBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5041,7 +5041,7 @@ TEST(pass_priority_test, int8_conv_bias_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, int8_conv_relu_fusion) {
+TEST(Pass, FuseToInt8ConvRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5114,7 +5114,7 @@ TEST(pass_test, int8_conv_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(pass_priority_test, int8_conv_relu_fusion) {
+TEST(PassPriority, TestInt8ConvRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5137,7 +5137,7 @@ TEST(pass_priority_test, int8_conv_relu_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, int8_conv_bias_relu_fusion) {
+TEST(Pass, FuseToInt8ConvBiasRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5216,7 +5216,7 @@ TEST(pass_test, int8_conv_bias_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
-TEST(pass_priority_test, int8_conv_bias_relu_fusion) {
+TEST(PassPriority, TestInt8ConvBiasRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5239,7 +5239,7 @@ TEST(pass_priority_test, int8_conv_bias_relu_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, int8_conv_bias_add_fusion) {
+TEST(Pass, FuseToInt8ConvBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5329,7 +5329,7 @@ TEST(pass_test, int8_conv_bias_add_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(pass_priority_test, int8_conv_bias_add_fusion) {
+TEST(PassPriority, TestInt8ConvBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5355,7 +5355,7 @@ TEST(pass_priority_test, int8_conv_bias_add_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, int8_conv_bias_add_relu_fusion) {
+TEST(Pass, FuseToInt8ConvBiasAddRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5458,7 +5458,7 @@ TEST(pass_test, int8_conv_bias_add_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_priority_test, int8_conv_bias_add_relu_fusion) {
+TEST(PassPriority, TestInt8ConvBiasAddRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5490,7 +5490,7 @@ TEST(pass_priority_test, int8_conv_bias_add_relu_fusion) {
     ASSERT_TRUE(pass2->get_priority() > pass7->get_priority());
 }
 
-TEST(pass_priority_test, int8_conv_add_relu_fusion) {
+TEST(PassPriority, TestInt8ConvAddRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5514,7 +5514,7 @@ TEST(pass_priority_test, int8_conv_add_relu_fusion) {
     ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
 }
 
-TEST(pass_test, int8_conv_add_test) {
+TEST(Pass, FuseToInt8ConvBiasAddReluWithInputBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5617,7 +5617,7 @@ TEST(pass_test, int8_conv_add_test) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_test, x8s8f32_conv_fusion) {
+TEST(Pass, FuseToX8s8f32Conv) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5671,7 +5671,7 @@ TEST(pass_test, x8s8f32_conv_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, x8s8f32_conv_bias_fusion) {
+TEST(Pass, FuseToX8s8f32ConvBiasWithInputBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5733,7 +5733,7 @@ TEST(pass_test, x8s8f32_conv_bias_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, x8s8f32_conv_relu_fusion) {
+TEST(Pass, FuseToX8s8f32ConvReluWithInputBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5795,7 +5795,7 @@ TEST(pass_test, x8s8f32_conv_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, x8s8f32_conv_bias_relu_fusion) {
+TEST(Pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5864,7 +5864,7 @@ TEST(pass_test, x8s8f32_conv_bias_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(pass_test, x8s8f32_conv_bias_add_relu_fusion) {
+TEST(Pass, FuseToX8s8f32ConvBiasAddRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -5956,7 +5956,7 @@ TEST(pass_test, x8s8f32_conv_bias_add_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(pass_test, x8s8f32_conv_add_test) {
+TEST(Pass, FuseToX8s8f32ConvBiasAddReluWithAsymmetricZp) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6049,7 +6049,7 @@ TEST(pass_test, x8s8f32_conv_add_test) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(pass_test, quantized_conv_priority_test) {
+TEST(Pass, TestQuantizedConv) {
     /*
         | (u8/s8)  | (s8)   | (u8/s8)  | (s8)
      dequant    dequant   dequant    dequant
@@ -6185,7 +6185,7 @@ TEST(pass_test, quantized_conv_priority_test) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, int8_matmul_fusion) {
+TEST(Pass, FuseToInt8Matmul) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6247,7 +6247,7 @@ TEST(pass_test, int8_matmul_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_priority_test, int8_matmul_fusion) {
+TEST(PassPriority, TestInt8Matmul) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6268,7 +6268,7 @@ TEST(pass_priority_test, int8_matmul_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, int8_matmul_bias_fusion) {
+TEST(Pass, FuseToInt8MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6338,7 +6338,7 @@ TEST(pass_test, int8_matmul_bias_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(pass_priority_test, int8_matmul_bias_fusion) {
+TEST(PassPriority, Int8MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6359,7 +6359,7 @@ TEST(pass_priority_test, int8_matmul_bias_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, int8_matmul_relu_fusion) {
+TEST(Pass, FuseToInt8MatmulRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6430,7 +6430,7 @@ TEST(pass_test, int8_matmul_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(pass_priority_test, int8_matmul_relu_fusion) {
+TEST(PassPriority, TestInt8MatmulRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6453,7 +6453,7 @@ TEST(pass_priority_test, int8_matmul_relu_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, int8_matmul_bias_relu_fusion) {
+TEST(Pass, FuseToInt8MatmulBiasRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6532,7 +6532,7 @@ TEST(pass_test, int8_matmul_bias_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
-TEST(pass_priority_test, int8_matmul_bias_relu_fusion) {
+TEST(PassPriority, TestInt8MatmulBiasRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6555,7 +6555,7 @@ TEST(pass_priority_test, int8_matmul_bias_relu_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, x8x8f32_matmul_fusion) {
+TEST(Pass, FuseToX8s8f32Matmul) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -6608,7 +6608,7 @@ TEST(pass_test, x8x8f32_matmul_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
-TEST(pass_test, x8s8f32_matmul_bias_fusion) {
+TEST(Pass, FuseToX8s8f32MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6669,7 +6669,7 @@ TEST(pass_test, x8s8f32_matmul_bias_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(pass_test, x8s8f32_matmul_eltwise_fusion) {
+TEST(Pass, FuseToX8s8f32MatmulEltwise) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6740,7 +6740,7 @@ TEST(pass_test, x8s8f32_matmul_eltwise_fusion) {
     }
 }
 
-TEST(pass_priority_test, int8_matmul_sigmoid_fusion) {
+TEST(PassPriority, TestInt8MatmulSigmoid) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6763,7 +6763,7 @@ TEST(pass_priority_test, int8_matmul_sigmoid_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_priority_test, int8_matmul_gelu_fusion) {
+TEST(PassPriority, TestInt8MatmulGelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6786,7 +6786,7 @@ TEST(pass_priority_test, int8_matmul_gelu_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, x8s8f32_matmul_bias_eltwise_fusion) {
+TEST(Pass, FuseToX8s8f32MatmulBiasEltwise) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6861,7 +6861,7 @@ TEST(pass_test, x8s8f32_matmul_bias_eltwise_fusion) {
     }
 }
 
-TEST(pass_priority_test, int8_matmul_bias_sigmoid_fusion) {
+TEST(PassPriority, TestInt8MatmulBiasSigmoid) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6884,7 +6884,7 @@ TEST(pass_priority_test, int8_matmul_bias_sigmoid_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_priority_test, int8_matmul_bias_gelu_fusion) {
+TEST(PassPriority, TestInt8MatmulBiasGelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6907,7 +6907,7 @@ TEST(pass_priority_test, int8_matmul_bias_gelu_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, int8_maxpool_fusion) {
+TEST(Pass, FuseToInt8Maxpool) {
     /*
              | (u8/s8)
           dequant
@@ -6971,7 +6971,7 @@ TEST(pass_test, int8_maxpool_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_priority_test, int8_maxpool_fusion) {
+TEST(PassPriority, TestInt8MaxpoolPasPriority) {
     /*
              | (u8/s8)
           dequant
@@ -6990,7 +6990,7 @@ TEST(pass_priority_test, int8_maxpool_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
 }
 
-TEST(pass_test, int8_avgpool_fusion) {
+TEST(Pass, FuseToInt8Avgpool) {
     /*
              | (u8/s8)
           dequant
@@ -7048,7 +7048,7 @@ TEST(pass_test, int8_avgpool_fusion) {
             dnnl_impl::op_kind::int8_avgpool);
 }
 
-TEST(pass_test, int8_matmul_bias_add_fusion) {
+TEST(Pass, FuseToInt8MatmulBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7143,7 +7143,7 @@ TEST(pass_test, int8_matmul_bias_add_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(pass_priority_test, int8_matmul_bias_add_fusion) {
+TEST(PassPriority, TestInt8MatmulBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7169,7 +7169,7 @@ TEST(pass_priority_test, int8_matmul_bias_add_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_priority_test, int8_matmul_add_fusion) {
+TEST(PassPriority, TestInt8MatmulAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7195,7 +7195,7 @@ TEST(pass_priority_test, int8_matmul_add_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, relu_add_fusion) {
+TEST(Pass, FuseReluAdd) {
     /*
          relu
            \  /
@@ -7237,7 +7237,7 @@ TEST(pass_test, relu_add_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(pass_priority_test, relu_add_fusion) {
+TEST(PassPriority, TestReluAdd) {
     /*
          relu
            \  /
@@ -7254,7 +7254,7 @@ TEST(pass_priority_test, relu_add_fusion) {
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
-TEST(pass_test, x8s8f32_matmul_bias_add_fusion) {
+TEST(Pass, FuseToX8s8f32MatmulBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7339,7 +7339,7 @@ TEST(pass_test, x8s8f32_matmul_bias_add_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
 }
 
-TEST(pass_test, x8s8f32_matmul_bias_add_fusion_with_dtype_check) {
+TEST(Pass, FailToFuseToX8s8f32MatmulBiasAddWithWrongDtype) {
     /*
         | (u8/s8)  | (u8)
      dequant    dequant
@@ -7409,7 +7409,7 @@ TEST(pass_test, x8s8f32_matmul_bias_add_fusion_with_dtype_check) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
-TEST(pass_test, x8x8bf16_matmul_fusion) {
+TEST(Pass, FuseToX8s8bf16Matmul) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -7476,7 +7476,7 @@ TEST(pass_test, x8x8bf16_matmul_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(pass_system_test, x8x8bf16_matmul_fusion) {
+TEST(PassSystem, FuseToX8s8bf16Matmul) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -7538,7 +7538,7 @@ TEST(pass_system_test, x8x8bf16_matmul_fusion) {
             dnnl_impl::op_kind::x8x8float_matmul);
 }
 
-TEST(pass_test, x8x8bf16_matmul_div_fusion) {
+TEST(Pass, FuseToX8s8bf16MatmulDiv) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -7616,7 +7616,7 @@ TEST(pass_test, x8x8bf16_matmul_div_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
 }
 
-TEST(pass_system_test, x8x8bf16_matmul_div_fusion) {
+TEST(PassSystem, FuseToX8s8bf16MatmulDiv) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -7688,7 +7688,7 @@ TEST(pass_system_test, x8x8bf16_matmul_div_fusion) {
             dnnl_impl::op_kind::x8x8float_matmul_div);
 }
 
-TEST(pass_test, matmul_dtype_fail) {
+TEST(Pass, FailToAddMatmul) {
     /*
     (bf16) \     / (f16)
            matmul
@@ -7707,7 +7707,7 @@ TEST(pass_test, matmul_dtype_fail) {
     ASSERT_EQ(agraph.add_op(&matmul), status::invalid_op);
 }
 
-TEST(pass_test, x8s8bf16_matmul_bias_fusion) {
+TEST(Pass, FuseToX8s8bf16MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7777,7 +7777,7 @@ TEST(pass_test, x8s8bf16_matmul_bias_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
-TEST(pass_system_test, x8s8bf16_matmul_bias_fusion) {
+TEST(PassSystem, FuseToX8s8bf16MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7841,7 +7841,7 @@ TEST(pass_system_test, x8s8bf16_matmul_bias_fusion) {
             dnnl_impl::op_kind::x8s8float_matmul_bias);
 }
 
-TEST(pass_test, single_typecast_pass) {
+TEST(Pass, FuseSingleTypecast) {
     /*
         | (f32)
      typecast
@@ -7864,7 +7864,7 @@ TEST(pass_test, single_typecast_pass) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
-TEST(pass_test, x8s8bf16_matmul_bias_add_fusion) {
+TEST(Pass, FuseToX8s8bf16MatmulBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7967,7 +7967,7 @@ TEST(pass_test, x8s8bf16_matmul_bias_add_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 11);
 }
 
-TEST(pass_system_test, x8s8bf16_matmul_bias_add_fusion) {
+TEST(PassSystem, FuseToX8s8bf16MatmulBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -8063,7 +8063,7 @@ TEST(pass_system_test, x8s8bf16_matmul_bias_add_fusion) {
             dnnl_impl::op_kind::x8s8float_matmul_bias_add);
 }
 
-TEST(pass_system_test, x8s8bf16_matmul_add_fusion) {
+TEST(PassSystem, FuseToX8s8bf16MatmulAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -8164,7 +8164,7 @@ TEST(pass_system_test, x8s8bf16_matmul_add_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 11);
 }
 
-TEST(pass_test, int8_mix_bf16_matmul_bias_gelu_fusion) {
+TEST(Pass, MixInt8AndBf16MatmulBiasGelu) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8260,7 +8260,7 @@ TEST(pass_test, int8_mix_bf16_matmul_bias_gelu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_system_test, int8_mix_bf16_matmul_bias_gelu_fusion) {
+TEST(PassSystem, MixInt8AndBf16MatmulBiasGelu) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8349,7 +8349,7 @@ TEST(pass_system_test, int8_mix_bf16_matmul_bias_gelu_fusion) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
-TEST(pass_test, int8_mix_bf16_matmul_gelu_fusion) {
+TEST(Pass, MixInt8AndBf16MatmulGelu) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8442,7 +8442,7 @@ TEST(pass_test, int8_mix_bf16_matmul_gelu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_system_test, int8_mix_bf16_matmul_gelu_fusion) {
+TEST(PassSystem, MixInt8AndBf16MatmulGelu) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8536,7 +8536,7 @@ TEST(pass_system_test, int8_mix_bf16_matmul_gelu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_test, int8_mix_bf16_matmul_bias_fusion) {
+TEST(Pass, MixInt8AndBf16MatmulBias) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8626,7 +8626,7 @@ TEST(pass_test, int8_mix_bf16_matmul_bias_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_system_test, int8_mix_bf16_matmul_bias_fusion) {
+TEST(PassSystem, MixInt8AndBf16MatmulBias) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8715,7 +8715,7 @@ TEST(pass_system_test, int8_mix_bf16_matmul_bias_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_test, int8_mix_bf16_matmul_fusion) {
+TEST(Pass, MixInt8AndBf16Matmul) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8802,7 +8802,7 @@ TEST(pass_test, int8_mix_bf16_matmul_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_system_test, int8_mix_bf16_matmul_fusion) {
+TEST(PassSystem, MixInt8AndBf16Matmul) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8888,7 +8888,7 @@ TEST(pass_system_test, int8_mix_bf16_matmul_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
-TEST(pass_test, typecast_quantize_fusion) {
+TEST(Pass, FuseTypecaseQuantize) {
     /*
              | (bf16)
            typecast
@@ -8932,7 +8932,7 @@ TEST(pass_test, typecast_quantize_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2);
 }
 
-TEST(pass_system_test, typecast_quantize_fusion) {
+TEST(PassSystem, FuseTypecaseQuantize) {
     /*
              | (bf16)
            typecast
@@ -8980,7 +8980,7 @@ TEST(pass_system_test, typecast_quantize_fusion) {
 // deq->typecast->matmul
 // quant(weight)->dequant(data & weight)->matmul->q
 // should have higher priority than deq->matmul->q
-TEST(pass_priority_test, int8_bf16_matmul) {
+TEST(PassPriority, TestInt8Bf16Matmul) {
     pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_fusion");
     pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_fusion");
     pass::pass_base_ptr pass3 = get_pass("x8s8bf16_matmul_bias_fusion");
@@ -8998,7 +8998,7 @@ TEST(pass_priority_test, int8_bf16_matmul) {
 // deq->typecast->matmul
 // quant(weight)->dequant(data & weight)->matmul->gelu->q
 // should have higher priority than deq->matmul->gelu->q
-TEST(pass_priority_test, int8_bf16_matmul_gelu) {
+TEST(PassPriority, TestInt8Bf16MatmulGelu) {
     pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_gelu_fusion");
     pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_gelu_fusion");
     pass::pass_base_ptr pass3 = get_pass("x8s8bf16_matmul_bias_fusion");
@@ -9011,7 +9011,7 @@ TEST(pass_priority_test, int8_bf16_matmul_gelu) {
 
 // deq->typecast->matmul->add should have higher priority than
 // deq->typecast->matmul
-TEST(pass_priority_test, x8s8bf16_matmul_add) {
+TEST(PassPriority, TestX8s8bf16MatmulBiasAdd) {
     pass::pass_base_ptr pass1 = get_pass("x8s8bf16_matmul_bias_add_fusion");
     pass::pass_base_ptr pass2 = get_pass("x8s8bf16_matmul_bias_fusion");
     ASSERT_GT(pass1->get_priority(), pass2->get_priority());
@@ -9023,7 +9023,7 @@ TEST(pass_priority_test, x8s8bf16_matmul_add) {
 // deq->typecast->matmul
 // deq->typecast->matmul->gelu->typecast->q should have higher priority than
 // deq->typecast->matmul
-TEST(pass_priority_test, x8s8bf16_matmul) {
+TEST(PassPriority, TestX8s8bf16MatmulDiv) {
     pass::pass_base_ptr pass1 = get_pass("x8x8bf16_matmul_div_fusion");
     pass::pass_base_ptr pass2 = get_pass("x8x8bf16_matmul_fusion");
     pass::pass_base_ptr pass3 = get_pass("x8s8bf16_matmul_add_fusion");

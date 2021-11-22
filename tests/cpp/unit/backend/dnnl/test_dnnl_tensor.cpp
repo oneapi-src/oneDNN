@@ -30,7 +30,7 @@ using dims = dnnl_impl::dnnl_tensor_t::desc_t::dims;
 using data_type = dnnl_impl::dnnl_tensor_t::desc_t::data_type;
 using format_tag = dnnl_impl::dnnl_tensor_t::desc_t::format_tag;
 
-TEST(dnnl_tensor, create) {
+TEST(DnnlTensor, Create) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
@@ -50,7 +50,7 @@ TEST(dnnl_tensor, create) {
     ASSERT_FALSE(t2.is_empty());
 }
 
-TEST(dnnl_tensor, reinit) {
+TEST(DnnlTensor, Reinit) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
@@ -81,7 +81,7 @@ TEST(dnnl_tensor, reinit) {
     ASSERT_NE(buffer.data(), t4.get_data_handle());
 }
 
-TEST(dnnl_tensor, reorder) {
+TEST(DnnlTensor, Reorder) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
@@ -101,7 +101,7 @@ TEST(dnnl_tensor, reorder) {
     ASSERT_FALSE(t2.is_empty());
 }
 
-TEST(dnnl_tensor, make_grouped_weight) {
+TEST(DnnlTensor, MakeGroupedWeight) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
@@ -118,7 +118,7 @@ TEST(dnnl_tensor, make_grouped_weight) {
     ASSERT_FALSE(t2.is_empty());
 }
 
-TEST(dnnl_tensor, reshape) {
+TEST(DnnlTensor, Reshape) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
@@ -139,7 +139,7 @@ TEST(dnnl_tensor, reshape) {
     ASSERT_EQ(t1.get_dims(), new_shape);
 }
 
-TEST(dnnl_tensor, to_format) {
+TEST(DnnlTensor, ToFormat) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
@@ -158,7 +158,7 @@ TEST(dnnl_tensor, to_format) {
     ASSERT_EQ(t1.get_desc().get_format_tag(), format_tag::abdc);
 }
 
-TEST(dnnl_tensor, to_public) {
+TEST(DnnlTensor, ToPublic) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
@@ -177,7 +177,7 @@ TEST(dnnl_tensor, to_public) {
     ASSERT_TRUE(t2.is_public_format());
 }
 
-TEST(dnnl_tensor_desc, to_grouped) {
+TEST(DnnlTensorDesc, ToGrouped) {
     dnnl_tensor_t::desc_t td {
             dims {64, 8, 7, 7}, data_type::f32, format_tag::cdba};
 
@@ -199,7 +199,7 @@ TEST(dnnl_tensor_desc, to_grouped) {
     ASSERT_EQ(grouped_td.data.format_desc.blocking.strides[4], 512);
 }
 
-TEST(dnnl_tensor_desc, transpose) {
+TEST(DnnlTensorDesc, Transpose) {
     dnnl_tensor_t::desc_t td {{64, 3, 7, 7}, data_type::f32, format_tag::abcd};
     dnnl_tensor_t::desc_t new_desc = td.transpose(0, 1);
 

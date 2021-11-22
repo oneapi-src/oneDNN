@@ -24,7 +24,7 @@
 
 #include "cpp/unit/utils.hpp"
 
-TEST(allocator_test, default_cpu_allocator) {
+TEST(Allocator, DefaultCpuAllocator) {
     dnnl::graph::impl::allocator_t *alloc
             = dnnl::graph::impl::allocator_t::create();
 
@@ -36,7 +36,7 @@ TEST(allocator_test, default_cpu_allocator) {
     alloc->release();
 }
 
-TEST(allocator_test, create_attr) {
+TEST(Allocator, CreateWithAttr) {
     dnnl::graph::impl::allocator_t::attribute_t attr {
             dnnl::graph::impl::allocator_lifetime::output, 1024};
 
@@ -45,7 +45,7 @@ TEST(allocator_test, create_attr) {
 }
 
 #ifndef NDEBUG
-TEST(allocator_test, monitor) {
+TEST(Allocator, Monitor) {
     using namespace dnnl::graph::impl;
 
     const size_t temp_size = 1024, persist_size = 512;

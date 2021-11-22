@@ -27,7 +27,7 @@
 using namespace dnnl::graph::impl;
 using namespace dnnl::graph::tests::unit::utils;
 
-TEST(op_schema_test, int8_conv) {
+TEST(OpSchema, Int8Conv) {
     std::set<op_kind_t> conv_kinds = {impl::dnnl_impl::op_kind::int8_conv,
             impl::dnnl_impl::op_kind::int8_conv_relu};
     const size_t expected_in_size = 2;
@@ -54,7 +54,7 @@ TEST(op_schema_test, int8_conv) {
     }
 }
 
-TEST(op_schema_test, int8_matmul) {
+TEST(OpSchema, Int8Matmul) {
     std::set<op_kind_t> matmul_kinds = {impl::dnnl_impl::op_kind::int8_matmul,
             impl::dnnl_impl::op_kind::int8_matmul_relu,
             impl::dnnl_impl::op_kind::int8_matmul_sigmoid,
@@ -83,7 +83,7 @@ TEST(op_schema_test, int8_matmul) {
     }
 }
 
-TEST(op_schema_test, conv_bias_infer_shape) {
+TEST(OpSchema, InferConvBiasOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -127,7 +127,7 @@ TEST(op_schema_test, conv_bias_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
-TEST(op_schema_test, conv_bias_infer_shape_auto_pad) {
+TEST(OpSchema, InferConvBiasOutputShapeAutoPad) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -157,7 +157,7 @@ TEST(op_schema_test, conv_bias_infer_shape_auto_pad) {
     ASSERT_EQ(infered_out_shape, expected_out_shape);
 }
 
-TEST(op_schema_test, conv_auto_pad_with_non_default_strides) {
+TEST(OpSchema, InferConvBiasOutputShapeAutoPadNoDefaultAttribute) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -187,7 +187,7 @@ TEST(op_schema_test, conv_auto_pad_with_non_default_strides) {
     ASSERT_EQ(infered_out_shape, expected_out_shape);
 }
 
-TEST(op_schema_test, conv3d_bias_infer_shape) {
+TEST(OpSchema, InferConv3dBiasOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -231,7 +231,7 @@ TEST(op_schema_test, conv3d_bias_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
-TEST(op_schema_test, Conv_bias_add_elu) {
+TEST(OpSchema, ConvBiasAddElu) {
     const op_kind_t conv_kind = impl::dnnl_impl::op_kind::conv_bias_add_elu;
     const size_t expected_in_size = 4;
     const size_t expected_out_size = 1;
@@ -245,7 +245,7 @@ TEST(op_schema_test, Conv_bias_add_elu) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Conv_bias_add_relu6) {
+TEST(OpSchema, ConvBiasAddRelu6) {
     const op_kind_t conv_kind = impl::dnnl_impl::op_kind::conv_bias_add_relu6;
     const size_t expected_in_size = 4;
     const size_t expected_out_size = 1;
@@ -259,7 +259,7 @@ TEST(op_schema_test, Conv_bias_add_relu6) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, conv_bias_add_infer_shape) {
+TEST(OpSchema, InferConvBiasAddEluOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias_add_elu);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -308,7 +308,7 @@ TEST(op_schema_test, conv_bias_add_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
-TEST(op_schema_test, Conv_bias_elu) {
+TEST(OpSchema, ConvBiasElu) {
     const op_kind_t conv_kind = impl::dnnl_impl::op_kind::conv_bias_elu;
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
@@ -322,7 +322,7 @@ TEST(op_schema_test, Conv_bias_elu) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, Conv_bias_hardtanh) {
+TEST(OpSchema, ConvBiasHardtanh) {
     std::set<op_kind_t> conv_kinds
             = {impl::dnnl_impl::op_kind::conv_bias_hardtanh,
                     impl::dnnl_impl::op_kind::conv_bias_relu6};
@@ -340,7 +340,7 @@ TEST(op_schema_test, Conv_bias_hardtanh) {
     }
 }
 
-TEST(op_schema_test, squeeze_infer_shape) {
+TEST(OpSchema, InferSqueezeOutputShape) {
     const op_kind_t kind = impl::dnnl_impl::op_kind::squeeze;
     const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);
     std::vector<std::vector<int64_t>> axes_list {{1}, {1, 2}, {-1}, {-1, -2}};
@@ -370,13 +370,13 @@ TEST(op_schema_test, squeeze_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv_bias_add_relu_nxc_oix_infer_shape) {
+TEST(OpSchema, InferConvBiasAddReluWithNxcFormat) {
     infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias);
     infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_add);
     infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_add_relu);
 }
 
-TEST(op_schema_test, MatMul) {
+TEST(OpSchema, MatmulFusion) {
     std::set<op_kind_t> matmul_kinds = {impl::dnnl_impl::op_kind::matmul_relu,
             impl::dnnl_impl::op_kind::matmul_elu,
             impl::dnnl_impl::op_kind::matmul_sigmoid,
@@ -400,7 +400,7 @@ TEST(op_schema_test, MatMul) {
     }
 }
 
-TEST(op_schema_test, MatMul_bias) {
+TEST(OpSchema, MatmulBiasFusion) {
     std::set<op_kind_t> matmul_kinds = {impl::dnnl_impl::op_kind::matmul_bias,
             impl::dnnl_impl::op_kind::matmul_bias_relu,
             impl::dnnl_impl::op_kind::matmul_bias_sigmoid,
@@ -417,7 +417,7 @@ TEST(op_schema_test, MatMul_bias) {
     }
 }
 
-TEST(op_schema_test, MatMul_bias_add) {
+TEST(OpSchema, MatmulBiasAdd) {
     std::set<op_kind_t> matmul_kinds
             = {impl::dnnl_impl::op_kind::matmul_bias_add,
                     impl::dnnl_impl::op_kind::matmul_bias_add_relu};
@@ -432,7 +432,7 @@ TEST(op_schema_test, MatMul_bias_add) {
     }
 }
 
-TEST(op_schema_test, MatMul_bias_bn) {
+TEST(OpSchema, MatmulBiasBn) {
     op_kind_t matmul_kinds = impl::dnnl_impl::op_kind::matmul_bias_bn;
     const size_t expected_in_size = 7;
     const size_t expected_out_size = 1;
@@ -443,7 +443,7 @@ TEST(op_schema_test, MatMul_bias_bn) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, MatMul_bias_elu) {
+TEST(OpSchema, MatMulBiasElu) {
     op_kind_t matmul_kinds = impl::dnnl_impl::op_kind::matmul_bias_elu;
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
@@ -454,7 +454,7 @@ TEST(op_schema_test, MatMul_bias_elu) {
             expected_attr_size, attrs_data);
 }
 
-TEST(op_schema_test, MatMul_bias_hardtanh) {
+TEST(OpSchema, MatmulBiasHardtanh) {
     std::set<op_kind_t> matmul_kinds
             = {impl::dnnl_impl::op_kind::matmul_bias_hardtanh,
                     impl::dnnl_impl::op_kind::matmul_bias_relu6};
@@ -470,7 +470,7 @@ TEST(op_schema_test, MatMul_bias_hardtanh) {
     }
 }
 
-TEST(op_schema_test, matmul_bias_infer_shape) {
+TEST(OpSchema, InferMatmulBiasOutputShape) {
     const op_schema_t *matmul_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::matmul_bias);
 
@@ -522,7 +522,7 @@ TEST(op_schema_test, matmul_bias_infer_shape) {
     EXPECT_EQ(infered_out_shape3, expected_out_shape3);
 }
 
-TEST(op_schema_test, matmul_bias_add_infer_shape) {
+TEST(OpSchema, InferMatmulBiasAddOutputShape) {
     const op_schema_t *matmul_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::matmul_bias_add);
 
@@ -578,7 +578,7 @@ TEST(op_schema_test, matmul_bias_add_infer_shape) {
     EXPECT_EQ(infered_out_shape3, expected_out_shape3);
 }
 
-TEST(op_schema_test, BatchNormInference_infer_shape) {
+TEST(OpSchema, InferBatchNormInferenceBiasAddOutputShape) {
     std::set<op_kind_t> bn_kinds
             = {op_kind::BatchNormInference, impl::dnnl_impl::op_kind::bn_relu};
     for (auto cur_kind : bn_kinds) {
@@ -618,7 +618,7 @@ TEST(op_schema_test, BatchNormInference_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv_bn_infer_shape) {
+TEST(OpSchema, InferConvBnOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bn);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -672,7 +672,7 @@ TEST(op_schema_test, conv_bn_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
-TEST(op_schema_test, conv_bn_add_infer_shape) {
+TEST(OpSchema, InferConvBnAddOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bn_add);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -728,7 +728,7 @@ TEST(op_schema_test, conv_bn_add_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
-TEST(op_schema_test, conv_bn_relu_infer_shape) {
+TEST(OpSchema, InferConvBnReluOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bn_relu);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -781,7 +781,7 @@ TEST(op_schema_test, conv_bn_relu_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
-TEST(op_schema_test, conv_bias_bn_infer_shape) {
+TEST(OpSchema, InferConvBiasBnOutputShape) {
     std::set<op_kind_t> op_kinds = {impl::dnnl_impl::op_kind::conv_bias_bn,
             impl::dnnl_impl::op_kind::conv_bias_bn_relu};
     for (auto a_op_kind : op_kinds) {
@@ -842,7 +842,7 @@ TEST(op_schema_test, conv_bias_bn_infer_shape) {
     }
 }
 
-TEST(op_schema_test, conv_bn_add_relu_infer_shape) {
+TEST(OpSchema, InferConvBnAddReluOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bn_add_relu);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -898,7 +898,7 @@ TEST(op_schema_test, conv_bn_add_relu_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
-TEST(op_schema_test, conv_bias_bn_add_relu_infer_shape) {
+TEST(OpSchema, InferConvBiasBnAddReluOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias_bn_add_relu);
     EXPECT_TRUE(nullptr != a_op_schema);
@@ -955,7 +955,7 @@ TEST(op_schema_test, conv_bias_bn_add_relu_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
-TEST(op_schema_test, Conv_bias) {
+TEST(OpSchema, ConvBiasFusion) {
     std::set<op_kind_t> conv_kinds = {impl::dnnl_impl::op_kind::conv_bias,
             impl::dnnl_impl::op_kind::conv_bias_abs,
             impl::dnnl_impl::op_kind::conv_bias_relu,

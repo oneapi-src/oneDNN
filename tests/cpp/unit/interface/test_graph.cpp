@@ -25,7 +25,7 @@
 
 #include "cpp/unit/utils.hpp"
 
-TEST(graph_test, create) {
+TEST(Graph, Create) {
     using namespace dnnl::graph::impl;
 
     graph_t g_default_engine;
@@ -35,7 +35,7 @@ TEST(graph_test, create) {
     ASSERT_EQ(g_gpu.get_engine_kind(), engine_kind::gpu);
 }
 
-TEST(graph_test, add_op) {
+TEST(Graph, AddOp) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
@@ -58,7 +58,7 @@ TEST(graph_test, add_op) {
     ASSERT_EQ(*ret, op1);
 }
 
-TEST(graph_test, add_null_op) {
+TEST(Graph, AddNullOp) {
     using namespace dnnl::graph::impl;
 
     graph_t agraph;
@@ -67,7 +67,7 @@ TEST(graph_test, add_null_op) {
     ASSERT_EQ(agraph.get_ops().size(), 0);
 }
 
-TEST(graph_test, delete_op) {
+TEST(Graph, DeleteOp) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
@@ -92,7 +92,7 @@ TEST(graph_test, delete_op) {
     ASSERT_EQ(agraph.get_ops().size(), 0);
 }
 
-TEST(graph_test, get_output_ops) {
+TEST(Graph, GetOutputOps) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
@@ -115,7 +115,7 @@ TEST(graph_test, get_output_ops) {
     ASSERT_EQ(*(agraph.get_output_ops()[0]), op1);
 }
 
-TEST(graph_test, get_output_ops_2) {
+TEST(Graph, GetOutputOps2) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
@@ -153,7 +153,7 @@ TEST(graph_test, get_output_ops_2) {
     ASSERT_EQ(agraph.get_ops()[1]->get_input_value(0)->has_producer(), true);
 }
 
-TEST(graph_test, build_graph) {
+TEST(Graph, BuildGraph) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
@@ -178,7 +178,7 @@ TEST(graph_test, build_graph) {
     ASSERT_EQ(agraph.num_ops(), 1);
 }
 
-TEST(graph_test, run_pass) {
+TEST(Graph, InvalidOp) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
@@ -204,7 +204,7 @@ TEST(graph_test, run_pass) {
     */
 }
 
-TEST(graph_test, wildcard) {
+TEST(Graph, Wildcard) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
@@ -219,7 +219,7 @@ TEST(graph_test, wildcard) {
     ASSERT_EQ(agraph.num_ops(), 1);
 }
 
-TEST(graph_test, get_input_output_edges) {
+TEST(Graph, GetInputOutputEdges) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
@@ -294,7 +294,7 @@ TEST(graph_test, get_input_output_edges) {
         ASSERT_TRUE(false);
 }
 
-TEST(graph_pass_test, infer_shape) {
+TEST(Graph, InferShape) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;

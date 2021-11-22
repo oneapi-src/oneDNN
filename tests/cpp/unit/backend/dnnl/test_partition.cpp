@@ -25,12 +25,12 @@
 
 using namespace dnnl::graph::impl;
 
-TEST(partition_test, create_simple) {
+TEST(Partition, CreateSimple) {
     dnnl_impl::dnnl_partition_impl_t p(engine_kind::cpu);
     ASSERT_EQ(p.get_ops().size(), 0);
 }
 
-TEST(partition_test, add_ops) {
+TEST(Partition, AddOps) {
     dnnl_impl::dnnl_partition_impl_t p(engine_kind::cpu);
     size_t id = 100;
     std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
@@ -47,7 +47,7 @@ TEST(partition_test, add_ops) {
     ASSERT_EQ(p.get_ops().size(), 3);
 }
 
-TEST(partition_test, get_ops) {
+TEST(Partition, GetOps) {
     dnnl_impl::dnnl_partition_impl_t p(engine_kind::cpu);
     size_t id = 100;
     std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
@@ -57,7 +57,7 @@ TEST(partition_test, get_ops) {
     ASSERT_EQ(ops[0]->get_id(), 100);
 }
 
-TEST(partition_test, init) {
+TEST(Partition, Init) {
     // (todo)xinyu: improve engine test
     engine_t eng {};
     dnnl_impl::dnnl_partition_impl_t p(eng.kind());
@@ -71,7 +71,7 @@ TEST(partition_test, init) {
     ASSERT_EQ(p.get_fused_op()->get_attr<int64_t>("groups"), 0);
 }
 
-TEST(partition_test, copy) {
+TEST(Partition, Copy) {
     engine_t eng {};
     dnnl_impl::dnnl_partition_impl_t p(eng.kind());
     op_t n(op_kind::Convolution);
@@ -91,4 +91,3 @@ TEST(partition_test, copy) {
     ASSERT_NE(p_copy.get_fused_op()->get_attr<int64_t>("groups"),
             p.get_fused_op()->get_attr<int64_t>("groups"));
 }
-

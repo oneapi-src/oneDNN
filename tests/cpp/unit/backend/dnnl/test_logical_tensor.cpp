@@ -28,7 +28,7 @@ namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = dnnl::graph::impl::dnnl_impl;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(logical_tensor_test, implicit_equal_layout) {
+TEST(LogicalTensor, ImplicitEqualLayout) {
     using ltw = impl::logical_tensor_wrapper_t;
     using tensor = dnnl_impl::dnnl_tensor_t;
     using data_type = dnnl_impl::dnnl_tensor_t::desc_t::data_type;

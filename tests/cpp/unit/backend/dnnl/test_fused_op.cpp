@@ -33,7 +33,7 @@
 
 #include "cpp/unit/utils.hpp"
 
-TEST(op_test, fused_op) {
+TEST(Op, FusedOp) {
     using namespace dnnl::graph::impl;
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
     op_t relu {1, op_kind::ReLU, std::string("relu")};

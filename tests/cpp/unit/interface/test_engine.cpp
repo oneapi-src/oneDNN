@@ -18,7 +18,7 @@
 
 #include "interface/engine.hpp"
 
-TEST(engine_test, simple_engine) {
+TEST(Engine, SimpleEngine) {
     auto akind = dnnl::graph::impl::engine_kind::cpu;
     dnnl::graph::impl::engine_t engine_cpu(akind, 0);
 

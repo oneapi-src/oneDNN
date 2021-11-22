@@ -26,7 +26,7 @@
 
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(compiled_partition, fake_partition) {
+TEST(CompiledPartition, Unsupported) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t n(impl::op_kind::Wildcard);

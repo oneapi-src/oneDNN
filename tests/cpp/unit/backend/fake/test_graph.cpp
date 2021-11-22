@@ -26,7 +26,7 @@
 
 #include "backend/fake/fake_backend.hpp"
 
-TEST(graph_test, get_partitions_fake) {
+TEST(Graph, GetFakePartitions) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::tests::unit::utils;
 

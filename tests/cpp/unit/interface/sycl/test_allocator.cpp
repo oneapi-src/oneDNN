@@ -51,7 +51,7 @@ void sycl_free_wrapper(void *ptr, const void *context) {
     free(ptr, *static_cast<const cl::sycl::context *>(context));
 }
 
-class allocator_test : public ::testing::TestWithParam<test_allocator_params> {
+class TestAllocator : public ::testing::TestWithParam<test_allocator_params> {
 public:
     void default_sycl_allocator() {
         auto param
@@ -113,20 +113,20 @@ public:
     }
 };
 
-TEST_P(allocator_test, default_sycl_allocator) {
+TEST_P(TestAllocator, DefaultSyclAllocator) {
     default_sycl_allocator();
 }
 
-TEST_P(allocator_test, sycl_allocator) {
+TEST_P(TestAllocator, SyclAllocator) {
     sycl_allocator();
 }
 
 #ifdef DNNL_GRAPH_GPU_SYCL
-INSTANTIATE_TEST_SUITE_P(gpu_allocator_test, allocator_test,
+INSTANTIATE_TEST_SUITE_P(SyclAllocatorGpu, TestAllocator,
         ::testing::Values(test_allocator_params {impl::engine_kind::gpu}));
 #endif
 
 #ifdef DNNL_GRAPH_CPU_SYCL
-INSTANTIATE_TEST_SUITE_P(cpu_allocator_test, allocator_test,
+INSTANTIATE_TEST_SUITE_P(SyclAllocatorCpu, TestAllocator,
         ::testing::Values(test_allocator_params {impl::engine_kind::cpu}));
 #endif

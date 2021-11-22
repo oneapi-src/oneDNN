@@ -26,7 +26,7 @@
 
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(compiled_partition, relu) {
+TEST(CompiledPartition, Relu) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t relu_op(impl::op_kind::ReLU, "relu");
@@ -102,7 +102,7 @@ TEST(compiled_partition, relu) {
     }
 }
 
-TEST(compiled_partition, search_required_inputs_outputs) {
+TEST(CompiledPartition, SearchRequiredInputsOutputs) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t relu_op(impl::op_kind::ReLU, "relu");
@@ -214,7 +214,7 @@ TEST(compiled_partition, search_required_inputs_outputs) {
     }
 }
 
-TEST(compiled_partition, allow_repeated_inputs) {
+TEST(CompiledPartition, AllowRepeatedInputs) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t n(impl::op_kind::Multiply);

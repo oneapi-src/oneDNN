@@ -28,7 +28,7 @@
 
 #include <dnnl.hpp>
 
-TEST(scratchpad, temporary_scratchpad) {
+TEST(Scratchpad, TemporaryScratchpad) {
     using dnnl::graph::impl::allocator_t;
     using dnnl::graph::impl::dnnl_impl::temporary_scratchpad_t;
 
@@ -53,7 +53,7 @@ TEST(scratchpad, temporary_scratchpad) {
     }
 }
 
-TEST(scratchpad, registry) {
+TEST(Scratchpad, Registry) {
     using dnnl::graph::impl::allocator_t;
     using dnnl::graph::impl::dnnl_impl::grantor_t;
     using dnnl::graph::impl::dnnl_impl::registrar_t;
@@ -103,7 +103,7 @@ TEST(scratchpad, registry) {
     ASSERT_TRUE(piece_end <= total_end); // make sure no overflow
 }
 
-TEST(scratchpad, registry_multithreading) {
+TEST(Scratchpad, RegistryMultithreading) {
     using dnnl::graph::impl::allocator_t;
     using dnnl::graph::impl::dnnl_impl::grantor_t;
     using dnnl::graph::impl::dnnl_impl::registrar_t;

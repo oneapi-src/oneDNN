@@ -24,7 +24,7 @@
 namespace impl = dnnl::graph::impl;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(logical_tensor_test, simple_create) {
+TEST(LogicalTensor, CreateDefault) {
     const size_t id = 123;
     impl::logical_tensor_t lt
             = utils::logical_tensor_init(id, impl::data_type::f32);
@@ -33,7 +33,7 @@ TEST(logical_tensor_test, simple_create) {
     ASSERT_EQ(lt.data_type, impl::data_type::f32);
 }
 
-TEST(logical_tensor_test, create_with_shape) {
+TEST(LogicalTensor, CreateWithShape) {
     const size_t id = 123;
 
     impl::logical_tensor_t lt_0
@@ -67,7 +67,7 @@ TEST(logical_tensor_test, create_with_shape) {
     ASSERT_EQ(lt_4.data_type, impl::data_type::f32);
 }
 
-TEST(logical_tensor_test, copy) {
+TEST(LogicalTensor, Copy) {
     const size_t id = 123;
 
     impl::logical_tensor_t lt_1
@@ -79,7 +79,7 @@ TEST(logical_tensor_test, copy) {
     ASSERT_EQ(lt_1.data_type, lt_2.data_type);
 }
 
-TEST(logical_tensor_test, assign) {
+TEST(LogicalTensor, Assign) {
     const size_t id = 123;
 
     impl::logical_tensor_t lt_1
@@ -91,7 +91,7 @@ TEST(logical_tensor_test, assign) {
     ASSERT_EQ(lt_1.data_type, lt_2.data_type);
 }
 
-TEST(logical_tensor_test, push_to_vector) {
+TEST(LogicalTensor, PushToVector) {
     size_t num_inputs = 3;
     std::vector<impl::dim_t> dims {1};
     std::vector<impl::logical_tensor_t> lt_vec;
@@ -106,7 +106,7 @@ TEST(logical_tensor_test, push_to_vector) {
     }
 }
 
-TEST(logical_tensor_test, identical_and_similar) {
+TEST(LogicalTensor, IdenticalSimilar) {
     using ltw = impl::logical_tensor_wrapper_t;
 
     // unknown dims and strides
