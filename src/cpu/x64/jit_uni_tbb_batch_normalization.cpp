@@ -205,15 +205,13 @@ struct jit_bnorm_process_relu_t {
         , kstore_mask_(kstore_mask)
         , valpha(valpha)
         , vmask(vmask)
-        , alpha(bdesc->alpha()) {
-        with_relu_ = bdesc->with_relu_post_op(bdesc->is_training())
-                || bdesc->fuse_norm_relu();
-        with_relu_inf_only_ = with_relu_
-                && !(bdesc->fuse_norm_relu() && bdesc->is_training());
-
-        bit_shift_ = static_cast<int>(log2(bits_per_byte
-                * types::data_type_size(bdesc->desc()->data_desc.data_type)));
-    }
+        , with_relu_(bdesc->with_relu_post_op(bdesc->is_training())
+                  || bdesc->fuse_norm_relu())
+        , with_relu_inf_only_(with_relu_
+                  && !(bdesc->fuse_norm_relu() && bdesc->is_training()))
+        , bit_shift_(static_cast<int>(log2(bits_per_byte
+                  * types::data_type_size(bdesc->desc()->data_desc.data_type))))
+        , alpha(with_relu_inf_only_ ? bdesc->alpha() : 0.f) {}
 
     jit_bnorm_process_relu_t(const batch_normalization_pd_t *bdesc,
             jit_generator *host, Reg64 reg_off_dat, Reg64 reg_tmp,
@@ -233,8 +231,8 @@ struct jit_bnorm_process_relu_t {
     const Vmm valpha;
     const Vmm vmask; // used for AVX2 and SSE41
     Label l_relu_mask_avx2_;
-    bool with_relu_, with_relu_inf_only_;
-    int bit_shift_;
+    const bool with_relu_, with_relu_inf_only_;
+    const int bit_shift_;
     const float alpha;
 
     bool with_relu() const { return with_relu_; }
