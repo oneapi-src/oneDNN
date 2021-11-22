@@ -316,6 +316,27 @@ static bool layout_propagation_for_to_group(op_ptr &op) {
     return changed;
 }
 
+static bool layout_propagation_for_reshape(op_ptr &op) {
+    bool changed = true;
+    std::shared_ptr<impl::value_t> src, dst;
+    src = op->get_input_value(0);
+    dst = op->get_output_value(0);
+    auto in_lt = src->get_logical_tensor();
+    auto out_lt = dst->get_logical_tensor();
+
+    if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
+        dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
+        dnnl::memory::desc out_md = in_md;
+        auto target_dims = make_dnnl_memory_desc(out_lt).dims();
+        out_md = in_md.reshape(target_dims);
+        fill_layout_info(dst, out_md);
+    } else {
+        changed = false;
+    }
+
+    return changed;
+}
+
 static bool layout_propagation_for_expand(op_ptr &op) {
     bool changed = true;
     std::shared_ptr<impl::value_t> src, dst;
@@ -636,6 +657,8 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 changed = layout_propagation_for_mul_scales(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::to_group) {
                 changed = layout_propagation_for_to_group(cur_op) || changed;
+            } else if (cur_op->get_kind() == impl::op_kind::StaticReshape) {
+                changed = layout_propagation_for_reshape(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::expand) {
                 changed = layout_propagation_for_expand(cur_op) || changed;
             } else if (cur_op->get_kind() == impl::op_kind::Reorder

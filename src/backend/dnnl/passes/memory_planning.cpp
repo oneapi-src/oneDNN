@@ -540,7 +540,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::to_group
                         || op->get_kind() == op_kind::expand
                         || op->get_kind() == op_kind::squeeze
-                        || op->get_kind() == op_kind::dnnl_u8_to_s8) {
+                        || op->get_kind() == op_kind::dnnl_u8_to_s8
+                        || op->get_kind() == impl::op_kind::StaticReshape) {
                     prepare_args_for_siso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
                     bind_memory_for_bn_folding(op, p_engine);

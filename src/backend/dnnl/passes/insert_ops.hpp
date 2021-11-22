@@ -43,6 +43,13 @@ impl::status_t insert_to_group_for_conv_or_deconv(
 /// (2) either `transpose_a` or `transpose_b` is true
 impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg);
 
+/// Insert reshape pair for ndx2d matmul for better performance
+///
+/// For ndx2d matmul:
+/// 1) reshape src0 to 2d(keep last dimension and flatten others)
+/// 2) reshape dst back to nd after compilation
+impl::status_t insert_reshape_for_ndx2d_matmul(std::shared_ptr<subgraph_t> &sg);
+
 /// Insert an expand-squeeze pair for matmul
 ///
 /// The usage of expand op:

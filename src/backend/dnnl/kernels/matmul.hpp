@@ -122,6 +122,8 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_transpose_for_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_reshape_for_ndx2d_matmul);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_expand_and_squeeze_for_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_reorder);
 
@@ -284,7 +286,9 @@ public:
             // post_src should always be the last one input of matmul op
             auto val = matmul_op->get_input_value(matmul_op->num_inputs() - 1);
             if (val->has_producer()
-                    && val->get_producer().get_kind() == op_kind::expand) {
+                    && (val->get_producer().get_kind() == op_kind::expand
+                            || val->get_producer().get_kind()
+                                    == impl::op_kind::StaticReshape)) {
                 val = val->get_producer().get_input_value(0);
             }
             size_t post_src_id = val->get_logical_tensor().id;

@@ -74,7 +74,8 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group
                 || cur_op->get_kind() == op_kind::expand
-                || cur_op->get_kind() == op_kind::squeeze) {
+                || cur_op->get_kind() == op_kind::squeeze
+                || cur_op->get_kind() == impl::op_kind::StaticReshape) {
             // For preprocess ops. The memory_reparser will not do
             // computation, it only re-parses the existing buffer.
             exec = std::make_shared<memory_reparser_t>();

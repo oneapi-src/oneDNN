@@ -617,7 +617,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     }
 }
 
-struct ut_int8_matmul_params {
+struct ut_matmul_params {
     std::vector<impl::dim_t> src_shape;
     std::vector<impl::dim_t> weight_shape;
     std::vector<impl::dim_t> bias_shape;
@@ -630,7 +630,7 @@ struct ut_int8_matmul_params {
 };
 
 class TestInt8MatmulPassesWithDiffInputs
-    : public ::testing::TestWithParam<ut_int8_matmul_params> {};
+    : public ::testing::TestWithParam<ut_matmul_params> {};
 
 TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     /*
@@ -760,14 +760,116 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
 }
 
 INSTANTIATE_TEST_SUITE_P(SubgraphPass, TestInt8MatmulPassesWithDiffInputs,
-        testing::Values(ut_int8_matmul_params {{1, 1024}, {1000, 1024}, {1000},
+        testing::Values(ut_matmul_params {{1, 1024}, {1000, 1024}, {1000},
                                 {1, 1000}, false, true, false, 8, 5},
-                ut_int8_matmul_params {{1, 1024}, {1000, 1024}, {1000},
-                        {1, 1000}, false, true, true, 8, 5},
-                ut_int8_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3},
-                        false, true, false, 9, 6},
-                ut_int8_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3},
-                        false, true, true, 9, 6}));
+                ut_matmul_params {{1, 1024}, {1000, 1024}, {1000}, {1, 1000},
+                        false, true, true, 8, 5},
+                ut_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
+                        true, false, 9, 6},
+                ut_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
+                        true, true, 9, 6}));
+
+class TestMatmulPassesWithDiffInputs
+    : public ::testing::TestWithParam<ut_matmul_params> {};
+
+TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
+    /*
+    (f32) \     / (f32)
+            matmul
+             | (f32)
+            relu
+             | (f32)
+    */
+    const auto &params = GetParam();
+
+    graph_t agraph;
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    matmul.set_attr<bool>("transpose_a", params.transpose_a);
+    matmul.set_attr<bool>("transpose_b", params.transpose_b);
+    op_t relu {1, ReLU, "relu"};
+
+    logical_tensor_t fp32_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t fp32_weight = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t fp32_bias = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(3, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_input(fp32_bias);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t fp32_relu_out = logical_tensor_init(4, data_type::f32);
+    relu.add_input(fp32_matmul_out);
+    relu.add_output(fp32_relu_out);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("matmul_bias_relu_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::matmul_bias_relu);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            agraph.get_partitions()[0]->get_ops(), p_eng);
+    ASSERT_EQ(subgraph->get_ops().size(), 2);
+
+    dnnl_impl::check_with_bias(subgraph);
+
+    fp32_data = logical_tensor_init(0, params.src_shape, impl::data_type::f32);
+    fp32_weight
+            = logical_tensor_init(1, params.weight_shape, impl::data_type::f32);
+    fp32_bias = logical_tensor_init(2, params.bias_shape, impl::data_type::f32);
+    fp32_relu_out
+            = logical_tensor_init(4, params.dst_shape, impl::data_type::f32);
+
+    std::vector<logical_tensor_t> inputs = {fp32_data, fp32_weight, fp32_bias};
+    std::vector<logical_tensor_t> outputs = {fp32_relu_out};
+
+    dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
+    subgraph->infer_shape();
+    dnnl_impl::insert_transpose_for_matmul(subgraph);
+    subgraph->infer_shape();
+    dnnl_impl::insert_reshape_for_ndx2d_matmul(subgraph);
+    subgraph->infer_shape();
+    dnnl_impl::insert_expand_and_squeeze_for_matmul(subgraph);
+    dnnl_impl::insert_reorder(subgraph);
+    ASSERT_EQ(subgraph->get_ops().size(), params.subgraph_size_after_insertion);
+
+    for (auto &val : subgraph->get_input_values()) {
+        auto lt = val->get_logical_tensor();
+        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+    }
+
+    for (auto &val : subgraph->get_output_values()) {
+        auto lt = val->get_logical_tensor();
+        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+    }
+
+    ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
+    ASSERT_EQ(dnnl_impl::infer_type(subgraph), impl::status::success);
+
+    if (params.constant_weight) {
+        dnnl_impl::set_weight_bias_constant(subgraph->get_mutable_ops());
+        dnnl_impl::constant_propagation(subgraph);
+    }
+
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    ASSERT_EQ(subgraph->get_ops().size(), params.final_subgraph_size);
+}
+
+INSTANTIATE_TEST_SUITE_P(SubgraphPass, TestMatmulPassesWithDiffInputs,
+        testing::Values(ut_matmul_params {{1, 1024}, {1000, 1024}, {1000},
+                                {1, 1000}, false, true, false, 9, 5},
+                ut_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
+                        true, false, 11, 7},
+                ut_matmul_params {{4, 64, 3}, {3, 64}, {3}, {4, 3, 3}, true,
+                        true, false, 11, 8}));
 
 TEST(SubgraphPass, ExecutionArgsSet) {
     ///////////////////////////

@@ -81,7 +81,8 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
                     || op->get_kind() == impl::op_kind::Reorder
                     || op->get_kind() == op_kind::to_group
                     || op->get_kind() == op_kind::expand
-                    || op->get_kind() == op_kind::squeeze) {
+                    || op->get_kind() == op_kind::squeeze
+                    || op->get_kind() == impl::op_kind::StaticReshape) {
                 auto in_lt = op->get_input_value(0)->get_logical_tensor();
                 auto out_lt = op->get_output_value(0)->get_logical_tensor();
                 if (out_lt.data_type == impl::data_type::undef) {

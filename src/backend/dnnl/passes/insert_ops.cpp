@@ -337,6 +337,90 @@ impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+impl::status_t insert_reshape_for_ndx2d_matmul(
+        std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    auto &prm_attr_mgr = sg->prm_attr_mgr_;
+
+    std::vector<op_ptr> to_be_inserted_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
+        // skip due to dnnl cannot reshape such kind of strided memory desc
+        if (cur_op->get_input_value(0)->has_producer()
+                && cur_op->get_input_value(0)->get_producer().get_kind()
+                        == op_kind::permute) {
+            continue;
+        }
+        int32_t src_ndims
+                = cur_op->get_input_value(0)->get_logical_tensor().ndims;
+        int32_t wei_ndims
+                = cur_op->get_input_value(1)->get_logical_tensor().ndims;
+        if (wei_ndims != 2 || src_ndims <= 2) continue;
+
+        auto src_dims = logical_tensor_wrapper_t(
+                cur_op->get_input_value(0)->get_logical_tensor())
+                                .vdims();
+        impl::dims expected_dims {-1, src_dims.back()};
+        auto reshape_op = std::make_shared<op_t>(impl::op_kind::StaticReshape);
+        reshape_op->set_attr<bool>("special_zero", false);
+        reshape_op->set_attr<std::vector<int64_t>>("shape", expected_dims);
+        to_be_inserted_ops.emplace_back(reshape_op);
+        insert_op_before(reshape_op, cur_op, 0);
+
+        impl::dims expected_dims2(src_dims);
+        expected_dims2[expected_dims2.size() - 1] = 0;
+        auto reshape_op2 = std::make_shared<op_t>(impl::op_kind::StaticReshape);
+        reshape_op2->set_attr<bool>("special_zero", true);
+        reshape_op2->set_attr<std::vector<int64_t>>("shape", expected_dims2);
+        to_be_inserted_ops.emplace_back(reshape_op2);
+        insert_op_after(reshape_op2, cur_op, 0);
+
+        bool with_bias = cur_op->has_attr("with_bias")
+                ? cur_op->get_attr<bool>("with_bias")
+                : false;
+        if (!with_bias && cur_op->num_inputs() == 3) {
+            auto post_src_dims = logical_tensor_wrapper_t(
+                    cur_op->get_input_value(2)->get_logical_tensor())
+                                         .vdims();
+            impl::dims expected_dims3 {-1, post_src_dims.back()};
+            auto reshape_op3
+                    = std::make_shared<op_t>(impl::op_kind::StaticReshape);
+            reshape_op3->set_attr<bool>("special_zero", false);
+            reshape_op3->set_attr<std::vector<int64_t>>(
+                    "shape", expected_dims3);
+            to_be_inserted_ops.emplace_back(reshape_op3);
+            insert_op_before(reshape_op3, cur_op, 2);
+        } else if (with_bias && cur_op->num_inputs() == 4) {
+            auto post_src_dims = logical_tensor_wrapper_t(
+                    cur_op->get_input_value(3)->get_logical_tensor())
+                                         .vdims();
+            impl::dims expected_dims3 {-1, post_src_dims.back()};
+            auto reshape_op3
+                    = std::make_shared<op_t>(impl::op_kind::StaticReshape);
+            reshape_op3->set_attr<bool>("special_zero", false);
+            reshape_op3->set_attr<std::vector<int64_t>>(
+                    "shape", expected_dims3);
+            to_be_inserted_ops.emplace_back(reshape_op3);
+            insert_op_before(reshape_op3, cur_op, 3);
+        }
+
+        // update the mask (mask is related to axis, after changing shape, the
+        // axis is changed)
+        if (cur_op->has_attr("primitive_attr_key")) {
+            int64_t key = cur_op->get_attr<int64_t>("primitive_attr_key");
+            auto prm_attr = prm_attr_mgr.get_attr(key);
+            scale_t ori_scales;
+            int ori_mask;
+            prm_attr.get_output_scales(ori_mask, ori_scales);
+            ori_mask = 2; // the second axis
+            prm_attr.set_output_scales(ori_mask, ori_scales);
+        }
+    }
+    for (const auto &op : to_be_inserted_ops)
+        subgraph.emplace_back(op);
+    return impl::status::success;
+}
+
 impl::status_t insert_expand_and_squeeze_for_matmul(
         std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
