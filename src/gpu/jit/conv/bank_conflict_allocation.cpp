@@ -475,6 +475,8 @@ struct search_context_t {
         return steps > max_steps;
     }
 
+    void reset_steps() { steps = 0; }
+
     const hw_context_t *hw_ctx;
 
     int steps = 0;
@@ -631,32 +633,36 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
     hw_context_t hw_ctx(ra.hardware(), regs);
 
     bool is_dpas = false;
+    bool is_dp4a = false;
     expr_t dst_base;
     if (!attr.instructions.empty()) {
         auto &s = attr.instructions[0];
         auto &func = s.as<func_call_t>().func;
         if (func.is<dpas_t>()) {
-            is_dpas = !func.as<dpas_t>().is_dp4a();
+            is_dp4a = func.as<dpas_t>().is_dp4a();
+            is_dpas = !is_dp4a;
             dst_base = get_base(dpas_t::arg_dst(s));
         } else if (func.is<mad_t>()) {
-            dst_base = mad_t::arg_dst(s);
+            dst_base = get_base(mad_t::arg_dst(s));
         } else {
             ir_error_not_expected();
         }
     }
 
-    // Heuristic: use 2 registers per block with non-dpas for destination. For
-    // dpas require to allocate full destination in a single contiguous block.
+    // Heuristics for src/dst block sizes.
     int dst_block_regs = (is_dpas ? 0 : 2);
+    int src_block_regs = (is_dpas || is_dp4a ? 0 : 16);
 
-    std::vector<expr_t> bufs;
+    std::vector<expr_t> bufs = attr.bufs;
     std::vector<reg_buf_mask_t> buf_masks;
-    std::vector<int> buf_src_idx(attr.buf_sizes.size(), -1);
-    for (auto &kv : attr.buf_sizes) {
-        int regs = utils::div_up(kv.second, hw_ctx.reg_size);
-        int block_regs = (kv.first.is_equal(dst_base) ? dst_block_regs : 0);
+    std::vector<int> buf_src_idx(bufs.size(), -1);
+    for (int i = 0; i < int(bufs.size()); i++) {
+        int buf_size = attr.buf_sizes[i];
+        int regs = utils::div_up(buf_size, hw_ctx.reg_size);
+        int block_regs = (bufs[i].is_equal(dst_base) ? dst_block_regs
+                                                     : src_block_regs);
+        if (block_regs != 0 && regs % block_regs != 0) block_regs = 0;
         buf_masks.emplace_back(&hw_ctx, regs, block_regs);
-        bufs.push_back(kv.first);
     }
 
     auto create_reg = [&](const expr_t &e, int src_idx, int off_bytes) {
@@ -743,6 +749,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
         // dpas doesn't need bundle check.
         if (is_dpas && check_bundles) continue;
 
+        ctx.reset_steps();
         ctx.set_check_bundles(check_bundles);
 
         ir_assert(ctx.saved_block_idx == 0);

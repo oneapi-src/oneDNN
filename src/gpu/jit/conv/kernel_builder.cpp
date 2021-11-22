@@ -3584,10 +3584,13 @@ private:
         for (auto &s : instructions_)
             instructions.push_back(s);
 
-        object_map_t<expr_t, int> buf_sizes;
-        for (auto &buf : bufs_)
-            buf_sizes[buf] = all_buf_sizes_.at(buf);
-        attr_ = bank_conflict_attr_t::make(buf_sizes, instructions);
+        std::vector<expr_t> buf_vec;
+        std::vector<int> buf_sizes;
+        for (auto &buf : bufs_) {
+            buf_vec.push_back(buf);
+            buf_sizes.push_back(all_buf_sizes_.at(buf));
+        }
+        attr_ = bank_conflict_attr_t::make(buf_vec, buf_sizes, instructions);
     }
 
     static expr_t ptr_base(const expr_t &e) {
@@ -3598,7 +3601,7 @@ private:
     }
 
     object_map_t<expr_t, int> all_buf_sizes_;
-    object_set_t<expr_t> bufs_;
+    object_eq_set_t<expr_t> bufs_;
     object_eq_set_t<stmt_t> instructions_;
     bool is_frozen = false;
 

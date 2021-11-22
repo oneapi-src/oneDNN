@@ -1604,9 +1604,11 @@ class bank_conflict_attr_t : public alloc_attr_impl_t {
 public:
     IR_DECL_TYPE_ID(bank_conflict_attr_t)
 
-    static alloc_attr_t make(const object_map_t<expr_t, int> &buf_sizes,
+    static alloc_attr_t make(const std::vector<expr_t> &bufs,
+            const std::vector<int> &buf_sizes,
             const std::vector<stmt_t> &instructions) {
-        return alloc_attr_t(new bank_conflict_attr_t(buf_sizes, instructions));
+        return alloc_attr_t(
+                new bank_conflict_attr_t(bufs, buf_sizes, instructions));
     }
 
     bool is_equal(const object_impl_t &obj) const override {
@@ -1617,13 +1619,15 @@ public:
         return std::hash<const self_type *>()(this);
     }
 
-    object_map_t<expr_t, int> buf_sizes;
+    std::vector<expr_t> bufs;
+    std::vector<int> buf_sizes;
     std::vector<stmt_t> instructions;
 
 private:
-    bank_conflict_attr_t(const object_map_t<expr_t, int> &buf_sizes,
+    bank_conflict_attr_t(const std::vector<expr_t> &bufs,
+            const std::vector<int> &buf_sizes,
             const std::vector<stmt_t> &instructions)
-        : buf_sizes(buf_sizes), instructions(instructions) {}
+        : bufs(bufs), buf_sizes(buf_sizes), instructions(instructions) {}
 };
 
 // Allocation for SLM and GRF buffers.
