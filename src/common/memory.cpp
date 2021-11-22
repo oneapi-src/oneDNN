@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -227,13 +227,14 @@ status_t dnnl_memory_desc_init_submemory(memory_desc_t *md,
 
     /* TODO: put this into memory_desc_wrapper */
     for (int d = 0; d < src_d.ndims(); ++d) {
-        /* very limited functionality for now */
-        const bool ok = true && offsets[d] % blocks[d] == 0 /* [r1] */
-                && src_d.padded_offsets()[d] == 0
-                && (false || dims[d] % blocks[d] == 0 || dims[d] < blocks[d]);
-        if (!ok) return unimplemented;
-
         const bool is_right_border = offsets[d] + dims[d] == src_d.dims()[d];
+
+        /* very limited functionality for now */
+        const bool ok = offsets[d] % blocks[d] == 0 /* [r1] */
+                && src_d.padded_offsets()[d] == 0
+                && IMPLICATION(!is_right_border,
+                        (dims[d] % blocks[d] == 0 || dims[d] < blocks[d]));
+        if (!ok) return unimplemented;
 
         dst_d.dims[d] = dims[d];
         dst_d.padded_dims[d] = is_right_border

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -175,13 +175,12 @@ protected:
         if (status == status::success) {
             /* check if we can create a sub-memory for the dst */
             bool desired_format_ok = true;
-            int current_concat_dim_offset = 0;
+            dims_t dims {}, offsets {};
+            utils::array_copy(dims, dst_md_.dims, ndims);
+
             for (int i = 0; i < n_; ++i) {
-                const int dim = src_mds_[i].dims[concat_dim_];
-                dims_t dims, offsets = {};
-                utils::array_copy(dims, dst_md_.dims, ndims);
+                const auto dim = src_mds_[i].dims[concat_dim_];
                 dims[concat_dim_] = dim;
-                offsets[concat_dim_] = current_concat_dim_offset;
 
                 memory_desc_t src_img_d;
                 status_t status = dnnl_memory_desc_init_submemory(
@@ -190,7 +189,7 @@ protected:
                     desired_format_ok = false;
                     break;
                 }
-                current_concat_dim_offset += dim;
+                offsets[concat_dim_] += dim;
             }
 
             if (!desired_format_ok) status = status::unimplemented;
