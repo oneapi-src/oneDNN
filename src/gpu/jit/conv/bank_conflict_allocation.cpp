@@ -164,6 +164,7 @@ struct reg_mask_t {
 
     // Returns the index of the last set register bit.
     int bsr() const {
+        UNUSED(&reg_mask_t::bsr);
         for (int i = hw_ctx->regs - 1; i >= 0; i--) {
             if (test(i)) return i;
         }
@@ -192,6 +193,7 @@ struct reg_mask_t {
     }
 
     reg_mask_t &operator|=(const reg_mask_t &other) {
+        UNUSED(&reg_mask_t::operator|=);
         for (int i = 0; i < nchunks; i++)
             chunks[i] = chunks[i] | other.chunks[i];
         return *this;
