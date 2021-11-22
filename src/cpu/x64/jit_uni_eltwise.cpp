@@ -53,6 +53,7 @@ protected:
 
     data_type_t data_type() const { return pd_->desc()->data_desc.data_type; }
     bool is_bf16() const { return data_type() == data_type::bf16; }
+    bool is_f16() const { return data_type() == data_type::f16; }
     int dtype_size() const { return types::data_type_size(data_type()); }
 };
 
@@ -187,6 +188,14 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
                 uni_vmulps(vmm_src, vmm_src, vmm_diff_dst);
             }
             bf16_injector_->cvt_f32_to_bf16_store(1, vmm_src.getIdx(), reg_dst);
+        } else if (is_f16()) {
+            vcvtph2psx(vmm_src, ptr[reg_src]);
+            eltwise_injector_->compute_vector(vmm_src.getIdx());
+            if (!is_fwd) {
+                vcvtph2psx(vmm_diff_dst, ptr[reg_diff_dst]);
+                uni_vmulps(vmm_src, vmm_src, vmm_diff_dst);
+            }
+            vcvtps2ph(ptr[reg_dst], vmm_src, _op_mxcsr);
         } else {
             uni_vmovups(vmm_src, ptr[reg_src]);
             eltwise_injector_->compute_vector(vmm_src.getIdx());
@@ -223,6 +232,17 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
             }
             bf16_injector_->cvt_f32_to_bf16_store(
                     1, vmm_src.getIdx(), reg_dst, true);
+        } else if (is_f16()) {
+            vxorps(xmm_src, xmm_src, xmm_src);
+            vcvtsh2ss(xmm_src, xmm_src, ptr[reg_src]);
+            eltwise_injector_->compute_vector(vmm_src.getIdx());
+            if (!is_fwd) {
+                vxorps(xmm_diff_dst, xmm_diff_dst, xmm_diff_dst);
+                vcvtsh2ss(xmm_diff_dst, xmm_diff_dst, ptr[reg_diff_dst]);
+                uni_vmulps(xmm_src, xmm_src, xmm_diff_dst);
+            }
+            vcvtss2sh(xmm_src, xmm_src, xmm_src);
+            vmovsh(ptr[reg_dst], xmm_src);
         } else {
             uni_vmovss(xmm_src, ptr[reg_src]);
             eltwise_injector_->compute_vector(xmm_src.getIdx());
@@ -251,7 +271,7 @@ private:
 
     int vlen() {
         int vlen = cpu_isa_traits<isa>::vlen;
-        return is_bf16() ? vlen / 2 : vlen;
+        return is_bf16() || is_f16() ? vlen / 2 : vlen;
     }
     int simd_w() { return vlen() / dtype_size(); }
 
@@ -294,6 +314,8 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     bool ok = mayiuse(isa) && is_fwd() && data_md()->data_type == d_type
             && IMPLICATION(data_md()->data_type == data_type::bf16,
                     mayiuse(avx512_core))
+            && IMPLICATION(data_md()->data_type == data_type::f16,
+                    mayiuse(avx512_core_fp16))
             && !has_zero_dim_memory() && data_d.is_dense(true)
             && eltwise_injector::is_supported(isa, desc_.alg_kind)
             // refer to a comment in jit_uni_kernel why this is needed
@@ -358,6 +380,8 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
                     d_type, data_md()->data_type, diff_src_md()->data_type)
             && IMPLICATION(data_md()->data_type == data_type::bf16,
                     mayiuse(avx512_core))
+            && IMPLICATION(data_md()->data_type == data_type::f16,
+                    mayiuse(avx512_core_fp16))
             && !has_zero_dim_memory() && set_default_formats_common()
             && data_d.is_dense(true) && eltwise_injector::is_isa_supported(isa)
             && eltwise_injector::is_alg_supported(desc_.alg_kind)
@@ -422,12 +446,14 @@ template struct jit_uni_eltwise_fwd_t<avx, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx2, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx512_core, data_type::bf16>;
+template struct jit_uni_eltwise_fwd_t<avx512_core_fp16, data_type::f16>;
 
 template struct jit_uni_eltwise_bwd_t<sse41, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx2, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx512_core, data_type::bf16>;
+template struct jit_uni_eltwise_bwd_t<avx512_core_fp16, data_type::f16>;
 
 } // namespace x64
 } // namespace cpu
