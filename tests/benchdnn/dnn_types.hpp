@@ -102,6 +102,7 @@ struct attr_t {
         PER_MB_SPATIAL, // ... combination of dims[0], dims[2], dims[3] points.
         PER_SPATIAL, // ... combination of dims[2] and dims[3] points.
         PER_TENSOR, // ... point in the tensor.
+        PER_MB_W, // combination of dims[0] and dims[3] points.
         POLICY_TOTAL // guard
     };
 
@@ -478,6 +479,9 @@ int check_tag(const std::string &tag_, bool check_enum_tags_only = false);
 
 // Validates a tag in abc notation.
 int check_abc_tag(const std::string &tag, bool check_enum_tags_only = false);
+
+// Removes extra dimensions from a tag according to ndims.
+std::string trim_tag(const std::string &tag, int ndims);
 
 // Converts a tag/meta-tag to abc notation.
 std::string normalize_tag(const std::string &tag, int ndims = -1);

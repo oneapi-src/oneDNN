@@ -148,6 +148,7 @@ policy_t attr_t::str2policy(const std::string &str) {
     CASE(PER_DIM_01);
     CASE(PER_MB_SPATIAL);
     CASE(PER_SPATIAL);
+    CASE(PER_MB_W);
     CASE(PER_TENSOR);
 #undef CASE
     assert(!"unknown attr_t::policy_t policy");
@@ -162,6 +163,7 @@ const char *attr_t::policy2str(policy_t policy) {
     if (policy == PER_DIM_01) return "per_dim_01";
     if (policy == PER_MB_SPATIAL) return "per_mb_spatial";
     if (policy == PER_SPATIAL) return "per_spatial";
+    if (policy == PER_MB_W) return "per_mb_w";
     if (policy == PER_TENSOR) return "per_tensor";
     assert(!"unknown attr_t::policy_t policy");
     return "unknown attr_t::policy_t policy";
@@ -175,6 +177,7 @@ int attr_t::get_default_mask(policy_t policy) {
         case PER_DIM_01: return (1 << 0) + (1 << 1);
         case PER_MB_SPATIAL: return (1 << 0) + (1 << 2) + (1 << 3);
         case PER_SPATIAL: return (1 << 2) + (1 << 3);
+        case PER_MB_W: return (1 << 0) + (1 << 3);
         case PER_TENSOR: return (1 << DNNL_MAX_NDIMS) - 1;
         case COMMON: return 0;
         default: SAFE(FAIL, CRIT); return 0;
@@ -1093,29 +1096,19 @@ int check_abc_tag(const std::string &tag_, bool check_enum_tags_only) {
 
 static std::string trim_letter(const std::string &tag_, char c) {
     auto tag = tag_;
-    auto pos = tag.find(c);
-    if (pos == std::string::npos) return tag;
-
-    tag.replace(pos, 1, "");
-    if (pos == 0) return tag;
-
-    pos--;
-    while (std::isdigit(tag[pos])) {
+    for (size_t pos = tag.find(c); pos != std::string::npos;
+            pos = tag.find(c)) {
         tag.replace(pos, 1, "");
-        if (pos == 0) break;
+        if (pos == 0) return tag;
+
         pos--;
+        while (std::isdigit(tag[pos])) {
+            tag.replace(pos, 1, "");
+            if (pos == 0) break;
+            pos--;
+        }
     }
     return tag;
-}
-
-// Removes extra dimensions from a tag according to ndims.
-static std::string trim_tag(const std::string &tag, int ndims) {
-    std::string trimmed_tag = tag;
-    for (char c = 'a' + ndims; c <= 'a' + (char)(DNNL_MAX_NDIMS - 1); c++) {
-        trimmed_tag = trim_letter(trimmed_tag, c);
-        trimmed_tag = trim_letter(trimmed_tag, std::toupper(c));
-    }
-    return trimmed_tag;
 }
 
 // Tries to map a tag to an abc-tag according to a logical tag. For example:
@@ -1186,6 +1179,15 @@ static std::string map_tag_letters(const std::string &tag) {
     if (!tag_ldigo.empty()) return tag_ldigo;
 
     return tag;
+}
+
+std::string trim_tag(const std::string &tag, int ndims) {
+    std::string trimmed_tag = tag;
+    for (char c = 'a' + ndims; c <= 'a' + (char)(DNNL_MAX_NDIMS - 1); c++) {
+        trimmed_tag = trim_letter(trimmed_tag, c);
+        trimmed_tag = trim_letter(trimmed_tag, std::toupper(c));
+    }
+    return trimmed_tag;
 }
 
 std::string normalize_tag(const std::string &tag_, int ndims) {
