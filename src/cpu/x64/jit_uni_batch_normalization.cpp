@@ -122,6 +122,7 @@ struct jit_bnorm_t : public jit_generator {
     // Relu section
     bool with_relu, with_relu_inf_only;
     Reg64 reg_ws = reg_roff;
+    Reg64 reg_tmp_alpha = reg_diff_scale; // required in sse41
     Label l_relu_mask_avx2;
     Opmask kstore_mask = Opmask(1);
 
@@ -371,7 +372,11 @@ struct jit_bnorm_t : public jit_generator {
     void fwd_process_relu_alpha_avx2(Vmm vmm_dst) {
         const Xmm xmm_aux = Xmm(vaux.getIdx());
         uni_vpxor(vmask, vmask, vmask);
-        vmovq(xmm_aux, ptr[rsp + stack_off_relu_alpha]);
+        if (isa == sse41) {
+            mov(reg_tmp_alpha, ptr[rsp + stack_off_relu_alpha]);
+            uni_vmovq(xmm_aux, reg_tmp_alpha);
+        } else
+            vmovq(xmm_aux, ptr[rsp + stack_off_relu_alpha]);
         uni_vbroadcastss(vaux, xmm_aux);
         uni_vcmpps(vmask, vmm_dst, vzero, _cmp_lt_os);
         uni_vmulps(vaux, vaux, vmm_dst);

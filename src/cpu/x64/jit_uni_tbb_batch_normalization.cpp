@@ -331,7 +331,7 @@ struct jit_bnorm_process_relu_t {
     void fwd_process_relu_alpha_avx2(Vmm vmm_dst) {
         const Xmm xmm_aux = Xmm(valpha.getIdx());
         h_->uni_vpxor(vmask, vmask, vmask);
-        h_->vmovq(xmm_aux, reg_alpha);
+        h_->uni_vmovq(xmm_aux, reg_alpha);
         h_->uni_vbroadcastss(valpha, xmm_aux);
         h_->uni_vcmpps(vmask, vmm_dst, vzero_, h_->_cmp_lt_os);
         h_->uni_vmulps(valpha, valpha, vmm_dst);
