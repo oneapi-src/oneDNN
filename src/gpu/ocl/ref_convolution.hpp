@@ -86,7 +86,6 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
         const memory_desc_t *scales_md() const { return &scales_md_; }
 
         conv_conf_t conf;
-        offsets_t off;
 
     private:
         bool set_default_formats() {
@@ -186,7 +185,6 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
-        offsets_t off;
 
     private:
         bool set_default_formats() {
@@ -244,7 +242,6 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
-        offsets_t off;
 
     private:
         bool set_default_formats() {

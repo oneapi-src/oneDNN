@@ -23,8 +23,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static status_t init_conf_common(conv_conf_t &conf, offsets_t &off,
-        const convolution_pd_t *pd, engine_t *engine) {
+static status_t init_conf_common(
+        conv_conf_t &conf, const convolution_pd_t *pd, engine_t *engine) {
     const convolution_desc_t &cd = *pd->desc();
     const memory_desc_t &src_md = *pd->invariant_src_md();
     const memory_desc_t &weights_md = *pd->invariant_wei_md();
@@ -33,10 +33,6 @@ static status_t init_conf_common(conv_conf_t &conf, offsets_t &off,
     const primitive_attr_t &attr = *pd->attr();
 
     set_default_conf(conf, cd, src_md, weights_md, dst_md, bias_md, attr);
-
-    set_offsets(src_md, off.src_off);
-    set_offsets(weights_md, off.wei_off);
-    set_offsets(dst_md, off.dst_off);
 
     int oc_idx = (int)conf.with_groups;
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
@@ -92,8 +88,7 @@ static status_t init_conf_common(conv_conf_t &conf, offsets_t &off,
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const conv_conf_t &conf, const offsets_t &off,
-        const post_ops_t &post_ops) {
+        const conv_conf_t &conf, const post_ops_t &post_ops) {
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("WITH_GROUPS", conf.with_groups);
@@ -132,9 +127,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int(
             "IS_BWD_W", conf.prop_kind == prop_kind::backward_weights);
 
-    def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
-    def_offsets(off.wei_off, kernel_ctx, "WEI", conf.ndims + conf.with_groups);
-    def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);
+    def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
+    def_memory_desc_info(kernel_ctx, conf.wei_md_info, "WEI");
+    def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -167,7 +162,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     for (int d = 0; d < MAX_NDIMS; d++) {
         if (d < conf.ndims)
-            dst_dims[d] = off.dst_off[3][d];
+            dst_dims[d] = conf.dst_md_info.dims[d];
         else
             dst_dims[d] = 1;
     }
@@ -176,14 +171,14 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 }
 
 status_t ref_convolution_fwd_t::pd_t::init_conf(engine_t *engine) {
-    CHECK(init_conf_common(conf, off, this, engine));
+    CHECK(init_conf_common(conf, this, engine));
     CHECK(init_scales_md());
     return status::success;
 }
 
 status_t ref_convolution_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
+    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
 }
 
 status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
@@ -239,12 +234,12 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 }
 
 status_t ref_convolution_bwd_data_t::pd_t::init_conf(engine_t *engine) {
-    return init_conf_common(conf, off, this, engine);
+    return init_conf_common(conf, this, engine);
 }
 
 status_t ref_convolution_bwd_data_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
+    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
 }
 
 status_t ref_convolution_bwd_data_t::execute_backward_data(
@@ -273,12 +268,12 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
 }
 
 status_t ref_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
-    return init_conf_common(conf, off, this, engine);
+    return init_conf_common(conf, this, engine);
 }
 
 status_t ref_convolution_bwd_weights_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
+    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
 }
 
 status_t ref_convolution_bwd_weights_t::execute_backward_weights(

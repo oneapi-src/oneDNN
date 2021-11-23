@@ -339,6 +339,10 @@ struct conv_conf_t {
     data_type_t bias_data_type;
     data_type_t dst_data_type;
     data_type_t acc_data_type;
+
+    memory_desc_info_t src_md_info;
+    memory_desc_info_t wei_md_info;
+    memory_desc_info_t dst_md_info;
 };
 
 // Pooling
@@ -871,6 +875,13 @@ inline void set_default_conf(conv_conf_t &conf, const convolution_desc_t &cd,
     conf.acc_data_type = cd.accum_data_type;
     conf.bias_data_type
             = conf.with_bias ? bias_mdw.data_type() : data_type::f32;
+
+    if (!src_mdw.format_any())
+        conf.src_md_info = memory_desc_info_t::create(src_mdw);
+    if (!weights_mdw.format_any())
+        conf.wei_md_info = memory_desc_info_t::create(weights_mdw);
+    if (!dst_mdw.format_any())
+        conf.dst_md_info = memory_desc_info_t::create(dst_mdw);
 
     conf.attr_info = attr_info_t::create(&attr);
 }

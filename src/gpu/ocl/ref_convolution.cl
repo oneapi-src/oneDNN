@@ -17,6 +17,14 @@
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
+#undef SRC_OFF
+#undef WEI_OFF
+#undef DST_OFF
+
+#define SRC_OFF CONV_SRC_OFF
+#define WEI_OFF CONV_WEI_OFF
+#define DST_OFF CONV_DST_OFF
+
 #if IS_FWD
 KERNEL_ATTR
 __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,

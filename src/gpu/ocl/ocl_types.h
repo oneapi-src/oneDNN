@@ -1038,6 +1038,40 @@
 #define OFF_MD(prefix, x0, x1, x2, x3, x4, x5) \
     CONCAT2(OFF_MD_, CONCAT2(prefix, _NLEVELS))(prefix, x0, x1, x2, x3, x4, x5)
 
+#if SRC_NDIMS == 3
+#define CONV_SRC_OFF(n, c, d, h, w) OFF_MD(SRC, n, c, w, 0, 0, 0)
+#elif SRC_NDIMS == 4
+#define CONV_SRC_OFF(n, c, d, h, w) OFF_MD(SRC, n, c, h, w, 0, 0)
+#elif SRC_NDIMS == 5
+#define CONV_SRC_OFF(n, c, d, h, w) OFF_MD(SRC, n, c, d, h, w, 0)
+#endif
+
+#if WEI_NDIMS == 3
+#define CONV_WEI_OFF(g, o, i, d, h, w) OFF_MD(WEI, o, i, w, 0, 0, 0)
+#elif WEI_NDIMS == 4
+#if WITH_GROUPS == 0
+#define CONV_WEI_OFF(g, o, i, d, h, w) OFF_MD(WEI, o, i, h, w, 0, 0)
+#else
+#define CONV_WEI_OFF(g, o, i, d, h, w) OFF_MD(WEI, g, o, i, w, 0, 0)
+#endif
+#elif WEI_NDIMS == 5
+#if WITH_GROUPS == 0
+#define CONV_WEI_OFF(g, o, i, d, h, w) OFF_MD(WEI, o, i, d, h, w, 0)
+#else
+#define CONV_WEI_OFF(g, o, i, d, h, w) OFF_MD(WEI, g, o, i, h, w, 0)
+#endif
+#elif WEI_NDIMS == 6
+#define CONV_WEI_OFF(g, o, i, d, h, w) OFF_MD(WEI, g, o, i, d, h, w)
+#endif
+
+#if DST_NDIMS == 3
+#define CONV_DST_OFF(n, c, d, h, w) OFF_MD(DST, n, c, w, 0, 0, 0)
+#elif DST_NDIMS == 4
+#define CONV_DST_OFF(n, c, d, h, w) OFF_MD(DST, n, c, h, w, 0, 0)
+#elif DST_NDIMS == 5
+#define CONV_DST_OFF(n, c, d, h, w) OFF_MD(DST, n, c, d, h, w, 0)
+#endif
+
 #if NDIMS == 2
 #define SRC_OFF(x0, x1, d, h, w) \
     (((x0) % SRC_B0) * SRC_SB0 + ((x0) / SRC_B0) * SRC_S0 \
