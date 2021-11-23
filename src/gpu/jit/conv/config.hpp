@@ -198,7 +198,7 @@ public:
 
         const memory_desc_t *output_md = nullptr;
         if (is_fwd) {
-            CHECK(init_fwd(conv_pd, engine));
+            CHECK(init_fwd(conv_pd));
             output_md = conv_pd->dst_md();
         } else if (is_bwd_d) {
             CHECK(init_bwd_d(conv_pd));
@@ -214,14 +214,14 @@ public:
 
         if (!zero_points_ok(conv_pd)) return status::unimplemented;
         if (!post_ops_ok(conv_pd)) return status::unimplemented;
-        if (!hw_ok(engine)) return status::unimplemented;
+        if (!hw_ok()) return status::unimplemented;
 
         CHECK(init_extra_tensor_layouts(conv_pd));
 
         return status::success;
     }
 
-    status_t init_fwd(convolution_pd_t *conv_pd, engine_t *engine) {
+    status_t init_fwd(convolution_pd_t *conv_pd) {
         using namespace ir_utils;
 
         if (ic < 16 && !is_dp_fma() && !is_dw) return status::unimplemented;
@@ -305,7 +305,7 @@ public:
             }
 
             ic_thr_dim = init_fwd_ic_thr_dim(
-                    engine, mb_thr_blk, oc_thr_blk, ow_thr_blk, ic_blk);
+                    mb_thr_blk, oc_thr_blk, ow_thr_blk, ic_blk);
 
             // Disable M/N thread group blocking when K thread group blocking
             // is enabled. For some reason combining them results in lower
@@ -839,11 +839,8 @@ public:
         return true;
     }
 
-    bool hw_ok(const engine_t *engine) const {
-        auto *compute_engine
-                = utils::downcast<const compute::compute_engine_t *>(engine);
-        if (regs == 256 && !compute_engine->mayiuse_large_grf_mode())
-            return false;
+    bool hw_ok() const {
+        if (regs == 256 && !large_grf_support) return false;
         return true;
     }
 
@@ -939,6 +936,8 @@ public:
     data_type_t acc_data_type;
 
     ngen::HW hw = ngen::HW::Unknown;
+    int eu_count;
+    bool large_grf_support;
     int simd_size; // SIMD width.
     int regs; // Number of registers.
 
@@ -1064,8 +1063,8 @@ public:
     int b_sub_tiles;
 
 private:
-    int init_fwd_ic_thr_dim(engine_t *engine, int mb_thr_blk, int oc_thr_blk,
-            int ow_thr_blk, int ic_blk) const {
+    int init_fwd_ic_thr_dim(
+            int mb_thr_blk, int oc_thr_blk, int ow_thr_blk, int ic_blk) const {
         if (mb_thr_blk > 1) return 1;
 
         int ic_blocks = utils::div_up(ic, ic_blk);
@@ -1076,18 +1075,14 @@ private:
         int mb_nthr = utils::div_up(mb, mb_thr_blk);
         int nthr = mb_nthr * oc_nthr * od * oh * ow_nthr;
 
-        auto *compute_engine
-                = utils::downcast<const compute::compute_engine_t *>(engine);
-        int eus = compute_engine->device_info()->eu_count();
-
         int ret_ic_thr_dim = 1;
-        if (!is_small_ic() && reduction_blocks >= 16 && (nthr < eus)) {
+        if (!is_small_ic() && reduction_blocks >= 16 && (nthr < eu_count)) {
             ret_ic_thr_dim = ir_utils::max_divisor(ic_blocks, {1, 2, 4, 8});
 
             // If reduction is too small, limit k-slicing.
             int reduction_threshold = 32;
             if (reduction_blocks < reduction_threshold) {
-                int max_ic_thr_dim = utils::div_up(eus, nthr);
+                int max_ic_thr_dim = utils::div_up(eu_count, nthr);
                 max_ic_thr_dim = (1 << math::ilog2q(max_ic_thr_dim));
                 ret_ic_thr_dim = std::min(ret_ic_thr_dim, max_ic_thr_dim);
             }
@@ -1101,8 +1096,18 @@ private:
         auto compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         auto device_info = compute_engine->device_info();
+        gpu_arch_t gpu_arch = device_info->gpu_arch();
+        eu_count = device_info->eu_count();
+        large_grf_support = compute_engine->mayiuse_large_grf_mode();
 
-        switch (device_info->gpu_arch()) {
+#ifdef GEN_CONV_DEBUG
+        gpu_arch_t old_arch = gpu_arch;
+        gpu_arch = ir_utils::getenv_gpu("gpu_arch", gpu_arch, &eu_count);
+        if (old_arch != gpu_arch)
+            large_grf_support = gpu_arch >= compute::gpu_arch_t::xe_hp;
+#endif
+
+        switch (gpu_arch) {
             case gpu_arch_t::gen9: hw = ngen::HW::Gen9; break;
             case gpu_arch_t::xe_lp: hw = ngen::HW::XeLP; break;
             case gpu_arch_t::xe_hp: hw = ngen::HW::XeHP; break;

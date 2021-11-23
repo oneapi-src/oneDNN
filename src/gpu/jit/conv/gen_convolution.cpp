@@ -59,35 +59,49 @@ std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&... args) {
 }
 
 template <template <ngen::HW> class KernelT, typename... ArgsT>
-compute::kernel_t make_kernel(
-        gpu_primitive_t *primitive, engine_t *engine, ArgsT &&... args) {
-    auto compute_engine = utils::downcast<compute_engine_t *>(engine);
-    auto device_info = compute_engine->device_info();
+compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
+        gpu_gen_t arch, ArgsT &&... args) {
 
     std::unique_ptr<jit::jit_generator_base> jit_kernel;
-    switch (device_info->gpu_arch()) {
-        case gpu_arch_t::gen9:
+    switch (arch) {
+        case gpu_gen9:
             jit_kernel = make_generator<KernelT, gpu_gen9>(
                     std::forward<ArgsT>(args)...);
             break;
-        case gpu_arch_t::xe_lp:
+        case gpu_xe_lp:
             jit_kernel = make_generator<KernelT, gpu_xe_lp>(
                     std::forward<ArgsT>(args)...);
             break;
-        case gpu_arch_t::xe_hp:
+        case gpu_xe_hp:
             jit_kernel = make_generator<KernelT, gpu_xe_hp>(
                     std::forward<ArgsT>(args)...);
             break;
-        case gpu_arch_t::xe_hpg:
+        case gpu_xe_hpg:
             jit_kernel = make_generator<KernelT, gpu_xe_hpg>(
                     std::forward<ArgsT>(args)...);
             break;
-        case gpu_arch_t::xe_hpc:
+        case gpu_xe_hpc:
             jit_kernel = make_generator<KernelT, gpu_xe_hpc>(
                     std::forward<ArgsT>(args)...);
             break;
         default: break;
     }
+
+#ifdef GEN_CONV_DEBUG
+    auto compute_engine = utils::downcast<compute_engine_t *>(engine);
+    auto device_info = compute_engine->device_info();
+    gpu_gen_t actual_arch;
+    switch (device_info->gpu_arch()) {
+        case gpu_arch_t::gen9: actual_arch = gpu_gen9; break;
+        case gpu_arch_t::xe_lp: actual_arch = gpu_xe_lp; break;
+        case gpu_arch_t::xe_hp: actual_arch = gpu_xe_hp; break;
+        case gpu_arch_t::xe_hpg: actual_arch = gpu_xe_hpg; break;
+        case gpu_arch_t::xe_hpc: actual_arch = gpu_xe_hpc; break;
+        default: actual_arch = ngen::HW::Unknown; break;
+    }
+    ir_assert(actual_arch == arch)
+            << "Cannot emulate executing gpu_arch environment";
+#endif
 
     if (!jit_kernel) return compute::kernel_t();
 
@@ -129,8 +143,8 @@ public:
                 auto &info = *kernel_infos[i];
                 switch (info.id()) {
                     case kernel_id_t::convolution:
-                        kernels_.push_back(make_kernel<conv_kernel_t>(
-                                primitive, engine, cfg, primitive->pd(), info));
+                        kernels_.push_back(make_kernel<conv_kernel_t>(primitive,
+                                engine, cfg.hw, cfg, primitive->pd(), info));
                         break;
                     case kernel_id_t::pre_reorder: {
                         auto src_layout = cfg.tensor_config.user_layout(
@@ -138,8 +152,8 @@ public:
                         auto dst_layout = cfg.tensor_config.compute_layout(
                                 info.arg_name(1));
                         kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, cfg, primitive->pd(), info,
-                                src_layout, dst_layout));
+                                primitive, engine, cfg.hw, cfg, primitive->pd(),
+                                info, src_layout, dst_layout));
                         break;
                     }
                     case kernel_id_t::post_reorder: {
@@ -148,23 +162,24 @@ public:
                         auto dst_layout = cfg.tensor_config.user_layout(
                                 info.arg_name(0));
                         kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, cfg, primitive->pd(), info,
-                                src_layout, dst_layout));
+                                primitive, engine, cfg.hw, cfg, primitive->pd(),
+                                info, src_layout, dst_layout));
                         break;
                     }
                     case kernel_id_t::zero_out:
                         kernels_.push_back(make_kernel<zero_out_kernel_t>(
-                                primitive, engine, cfg, primitive->pd(), info));
+                                primitive, engine, cfg.hw, cfg, primitive->pd(),
+                                info));
                         break;
                     case kernel_id_t::compensation_common:
                         kernels_.push_back(make_kernel<compensation_kernel_t>(
-                                primitive, engine, cfg, primitive->pd(), info,
-                                false));
+                                primitive, engine, cfg.hw, cfg, primitive->pd(),
+                                info, false));
                         break;
                     case kernel_id_t::compensation_edge:
                         kernels_.push_back(make_kernel<compensation_kernel_t>(
-                                primitive, engine, cfg, primitive->pd(), info,
-                                true));
+                                primitive, engine, cfg.hw, cfg, primitive->pd(),
+                                info, true));
                         break;
                     default: ir_error_not_expected();
                 }

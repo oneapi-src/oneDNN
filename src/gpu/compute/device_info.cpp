@@ -56,19 +56,6 @@ uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
     return extensions;
 }
 
-inline gpu_arch_t str2gpu_arch(const char *str) {
-#define CASE(_case) \
-    if (!strcmp(STRINGIFY(_case), str)) return gpu_arch_t::_case
-
-    CASE(gen9);
-    CASE(xe_lp);
-    CASE(xe_hp);
-    CASE(xe_hpg);
-    CASE(xe_hpc);
-    return gpu_arch_t::unknown;
-#undef CASE
-}
-
 bool device_info_t::mayiuse_ngen_kernels(engine_t *engine) {
     static std::mutex m;
     std::lock_guard<std::mutex> guard(m);

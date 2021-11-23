@@ -27,6 +27,7 @@
 #include <unordered_set>
 
 #include "common/utils.hpp"
+#include "gpu/compute/device_info.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -322,6 +323,26 @@ inline std::string getenv_str(const char *s, const std::string &def) {
     int ret = getenv(s, buf, sizeof(buf));
     if (ret > 0) return buf;
     return def;
+}
+
+// Input is a comma separate list containing gpu_arch and optionally eu_count.
+inline compute::gpu_arch_t getenv_gpu(
+        const char *s, compute::gpu_arch_t arch, int *eu_count = nullptr) {
+    char buf[1024];
+    int ret = getenv(s, buf, sizeof(buf));
+    if (ret > 0) {
+        char *arch_str = buf, *eu_str = nullptr;
+        for (int i = 0; i < ret; i++) {
+            if (buf[i] == ',') {
+                buf[i] = 0;
+                if (i < ret - 1) { eu_str = &buf[i + 1]; }
+                break;
+            }
+        }
+        arch = compute::str2gpu_arch(arch_str);
+        if (eu_count && eu_str) { *eu_count = atoi(eu_str); }
+    }
+    return arch;
 }
 
 inline std::string to_string(bool b) {
