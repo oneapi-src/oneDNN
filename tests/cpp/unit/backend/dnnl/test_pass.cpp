@@ -7707,6 +7707,177 @@ TEST(Pass, FailToAddMatmul) {
     ASSERT_EQ(agraph.add_op(&matmul), status::invalid_op);
 }
 
+TEST(Pass, FuseToX8s8bf16MatmulDivAdd) {
+    /*
+        | (u8/s8)  | (u8/s8)
+     dequant    dequant
+        | (f32)    | (f32)
+     typecast  typecast
+    (bf16) \     / (bf16)
+           matmul
+             | (bf16)
+            div
+             | (bf16)
+            add
+             | (bf16)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t typecast1 {2, TypeCast, "typecast"};
+    op_t typecast2 {3, TypeCast, "typecast"};
+    op_t matmul {4, MatMul, "matmul"};
+    op_t div {5, Divide, "divide"};
+    op_t add {6, Add, "add"};
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t bf16_data = logical_tensor_init(2, data_type::bf16);
+    typecast1.add_input(fp32_data);
+    typecast1.add_output(bf16_data);
+
+    logical_tensor_t int8_weight = logical_tensor_init(3, data_type::u8);
+    logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
+    dequant2.add_input(int8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t bf16_weight = logical_tensor_init(5, data_type::bf16);
+    typecast2.add_input(fp32_weight);
+    typecast2.add_output(bf16_weight);
+
+    logical_tensor_t bf16_matmul_out = logical_tensor_init(6, data_type::bf16);
+    matmul.add_input(bf16_data);
+    matmul.add_input(bf16_weight);
+    matmul.add_output(bf16_matmul_out);
+
+    logical_tensor_t bf16_div_in = logical_tensor_init(7, data_type::bf16);
+    logical_tensor_t bf16_div_out = logical_tensor_init(8, data_type::bf16);
+    div.add_input(bf16_matmul_out);
+    div.add_input(bf16_div_in);
+    div.add_output(bf16_div_out);
+
+    logical_tensor_t bf16_add_in = logical_tensor_init(9, data_type::bf16);
+    logical_tensor_t bf16_add_out = logical_tensor_init(10, data_type::bf16);
+    add.add_input(bf16_div_out);
+    add.add_input(bf16_add_in);
+    add.add_output(bf16_add_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast1), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast2), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("x8x8bf16_matmul_div_add_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::x8x8float_matmul_div_add);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 7);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 9);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
+}
+
+TEST(PassSystem, FuseToX8s8bf16MatmulDivAdd) {
+    /*
+        | (u8/s8)  | (u8/s8)
+     dequant    dequant
+        | (f32)    | (f32)
+     typecast  typecast
+    (bf16) \     / (bf16)
+           matmul
+             | (bf16)
+            div
+             | (bf16)
+            add
+             | (bf16)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t typecast1 {2, TypeCast, "typecast"};
+    op_t typecast2 {3, TypeCast, "typecast"};
+    op_t matmul {4, MatMul, "matmul"};
+    op_t div {5, Divide, "divide"};
+    op_t add {6, Add, "add"};
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t bf16_data = logical_tensor_init(2, data_type::bf16);
+    typecast1.add_input(fp32_data);
+    typecast1.add_output(bf16_data);
+
+    logical_tensor_t int8_weight = logical_tensor_init(3, data_type::u8);
+    logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
+    dequant2.add_input(int8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t bf16_weight = logical_tensor_init(5, data_type::bf16);
+    typecast2.add_input(fp32_weight);
+    typecast2.add_output(bf16_weight);
+
+    logical_tensor_t bf16_matmul_out = logical_tensor_init(6, data_type::bf16);
+    matmul.add_input(bf16_data);
+    matmul.add_input(bf16_weight);
+    matmul.add_output(bf16_matmul_out);
+
+    logical_tensor_t bf16_div_in = logical_tensor_init(7, data_type::bf16);
+    logical_tensor_t bf16_div_out = logical_tensor_init(8, data_type::bf16);
+    div.add_input(bf16_matmul_out);
+    div.add_input(bf16_div_in);
+    div.add_output(bf16_div_out);
+
+    logical_tensor_t bf16_add_in = logical_tensor_init(9, data_type::bf16);
+    logical_tensor_t bf16_add_out = logical_tensor_init(10, data_type::bf16);
+    add.add_input(bf16_div_out);
+    add.add_input(bf16_add_in);
+    add.add_output(bf16_add_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast1), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast2), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    agraph.build_graph();
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::x8x8float_matmul_div_add);
+}
+
 TEST(Pass, FuseToX8s8bf16MatmulBias) {
     /*
         | (u8/s8)  | (s8)
@@ -9109,6 +9280,8 @@ TEST(PassPriority, TestX8s8bf16MatmulBiasAdd) {
     ASSERT_GT(pass1->get_priority(), pass2->get_priority());
 }
 
+// deq->typecast->matmul->div->add should have higher priority than
+// deq->typecast->matmul->div
 // deq->typecast->matmul->div should have higher priority than
 // deq->typecast->matmul
 // deq->typecast->matmul->add should have higher priority than
@@ -9120,7 +9293,9 @@ TEST(PassPriority, TestX8s8bf16MatmulDiv) {
     pass::pass_base_ptr pass2 = get_pass("x8x8bf16_matmul_fusion");
     pass::pass_base_ptr pass3 = get_pass("x8s8bf16_matmul_add_fusion");
     pass::pass_base_ptr pass4 = get_pass("int8_matmul_gelu_fusion");
+    pass::pass_base_ptr pass5 = get_pass("x8x8bf16_matmul_div_add_fusion");
     ASSERT_GT(pass1->get_priority(), pass2->get_priority());
     ASSERT_GT(pass3->get_priority(), pass2->get_priority());
     ASSERT_GT(pass4->get_priority(), pass2->get_priority());
+    ASSERT_GT(pass5->get_priority(), pass1->get_priority());
 }

@@ -788,23 +788,14 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                                 1 - fuse_op_predecessor_offset);
                         subgraph.emplace_back(expand_op);
 
-                        // post binary only supports per tensor and per channel
-                        // broadcast, which means the expand shape of post src
-                        // should be all one or the
-                        // post_src_dim[c_axis]==dst_dim[c_axis]
-                        std::string data_fmt = base_op->has_attr("data_format")
-                                ? base_op->get_attr<std::string>("data_format")
-                                : "NCX";
-                        int c_axis = (data_fmt == "NXC") ? (dst_ndims - 1) : 1;
                         for (int i = dst_ndims - 1; i >= 0; i--) {
-                            if (post_src.dims()[i] == 1) continue;
-
-                            if (i != c_axis
-                                    || dst_ltw.dims()[i]
+                            if (post_src.dims()[i] != 1
+                                    && dst_ltw.dims()[i]
                                             != post_src.dims()[i]) {
                                 return impl::status::compile_fail;
                             }
                         }
+
                         pops.append_binary(algorithm::binary_add, post_src);
                         base_op->set_attr<bool>("with_binary", true);
                     }
@@ -1362,6 +1353,9 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : subgraph) {
         if (cur_op->get_kind() != impl::op_kind::Add) continue;
+        if (!(cur_op->get_input_value(0)->has_producer()
+                    && cur_op->get_input_value(1)->has_producer()))
+            continue;
         auto &in0 = cur_op->get_input_value(0)->get_producer();
         auto &in1 = cur_op->get_input_value(1)->get_producer();
         if (in0.get_kind() == impl::op_kind::TypeCast
