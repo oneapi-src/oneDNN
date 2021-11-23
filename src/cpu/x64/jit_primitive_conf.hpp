@@ -660,6 +660,7 @@ struct jit_pool_conf_t {
 
     int dt_size;
     bool is_bf16;
+    bool is_f16;
     jit_memory_tag_kind_t tag_kind;
     bool is_plain() const {
         return (tag_kind == jit_memory_tag_kind_t::ncsp

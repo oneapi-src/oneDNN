@@ -127,7 +127,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.ow = dst_d.dims()[ndims - 1];
     jpp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
 
-    const bool is_avx512 = isa == avx512_core;
+    const bool is_avx512 = is_superset(isa, avx512_core);
     jpp.ndims = ndims;
     jpp.mb = src_d.dims()[0];
     jpp.c_without_padding = src_d.dims()[1];
@@ -153,12 +153,14 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
             && jpp.c_without_padding > 3
             && ((jpp.ih > 1 && jpp.iw > 1
                         && block_size <= L3_cache_size_per_core)
-                    || src_d.data_type() == data_type::bf16);
+                    || utils::one_of(src_d.data_type(), data_type::bf16,
+                            data_type::f16));
 
     const bool backward_ncsp_allowed = jpp.is_backward
             && ((jpp.ih > 1 && jpp.iw > 1 && jpp.c_without_padding > 1
                         && block_size <= L3_cache_size_per_core)
-                    || (src_d.data_type() == data_type::bf16
+                    || (utils::one_of(src_d.data_type(), data_type::bf16,
+                                data_type::f16)
                             && !(jpp.alg == pooling_max
                                     && block_size > L3_cache_size_per_core)));
 
@@ -182,6 +184,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
         // transform input to blocked f32, call f32 jit, transform result to
         // plain output
         jpp.is_bf16 = false;
+        jpp.is_f16 = false;
         jpp.dt_size = types::data_type_size(data_type::f32);
         jpp.tag_kind = jit_memory_tag_kind_t::ncsp;
 
@@ -193,6 +196,8 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     } else {
         jpp.is_bf16 = (src_d.data_type() == data_type::bf16
                 && dst_d.data_type() == data_type::bf16);
+        jpp.is_f16 = (src_d.data_type() == data_type::f16
+                && dst_d.data_type() == data_type::f16);
         jpp.dt_size = types::data_type_size(src_d.data_type());
         jpp.tag_kind = (fmt_tag == nspc_fmt_tag)
                 ? jit_memory_tag_kind_t::nspc
@@ -210,6 +215,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
 
     const bool args_ok = true && mayiuse(isa) && (fmt_tag != format_tag::undef)
             && IMPLICATION(jpp.is_bf16, mayiuse(avx512_core))
+            && IMPLICATION(jpp.is_f16, mayiuse(avx512_core_fp16))
             && utils::one_of(pd.alg_kind, pooling_max,
                     pooling_avg_include_padding, pooling_avg_exclude_padding);
     if (!args_ok) return status::unimplemented;
@@ -271,10 +277,10 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
         else
             jpp.ur = is_avx512 ? 24 : 12;
     }
-    if (jpp.is_bf16) {
+    if (jpp.is_bf16 || jpp.is_f16) {
         jpp.ur = (!isa_has_bf16(jpp.isa))
                 ? jpp.ur - 4 // Free registers for AVX512 emulation
-                : jpp.ur - 1; // Free register for cvt from bf16 to f32
+                : jpp.ur - 1; // Free register for cvt from bf16/f16 to f32
     }
 
     // select jpp.ur_bc
@@ -400,6 +406,11 @@ inline void jit_uni_pool_kernel<isa>::load(const int idx,
             vmovups(Ymm(idx), ptr[reg_ptr + offset]);
             vpermw(Vmm(idx) | k_mask_cvt | T_z, vmm_idx(), Vmm(idx));
         }
+    } else if (jpp.is_f16) {
+        Vmm vmm_to_load = is_c_tail_proccessing && !jpp.is_c_padded
+                ? Vmm(idx) | k_c_tail_mask | T_z
+                : Vmm(idx);
+        vcvtph2psx(vmm_to_load, ptr[reg_ptr + offset]);
     } else {
         if (is_c_tail_proccessing && !jpp.is_c_padded) {
             if (isa == sse41) {
@@ -422,7 +433,7 @@ template <cpu_isa_t isa>
 inline void jit_uni_pool_kernel<isa>::store(const int idx,
         const reg64_t &reg_ptr, const int offset,
         const bool is_c_tail_proccessing) {
-    if (jpp.is_bf16) {
+    if (jpp.is_bf16 || jpp.is_f16) {
         if (is_c_tail_proccessing) {
             if (jpp.is_c_padded) {
                 vmovdqu16(Ymm(idx) | k_c_tail_mask | T_z, Ymm(idx));
@@ -498,8 +509,12 @@ bool jit_uni_pool_kernel<isa>::post_ops_ok(jit_pool_conf_t &jpp,
                 const auto alg = entry.eltwise.alg;
                 jpp.with_eltwise = eltwise_injector::is_supported(isa, alg);
             } else if (entry.is_binary()) {
-                if (isa != avx512_core
-                        && entry.binary.src1_desc.data_type == data_type::bf16)
+                if ((isa != avx512_core
+                            && entry.binary.src1_desc.data_type
+                                    == data_type::bf16)
+                        || (isa != avx512_core_fp16
+                                && entry.binary.src1_desc.data_type
+                                        == data_type::f16))
                     return false;
 
                 jpp.with_binary = true;
@@ -670,11 +685,13 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
                             bf16_emu_->vcvtneps2bf16(inpyr, zreg(inpr_i));
                         else
                             vcvtneps2bf16(inpyr, inpvr);
+                    } else if (jpp.is_f16) {
+                        vcvtps2ph(inpyr, inpvr, _op_mxcsr);
                     }
                     store(reg_idx(inpr_i), aux_reg_input, input_offset,
                             is_tail_processing(bci));
                 } else {
-                    if (jpp.is_bf16 || is_tail_processing(bci)
+                    if (jpp.is_bf16 || jpp.is_f16 || is_tail_processing(bci)
                             || (isa == sse41
                                     && c_off % (jpp.c_block / 2) != 0)) {
                         load(vmm_tmp_1.getIdx(), aux_reg_input, input_offset,
@@ -723,13 +740,15 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
                 const auto accvr = vreg(accr_i);
                 const auto output_offset
                         = dt_size * (jj * c_off + bci * c_block);
+                const auto accyr = yreg(accr_i);
                 if (jpp.is_bf16) {
                     const auto acczr = zreg(accr_i);
-                    const auto accyr = yreg(accr_i);
                     if (!isa_has_bf16(jpp.isa))
                         bf16_emu_->vcvtneps2bf16(accyr, acczr);
                     else
                         vcvtneps2bf16(accyr, accvr);
+                } else if (jpp.is_f16) {
+                    vcvtps2ph(accyr, accvr, _op_mxcsr);
                 }
                 store(reg_idx(accr_i), reg_output, output_offset,
                         is_tail_processing(bci));
@@ -877,13 +896,15 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
         const auto accr_i = reg_ind(0, bci, jj, ur_bc, ur_w);
         const auto accvr = vreg(accr_i);
         const auto output_offset = jpp.dt_size * (jj * c_off + bci * c_block);
+        auto accyr = yreg(accr_i);
         if (jpp.is_bf16) {
             auto acczr = zreg(accr_i);
-            auto accyr = yreg(accr_i);
             if (!isa_has_bf16(jpp.isa))
                 bf16_emu_->vcvtneps2bf16(accyr, acczr);
             else
                 vcvtneps2bf16(accyr, accvr);
+        } else if (jpp.is_f16) {
+            vcvtps2ph(accyr, accvr, _op_mxcsr);
         }
         store(reg_idx(accr_i), reg_output, output_offset,
                 is_tail_processing(bci));
@@ -1144,6 +1165,8 @@ inline void jit_uni_pool_kernel<isa>::max_step_bwd(int ur_w, int ur_bc,
                             bf16_emu_->vcvtneps2bf16(indyr, indzr);
                         else
                             vcvtneps2bf16(indyr, inpvr);
+                    } else if (jpp.is_f16) {
+                        vcvtps2ph(indyr, inpvr, _op_mxcsr);
                     }
                     store(inpvr.getIdx(), aux_reg_input, inp_offset,
                             is_tail_processing(bci));
@@ -1309,7 +1332,7 @@ void jit_uni_pool_kernel<isa>::generate() {
     mov(reg_ker_area_h, ptr[reg_param + GET_OFF(ker_area_h)]);
     mov(reg_nbc, ptr[reg_param + GET_OFF(ur_bc)]);
 
-    if (jpp.is_bf16) {
+    if (jpp.is_bf16 || jpp.is_f16) {
         mov(tmp_gpr.cvt32(), 0xAAAAAAAA);
         kmovd(k_mask_cvt, tmp_gpr.cvt32());
 
@@ -1493,7 +1516,7 @@ void jit_uni_pool_kernel<isa>::generate() {
     if (jpp.with_eltwise && postops_injector_)
         postops_injector_->prepare_table();
 
-    if (jpp.is_bf16) {
+    if (jpp.is_bf16 || jpp.is_f16) {
         align(64);
         L(idx_table);
         const uint16_t _idx[] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7,
@@ -1507,6 +1530,7 @@ template struct jit_uni_pool_kernel<sse41>;
 template struct jit_uni_pool_kernel<avx>;
 template struct jit_uni_pool_kernel<avx2>;
 template struct jit_uni_pool_kernel<avx512_core>;
+template struct jit_uni_pool_kernel<avx512_core_fp16>;
 
 } // namespace x64
 } // namespace cpu

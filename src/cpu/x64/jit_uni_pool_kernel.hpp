@@ -60,7 +60,7 @@ private:
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     int vmm_idx_upper_bound() const noexcept {
-        return isa == avx512_core ? 31 : 15;
+        return is_superset(isa, avx512_core) ? 31 : 15;
     }
 
     int reg_idx(int idx) const noexcept { return vmm_idx_upper_bound() - idx; }
