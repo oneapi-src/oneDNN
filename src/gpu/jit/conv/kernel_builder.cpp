@@ -6951,23 +6951,26 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     gemm_schedule.set_k_vars({oc, kd, kh, kw});
 
     expr_t ic_tg_blk_idx, ic_thr_blk_idx, ic_inner;
-    expr_t mb_tg_blk_idx, mb_inner;
+    expr_t mb_tg_blk_idx, mb_thr_blk_idx, mb_inner;
     expr_t iw_tg_blk_idx, iw_thr_blk_idx, iw_inner;
     expr_t oc_blk_idx, oc_inner;
 
     gemm_schedule.split(ic, cfg_.ic_tg_blk, cfg_.ic_thr_blk, ic_tg_blk_idx,
             ic_thr_blk_idx, ic_inner);
-    gemm_schedule.split(mb, cfg_.mb_tg_blk, mb_tg_blk_idx, mb_inner);
+    gemm_schedule.split(mb, cfg_.mb_tg_blk, cfg_.mb_thr_blk, mb_tg_blk_idx,
+            mb_thr_blk_idx, mb_inner);
     gemm_schedule.split(iw, cfg_.iw_tg_blk, cfg_.iw_thr_blk, iw_tg_blk_idx,
             iw_thr_blk_idx, iw_inner);
     gemm_schedule.split(oc, cfg_.oc_blk, oc_blk_idx, oc_inner);
 
     auto idhw_idx = gemm_schedule.fuse(id, ih, iw_tg_blk_idx);
+    auto mb_iw_thr_blk_idx = gemm_schedule.fuse(mb_thr_blk_idx, iw_thr_blk_idx);
+
     gemm_schedule.bind(ic_tg_blk_idx, kernel_grid_.idx(0));
     gemm_schedule.bind(idhw_idx, kernel_grid_.idx(1));
     gemm_schedule.bind(mb_tg_blk_idx, kernel_grid_.idx(2));
     gemm_schedule.bind(ic_thr_blk_idx, tg_grid_.idx(0));
-    gemm_schedule.bind(iw_thr_blk_idx, tg_grid_.idx(1));
+    gemm_schedule.bind(mb_iw_thr_blk_idx, tg_grid_.idx(1));
 
     gemm_schedule.tensorize(ic_inner);
     gemm_schedule.tensorize(mb_inner);

@@ -355,6 +355,11 @@ public:
         ow_tg_blk = getenv_int("ow_tg_blk", ow_tg_blk);
 #endif
 
+        if (is_src_nhwc) {
+            update_nhwc_blocks(tg_grid_dim[1], mb_tg_blk, mb_thr_dim,
+                    mb_thr_blk, ow_tg_blk, ow_thr_dim, ow_thr_blk);
+        }
+
         // TODO: Update estimate_register_count.
         b_blk = g_tg_blk;
         m_tg_blk = mb_tg_blk * ow_tg_blk;
@@ -407,6 +412,9 @@ public:
     status_t init_bwd_d(convolution_pd_t *conv_pd) {
         using namespace ir_utils;
 
+        bool is_src_nhwc = is_nhwc("src", conv_pd);
+        bool is_dst_nhwc = is_nhwc("dst", conv_pd);
+
         if (fma_kind == fma_kind_t::mad) {
             mb_thr_blk = (mb < 16 ? 1 : mb == 16 ? 16 : 32);
             ic_thr_blk = 16;
@@ -432,9 +440,11 @@ public:
 #endif
 
         // Try to enable special optimization for strided BWD_D convolution.
-        if (can_optimize_strided_bwd_d()) optimize_strided = true;
+        if (can_optimize_strided_bwd_d(conv_pd)) optimize_strided = true;
 
         regs = 256;
+
+        mb_thr_dim = 1;
 
         iw_thr_dim = std::min(4, utils::div_up(iw, iw_thr_blk));
         iw_thr_dim = (1 << math::ilog2q(iw_thr_dim));
@@ -443,28 +453,32 @@ public:
             iw_thr_dim = ir_utils::max_divisor(iw / sw, {1, 2, 4});
         }
 
-        tg_grid_dim[0] = std::min(4, utils::div_up(ic, ic_thr_blk));
-        tg_grid_dim[1] = iw_thr_dim;
-        tg_grid_dim[2] = 1;
+        ic_thr_dim = std::min(4, utils::div_up(ic, ic_thr_blk));
+        ic_thr_dim = (1 << math::ilog2q(ic_thr_dim));
 
-        // Round down to a power of 2.
-        tg_grid_dim[0] = (1 << math::ilog2q(tg_grid_dim[0]));
-        tg_grid_dim[2] = (1 << math::ilog2q(tg_grid_dim[2]));
+        tg_grid_dim[0] = ic_thr_dim;
+        tg_grid_dim[1] = mb_thr_dim * iw_thr_dim;
+        tg_grid_dim[2] = 1;
 
 #ifdef GEN_CONV_DEBUG
         tg_grid_dim[0] = getenv_int("tg0", tg_grid_dim[0]);
         tg_grid_dim[1] = getenv_int("tg1", tg_grid_dim[1]);
 #endif
 
-        mb_tg_blk = mb_thr_blk;
-        ic_tg_blk = tg_grid_dim[0] * ic_thr_blk;
-        iw_tg_blk = tg_grid_dim[1] * iw_thr_blk;
+        mb_tg_blk = mb_thr_dim * mb_thr_blk;
+        ic_tg_blk = ic_thr_dim * ic_thr_blk;
+        iw_tg_blk = iw_thr_dim * iw_thr_blk;
 
 #ifdef GEN_CONV_DEBUG
         mb_tg_blk = getenv_int("mb_tg_blk", mb_tg_blk);
         ic_tg_blk = getenv_int("ic_tg_blk", ic_tg_blk);
         iw_tg_blk = getenv_int("iw_tg_blk", iw_tg_blk);
 #endif
+
+        if (is_dst_nhwc) {
+            update_nhwc_blocks(tg_grid_dim[1], mb_tg_blk, mb_thr_dim,
+                    mb_thr_blk, iw_tg_blk, iw_thr_dim, iw_thr_blk);
+        }
 
         m_tg_blk = mb_tg_blk * iw_tg_blk;
         n_tg_blk = ic_tg_blk;
@@ -498,10 +512,6 @@ public:
 
         fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
-
-        // Validate layouts.
-        bool is_src_nhwc = is_nhwc("src", conv_pd);
-        bool is_dst_nhwc = is_nhwc("dst", conv_pd);
 
         // XXX: in case of nhwc or small mb allow reorders on XeHPC
         // since A/B tile loads may be strided
@@ -1102,6 +1112,26 @@ private:
         return x_thr_dim;
     }
 
+    // Redistributes blocking from mb to iw/ow to minimize strided loads/stores
+    // with NHWC layout.
+    static void update_nhwc_blocks(int thr_dim, int &mb_tg_blk, int &mb_thr_dim,
+            int &mb_thr_blk, int &w_tg_blk, int &w_thr_dim, int &w_thr_blk) {
+        ir_assert(thr_dim == w_thr_dim * mb_thr_dim);
+
+        int thr_blk = mb_thr_blk * w_thr_blk;
+        if (w_thr_blk == thr_blk) return;
+
+        int blk = std::min(w_thr_dim, mb_thr_blk);
+
+        ir_assert(mb_thr_blk % blk == 0);
+        mb_thr_blk /= blk;
+        mb_thr_dim *= blk;
+
+        ir_assert(w_thr_dim % blk == 0);
+        w_thr_dim /= blk;
+        w_thr_blk *= blk;
+    }
+
     status_t init_hw(engine_t *engine) {
         using namespace compute;
 
@@ -1494,7 +1524,8 @@ private:
         return status::success;
     }
 
-    bool can_optimize_strided_bwd_d() const {
+    bool can_optimize_strided_bwd_d(const convolution_pd_t *conv_pd) const {
+        if (is_nhwc("dst", conv_pd)) return false;
         if (iw_thr_blk > 1) return false;
         if (is_stride1()) return false;
         if (iw % sw != 0) return false;
@@ -1985,7 +2016,7 @@ private:
         return true;
     }
 
-    bool is_nhwc(const std::string &tag, const convolution_pd_t *pd) {
+    bool is_nhwc(const std::string &tag, const convolution_pd_t *pd) const {
         auto &layout = tensor_config.user_layout(tag);
         return is_nhwc(tag, pd, layout);
     }
