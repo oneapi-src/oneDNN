@@ -395,7 +395,7 @@ public:
                 impl::op_kind::GELU, impl::op_kind::HardTanh,
                 impl::op_kind::Log, impl::op_kind::Pow, impl::op_kind::ReLU,
                 op_kind::relu_add, impl::op_kind::Round, impl::op_kind::Sqrt,
-                impl::op_kind::Square, impl::op_kind::Tanh};
+                impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_sum};
 
         // compile will transform the subgraph in partition, so we make
         // a copy

@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "interface/c_types_map.hpp"
+#include "interface/graph.hpp"
 #include "interface/op_schema.hpp"
 #include "utils/utils.hpp"
 
@@ -1469,6 +1470,48 @@ impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg) {
                     });
             if (pos != subgraph.end()) subgraph.erase(pos);
         }
+    return impl::status::success;
+}
+
+impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    op_ptr sum_op = std::make_shared<op_t>(op_kind::dnnl_sum);
+
+    auto graph_in_vals = impl::graph_t(subgraph).get_input_values();
+    auto graph_out_vals = impl::graph_t(subgraph).get_output_values();
+
+    int input_idx = 0;
+    for (auto &cur_op : subgraph) {
+        // reconnect graph's input val to dnnl_sum
+        auto input_values = cur_op->get_input_values();
+        for (auto &in_val : input_values) {
+            if (std::find(graph_in_vals.begin(), graph_in_vals.end(),
+                        in_val.get())
+                    == graph_in_vals.end())
+                continue;
+
+            in_val->remove_consumer(*cur_op, 0);
+            sum_op->connect_input(input_idx++, in_val);
+        }
+
+        // reconnect graph's output val to dnnl_sum
+        auto output_values = cur_op->get_output_values();
+        for (auto &out_val : output_values) {
+            if (std::find(graph_out_vals.begin(), graph_out_vals.end(),
+                        out_val.get())
+                    == graph_out_vals.end())
+                continue;
+
+            sum_op->add_output(out_val);
+            out_val->set_producer(*sum_op);
+        }
+    }
+    // remove original add/mul ops
+    subgraph.clear();
+
+    // add dnnl_sum to subgraph
+    subgraph.emplace_back(sum_op);
+
     return impl::status::success;
 }
 

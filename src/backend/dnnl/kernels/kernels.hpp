@@ -31,5 +31,6 @@
 #include "reorder.hpp"
 #include "resampling.hpp"
 #include "softmax.hpp"
+#include "sum.hpp"
 
 #endif

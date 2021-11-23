@@ -1095,6 +1095,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_ptr parent_ctx) {
             = (bind_arg.bind_kind == BIND_NONE && bind_arg.bind_port == 0)
             || bind_arg.bind_kind == BIND_IN;
     for (; i < max_rep - 1; i++) {
+        if (!temp_bind.bind_op) break;
         match_context_t temp_ctx {&speculative_ctx, nullptr};
         if (!match_graph(temp_bind, &temp_ctx, nullptr)) { break; }
         // update binding_t temp_bind for next rep;
@@ -1109,22 +1110,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_ptr parent_ctx) {
                         = out_op->get_output_value(static_cast<size_t>(oport))
                                   ->get_consumers();
                 op_ptr in_op = nullptr;
-                if (con_ops.size() == 1) {
-                    in_op = &(con_ops.at(0).get_op());
-                } else { // has side effect
-                    // Use heuristic: assume in_node for next iteration will be
-                    // the same as current iteration.
-                    pb_node_ptr prev_in_node
-                            = temp_ctx.node_tracker_map[in_op]->get_node();
-                    // use match_node_attributes to get in_op
-                    for (auto i : con_ops) {
-                        if (match_node_attributes(
-                                    &(i.get_op()), prev_in_node)) {
-                            in_op = &(i.get_op());
-                            break;
-                        }
-                    }
-                }
+                if (con_ops.size() == 1) { in_op = &(con_ops.at(0).get_op()); }
                 temp_bind.bind_op = in_op;
             } else { // backward matching
                 // Backward:(BIND_OUT):

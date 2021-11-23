@@ -7388,6 +7388,116 @@ TEST(Compile, TypecastNegativeInput) {
             impl::status::compile_fail);
 }
 
+TEST(Execute, Sum) {
+    /*
+        input0  input1
+          \       /
+             Add    input2
+               \      /
+                  Add    input3
+                    \     /
+                      Add     input4
+                        \      /
+                           Add
+    */
+    impl::engine_t &engine = get_engine();
+
+    std::vector<int64_t> input_dims {1, 3, 3};
+
+    impl::op_t add0 {0, impl::op_kind::Add, "add_0"};
+    add0.set_attr<std::string>("auto_broadcast", "none");
+    impl::logical_tensor_t input0
+            = utils::logical_tensor_init(0, input_dims, impl::data_type::f32);
+    impl::logical_tensor_t input1
+            = utils::logical_tensor_init(1, input_dims, impl::data_type::f32);
+    impl::logical_tensor_t output0
+            = utils::logical_tensor_init(2, input_dims, impl::data_type::f32);
+
+    impl::op_t add1 {1, impl::op_kind::Add, "add_1"};
+    add1.set_attr<std::string>("auto_broadcast", "none");
+    impl::logical_tensor_t input2
+            = utils::logical_tensor_init(3, input_dims, impl::data_type::f32);
+    impl::logical_tensor_t output1
+            = utils::logical_tensor_init(4, input_dims, impl::data_type::f32);
+
+    impl::op_t add2 {2, impl::op_kind::Add, "add_2"};
+    add2.set_attr<std::string>("auto_broadcast", "none");
+    impl::logical_tensor_t input3
+            = utils::logical_tensor_init(5, input_dims, impl::data_type::f32);
+    impl::logical_tensor_t output2
+            = utils::logical_tensor_init(6, input_dims, impl::data_type::f32);
+
+    impl::op_t add3 {3, impl::op_kind::Add, "add_3"};
+    add3.set_attr<std::string>("auto_broadcast", "none");
+    impl::logical_tensor_t input4
+            = utils::logical_tensor_init(7, input_dims, impl::data_type::f32);
+    impl::logical_tensor_t output3
+            = utils::logical_tensor_init(8, input_dims, impl::data_type::f32);
+
+    add0.add_input(input0);
+    add0.add_input(input1);
+    add0.add_output(output0);
+
+    add1.add_input(output0);
+    add1.add_input(input2);
+    add1.add_output(output1);
+
+    add2.add_input(output1);
+    add2.add_input(input3);
+    add2.add_output(output2);
+
+    add3.add_input(output2);
+    add3.add_input(input4);
+    add3.add_output(output3);
+
+    impl::graph_t agraph(engine.kind());
+
+    ASSERT_EQ(agraph.add_op(&add0), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&add1), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&add2), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&add3), impl::status::success);
+    agraph.build_graph();
+    impl::pass::pass_base_ptr apass = get_pass("sum_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    auto part = agraph.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &input0, &input1, &input2, &input3, &input4};
+    std::vector<const impl::logical_tensor_t *> outputs {&output3};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
+
+    test::vector<float> input0_data(product(input_dims), 1);
+    test::vector<float> input1_data(product(input_dims), 1);
+    test::vector<float> input2_data(product(input_dims), 1);
+    test::vector<float> input3_data(product(input_dims), 1);
+    test::vector<float> input4_data(product(input_dims), 1);
+    test::vector<float> output_data(product(input_dims), 0);
+
+    impl::tensor_t input0_ts(input0, &engine, input0_data.data());
+    impl::tensor_t input1_ts(input1, &engine, input1_data.data());
+    impl::tensor_t input2_ts(input2, &engine, input2_data.data());
+    impl::tensor_t input3_ts(input3, &engine, input3_data.data());
+    impl::tensor_t input4_ts(input4, &engine, input4_data.data());
+    impl::tensor_t output_ts(output3, &engine, output_data.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {input0_ts, input1_ts, input2_ts, input3_ts, input4_ts},
+            {output_ts});
+    strm.wait();
+
+    for (const auto v : output_data) {
+        ASSERT_FLOAT_EQ(v, 5.f);
+    }
+}
+
 TEST(Execute, QuantizePerTensor) {
     impl::engine_t &engine = get_engine();
     if (engine.kind() == impl::engine_kind::gpu) return;

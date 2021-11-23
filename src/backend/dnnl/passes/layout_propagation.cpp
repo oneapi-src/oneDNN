@@ -502,6 +502,37 @@ static bool layout_propagation_for_conv_bwd_data(op_ptr &op,
     return true;
 }
 
+static bool layout_propagation_for_dnnl_sum(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+    bool changed = true;
+    value_ptr dst_val = op->get_output_value(0);
+
+    bool input_has_any_format = false;
+    for (const auto &in_val : op->get_input_values()) {
+        if (ltw(in_val->get_logical_tensor()).is_any()) {
+            input_has_any_format = true;
+            break;
+        }
+    }
+
+    assertm(!input_has_any_format,
+            "input format of sum primitive cannot be any.");
+
+    if (ltw(dst_val->get_logical_tensor()).is_any()) {
+        auto pd = create_dnnl_sum_pd(op, p_engine, prm_attr_mgr);
+
+        fill_layout_info(dst_val, pd.dst_desc());
+
+        // make scratchpad as sum's last output
+        value_ptr scratchpad_val = insert_scratchpad(op);
+        fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+    } else {
+        changed = false;
+    }
+
+    return changed;
+}
+
 static void remove_optional_conv_dw_output(
         std::vector<op_ptr> &subgraph, pd_cache_t &pd_cache) {
     std::vector<op_ptr> to_be_inserted_ops;
@@ -668,6 +699,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 changed = layout_propagation_for_squeeze(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
                 changed |= layout_propagation_for_bn_folding(cur_op, p_engine);
+            } else if (cur_op->get_kind() == op_kind::dnnl_sum) {
+                changed |= layout_propagation_for_dnnl_sum(
+                        cur_op, p_engine, prm_attr_mgr);
             } else {
                 assertm(false,
                         "none layout propagation function for current op");

@@ -8888,6 +8888,98 @@ TEST(PassSystem, MixInt8AndBf16Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10);
 }
 
+TEST(Pass, FuseAddIntoSum) {
+    /*
+        \   /
+         Add
+          \   /
+           Add
+            \   /
+             Add
+             ...
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    graph_t agraph;
+
+    const size_t rep_times = 5;
+    logical_tensor_t input0 = empty_logical_tensor_with_default_id();
+    logical_tensor_t input1 = empty_logical_tensor_with_default_id();
+    logical_tensor_t output = empty_logical_tensor_with_default_id();
+    for (size_t n = 0; n < rep_times; ++n) {
+        op_t add {n, impl::op_kind::Add, "add_" + std::to_string(n)};
+        add.set_attr<std::string>("auto_broadcast", "none");
+        if (n == 0) {
+            input0 = logical_tensor_init(n, impl::data_type::f32);
+        } else {
+            input0 = output;
+        }
+
+        input1 = logical_tensor_init(n + 2 * rep_times, impl::data_type::f32);
+        output = logical_tensor_init(n + 1, impl::data_type::f32);
+
+        add.add_input(input0);
+        add.add_input(input1);
+        add.add_output(output);
+
+        ASSERT_EQ(agraph.add_op(&add), status::success);
+    }
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("sum_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), rep_times + 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2 * rep_times);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, rep_times);
+}
+
+TEST(Pass, FuseBroadcastAddIntoSum) {
+    /*
+        \   /
+         Add
+          \   /
+           Add
+            ...
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    graph_t agraph;
+
+    op_t add0 {0, op_kind::Add, "add0"};
+    add0.set_attr<std::string>("auto_broadcast", "none");
+    logical_tensor_t input0 = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t input1 = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t output0 = logical_tensor_init(2, data_type::f32);
+
+    op_t add1 {1, op_kind::Add, "add1"};
+    add1.set_attr<std::string>("auto_broadcast", "numpy");
+    logical_tensor_t input2 = logical_tensor_init(3, data_type::f32);
+    logical_tensor_t output1 = logical_tensor_init(4, data_type::f32);
+
+    add0.add_input(input0);
+    add0.add_input(input1);
+    add0.add_output(output0);
+
+    add1.add_input(output0);
+    add1.add_input(input2);
+    add1.add_output(output1);
+
+    agraph.add_op(&add0);
+    agraph.add_op(&add1);
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("sum_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
+}
+
 TEST(Pass, FuseTypecaseQuantize) {
     /*
              | (bf16)

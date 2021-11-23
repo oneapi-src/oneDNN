@@ -2702,6 +2702,16 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_swish, 1,
                 .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_sum, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>(
+                        {2, std::numeric_limits<size_t>::max()}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_shape_inference_function(infer_identity_output_shape))
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

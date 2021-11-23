@@ -31,6 +31,7 @@
 #include "patterns/pool_fusion.hpp"
 #include "patterns/quantize_fusion.hpp"
 #include "patterns/single_op_pattern.hpp"
+#include "patterns/sum_fusion.hpp"
 #include "tensor.hpp"
 
 namespace dnnl {
@@ -68,6 +69,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PASSES_CALL(pool_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(eltwise_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(quantize_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(sum_fusion, pass_registry_);
 
     return true;
 }
@@ -332,6 +334,9 @@ bool dnnl_backend::register_kernels() {
     // quantized pooling
     DNNL_REGISTER_KERNEL(op_kind::int8_maxpool, quantized_pooling);
     DNNL_REGISTER_KERNEL(op_kind::int8_avgpool, quantized_pooling);
+
+    // sum fusion
+    DNNL_REGISTER_KERNEL(op_kind::dnnl_sum, sum_v2);
 
 #undef DNNL_REGISTER_KERNEL
 

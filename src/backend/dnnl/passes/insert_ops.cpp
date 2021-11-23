@@ -42,7 +42,8 @@ static bool need_insert_reorder(op_kind_t kind) {
             impl::op_kind::Abs, impl::op_kind::Elu, impl::op_kind::Exp,
             impl::op_kind::GELU, impl::op_kind::HardTanh, impl::op_kind::Log,
             impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sigmoid,
-            impl::op_kind::Sqrt, impl::op_kind::Square, impl::op_kind::Tanh};
+            impl::op_kind::Sqrt, impl::op_kind::Square, impl::op_kind::Tanh,
+            op_kind::dnnl_sum};
     return ops.count(kind) != 0;
 }
 
@@ -71,7 +72,7 @@ static bool require_input_format(op_kind_t kind) {
             impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
             impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::ReLU,
             impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh};
+            impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_sum};
     return ops.count(kind) != 0;
 }
 

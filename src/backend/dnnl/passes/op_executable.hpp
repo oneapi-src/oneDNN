@@ -371,6 +371,27 @@ inline dnnl::eltwise_forward::primitive_desc create_eltwise_pd(
     return pd;
 }
 
+inline dnnl::sum::primitive_desc create_dnnl_sum_pd(
+        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr_t &prm_attr_mgr) {
+    std::vector<dnnl::memory::desc> src_descs;
+    src_descs.reserve(op->num_inputs());
+    for (const auto &in_val : op->get_input_values()) {
+        src_descs.emplace_back(
+                make_dnnl_memory_desc(in_val->get_logical_tensor()));
+    }
+
+    auto dst_desc = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+
+    // create default scales
+    std::vector<float> scales(op->num_inputs(), 1.f);
+
+    dnnl::sum::primitive_desc pd(dst_desc, scales, src_descs, p_engine);
+
+    return pd;
+}
+
 struct op_executable_t {
     virtual ~op_executable_t() = default;
     virtual void execute(const stream &stream,
@@ -827,6 +848,25 @@ private:
     dnnl::convolution_backward_data::primitive_desc pd_;
     dnnl::convolution_backward_data prim_;
     bool perm_dst_ {false};
+};
+
+struct sum_executable_t : public op_executable_t {
+    sum_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+        pd_ = create_dnnl_sum_pd(op, p_engine, prm_attr_mgr);
+        prim_ = dnnl::sum(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::sum::primitive_desc pd_;
+    dnnl::sum prim_;
 };
 
 } // namespace dnnl_impl

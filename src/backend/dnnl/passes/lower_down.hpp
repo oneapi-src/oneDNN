@@ -96,6 +96,17 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg);
 ///          | (u8/s8)
 impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg);
 
+/// translate the subgraph containing chain of Adds into dnnl_sum
+///   in0   in1
+///     \    /
+///      Add   in2         in0  in1  in2
+///        \   /             \   |   / ...
+///         Add  in3    -->     sum
+///           \   /
+///            Add
+///            ...
+impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
