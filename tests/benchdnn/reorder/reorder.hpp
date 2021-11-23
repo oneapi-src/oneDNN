@@ -173,7 +173,10 @@ void check_known_skipped_case(const prb_t *prb, res_t *res);
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem);
-int ref_reorder(const prb_t *prb, dnn_mem_t &dst, const dnn_mem_t &src);
+int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
+        dnn_mem_t &s8_comp, dnn_mem_t &zp_comp);
+int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
+        dnn_mem_t &mem_zp_comp_ref, dnn_mem_t &mem_got, res_t *res);
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
 

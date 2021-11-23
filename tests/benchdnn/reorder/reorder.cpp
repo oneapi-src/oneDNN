@@ -132,37 +132,6 @@ int fill_memory_extra(const prb_t *prb, dnnl_memory_extra_desc_t &extra) {
     return OK;
 }
 
-int ref_reorder(const prb_t *prb, dnn_mem_t &dst, const dnn_mem_t &src) {
-    auto dst_dt = dst.dt();
-
-    const auto nelems = src.nelems();
-    const int scale_mask = attr_t::get_default_mask(prb->attr.oscale.policy);
-    const int src_zero_point = prb->src_zp ? prb->src_zp[0] : 0;
-    const int dst_zero_point = prb->dst_zp ? prb->dst_zp[0] : 0;
-
-    float beta = 0;
-    const auto &po = prb->attr.post_ops;
-    const int beta_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
-    if (beta_idx >= 0) beta = po.entry[beta_idx].sum.scale;
-
-    for (int64_t idx = 0; idx < nelems; ++idx) {
-        float s = src.get_elem(idx) - src_zero_point;
-        float d = 0;
-        if (beta_idx >= 0) d = dst.get_elem(idx) - dst_zero_point;
-
-        const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
-        const float alpha = prb->scales[scale_idx];
-        float value = alpha * s + beta * d + dst_zero_point;
-        value = maybe_saturate(dst_dt, value);
-        if (dst_dt == dnnl_s32 && value >= (float)INT_MAX)
-            value = BENCHDNN_S32_TO_F32_SAT_CONST;
-
-        dst.set_elem(idx, round_to_nearest_representable(dst_dt, value));
-    }
-
-    return OK;
-}
-
 int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
         dnn_mem_t &s8_comp, dnn_mem_t &zp_comp) {
     auto dst_dt = dst.dt();
