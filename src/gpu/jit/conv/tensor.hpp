@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -550,11 +550,18 @@ public:
 
     void set_offset(const expr_t &offset) { offset_ = offset; }
 
-    bool is_strictly_equal(
-            const layout_t &other, bool compare_offset = true) const {
+    bool is_strictly_equal(const layout_t &other, bool compare_offset = true,
+            bool compare_strides = true) const {
         if (!type_.is_equal(other.type_)) return false;
         if (compare_offset && !offset_.is_equal(other.offset_)) return false;
-        if (!ir_utils::is_equal(blocks_, other.blocks_)) return false;
+        if (blocks_.size() != other.blocks_.size()) return false;
+        for (size_t i = 0; i < blocks_.size(); i++) {
+            auto &b0 = blocks_[i];
+            auto &b1 = other.blocks_[i];
+            if (b0.dim_idx != b1.dim_idx) return false;
+            if (b0.block != b1.block) return false;
+            if (compare_strides && b0.stride != b1.stride) return false;
+        }
         return true;
     }
 

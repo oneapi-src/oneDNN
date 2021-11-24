@@ -1638,11 +1638,14 @@ private:
             if (ic_bytes % 32 != 0 || oc_bytes % 32 != 0)
                 return status::unimplemented;
         }
-        if (!src_layout.is_strictly_equal(make_layout(src_md, user_src_tag)))
+        if (!src_layout.is_strictly_equal(make_layout(src_md, user_src_tag),
+                    /*compare_offset=*/true, /*compare_strides=*/false))
             return status::unimplemented;
-        if (!dst_layout.is_strictly_equal(make_layout(dst_md, user_dst_tag)))
+        if (!dst_layout.is_strictly_equal(make_layout(dst_md, user_dst_tag),
+                    /*compare_offset=*/true, /*compare_strides=*/false))
             return status::unimplemented;
-        if (!wei_layout.is_strictly_equal(make_layout(wei_md, user_wei_tag)))
+        if (!wei_layout.is_strictly_equal(make_layout(wei_md, user_wei_tag),
+                    /*compare_offset=*/true, /*compare_strides=*/false))
             return status::unimplemented;
 
         tensor_config.add_tensor("src", src_arg_key(), is_src_input(),
