@@ -226,8 +226,8 @@ public:
 
         if (ic < 16 && !is_dp_fma() && !is_dw) return status::unimplemented;
 
-        bool is_src_nhwc = is_nhwc("src", conv_pd);
-        bool is_dst_nhwc = is_nhwc("dst", conv_pd);
+        bool is_src_nhwc = is_nhwc("src");
+        bool is_dst_nhwc = is_nhwc("dst");
 
         // Set dispatch and kernel parameters.
         if (is_dw) {
@@ -412,8 +412,8 @@ public:
     status_t init_bwd_d(convolution_pd_t *conv_pd) {
         using namespace ir_utils;
 
-        bool is_src_nhwc = is_nhwc("src", conv_pd);
-        bool is_dst_nhwc = is_nhwc("dst", conv_pd);
+        bool is_src_nhwc = is_nhwc("src");
+        bool is_dst_nhwc = is_nhwc("dst");
 
         if (fma_kind == fma_kind_t::mad) {
             mb_thr_blk = (mb < 16 ? 1 : mb == 16 ? 16 : 32);
@@ -440,7 +440,7 @@ public:
 #endif
 
         // Try to enable special optimization for strided BWD_D convolution.
-        if (can_optimize_strided_bwd_d(conv_pd)) optimize_strided = true;
+        if (can_optimize_strided_bwd_d()) optimize_strided = true;
 
         regs = 256;
 
@@ -1398,6 +1398,14 @@ private:
         auto &dst_md = *conv_pd->invariant_dst_md();
         auto &bia_md = *conv_pd->invariant_bia_md();
 
+        bool is_src_nhwc = is_nhwc(src_md);
+        bool is_dst_nhwc = is_nhwc(dst_md);
+
+        if (is_src_nhwc || is_dst_nhwc) {
+            src_tag = user_src_tag = "axb";
+            dst_tag = user_dst_tag = "axb";
+        }
+
         // Select user layouts.
         auto src_layout = init_layout(src_md, user_src_tag);
         auto wei_layout = init_layout(wei_md, user_wei_tag);
@@ -1407,15 +1415,12 @@ private:
         if (with_bias) bia_layout = init_layout(bia_md, "a");
 
         // Validate layouts.
-        bool is_src_nhwc = is_nhwc("src", conv_pd, src_layout);
-        bool is_dst_nhwc = is_nhwc("dst", conv_pd, dst_layout);
+        is_src_nhwc = is_nhwc(src_layout);
+        is_dst_nhwc = is_nhwc(dst_layout);
         if (is_src_nhwc != is_dst_nhwc) return status::unimplemented;
 
         if (is_src_nhwc) {
             if (is_bwd_w) return status::unimplemented;
-
-            src_tag = user_src_tag = "axb";
-            dst_tag = user_dst_tag = "axb";
 
             // HWord loads require 32 byte alignment. For NHWC layout it means
             // input/output channels must be multiples of 32 bytes.
@@ -1524,8 +1529,8 @@ private:
         return status::success;
     }
 
-    bool can_optimize_strided_bwd_d(const convolution_pd_t *conv_pd) const {
-        if (is_nhwc("dst", conv_pd)) return false;
+    bool can_optimize_strided_bwd_d() const {
+        if (is_nhwc("dst")) return false;
         if (iw_thr_blk > 1) return false;
         if (is_stride1()) return false;
         if (iw % sw != 0) return false;
@@ -1994,31 +1999,30 @@ private:
         return layout_t(md, tag, /*do_normalize=*/false);
     }
 
+    static layout_t make_layout(const type_t &type,
+            const std::vector<dim_t> &dims, const std::string &tag) {
+        return layout_t(type, 0, tag, dims, /*do_normalize=*/false);
+    }
+
     static bool with_sum_post_op(const convolution_pd_t *pd) {
         auto &post_ops = pd->attr()->post_ops_;
         return post_ops.find(primitive_kind::sum) != -1;
     }
 
-    static bool is_nhwc(const std::string &tag, const convolution_pd_t *pd,
-            const layout_t &layout) {
-        const memory_desc_t *md = nullptr;
-        if (tag == "src") {
-            md = pd->invariant_src_md();
-        } else if (tag == "dst") {
-            md = pd->invariant_dst_md();
-        } else {
-            ir_error_not_expected();
-        }
-
-        if (!memory_desc_wrapper(md).is_plain()) return false;
-        if (!layout.is_strictly_equal(make_layout(*md, "axb"))) return false;
-
+    static bool is_nhwc(const layout_t &layout) {
+        auto nhwc_layout = make_layout(layout.type(), layout.dims(), "axb");
+        if (!layout.is_strictly_equal(nhwc_layout)) return false;
         return true;
     }
 
-    bool is_nhwc(const std::string &tag, const convolution_pd_t *pd) const {
+    static bool is_nhwc(const memory_desc_t &md) {
+        if (md.format_kind == format_kind::any) return false;
+        return is_nhwc(make_layout(md));
+    }
+
+    bool is_nhwc(const std::string &tag) const {
         auto &layout = tensor_config.user_layout(tag);
-        return is_nhwc(tag, pd, layout);
+        return is_nhwc(layout);
     }
 };
 
