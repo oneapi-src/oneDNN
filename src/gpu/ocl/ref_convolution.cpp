@@ -213,10 +213,11 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
             ctx, arg_list, 4, pd()->attr()->post_ops_);
 
     arg_list.set(arg_idx, common_oscales);
-    if (conf.attr_info.with_runtime_oscales) {
-        arg_list.set(++arg_idx, oscales);
-    } else if (!conf.attr_info.with_common_oscales) {
-        arg_list.set(++arg_idx, CTX_GPU_RES_STORAGE(SCALES_));
+    if (conf.attr_info.with_per_oc_oscales) {
+        if (conf.attr_info.with_runtime_oscales)
+            arg_list.set(++arg_idx, oscales);
+        else
+            arg_list.set(++arg_idx, CTX_GPU_RES_STORAGE(SCALES_));
     } else {
         arg_list.set(++arg_idx, memory_storage_t::empty_storage());
     }

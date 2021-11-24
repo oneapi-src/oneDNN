@@ -21,8 +21,8 @@
 KERNEL_ATTR
 __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
         const __global WEI_DATA_T *wei, const __global BIA_DATA_T *bias,
-        __global DST_DATA_T *dst POST_OP_ARGS, float common_scale,
-        const __global float *scales, const __global int *src_zpoints,
+        __global DST_DATA_T *dst POST_OP_ARGS, float scales,
+        const __global float *scales_per_oc, const __global int *src_zpoints,
         const __global int *dst_zpoints) {
 
     const int n = GWS_GET_MB();
@@ -64,13 +64,9 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
 
 #if SRC_DT_S8 == 1 || SRC_DT_U8 == 1
 #if SCALES_PER_OC
-    tmp *= scales[g * OC + oc];
+    tmp *= scales_per_oc[g * OC + oc];
 #elif SCALES_COMMON
-#if WITH_RUNTIME_SCALES
-    tmp *= scales[0];
-#else
-    tmp *= common_scale;
-#endif
+    tmp *= scales;
 #endif
 #endif
 
