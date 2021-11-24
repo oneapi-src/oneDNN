@@ -1178,11 +1178,6 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     if (is_bf16_conv && !platform::has_data_type_support(bf16))
         return status::unimplemented;
 
-    bool is_bf16_to_bf16_conv = is_bf16_conv
-            && ((is_fwd && bf16 == dst_d.data_type())
-                    || (is_bwd_d && bf16 == src_d.data_type())
-                    || (is_bwd_w && bf16 == weights_d.data_type()));
-
     const int vlen = std::max(platform::get_vector_register_size(), 4);
     const int data_size = (is_int8_conv ? 1 : (is_bf16_conv ? 2 : 4));
     const int simd_w = vlen / data_size;
@@ -1537,7 +1532,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             scratchpad.book(key_conv_gemm_imtr,
                     jcp.nthr * static_cast<size_t>(jcp.id) * jcp.is * jcp.ic,
                     gemm_col_datatype_size);
-            if (is_bf16_to_bf16_conv && jcp.with_bias
+            if (is_bf16_conv && jcp.with_bias
                     && one_of(data_type::bf16, cd.diff_bias_desc.data_type,
                             cd.bias_desc.data_type)) {
                 scratchpad.book<float>(
@@ -1981,7 +1976,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     * (gemm_col_datatype_size * jcp.im2col_sz
                             + gemm_col_datatype_size * jcp.id * jcp.is * jcp.ic
                             + sizeof(float) * weights_d.size());
-            if (is_bf16_to_bf16_conv) {
+            if (is_bf16_conv) {
                 thr_mem_estimate += sizeof(float) * weights_d.size();
                 if (jcp.with_bias
                         && one_of(data_type::bf16, cd.diff_bias_desc.data_type,
@@ -2005,12 +2000,12 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             scratchpad.book(key_conv_gemm_imtr,
                     static_cast<size_t>(jcp.nthr) * jcp.id * jcp.is * jcp.ic,
                     gemm_col_datatype_size);
-            if (is_bf16_to_bf16_conv) {
+            if (is_bf16_conv) {
                 size_t conv_acc_buffer_size = weights_d.size();
                 scratchpad.book<float>(
                         key_conv_int_dat_in_acc_dt, conv_acc_buffer_size);
             }
-            if (is_bf16_to_bf16_conv && jcp.with_bias
+            if ((is_bf16_conv) && jcp.with_bias
                     && one_of(data_type::bf16, cd.diff_bias_desc.data_type,
                             cd.bias_desc.data_type))
                 scratchpad.book<float>(
@@ -2020,7 +2015,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             // enabled during f32/bf16 BWD_W blocked convolution
             size_t thr_mem_estimate
                     = sizeof(float) * max_threads * weights_d.size();
-            if (is_bf16_to_bf16_conv) {
+            if (is_bf16_conv) {
                 thr_mem_estimate += sizeof(float) * weights_d.size();
                 if (jcp.with_bias
                         && one_of(data_type::bf16, cd.diff_bias_desc.data_type,
@@ -2049,7 +2044,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                         key_conv_wei_reduction, jcp.nthr * weights_d.size());
             }
 
-            if (is_bf16_to_bf16_conv) {
+            if (is_bf16_conv) {
                 size_t conv_acc_buffer_size = 0;
                 if (is_fwd)
                     conv_acc_buffer_size = jcp.nthr
