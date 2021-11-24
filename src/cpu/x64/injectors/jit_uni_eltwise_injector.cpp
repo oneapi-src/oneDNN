@@ -1050,7 +1050,15 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::pow_compute_vector_fwd(
 
         // align stack on 16-byte as ABI requires
         h->mov(h->rbx, h->rsp);
+        // Get alignment offset.
         h->and_(h->rbx, 0xf);
+        // The 64-bit Windows ABI requires the caller to allocate 32 bytes of
+        // a so called "shadow space" for the callee. Since the return address
+        // is pushed on stack upon calling `powf` the `rsp` becomes 8-byte
+        // aligned. In order to allocate the shadow space and preserve the
+        // 16-byte alignment we have to allocate 40 bytes (32 bytes for the
+        // "shadow space" + 8 bytes to preserve 16-byte alignment).
+        h->add(h->rbx, 0x28);
         h->sub(h->rsp, h->rbx);
 
         // Take src, apply powf on it and replace value on a stack with dst.
