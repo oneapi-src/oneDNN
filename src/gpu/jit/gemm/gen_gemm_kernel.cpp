@@ -843,8 +843,9 @@ const kernel_table_t *xe_hpc_f16_nocopy_tables[2][2] = {
 };
 
 const kernel_table_t xe_hpc_f32_nocopy_nn_table[] = {
-    {{16,  8}, { 0,  0}, {0, 0}, {}, {}},
-    {{64, 32}, {-1, -1}, {0, 0}, {}, {}}
+    {{16,  8}, { 0,    0}, {0, 0}, {}, {}},
+    {{64, 16}, { 1024, 0}, {0, 0}, {}, {}},
+    {{64, 32}, {-1,   -1}, {0, 0}, {}, {}}
 };
 
 const kernel_table_t xe_hpc_f32_nocopy_nt_table[] = {

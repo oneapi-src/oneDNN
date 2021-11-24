@@ -206,6 +206,7 @@ const gemm_recipe_t gemm_recipes[] = {
     {ngen::HW::XeHP, "HHH", "NNN", {}, 32, 16, "ab8 ab16 ab l4 ca1 wg 2x8 cs di", {}, 'B'},             // BERT
     {ngen::HW::XeHPC, "SSS", "NNN", {}, 64, 32, "aB8/4+B8@2/0 aS8+S1,16@2/0 aB nse di wg 4x8 bo pt sr kc8 sn sb256 grf256 bk0", {}, {}},
     {ngen::HW::XeHPC, "SSS", "NNN", {}, 16, 8,  "aB8x2+B8@2 aS8+S1,16@2 aB nse di wg 4x8 bo pt sr kc8 sn sb256 bk0", {}, {}},
+    {ngen::HW::XeHPC, "SSS", "NNN", {}, 64, 16, "ab2x2 ab16+s1,32@3 ab cs di wg 2x16 hi sn bk4096", {}, {}},
     {ngen::HW::XeHPC, "SSS", "NTN", {}, 64, 32, "aB8/4x2+B8@2 aB8/4x2+B8@2 aB nse di wg 4x8 bo pt sr sb256 kc8 grf256 bk0", {}, {}},
     {ngen::HW::XeHPC, "SSS", "NTN", {}, 16, 16, "aB8x2+B8@2 aB8x2+B8@2 aB nse di wg 4x8 bo pt sr kc8 sb256 bk0", {}, {}},
     {ngen::HW::XeHPC, "SSS", "TNN", {}, 64, 32, "aS8+S1,16@2/0 aS16+S1,16@2/0 aB nse di wg 4x8 bo pt sr kc8 sm sn sb256 grf256 bk0", {}, {}},
