@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,9 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
         __global DST_DATA_T *dst POST_OP_ARGS, float common_scale,
         const __global float *scales, const __global int *src_zpoints,
         const __global int *dst_zpoints) {
+
+    src += SRC_OFFSET0;
+    dst += DST_OFFSET0;
 
     const int n = GWS_GET_MB();
     const int oc = GWS_GET_OC();

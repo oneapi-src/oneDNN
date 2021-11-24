@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,6 +72,8 @@ struct xe_lp_x8s8x_1x1_convolution_fwd_t : public gpu_primitive_t {
                             utils::one_of(
                                     attr()->output_scales_.mask_, 0, 1 << 1));
             if (!ok) return status::unimplemented;
+
+            if (dst_md()->offset0 != 0) return status::unimplemented;
 
             CHECK(init_conf(engine));
 
