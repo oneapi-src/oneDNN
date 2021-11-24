@@ -905,11 +905,12 @@ status_t gemm_convolution_bwd_weights_t::execute_backward_weights_ncsp(
             for (dim_t mb = 0; mb < jcp.mb; ++mb) {
                 dim_t offset = offset_ + mb * jcp.ngroups * dst_step;
                 for_(dim_t od = 0; od < jcp.od; ++od)
-                for (dim_t oh = 0; oh < jcp.oh; ++oh)
+                for (dim_t oh = 0; oh < jcp.oh; ++oh) {
                     PRAGMA_OMP_SIMD(reduction(+ : db))
-                for (dim_t ow = 0; ow < jcp.ow; ++ow) {
-                    db += diff_dst[offset];
-                    offset++;
+                    for (dim_t ow = 0; ow < jcp.ow; ++ow) {
+                        db += diff_dst[offset + ow];
+                    }
+                    offset += jcp.ow;
                 }
             }
             diff_bias[g * jcp.oc + oc] = db;
