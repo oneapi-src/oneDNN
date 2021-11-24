@@ -326,22 +326,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     args_t ref_args;
 
     if (is_bench_mode(CORR)) {
-        const auto fp = dnnl_f32;
-        const auto src_tag = tag::abx;
         dnnl_primitive_t c_ref = nullptr;
-        ref_args.set(DNNL_ARG_DIFF_SRC, dst_fp);
-        ref_args.set(DNNL_ARG_WEIGHTS, wei_tr_fp);
-        ref_args.set(DNNL_ARG_DIFF_DST, src_fp);
-        ref_args.set(DNNL_ARG_BIAS, bia_fp);
-
-        std::vector<int> binary_po_args;
-        for (int idx = 0; idx < binary_po_fp.size(); idx++) {
-            binary_po_args.emplace_back(
-                    (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
-        }
-        ref_args.set(binary_po_args, binary_po_fp);
-
-        const auto &dnnl_test_engine = ::get_test_engine();
         {
             ::conv::prb_t prb_tr((::conv::desc_t)*prb, prb->dir, prb->cfg,
                     prb->stag, prb->wtag, prb->dtag, prb->alg, prb->attr,
@@ -350,8 +335,22 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             std::swap(prb_tr.ih, prb_tr.oh);
             std::swap(prb_tr.id, prb_tr.od);
             std::swap(prb_tr.iw, prb_tr.ow);
-            ::conv::compute_ref_bwd_d(&prb_tr, c_ref, ref_args);
+
+            std::vector<int> binary_po_args;
+            for (int idx = 0; idx < binary_po_fp.size(); idx++) {
+                binary_po_args.emplace_back(
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+            }
+            args_t ref_args;
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+            ref_args.set(DNNL_ARG_BIAS, bia_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
+            ref_args.set(binary_po_args, binary_po_fp);
+            ::deconv::compute_ref_fwd(&prb_tr, c_ref, ref_args);
         }
+
         SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
     }
 
