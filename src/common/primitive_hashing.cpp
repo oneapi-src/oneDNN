@@ -295,12 +295,9 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
                 break;
             case primitive_kind::quantization:
                 seed = hash_combine(seed, static_cast<size_t>(entry.quantization.alg));
-                seed = hash_combine(seed, reinterpret_cast<size_t>(entry.quantization.crop_high_data));
-                seed = hash_combine(seed, reinterpret_cast<size_t>(entry.quantization.crop_low_data));
-                seed = hash_combine(seed, reinterpret_cast<size_t>(entry.quantization.input_scale_data));
-                seed = hash_combine(seed, reinterpret_cast<size_t>(entry.quantization.input_shift_data));
-                seed = hash_combine(seed, reinterpret_cast<size_t>(entry.quantization.output_scale_data));
-                seed = hash_combine(seed, reinterpret_cast<size_t>(entry.quantization.output_shift_data));
+                seed = get_array_hash(seed, entry.quantization.per_channel, entry.quantization.fields_count);
+                seed = get_array_hash(seed, entry.quantization.all_default, entry.quantization.fields_count);
+                seed = get_array_hash(seed, entry.quantization.data, entry.quantization.fields_count);
                 break;
             default: assert(!"unknown post_op");
         }

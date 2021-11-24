@@ -165,6 +165,25 @@ status_t ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
                     * (KW - iw_start_excluded - iw_end_excluded);
         }
         d /= num_summands;
+
+        const auto &p = pd()->attr()->post_ops_;
+        for (int i = 0; i < p.len(); i++) {
+            auto &post_op = p.entry_[i];
+            if (post_op.is_quantization()) {
+                auto quant = post_op.quantization;
+                float cl = quant.data[quant.crop_low][!quant.per_channel[quant.crop_low] ? 0 : oc];
+                float ch = quant.data[quant.crop_high][!quant.per_channel[quant.crop_high] ? 0 : oc];
+                float isc = quant.data[quant.inp_scale][!quant.per_channel[quant.inp_scale] ? 0 : oc];
+                float ish = quant.data[quant.inp_shift][!quant.per_channel[quant.inp_shift] ? 0 : oc];
+                float osc = quant.data[quant.output_scale][!quant.per_channel[quant.output_scale] ? 0 : oc];
+                float osh = quant.data[quant.output_shift][!quant.per_channel[quant.output_shift] ? 0 : oc];
+
+                d = nstl::min(ch, nstl::max(cl, d));
+                d = d * isc + ish;
+                d = roundf(d);
+                d = d * osc + osh;
+            }
+        }
     };
 
     const bool is_max_pool = alg == alg_kind::pooling_max;

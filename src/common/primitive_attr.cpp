@@ -346,12 +346,26 @@ status_t post_ops_t::append_quantization(alg_kind_t alg,
     auto &e = entry_.back();
     e.kind = primitive_kind::quantization;
     e.quantization.alg = alg;
-    e.quantization.crop_low_data = reinterpret_cast<const shifts_t<float>*>(crop_low);
-    e.quantization.crop_high_data = reinterpret_cast<const shifts_t<float>*>(crop_high);
-    e.quantization.input_scale_data = reinterpret_cast<const scales_t*>(input_scale);
-    e.quantization.input_shift_data = reinterpret_cast<const shifts_t<float>*>(input_shift);
-    e.quantization.output_scale_data = reinterpret_cast<const scales_t*>(output_scale);
-    e.quantization.output_shift_data = reinterpret_cast<const shifts_t<float>*>(output_shift);
+
+    auto crop_low_data = reinterpret_cast<const shifts_t<float>*>(crop_low);
+    auto crop_high_data = reinterpret_cast<const shifts_t<float>*>(crop_high);
+    auto input_scale_data = reinterpret_cast<const scales_t*>(input_scale);
+    auto input_shift_data = reinterpret_cast<const shifts_t<float>*>(input_shift);
+    auto output_scale_data = reinterpret_cast<const scales_t*>(output_scale);
+    auto output_shift_data = reinterpret_cast<const shifts_t<float>*>(output_shift);
+
+    bool per_channel[6] = {crop_low_data->count_ > 1, crop_high_data->count_ > 1, input_scale_data->count_ > 1,
+                           input_shift_data->count_ > 1, output_scale_data->count_ > 1, output_shift_data->count_ > 1};
+
+    bool all_default[6] = {crop_low_data->has_default_values(), crop_high_data->has_default_values(), input_scale_data->has_default_values(),
+                           input_shift_data->has_default_values(), output_scale_data->has_default_values(), output_shift_data->has_default_values()};
+
+    const float* data[6] = {crop_low_data->shifts_, crop_high_data->shifts_, input_scale_data->scales_,
+                            input_shift_data->shifts_, output_scale_data->scales_, output_shift_data->shifts_};
+
+    array_copy(e.quantization.per_channel, per_channel, e.quantization.fields_count);
+    array_copy(e.quantization.all_default, all_default, e.quantization.fields_count);
+    array_copy(e.quantization.data, data, e.quantization.fields_count);
 
     return success;
 }

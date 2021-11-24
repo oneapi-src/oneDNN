@@ -325,19 +325,19 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args, const size_t oc
                 bool do_rounding = do_dequantization || args.dst_md->data_type == dnnl_f32 || idx != po_.len() - 1;
 
                 auto quant = e.quantization;
-                auto pcl = quant.crop_low_data->shifts_;
-                auto pch = quant.crop_high_data->shifts_;
-                auto pisc = quant.input_scale_data->scales_;
-                auto pish = quant.input_shift_data->shifts_;
-                auto posc = quant.output_scale_data->scales_;
-                auto posh = quant.output_shift_data->shifts_;
+                auto pcl = quant.data[quant.crop_low];
+                auto pch = quant.data[quant.crop_high];
+                auto pisc = quant.data[quant.inp_scale];
+                auto pish = quant.data[quant.inp_shift];
+                auto posc = quant.data[quant.output_scale];
+                auto posh = quant.data[quant.output_shift];
 
-                int cl_idx = quant.crop_low_data->count_ == 1 ? 0 : oc;
-                int ch_idx = quant.crop_high_data->count_ == 1 ? 0 : oc;
-                int isc_idx = quant.input_scale_data->count_ == 1 ? 0 : oc;
-                int ish_idx = quant.input_shift_data->count_ == 1 ? 0 : oc;
-                int osc_idx = quant.output_scale_data->count_ == 1 ? 0 : oc;
-                int osh_idx = quant.output_shift_data->count_ == 1 ? 0 : oc;
+                int cl_idx = !quant.per_channel[quant.crop_low] ? 0 : oc;
+                int ch_idx = !quant.per_channel[quant.crop_high] ? 0 : oc;
+                int isc_idx = !quant.per_channel[quant.inp_scale] ? 0 : oc;
+                int ish_idx = !quant.per_channel[quant.inp_shift] ? 0 : oc;
+                int osc_idx = !quant.per_channel[quant.output_scale] ? 0 : oc;
+                int osh_idx = !quant.per_channel[quant.output_shift] ? 0 : oc;
 
                 res = nstl::min(pch[ch_idx], nstl::max(pcl[cl_idx], res));
                 res = res * pisc[isc_idx] + pish[ish_idx];

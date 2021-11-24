@@ -309,39 +309,38 @@ void jit_pp_ker_t<isa>::generate() {
                 bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
                 bool do_rounding = do_dequantization || dst_data_type_ == dnnl_f32 || i != post_ops_.len() - 1;
 
-                if (post_op.quantization.crop_low_data->count_ != 1) {
-                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.crop_low_data->shifts_ + offset));
+                if (post_op.quantization.per_channel[post_op.quantization.crop_low]) {
+                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.crop_low] + offset));
                     uni_vmovups(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
                 } else {
-                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.crop_low_data->shifts_));
+                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.crop_low]));
                     uni_vbroadcastss(vreg_d_weights, ptr[reg_d_weights]);
                 }
 
-                if (post_op.quantization.crop_high_data->count_ != 1) {
-                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.crop_high_data->shifts_ + offset));
+                if (post_op.quantization.per_channel[post_op.quantization.crop_high]) {
+                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.crop_high] + offset));
                     uni_vmovups(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
                 } else {
-                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.crop_high_data->shifts_));
+                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.crop_high]));
                     uni_vbroadcastss(vreg_d_bias, ptr[reg_d_bias]);
                 }
 
                 uni_vmaxps(vreg_dst(idx), vreg_dst(idx), vreg_d_weights);
                 uni_vminps(vreg_dst(idx), vreg_dst(idx), vreg_d_bias);
 
-                if (post_op.quantization.input_scale_data->count_ != 1) {
-                    mov(reg_d_weights,
-                        reinterpret_cast<size_t>(post_op.quantization.input_scale_data->scales_ + offset));
+                if (post_op.quantization.per_channel[post_op.quantization.inp_scale]) {
+                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.inp_scale] + offset));
                     uni_vmovups(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
                 } else {
-                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.input_scale_data->scales_));
+                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.inp_scale]));
                     uni_vbroadcastss(vreg_d_weights, ptr[reg_d_weights]);
                 }
 
-                if (post_op.quantization.input_shift_data->count_ != 1) {
-                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.input_shift_data->shifts_ + offset));
+                if (post_op.quantization.per_channel[post_op.quantization.inp_shift]) {
+                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.inp_shift] + offset));
                     uni_vmovups(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
                 } else {
-                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.input_shift_data->shifts_));
+                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.inp_shift]));
                     uni_vbroadcastss(vreg_d_bias, ptr[reg_d_bias]);
                 }
 
@@ -351,21 +350,19 @@ void jit_pp_ker_t<isa>::generate() {
                     uni_vroundps(vreg_dst(idx), vreg_dst(idx), 0);
 
                 if (do_dequantization) {
-                    if (post_op.quantization.output_scale_data->count_ != 1) {
-                        mov(reg_d_weights,
-                            reinterpret_cast<size_t>(post_op.quantization.output_scale_data->scales_ + offset));
+                    if (post_op.quantization.per_channel[post_op.quantization.output_scale]) {
+                        mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.output_scale] + offset));
                         uni_vmovups(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
                     } else {
-                        mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.output_scale_data->scales_));
+                        mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.output_scale]));
                         uni_vbroadcastss(vreg_d_weights, ptr[reg_d_weights]);
                     }
 
-                    if (post_op.quantization.output_shift_data->count_ != 1) {
-                        mov(reg_d_bias,
-                            reinterpret_cast<size_t>(post_op.quantization.output_shift_data->shifts_ + offset));
+                    if (post_op.quantization.per_channel[post_op.quantization.output_shift]) {
+                        mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.output_shift] + offset));
                         uni_vmovups(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
                     } else {
-                        mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.output_shift_data->shifts_));
+                        mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.output_shift]));
                         uni_vbroadcastss(vreg_d_bias, ptr[reg_d_bias]);
                     }
 

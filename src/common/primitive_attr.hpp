@@ -445,13 +445,21 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         };
 
         struct quantization_t {
+            enum quantization_fields {
+                crop_low,
+                crop_high,
+                inp_scale,
+                inp_shift,
+                output_scale,
+                output_shift,
+
+                fields_count
+            };
+
             dnnl::impl::alg_kind_t alg;
-            const dnnl::impl::shifts_t<float>* crop_low_data;
-            const dnnl::impl::shifts_t<float>* crop_high_data;
-            const dnnl::impl::scales_t* input_scale_data;
-            const dnnl::impl::shifts_t<float>* input_shift_data;
-            const dnnl::impl::scales_t* output_scale_data;
-            const dnnl::impl::shifts_t<float>* output_shift_data;
+            bool per_channel[fields_count];
+            bool all_default[fields_count];
+            const float* data[fields_count];
         };
 
         struct binarization_t {
@@ -607,12 +615,9 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                     break;
                 case primitive_kind::quantization:
                     ret = quantization.alg == rhs.quantization.alg
-                          && quantization.crop_low_data == rhs.quantization.crop_low_data
-                          && quantization.crop_high_data == rhs.quantization.crop_high_data
-                          && quantization.input_scale_data == rhs.quantization.input_scale_data
-                          && quantization.input_shift_data == rhs.quantization.input_shift_data
-                          && quantization.output_scale_data == rhs.quantization.output_scale_data
-                          && quantization.output_shift_data == rhs.quantization.output_shift_data;
+                          && array_cmp(quantization.per_channel, rhs.quantization.per_channel, quantization.fields_count)
+                          && array_cmp(quantization.all_default, rhs.quantization.all_default, quantization.fields_count)
+                          && array_cmp(quantization.data, rhs.quantization.data, quantization.fields_count);
                     break;
                 case primitive_kind::binarization:
                     ret = depthwise.alg == rhs.depthwise.alg

@@ -188,21 +188,21 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, acc_data_t *acc, const
                         const size_t dst_off = os * this->dst_os_stride_ + oc;
 
                         auto quant = post_op.quantization;
-                        auto pcl = quant.crop_low_data->shifts_;
-                        auto pch = quant.crop_high_data->shifts_;
-                        auto pisc = quant.input_scale_data->scales_;
-                        auto pish = quant.input_shift_data->shifts_;
-                        auto posc = quant.output_scale_data->scales_;
-                        auto posh = quant.output_shift_data->shifts_;
+                        auto pcl = quant.data[quant.crop_low];
+                        auto pch = quant.data[quant.crop_high];
+                        auto pisc = quant.data[quant.inp_scale];
+                        auto pish = quant.data[quant.inp_shift];
+                        auto posc = quant.data[quant.output_scale];
+                        auto posh = quant.data[quant.output_shift];
 
                         float d = load(i, oc, os, acc_off, dst_off);
 
-                        int cl_idx = quant.crop_low_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
-                        int ch_idx = quant.crop_high_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
-                        int isc_idx = quant.input_scale_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
-                        int ish_idx = quant.input_shift_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
-                        int osc_idx = quant.output_scale_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
-                        int osh_idx = quant.output_shift_data->count_ == 1 ? 0 : g * jcp_.oc + oc;
+                        int cl_idx = !quant.per_channel[quant.crop_low] ? 0 : g * jcp_.oc + oc;
+                        int ch_idx = !quant.per_channel[quant.crop_high] ? 0 : g * jcp_.oc + oc;
+                        int isc_idx = !quant.per_channel[quant.inp_scale] ? 0 : g * jcp_.oc + oc;
+                        int ish_idx = !quant.per_channel[quant.inp_shift] ? 0 : g * jcp_.oc + oc;
+                        int osc_idx = !quant.per_channel[quant.output_scale] ? 0 : g * jcp_.oc + oc;
+                        int osh_idx = !quant.per_channel[quant.output_shift] ? 0 : g * jcp_.oc + oc;
 
                         d = nstl::min(pch[ch_idx], nstl::max(pcl[cl_idx], d));
                         d = d * pisc[isc_idx] + pish[ish_idx];

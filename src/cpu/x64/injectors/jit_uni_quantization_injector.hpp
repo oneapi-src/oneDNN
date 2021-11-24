@@ -82,8 +82,11 @@ struct jit_uni_quantization_injector_f32 {
     }
 
     void init_crop_ptrs(const Xbyak::Operand& ch_off);
+    void init_crop_ptrs(const Xbyak::RegExp& ptr_begin, const Xbyak::Operand& ch_off);
     void init_input_scale_shift_ptrs(const Xbyak::Operand& ch_off);
+    void init_input_scale_shift_ptrs(const Xbyak::RegExp& ptr_begin, const Xbyak::Operand& ch_off);
     void init_output_scale_shift_ptrs(const Xbyak::Operand& ch_off);
+    void init_output_scale_shift_ptrs(const Xbyak::RegExp& ptr_begin, const Xbyak::Operand& ch_off);
 
     void compute_crop(int start_idx, int end_idx, int offset, bool is_scalar = false, bool is_broadcast = false);
     void compute_input_scale_shift(int start_idx, int end_idx, int offset, bool do_rounding, bool is_scalar = false, bool is_broadcast = false);
@@ -92,6 +95,11 @@ struct jit_uni_quantization_injector_f32 {
     void compute_crop(const std::set<size_t>& vmmIdxs, int offset, bool is_scalar, bool is_broadcast);
     void compute_input_scale_shift(const std::set<size_t>& vmmIdxs, int offset, bool do_rounding, bool is_scalar = false, bool is_broadcast = false);
     void compute_output_scale_shift(const std::set<size_t>& vmmIdxs, int offset, bool is_scalar = false, bool is_broadcast = false);
+
+    // in bytes
+    static constexpr size_t memoryStep() {
+        return sizeof(post_op_.quantization.data);
+    }
 
 private:
     jit_generator* h;
