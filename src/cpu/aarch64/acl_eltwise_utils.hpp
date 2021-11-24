@@ -17,8 +17,6 @@
 #ifndef CPU_AARCH64_ACL_ELTWISE_UTILS_HPP
 #define CPU_AARCH64_ACL_ELTWISE_UTILS_HPP
 
-#include "cpu/cpu_convolution_pd.hpp"
-
 #include "cpu/aarch64/acl_utils.hpp"
 
 namespace dnnl {
