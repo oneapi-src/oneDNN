@@ -96,7 +96,7 @@ status_t ref_softmax_fwd_t<data_type>::execute_forward_dense(
         // sub + exp + sum
         int tail = channels_ % unroll_factor;
         for (int i = 0; i < channels_ - tail; i += unroll_factor) {
-            PRAGMA_OMP_SIMD()
+            PRAGMA_OMP_SIMD(reduction(+ : space_denom))
             for (int j = 0; j < unroll_factor; j++) {
                 if (pd()->is_softmax()) {
                     float D = expf(src_data[i + j] - space_max);
