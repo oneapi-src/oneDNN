@@ -20,10 +20,10 @@
 #include <vector>
 #include <unordered_set>
 
+#include "gpu/jit/conv/register_allocator.hpp"
 #include "gpu/jit/conv/reorder_support.hpp"
 #include "gpu/jit/conv/utils.hpp"
 #include "gpu/jit/ngen/ngen.hpp"
-#include "gpu/jit/ngen/ngen_register_allocator.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -89,14 +89,14 @@ public:
         return true;
     }
 
-    void claim(ngen::RegisterAllocator &ra) const {
+    void claim(reg_allocator_t &ra) const {
         for (int i = 0; i < blocks(); i++) {
             ngen::GRFRange range(block_bases_[i], block_regs_);
             ra.claim(range);
         }
     }
 
-    void release(ngen::RegisterAllocator &ra) const {
+    void release(reg_allocator_t &ra) const {
         for (int i = 0; i < blocks(); i++) {
             ngen::GRFRange range(block_bases_[i], block_regs_);
             ra.safeRelease(range);

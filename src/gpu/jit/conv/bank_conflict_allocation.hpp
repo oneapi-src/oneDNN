@@ -19,8 +19,8 @@
 
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/reg_buf.hpp"
+#include "gpu/jit/conv/register_allocator.hpp"
 #include "gpu/jit/ngen/ngen.hpp"
-#include "gpu/jit/ngen/ngen_register_allocator.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,8 +32,7 @@ namespace jit {
 class bank_conflict_allocation_t {
 public:
     bank_conflict_allocation_t() = default;
-    bank_conflict_allocation_t(ngen::RegisterAllocator &ra)
-        : refs_(1), ra_(&ra) {}
+    bank_conflict_allocation_t(reg_allocator_t &ra) : refs_(1), ra_(&ra) {}
 
     bool is_empty() const { return !ra_; }
 
@@ -64,12 +63,12 @@ public:
         ir_assert(ret.second) << "Buffer already exists: " << buf;
     }
 
-    static bank_conflict_allocation_t create(ngen::RegisterAllocator &ra,
-            int regs, const bank_conflict_attr_t &_attr);
+    static bank_conflict_allocation_t create(
+            reg_allocator_t &ra, int regs, const bank_conflict_attr_t &_attr);
 
 private:
     int refs_ = 0;
-    ngen::RegisterAllocator *ra_ = nullptr;
+    reg_allocator_t *ra_ = nullptr;
     object_map_t<expr_t, reg_buf_t> buf_map_;
 };
 

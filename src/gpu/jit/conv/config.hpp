@@ -406,6 +406,10 @@ public:
         fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
 
+#ifdef GEN_CONV_DEBUG
+        estimated_peak_grf_usage = estimate_register_count();
+#endif
+
         return status::success;
     }
 
@@ -519,6 +523,9 @@ public:
                 && (mb_thr_blk == 1 || is_src_nhwc || is_dst_nhwc))
             allow_grf_reorder = true;
 
+#ifdef GEN_CONV_DEBUG
+        estimated_peak_grf_usage = estimate_register_count();
+#endif
         return status::success;
     }
 
@@ -662,6 +669,9 @@ public:
         fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
 
+#ifdef GEN_CONV_DEBUG
+        estimated_peak_grf_usage = estimate_register_count();
+#endif
         // XXX: disable f32 bwd_w due to hang
         if (hw == ngen::HW::XeHP || hw == ngen::HW::XeHPG)
             if (src_data_type == data_type::f32
@@ -1067,6 +1077,9 @@ public:
     // reduce GRF usage.
     int a_sub_tiles;
     int b_sub_tiles;
+#ifdef GEN_CONV_DEBUG
+    int estimated_peak_grf_usage = 0;
+#endif
 
 private:
     int init_fwd_ic_thr_dim(

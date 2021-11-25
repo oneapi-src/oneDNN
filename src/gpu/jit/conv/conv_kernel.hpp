@@ -394,7 +394,7 @@ T to_cpp(ngen::HW hw, const ngen_operand_t &op) {
 // is destructed.
 class ngen_register_scope_t {
 public:
-    ngen_register_scope_t(ngen::RegisterAllocator &ra) : ra_(&ra) {}
+    ngen_register_scope_t(reg_allocator_t &ra) : ra_(&ra) {}
 
     ngen_register_scope_t(const ngen_register_scope_t &) = delete;
 
@@ -405,7 +405,7 @@ public:
         other.ra_ = nullptr;
     }
 
-    ngen::RegisterAllocator &register_allocator() { return *ra_; }
+    reg_allocator_t &register_allocator() { return *ra_; }
 
     ~ngen_register_scope_t() {
         for (auto &r : grf_ranges_)
@@ -486,7 +486,7 @@ public:
     }
 
 private:
-    ngen::RegisterAllocator *ra_;
+    reg_allocator_t *ra_;
 
     std::vector<ngen::GRFRange> grf_ranges_;
     std::vector<ngen::Subregister> subregisters_;
@@ -948,7 +948,7 @@ public:
 
 private:
     const conv_config_t &cfg_;
-    ngen::RegisterAllocator ra_;
+    reg_allocator_t ra_;
     ngen::GRF signal_header_;
 
     EmulationStrategy emu_strategy = EmulationStrategy(hw);
@@ -962,7 +962,7 @@ public:
 
     zero_out_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
             const kernel_info_t &kernel_info)
-        : ra_(hw) {
+        : ra_(hw, "zero_out_kernel_t") {
         externalName("zero_out");
         requireLocalID(1);
         requireLocalSize();
@@ -1080,7 +1080,7 @@ public:
     static const int bytes_per_thr;
 
 private:
-    ngen::RegisterAllocator ra_;
+    reg_allocator_t ra_;
     EmulationStrategy emu_strategy = EmulationStrategy(hw);
     EmulationState emu_state;
 };
@@ -1112,7 +1112,7 @@ public:
 
     compensation_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
             const kernel_info_t &kernel_info, bool is_edge)
-        : cfg(cfg), ra_(hw) {
+        : cfg(cfg), ra_(hw, "compensation_kernel_t") {
         externalName("compensation");
         requireLocalID(1);
         requireLocalSize();
@@ -1936,7 +1936,7 @@ public:
 private:
     conv_config_t cfg;
 
-    ngen::RegisterAllocator ra_;
+    reg_allocator_t ra_;
     EmulationStrategy emu_strategy = EmulationStrategy(hw);
     EmulationState emu_state;
 };
@@ -3064,7 +3064,7 @@ public:
     reorder_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
             const kernel_info_t &kernel_info, const layout_t &src_layout,
             const layout_t &dst_layout)
-        : simd_size_(cfg.simd_size), ra_(hw) {
+        : simd_size_(cfg.simd_size), ra_(hw, "reorder_kernel_t") {
         externalName("reorder");
         requireLocalID(1);
         requireLocalSize();
@@ -3384,7 +3384,7 @@ private:
     }
 
     int simd_size_;
-    ngen::RegisterAllocator ra_;
+    reg_allocator_t ra_;
     EmulationStrategy emu_strategy = EmulationStrategy(hw);
     EmulationState emu_state;
 
@@ -4412,7 +4412,7 @@ private:
 template <ngen::HW hw>
 conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
         const convolution_pd_t *pd, const kernel_info_t &kernel_info)
-    : cfg_(cfg), ra_(hw) {
+    : cfg_(cfg), ra_(hw, "conv_kernel_t", reg_allocator_t::warn_all) {
 
     ra_.setRegisterCount(cfg_.regs);
 
@@ -4488,6 +4488,15 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 
     epilogue();
     pad_kernel();
+
+#ifdef GEN_CONV_DEBUG
+    if (ra_.get_peak_grf_usage() > cfg_.estimated_peak_grf_usage) {
+        ir_warning()
+                << "conv_kernel_t register usage underestimated: estimate = "
+                << cfg_.estimated_peak_grf_usage
+                << ", actual = " << ra_.get_peak_grf_usage() << "\n";
+    }
+#endif
 }
 
 } // namespace jit

@@ -606,7 +606,7 @@ bool search(search_context_t &ctx, int block_idx = 0) {
 }
 
 reg_mask_t create_available_reg_mask(
-        ngen::RegisterAllocator &ra, const hw_context_t *hw_ctx) {
+        reg_allocator_t &ra, const hw_context_t *hw_ctx) {
     reg_mask_t reg_mask(hw_ctx, 0);
     // Query the allocator to get information about free registers.
     for (;;) {
@@ -634,8 +634,7 @@ expr_t get_base(const expr_t &e) {
 } // namespace
 
 bank_conflict_allocation_t bank_conflict_allocation_t::create(
-        ngen::RegisterAllocator &ra, int regs,
-        const bank_conflict_attr_t &attr) {
+        reg_allocator_t &ra, int regs, const bank_conflict_attr_t &attr) {
     hw_context_t hw_ctx(ra.hardware(), regs);
 
     bool is_dpas = false;
