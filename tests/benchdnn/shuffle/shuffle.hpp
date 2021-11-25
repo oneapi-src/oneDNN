@@ -113,6 +113,11 @@ inline size_t data_off(const prb_t *prb, int64_t mb, int64_t c, int64_t d,
 void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst);
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
+
+void check_known_skipped_case(const prb_t *prb, res_t *res);
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &spd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
+int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);
 } // namespace shuffle
 
 #endif

@@ -56,9 +56,8 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &spd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &spd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_shuffle_desc_t sd;
 
     dnnl_memory_desc_t data_d;
