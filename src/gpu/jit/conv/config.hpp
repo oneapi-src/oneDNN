@@ -257,8 +257,7 @@ public:
             mb_thr_blk = getenv_int("mb_thr_blk", mb_thr_blk);
 #endif
             oc_thr_blk = 16;
-            oc_thr_dim = std::min(4, utils::div_up(oc, oc_thr_blk));
-            oc_thr_dim = (1 << math::ilog2q(oc_thr_dim));
+            oc_thr_dim = init_thr_dim(oc, oc_thr_blk, /*max_thr_dim=*/4);
 
             if (mb_thr_dim > 1) {
                 ow_thr_blk = 1;
@@ -285,8 +284,7 @@ public:
                     : 1;
             oc_thr_blk = 32;
             if (hw >= ngen::HW::XeHPC && !is_small_ic()) oc_thr_blk = 64;
-            oc_thr_dim = std::min(4, utils::div_up(oc, oc_thr_blk));
-            oc_thr_dim = (1 << math::ilog2q(oc_thr_dim));
+            oc_thr_dim = init_thr_dim(oc, oc_thr_blk, /*max_thr_dim=*/4);
             if (is_small_ic()) {
                 ow_thr_blk = 4;
             } else {
@@ -1088,6 +1086,19 @@ private:
             }
         }
         return ret_ic_thr_dim;
+    }
+
+    static int init_thr_dim(
+            int x, int x_thr_blk, int max_thr_dim, double target_eff = 0.9) {
+        int x_thr_dim = std::min(max_thr_dim, utils::div_up(x, x_thr_blk));
+        x_thr_dim = (1 << math::ilog2q(x_thr_dim));
+        while (x_thr_dim != 1) {
+            int x_padded = utils::rnd_up(x, x_thr_dim * x_thr_blk);
+            double x_eff = (double)x / x_padded;
+            if (x_eff >= target_eff) break;
+            x_thr_dim /= 2;
+        }
+        return x_thr_dim;
     }
 
     status_t init_hw(engine_t *engine) {
