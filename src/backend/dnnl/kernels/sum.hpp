@@ -88,7 +88,6 @@ public:
 
         // fuse multiple Add ops into dnnl sum primitive
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_dnnl_sum);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_reorder);
 
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 

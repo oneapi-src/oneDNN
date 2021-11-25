@@ -51,77 +51,83 @@ static value_ptr insert_workspace(op_ptr &op) {
     return workspace_val;
 }
 
-static bool layout_propagation_for_conv(op_ptr &op,
+static inline void insert_reorder_before(op_ptr &op, size_t offset,
+        const dnnl::memory::desc &opt_mdesc, std::vector<op_ptr> &reorder_ops) {
+    value_ptr in_val = op->get_input_value(offset);
+    const logical_tensor_t &in_lt = in_val->get_logical_tensor();
+    // just return if real input layout is the same as optimal layout or
+    // input layout type is ANY
+    if (make_dnnl_memory_desc(in_lt) == opt_mdesc || ltw(in_lt).is_any())
+        return;
+
+    auto reorder_op = std::make_shared<op_t>(impl::op_kind::Reorder);
+    insert_op_before(reorder_op, op, offset);
+    reorder_ops.emplace_back(reorder_op);
+    // set optimal layout to reorder's output
+    auto reorder_out_val = reorder_op->get_output_value(0);
+    fill_layout_info(reorder_out_val, opt_mdesc);
+    // fill shape info
+    reorder_out_val->set_data_type(ltw(in_lt).data_type());
+    reorder_out_val->set_dims(ltw(in_lt).vdims());
+}
+
+static inline void insert_reorder_after(op_ptr &op, size_t offset,
+        const dnnl::memory::desc &opt_mdesc, std::vector<op_ptr> &reorder_ops) {
+    value_ptr out_val = op->get_output_value(offset);
+    const logical_tensor_t &out_lt = out_val->get_logical_tensor();
+    // just return if real output layout is the same as optimal layout or
+    // output layout type is ANY
+    if (make_dnnl_memory_desc(out_lt) == opt_mdesc || ltw(out_lt).is_any())
+        return;
+
+    auto reorder_op = std::make_shared<op_t>(impl::op_kind::Reorder);
+    insert_op_after(reorder_op, op, offset);
+    reorder_ops.emplace_back(reorder_op);
+    // set optimal layout to reorder's input
+    auto reorder_in_val = reorder_op->get_input_value(0);
+    fill_layout_info(reorder_in_val, opt_mdesc);
+    // fill shape info
+    reorder_in_val->set_data_type(ltw(out_lt).data_type());
+    reorder_in_val->set_dims(ltw(out_lt).vdims());
+}
+
+static void layout_propagation_for_conv(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache) {
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     const bool is_dw = op->get_kind() == op_kind::conv_depthwise;
+    // always create pd using any format
+    const auto &pd_flag_pair
+            = create_conv_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    // insert reorders for conv's inputs
+    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
     value_ptr src = op->get_input_value(0);
-    value_ptr wei = op->get_input_value(1);
-    value_ptr dst = op->get_output_value(0);
-
-    assertm(ltw(src->get_logical_tensor()).is_any()
-                    && ltw(wei->get_logical_tensor()).is_any()
-                    && ltw(dst->get_logical_tensor()).is_any(),
-            "conv's src, weight, dst should be any layout_type");
-    if (is_dw) {
-        assertm(ltw(op->get_input_value(2)->get_logical_tensor()).is_any(),
-                "conv_depthwise's dw_weight should be any layout_type");
-    }
-
-    auto pd = create_conv_pd(op, p_engine, prm_attr_mgr, pd_cache);
-
     fill_layout_info(src, pd.src_desc());
+
+    insert_reorder_before(op, 1, pd.weights_desc(), reorder_ops);
+    value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
-    fill_layout_info(dst, pd.dst_desc());
 
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+        insert_reorder_before(op, 2, pd.bias_desc(), reorder_ops);
         value_ptr bias = op->get_input_value(2);
         fill_layout_info(bias, pd.bias_desc());
     } else if (is_dw) {
+        const auto &dw_wei_opt_mdesc = pd.query_md(query::exec_arg_md,
+                DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+        insert_reorder_before(op, 2, dw_wei_opt_mdesc, reorder_ops);
         value_ptr dw_wei = op->get_input_value(2);
-        fill_layout_info(dw_wei,
-                pd.query_md(query::exec_arg_md,
-                        DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS));
+        fill_layout_info(dw_wei, dw_wei_opt_mdesc);
     }
-
-    // fill scratchpads dimensions and data type to scratchpad value_t
-    auto scratchpad_val = insert_scratchpad(op);
-    const memory::desc scratchpad_desc = pd.scratchpad_desc();
-    const memory::dims dims = scratchpad_desc.dims();
-    scratchpad_val->set_dims(dims);
-    scratchpad_val->set_data_type(
-            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
-
-    // make scratchpad as conv's last output
-    fill_layout_info(scratchpad_val, scratchpad_desc);
-
-    return true;
-}
-
-static bool layout_propagation_for_deconv(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache) {
-    std::shared_ptr<impl::value_t> src, wei, bias, dst;
-    src = op->get_input_value(0);
-    wei = op->get_input_value(1);
-    dst = op->get_output_value(0);
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
-        bias = op->get_input_value(2);
-    }
-
-    assertm(ltw(src->get_logical_tensor()).is_any()
-                    && ltw(wei->get_logical_tensor()).is_any()
-                    && ltw(dst->get_logical_tensor()).is_any(),
-            "conv's src, weight, dst should be any layout_type");
-
-    auto pd = create_deconv_pd(op, p_engine, prm_attr_mgr, pd_cache);
-
-    fill_layout_info(src, pd.src_desc());
-    fill_layout_info(wei, pd.weights_desc());
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
-        fill_layout_info(bias, pd.bias_desc());
-    }
-
+    // insert a reorder if output layout is different from output optimal layout
+    // 1) output layout is opaque
+    // 2) output is any, directly set optimal layout
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
     // fill scratchpads dimensions and data type to scratchpad value_t
@@ -134,52 +140,100 @@ static bool layout_propagation_for_deconv(op_ptr &op,
 
     // make scratchpad as conv's last output
     fill_layout_info(scratchpad_val, scratchpad_desc);
-
-    return true;
 }
 
-static bool layout_propagation_for_eltwise(op_ptr &op,
+static void layout_propagation_for_deconv(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache) {
-    bool changed = true;
-    value_ptr src = op->get_input_value(0);
-    value_ptr dst = op->get_output_value(0);
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair
+            = create_deconv_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
 
+    if (!is_first_time) return;
+
+    // insert reorders for deconv's inputs
+    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    value_ptr src = op->get_input_value(0);
+    fill_layout_info(src, pd.src_desc());
+
+    insert_reorder_before(op, 1, pd.weights_desc(), reorder_ops);
+    value_ptr wei = op->get_input_value(1);
+    fill_layout_info(wei, pd.weights_desc());
+
+    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+        insert_reorder_before(op, 2, pd.bias_desc(), reorder_ops);
+        value_ptr bias = op->get_input_value(2);
+        fill_layout_info(bias, pd.bias_desc());
+    }
+    // insert a reorder if output layout is different from output optimal layout
+    // 1) output layout is opaque
+    // 2) output is any, directly set optimal layout
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    value_ptr dst = op->get_output_value(0);
+    fill_layout_info(dst, pd.dst_desc());
+
+    // fill scratchpads dimensions and data type to scratchpad value_t
+    auto scratchpad_val = insert_scratchpad(op);
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+
+    // make scratchpad as conv's last output
+    fill_layout_info(scratchpad_val, scratchpad_desc);
+}
+
+static void layout_propagation_for_eltwise(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     // When input's layout is specified (opaque or strided),
     // we can propagate it to output.
-    if (!ltw(src->get_logical_tensor()).is_any()
-            && ltw(dst->get_logical_tensor()).is_any()) {
-        auto pd = create_eltwise_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd_flag_pair
+            = create_eltwise_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
 
-        fill_layout_info(dst, pd.dst_desc());
+    if (!is_first_time) return;
 
-        value_ptr scratchpad_val = insert_scratchpad(op);
-        fill_layout_info(scratchpad_val, pd.scratchpad_desc());
-    } else {
-        changed = false;
-    }
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    value_ptr dst = op->get_output_value(0);
+    fill_layout_info(dst, pd.dst_desc());
 
-    return changed;
+    value_ptr scratchpad_val = insert_scratchpad(op);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
-static bool layout_propagation_for_matmul(op_ptr &op,
+static void layout_propagation_for_matmul(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache) {
-    std::shared_ptr<impl::value_t> src, wei, bias, dst;
-    src = op->get_input_value(0);
-    wei = op->get_input_value(1);
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair
+            = create_matmul_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
 
-    dst = op->get_output_value(0);
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
-        bias = op->get_input_value(2);
-    }
+    if (!is_first_time) return;
 
-    auto pd = create_matmul_pd(op, p_engine, prm_attr_mgr, pd_cache);
-
+    // insert reorders for matmul's inputs
+    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    value_ptr src = op->get_input_value(0);
     fill_layout_info(src, pd.src_desc());
+
+    insert_reorder_before(op, 1, pd.weights_desc(), reorder_ops);
+    value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias"))
+
+    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+        insert_reorder_before(op, 2, pd.bias_desc(), reorder_ops);
+        value_ptr bias = op->get_input_value(2);
         fill_layout_info(bias, pd.bias_desc());
+    }
+    // insert a reorder if output layout is different from output optimal layout
+    // 1) output layout is opaque
+    // 2) output is any, directly set optimal layout
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
     // fill scratchpads dimensions and data type to scratchpad value_t
@@ -192,44 +246,34 @@ static bool layout_propagation_for_matmul(op_ptr &op,
 
     // make scratchpad as matmul's last output
     fill_layout_info(scratchpad_val, scratchpad_desc);
-
-    return false;
 }
 
-static bool layout_propagation_for_pool(op_ptr &op,
+static void layout_propagation_for_pool(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache) {
-    bool changed = true;
-    value_ptr src = op->get_input_value(0);
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair
+            = create_pool_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
     value_ptr dst = op->get_output_value(0);
+    fill_layout_info(dst, pd.dst_desc());
 
-    // for pooling primitive, src's format must be defined. dst's format should
-    // be any to obtain better performance
-    if (!ltw(src->get_logical_tensor()).is_any()
-            && ltw(dst->get_logical_tensor()).is_any()) {
-        auto pd = create_pool_pd(op, p_engine, prm_attr_mgr, pd_cache);
-
-        fill_layout_info(src, pd.src_desc());
-        fill_layout_info(dst, pd.dst_desc());
-
-        // make scratchpad as pool's last output
-        value_ptr scratchpad_val = insert_scratchpad(op);
-        fill_layout_info(scratchpad_val, pd.scratchpad_desc());
-        // if pooling's prop_kind id forward_training or backward
-        if (op->has_attr("is_training") && op->get_attr<bool>("is_training")) {
-            value_ptr workspace_val = insert_workspace(op);
-            fill_layout_info(workspace_val, pd.workspace_desc());
-        }
-    } else {
-        changed = false;
+    // make scratchpad as pool's last output
+    value_ptr scratchpad_val = insert_scratchpad(op);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+    // if pooling's prop_kind id forward_training or backward
+    if (op->has_attr("is_training") && op->get_attr<bool>("is_training")) {
+        value_ptr workspace_val = insert_workspace(op);
+        fill_layout_info(workspace_val, pd.workspace_desc());
     }
-
-    return changed;
 }
 
-static bool layout_propagation_for_permute(op_ptr &op) {
-    bool changed = true;
-
+static void layout_propagation_for_permute(
+        op_ptr &op, std::vector<op_ptr> &reorder_ops) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
@@ -275,21 +319,52 @@ static bool layout_propagation_for_permute(op_ptr &op) {
                 in_md = permute_NXC2NCX(out_md);
             } else if (from_format == "NXC" && to_format == "NCX") {
                 in_md = permute_NCX2NXC(out_md);
+            } else if (from_format == "XIO" && to_format == "OIX") {
+                // for the case like conv's weight is set to ANY layout, need
+                // propagate output layout to input
+                in_md = permute_OIX2XIO(out_md);
             } else {
                 assertm(false, "not a supported permutation");
             }
         }
 
         fill_layout_info(src, in_md);
-    } else {
-        changed = false;
-    }
+    } else if (!ltw(in_lt).is_any() && !ltw(out_lt).is_any()) {
+        // case `conv (opaque) -> permute -> output (strided)` or
+        // case `input (strided) -> permute -> conv (opaque)`
+        dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
+        dnnl::memory::desc tmp_in_md;
 
-    return changed;
+        auto permute_kind = op->get_attr<std::string>("permute_kind");
+        if (permute_kind == "transpose") {
+            // transpose the right-most two dims
+            tmp_in_md = permute_last_two_dims(out_md);
+        } else {
+            auto from_format = op->get_attr<std::string>("from_format");
+            auto to_format = op->get_attr<std::string>("to_format");
+            if (from_format == "NCX" && to_format == "NXC") {
+                tmp_in_md = permute_NXC2NCX(out_md);
+            } else if (from_format == "NXC" && to_format == "NCX") {
+                tmp_in_md = permute_NCX2NXC(out_md);
+            } else if (from_format == "XIO" && to_format == "OIX") {
+                // This is required when layout propagation is done more than
+                // once. At the first time, permute's input layout is strided
+                // while output layout is set to opaque. At the second time,
+                // we need infer the input layout to avoid inserting the reorder
+                tmp_in_md = permute_OIX2XIO(out_md);
+            } else {
+                assertm(false, "not a supported permutation");
+            }
+        }
+
+        // if the input md derived from output md is different from the real
+        // input mem desc, just insert a reorder before the op
+        if (make_dnnl_memory_desc(in_lt) != tmp_in_md)
+            insert_reorder_before(op, 0, tmp_in_md, reorder_ops);
+    }
 }
 
-static bool layout_propagation_for_to_group(op_ptr &op) {
-    bool changed = true;
+static void layout_propagation_for_to_group(op_ptr &op) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
@@ -309,15 +384,10 @@ static bool layout_propagation_for_to_group(op_ptr &op) {
             out_md = to_grouped(in_md, groups);
         }
         fill_layout_info(dst, out_md);
-    } else {
-        changed = false;
     }
-
-    return changed;
 }
 
-static bool layout_propagation_for_reshape(op_ptr &op) {
-    bool changed = true;
+static void layout_propagation_for_reshape(op_ptr &op) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
@@ -330,15 +400,10 @@ static bool layout_propagation_for_reshape(op_ptr &op) {
         auto target_dims = make_dnnl_memory_desc(out_lt).dims();
         out_md = in_md.reshape(target_dims);
         fill_layout_info(dst, out_md);
-    } else {
-        changed = false;
     }
-
-    return changed;
 }
 
-static bool layout_propagation_for_expand(op_ptr &op) {
-    bool changed = true;
+static void layout_propagation_for_expand(op_ptr &op) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
@@ -366,58 +431,85 @@ static bool layout_propagation_for_expand(op_ptr &op) {
         }
 
         fill_layout_info(dst, out_md);
-
-    } else {
-        changed = false;
     }
-
-    return changed;
 }
 
-static bool layout_propagation_for_squeeze(op_ptr &op) {
-    bool changed = true;
+static void layout_propagation_for_squeeze(
+        op_ptr &op, std::vector<op_ptr> &reorder_ops) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
     auto in_lt = src->get_logical_tensor();
     auto out_lt = dst->get_logical_tensor();
 
-    if ((ltw(in_lt).is_strided() || ltw(in_lt).is_opaque())
-            && (!ltw(out_lt).is_strided() && !ltw(out_lt).is_opaque())) {
+    if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
+        // `matmul (opaque) -> squeeze -> output (any)`
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         dnnl::memory::desc out_md = in_md;
 
-        if (op->has_attr("axes")) {
-            auto axes = op->get_attr<std::vector<int64_t>>("axes");
-            auto in_ndim = in_md.dims().size();
+        auto axes = op->get_attr<std::vector<int64_t>>("axes");
+        auto in_ndim = in_md.dims().size();
 
-            if (axes.empty() || axes.size() == 2) {
-                // the output is a scalar or no need to squeeze,
-                // just skip for layout propagation
-            } else {
-                assertm(axes.size() == 1,
-                        "the size of axes in squeeze op "
-                        "should be 1.");
-                auto reshaped_dims = in_md.dims();
-                if (axes.back() == -1) {
-                    reshaped_dims.erase(reshaped_dims.begin() + in_ndim - 1);
-                } else if (axes.back() == -2) {
-                    reshaped_dims.erase(reshaped_dims.begin() + in_ndim - 2);
-                }
-                out_md = in_md.reshape(reshaped_dims);
+        // If there is padding in the dimension to be squeezed, reshape
+        // cannot handle this case and we need insert a reorder for this
+        // case
+        const auto &blocking_desc = in_md.data.format_desc.blocking;
+        for (size_t i = 0; i < blocking_desc.inner_nblks; ++i) {
+            if (blocking_desc.inner_idxs[i] == in_ndim + axes.back()) {
+                assertm(false,
+                        "squeeze failed since there is padding in the squeezed "
+                        "dimension");
             }
         }
 
-        fill_layout_info(dst, out_md);
-    } else {
-        changed = false;
-    }
+        if (axes.size() == 2) {
+            // the output is a scalar or no need to squeeze,
+            // just skip for layout propagation
+        } else {
+            assertm(axes.size() == 1,
+                    "the size of axes in squeeze op "
+                    "should be 1.");
+            auto reshaped_dims = in_md.dims();
+            if (axes.back() == -1) {
+                reshaped_dims.erase(reshaped_dims.begin() + in_ndim - 1);
+            } else if (axes.back() == -2) {
+                reshaped_dims.erase(reshaped_dims.begin() + in_ndim - 2);
+            }
+            out_md = in_md.reshape(reshaped_dims);
+        }
 
-    return changed;
+        fill_layout_info(dst, out_md);
+    } else if (!ltw(in_lt).is_any() && !ltw(out_lt).is_any()) {
+        // `matmul (opaque) -> squeeze -> output (strided)`
+        dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
+        dnnl::memory::desc tmp_in_md = out_md;
+
+        auto axes = op->get_attr<std::vector<int64_t>>("axes");
+
+        if (axes.empty() || axes.size() == 2) {
+            // the output is a scalar or no need to squeeze,
+            // just skip for layout propagation
+        } else {
+            assertm(axes.size() == 1,
+                    "the size of axes in squeeze op "
+                    "should be 1.");
+            auto reshaped_dims = out_md.dims();
+            if (axes.back() == -1) {
+                reshaped_dims.insert(reshaped_dims.end(), 1);
+            } else if (axes.back() == -2) {
+                reshaped_dims.insert(reshaped_dims.end() - 1, 1);
+            }
+            tmp_in_md = out_md.reshape(reshaped_dims);
+        }
+
+        // if the input md derived from output md is different from the real
+        // input mem desc, just insert a reorder before the op
+        if (make_dnnl_memory_desc(in_lt) != tmp_in_md)
+            insert_reorder_before(op, 0, tmp_in_md, reorder_ops);
+    }
 }
 
-static bool layout_propagation_for_reorder(op_ptr &op) {
-    bool changed = true;
+static void layout_propagation_for_reorder(op_ptr &op) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
@@ -434,20 +526,16 @@ static bool layout_propagation_for_reorder(op_ptr &op) {
         in_md.data.data_type
                 = static_cast<dnnl_data_type_t>(ltw(in_lt).data_type());
         fill_layout_info(src, in_md);
-    } else {
-        changed = false;
     }
-    return changed;
 }
 
-static bool layout_propagation_for_mul_scales(op_ptr &op) {
-    return layout_propagation_for_reorder(op);
+static void layout_propagation_for_mul_scales(op_ptr &op) {
+    layout_propagation_for_reorder(op);
 }
 
-static bool layout_propagation_for_bn_folding(
+static void layout_propagation_for_bn_folding(
         op_ptr &op, const dnnl::engine &p_engine) {
-    bool changed = false;
-
+    bool need_insert_scratchpad = false;
     for (size_t i = 0; i < op->num_outputs(); i++) {
         auto in_lt = op->get_input_value(i)->get_logical_tensor();
         auto out_lt = op->get_output_value(i)->get_logical_tensor();
@@ -455,37 +543,39 @@ static bool layout_propagation_for_bn_folding(
             dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
             auto dst = op->get_output_value(i);
             fill_layout_info(dst, in_md);
-            changed = true;
+            need_insert_scratchpad = true;
         }
     }
 
-    auto prm = std::make_shared<bn_folding_t>(op, p_engine);
-    // make scratchpad as bn_folding's last inputs
-    auto val = insert_scratchpad(op);
-    fill_layout_info(
-            val, dynamic_cast<bn_folding_t *>(prm.get())->scratchpad_desc());
-
-    return changed;
+    if (need_insert_scratchpad) {
+        auto prm = std::make_shared<bn_folding_t>(op, p_engine);
+        // make scratchpad as bn_folding's last inputs
+        auto val = insert_scratchpad(op);
+        fill_layout_info(val,
+                dynamic_cast<bn_folding_t *>(prm.get())->scratchpad_desc());
+    }
 }
 
-static bool layout_propagation_for_conv_bwd_data(op_ptr &op,
+static void layout_propagation_for_conv_bwd_data(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache) {
-    std::shared_ptr<impl::value_t> diff_dst, wei, bias, diff_src;
-    diff_dst = op->get_input_value(0);
-    wei = op->get_input_value(1);
-    diff_src = op->get_output_value(0);
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair
+            = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
 
-    assertm(ltw(diff_dst->get_logical_tensor()).is_any()
-                    && ltw(wei->get_logical_tensor()).is_any()
-                    && ltw(diff_src->get_logical_tensor()).is_any(),
-            "conv_bwd_data's diff_dst, weight, diff_src should be any "
-            "layout_type");
+    if (!is_first_time) return;
 
-    auto pd = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache);
-
+    insert_reorder_before(op, 0, pd.diff_dst_desc(), reorder_ops);
+    value_ptr diff_dst = op->get_input_value(0);
     fill_layout_info(diff_dst, pd.diff_dst_desc());
+
+    insert_reorder_before(op, 1, pd.weights_desc(), reorder_ops);
+    value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
+
+    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    value_ptr diff_src = op->get_output_value(0);
     fill_layout_info(diff_src, pd.diff_src_desc());
 
     // fill scratchpads dimensions and data type to scratchpad value_t
@@ -498,15 +588,12 @@ static bool layout_propagation_for_conv_bwd_data(op_ptr &op,
 
     // make scratchpad as conv's last output
     fill_layout_info(scratchpad_val, scratchpad_desc);
-
-    return true;
 }
 
-static bool layout_propagation_for_dnnl_sum(op_ptr &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-    bool changed = true;
-    value_ptr dst_val = op->get_output_value(0);
-
+static void layout_propagation_for_dnnl_sum(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        std::vector<op_ptr> &reorder_ops) {
+    value_ptr dst = op->get_output_value(0);
     bool input_has_any_format = false;
     for (const auto &in_val : op->get_input_values()) {
         if (ltw(in_val->get_logical_tensor()).is_any()) {
@@ -518,19 +605,17 @@ static bool layout_propagation_for_dnnl_sum(op_ptr &op,
     assertm(!input_has_any_format,
             "input format of sum primitive cannot be any.");
 
-    if (ltw(dst_val->get_logical_tensor()).is_any()) {
+    if (ltw(dst->get_logical_tensor()).is_any()) {
         auto pd = create_dnnl_sum_pd(op, p_engine, prm_attr_mgr);
 
-        fill_layout_info(dst_val, pd.dst_desc());
+        insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+        dst = op->get_output_value(0);
+        fill_layout_info(dst, pd.dst_desc());
 
         // make scratchpad as sum's last output
         value_ptr scratchpad_val = insert_scratchpad(op);
         fill_layout_info(scratchpad_val, pd.scratchpad_desc());
-    } else {
-        changed = false;
     }
-
-    return changed;
 }
 
 static void remove_optional_conv_dw_output(
@@ -579,192 +664,123 @@ static void remove_optional_conv_dw_output(
     }
 }
 
-static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
-    std::vector<op_t *> fuse_to_precursor;
-    std::vector<op_t *> fuse_to_successor;
-    for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::Reorder) continue;
-
-        auto in_lt = cur_op->get_input_value(0)->get_logical_tensor();
-        auto out_lt = cur_op->get_output_value(0)->get_logical_tensor();
-
-        auto in_md = make_dnnl_memory_desc(in_lt);
-        auto out_md = make_dnnl_memory_desc(out_lt);
-        if (in_md == out_md) {
-            if (out_lt.id != std::numeric_limits<size_t>::max()) {
-                // the out_lt is given by user, it should be reserved
-                fuse_to_precursor.emplace_back(cur_op.get());
-            } else {
-                // the in_lt is given by user, it should be reserved
-                fuse_to_successor.emplace_back(cur_op.get());
-            }
-        }
-    }
-
-    for (auto &op : fuse_to_precursor) {
-        fuse_op_to_predecessor(op, subgraph);
-    }
-
-    for (auto &op : fuse_to_successor) {
-        fuse_op_to_successor(op, subgraph);
-    }
-}
-
 /// This function is used to chooses optimal layout for computation bound op and
 /// propagate the chosen optimal layout and given in/outputs layout in the
 /// subgraph.
 ///
 /// The workflow of layout propagation is:
-/// Step1: choose the optimal in/outputs layout for computation bound op. We
-/// need to create dnnl primitive descriptor in this step, so we need to do
-/// infer shape and infer type first.
-/// Step2: propagate layout for other ops except for reorder op by calling each
-/// op's layout propagation function
-/// Step3: propagate layout for reorder op by calling reorder op's layout
-/// propagation function
-/// Step4: go back to Step2 until the graph is not changed
-/// Step5: remove unnecessary reorder op, whose input and output have same
-/// layout
+///
+/// Step1: propagate layout info according to the topological order
+/// Step2: when comes to compute bound ops like Convolution/MatMul, it will
+///     always use *any* format to create pd. And corresponding layout
+///     propagation function will decide if insert a reorder based on comparsion
+///     result between input/output layout and queried optimal layout
+/// Step3: the following internal ops (permute/squeeze) will also be responsible
+///     for deciding if insert a reorder before the op.
+/// Step4: at the most cases the layout propagation should be done only once
 ///
 /// \note The layout propagation function for each op should be bidirectional to
 /// support propagating layout both from inputs to outputs and from outputs to
-/// inputs. See the following figure for example:
+/// inputs.
 impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     const auto &p_engine = *(sg->p_engine_);
     auto &prm_attr_mgr = sg->prm_attr_mgr_;
     auto &pd_cache = sg->pd_cache_;
 
-    auto need_prop = [&](op_t *op) {
-        for (const auto &in : op->get_input_values()) {
-            if (ltw(in->get_logical_tensor()).layout_type()
-                    == layout_type::any) {
-                return true;
-            }
-        }
-        for (const auto &out : op->get_output_values()) {
-            if (ltw(out->get_logical_tensor()).layout_type()
-                    == layout_type::any) {
-                return true;
-            }
-        }
-        return false;
-    };
-    // lambda function to do layout propagation for non-computation-intensive
-    // and non-layout-reorder ops. If no layout is changed, this function will
-    // return false.
-    auto layout_propagation_func = [&](std::vector<op_ptr> &subgraph) -> bool {
-        bool changed = false;
-        for (auto &cur_op : subgraph) {
-            if (!need_prop(cur_op.get())) continue;
+    // lambda function to do layout propagation for all ops
+    auto layout_propagation_func = [&](std::shared_ptr<subgraph_t> &sg,
+                                           std::vector<op_ptr> &reorder_ops) {
+        impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
+            auto cur_op = op->shared_from_this();
 
             if (cur_op->get_kind() == impl::op_kind::Convolution
                     || cur_op->get_kind() == op_kind::dnnl_convolution
-                    || cur_op->get_kind() == op_kind::conv_depthwise
-                    || cur_op->get_kind() == impl::op_kind::ConvTranspose
-                    || cur_op->get_kind() == op_kind::dnnl_convtranspose
-                    || cur_op->get_kind() == impl::op_kind::MatMul
-                    || cur_op->get_kind() == op_kind::dnnl_conv_bwd_data)
-                continue;
-
-            if (cur_op->get_kind() == impl::op_kind::Reorder
-                    && cur_op->has_attr("change_layout")
-                    && cur_op->get_attr<bool>("change_layout"))
-                continue;
-
-            if (cur_op->get_kind() == impl::op_kind::MaxPool
+                    || cur_op->get_kind() == op_kind::conv_depthwise) {
+                layout_propagation_for_conv(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose
+                    || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
+                layout_propagation_for_deconv(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
+                layout_propagation_for_conv_bwd_data(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
+                layout_propagation_for_matmul(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == impl::op_kind::MaxPool
                     || cur_op->get_kind() == impl::op_kind::AvgPool
                     || cur_op->get_kind() == op_kind::dnnl_pool) {
-                changed = layout_propagation_for_pool(
-                                  cur_op, p_engine, prm_attr_mgr, pd_cache)
-                        || changed;
+                layout_propagation_for_pool(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (is_eltwise_kind(cur_op->get_kind())) {
-                changed = layout_propagation_for_eltwise(
-                                  cur_op, p_engine, prm_attr_mgr, pd_cache)
-                        || changed;
+                layout_propagation_for_eltwise(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::permute) {
-                changed = layout_propagation_for_permute(cur_op) || changed;
+                layout_propagation_for_permute(cur_op, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::mul_scales) {
-                changed = layout_propagation_for_mul_scales(cur_op) || changed;
+                layout_propagation_for_mul_scales(cur_op);
             } else if (cur_op->get_kind() == op_kind::to_group) {
-                changed = layout_propagation_for_to_group(cur_op) || changed;
+                layout_propagation_for_to_group(cur_op);
             } else if (cur_op->get_kind() == impl::op_kind::StaticReshape) {
-                changed = layout_propagation_for_reshape(cur_op) || changed;
+                layout_propagation_for_reshape(cur_op);
             } else if (cur_op->get_kind() == op_kind::expand) {
-                changed = layout_propagation_for_expand(cur_op) || changed;
+                layout_propagation_for_expand(cur_op);
             } else if (cur_op->get_kind() == impl::op_kind::Reorder
                     || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
-                changed = layout_propagation_for_reorder(cur_op) || changed;
+                layout_propagation_for_reorder(cur_op);
             } else if (cur_op->get_kind() == op_kind::squeeze) {
-                changed = layout_propagation_for_squeeze(cur_op) || changed;
+                layout_propagation_for_squeeze(cur_op, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
-                changed |= layout_propagation_for_bn_folding(cur_op, p_engine);
+                layout_propagation_for_bn_folding(cur_op, p_engine);
             } else if (cur_op->get_kind() == op_kind::dnnl_sum) {
-                changed |= layout_propagation_for_dnnl_sum(
-                        cur_op, p_engine, prm_attr_mgr);
+                layout_propagation_for_dnnl_sum(
+                        cur_op, p_engine, prm_attr_mgr, reorder_ops);
             } else {
                 assertm(false,
                         "none layout propagation function for current op");
             }
-        }
-        return changed;
+            return status::success;
+        });
     };
 
-    // we need to choose optimal layout for computation-intensive ops first
-    for (auto &cur_op : subgraph) {
-        if (!need_prop(cur_op.get())) continue;
-
-        if (cur_op->get_kind() == impl::op_kind::Convolution
-                || cur_op->get_kind() == op_kind::dnnl_convolution
-                || cur_op->get_kind() == op_kind::conv_depthwise) {
-            layout_propagation_for_conv(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
-            layout_propagation_for_conv_bwd_data(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
-        } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose
-                || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
-            layout_propagation_for_deconv(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
-        } else {
-            // do nothing
+    auto need_prop_once_more = [&](const std::shared_ptr<subgraph_t> &sg) {
+        const auto &ops = sg->get_ops();
+        for (const auto &cur_op : ops) {
+            for (const auto &in : cur_op->get_input_values()) {
+                if (ltw(in->get_logical_tensor()).layout_type()
+                        == layout_type::any) {
+                    return true;
+                }
+            }
+            size_t out_idx = 0;
+            for (const auto &out : cur_op->get_output_values()) {
+                // ignore the second output of conv_depthwise
+                if (cur_op->get_kind() == op_kind::conv_depthwise
+                        && out_idx > 0)
+                    continue;
+                if (ltw(out->get_logical_tensor()).layout_type()
+                        == layout_type::any) {
+                    return true;
+                }
+                out_idx++;
+            }
         }
-    }
+        return false;
+    };
 
-    // then, we can propagate the layout from conv and in/outputs to other
-    // values
-    int cnt = 0;
-    const int max_num_limit = static_cast<int>(subgraph.size());
-
-    bool changed = true;
+    // store those reorders inserted during propagation
+    std::vector<op_ptr> reorder_ops;
     do {
-        changed = layout_propagation_func(subgraph);
+        // main layout propgation function
+        layout_propagation_func(sg, reorder_ops);
+    } while (need_prop_once_more(sg));
 
-        // layout propagation for matmul
-        for (auto &cur_op : subgraph) {
-            if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
-            if (!need_prop(cur_op.get())) continue;
-            changed = layout_propagation_for_matmul(
-                              cur_op, p_engine, prm_attr_mgr, pd_cache)
-                    || changed;
-        }
-        // layout propagation for layout reorder op
-        for (auto &cur_op : subgraph) {
-            if (cur_op->get_kind() != impl::op_kind::Reorder
-                    || (cur_op->has_attr("change_layout")
-                            && !cur_op->get_attr<bool>("change_layout")))
-                continue;
-            if (!need_prop(cur_op.get())) continue;
-            changed = layout_propagation_for_reorder(cur_op) || changed;
-        }
-        cnt++;
-    } while (changed && cnt <= max_num_limit);
-
-    assertm(cnt <= max_num_limit, "Failed to propagate layout for all ops");
-    if (cnt > max_num_limit) return impl::status::unsupported;
+    for (const auto &op : reorder_ops)
+        subgraph.emplace_back(op);
 
     remove_optional_conv_dw_output(subgraph, pd_cache);
-    remove_unnecessary_reorder(subgraph);
 
     // fill layout information for subgraph's inputs
     for (size_t i = 0; i < sg->ins_.size(); i++) {

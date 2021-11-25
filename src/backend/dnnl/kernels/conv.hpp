@@ -208,7 +208,6 @@ public:
         }
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_reorder);
 
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
@@ -326,8 +325,6 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, conv_bwd_data_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_reorder);
-
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);

@@ -33,21 +33,6 @@ using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
 
 // TODO(xxx): extend to support other ops
-static bool need_insert_reorder(op_kind_t kind) {
-    static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
-            op_kind::conv_depthwise, impl::op_kind::Convolution,
-            op_kind::dnnl_convtranspose, impl::op_kind::ConvTranspose,
-            op_kind::dnnl_conv_bwd_data, impl::op_kind::MatMul,
-            impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool,
-            impl::op_kind::Abs, impl::op_kind::Elu, impl::op_kind::Exp,
-            impl::op_kind::GELU, impl::op_kind::HardTanh, impl::op_kind::Log,
-            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sigmoid,
-            impl::op_kind::Sqrt, impl::op_kind::Square, impl::op_kind::Tanh,
-            op_kind::dnnl_sum};
-    return ops.count(kind) != 0;
-}
-
-// TODO(xxx): extend to support other ops
 // for those ops with data_format/filter_format attributes
 static bool need_insert_permute(op_kind_t kind) {
     static const std::set<op_kind_t> ops {
@@ -74,53 +59,6 @@ static bool require_input_format(op_kind_t kind) {
             impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
             impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_sum};
     return ops.count(kind) != 0;
-}
-
-// for ops with optional outputs, we want to limit number of output reorders
-static size_t limit_output_reorders(op_kind_t kind, size_t n_outputs) {
-    if (kind == op_kind::conv_depthwise) return n_outputs - 1;
-    return n_outputs;
-}
-
-impl::status_t insert_reorder(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    for (auto &cur_op : subgraph) {
-        if (!need_insert_reorder(cur_op->get_kind())) continue;
-
-        size_t n_outputs = limit_output_reorders(
-                cur_op->get_kind(), cur_op->num_outputs());
-        for (size_t i = 0; i < n_outputs; i++) {
-            op_ptr reorder_op
-                    = std::make_shared<impl::op_t>(impl::op_kind::Reorder);
-            insert_op_after(reorder_op, cur_op, i);
-            to_be_inserted_ops.emplace_back(reorder_op);
-        }
-
-        // for those primitive whose input's format must be defined (not any),
-        // we don't need to insert reorder
-        if (require_input_format(cur_op->get_kind())) continue;
-
-        bool with_bias = cur_op->has_attr("with_bias")
-                ? cur_op->get_attr<bool>("with_bias")
-                : false;
-        bool with_dw_wei = cur_op->get_kind() == op_kind::conv_depthwise;
-        size_t in_bound = with_bias || with_dw_wei ? 3 : 2;
-
-        for (size_t i = 0; i < cur_op->num_inputs(); i++) {
-            if (i >= in_bound) break;
-
-            op_ptr reorder_op
-                    = std::make_shared<impl::op_t>(impl::op_kind::Reorder);
-            reorder_op->set_attr<bool>("change_layout", true);
-            insert_op_before(reorder_op, cur_op, i);
-            to_be_inserted_ops.emplace_back(reorder_op);
-        }
-    }
-
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
-    return impl::status::success;
 }
 
 impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {

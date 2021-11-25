@@ -125,7 +125,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, insert_reshape_for_ndx2d_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_expand_and_squeeze_for_matmul);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_reorder);
 
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 

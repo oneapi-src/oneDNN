@@ -114,7 +114,6 @@ public:
         }
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_reorder);
 
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 

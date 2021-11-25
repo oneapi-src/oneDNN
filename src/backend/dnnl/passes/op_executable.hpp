@@ -19,6 +19,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <unordered_map>
 
@@ -37,13 +38,16 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-inline dnnl::convolution_forward::primitive_desc create_conv_pd(
-        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+// return arg: std::pair<dnnl::convolution_forward::primitive_desc, bool>
+//      -> {pd, the flag indicating if this is the first time to create}
+inline std::pair<dnnl::convolution_forward::primitive_desc, bool>
+create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return static_cast<dnnl::convolution_forward::primitive_desc &>(
-                pd_cache.at(op.get()));
+        return {static_cast<dnnl::convolution_forward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
     }
 
     // prepare the operator attributes
@@ -62,8 +66,10 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
+    src = to_format_any(src);
     auto weight = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
+    weight = to_format_any(weight);
     size_t dst_offset = 0;
     if (op->get_kind() == op_kind::conv_depthwise) {
         // at this stage conv_depthwise op should have two outputs
@@ -75,11 +81,13 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
     }
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(dst_offset)->get_logical_tensor());
+    dst = to_format_any(dst);
 
     dnnl::convolution_forward::primitive_desc pd;
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
         auto bias = make_dnnl_memory_desc(
                 op->get_input_value(2)->get_logical_tensor());
+        bias = to_format_any(bias);
         pd = dnnl::convolution_forward::primitive_desc(
                 {prop_kind::forward_inference, algorithm::convolution_direct,
                         src, weight, bias, dst, strides, dilates, pads_begin,
@@ -95,16 +103,17 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
 
     pd_cache.insert({op.get(), pd});
 
-    return pd;
+    return {pd, true};
 }
 
-inline dnnl::deconvolution_forward::primitive_desc create_deconv_pd(
-        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+inline std::pair<dnnl::deconvolution_forward::primitive_desc, bool>
+create_deconv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return static_cast<dnnl::deconvolution_forward::primitive_desc &>(
-                pd_cache.at(op.get()));
+        return {static_cast<dnnl::deconvolution_forward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
     }
 
     // prepare the operator attributes
@@ -123,15 +132,19 @@ inline dnnl::deconvolution_forward::primitive_desc create_deconv_pd(
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
+    src = to_format_any(src);
     auto weight = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
+    weight = to_format_any(weight);
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
+    dst = to_format_any(dst);
 
     dnnl::deconvolution_forward::primitive_desc pd;
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
         auto bias = make_dnnl_memory_desc(
                 op->get_input_value(2)->get_logical_tensor());
+        bias = to_format_any(bias);
         pd = dnnl::deconvolution_forward::primitive_desc(
                 {prop_kind::forward_inference, algorithm::deconvolution_direct,
                         src, weight, bias, dst, strides, dilates, pads_begin,
@@ -147,16 +160,17 @@ inline dnnl::deconvolution_forward::primitive_desc create_deconv_pd(
 
     pd_cache.insert({op.get(), pd});
 
-    return pd;
+    return {pd, true};
 }
 
-inline dnnl::matmul::primitive_desc create_matmul_pd(
+inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return static_cast<dnnl::matmul::primitive_desc &>(
-                pd_cache.at(op.get()));
+        return {static_cast<dnnl::matmul::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -168,15 +182,19 @@ inline dnnl::matmul::primitive_desc create_matmul_pd(
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
+    src = to_format_any(src);
     auto wei = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
+    wei = to_format_any(wei);
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
+    dst = to_format_any(dst);
 
     dnnl::matmul::primitive_desc pd;
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
         auto bias = make_dnnl_memory_desc(
                 op->get_input_value(2)->get_logical_tensor());
+        bias = to_format_any(bias);
         pd = dnnl::matmul::primitive_desc(
                 {src, wei, bias, dst}, prm_attr, p_engine);
     } else {
@@ -185,16 +203,17 @@ inline dnnl::matmul::primitive_desc create_matmul_pd(
 
     pd_cache.insert({op.get(), pd});
 
-    return pd;
+    return {pd, true};
 }
 
-inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
+inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return static_cast<dnnl::pooling_v2_forward::primitive_desc &>(
-                pd_cache.at(op.get()));
+        return {static_cast<dnnl::pooling_v2_forward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
     }
 
     dims strides = op->get_attr<dims>("strides");
@@ -269,16 +288,18 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
 
     pd_cache.insert({op.get(), pd});
 
-    return pd;
+    return {pd, true};
 }
 
-inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
-        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+inline std::pair<dnnl::convolution_backward_data::primitive_desc, bool>
+create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return static_cast<dnnl::convolution_backward_data::primitive_desc &>(
-                pd_cache.at(op.get()));
+        return {static_cast<dnnl::convolution_backward_data::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
     }
 
     // prepare the operator attributes
@@ -297,10 +318,13 @@ inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
 
     auto diff_dst = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
+    diff_dst = to_format_any(diff_dst);
     auto weight = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
+    weight = to_format_any(weight);
     auto diff_src = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
+    diff_src = to_format_any(diff_src);
 
     auto fwd_hints = dnnl::convolution_forward::primitive_desc(
             {dnnl::prop_kind::forward_training,
@@ -315,16 +339,17 @@ inline dnnl::convolution_backward_data::primitive_desc create_conv_bwd_data_pd(
 
     pd_cache.insert({op.get(), pd});
 
-    return pd;
+    return {pd, true};
 }
 
-inline dnnl::eltwise_forward::primitive_desc create_eltwise_pd(
+inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return static_cast<dnnl::eltwise_forward::primitive_desc &>(
-                pd_cache.at(op.get()));
+        return {static_cast<dnnl::eltwise_forward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
     }
 
     float alpha = 0.f, beta = 0.f;
@@ -368,7 +393,7 @@ inline dnnl::eltwise_forward::primitive_desc create_eltwise_pd(
 
     pd_cache.insert({op.get(), pd});
 
-    return pd;
+    return {pd, true};
 }
 
 inline dnnl::sum::primitive_desc create_dnnl_sum_pd(
@@ -412,7 +437,7 @@ struct conv_fwd_executable_t : public op_executable_t {
     conv_fwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_conv_pd(op, p_engine, prm_attr_mgr, pd_cache);
+        pd_ = create_conv_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
         prim_ = dnnl::convolution_forward(pd_);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
@@ -445,7 +470,7 @@ struct deconv_fwd_executable_t : public op_executable_t {
     deconv_fwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_deconv_pd(op, p_engine, prm_attr_mgr, pd_cache);
+        pd_ = create_deconv_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
         prim_ = dnnl::deconvolution_forward(pd_);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
@@ -478,7 +503,7 @@ struct matmul_executable_t : public op_executable_t {
     matmul_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_matmul_pd(op, p_engine, prm_attr_mgr, pd_cache);
+        pd_ = create_matmul_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
         prim_ = dnnl::matmul(pd_);
 
         // The scratchpad size of pd created by using any format tag may be
@@ -525,7 +550,7 @@ struct eltwise_executable_t : public op_executable_t {
     eltwise_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_eltwise_pd(op, p_engine, prm_attr_mgr, pd_cache);
+        pd_ = create_eltwise_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
         prim_ = dnnl::eltwise_forward(pd_);
     }
 
@@ -545,7 +570,7 @@ struct pool_executable_t : public op_executable_t {
     pool_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_pool_pd(op, p_engine, prm_attr_mgr, pd_cache);
+        pd_ = create_pool_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
         prim_ = dnnl::pooling_v2_forward(pd_);
     }
 
@@ -833,7 +858,8 @@ struct conv_bwd_data_executable_t : public op_executable_t {
     conv_bwd_data_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache);
+        pd_ = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache)
+                      .first;
         prim_ = dnnl::convolution_backward_data(pd_);
     }
 

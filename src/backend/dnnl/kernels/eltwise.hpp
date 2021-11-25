@@ -69,7 +69,6 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_reorder);
 
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 

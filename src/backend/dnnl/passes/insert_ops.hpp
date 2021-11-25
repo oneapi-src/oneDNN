@@ -29,8 +29,6 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-impl::status_t insert_reorder(std::shared_ptr<subgraph_t> &sg);
-
 impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t insert_to_group_for_conv_or_deconv(
