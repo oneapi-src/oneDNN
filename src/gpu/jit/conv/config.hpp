@@ -1311,7 +1311,6 @@ private:
         } else if (is_dw) {
             fma_kind = fma_kind_t::mad;
         }
-
         // Downgrade dpas/dpasw -> dp4a for some cases. dpas generally operates
         // on lower frequency than dp4a so for smaller sizes dp4a can be faster.
         if (is_dpas_or_dpasw_fma()) {
@@ -1744,9 +1743,17 @@ private:
 
     void enable_slm_buffering() {
         using namespace ir_utils;
-
-        use_a_slm = (tg_grid_dim[0] > 1);
-        use_b_slm = (tg_grid_dim[1] > 1);
+        // FIXME: Make checks for slm alignment more rigorous.
+        use_a_slm = (tg_grid_dim[0] > 1)
+                && (((m_tg_blk * k_blk) / (tg_grid_dim[0] * tg_grid_dim[1]))
+                           * types::data_type_size(a_data_type))
+                                % 16
+                        == 0;
+        use_b_slm = (tg_grid_dim[1] > 1)
+                && (((k_blk * n_tg_blk) / (tg_grid_dim[0] * tg_grid_dim[1]))
+                           * types::data_type_size(b_data_type))
+                                % 16
+                        == 0;
         if (use_a_slm || use_b_slm) {
             int pref_slm_bufs = (tg_grid_dim[0] * tg_grid_dim[1] <= 8 ? 2 : 3);
             if (do_loop_unroll) {

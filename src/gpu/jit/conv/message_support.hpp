@@ -463,7 +463,11 @@ public:
                         continue;
                     for (auto &message_type : message_types) {
                         auto f = send_t::make(hw, access_type, message_type,
-                                data_type, elems, slots, type_t::undef(),
+                                data_type, elems, slots,
+                                utils::one_of(data_type, type_t::oword(),
+                                        type_t::hword())
+                                        ? data_type
+                                        : type_t::undef(),
                                 address_model, atomic_op, is_prefetch, -1);
                         if (!f.template as<send_t>().is_supported()) continue;
                         if (!filter(f)) continue;

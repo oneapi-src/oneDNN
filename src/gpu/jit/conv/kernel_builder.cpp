@@ -3990,7 +3990,11 @@ private:
             if (!has_compatible_mask(s, mem_view_, tensor, mask_tensor))
                 continue;
 
-            // TODO: Check alignment requirements.
+            // FIXME: Check alignment requirements in a more rigorous way.
+            if (s.alignment != type_t::undef()
+                    && (tensor.elems() * type_size) % s.alignment.size() != 0)
+                continue;
+            if (is_slm() && (tensor.elems() * type_size) % 16 != 0) continue;
 
             // Success, send is found, stop iterating.
             _send = _s;
