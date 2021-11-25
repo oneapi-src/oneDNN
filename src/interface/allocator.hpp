@@ -129,14 +129,15 @@ public:
                 std::unordered_map<const void *, mem_info_t>>
                 persist_mem_infos_;
 
-        thread_local static std::unordered_map<const dnnl_graph_allocator *,
-                size_t>
+        static std::unordered_map<std::thread::id,
+                std::unordered_map<const dnnl_graph_allocator *, size_t>>
                 temp_mem_;
-        thread_local static std::unordered_map<const dnnl_graph_allocator *,
-                size_t>
+        static std::unordered_map<std::thread::id,
+                std::unordered_map<const dnnl_graph_allocator *, size_t>>
                 peak_temp_mem_;
-        thread_local static std::unordered_map<const dnnl_graph_allocator *,
-                std::unordered_map<const void *, mem_info_t>>
+        static std::unordered_map<std::thread::id,
+                std::unordered_map<const dnnl_graph_allocator *,
+                        std::unordered_map<const void *, mem_info_t>>>
                 temp_mem_infos_;
 
         // Since the memory operation will be performaed from multiple threads,
