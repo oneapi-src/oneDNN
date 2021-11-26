@@ -102,7 +102,7 @@ as in the following example.
         dst_iter_h_desc, dst_iter_c_desc);
 ~~~
 
-Note that for all tensors with a dimension depending on the gates number, we
+Note that for all tensors with a dimension depending on the gate number, we
 implicitly require the order of these gates to be `i`, `f`, \f$\tilde c\f$, and `o`. The
 following equation gives the mathematical description of these gates and output
 for the forward pass:
@@ -222,7 +222,7 @@ as in the following example.
         dst_layer_desc, dst_iter_desc);
 ~~~
 
-Note that for all tensors with a dimension depending on the gates number, we
+Note that for all tensors with a dimension depending on the gate number, we
 implicitly require the order of these gates to be `u`, `r`, and `o`. The
 following equation gives the mathematical definition of these gates.
 
@@ -268,7 +268,76 @@ h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 \end{align}
 \f]
 
-Note that for all tensors with a dimension depending on the gates number, except
+Note that for all tensors with a dimension depending on the gate number, except
+the bias, we implicitly require the order of these gates to be `u`, `r`, and
+`o`. For the \bias tensor, we implicitly require the order of the gates to be
+`u`, `r`, `o`, and `u'`.
+
+@note If you need to replace u_t by (1-u_t) when computing h_t, you can
+achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
+This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
++ B_u)\f$, and \f$1 – \sigma(a) = \sigma(-a)\f$.
+
+### AUGRU
+
+A three-gate gated recurrent unit cell, initialized
+with #dnnl::augru_forward::desc::desc() or #dnnl::augru_backward::desc::desc()
+as in the following example.
+
+~~~cpp
+    auto augru_desc = dnnl::augru_forward::desc(
+        aprop, direction, src_layer_desc, src_iter_desc,
+        weights_layer_desc, weights_iter_desc, bias_desc,
+        dst_layer_desc, dst_iter_desc);
+~~~
+
+Note that for all tensors with a dimension depending on the gate number, we
+implicitly require the order of these gates to be `u`, `r`, and `o`. The
+following equation gives the mathematical definition of these gates.
+
+\f[
+\begin{align}
+u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
+r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
+o_t &= \tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
+h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
+\end{align}
+\f]
+
+where \f$W_*\f$ are in \weightslayer, \f$U_*\f$ are in
+\weightsiter, and \f$B_*\f$ are stored in \bias.
+
+@note If you need to replace u_t by (1-u_t) when computing h_t, you can
+achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
+This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
++ B_u)\f$, and \f$1 – \sigma(a) = \sigma(-a)\f$.
+
+### Linear-Before-Reset GRU
+
+A three-gate gated recurrent unit cell with linear layer applied before the
+reset gate, initialized with #dnnl::lbr_augru_forward::desc::desc()
+or #dnnl::lbr_augru_backward::desc::desc() as in the following example.
+
+~~~cpp
+    auto lbr_augru_desc = dnnl::lbr_augru_forward::desc(
+        aprop, direction, src_layer_desc, src_iter_desc,
+        weights_layer_desc, weights_iter_desc, bias_desc,
+        dst_layer_desc, dst_iter_desc);
+~~~
+
+The following equation describes the mathematical behavior of the
+Linear-Before-Reset GRU cell.
+
+\f[
+\begin{align}
+u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
+r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
+o_t &= \tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
+h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
+\end{align}
+\f]
+
+Note that for all tensors with a dimension depending on the gate number, except
 the bias, we implicitly require the order of these gates to be `u`, `r`, and
 `o`. For the \bias tensor, we implicitly require the order of the gates to be
 `u`, `r`, `o`, and `u'`.
@@ -299,31 +368,33 @@ and can be reused across calls to accumulate gradients if need be.
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output | Execution argument index         |
-| ---                    | ---                              |
-| \srclayer              | DNNL_ARG_SRC_LAYER               |
-| \srciter               | DNNL_ARG_SRC_ITER                |
-| \srciterc              | DNNL_ARG_SRC_ITER_C              |
-| \weightslayer          | DNNL_ARG_WEIGHTS_LAYER           |
-| \weightsiter           | DNNL_ARG_WEIGHTS_ITER            |
-| \weightspeephole       | DNNL_ARG_WEIGHTS_PEEPHOLE        |
-| \weightsprojection     | DNNL_ARG_WEIGHTS_PROJECTION      |
-| \bias                  | DNNL_ARG_BIAS                    |
-| \dstlayer              | DNNL_ARG_DST_LAYER               |
-| \dstiter               | DNNL_ARG_DST_ITER                |
-| \dstiterc              | DNNL_ARG_DST_ITER_C              |
-| \workspace             | DNNL_WORKSPACE                   |
-| \diffsrclayer          | DNNL_ARG_DIFF_SRC_LAYER          |
-| \diffsrciter           | DNNL_ARG_DIFF_SRC_ITER           |
-| \diffsrciterc          | DNNL_ARG_DIFF_SRC_ITER_C         |
-| \diffweightslayer      | DNNL_ARG_DIFF_WEIGHTS_LAYER      |
-| \diffweightsiter       | DNNL_ARG_DIFF_WEIGHTS_ITER       |
-| \diffweightspeephole   | DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE   |
-| \diffweightsprojection | DNNL_ARG_DIFF_WEIGHTS_PROJECTION |
-| \diffbias              | DNNL_ARG_DIFF_BIAS               |
-| \diffdstlayer          | DNNL_ARG_DIFF_DST_LAYER          |
-| \diffdstiter           | DNNL_ARG_DIFF_DST_ITER           |
-| \diffdstiterc          | DNNL_ARG_DIFF_DST_ITER_C         |
+| Primitive input/output | Execution argument index          |
+| ---                    | ---                               |
+| \srclayer              | DNNL_ARG_SRC_LAYER                |
+| \srclayerattention     | DNNL_ARG_SRC_LAYER_ATTENTION      |
+| \srciter               | DNNL_ARG_SRC_ITER                 |
+| \srciterc              | DNNL_ARG_SRC_ITER_C               |
+| \weightslayer          | DNNL_ARG_WEIGHTS_LAYER            |
+| \weightsiter           | DNNL_ARG_WEIGHTS_ITER             |
+| \weightspeephole       | DNNL_ARG_WEIGHTS_PEEPHOLE         |
+| \weightsprojection     | DNNL_ARG_WEIGHTS_PROJECTION       |
+| \bias                  | DNNL_ARG_BIAS                     |
+| \dstlayer              | DNNL_ARG_DST_LAYER                |
+| \dstiter               | DNNL_ARG_DST_ITER                 |
+| \dstiterc              | DNNL_ARG_DST_ITER_C               |
+| \workspace             | DNNL_WORKSPACE                    |
+| \diffsrclayer          | DNNL_ARG_DIFF_SRC_LAYER           |
+| \diffsrclayerattention | DNNL_ARG_DIFF_SRC_LAYER_ATTENTION |
+| \diffsrciter           | DNNL_ARG_DIFF_SRC_ITER            |
+| \diffsrciterc          | DNNL_ARG_DIFF_SRC_ITER_C          |
+| \diffweightslayer      | DNNL_ARG_DIFF_WEIGHTS_LAYER       |
+| \diffweightsiter       | DNNL_ARG_DIFF_WEIGHTS_ITER        |
+| \diffweightspeephole   | DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE    |
+| \diffweightsprojection | DNNL_ARG_DIFF_WEIGHTS_PROJECTION  |
+| \diffbias              | DNNL_ARG_DIFF_BIAS                |
+| \diffdstlayer          | DNNL_ARG_DIFF_DST_LAYER           |
+| \diffdstiter           | DNNL_ARG_DIFF_DST_ITER            |
+| \diffdstiterc          | DNNL_ARG_DIFF_DST_ITER_C          |
 
 ## Implementation Details
 
@@ -396,7 +467,7 @@ details on how to use and set these quantization parameters.
       Extension(AMX) support.
 
 2. **GPU**
-    - No support for GRU.
+    - No support for AUGRU.
     - No support for Peephole LSTM and Projection LSTM.
     - Bias must always be present (that is, the corresponding memory descriptor
       argument cannot be zero memory descriptor when the RNN operation
