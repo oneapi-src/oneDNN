@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ private:
     typename T::desc setDesc(prop_kind aprop, algorithm activation,
             rnn_direction direction, const memory::desc &src_layer_md,
             const memory::desc &src_iter_md, const memory::desc &src_iter_c_md,
+            const memory::desc &attention_md,
             const memory::desc &weights_layer_md,
             const memory::desc &weights_iter_md,
             const memory::desc &weights_peephole_md,
@@ -78,10 +79,10 @@ private:
             rnn_flags flags = rnn_flags::undef, float alpha = 0.0f,
             float beta = 0.0f);
 
-    bool skipTest(bool src_layer_match, bool src_iter_match,
-            bool src_iter_c_match, bool weights_layer_match,
-            bool weights_iter_match, bool bias_match, bool dst_layer_match,
-            bool dst_iter_match, bool dst_iter_c_match) {
+    bool skipTest(bool src_layer_match, bool augru_attention_match,
+            bool src_iter_match, bool src_iter_c_match,
+            bool weights_layer_match, bool weights_iter_match, bool bias_match,
+            bool dst_layer_match, bool dst_iter_match, bool dst_iter_c_match) {
         // By default, we ignore src_iter_c and dst_iter_c as they are
         // only supported for lstm. For LSTM tests, this function
         // should be specialized to handle them.
@@ -119,6 +120,8 @@ private:
                 == pd.bias_desc());
         ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_SRC_LAYER)
                 == pd.src_layer_desc());
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_AUGRU_ATTENTION)
+                == pd.augru_attention_desc());
         ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_SRC_ITER)
                 == pd.src_iter_desc());
         ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_SRC_ITER_C)
@@ -144,6 +147,8 @@ protected:
                 = p.fmts.weights_peephole_fmt != memory::format_tag::undef;
         const bool is_lstm_projection
                 = p.fmts.weights_projection_fmt != memory::format_tag::undef;
+        const bool is_augru = std::is_same<T, augru_forward>::value
+                || std::is_same<T, lbr_augru_forward>::value;
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
         //@todo check algorithm is one of the supported by RNN
@@ -157,9 +162,12 @@ protected:
         auto dlc = (p.direction == rnn_direction::bidirectional_concat ? 2 : 1)
                 * dic;
         memory::dim g = getNGates();
-        memory::dim bias_extra_gate
-                = std::is_same<T, lbr_gru_forward>::value ? 1 : 0;
+        memory::dim bias_extra_gate = std::is_same<T, lbr_gru_forward>::value
+                        || std::is_same<T, lbr_augru_forward>::value
+                ? 1
+                : 0;
 
+        auto attention_dims = {t, mb, (memory::dim)1};
         auto weights_layer_dims = {l, d, slc, g, dhc};
         auto weights_iter_dims = {l, d, sic, g, dhc};
         auto weights_peephole_dims = {l, d, (memory::dim)3, dhc};
@@ -172,6 +180,8 @@ protected:
         auto dst_iter_dims = {l, d, mb, dic};
         auto dst_iter_c_dims = {l, d, mb, dhc};
 
+        auto attention_md_any
+                = memory::desc({attention_dims}, prec, memory::format_tag::any);
         auto weights_layer_md_any = memory::desc(
                 {weights_layer_dims}, prec, memory::format_tag::any);
         auto weights_iter_md_any = memory::desc(
@@ -195,6 +205,9 @@ protected:
         auto dst_iter_c_md_any = memory::desc(
                 {dst_iter_c_dims}, prec, memory::format_tag::any);
 
+        auto attention_md_tgt = is_augru
+                ? memory::desc({attention_dims}, prec, memory::format_tag::tnc)
+                : memory::desc();
         auto weights_layer_md_tgt = memory::desc(
                 {weights_layer_dims}, prec, p.fmts.weights_layer_fmt);
         auto weights_iter_md_tgt = memory::desc(
@@ -210,6 +223,8 @@ protected:
         auto bias_md_tgt = memory::desc({bias_dims}, prec, p.fmts.bias_fmt);
         auto src_layer_md_tgt
                 = memory::desc({src_layer_dims}, prec, p.fmts.src_layer_fmt);
+        auto augru_attention_md_tgt
+                = memory::desc({attention_dims}, prec, memory::format_tag::tnc);
         auto src_iter_md_tgt
                 = (p.fmts.src_iter_fmt != memory::format_tag::undef)
                 ? memory::desc({src_iter_dims}, prec, p.fmts.src_iter_fmt)
@@ -235,7 +250,7 @@ protected:
         // Create the reference primitive descriptor
         auto ref_d = setDesc(p.aprop, p.extra.activation, p.direction,
                 src_layer_md_any, src_iter_md_any, src_iter_c_md_any,
-                weights_layer_md_any, weights_iter_md_any,
+                attention_md_any, weights_layer_md_any, weights_iter_md_any,
                 weights_peephole_md_any, weights_projection_md_any, bias_md_any,
                 dst_layer_md_any, dst_iter_md_any, dst_iter_c_md_any,
                 p.extra.flags, p.extra.alpha, p.extra.beta);
@@ -251,6 +266,7 @@ protected:
         auto weights_projection_md_ref = queryWeightsProjection(ref_pd);
         auto bias_md_ref = ref_pd.bias_desc();
         auto src_layer_md_ref = ref_pd.src_layer_desc();
+        auto augru_attention_md_ref = ref_pd.augru_attention_desc();
         auto src_iter_md_ref = ref_pd.src_iter_desc();
         auto src_iter_c_md_ref = querySrcIterC(ref_pd);
         auto dst_layer_md_ref = ref_pd.dst_layer_desc();
@@ -261,6 +277,7 @@ protected:
                     weights_iter_md_ref == weights_iter_md_tgt,
                     bias_md_ref == bias_md_tgt,
                     src_layer_md_ref == src_layer_md_tgt,
+                    augru_attention_md_ref == augru_attention_md_tgt,
                     src_iter_md_ref == src_iter_md_tgt,
                     src_iter_c_md_ref == src_iter_c_md_tgt,
                     dst_layer_md_ref == dst_layer_md_tgt,
@@ -277,6 +294,8 @@ protected:
                 = test::make_memory(weights_projection_md_ref, eng);
         auto bias_ref = test::make_memory(bias_md_ref, eng);
         auto src_layer_ref = test::make_memory(src_layer_md_ref, eng);
+        auto augru_attention_ref
+                = test::make_memory(augru_attention_md_ref, eng);
         auto src_iter_ref = test::make_memory(src_iter_md_ref, eng);
         auto src_iter_c_ref = test::make_memory(src_iter_c_md_ref, eng);
         auto dst_layer_ref = test::make_memory(dst_layer_md_ref, eng);
@@ -291,6 +310,8 @@ protected:
                 = test::make_memory(weights_projection_md_tgt, eng);
         auto bias_tgt = test::make_memory(bias_md_tgt, eng);
         auto src_layer_tgt = test::make_memory(src_layer_md_tgt, eng);
+        auto augru_attention_tgt
+                = test::make_memory(augru_attention_md_tgt, eng);
         auto src_iter_tgt = test::make_memory(src_iter_md_tgt, eng);
         auto src_iter_c_tgt = test::make_memory(src_iter_c_md_tgt, eng);
         auto dst_layer_tgt = test::make_memory(dst_layer_md_tgt, eng);
@@ -349,6 +370,7 @@ protected:
                     weights_projection_ldio, weights_projection_ref);
         init_tensor(bias_ref, bias_tgt);
         init_tensor(src_layer_ref, src_layer_tgt);
+        if (is_augru) init_tensor(augru_attention_ref, augru_attention_tgt);
         if (p.fmts.src_iter_fmt != memory::format_tag::undef) {
             init_tensor(src_iter_ref, src_iter_tgt);
             if (std::is_same<T, lstm_forward>::value)
@@ -363,6 +385,7 @@ protected:
         // run the non packed version
         T(ref_pd).execute(strm,
                 {{DNNL_ARG_SRC_LAYER, src_layer_ref},
+                        {DNNL_ARG_AUGRU_ATTENTION, augru_attention_ref},
                         {DNNL_ARG_SRC_ITER, src_iter_ref},
                         {DNNL_ARG_SRC_ITER_C, src_iter_c_ref},
                         {DNNL_ARG_WEIGHTS_LAYER, weights_layer_ref},
@@ -378,7 +401,7 @@ protected:
         // run the packed version
         auto tgt_d = setDesc(p.aprop, p.extra.activation, p.direction,
                 src_layer_md_tgt, src_iter_md_tgt, src_iter_c_md_tgt,
-                weights_layer_md_tgt, weights_iter_md_tgt,
+                attention_md_tgt, weights_layer_md_tgt, weights_iter_md_tgt,
                 weights_peephole_md_tgt, weights_projection_md_tgt, bias_md_tgt,
                 dst_layer_md_tgt, dst_iter_md_tgt, dst_iter_c_md_tgt,
                 p.extra.flags, p.extra.alpha, p.extra.beta);
@@ -388,6 +411,7 @@ protected:
         EXPECT_ANY_THROW(T(tgt_pd, {}));
         T(tgt_pd).execute(strm,
                 {{DNNL_ARG_SRC_LAYER, src_layer_tgt},
+                        {DNNL_ARG_AUGRU_ATTENTION, augru_attention_tgt},
                         {DNNL_ARG_SRC_ITER, src_iter_tgt},
                         {DNNL_ARG_SRC_ITER_C, src_iter_c_tgt},
                         {DNNL_ARG_WEIGHTS_LAYER, weights_layer_tgt},
@@ -421,7 +445,8 @@ vanilla_rnn_forward::desc
 rnn_forward_test_t<vanilla_rnn_forward, float>::setDesc(prop_kind aprop,
         algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
-        const memory::desc &src_iter_c_md, const memory::desc &weights_layer_md,
+        const memory::desc &src_iter_c_md, const memory::desc &attention_md,
+        const memory::desc &weights_layer_md,
         const memory::desc &weights_iter_md, const memory::desc &,
         const memory::desc &, const memory::desc &bias_md,
         const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
@@ -443,7 +468,8 @@ template <>
 lstm_forward::desc rnn_forward_test_t<lstm_forward, float>::setDesc(
         prop_kind aprop, algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
-        const memory::desc &src_iter_c_md, const memory::desc &weights_layer_md,
+        const memory::desc &src_iter_c_md, const memory::desc &attention_md,
+        const memory::desc &weights_layer_md,
         const memory::desc &weights_iter_md,
         const memory::desc &weights_peephole_md,
         const memory::desc &weights_projection_md, const memory::desc &bias_md,
@@ -459,12 +485,35 @@ lstm_forward::desc rnn_forward_test_t<lstm_forward, float>::setDesc(
 
 template <>
 bool rnn_forward_test_t<lstm_forward, float>::skipTest(bool src_layer_match,
-        bool src_iter_match, bool src_iter_c_match, bool weights_layer_match,
-        bool weights_iter_match, bool bias_match, bool dst_layer_match,
-        bool dst_iter_match, bool dst_iter_c_match) {
+        bool augru_attention_match, bool src_iter_match, bool src_iter_c_match,
+        bool weights_layer_match, bool weights_iter_match, bool bias_match,
+        bool dst_layer_match, bool dst_iter_match, bool dst_iter_c_match) {
     return src_layer_match && src_iter_match && src_iter_c_match
             && weights_layer_match && weights_iter_match && bias_match
             && dst_layer_match && dst_iter_match && dst_iter_c_match;
+}
+
+template <>
+bool rnn_forward_test_t<augru_forward, float>::skipTest(bool src_layer_match,
+        bool augru_attention_match, bool src_iter_match, bool src_iter_c_match,
+        bool weights_layer_match, bool weights_iter_match, bool bias_match,
+        bool dst_layer_match, bool dst_iter_match, bool dst_iter_c_match) {
+    return src_layer_match && augru_attention_match && src_iter_match
+            && src_iter_c_match && weights_layer_match && weights_iter_match
+            && bias_match && dst_layer_match && dst_iter_match
+            && dst_iter_c_match;
+}
+
+template <>
+bool rnn_forward_test_t<lbr_augru_forward, float>::skipTest(
+        bool src_layer_match, bool augru_attention_match, bool src_iter_match,
+        bool src_iter_c_match, bool weights_layer_match,
+        bool weights_iter_match, bool bias_match, bool dst_layer_match,
+        bool dst_iter_match, bool dst_iter_c_match) {
+    return src_layer_match && augru_attention_match && src_iter_match
+            && src_iter_c_match && weights_layer_match && weights_iter_match
+            && bias_match && dst_layer_match && dst_iter_match
+            && dst_iter_c_match;
 }
 
 template <>
@@ -501,7 +550,8 @@ template <>
 gru_forward::desc rnn_forward_test_t<gru_forward, float>::setDesc(
         prop_kind aprop, algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
-        const memory::desc &src_iter_c_md, const memory::desc &weights_layer_md,
+        const memory::desc &src_iter_c_md, const memory::desc &attention_md,
+        const memory::desc &weights_layer_md,
         const memory::desc &weights_iter_md, const memory::desc &,
         const memory::desc &, const memory::desc &bias_md,
         const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
@@ -523,7 +573,8 @@ template <>
 lbr_gru_forward::desc rnn_forward_test_t<lbr_gru_forward, float>::setDesc(
         prop_kind aprop, algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
-        const memory::desc &src_iter_c_md, const memory::desc &weights_layer_md,
+        const memory::desc &src_iter_c_md, const memory::desc &attention_md,
+        const memory::desc &weights_layer_md,
         const memory::desc &weights_iter_md, const memory::desc &,
         const memory::desc &, const memory::desc &bias_md,
         const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
@@ -535,6 +586,52 @@ lbr_gru_forward::desc rnn_forward_test_t<lbr_gru_forward, float>::setDesc(
     return lbr_gru_d;
 }
 
+/* AUGRU specializations */
+template <>
+memory::dim rnn_forward_test_t<augru_forward, float>::getNGates() {
+    return 3;
+}
+
+template <>
+augru_forward::desc rnn_forward_test_t<augru_forward, float>::setDesc(
+        prop_kind aprop, algorithm activation, rnn_direction direction,
+        const memory::desc &src_layer_md, const memory::desc &src_iter_md,
+        const memory::desc &src_iter_c_md, const memory::desc &attention_md,
+        const memory::desc &weights_layer_md,
+        const memory::desc &weights_iter_md, const memory::desc &,
+        const memory::desc &, const memory::desc &bias_md,
+        const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
+        const memory::desc &dst_iter_c_md, rnn_flags flags, float alpha,
+        float beta) {
+    augru_forward::desc augru_d(aprop, direction, src_layer_md, src_iter_md,
+            attention_md, weights_layer_md, weights_iter_md, bias_md,
+            dst_layer_md, dst_iter_md, flags);
+    return augru_d;
+}
+
+/* LBR AUGRU specializations */
+template <>
+memory::dim rnn_forward_test_t<lbr_augru_forward, float>::getNGates() {
+    return 3;
+}
+
+template <>
+lbr_augru_forward::desc rnn_forward_test_t<lbr_augru_forward, float>::setDesc(
+        prop_kind aprop, algorithm activation, rnn_direction direction,
+        const memory::desc &src_layer_md, const memory::desc &src_iter_md,
+        const memory::desc &src_iter_c_md, const memory::desc &attention_md,
+        const memory::desc &weights_layer_md,
+        const memory::desc &weights_iter_md, const memory::desc &,
+        const memory::desc &, const memory::desc &bias_md,
+        const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
+        const memory::desc &dst_iter_c_md, rnn_flags flags, float alpha,
+        float beta) {
+    lbr_augru_forward::desc lbr_augru_d(aprop, direction, src_layer_md,
+            src_iter_md, attention_md, weights_layer_md, weights_iter_md,
+            bias_md, dst_layer_md, dst_iter_md, flags);
+    return lbr_augru_d;
+}
+
 using eng = engine::kind;
 using fmt = memory::format_tag;
 using alg = algorithm;
@@ -543,6 +640,8 @@ using rnn_forward_test_f32 = rnn_forward_test_t<vanilla_rnn_forward, float>;
 using lstm_forward_test_f32 = rnn_forward_test_t<lstm_forward, float>;
 using gru_forward_test_f32 = rnn_forward_test_t<gru_forward, float>;
 using lbr_gru_forward_test_f32 = rnn_forward_test_t<lbr_gru_forward, float>;
+using augru_forward_test_f32 = rnn_forward_test_t<augru_forward, float>;
+using lbr_augru_forward_test_f32 = rnn_forward_test_t<lbr_augru_forward, float>;
 
 using cfg_f32 = test_rnn_params_t;
 
@@ -685,5 +784,37 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestGRUlbr, lbr_gru_forward_test_f32,
                                 fmt::undef, fmt::undef, fmt::ldgo, fmt::tnc,
                                 fmt::undef},
                         test_rnn_sizes_t {3, 1, 5, 1, 4, 4, 4, 4}}));
+
+TEST_P(augru_forward_test_f32, TestsAUGRU) {}
+CPU_INSTANTIATE_TEST_SUITE_P(TestAUGRU, augru_forward_test_f32,
+        ::testing::Values(cfg_f32 {NOT_RNN, prop_kind::forward_inference,
+                                  dir::unidirectional_left2right,
+                                  {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo,
+                                          fmt::undef, fmt::undef, fmt::ldgo,
+                                          fmt::tnc, fmt::ldnc},
+                                  test_rnn_sizes_t {1, 1, 1, 1, 10, 5, 5, 5}},
+                /* Check if not passing dst_iter impacts results */
+                cfg_f32 {NOT_RNN, prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo,
+                                fmt::undef, fmt::undef, fmt::ldgo, fmt::tnc,
+                                fmt::undef},
+                        test_rnn_sizes_t {1, 1, 5, 1, 4, 4, 4, 4}}));
+
+TEST_P(lbr_augru_forward_test_f32, TestsAUGRUlbr) {}
+CPU_INSTANTIATE_TEST_SUITE_P(TestAUGRUlbr, lbr_augru_forward_test_f32,
+        ::testing::Values(cfg_f32 {NOT_RNN, prop_kind::forward_inference,
+                                  dir::unidirectional_left2right,
+                                  {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo,
+                                          fmt::undef, fmt::undef, fmt::ldgo,
+                                          fmt::tnc, fmt::ldnc},
+                                  test_rnn_sizes_t {1, 1, 1, 1, 10, 5, 5, 5}},
+                /* Check if not passing dst_iter impacts results */
+                cfg_f32 {NOT_RNN, prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo,
+                                fmt::undef, fmt::undef, fmt::ldgo, fmt::tnc,
+                                fmt::undef},
+                        test_rnn_sizes_t {1, 1, 5, 1, 4, 4, 4, 4}}));
 
 } // namespace dnnl
