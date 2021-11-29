@@ -811,12 +811,17 @@ public:
             if (po.is_eltwise()) {
                 if (!jit_eltwise_injector_f32_is_supported(po.eltwise.alg))
                     return false;
-            } else if (po.is_binary()) {
-                int mask = utils::get_dims_mask(pd->invariant_dst_md()->dims,
-                        po.binary.src1_desc.dims, ndims);
+            } else if (po.is_binary() || po.is_prelu()) {
+                int mask = po.is_prelu()
+                        ? po.prelu.mask
+                        : utils::get_dims_mask(pd->invariant_dst_md()->dims,
+                                po.binary.src1_desc.dims, ndims);
                 // per_oc broadcast is always supported.
                 if ((mask & (1 << 1)) == 0) continue;
-                auto rhs_layout = layout_t(po.binary.src1_desc);
+                auto rhs_layout = po.is_prelu() ? layout_t(type_t::f32(), 0,
+                                          get_prelu_weights_dims(po.prelu.mask,
+                                                  *pd->invariant_dst_md()))
+                                                : layout_t(po.binary.src1_desc);
                 // No blocks means it's a scalar, can be always loaded.
                 if (rhs_layout.blocks().empty()) return true;
 
@@ -1403,6 +1408,14 @@ private:
         return status::success;
     }
 
+    std::vector<dim_t> get_prelu_weights_dims(
+            uint32_t mask, const memory_desc_t &md) const {
+        std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
+        for (int i = 0; i < md.ndims; ++i)
+            dims[i] = (mask & (1 << i)) ? dims[i] : 1;
+        return dims;
+    }
+
     status_t init_extra_tensor_layouts(const convolution_pd_t *conv_pd) {
         auto *attr = conv_pd->attr();
         if (zp_cfg.do_src_compensation) {
@@ -1436,7 +1449,6 @@ private:
             tensor_config.add_tensor("oscales", arg_key, /*is_input=*/true,
                     /*is_output=*/false, oscales_layout);
         }
-
         for (int i = 0; i < attr->post_ops_.len(); i++) {
             auto &po = attr->post_ops_.entry_[i];
             if (po.is_eltwise() || po.is_sum(/*require_scale_one=*/false)) {
@@ -1448,6 +1460,15 @@ private:
                 tensor_config.add_tensor("binary_rhs_" + std::to_string(i),
                         arg_key, /*is_input=*/true,
                         /*is_output=*/false, layout);
+            } else if (po.is_prelu()) {
+                layout_t layout(type_t::f32(), 0,
+                        get_prelu_weights_dims(
+                                po.prelu.mask, *conv_pd->invariant_dst_md()));
+                int arg_key
+                        = DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_WEIGHTS;
+                tensor_config.add_tensor("prelu_rhs_" + std::to_string(i),
+                        arg_key,
+                        /*is_input=*/true, /*is_output=*/false, layout);
             } else {
                 ir_error_not_expected();
             }

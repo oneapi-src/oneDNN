@@ -2264,6 +2264,13 @@ private:
                 host_->ecmp(cmp_mod, src0, src1);
                 break;
             }
+            case op_kind_t::_prelu: {
+                auto temp = scope_.alloc_range(mod.getExecSize())[0].f();
+                host_->emul(mod, temp, dst, src1);
+                host_->csel(mod | host_->le, dst.reg_data(), temp,
+                        dst.reg_data(), dst.reg_data());
+                break;
+            }
             default:
                 ir_error_not_expected()
                         << "Unknown kind: " << to_string(obj.op_kind);

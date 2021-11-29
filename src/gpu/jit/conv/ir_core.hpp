@@ -812,6 +812,7 @@ enum class op_kind_t {
 
     _and,
 
+    _prelu, // binary relu(a, b)
     _add3, // a + b + c
     _mad, // a + b * c
 };

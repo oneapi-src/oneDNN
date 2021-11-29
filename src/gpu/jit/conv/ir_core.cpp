@@ -121,6 +121,7 @@ std::string to_string(op_kind_t kind) {
 
         case op_kind_t::_add3: return "add3";
         case op_kind_t::_mad: return "mad";
+        case op_kind_t::_prelu: return "prelu";
 
         default: ir_error_not_expected() << "Unknown op_kind_t value.";
     }

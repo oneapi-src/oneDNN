@@ -315,6 +315,14 @@ public:
                 auto buf = kernel_info.find_arg(pd->is_fwd() ? "dst" : "src");
                 auto c_old = add_input_tensor(view, buf);
                 post_ops_.emplace_back(c, c + scale * c_old);
+            } else if (po.is_prelu()) {
+                uint32_t rhs_mask = normalize_mask(po.prelu.mask);
+                auto rhs_view = create_view(type_t::f32(), rhs_mask);
+                auto buf_name = "prelu_rhs_" + std::to_string(i);
+                auto rhs_buf = kernel_info.find_arg(buf_name);
+                auto rhs = add_input_tensor(rhs_view, rhs_buf);
+                post_ops_.emplace_back(
+                        c, binary_op_t::make(op_kind_t::_prelu, c, rhs));
             } else if (po.is_binary()) {
                 auto buf_name = "binary_rhs_" + std::to_string(i);
                 auto view = create_view(po.binary.src1_desc);
@@ -409,6 +417,8 @@ private:
                         return true;
                     if (!zero_op_zero_ok) return true;
                 }
+            } else if (po.is_prelu()) {
+                return false;
             } else {
                 ir_error_not_expected();
             }
