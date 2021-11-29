@@ -17,7 +17,8 @@ may have a different memory layout from input tensor. *DynamicReshape* is not
 guaranteed to return a view or a copy when input tensor and output tensor can be
 inplaced, user should not depend on this behavior. In DynamicReshape, *shape* is
 given as an input at runtime. It's useful when the target shape is unknown
-during the operator creation.
+during the operator creation. Use DynamicReshape if *shape* is not constant or
+is not available until runtime. Otherwise, use StaticReshape.
 
 **Attributes**:
 

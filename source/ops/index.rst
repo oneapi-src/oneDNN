@@ -74,6 +74,7 @@ subset of the operation set.
    arithmetic/SqrtBackprop_1.rst
    arithmetic/Square_1.rst
    arithmetic/SquaredDifference_1.rst
+   shape/StaticReshape_1.rst
    movement/StaticTranspose_1.rst
    arithmetic/Subtract_1.rst
    activation/Tanh_1.rst
