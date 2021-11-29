@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -25,8 +25,8 @@ MaxPoolBackprop
     2D poolings. For example, *strides* equal "4,2,1" means sliding the window 4
     pixel at a time over depth dimension, 2 over height dimension and 1 over
     width dimension.
-  * **Range of values**: integer values starting from 0
-  * **Type**: int[]
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
 
@@ -35,8 +35,8 @@ MaxPoolBackprop
   * **Description**: *pads_begin* is a number of pixels to add to the beginning
     along each axis. For example, *pads_begin* equal "1,2" means adding 1 pixel
     to the top of the input and 2 to the left of the input.
-  * **Range of values**: integer values starting from 0
-  * **Type**: int[]
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
   * **Note**: the attribute is ignored when *auto_pad* attribute is specified.
@@ -46,8 +46,8 @@ MaxPoolBackprop
   * **Description**: *pads_end* is a number of pixels to add to the ending along
     each axis. For example, *pads_end* equal "1,2" means adding 1 pixel to the
     bottom of the input and 2 to the right of the input.
-  * **Range of values**: integer values starting from 0
-  * **Type**: int[]
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
   * **Note**: the attribute is ignored when *auto_pad* attribute is specified.
@@ -57,8 +57,8 @@ MaxPoolBackprop
   * **Description**: *kernel* is a size of each filter. For example, *kernel*
     equal (2, 3) means that each filter has height equal to 2 and width equal
     to 3.
-  * **Range of values**: integer values starting from 1
-  * **Type**: int[]
+  * **Range of values**: positive s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
 
@@ -86,8 +86,8 @@ MaxPoolBackprop
     the usual pooling. *dilation* equal *2,2* means that all the elements in the
     filter are matched not to adjacent elements in the input matrix, but to
     those that are adjacent with distance 1.
-  * **Range of values**: integer value starting from 0
-  * **Type**: int[]
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: list of 1(no dilation)
   * **Required**: *no*
 
@@ -103,11 +103,28 @@ MaxPoolBackprop
 **Inputs**:
 
 * **1**: ``input`` - input tensor of max pool. **Required.**
+
+  * **Type**: T
+
 * **2**: ``output_forward_indices`` - indices of max values in output tensor of
   max pool. **Optional.**
+
+  * **Type**: s32
+
 * **3**: ``output_delta`` - the gradient tensor with respect to output of max
   pool. **Required.**
 
+  * **Type**: T
+
 **Outputs**
 
-* **1**: ``input_delta`` - the the gradient tensor w.r.t. the input of max pool.
+* **1**: ``input_delta`` - the the gradient tensor with respect to the input of
+  max pool.
+
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

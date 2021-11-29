@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -20,9 +20,24 @@ ReLUBackprop
 
 **Inputs**:
 
-* **1**: ``output_delta`` - gradients tensor w.r.t. the output. **Required.**
+* **1**: ``output_delta`` - gradients tensor with respect to the output.
+  **Required.**
+
+  * **Type**: T
+
 * **2**: ``arg`` - either forward input or output tensor of ReLU. **Required.**
+
+  * **Type**: T
 
 **Outputs**
 
-* **1**: ``input_delta`` - the gradient tensor w.r.t. the input of ReLU.
+* **1**: ``input_delta`` - the gradient tensor with respect to the input of
+  ReLU.
+
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

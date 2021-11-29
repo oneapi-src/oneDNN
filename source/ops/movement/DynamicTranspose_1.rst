@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2021 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -39,7 +39,7 @@ on this behavior.
 * **1**:  ``data`` - the tensor to be transposed.
   **Required.**
 
-  * **Type**: T1
+  * **Type**: T
   
 * **2**:  ``order`` - the permutation applied to the axes of the input shape.
   It must be a vector of elements with T2 type and shape *[N]*, where N is the
@@ -48,15 +48,16 @@ on this behavior.
   first axis.
   **Required.**
 
-  * **Type**: T2
+  * **Type**: s32
 
 **Outputs**
 
 * **1**: A tensor transposed from input ``data`` tensor.
 
-  * **Type**: T1
+  * **Type**: T
 
 **Types**
 
-* *T1*: f32, f16, bf16
-* *T2*: int64
+* *T*: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

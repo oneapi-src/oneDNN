@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -20,10 +20,10 @@ Concat
 
 * *axis*
 
-  * **Description**: *axis* specifies dimension to concatenate along. 
-  * **Range of values**: integer number. Negative value means counting dimension
-    from the end.
-  * **Type**: int
+  * **Description**: *axis* specifies dimension to concatenate along. Negative
+    value means counting dimension from the end.
+  * **Range of values**: [-r, r-1] where r = rank(input)
+  * **Type**: s64
   * **Default value**: None
   * **Required**: *yes*
 
@@ -34,13 +34,19 @@ Concat
   scalars as inputs are not allowed. Shapes for all inputs should match at every
   position except ``axis`` position. At least one input is required.
   **Required.**
+  
+  * **Type**: T
 
 **Outputs**
 
 * **1**: Tensor of the same type *T* as input tensor and shape
   ``[d1, d2, ..., d_axis, ...]``, where ``d_axis`` is a sum of sizes of input
   tensors along ``axis`` dimension.
+  
+  * **Type**: T
 
-**Types**
+**Types**:
 
-* *T*: any numeric type.
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

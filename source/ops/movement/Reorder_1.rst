@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2021 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -12,22 +12,34 @@ Reorder
 
 **Short description**: *Reorder* converts the input tensor to output tensor with
 different layouts. It supports the conversion between 1) two different opaque
-layouts 2) two different public layouts 3) one opaque layout and another public layout.
+layouts 2) two different public layouts 3) one opaque layout and another public
+layout.
 
 **Detailed description**: *Reorder* also requires that the input tensor and
-output tensor should have the same data type (fp32/int8/uint8/bf16/fp16) and shape.
+output tensor should have the same data type (fp32/int8/uint8/bf16/fp16) and
+shape.
 
 For example, if the input tensor has public layout with strides, and users want
-to convert it to an output tensor with opaque layout (specified by layout id), then
-reorder can be used for this case.
+to convert it to an output tensor with opaque layout (specified by layout id),
+then reorder can be used for this case.
 
-Currently, *reorder* operator doesn't support layout conversion cross backends or
-cross engines.
+Currently, *reorder* operator doesn't support layout conversion cross backends
+or cross engines.
 
 **Inputs**:
 
 * **1**:  input tensor. **Required.**
+  
+  * **Type**: T
 
 **Outputs**
 
 * **1**:  A tensor with different layout from input tensor.
+  
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16, s8, u8.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

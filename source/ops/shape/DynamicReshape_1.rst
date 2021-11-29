@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2021 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -59,5 +59,4 @@ is not available until runtime. Otherwise, use StaticReshape.
 **Types**
 
   * **T1**: f32,f16,bf16
-
-  * **T2**: int64
+  * **T2**: s32

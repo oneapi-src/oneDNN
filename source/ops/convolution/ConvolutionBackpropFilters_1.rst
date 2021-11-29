@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -24,8 +24,8 @@ gradient and computes the weights gradient.
 
   * **Description**: *strides* has the same definition as *strides* for a
     regular Convolution.
-  * **Range of values**: positive integers
-  * **Type**: int[]
+  * **Range of values**: positive s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
 
@@ -34,8 +34,8 @@ gradient and computes the weights gradient.
   * **Description**: *pads_begin* has the same definition as *pads_begin* for a
     regular Convolution. May be omitted specified, in which case pads are
     calculated automatically.
-  * **Range of values**: non-negative integers
-  * **Type**: int[]
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
   * **Note**: the attribute is ignored when *auto_pad* attribute is specified.
@@ -45,8 +45,8 @@ gradient and computes the weights gradient.
   * **Description**: *pads_end* has the same definition as *pads_end* for a
     regular Convolution. May be omitted, in which case pads are calculated
     automatically.
-  * **Range of values**: non-negative integers
-  * **Type**: int[]
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
   * **Note**: the attribute is ignored when *auto_pad* attribute is specified.
@@ -55,8 +55,8 @@ gradient and computes the weights gradient.
 
   * **Description**: *dilations* has the same definition as *dilations* for a
     regular Convolution.
-  * **Range of values**: positive integers
-  * **Type**: int[]
+  * **Range of values**: positive s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
 
@@ -83,8 +83,8 @@ gradient and computes the weights gradient.
   * **Description**: *groups* denotes the number of groups input channels and
     output channels are divided into. In_channels and out_channels must both be
     divisible by groups
-  * **Range of values**: integer value greater than 0
-  * **Type**: int
+  * **Range of values**: A positive s64 value.
+  * **Type**: s64
   * **Default value**: 1
   * **Required**: *no*
   
@@ -112,15 +112,29 @@ gradient and computes the weights gradient.
 
 * **1**: ``input`` - input tensor. **Required**.
 
+  * **Type**: T
+
 * **2**: ``filters_shape`` - 1D integer tensor that specifies spatial shape of
   the filter. The shape of filter is (out_channels, in_channels // groups,
   spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
   out_channels) for XIO format. **Required**
 
-* **3**: ``output_delta`` - gradients tensor w.r.t. the output of the
+  * **Type**: s32
+
+* **3**: ``output_delta`` - gradients tensor with respect to the output of the
   convolution. **Required**.
+
+  * **Type**: T
 
 **Outputs**:
 
-* **1**: ``filter_delta`` - gradient tensor w.r.t. the filter of the
+* **1**: ``filter_delta`` - gradient tensor with respect to the filter of the
   convolution. The format is specified by *filter_format*.
+
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

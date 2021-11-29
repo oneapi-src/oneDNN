@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -35,13 +35,13 @@ subset of the operation set.
    misc/End_1.rst
    arithmetic/Erf_1.rst
    activation/Exp_1.rst
-   activation/GELU_2.rst
-   activation/GELUBackprop_2.rst
+   activation/GELU_1.rst
+   activation/GELUBackprop_1.rst
    activation/HardTanh_1.rst
    activation/HardTanhBackprop_1.rst
    movement/Index_1.rst
-   image/Interpolate_4.rst
-   image/InterpolateBackprop_4.rst
+   image/Interpolate_1.rst
+   image/InterpolateBackprop_1.rst
    normalization/LayerNorm_1.rst
    normalization/LayerNormBackprop_1.rst
    arithmetic/Log_1.rst

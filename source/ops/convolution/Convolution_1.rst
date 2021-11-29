@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -46,9 +46,8 @@ along the output channel axis. Finally, all but the results on a multiple of
 
   * **Description**: *strides* is how much the convolution output is
     down-sampled to produce the output.
-  * **Range of values**: Non-negative integer values.
-  * **Type**: int[r]
-  * **Variable**: :math:`s`
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
 
@@ -56,9 +55,8 @@ along the output channel axis. Finally, all but the results on a multiple of
 
   * **Description**: *pads_begin* is a number of zeros to add to the beginning
     of each spatial axis.
-  * **Range of values**: Non-negative integers.
-  * **Type**: int[r]
-  * **Variable**: :math:`p_b`
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
   * **Note**: the attribute is ignored when *auto_pad* attribute is specified.
@@ -67,9 +65,8 @@ along the output channel axis. Finally, all but the results on a multiple of
 
   * **Description**: *pads_end* is a number of zeros to add to the end of each
     spatial axis.
-  * **Range of values**: Non-negative integers.
-  * **Type**: int[r]
-  * **Variable**: :math:`p_e`
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
   * **Note**: the attribute is ignored when *auto_pad* attribute is specified.
@@ -78,9 +75,8 @@ along the output channel axis. Finally, all but the results on a multiple of
 
   * **Description**: *dilations* denotes the amount to stretch the kernel before
     convolving.
-  * **Range of values**: positive integers.
-  * **Type**: int[r]
-  * **Variable**: :math:`d`
+  * **Range of values**: positive s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
 
@@ -113,9 +109,8 @@ If the total padding needed is odd, *same_upper* makes :math:`p_e=p_b+1`,
   * **Description**: *groups* denotes the number of groups input channels and
     output channels are divided into. In_channels and out_channels must both be
     divisible by groups
-  * **Range of values**: integer value greater than 0
-  * **Type**: int
-  * **Variable**: `g`
+  * **Range of values**: A positive s64 value.
+  * **Type**: s64
   * **Default value**: 1
   * **Required**: *no*
 
@@ -142,13 +137,29 @@ If the total padding needed is odd, *same_upper* makes :math:`p_e=p_b+1`,
 
 * **1**: ``input`` - the input tensor. The format is specified by *data_format*.
   **Required.**
+
+  * **Type**: T
+
 * **2**: ``filter`` - convolution filter tensor. The format is specified by
   *filter_format*. The shape of filter is (out_channels, in_channels // groups,
   spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
   out_channels) for XIO format. **Required.**
+
+  * **Type**: T
+
 * **3**: ``bias`` - a 1-D tensor adds to channel dimension of input.
   Broadcasting is supported. **Optional.**
+
+  * **Type**: T
 
 **Outputs**:
 
 * **1**: ``output`` -- output tensor. The format is specified by *data_format*.
+
+  * **Type**: T
+
+**Types**: 
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

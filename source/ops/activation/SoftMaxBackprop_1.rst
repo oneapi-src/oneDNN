@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -22,8 +22,8 @@ SoftMaxBackprop
 
   * **Description**: *axis* represents the axis of which the Softmax is
     calculated. 
-  * **Range of values**: integer values
-  * **Type**: int
+  * **Range of values**: [-r, r-1] where r = rank(input)
+  * **Type**: s64
   * **Default value**: 1
   * **Required**: *no*
 
@@ -31,8 +31,21 @@ SoftMaxBackprop
 
 * **1**: output_delta **Required.**
 
+  * **Type**: T
+
 * **2**: forward_result **Required.**
+
+  * **Type**: T
 
 **Outputs**
 
 * **1**: input_delta
+
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.
+

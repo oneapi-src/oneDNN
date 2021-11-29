@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -23,7 +23,7 @@ the 1st input tensor in slices specified by the second input.
   * **Description**: If set to ``True`` it holds axes that are used for
     reduction. For each such axis, output dimension is equal to 1.
   * **Range of values**: True or False
-  * **Type**: ``boolean``
+  * **Type**: bool
   * **Default value**: False
   * **Required**: *no*
 
@@ -31,10 +31,14 @@ the 1st input tensor in slices specified by the second input.
 
 * **1**: Input tensor x of type *T1*. **Required.**
 
-* **2**: Scalar or 1D tensor of type *T_IND* with axis indices for the 1st input
-  along which reduction is performed. Accepted range is ``[-r, r-1]`` where
-  ``r`` is the rank of input tensor, all values must be unique, repeats are not
-  allowed. **Required.**
+  * **Type**: T
+
+* **2**: Scalar or 1D tensor of axis indices for the 1st input along which 
+  reduction is performed. Accepted range is ``[-r, r-1]`` where ``r`` is the
+  rank of input tensor, all values must be unique, repeats are not allowed. 
+  **Required.**
+
+  * **Type**: s32
 
 **Outputs**
 
@@ -44,10 +48,13 @@ the 1st input tensor in slices specified by the second input.
   ``shape[i] == 1`` if ``keep_dims == True``, or ``i``-th dimension is removed
   from the output otherwise.
 
-**Types**
+  * **Type**: T
 
-* *T1*: any supported numeric type.
-* *T_IND*: ``int64`` or ``int32``.
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.
 
 **Detailed Description**
 

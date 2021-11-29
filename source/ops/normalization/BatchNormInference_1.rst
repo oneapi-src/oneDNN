@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -21,8 +21,8 @@ an offset (``beta``).
   * **Description**: *epsilon* is the number to be added to the variance to
     avoid division by zero when normalizing a value. For example, *epsilon*
     equal to 0.001 means that 0.001 is added to the variance.
-  * **Range of values**: a positive floating-point number
-  * **Type**: ``float``
+  * **Range of values**: arbitrary positive f32 value 
+  * **Type**: f32
   * **Default value**: None
   * **Required**: *yes*
 
@@ -39,23 +39,41 @@ an offset (``beta``).
 
 * **1**: ``input`` - input tensor with data for normalization. The format is
   specified by *data_format*. **Required.**
-* **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T
-  with the same span as input's channel axis. **Required.**
-* **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor of
-  type T with the same span as input's channel axis.. **Required.**
-* **4**: ``mean`` - value for mean normalization. A 1D tensor of type T with
+
+  * **Type**: T
+
+* **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor with the
+  same span as input's channel axis. **Required.**
+
+  * **Type**: f32
+
+* **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor with
   the same span as input's channel axis.. **Required.**
-* **5**: ``variance`` - value for variance normalization. A 1D tensor of type T
-  with the same span as input's channel axis.. **Required.**
+
+  * **Type**: f32
+
+* **4**: ``mean`` - value for mean normalization. A 1D tensor with the same span
+  as input's channel axis. **Required.**
+
+  * **Type**: f32
+
+* **5**: ``variance`` - value for variance normalization. A 1D tensor with the
+  same span as input's channel axis.. **Required.**
+
+  * **Type**: f32
 
 **Outputs**
 
-* **1**: The result of normalization. A tensor of the same type, shape and 
+* **1**: The result of normalization. A tensor of the same shape and 
   format with 1st input tensor.
+
+  * **Type**: T
 
 **Types**
 
-* *T*: any numeric type.
+* *T*: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.
 
 **Mathematical Formulation**
 

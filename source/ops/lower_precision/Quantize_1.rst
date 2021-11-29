@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2021 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -35,31 +35,40 @@ For per-channel quantization, take channel axis = 2 as example:
 * *axis*
 
   * **Description**: specifies dimension on which apply per-channel quantization. Only valid when *qtype* is "per_channel". 
-  * **Range of values**: integers in [-d, d-1] where d = input_tensor.shape().size()
-  * **Type**: int
+  * **Range of values**: integers in [-r, r-1] where r = rank(input)
+  * **Type**: s64
   * **Default value**: 1
   * **Required**: *no*
 
 * *scales*
 
   * **Description**: apply in quantization formula.
-  * **Range of values**: float values
-  * **Type**: float[]
+  * **Range of values**: arbitrary valid f32 value
+  * **Type**: fp32[]
   * **Default value**: None
   * **Required**: *yes*
 
 * *zps*
 
   * **Description**: offset value that maps to float zero.
-  * **Range of values**: integer values
-  * **Type**: int[]
+  * **Range of values**: arbitrary valid s64 value
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
 
 **Inputs**:
 
 * **1**: ``input`` - fp32 tensor to be quantized. **Required.**
+  
+  * **Type**: T1
 
 **Outputs**:
 
 * **1**: ``output`` -- quantized tensor.
+  
+  * **Type**: T2
+
+**Types**:
+
+* **T1**: fp32.
+* **T2**: s8, u8.

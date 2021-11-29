@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -6,7 +6,7 @@
 Interpolate
 -----------
 
-**Versioned name**: *Interpolate-4*
+**Versioned name**: *Interpolate-1*
 
 **Category**: *Image processing*
 
@@ -100,7 +100,7 @@ slices in input tensor by specified dimensions and attributes.
     * False - do not perform anti-aliasing
     * True - perform anti-aliasing
 
-  * **Type**: boolean
+  * **Type**: bool
   * **Default value**: False
   * **Required**: *no*
 
@@ -109,9 +109,9 @@ slices in input tensor by specified dimensions and attributes.
   * **Description**: *pads_begin* specifies the number of pixels to add to the
     beginning of the image being interpolated. This addition of pixels is done
     before interpolation calculation.
-  * **Range of values**: list of non-negative integer numbers
-  * **Type**: ``int[]``
-  * **Default value**: ``[0]``
+  * **Range of values**: Non-negative s64 values
+  * **Type**: s64[]
+  * **Default value**: array of all ''0'', array length = rank(input)
   * **Required**: *no*
 
 * *pads_end*
@@ -119,9 +119,9 @@ slices in input tensor by specified dimensions and attributes.
   * **Description**: *pads_end* specifies the number of pixels to add to the end
     of the image being interpolated. This addition of pixels is done before
     interpolation calculation.
-  * **Range of values**: list of non-negative integer numbers
-  * **Type**: ``int[]``
-  * **Default value**: ``[0]``
+  * **Range of values**: Non-negative s64 values
+  * **Type**: s64[]
+  * **Default value**: array of all ''0'', array length = rank(input)
   * **Required**: *no*
 
 * *cube_coeff*
@@ -130,23 +130,28 @@ slices in input tensor by specified dimensions and attributes.
     interpolation (see, e.g.
     `article <https://ieeexplore.ieee.org/document/1163711/>`__). *cube_coeff*
     is used only when ``mode == cubic``.
-  * **Range of values**: floating point number
-  * **Type**: any of supported floating point type
+  * **Range of values**: arbitrary valid f32 value 
+  * **Type**: f32
   * **Default value**: ``-0.75``
   * **Required**: *no*
 
 **Inputs**
 
-* **1**: ``data`` - Input tensor with data for interpolation. Type of elements
-  is any supported floating point type or ``int8`` type. **Required**.
+* **1**: ``data`` - Input tensor with data for interpolation. **Required**.
+
+  * **Type**: T
 
 * **2**: ``sizes`` - 1D tensor describing output shape for spatial axes. Number
   of elements matches the number of indices in ``axes`` input, the order matches
   as well. **Required**.
 
-* **3**: ``scales`` - 1D tensor describing scales for spatial axes. Type of
-  elements is any supported floating point type. Number and order of elements
-  match the number and order of indices in ``axes`` input. **Required**.
+  * **Type**: s32
+
+* **3**: ``scales`` - 1D tensor describing scales for spatial axes. Number and
+  order of elements match the number and order of indices in ``axes`` input.
+  **Required**.
+
+  * **Type**: T
 
 * **4**: ``axes`` - 1D tensor specifying dimension indices where interpolation
   is applied, and ``axes`` is any unordered list of indices of different
@@ -157,12 +162,22 @@ slices in input tensor by specified dimensions and attributes.
   second input ``sizes``. **Optional** with default value
   ``[0,...,rank(data) - 1]``.
 
+  * **Type**: s32
+
 **Outputs**
 
 * **1**: Resulting interpolated tensor with elements of the same type as input
   ``data`` tensor. The shape of the output matches input ``data`` shape except
   spatial dimensions mentioned in ``axes`` attribute. For other dimensions shape
   matches sizes from ``sizes`` in order specified in ``axes``.
+
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.
 
 **Detailed description**
 Calculations are performed according to the following rules.

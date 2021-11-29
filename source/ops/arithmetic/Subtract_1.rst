@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -35,16 +35,25 @@ given tensors applying multi-directional broadcast rules.
 
 **Inputs**
 
-* **1**: A tensor of type T. **Required.**
-* **2**: A tensor of type T. **Required.**
+* **1**: Tensor A. **Required.**
+
+  * **Type**: T
+  
+* **2**: Tensor B. **Required.**
+
+  * **Type**: T
 
 **Outputs**
 
-* **1**: The result of element-wise subtraction operation. A tensor of type T.
+* **1**: The result of element-wise subtraction operation. **Required.**
 
-**Types**
+  * **Type**: T
 
-* *T*: any numeric type.
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.
 
 **Detailed description**:
 
@@ -52,7 +61,8 @@ Before performing arithmetic operation, input tensors *a* and *b* are
 broadcast if their shapes are different and ``auto_broadcast`` attributes is
 not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
 
-After broadcasting *Subtract* does the following with the input tensors *a* and *b*:
+After broadcasting *Subtract* does the following with the input tensors *a* and
+*b*:
 
 .. math::
    o_{i} = a_{i} - b_{i}

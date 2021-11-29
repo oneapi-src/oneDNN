@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -68,8 +68,8 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
 
   * **Description**: *strides* has the same definition as *strides* for a
     regular Convolution but applied in the backward way, for the output tensor.
-  * **Range of values**: positive integers
-  * **Type**: int[]
+  * **Range of values**: positive s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
 
@@ -78,8 +78,8 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
   * **Description**: *pads_begin* has the same definition as *pads_begin* for a
     regular Convolution but applied in the backward way, for the output tensor.
     May be omitted specified, in which case pads are calculated automatically.
-  * **Range of values**: non-negative integers
-  * **Type**: int[]
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
   * **Note**: the attribute is ignored when *auto_pad* attribute is specified.
@@ -89,8 +89,8 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
   * **Description**: *pads_end* has the same definition as *pads_end* for a
     regular Convolution but applied in the backward way, for the output tensor.
     May be omitted, in which case pads are calculated automatically.
-  * **Range of values**: non-negative integers
-  * **Type**: int[]
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
   * **Note**: the attribute is ignored when *auto_pad* attribute is specified.
@@ -99,8 +99,8 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
 
   * **Description**: *dilations* has the same definition as *dilations* for a
     regular Convolution but applied in the backward way, for the output tensor.
-  * **Range of values**: positive integers
-  * **Type**: int[]
+  * **Range of values**: positive s64 values.
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
 
@@ -130,8 +130,8 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
     coordinate indices for the spatial dimensions. Number of elements in
     *output_padding* list matches the number of spatial dimensions in ``data``
     and ``output`` tensors.
-  * **Range of values**: non-negative integer values
-  * **Type**: int[]
+  * **Range of values**: Non-negative s64 values.
+  * **Type**: s64[]
   * **Default value**: all zeros
   * **Required**: *no*
 
@@ -140,8 +140,8 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
   * **Description**: *groups* denotes the number of groups input channels and
     output channels are divided into. In_channels and out_channels must both be
     divisible by groups
-  * **Range of values**: integer value greater than 0
-  * **Type**: int
+  * **Range of values**: A positive s64 value.
+  * **Type**: s64
   * **Default value**: 1
   * **Required**: *no*
 
@@ -168,10 +168,14 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
 
 * **1**: ``data`` -- input tensor of rank 3 or greater. **Required**.
 
+  * **Type**: T
+
 * **2**: ``filter`` --  convolution filter tensor. The format is specified by
   *filter_format*. The shape of filter is (out_channels, in_channels // groups,
   spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
   out_channels)  for XIO format. **Required.**
+
+  * **Type**: T
 
 * **3**: ``output_shape`` is 1D integer tensor that specifies spatial shape of
   the output. **Optional**. If specified, *padding amount* is deduced from
@@ -179,6 +183,16 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
   description. If not specified, *output shape* is calculated based on the
   ``pads_begin`` and ``pads_end`` or completely according to ``auto_pad``.
 
+  * **Type**: s32
+
 **Outputs**:
 
 * **1**: ``output`` -- output tensor of the same rank as input ``data`` tensor.
+
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

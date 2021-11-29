@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -6,7 +6,7 @@
 SoftPlus
 --------
 
-**Versioned name**: *SoftPlus-4*
+**Versioned name**: *SoftPlus-1*
 
 **Category**: *Activation*
 
@@ -24,8 +24,8 @@ corresponding element in the output tensor with the following formula:
 * *beta*
 
   * **Description**: *beta* is value for the Softplus formulation. 
-  * **Range of values**: positive integers
-  * **Type**: int
+  * **Range of values**: A positive s64 value
+  * **Type**: s64
   * **Default value**: 1
   * **Required**: *no*
 
@@ -33,11 +33,17 @@ corresponding element in the output tensor with the following formula:
 
 * **1**:  Multidimensional input tensor of type T. **Required.**
 
+  * **Type**: T
+
 **Outputs**
 
-* **1**:  The resulting tensor of the same shape and type as input tensor.
+* **1**:  The resulting tensor of the same shape as input tensor.
   **Required.**
 
-**Types**
+  * **Type**: T
 
-* **T**:  arbitrary supported floating point type. **Required.**
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

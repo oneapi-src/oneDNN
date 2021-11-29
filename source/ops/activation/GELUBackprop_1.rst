@@ -2,36 +2,34 @@
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
------------
-PowBackprop
------------
+------------
+GELUBackprop
+------------
 
-**Versioned name**: *PowBackprop-1*
+**Versioned name**: *GELUBackprop-1*
 
-**Category**: *Arithmetic*
+**Category**: *Activation*
 
-**Short description**: *PowBackprop* computes gradient of variable base for Pow
+**Short description**: *GELUBackprop* computes gradient for GELU
 
 **Inputs**:
 
 * **1**: ``input_forward`` - input of forward. **Required.**
-  
+
   * **Type**: T
 
 * **2**: ``output_delta`` - gradients tensor with respect to the output.
   **Required.**
-  
-  * **Type**: T
 
-* **3**: ``exponent`` - exponent of input. **Required.**
-  
   * **Type**: T
 
 **Outputs**
 
-* **1**: ``input_delta`` - the gradient tensor with respect to the input of Pow.
-  
+* **1**: ``input_delta`` - the gradient tensor with respect to the input of
+  GELU.
+ 
   * **Type**: T
+
 
 **Types**:
 

@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -17,24 +17,34 @@ HardTanh
 * *min*
 
   * **Description**: *min* is the lower bound of values in the output. 
-  * **Range of values**: floating point number
-  * **Type**: float
+  * **Range of values**: arbitrary valid f32 value
+  * **Type**: f32
   * **Default value**: None
   * **Required**: *yes*
 
 * *max*
 
   * **Description**: *max* is the upper bound of values in the output. 
-  * **Range of values**: floating point number
-  * **Type**: float
+  * **Range of values**: arbitrary valid f32 value
+  * **Type**: f32
   * **Default value**: None
   * **Required**: *yes*
 
 **Inputs**:
 
-* **1**: Input tensor x of any floating point type. **Required.**
+* **1**: Input tensor x. **Required.**
+
+  * **Type**: T
 
 **Outputs**
 
-* **1**: Result of HardTanh function applied to the input tensor x. Floating
-  point tensor with shape and type matching the input tensor. **Required.**
+* **1**: Result of HardTanh function applied to the input tensor x.
+  **Required.**
+
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

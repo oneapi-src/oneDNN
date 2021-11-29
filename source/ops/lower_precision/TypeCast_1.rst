@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2021 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -34,8 +34,8 @@ type or one date type is bf16 the other is fp16, cast won't be executed.
 
 **Types**:
 
-  * **T1**: f32, f16, bf16
-  * **T2**: f32, f16, bf16
+  * **T1**: f32, f16, bf16.
+  * **T2**: f32, f16, bf16.
 
   Constraints: When T1 is f32, T2 should be f16 or bf16; when T1 is f16 or bf16,
   T2 should be f32.

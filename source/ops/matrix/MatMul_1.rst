@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -90,7 +90,7 @@ affected by these attributes.
   * **Description**: transposes dimensions *ROW_INDEX_DIM* and *COL_INDEX_DIM*
     of the 1st input; False means no transpose, True means transpose
   * **Range of values**: False or True
-  * **Type**: boolean
+  * **Type**: bool
   * **Default value**: False
   * **Required**: *no*
 
@@ -99,7 +99,7 @@ affected by these attributes.
   * **Description**: transposes dimensions *ROW_INDEX_DIM* and *COL_INDEX_DIM*
     of the second input; False means no transpose, True means transpose
   * **Range of values**: False or True
-  * **Type**: boolean
+  * **Type**: bool
   * **Default value**: False
   * **Required**: *no*
 
@@ -107,11 +107,25 @@ affected by these attributes.
 
 * **1**: Input batch of matrices A. :math:`Rank >= 1`. **Required.**
 
+  * **Type**: T
+
 * **2**: Input batch of matrices B. :math:`Rank >= 1`. **Required.**
 
+  * **Type**: T
+
 * **3**: Input bias. :math:`Rank == 1 or Rank == Rank(output)`. Broadcasting is
-         supported. **Optional.**
+  supported. **Optional.**
+
+  * **Type**: T
 
 **Outputs**
 
 * **1**: The result tensor.
+
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.

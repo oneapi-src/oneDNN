@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2021 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -10,9 +10,9 @@ Dequantize
 
 **Category**: lower_precision
 
-**Short description**: *Dequantize* converts a quantized(int8 or uint8) tensor to a fp32 tensor.  
-It supports  both per tensor and per channel asymmetric linear dequantization.
-Nearest round is used in this OP.
+**Short description**: *Dequantize* converts a quantized(int8 or uint8) tensor
+  to a fp32 tensor. It supports  both per tensor and per channel asymmetric
+  linear dequantization. Nearest round is used in this OP.
 
 **Attributes**
 
@@ -26,32 +26,42 @@ Nearest round is used in this OP.
 
 * *axis*
 
-  * **Description**: specifies dimension on which apply per-channel dequantization. Only valid if *qtype* is "per_channel". 
-  * **Range of values**: integers in [-d, d-1] where d = input_tensor.shape().size()
-  * **Type**: int
+  * **Description**: specifies dimension on which apply per-channel
+    dequantization. Only valid if *qtype* is "per_channel". 
+  * **Range of values**: integers in [-r, r-1] where r = rank(input)
+  * **Type**: s64
   * **Default value**: 1
   * **Required**: *no*
 
 * *scales*
 
   * **Description**: apply in quantization formula.
-  * **Range of values**: float values
-  * **Type**: float[]
+  * **Range of values**: arbitrary valid f32 value
+  * **Type**: fp32[]
   * **Default value**: None
   * **Required**: *yes*
 
 * *zps*
 
   * **Description**: offset value that maps to float zero.
-  * **Range of values**: integer values
-  * **Type**: int[]
+  * **Range of values**: arbitrary valid s64 value
+  * **Type**: s64[]
   * **Default value**: None
   * **Required**: *yes*
 
 **Inputs**:
 
 * **1**: ``input`` - quantized tensor to be dequantized. **Required.**
+  
+  * **Type**: T1
 
 **Outputs**:
 
-* **1**: ``output`` -- dequantized tensor. Data type is fp32.
+* **1**: ``output`` -- dequantized tensor.
+  
+  * **Type**: T2
+
+**Types**:
+
+* **T1**: s8, u8.
+* **T2**: f32.

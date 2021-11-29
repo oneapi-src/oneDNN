@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -24,8 +24,8 @@ function.
     in the input that is smaller than the bound, is replaced with the *min*
     value. For example, *min* equal 10 means that any value in the input that is
     smaller than the bound, is replaced by 10.
-  * **Range of values**: non-negative positive floating point number
-  * **Type**: float
+  * **Range of values**: arbitrary valid f32 value
+  * **Type**: f32
   * **Default value**: None
   * **Required**: *yes*
 
@@ -35,8 +35,8 @@ function.
     in the input that is greater than the bound, is replaced with the *max*
     value. For example, *max* equals 50 means that any value in the input that
     is greater than the bound, is replaced by 50.
-  * **Range of values**: positive floating point number
-  * **Type**: float
+  * **Range of values**: arbitrary valid f32 value
+  * **Type**: f32
   * **Default value**: None
   * **Required**: *yes*
 
@@ -44,10 +44,20 @@ function.
 
 * **1**: Multidimensional input tensor. **Required.**
 
+  * **Type**: T
+
 **Outputs**
 
 * **1**: Multidimensional output tensor with shape and type matching the input
   tensor. **Required.**
+  
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.
 
 **Detailed description**:
 

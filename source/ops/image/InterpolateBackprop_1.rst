@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -6,7 +6,7 @@
 InterpolateBackprop
 -------------------
 
-**Versioned name**: *InterpolateBackprop-4*
+**Versioned name**: *InterpolateBackprop-1*
 
 **Category**: *image processing*
 
@@ -96,7 +96,7 @@ InterpolateBackprop
     * False - do not perform anti-aliasing
     * True - perform anti-aliasing
 
-  * **Type**: boolean
+  * **Type**: bool
   * **Default value**: False
   * **Required**: *no*
 
@@ -105,9 +105,9 @@ InterpolateBackprop
   * **Description**: *pads_begin* specifies the number of pixels to add to the
     beginning of the image being interpolated. This addition of pixels is done
     before interpolation calculation.
-  * **Range of values**: list of non-negative integer numbers
-  * **Type**: ``int[]``
-  * **Default value**: ``[0]``
+  * **Range of values**: Non-negative s64 values
+  * **Type**: s64[]
+  * **Default value**: array of all ''0'', array length = rank(input)
   * **Required**: *no*
 
 * *pads_end*
@@ -115,9 +115,9 @@ InterpolateBackprop
   * **Description**: *pads_end* specifies the number of pixels to add to the end
     of the image being interpolated. This addition of pixels is done
     before interpolation calculation.
-  * **Range of values**: list of non-negative integer numbers
-  * **Type**: ``int[]``
-  * **Default value**: ``[0]``
+  * **Range of values**: Non-negative s64 values
+  * **Type**: s64[]
+  * **Default value**: array of all ''0'', array length = rank(input)
   * **Required**: *no*
 
 * *cube_coeff*
@@ -126,26 +126,33 @@ InterpolateBackprop
     interpolation (see, e.g.
     `article <https://ieeexplore.ieee.org/document/1163711/>`__). *cube_coeff*
     is used only when ``mode == cubic``.
-  * **Range of values**: floating point number
-  * **Type**: any of supported floating point type
+  * **Range of values**: arbitrary valid f32 value 
+  * **Type**: f32
   * **Default value**: ``-0.75``
   * **Required**: *no*
 
 **Inputs**
 
-* **1**: ``data`` - Input tensor with data for interpolation. Type of elements
-  is any supported floating point type. **Required.**
+* **1**: ``data`` - Input tensor with data for interpolation. **Required.**
+
+  * **Type**: T
 
 * **2**: ``output_delta`` - the gradient with respect to the output.
   **Required.**
+
+  * **Type**: T
 
 * **3**: ``sizes`` - 1D tensor describing output shape for spatial axes.
   Number of elements matches the number of indices in ``axes`` input, the order
   matches as well. **Required.**
 
-* **4**: ``scales`` - 1D tensor describing scales for spatial axes. Type of
-  elements is any supported floating point type. Number and order of elements
-  match the number and order of indices in ``axes`` input. **Required.**
+  * **Type**: s32
+
+* **4**: ``scales`` - 1D tensor describing scales for spatial axes. Number and
+  order of elements match the number and order of indices in ``axes`` input.
+  **Required.**
+
+  * **Type**: T
 
 * **5**: ``axes`` - 1D tensor specifying dimension indices where interpolation
   is applied, and ``axes`` is any unordered list of indices of different
@@ -156,8 +163,24 @@ InterpolateBackprop
   second input ``sizes``. **Optional** with default value
   ``[0,...,rank(data) - 1]``. 
 
+  * **Type**: s32
+
 **Outputs**
 
-* **1**: ``input_delta`` - the gradient tensor w.r.t. the input of Interpolate.
-* **2**: ``scales_delta`` - the gradient tensor w.r.t. the input scales of
-  Interpolate. **Required** only when ``shape_calculation_mode`` is ``scales``.
+* **1**: ``input_delta`` - the gradient tensor with respect to the input of
+  Interpolate.
+
+  * **Type**: T
+
+* **2**: ``scales_delta`` - the gradient tensor with respect to the input scales
+  of Interpolate. **Required** only when ``shape_calculation_mode`` is
+  ``scales``.
+
+  * **Type**: T
+
+**Types**:
+
+* **T**: f32, f16, bf16.
+* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
+  data type. For example, if *T* is f32, all these tensors are f32 tensor.
+
