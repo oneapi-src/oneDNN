@@ -1254,11 +1254,10 @@ inline int append_post_ops_to_arg_list_base(const exec_args_t &args,
             auto arg = args.at(
                     DNNL_ARG_ATTR_MULTIPLE_POST_OP(po_idx) | DNNL_ARG_WEIGHTS);
             assert(arg.is_const);
-            auto &binary_arg = arg.mem
+            auto &prelu_wei_arg = arg.mem
                     ? *(arg.mem->memory_storage())
                     : dnnl::impl::memory_storage_t::empty_storage();
-            arg_list.set(post_op_idx++, binary_arg);
-
+            arg_list.set(post_op_idx++, prelu_wei_arg);
         } else {
             arg_list.set(post_op_idx++, memory_storage_t::empty_storage());
         }

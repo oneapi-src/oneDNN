@@ -188,6 +188,11 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                 conv_args[DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1]
                         = args.at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
                                 | DNNL_ARG_SRC_1);
+            } else if (pd()->attr()->post_ops_.entry_[idx].is_prelu()) {
+                conv_args[DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                        | DNNL_ARG_WEIGHTS]
+                        = args.at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                | DNNL_ARG_WEIGHTS);
             }
         }
         exec_ctx_t conv_ctx(ctx, std::move(conv_args));
