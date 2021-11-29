@@ -5024,7 +5024,7 @@ private:
     // Tile size in bytes. The tile data type is:
     // - the destination data type without post-ops
     // - f32 with post-ops
-    static const int tmp_buf_size_ = 128;
+    static const int tmp_buf_size_ = 512;
     static const int pre_load_max_size_ = 512;
 
     std::vector<post_op_builder_t> post_op_builders_;
