@@ -398,9 +398,6 @@ public:
                 && (mb_thr_blk == 1 || is_src_nhwc || is_dst_nhwc))
             allow_grf_reorder = true;
 
-        // Source zero points performance is behind for small batch
-        if (mb < 8 && zp_cfg.do_src_compensation) return status::unimplemented;
-
         fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
 
