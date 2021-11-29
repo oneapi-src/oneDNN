@@ -532,6 +532,7 @@ public:
     status_t init_bwd_w(convolution_pd_t *conv_pd) {
         using namespace ir_utils;
 
+        // Determine thread blocking
         if (fma_kind == fma_kind_t::mad) {
             // Performance for small ic and small mb is worse than ocl:ncsp
             // implementation
@@ -576,23 +577,61 @@ public:
 
         kw_tg_dim = utils::div_up(kw, kw_blk);
 
-        int max_oc_thr_dim = 4;
-        int max_ic_thr_dim = 4;
+        // Set BWD_W-specific settings.
+        do_b_reduction = with_bias;
+        do_loop_unroll = (hw >= ngen::HW::XeHPC && is_dp_fma() && mb_blk > 1);
+        allow_grf_reorder = is_dp_fma();
+        do_atomic_update = true;
+#ifdef GEN_CONV_DEBUG
+        do_loop_unroll = getenv_bool("do_loop_unroll", do_loop_unroll);
+        allow_grf_reorder = getenv_bool("allow_grf_reorder", allow_grf_reorder);
+#endif
+        fixup_inference_consistency();
 
-        // Prefer larger thread groups when possible on XeHPC.
-        if (hw >= ngen::HW::XeHPC) {
-            if (oc / oc_thr_blk >= 8) {
-                max_oc_thr_dim = 8;
+        // Determine thread group dimensions
+        int oc_thr_dim, ic_thr_dim;
+        for (auto reg_count : {128, 256}) {
+            int m_thr_blk = ic_thr_blk * kw_blk;
+            int n_thr_blk = oc_thr_blk;
+            int k_thr_blk = mb_blk * ow_thr_blk;
+            int ic_dim = utils::div_up(ic, ic_thr_blk);
+            int oc_dim = utils::div_up(oc, oc_thr_blk);
+
+            int optimal_tg_size = get_optimal_tg_size(reg_count);
+            if (oc_dim >= optimal_tg_size) {
+                oc_thr_dim = optimal_tg_size;
+                ic_thr_dim = 1;
             } else {
-                max_ic_thr_dim = 8;
+                oc_thr_dim = utils::rnd_up_pow2(oc_dim);
+                ic_thr_dim = optimal_tg_size / oc_thr_dim;
+                if (ic_thr_dim > ic_dim)
+                    ic_thr_dim = utils::rnd_up_pow2(ic_dim);
             }
+
+            // tg_src =  ic_thr_blk *  ic_thr_dim * mb_blk * sp_block
+            // tg_dst =  oc_thr_blk *  oc_thr_dim * mb_blk * sp_block
+            // tg_load = tg_src + tg_dst
+            // tg_compute = m*k*n*spatial_dim
+
+            // To minimize thread group memory traffic, maximize tg_compute /
+            // tg_load. Since oc is the inner dimension in kernel_grid, prefer
+            // reusing oc_blocking for subsequent thread groups scheduled to the
+            // same subslice.
+            while (oc_thr_dim * oc_thr_blk / 4 >= ic_thr_dim * ic_thr_blk
+                    && ic_dim > ic_thr_dim) {
+                oc_thr_dim /= 2;
+                ic_thr_dim *= 2;
+            }
+            regs = reg_count;
+
+            if (!large_grf_support
+                    || regs >= estimate_register_count(m_thr_blk, oc_thr_dim,
+                               n_thr_blk, ic_thr_dim, k_thr_blk))
+                break;
         }
 
-        regs = 256;
-        tg_grid_dim[0]
-                = std::min(max_oc_thr_dim, utils::div_up(oc, oc_thr_blk));
-        tg_grid_dim[1]
-                = std::min(max_ic_thr_dim, utils::div_up(ic, ic_thr_blk));
+        tg_grid_dim[0] = oc_thr_dim;
+        tg_grid_dim[1] = ic_thr_dim;
         tg_grid_dim[2] = 1;
 
         // Round down to a power of 2.
@@ -638,12 +677,6 @@ public:
                 * oh_tg_dim * ow_tg_dim;
         kernel_grid_dim[2] = mb_tg_dim;
 
-        // Set BWD_W-specific settings.
-        do_b_reduction = with_bias;
-        do_loop_unroll = (hw >= ngen::HW::XeHPC && is_dp_fma() && mb_blk > 1);
-        allow_grf_reorder = is_dp_fma();
-        do_atomic_update = true;
-
         if (!with_sum_post_op(conv_pd)) {
             tensor_config.require_zero_out("wei");
             if (with_bias) tensor_config.require_zero_out("bia");
@@ -661,12 +694,6 @@ public:
                     "bia", bf16_layout.retype(type_t::f32()));
         }
 
-#ifdef GEN_CONV_DEBUG
-        do_loop_unroll = getenv_bool("do_loop_unroll", do_loop_unroll);
-        allow_grf_reorder = getenv_bool("allow_grf_reorder", allow_grf_reorder);
-#endif
-
-        fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
 
 #ifdef GEN_CONV_DEBUG
@@ -1802,6 +1829,18 @@ private:
     }
 
     int estimate_register_count() const {
+        int m_thr_blk = utils::div_up(m_tg_blk, tg_grid_dim[1]);
+        int m_thr_dim = tg_grid_dim[1];
+        int n_thr_blk = utils::div_up(n_tg_blk, tg_grid_dim[0]);
+        int n_thr_dim = tg_grid_dim[0];
+        int k_thr_blk = k_blk;
+        return estimate_register_count(
+                m_thr_blk, m_thr_dim, n_thr_blk, n_thr_dim, k_thr_blk);
+    }
+
+    int estimate_register_count(int m_thr_blk, int m_thr_dim, int n_thr_blk,
+            int n_thr_dim, int k_thr_blk) const {
+        int nthr = m_thr_dim * n_thr_dim;
         int reg_bytes = ngen::GRF::bytes(hw);
 
         // Assume 8 HWord per GMEM load for double-blocked layouts and 1 HWord
@@ -1814,11 +1853,6 @@ private:
 
         // Assume 8 HWords per SLM load/store.
         int slm_msg_bytes = 256;
-
-        int nthr = tg_grid_dim[0] * tg_grid_dim[1];
-        int m_thr_blk = utils::div_up(m_tg_blk, tg_grid_dim[1]);
-        int n_thr_blk = utils::div_up(n_tg_blk, tg_grid_dim[0]);
-        int k_thr_blk = k_blk;
 
         int a_size = int(types::data_type_size(a_data_type));
         int b_size = int(types::data_type_size(b_data_type));
@@ -1850,8 +1884,8 @@ private:
 
         // Size of A/B thread blocks when split full A/B TG blocks across all
         // threads in TG.
-        int a_tg_per_thr_bytes = utils::div_up(m_tg_blk * k_blk * a_size, nthr);
-        int b_tg_per_thr_bytes = utils::div_up(k_blk * n_tg_blk * b_size, nthr);
+        int a_tg_per_thr_bytes = utils::div_up(a_tile_bytes * m_thr_dim, nthr);
+        int b_tg_per_thr_bytes = utils::div_up(b_tile_bytes * n_thr_dim, nthr);
 
         // Temporary registers for GMEM -> SLM load.
         int a_g2s_bytes = (use_a_slm ? a_tg_per_thr_bytes : 0);
@@ -1925,6 +1959,12 @@ private:
         double reg_factor = (is_bwd_w && is_dp_fma()) ? 1 / 0.875 : 1 / 0.95;
         estimated_regs = std::ceil(reg_factor * estimated_regs);
         return estimated_regs;
+    }
+
+    int get_optimal_tg_size(int regs) {
+        const int eus_per_subslice = 8;
+        const int threads_per_eu = hw >= ngen::HW::XeHP && regs <= 128 ? 8 : 4;
+        return eus_per_subslice * threads_per_eu;
     }
 
     const layout_t &a_layout() const {
