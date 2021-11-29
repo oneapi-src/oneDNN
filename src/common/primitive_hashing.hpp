@@ -26,6 +26,7 @@
 #include "oneapi/dnnl/dnnl.h"
 #include "primitive_attr.hpp"
 #include "type_helpers.hpp"
+#include "primitive_hashing_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -71,8 +72,6 @@ private:
     std::thread::id thread_id_;
 };
 
-size_t get_md_hash(const memory_desc_t &md);
-size_t get_attr_hash(const primitive_attr_t &attr);
 size_t get_desc_hash(const concat_desc_t &desc);
 size_t get_desc_hash(const batch_normalization_desc_t &desc);
 size_t get_desc_hash(const binary_desc_t &desc);
@@ -94,39 +93,6 @@ size_t get_desc_hash(const shuffle_desc_t &desc);
 size_t get_desc_hash(const softmax_desc_t &desc);
 size_t get_desc_hash(const sum_desc_t &desc);
 size_t get_desc_hash(const zero_pad_desc_t &desc);
-
-template <typename T>
-size_t get_array_hash(size_t seed, const T *v, int size) {
-    for (int i = 0; i < size; i++) {
-        seed = hash_combine(seed, v[i]);
-    }
-    return seed;
-}
-
-template <>
-inline size_t get_array_hash<memory_desc_t>(
-        size_t seed, const memory_desc_t *v, int size) {
-    for (int i = 0; i < size; i++) {
-        seed = hash_combine(seed, get_md_hash(v[i]));
-    }
-    return seed;
-}
-
-inline size_t get_array_hash(
-        size_t seed, const std::vector<const memory_desc_t *> &mds) {
-    for (const auto *md : mds)
-        seed = hash_combine(seed, get_md_hash(*md));
-    return seed;
-}
-
-template <>
-inline size_t get_array_hash<data_type_t>(
-        size_t seed, const data_type_t *v, int size) {
-    for (int i = 0; i < size; i++) {
-        seed = hash_combine(seed, static_cast<size_t>(v[i]));
-    }
-    return seed;
-}
 
 } // namespace primitive_hashing
 } // namespace impl
