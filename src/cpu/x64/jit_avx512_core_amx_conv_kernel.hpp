@@ -388,6 +388,8 @@ private:
     void apply_postops(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
             const int32_t *p_sum_zp, const Xbyak::Address &addr,
             const size_t off, const bool mask_flag);
+    inline void store_output_ymm_bf16(
+            const int idx, const Xbyak::Address &addr, const bool mask_flag);
     void store_output_vector_bf16(
             const Xbyak::Zmm &zmm_out, int ocb, int h, int w);
     void store_output_vector_int8(const Xbyak::Zmm &zmm_out, int ocb, int h,

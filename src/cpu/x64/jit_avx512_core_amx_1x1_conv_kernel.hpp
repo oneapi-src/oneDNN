@@ -152,6 +152,8 @@ private:
     void store_output_vectors_int8(int ocb, int osb);
     void store_output_vector_int8(
             const Xbyak::Zmm &zmm_out, int ocb, int h, int w);
+    inline void store_output_ymm_bf16(
+            const int idx, const Xbyak::Address &addr, const bool mask_flag);
     void store_output_vectors_bf16(int ocb, int osb);
     void store_output_vector_bf16(
             const Xbyak::Zmm &zmm_out, int ocb, int h, int w);

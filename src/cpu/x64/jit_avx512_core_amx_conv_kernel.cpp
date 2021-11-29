@@ -1388,6 +1388,13 @@ void jit_avx512_core_amx_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
     }
 }
 
+void jit_avx512_core_amx_fwd_kernel_t::store_output_ymm_bf16(
+        const int idx, const Xbyak::Address &addr, const bool mask_flag) {
+    Ymm ymm_out = Ymm(idx);
+    vcvtneps2bf16(ymm_out, Zmm(idx));
+    vmovdqu16(addr, ymm_mask(ymm_out, mask_flag, true));
+}
+
 void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_bf16(
         const Zmm &zmm_out, int ocb, int h, int w) {
     const bool mask_flag = jcp.is_nspc && jcp.oc_without_padding != jcp.oc
@@ -1425,9 +1432,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_bf16(
             mask_flag);
 
     if (jcp.dst_dt == data_type::bf16) {
-        Ymm ymm_out = Ymm(zmm_out.getIdx());
-        vcvtneps2bf16(ymm_out, zmm_out);
-        vmovdqu16(addr, ymm_mask(ymm_out, mask_flag, true));
+        store_output_ymm_bf16(zmm_out.getIdx(), addr, mask_flag);
     } else {
         vmovups(addr, zmm_mask(zmm_out, mask_flag, true));
     }
@@ -1510,6 +1515,9 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_int8(
     switch (jcp.dst_dt) {
         case data_type::f32:
         case data_type::s32: vmovups(addr, zmm_out_store); break;
+        case data_type::bf16:
+            store_output_ymm_bf16(zmm_out.getIdx(), addr, mask_flag);
+            break;
         case data_type::s8: vpmovsdb(addr, zmm_out_store); break;
         case data_type::u8: vpmovusdb(addr, zmm_out_store); break;
         default: assert(!"unknown dst_dt");
@@ -2227,7 +2235,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
                     || src_d.data_type() == data_type::s8),
             weights_d.data_type() == data_type::s8,
             one_of(dst_d.data_type(), data_type::f32, data_type::s32,
-                    data_type::s8, data_type::u8));
+                    data_type::s8, data_type::u8, data_type::bf16));
 
     bool supported = false
             || (is_bf16_convolution && mayiuse(avx512_core_bf16_amx_bf16))
