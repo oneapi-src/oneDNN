@@ -205,6 +205,24 @@ static void layout_propagation_for_eltwise(op_ptr &op,
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
+static void layout_propagation_for_binary(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair
+            = create_binary_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    value_ptr dst = op->get_output_value(0);
+    fill_layout_info(dst, pd.dst_desc());
+
+    value_ptr scratchpad_val = insert_scratchpad(op);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+}
+
 static void layout_propagation_for_matmul(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
@@ -737,6 +755,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::dnnl_sum) {
                 layout_propagation_for_dnnl_sum(
                         cur_op, p_engine, prm_attr_mgr, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::dnnl_binary) {
+                layout_propagation_for_binary(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else {
                 assertm(false,
                         "none layout propagation function for current op");

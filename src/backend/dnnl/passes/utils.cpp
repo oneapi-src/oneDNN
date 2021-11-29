@@ -486,6 +486,7 @@ std::vector<value_t *> get_constant_block_output_values(
 
 impl::status_t infer_shape(std::shared_ptr<subgraph_t> &sg) {
     auto ret = sg->infer_shape();
+    if (ret != impl::status::success) return ret;
 
     // Fill the inferred shape and strides to subgraph's outputs
     for (size_t i = 0; i < sg->outs_.size(); i++) {
@@ -510,6 +511,30 @@ subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
 subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, bool reset_layout)
     : impl::graph_t(ops), p_engine_(nullptr) {
     if (reset_layout) { set_all_layout_to_any(get_mutable_ops()); }
+}
+
+const std::map<op_kind_t, dnnl::algorithm> &get_binary_alg_map() {
+    static const std::map<op_kind_t, dnnl::algorithm> &binary_alg_map = {
+            {impl::op_kind::Add, dnnl::algorithm::binary_add},
+            {impl::op_kind::Multiply, dnnl::algorithm::binary_mul},
+            {impl::op_kind::Divide, dnnl::algorithm::binary_div},
+            {impl::op_kind::Minimum, dnnl::algorithm::binary_min},
+            {impl::op_kind::Maximum, dnnl::algorithm::binary_max},
+    };
+    return binary_alg_map;
+}
+
+bool binary_doable(
+        const std::vector<dim_t> &shape_0, const std::vector<dim_t> &shape_1) {
+    const int ndims_0 = static_cast<int>(shape_0.size());
+    const int ndims_1 = static_cast<int>(shape_1.size());
+    const int small = ndims_0 < ndims_1 ? ndims_0 : ndims_1;
+    for (int i = 1; i <= small; ++i) {
+        bool match = shape_0[ndims_0 - i] == shape_1[ndims_1 - i]
+                || shape_0[ndims_0 - i] == 1 || shape_1[ndims_1 - i] == 1;
+        if (!match) return false;
+    }
+    return true;
 }
 
 } // namespace dnnl_impl

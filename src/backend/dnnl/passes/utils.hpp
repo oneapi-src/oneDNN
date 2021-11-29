@@ -268,6 +268,16 @@ std::vector<value_t *> get_constant_block_output_values(
 
 impl::status_t infer_shape(std::shared_ptr<subgraph_t> &sg);
 
+const std::map<op_kind_t, dnnl::algorithm> &get_binary_alg_map();
+
+// (3, 4) * (3, 4) is doable
+// (1, 4) * (3, 4) is doable
+// (3, 4, 5) * (4, 5) is doable
+// (3, 4, 5) * (1, 5) is doable
+// (3, 4, 5) * (2, 4, 5) is NOT doable
+bool binary_doable(
+        const std::vector<dim_t> &shape_0, const std::vector<dim_t> &shape_1);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

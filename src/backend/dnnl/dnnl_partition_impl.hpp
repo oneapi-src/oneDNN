@@ -396,7 +396,16 @@ public:
                 impl::op_kind::GELU, impl::op_kind::HardTanh,
                 impl::op_kind::Log, impl::op_kind::Pow, impl::op_kind::ReLU,
                 op_kind::relu_add, impl::op_kind::Round, impl::op_kind::Sqrt,
-                impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_sum};
+                impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_sum,
+                // f32 binary pattern
+                impl::op_kind::Add, op_kind::add_relu, op_kind::add_sigmoid,
+                op_kind::add_multiply, impl::op_kind::Multiply,
+                op_kind::multiply_add, op_kind::multiply_relu,
+                op_kind::multiply_sigmoid, impl::op_kind::Maximum,
+                op_kind::maximum_add, op_kind::maximum_relu,
+                op_kind::maximum_sigmoid, impl::op_kind::Minimum,
+                op_kind::minimum_add, op_kind::minimum_relu,
+                op_kind::minimum_sigmoid, impl::op_kind::Divide};
 
         // compile will transform the subgraph in partition, so we make
         // a copy

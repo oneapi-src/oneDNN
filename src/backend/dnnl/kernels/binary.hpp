@@ -29,8 +29,17 @@
 #include "interface/backend.hpp"
 
 #include "backend/dnnl/common.hpp"
-#include "backend/dnnl/f32_kernel_resource.hpp"
-#include "backend/dnnl/internal_ops.hpp"
+#include "backend/dnnl/constant_cache.hpp"
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/dnnl_partition_impl.hpp"
+#include "backend/dnnl/passes/compile_ops.hpp"
+#include "backend/dnnl/passes/constant_propagation.hpp"
+#include "backend/dnnl/passes/infer_type.hpp"
+#include "backend/dnnl/passes/insert_ops.hpp"
+#include "backend/dnnl/passes/layout_propagation.hpp"
+#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/passes/op_executable.hpp"
 #include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
 
@@ -56,134 +65,55 @@ enum mem_keys {
 // - When iterating over the dimension sizes, starting at the trailing
 //   dimension, the dimension sizes must either be equal, one of them is 1, or
 //   one of them does not exist.
-struct binary : public dnnl::binary, public kernel_base_t {
+struct binary : public kernel_base_t {
     using super = dnnl::binary;
 
 private:
-    primitive_desc pd_;
-    attr_t attr_;
-    dnnl::binary prim_;
-
-    std::string auto_broadcast_ {"numpy"};
-    algorithm alg_kind_;
-
-    size_t idx_src0_ {bin::kSrc0};
-    size_t idx_src1_ {bin::kSrc1};
-    size_t idx_dst_ {bin::kDst};
-
-    bool with_post_sum_ {false};
-    bool with_post_binary_ {false};
-
-    dnnl::reorder::primitive_desc dst_reorder_pd_;
-
     dnnl::engine p_engine_;
+    impl::allocator_t *g_alloc_;
 
-    registry_t registry_;
-    std::function<std::shared_ptr<f32_kernel_resource_t>()> resource_ctor_;
+    std::shared_ptr<subgraph_t> subgraph_;
+    memory_planner_t memory_planner_;
 
-    f32_kernel_resource_t::desc_t res_desc_;
-
-    bool require_broadcast(const dnnl::memory::desc &src0,
-            const dnnl::memory::desc &src1, const dnnl::memory::desc &dst) {
-        return !(src0.dims() == src1.dims() && src0.dims() == dst.dims());
-    }
-
-    // (3, 4) * (3, 4) is doable
-    // (1, 4) * (3, 4) is doable
-    // (3, 4, 5) * (4, 5) is doable
-    // (3, 4, 5) * (1, 5) is doable
-    // (3, 4, 5) * (2, 4, 5) is NOT doable
-    bool doable(const std::vector<dim_t> &shape_0,
-            const std::vector<dim_t> &shape_1) {
-        const int ndims_0 = static_cast<int>(shape_0.size());
-        const int ndims_1 = static_cast<int>(shape_1.size());
-        const int small = ndims_0 < ndims_1 ? ndims_0 : ndims_1;
-        for (int i = 1; i <= small; ++i) {
-            bool match = shape_0[ndims_0 - i] == shape_1[ndims_1 - i]
-                    || shape_0[ndims_0 - i] == 1 || shape_1[ndims_1 - i] == 1;
-            if (!match) return false;
-        }
-        return true;
-    }
-
-    /**
-     * Check if binary operator fuses add
-     *
-     * @param kind operator kind
-     * @return whether the operator fused add
-     */
-    static bool fuse_add(op_kind_t kind) {
-        static const std::unordered_set<op_kind_t, enum_hash_t> with_add_set {
-                op_kind::multiply_add, op_kind::maximum_add,
-                op_kind::minimum_add};
-        return with_add_set.find(kind) != with_add_set.end();
-    }
-
-    /**
-     * Check if binary operator fuses binary
-     *
-     * @param kind operator kind
-     * @return whether the operator fused binary
-     */
-    static bool fuse_binary(op_kind_t kind) {
-        static const std::unordered_set<op_kind_t, enum_hash_t>
-                with_binary_set {op_kind::add_multiply};
-        return with_binary_set.find(kind) != with_binary_set.end();
-    }
-
-    static algorithm get_base_algo(op_kind_t kind) {
-        switch (static_cast<int>(kind)) {
-            case impl::op_kind::Add:
-            case op_kind::add_relu:
-            case op_kind::add_sigmoid:
-            case op_kind::add_multiply: return (algorithm::binary_add);
-            case impl::op_kind::Multiply:
-            case op_kind::multiply_relu:
-            case op_kind::multiply_sigmoid:
-            case op_kind::multiply_add: return (algorithm::binary_mul);
-            case impl::op_kind::Maximum:
-            case op_kind::maximum_relu:
-            case op_kind::maximum_sigmoid:
-            case op_kind::maximum_add: return (algorithm::binary_max);
-            case impl::op_kind::Minimum:
-            case op_kind::minimum_relu:
-            case op_kind::minimum_sigmoid:
-            case op_kind::minimum_add: return (algorithm::binary_min);
-            default: return (algorithm::undef);
-        }
-    }
-
-    static algorithm get_binary_algo(op_kind_t kind) {
-        switch (static_cast<int>(kind)) {
-            case op_kind::add_multiply: return (algorithm::binary_mul);
-            default: return (algorithm::undef);
-        }
-    }
-
-    static algorithm get_eltwise_algo(op_kind_t kind) {
-        switch (static_cast<int>(kind)) {
-            case op_kind::add_relu:
-            case op_kind::multiply_relu:
-            case op_kind::maximum_relu:
-            case op_kind::minimum_relu: return (algorithm::eltwise_relu);
-            case op_kind::add_sigmoid:
-            case op_kind::multiply_sigmoid:
-            case op_kind::maximum_sigmoid:
-            case op_kind::minimum_sigmoid: return (algorithm::eltwise_logistic);
-            default: return (algorithm::undef);
-        }
-    }
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
     impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         UNUSED(g_engine);
-        if (with_post_sum_) {
-            size_t input_idx = idx_src1_ + 1;
-            constexpr size_t output_idx = 0;
 
-            const logical_tensor_wrapper_t post_src_lt(inputs[input_idx]);
-            const logical_tensor_wrapper_t dst_lt(outputs[output_idx]);
+        op_t *bin_op = nullptr;
+        for (auto &op : subgraph_->get_ops()) {
+            if (op->get_kind() == op_kind::dnnl_binary) {
+                bin_op = op.get();
+                break;
+            }
+        }
+
+        bool with_sum = bin_op->has_attr("with_sum")
+                ? bin_op->get_attr<bool>("with_sum")
+                : false;
+
+        if (with_sum) {
+            // post_src should always be the last one input of conv op
+            auto val = bin_op->get_input_value(bin_op->num_inputs() - 1);
+            if (val->has_producer()
+                    && val->get_producer().get_kind() == op_kind::permute) {
+                val = val->get_producer().get_input_value(0);
+            }
+            size_t post_src_id = val->get_logical_tensor().id;
+
+            // find the given post src index
+            size_t idx = 0;
+            for (size_t i = 0; i < inputs.size(); i++) {
+                if (inputs[i].id == post_src_id) {
+                    idx = i;
+                    break;
+                }
+            }
+
+            const logical_tensor_wrapper_t post_src_lt(inputs[idx]);
+            const logical_tensor_wrapper_t dst_lt(outputs[0]);
             // TODO(qun) we didn't report iplace pair if two lts have different
             // layout type because of frontend users didn't process this
             // situation at this moment. In the future, we need to fix this for
@@ -191,172 +121,116 @@ private:
             if (((post_src_lt.is_opaque() && dst_lt.is_opaque())
                         || (post_src_lt.is_strided() && dst_lt.is_strided()))
                     && post_src_lt.is_similar(dst_lt))
-                inplace_pairs_.push_back(
-                        {inputs[input_idx].id, outputs[output_idx].id});
+                inplace_pairs_.push_back({post_src_id, outputs[0].id});
         }
         return impl::status::success;
     }
 
 public:
     ~binary() override {
-        thread_local_cache_t<f32_kernel_resource_t> res_cache;
+        thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
 
-    impl::status_t compile_impl(const impl::op_t *op,
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using ltw = impl::logical_tensor_wrapper_t;
         using desc = dnnl::memory::desc;
 
-        if (!doable(ltw(inputs[idx_src0_]).vdims(),
-                    ltw(inputs[idx_src1_]).vdims())) {
-            return status::invalid_shape;
-        }
-
-        if (op->has_attr("auto_broadcast")) {
-            auto_broadcast_ = op->get_attr<std::string>("auto_broadcast");
-        }
-
-        alg_kind_ = get_base_algo(op->get_kind());
-        if (alg_kind_ == algorithm::undef) return status::compile_fail;
-
         p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
 
-        res_desc_.cvt_src_ = make_dnnl_memory_desc(inputs.at(idx_src0_));
-        res_desc_.cvt_src1_ = make_dnnl_memory_desc(inputs.at(idx_src1_));
-        res_desc_.cvt_dst_ = make_dnnl_memory_desc(outputs.at(idx_dst_));
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
 
-        // expand for broadcast
-        if (require_broadcast(res_desc_.cvt_src_, res_desc_.cvt_src1_,
-                    res_desc_.cvt_dst_)) {
-            if (auto_broadcast_ != "numpy") return status::compile_fail;
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
 
-            res_desc_.cvt_src_
-                    = expand(res_desc_.cvt_src_, res_desc_.cvt_dst_.data.ndims);
-            res_desc_.cvt_src1_ = expand(
-                    res_desc_.cvt_src1_, res_desc_.cvt_dst_.data.ndims);
-        }
+        // Because we use binary post-ops for broadcast add and sum post-ops for
+        // non-broadcast add. So we have to know concret shape before fuse
+        // post-ops
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
 
-        // to any for allowing dnnl choose optimal layout for dst
-        desc dst_any(res_desc_.cvt_dst_.dims(), res_desc_.cvt_dst_.data_type(),
-                format_tag::any);
+        // fuse binary post-ops need shape and type info
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
 
-        const bool with_add = fuse_add(op->get_kind());
-        const bool with_bin = fuse_binary(op->get_kind());
-        if (with_add || with_bin) {
-            const ltw dst_ltw(outputs[idx_dst_]);
-            const ltw post_src_ltw(inputs.back());
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
-            if (with_add && dst_ltw.has_same_shape_as(post_src_ltw)) {
-                with_post_sum_ = true;
-                res_desc_.cvt_post_src_ = make_dnnl_memory_desc(inputs.back());
-                attr_ = attr_t::fuse_sum();
-            } else {
-                with_post_binary_ = true;
-                if (!doable(dst_ltw.vdims(), post_src_ltw.vdims()))
-                    return status::invalid_shape;
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
-                res_desc_.cvt_post_src_ = make_dnnl_memory_desc(inputs.back());
-                res_desc_.cvt_post_src_
-                        = expand(res_desc_.cvt_post_src_, dst_ltw.ndims());
-                const auto algo = with_add ? algorithm::binary_add
-                                           : get_binary_algo(op->get_kind());
-                attr_ = attr_t::fuse_binary(res_desc_.cvt_post_src_, algo);
-            }
-        }
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
 
-        // set eltwise post-op
-        const algorithm algo = get_eltwise_algo(op->get_kind());
-        if (algo != algorithm::undef) {
-            attr_ = attr_t::fuse_eltwise(algo, 1.f, 0.f, 0.f);
-        }
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
 
-        pd_ = primitive_desc(
-                {alg_kind_, res_desc_.cvt_src_, res_desc_.cvt_src1_, dst_any},
-                attr_, p_engine_);
-
-        prim_ = super(pd_);
-
-        // Note: opt_src should be equal to cvt_src, because we don't use any
-        // for input
-        res_desc_.opt_src_ = pd_.src0_desc();
-        res_desc_.opt_src1_ = pd_.src1_desc();
-        res_desc_.opt_dst_ = pd_.dst_desc();
-        if (impl::logical_tensor_wrapper_t(outputs.at(idx_dst_)).is_any()) {
-            res_desc_.cvt_dst_ = pd_.dst_desc();
-        }
-
-        impl::logical_tensor_t *orgi_dst_lt
-                = const_cast<impl::logical_tensor_t *>(&outputs.at(idx_dst_));
-        fill_layout_info(orgi_dst_lt, pd_.dst_desc());
-
-        registrar_t registrar = registry_.registrar();
-        if (res_desc_.opt_dst_ != res_desc_.cvt_dst_) {
-            registrar.book(bin::kOpt_dst, res_desc_.opt_dst_.get_size());
-            dst_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                    res_desc_.opt_dst_, p_engine_, res_desc_.cvt_dst_);
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
         }
 
         resource_ctor_ = [this]() {
-            return std::make_shared<f32_kernel_resource_t>(
-                    this->res_desc_, this->p_engine_);
+            return this->memory_planner_.get_exec_args_set().clone();
         };
 
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::op_t *op,
+    impl::status_t execute_impl(const dnnl_partition_impl_t *part,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(op);
+        UNUSED(part);
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         // each thread's own local resource
-        thread_local_cache_t<f32_kernel_resource_t> res_cache;
-        f32_kernel_resource_t *res = res_cache.get_or_add(
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
                 reinterpret_cast<size_t>(this), resource_ctor_);
 
-        impl::allocator_t *g_alloc_ = g_stream->get_engine()->get_allocator();
+        // update the data of partition in/outputs args
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
+        }
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
+        }
+
         temporary_scratchpad_t scratchpad(
-                registry_.size(), p_engine_, *g_alloc_);
-        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
 
-        res->cvt_src_.set_data_handle(inputs.at(idx_src0_).get_data_handle());
-        res->cvt_src1_.set_data_handle(inputs.at(idx_src1_).get_data_handle());
-        res->cvt_dst_.set_data_handle(outputs.at(idx_dst_).get_data_handle());
-
-        res->opt_src_.set_data_handle(res->cvt_src_.get_data_handle());
-        res->opt_src1_.set_data_handle(res->cvt_src1_.get_data_handle());
-
-        // Deal with the dst:
-        // when create the primitive, we use any format for dst, so the
-        // optimal layout may be different from the original. we need
-        // to check this and alloc new memory for optimal dst
-        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
-            res->opt_dst_.set_data_handle(grantor.get(bin::kOpt_dst));
-        } else {
-            res->opt_dst_.set_data_handle(res->cvt_dst_.get_data_handle());
+        registry_t::key_t key = 0;
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
         }
 
-        if (with_post_binary_ || with_post_sum_) {
-            res->cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
-        }
-
-        if (with_post_sum_
-                && res->cvt_post_src_.get_data_handle()
-                        != res->opt_dst_.get_data_handle()) {
-            dnnl::reorder(res->cvt_post_src_, res->opt_dst_)
-                    .execute(p_stream, res->cvt_post_src_, res->opt_dst_);
-        }
-
-        prim_.execute(p_stream, res->exec_args_);
-
-        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
-            dnnl::reorder(dst_reorder_pd_)
-                    .execute(p_stream, res->opt_dst_, res->cvt_dst_);
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
         return impl::status::success;

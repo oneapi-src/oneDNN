@@ -231,6 +231,7 @@ TEST(CompiledPartition, AllowRepeatedInputs) {
 
     auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
             eng.kind());
+    pimpl->add_op(std::make_shared<impl::op_t>(n));
     pimpl->init(&n);
 
     impl::partition_t p;

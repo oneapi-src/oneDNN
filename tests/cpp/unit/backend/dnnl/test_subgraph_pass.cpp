@@ -156,6 +156,16 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
             agraph.get_partitions()[0]->get_ops());
     ASSERT_EQ(subgraph->get_ops().size(), 7);
 
+    // lower the binary ops in oneDNN Graph (Add, Mul, ...) to DNNL backend
+    // internal ops and canonicalize them
+    int8_data = logical_tensor_init(0, {1, 112, 112, 8}, data_type::u8);
+    s8_weight = logical_tensor_init(2, {3, 3, 8, 8}, data_type::s8);
+    fp32_bias = logical_tensor_init(4, {8}, data_type::f32);
+    s8_other = logical_tensor_init(6, {1, 110, 110, 8}, data_type::u8);
+
+    dnnl_impl::set_given_inputs_outputs(
+            subgraph, {int8_data, s8_weight, fp32_bias, s8_other}, {int8_out});
+
     dnnl_impl::split_quant_dequant(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 11);
     auto conv_op = std::find_if(subgraph->get_ops().begin(),
@@ -184,6 +194,11 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
 
     // 3. fuse output mul_scales op to conv's output scale
     dnnl_impl::fuse_output_scales(subgraph);
+
+    dnnl_impl::infer_shape(subgraph);
+    dnnl_impl::binary_canonicalization(subgraph);
+    dnnl_impl::infer_shape(subgraph);
+    dnnl_impl::infer_type(subgraph);
 
     // 4. fuse post ops to int8 conv
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), status::success);
@@ -471,6 +486,17 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     auto subgraph
             = std::make_shared<dnnl_impl::subgraph_t>(part->get_ops(), p_eng);
 
+    std::vector<logical_tensor_t> inputs
+            = {src_u8, weight_f32, bias_f32, other_s8};
+    std::vector<logical_tensor_t> outputs = {dst_s8};
+
+    dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
+
+    dnnl_impl::infer_shape(subgraph);
+    dnnl_impl::binary_canonicalization(subgraph);
+    dnnl_impl::infer_shape(subgraph);
+    dnnl_impl::infer_type(subgraph);
+
     // run lower down passes
     dnnl_impl::check_with_bias(subgraph);
     dnnl_impl::split_quant_dequant(subgraph);
@@ -500,10 +526,6 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 
     dnnl_impl::insert_to_group_for_conv_or_deconv(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 8);
-
-    std::vector<logical_tensor_t> inputs
-            = {src_u8, weight_f32, bias_f32, other_s8};
-    std::vector<logical_tensor_t> outputs = {dst_s8};
 
     std::vector<logical_tensor_t> wrong_inputs = {src_u8, weight_s8, bias_f32};
     std::vector<logical_tensor_t> wrong_outputs = {};

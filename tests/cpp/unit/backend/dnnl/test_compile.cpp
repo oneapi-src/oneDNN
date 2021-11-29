@@ -867,11 +867,7 @@ TEST(Execute, Add) {
     test::vector<float> ref_dst {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t add_op(impl::op_kind::Add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto add_kernel = op_factory.create_kernel(add_op);
-    ASSERT_TRUE(add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
@@ -879,20 +875,42 @@ TEST(Execute, Add) {
             = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             2, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
-    // compile the add operator
-    std::vector<impl::logical_tensor_t> inputs {src0_lt, src1_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-    add_kernel->compile(&add_op, &eng, inputs, outputs);
+
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::any);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(compiled_dst_lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    add_kernel->execute(&add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -908,9 +926,8 @@ TEST(Execute, Add) {
 
     impl::tensor_t src0_2nd_ts(src0_lt, &eng, src0_2nd.data());
     impl::tensor_t src1_2nd_ts(src1_lt, &eng, src1_2nd.data());
-    impl::tensor_t dst_2nd_ts(outputs[0], &eng, dst_2nd.data());
-    add_kernel->execute(
-            &add_op, &strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
+    impl::tensor_t dst_2nd_ts(compiled_dst_lt, &eng, dst_2nd.data());
+    cp.execute(&strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0_2nd.size(); ++i) {
@@ -926,11 +943,7 @@ TEST(Execute, AddWithDifferentFormat) {
     test::vector<float> ref_dst {2.0, 5.0, 8.0, 3.0, 6.0, 9.0, 4.0, 7.0, 10.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t add_op(impl::op_kind::Add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto add_kernel = op_factory.create_kernel(add_op);
-    ASSERT_TRUE(add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 1, 3, 3}, impl::data_type::f32);
@@ -938,15 +951,39 @@ TEST(Execute, AddWithDifferentFormat) {
             1, {1, 1, 3, 3}, {3, 3, 1, 3}, impl::data_type::f32); // abdc format
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 1, 3, 3}, impl::data_type::f32);
-    // compile the add operator
-    add_kernel->compile(&add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    add_kernel->execute(&add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -965,11 +1002,7 @@ TEST(Execute, BroadcastAdd) {
             3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t broadcast_add_op(impl::op_kind::Add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto broadcast_add_kernel = op_factory.create_kernel(broadcast_add_op);
-    ASSERT_TRUE(broadcast_add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 2, 3, 3}, impl::data_type::f32);
@@ -980,17 +1013,38 @@ TEST(Execute, BroadcastAdd) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 2, 3, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    broadcast_add_kernel->compile(
-            &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    broadcast_add_kernel->execute(
-            &broadcast_add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -1007,9 +1061,8 @@ TEST(Execute, BroadcastAdd) {
 
     impl::tensor_t src0_2nd_ts(src0_lt, &eng, src0_2nd.data());
     impl::tensor_t src1_2nd_ts(src1_lt, &eng, src1_2nd.data());
-    impl::tensor_t dst_2nd_ts(dst_lt, &eng, dst_2nd.data());
-    broadcast_add_kernel->execute(
-            &broadcast_add_op, &strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
+    impl::tensor_t dst_2nd_ts(compiled_dst_lt, &eng, dst_2nd.data());
+    cp.execute(&strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0_2nd.size(); ++i) {
@@ -1025,11 +1078,7 @@ TEST(Execute, MultidirectionalBroadcastAddBA) {
     test::vector<float> ref_dst {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(ref_dst.size(), 0.0);
 
-    impl::op_t broadcast_add_op(impl::op_kind::Add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto broadcast_add_kernel = op_factory.create_kernel(broadcast_add_op);
-    ASSERT_TRUE(broadcast_add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {3}, impl::data_type::f32);
@@ -1038,17 +1087,38 @@ TEST(Execute, MultidirectionalBroadcastAddBA) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {3, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    broadcast_add_kernel->compile(
-            &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    broadcast_add_kernel->execute(
-            &broadcast_add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst.size(); ++i) {
@@ -1064,9 +1134,8 @@ TEST(Execute, MultidirectionalBroadcastAddBA) {
 
     impl::tensor_t src0_2nd_ts(src0_lt, &eng, src0_2nd.data());
     impl::tensor_t src1_2nd_ts(src1_lt, &eng, src1_2nd.data());
-    impl::tensor_t dst_2nd_ts(dst_lt, &eng, dst_2nd.data());
-    broadcast_add_kernel->execute(
-            &broadcast_add_op, &strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
+    impl::tensor_t dst_2nd_ts(compiled_dst_lt, &eng, dst_2nd.data());
+    cp.execute(&strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst_2nd.size(); ++i) {
@@ -1082,11 +1151,7 @@ TEST(Execute, multidirectionalbBroadcastAddAB) {
     test::vector<float> ref_dst {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(ref_dst.size(), 0.0);
 
-    impl::op_t broadcast_add_op(impl::op_kind::Add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto broadcast_add_kernel = op_factory.create_kernel(broadcast_add_op);
-    ASSERT_TRUE(broadcast_add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {3, 1}, impl::data_type::f32);
@@ -1095,17 +1160,38 @@ TEST(Execute, multidirectionalbBroadcastAddAB) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {3, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    broadcast_add_kernel->compile(
-            &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    broadcast_add_kernel->execute(
-            &broadcast_add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst.size(); ++i) {
@@ -1121,11 +1207,7 @@ TEST(Execute, MultidirectionalBroadcastAdd) {
     test::vector<float> ref_dst(24, 3.0);
     test::vector<float> dst(ref_dst.size(), 0.0);
 
-    impl::op_t broadcast_add_op(impl::op_kind::Add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto broadcast_add_kernel = op_factory.create_kernel(broadcast_add_op);
-    ASSERT_TRUE(broadcast_add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {2, 1, 4}, impl::data_type::f32);
@@ -1134,17 +1216,38 @@ TEST(Execute, MultidirectionalBroadcastAdd) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {2, 3, 4}, impl::data_type::f32);
 
-    // compile the add operator
-    broadcast_add_kernel->compile(
-            &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    broadcast_add_kernel->execute(
-            &broadcast_add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst.size(); ++i) {
@@ -1160,11 +1263,7 @@ TEST(Execute, MultidirectionalBroadcastAddExpandDim) {
     test::vector<float> ref_dst(24, 3.0);
     test::vector<float> dst(ref_dst.size(), 0.0);
 
-    impl::op_t broadcast_add_op(impl::op_kind::Add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto broadcast_add_kernel = op_factory.create_kernel(broadcast_add_op);
-    ASSERT_TRUE(broadcast_add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {2, 1, 1}, impl::data_type::f32);
@@ -1173,17 +1272,38 @@ TEST(Execute, MultidirectionalBroadcastAddExpandDim) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {2, 3, 4}, impl::data_type::f32);
 
-    // compile the add operator
-    broadcast_add_kernel->compile(
-            &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    broadcast_add_kernel->execute(
-            &broadcast_add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst.size(); ++i) {
@@ -1194,11 +1314,7 @@ TEST(Execute, MultidirectionalBroadcastAddExpandDim) {
 TEST(Compile, AddShapeMismatchCase0) {
     impl::engine_t &eng = get_engine();
 
-    impl::op_t add_op(impl::op_kind::Add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto add_kernel = op_factory.create_kernel(add_op);
-    ASSERT_TRUE(add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {8, 4, 256}, impl::data_type::f32);
@@ -1207,8 +1323,28 @@ TEST(Compile, AddShapeMismatchCase0) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {8, 4, 256}, impl::data_type::f32);
 
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    auto ret = p.compile(&cp, inputs, outputs, &eng);
+
     // compile the add operator
-    auto ret = add_kernel->compile(&add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
     ASSERT_EQ(ret, impl::status::invalid_shape);
 }
 
@@ -1217,10 +1353,6 @@ TEST(Compile, AddShapeMismatch1) {
 
     impl::op_t add_op(impl::op_kind::Add);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto add_kernel = op_factory.create_kernel(add_op);
-    ASSERT_TRUE(add_kernel);
-
     impl::logical_tensor_t src0_lt = utils::logical_tensor_init(
             0, {8, 15, 5, 7}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
@@ -1228,8 +1360,28 @@ TEST(Compile, AddShapeMismatch1) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             2, {8, 15, 5, 7}, impl::data_type::f32);
 
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    auto ret = p.compile(&cp, inputs, outputs, &eng);
+
     // compile the add operator
-    auto ret = add_kernel->compile(&add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
     ASSERT_EQ(ret, impl::status::success);
 }
 
@@ -1237,10 +1389,6 @@ TEST(Compile, AddShapeMismatch2) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t add_op(impl::op_kind::Add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto add_kernel = op_factory.create_kernel(add_op);
-    ASSERT_TRUE(add_kernel);
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1}, impl::data_type::f32);
@@ -1250,7 +1398,27 @@ TEST(Compile, AddShapeMismatch2) {
             2, {8, 15, 5, 7}, impl::data_type::f32);
 
     // compile the add operator
-    auto ret = add_kernel->compile(&add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    auto ret = p.compile(&cp, inputs, outputs, &eng);
+
     ASSERT_EQ(ret, impl::status::success);
 }
 
@@ -1264,11 +1432,7 @@ TEST(Execute, ReversedDifferentFormatBroadcastAdd) {
             2.0, 5.0, 8.0, 3.0, 6.0, 9.0, 4.0, 7.0, 10.0};
     test::vector<float> dst(src1.size(), 0.0);
 
-    impl::op_t broadcast_add_op(impl::op_kind::Add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto broadcast_add_kernel = op_factory.create_kernel(broadcast_add_op);
-    ASSERT_TRUE(broadcast_add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
 
     // we reverse the order of src0 and src1
     impl::logical_tensor_t src1_lt
@@ -1278,17 +1442,36 @@ TEST(Execute, ReversedDifferentFormatBroadcastAdd) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 2, 3, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    broadcast_add_kernel->compile(
-            &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    broadcast_add_kernel->execute(
-            &broadcast_add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -1364,33 +1547,57 @@ TEST(Execute, AddMul) {
     test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t add_op(impl::dnnl_impl::op_kind::add_multiply);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto add_kernel = op_factory.create_kernel(add_op);
-    ASSERT_TRUE(add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
+    impl::op_t mul_op(1, impl::op_kind::Multiply, "mul");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            2, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
     impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
+            = utils::logical_tensor_init(3, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            3, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+            4, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src0_lt, src1_lt, post_src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-    add_kernel->compile(&add_op, &eng, inputs, outputs);
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(add_dst_lt);
+    mul_op.add_input(add_dst_lt);
+    mul_op.add_input(post_src_lt);
+    mul_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.add_op(&mul_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("binary_add_multiply_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src0_lt, &src1_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
     impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    add_kernel->execute(
-            &add_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -1408,33 +1615,56 @@ TEST(Execute, AddMulPostSrcAsNxc) {
             3.0, 12.0, 21.0, 6.0, 15.0, 24.0, 9.0, 18.0, 27.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t add_op(impl::dnnl_impl::op_kind::add_multiply);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto add_kernel = op_factory.create_kernel(add_op);
-    ASSERT_TRUE(add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
+    impl::op_t mul_op(1, impl::op_kind::Multiply, "mul");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            2, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
     impl::logical_tensor_t post_src_lt = utils::logical_tensor_init(
-            2, {1, 3, 3}, {9, 1, 3}, impl::data_type::f32);
+            3, {1, 3, 3}, {9, 1, 3}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            3, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+            4, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src0_lt, src1_lt, post_src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-    add_kernel->compile(&add_op, &eng, inputs, outputs);
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(add_dst_lt);
+    mul_op.add_input(add_dst_lt);
+    mul_op.add_input(post_src_lt);
+    mul_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.add_op(&mul_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("binary_add_multiply_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src0_lt, &src1_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
     impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    add_kernel->execute(
-            &add_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -1450,32 +1680,55 @@ TEST(Execute, AddRelu) {
     test::vector<float> ref_dst {0.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t add_op(impl::dnnl_impl::op_kind::add_relu);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto add_kernel = op_factory.create_kernel(add_op);
-    ASSERT_TRUE(add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
+    impl::op_t relu_op(1, impl::op_kind::ReLU, "relu");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+    impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
             2, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
-    // compile the add operator
-    std::vector<impl::logical_tensor_t> inputs {src0_lt, src1_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-    add_kernel->compile(&add_op, &eng, inputs, outputs);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(add_dst_lt);
+    relu_op.add_input(add_dst_lt);
+    relu_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.add_op(&relu_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("binary_add_relu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::any);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(compiled_dst_lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    add_kernel->execute(&add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -1492,32 +1745,53 @@ TEST(Execute, AddSigmoid) {
     test::vector<float> ref_dst {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t add_op(impl::dnnl_impl::op_kind::add_sigmoid);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto add_kernel = op_factory.create_kernel(add_op);
-    ASSERT_TRUE(add_kernel);
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
+    impl::op_t sigmoid_op(1, impl::op_kind::Sigmoid, "sigmoid");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+    impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
             2, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
-    // compile the add operator
-    std::vector<impl::logical_tensor_t> inputs {src0_lt, src1_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
-    add_kernel->compile(&add_op, &eng, inputs, outputs);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(add_dst_lt);
+    sigmoid_op.add_input(add_dst_lt);
+    sigmoid_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.add_op(&sigmoid_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("binary_add_sigmoid_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::any);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(compiled_dst_lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    add_kernel->execute(&add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -1525,368 +1799,248 @@ TEST(Execute, AddSigmoid) {
     }
 }
 
-TEST(Execute, Mul) {
+TEST(Execute, BinaryOp) {
     impl::engine_t &eng = get_engine();
 
-    test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
-    test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
-    test::vector<float> ref_dst {4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0};
+    std::vector<impl::op_kind_t> op_kinds
+            = {impl::op_kind::Multiply, impl::op_kind::Minimum,
+                    impl::op_kind::Maximum, impl::op_kind::Divide};
+    std::vector<std::string> pass_names
+            = {"mul_pass", "min_pass", "max_pass", "div_pass"};
+
+    test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
+    test::vector<float> src1 {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t mul_op(impl::op_kind::Multiply);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto mul_kernel = op_factory.create_kernel(mul_op);
-    ASSERT_TRUE(mul_kernel);
-
-    impl::logical_tensor_t src0_lt
+    auto src0_lt
             = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t src1_lt
+    auto src1_lt
             = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
+    auto dst_lt
             = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    mul_kernel->compile(&mul_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    for (size_t i = 0; i < op_kinds.size(); i++) {
+        impl::op_t binary_op(op_kinds[i]);
 
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+        binary_op.add_input(src0_lt);
+        binary_op.add_input(src1_lt);
+        binary_op.add_output(dst_lt);
 
-    impl::stream_t &strm = get_stream();
-    mul_kernel->execute(&mul_op, &strm, {src0_ts, src1_ts}, {dst_ts});
-    strm.wait();
+        impl::graph_t g(eng.kind());
+        g.add_op(&binary_op);
+        g.build_graph();
 
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+        p.compile(&cp, inputs, outputs, &eng);
+
+        impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+        impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
+        strm.wait();
     }
 }
 
-TEST(Execute, MulRelu) {
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src0 {-2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
-    test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
-    test::vector<float> ref_dst {0.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0};
-    test::vector<float> dst(src0.size(), 0.0);
-
-    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_relu);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto mul_kernel = op_factory.create_kernel(mul_op);
-    ASSERT_TRUE(mul_kernel);
-
-    impl::logical_tensor_t src0_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t src1_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
-
-    // compile the add operator
-    mul_kernel->compile(&mul_op, &eng, {src0_lt, src1_lt}, {dst_lt});
-
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    mul_kernel->execute(&mul_op, &strm, {src0_ts, src1_ts}, {dst_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(Execute, MulSigmoid) {
+TEST(Execute, MulEltwise) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
     test::vector<float> src1 {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    test::vector<float> ref_dst {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
     test::vector<float> dst(src0.size(), 0.0);
-
-    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_sigmoid);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto mul_kernel = op_factory.create_kernel(mul_op);
-    ASSERT_TRUE(mul_kernel);
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
+    impl::logical_tensor_t mul_dst_lt
             = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 3, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    mul_kernel->compile(&mul_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    std::vector<impl::op_kind_t> eltwise_ops
+            = {impl::op_kind::ReLU, impl::op_kind::Sigmoid};
+    std::vector<std::string> pass_names
+            = {"binary_multiply_relu_fusion", "binary_mul_sigmoid_fusion"};
 
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    for (size_t i = 0; i < eltwise_ops.size(); i++) {
+        impl::op_t mul_op(0, impl::op_kind::Multiply, "mul");
+        impl::op_t eltwise_op(1, eltwise_ops[i], "eltwise");
 
-    impl::stream_t &strm = get_stream();
-    mul_kernel->execute(&mul_op, &strm, {src0_ts, src1_ts}, {dst_ts});
-    strm.wait();
+        mul_op.add_input(src0_lt);
+        mul_op.add_input(src1_lt);
+        mul_op.add_output(mul_dst_lt);
+        eltwise_op.add_input(mul_dst_lt);
+        eltwise_op.add_output(dst_lt);
 
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        impl::graph_t g(eng.kind());
+        g.add_op(&mul_op);
+        g.add_op(&eltwise_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
+        ASSERT_NE(apass.get(), nullptr);
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+        std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+        p.compile(&cp, inputs, outputs, &eng);
+
+        impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+        impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
+        strm.wait();
     }
 }
 
-TEST(Execute, MulAdd) {
+TEST(Execute, BinaryOpAddFusion) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
     test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
     test::vector<float> post_src {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
-    test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
     test::vector<float> dst(src0.size(), 0.0);
-
-    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto mul_kernel = op_factory.create_kernel(mul_op);
-    ASSERT_TRUE(mul_kernel);
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t tmp_dst_lt
+            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(3, {1, 3, 3}, impl::data_type::f32);
-
-    // compile the add operator
-    mul_kernel->compile(
-            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
-
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    mul_kernel->execute(
-            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-
-    mul_kernel->execute(
-            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {post_src_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(post_src[i], ref_dst[i]);
-    }
-}
-
-TEST(Execute, Min) {
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
-    test::vector<float> src1 {1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0};
-    test::vector<float> ref_dst {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-    test::vector<float> dst(src0.size(), 0.0);
-
-    impl::op_t max_op(impl::op_kind::Minimum);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto max_kernel = op_factory.create_kernel(max_op);
-    ASSERT_TRUE(max_kernel);
-
-    impl::logical_tensor_t src0_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t src1_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
+            = utils::logical_tensor_init(4, {1, 3, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    max_kernel->compile(&max_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    std::vector<impl::op_kind_t> bin_ops = {impl::op_kind::Multiply,
+            impl::op_kind::Maximum, impl::op_kind::Minimum};
+    std::vector<std::string> pass_names = {"binary_multiply_add_fusion",
+            "binary_maximum_add_fusion", "binary_minimum_add_fusion"};
 
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    for (size_t i = 0; i < bin_ops.size(); i++) {
+        impl::op_t bin_op(0, bin_ops[i], "bin");
+        impl::op_t add_op(1, impl::op_kind::Add, "add");
 
-    impl::stream_t &strm = get_stream();
-    max_kernel->execute(&max_op, &strm, {src0_ts, src1_ts}, {dst_ts});
-    strm.wait();
+        bin_op.add_input(src0_lt);
+        bin_op.add_input(src1_lt);
+        bin_op.add_output(tmp_dst_lt);
+        add_op.add_input(tmp_dst_lt);
+        add_op.add_input(post_src_lt);
+        add_op.add_output(dst_lt);
 
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        impl::graph_t g(eng.kind());
+        g.add_op(&bin_op);
+        g.add_op(&add_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src0_lt, &src1_lt, &post_src_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+        p.compile(&cp, inputs, outputs, &eng);
+
+        impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+        impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+        impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+        strm.wait();
     }
 }
 
-TEST(Execute, MinRelu) {
+TEST(Execute, MinEltwise) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
     test::vector<float> src1 {-1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0};
-    test::vector<float> ref_dst {0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
     test::vector<float> dst(src0.size(), 0.0);
-
-    impl::op_t max_op(impl::dnnl_impl::op_kind::minimum_relu);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto max_kernel = op_factory.create_kernel(max_op);
-    ASSERT_TRUE(max_kernel);
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
-
-    // compile the add operator
-    max_kernel->compile(&max_op, &eng, {src0_lt, src1_lt}, {dst_lt});
-
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    max_kernel->execute(&max_op, &strm, {src0_ts, src1_ts}, {dst_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(Execute, MinSigmoid) {
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
-    test::vector<float> src1 {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    test::vector<float> ref_dst {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
-    test::vector<float> dst(src0.size(), 0.0);
-
-    impl::op_t max_op(impl::dnnl_impl::op_kind::minimum_sigmoid);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto max_kernel = op_factory.create_kernel(max_op);
-    ASSERT_TRUE(max_kernel);
-
-    impl::logical_tensor_t src0_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t src1_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
-
-    // compile the add operator
-    max_kernel->compile(&max_op, &eng, {src0_lt, src1_lt}, {dst_lt});
-
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    max_kernel->execute(&max_op, &strm, {src0_ts, src1_ts}, {dst_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(Execute, MinAdd) {
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-    test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
-    test::vector<float> post_src {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
-    test::vector<float> ref_dst {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
-    test::vector<float> dst(src0.size(), 0.0);
-
-    impl::op_t min_op(impl::dnnl_impl::op_kind::minimum_add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto min_kernel = op_factory.create_kernel(min_op);
-    ASSERT_TRUE(min_kernel);
-
-    impl::logical_tensor_t src0_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t src1_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t post_src_lt
+    impl::logical_tensor_t min_dst_lt
             = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(3, {1, 3, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    min_kernel->compile(
-            &min_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+    std::vector<impl::op_kind_t> eltwise_ops
+            = {impl::op_kind::ReLU, impl::op_kind::Sigmoid};
+    std::vector<std::string> pass_names
+            = {"binary_minimum_relu_fusion", "binary_min_sigmoid_fusion"};
 
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    for (size_t i = 0; i < eltwise_ops.size(); i++) {
+        impl::op_t min_op(0, impl::op_kind::Minimum, "min");
+        impl::op_t eltwise_op(1, eltwise_ops[i], "eltwise");
 
-    impl::stream_t &strm = get_stream();
-    min_kernel->execute(
-            &min_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
-    strm.wait();
+        min_op.add_input(src0_lt);
+        min_op.add_input(src1_lt);
+        min_op.add_output(min_dst_lt);
+        eltwise_op.add_input(min_dst_lt);
+        eltwise_op.add_output(dst_lt);
 
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
+        impl::graph_t g(eng.kind());
+        g.add_op(&min_op);
+        g.add_op(&eltwise_op);
+        g.build_graph();
 
-    min_kernel->execute(
-            &min_op, &strm, {src0_ts, src1_ts, post_src_ts}, {post_src_ts});
-    strm.wait();
+        impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
+        ASSERT_NE(apass.get(), nullptr);
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
 
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(post_src[i], ref_dst[i]);
-    }
-}
+        impl::partition_t p;
+        p.init(part);
 
-TEST(Execute, Max) {
-    impl::engine_t &eng = get_engine();
+        impl::compiled_partition_t cp(p);
+        std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+        p.compile(&cp, inputs, outputs, &eng);
 
-    test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
-    test::vector<float> src1 {1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0};
-    test::vector<float> ref_dst {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
-    test::vector<float> dst(src0.size(), 0.0);
+        impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+        impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
-    impl::op_t min_op(impl::op_kind::Maximum);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto min_kernel = op_factory.create_kernel(min_op);
-    ASSERT_TRUE(min_kernel);
-
-    impl::logical_tensor_t src0_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t src1_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
-
-    // compile the add operator
-    min_kernel->compile(&min_op, &eng, {src0_lt, src1_lt}, {dst_lt});
-
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    min_kernel->execute(&min_op, &strm, {src0_ts, src1_ts}, {dst_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
+        strm.wait();
     }
 }
 
-TEST(Execute, MaxRelu) {
+TEST(Execute, MaxEltwise) {
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src0 {-2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
@@ -1894,121 +2048,56 @@ TEST(Execute, MaxRelu) {
     test::vector<float> ref_dst {0.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t min_op(impl::dnnl_impl::op_kind::maximum_relu);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto min_kernel = op_factory.create_kernel(min_op);
-    ASSERT_TRUE(min_kernel);
-
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
-
-    // compile the add operator
-    min_kernel->compile(&min_op, &eng, {src0_lt, src1_lt}, {dst_lt});
-
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    min_kernel->execute(&min_op, &strm, {src0_ts, src1_ts}, {dst_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(Execute, MaxSigmoid) {
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src0 {
-            -2.0, -1.0, -2.0, -1.0, -2.0, -1.0, -2.0, -1.0, -2.0};
-    test::vector<float> src1 {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    test::vector<float> ref_dst {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
-    test::vector<float> dst(src0.size(), 0.0);
-
-    impl::op_t min_op(impl::dnnl_impl::op_kind::maximum_sigmoid);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto min_kernel = op_factory.create_kernel(min_op);
-    ASSERT_TRUE(min_kernel);
-
-    impl::logical_tensor_t src0_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t src1_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
-
-    // compile the add operator
-    min_kernel->compile(&min_op, &eng, {src0_lt, src1_lt}, {dst_lt});
-
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-
-    impl::stream_t &strm = get_stream();
-    min_kernel->execute(&min_op, &strm, {src0_ts, src1_ts}, {dst_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
-}
-
-TEST(Execute, MaxAdd) {
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-    test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
-    test::vector<float> post_src {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
-    test::vector<float> ref_dst {4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0};
-    test::vector<float> dst(src0.size(), 0.0);
-
-    impl::op_t max_op(impl::dnnl_impl::op_kind::maximum_add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto max_kernel = op_factory.create_kernel(max_op);
-    ASSERT_TRUE(max_kernel);
-
-    impl::logical_tensor_t src0_lt
-            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t src1_lt
-            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t post_src_lt
+    impl::logical_tensor_t max_dst_lt
             = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(3, {1, 3, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    max_kernel->compile(
-            &max_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+    std::vector<impl::op_kind_t> eltwise_ops
+            = {impl::op_kind::ReLU, impl::op_kind::Sigmoid};
+    std::vector<std::string> pass_names
+            = {"binary_maximum_relu_fusion", "binary_max_sigmoid_fusion"};
 
-    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
-    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
-    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    for (size_t i = 0; i < eltwise_ops.size(); i++) {
+        impl::op_t max_op(0, impl::op_kind::Maximum, "max");
+        impl::op_t eltwise_op(1, eltwise_ops[i], "eltwise");
 
-    impl::stream_t &strm = get_stream();
-    max_kernel->execute(
-            &max_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
-    strm.wait();
+        max_op.add_input(src0_lt);
+        max_op.add_input(src1_lt);
+        max_op.add_output(max_dst_lt);
+        eltwise_op.add_input(max_dst_lt);
+        eltwise_op.add_output(dst_lt);
 
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-    }
+        impl::graph_t g(eng.kind());
+        g.add_op(&max_op);
+        g.add_op(&eltwise_op);
+        g.build_graph();
 
-    max_kernel->execute(
-            &max_op, &strm, {src0_ts, src1_ts, post_src_ts}, {post_src_ts});
-    strm.wait();
+        impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
+        ASSERT_NE(apass.get(), nullptr);
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
 
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(post_src[i], ref_dst[i]);
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+        std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+        p.compile(&cp, inputs, outputs, &eng);
+
+        impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+        impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
+        strm.wait();
     }
 }
 
@@ -3504,7 +3593,7 @@ TEST(Compile, MatmulBiasAddUnsupportedBroadcast) {
         std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
 
         ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine),
-                impl::status::compile_fail);
+                impl::status::invalid_shape);
     }
 }
 
@@ -7643,7 +7732,7 @@ TEST(Execute, TypecastQuantize) {
     quantize.add_input(src_f32);
     quantize.add_output(dst_int8);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&typecast), impl::status::success);
     ASSERT_EQ(g.add_op(&quantize), impl::status::success);
     g.build_graph();
@@ -13082,24 +13171,46 @@ TEST(Execute, MulAddPerTensorBroadcast) {
     test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto mul_kernel = op_factory.create_kernel(mul_op);
-    ASSERT_TRUE(mul_kernel);
+    impl::op_t mul_op(0, impl::op_kind::Multiply, "mul");
+    impl::op_t add_op(1, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t mul_dst_lt
+            = utils::logical_tensor_init(2, {1, 1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+            = utils::logical_tensor_init(3, {1}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 3, 3}, impl::data_type::f32);
+            = utils::logical_tensor_init(4, {1, 1, 3, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    mul_kernel->compile(
-            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+    mul_op.add_input(src0_lt);
+    mul_op.add_input(src1_lt);
+    mul_op.add_output(mul_dst_lt);
+    add_op.add_input(mul_dst_lt);
+    add_op.add_input(post_src_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&mul_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("binary_multiply_add_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src0_lt, &src1_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    p.compile(&cp, inputs, outputs, &eng);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
@@ -13107,8 +13218,7 @@ TEST(Execute, MulAddPerTensorBroadcast) {
     impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    mul_kernel->execute(
-            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -13125,24 +13235,46 @@ TEST(Execute, MulAddPerHwBroadcast) {
     test::vector<float> ref_dst(18, 6.0);
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto mul_kernel = op_factory.create_kernel(mul_op);
-    ASSERT_TRUE(mul_kernel);
+    impl::op_t mul_op(0, impl::op_kind::Multiply, "mul");
+    impl::op_t add_op(1, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 2, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t mul_dst_lt
+            = utils::logical_tensor_init(2, {1, 3, 2, 3}, impl::data_type::f32);
     impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {2, 3}, impl::data_type::f32);
+            = utils::logical_tensor_init(3, {2, 3}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 3, 2, 3}, impl::data_type::f32);
+            = utils::logical_tensor_init(4, {1, 3, 2, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    mul_kernel->compile(
-            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+    mul_op.add_input(src0_lt);
+    mul_op.add_input(src1_lt);
+    mul_op.add_output(mul_dst_lt);
+    add_op.add_input(mul_dst_lt);
+    add_op.add_input(post_src_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&mul_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("binary_multiply_add_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src0_lt, &src1_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
@@ -13150,8 +13282,7 @@ TEST(Execute, MulAddPerHwBroadcast) {
     impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    mul_kernel->execute(
-            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -13168,24 +13299,46 @@ TEST(Execute, MulAddPerChannelBroadcast) {
     test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::op_t mul_op(impl::dnnl_impl::op_kind::multiply_add);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto mul_kernel = op_factory.create_kernel(mul_op);
-    ASSERT_TRUE(mul_kernel);
+    impl::op_t mul_op(0, impl::op_kind::Multiply, "mul");
+    impl::op_t add_op(1, impl::op_kind::Add, "add");
 
     impl::logical_tensor_t src0_lt
             = utils::logical_tensor_init(0, {1, 3, 1, 3}, impl::data_type::f32);
     impl::logical_tensor_t src1_lt
             = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t mul_dst_lt
+            = utils::logical_tensor_init(2, {1, 3, 1, 3}, impl::data_type::f32);
     impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {3, 1, 1}, impl::data_type::f32);
+            = utils::logical_tensor_init(3, {3, 1, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 3, 1, 3}, impl::data_type::f32);
+            = utils::logical_tensor_init(4, {1, 3, 1, 3}, impl::data_type::f32);
 
-    // compile the add operator
-    mul_kernel->compile(
-            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+    mul_op.add_input(src0_lt);
+    mul_op.add_input(src1_lt);
+    mul_op.add_output(mul_dst_lt);
+    add_op.add_input(mul_dst_lt);
+    add_op.add_input(post_src_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&mul_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("binary_multiply_add_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src0_lt, &src1_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    p.compile(&cp, inputs, outputs, &eng);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
@@ -13193,8 +13346,7 @@ TEST(Execute, MulAddPerChannelBroadcast) {
     impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    mul_kernel->execute(
-            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
     strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
@@ -13517,7 +13669,7 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
             matmul_op.add_input(weight_bf16);
             matmul_op.add_output(dst_bf16);
 
-            impl::graph_t g;
+            impl::graph_t g(engine.kind());
             g.add_op(&dqdata_op);
             g.add_op(&dqweight_op);
             g.add_op(&matmul_op);
@@ -13655,7 +13807,7 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
             binary_op.add_input(div_src1);
             binary_op.add_output(div_bf16);
 
-            impl::graph_t g;
+            impl::graph_t g(engine.kind());
             ASSERT_EQ(g.add_op(&dqdata_op), impl::status::success);
             ASSERT_EQ(g.add_op(&dqweight_op), impl::status::success);
             ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
@@ -14520,7 +14672,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
     qout_op.add_input(matmul_f32);
     qout_op.add_output(dst_u8);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     g.add_op(&dqdata_op);
     g.add_op(&dqweight_op);
     g.add_op(&matmul_op);

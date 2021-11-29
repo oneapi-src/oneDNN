@@ -168,6 +168,50 @@ void memory_planner_t::prepare_args_for_conv_and_matmul(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
+void memory_planner_t::prepare_args_for_binary(op_t *op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+    exec_args args;
+
+    memory mem;
+    size_t index = 0;
+
+    // add input args
+    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
+    args.insert({DNNL_ARG_SRC_0, mem});
+
+    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
+    args.insert({DNNL_ARG_SRC_1, mem});
+
+    dnnl::primitive_attr prm_attr = op->has_attr("primitive_attr_key")
+            ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
+            : dnnl::primitive_attr();
+    dnnl::post_ops pops = prm_attr.get_post_ops();
+    for (int i = 0; i < pops.len(); i++) {
+        if (pops.kind(i) == dnnl::primitive::kind::sum) {
+            exec_args_set_.find_value_mem_map(
+                    op->get_input_value(index++).get(), mem);
+            args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
+        } else if (pops.kind(i) == dnnl::primitive::kind::binary) {
+            exec_args_set_.find_value_mem_map(
+                    op->get_input_value(index++).get(), mem);
+            args.insert(
+                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
+        } else {
+        }
+    }
+
+    // add output args
+    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
+    args.insert({DNNL_ARG_DST, mem});
+
+    if (op->num_outputs() > 1) {
+        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
+        args.insert({DNNL_ARG_SCRATCHPAD, mem});
+    }
+
+    exec_args_set_.add_exec_args(args);
+}
+
 // for single-input-single-output op
 void memory_planner_t::prepare_args_for_siso_op(op_t *op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
@@ -569,6 +613,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     bind_memory_for_conv_bwd_data(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_sum) {
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
+                } else if (op->get_kind() == op_kind::dnnl_binary) {
+                    prepare_args_for_binary(op, p_engine, prm_attr_mgr);
                 } else {
                     assertm(false, "memory planning: unsupported op");
                     return impl::status::compile_fail;

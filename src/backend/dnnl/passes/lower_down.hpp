@@ -107,6 +107,12 @@ impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg);
 ///            ...
 impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg);
 
+// This pass is used to lower the oneDNN Graph binary op (like Add, Multiply,
+// ...) to DNNL backend internl dnnl_binary op and insert expand op before
+// inputs to make the input shape meet the requirement of oneDNN binary
+// primitive
+impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

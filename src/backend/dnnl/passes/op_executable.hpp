@@ -413,8 +413,44 @@ inline dnnl::sum::primitive_desc create_dnnl_sum_pd(
     std::vector<float> scales(op->num_inputs(), 1.f);
 
     dnnl::sum::primitive_desc pd(dst_desc, scales, src_descs, p_engine);
-
     return pd;
+}
+
+inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
+        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<dnnl::binary::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto src0 = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto src1 = make_dnnl_memory_desc(
+            op->get_input_value(1)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+
+    const auto op_kind
+            = static_cast<impl::op_kind_t>(op->get_attr<int64_t>("alg_kind"));
+    const algorithm algo = get_binary_alg_map().at(op_kind);
+
+    dnnl::binary::primitive_desc pd;
+    pd = dnnl::binary::primitive_desc(
+            {algo, src0, src1, dst}, prm_attr, p_engine);
+
+    pd_cache.insert({op.get(), pd});
+
+    return {pd, true};
 }
 
 struct op_executable_t {
@@ -564,6 +600,42 @@ struct eltwise_executable_t : public op_executable_t {
 private:
     dnnl::eltwise_forward::primitive_desc pd_;
     dnnl::eltwise_forward prim_;
+};
+
+struct binary_executable_t : public op_executable_t {
+    binary_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_binary_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        prim_ = dnnl::binary(pd_);
+
+        if (op->has_attr("with_sum"))
+            with_sum_ = op->get_attr<bool>("with_sum");
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        if (with_sum_) {
+            memory &dst_mem
+                    = const_cast<memory &>(args.find(DNNL_ARG_DST)->second);
+            memory &psrc_mem = const_cast<memory &>(
+                    args.find(DNNL_GRAPH_ARG_POST_SRC)->second);
+
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                dnnl::reorder(psrc_mem, dst_mem)
+                        .execute(stream, psrc_mem, dst_mem);
+            }
+        }
+
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::binary::primitive_desc pd_;
+    dnnl::binary prim_;
+    bool with_sum_ {false};
 };
 
 struct pool_executable_t : public op_executable_t {

@@ -159,6 +159,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::minimum_add, binary)
     DNNL_REGISTER_KERNEL(op_kind::minimum_relu, binary)
     DNNL_REGISTER_KERNEL(op_kind::minimum_sigmoid, binary)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Divide, binary)
 
     // bias_add
     DNNL_REGISTER_KERNEL(impl::op_kind::BiasAdd, bias_add)

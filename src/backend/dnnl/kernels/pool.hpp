@@ -98,6 +98,11 @@ public:
         });
         pass_pipeline_t pipeline(vis);
 
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+
         // for those primitive ops like pooling, it requires the scales and zps
         // between input tensor and output tensor are the same. So here, we
         // don't need to split Dequant and Quant ops firstly, it should be okay

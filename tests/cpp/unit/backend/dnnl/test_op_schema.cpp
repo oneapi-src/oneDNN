@@ -976,3 +976,18 @@ TEST(OpSchema, ConvBiasFusion) {
                 expected_attr_size, attrs_data);
     }
 }
+
+TEST(OpSchema, DnnlBinary) {
+    op_kind_t op_kind = dnnl_impl::op_kind::dnnl_binary;
+    const size_t expected_in_size_lower = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 2;
+    const std::map<std::string, bool> attrs_data
+            = {{"auto_broadcast", false}, {"alg_kind", true}};
+    verify_op_schema(op_kind, expected_in_size_lower, expected_out_size,
+            expected_attr_size, attrs_data);
+
+    const size_t expected_in_size_upper = std::numeric_limits<size_t>::max();
+    verify_op_schema(op_kind, expected_in_size_upper, expected_out_size,
+            expected_attr_size, attrs_data);
+}

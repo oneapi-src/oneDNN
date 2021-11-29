@@ -57,7 +57,7 @@ static bool has_post_ops(op_kind_t kind) {
             op_kind::dnnl_convolution, impl::op_kind::ConvTranspose,
             op_kind::dnnl_convtranspose, impl::op_kind::MatMul,
             impl::op_kind::AvgPool, impl::op_kind::MaxPool, op_kind::dnnl_pool,
-            impl::op_kind::ReLU};
+            impl::op_kind::ReLU, op_kind::dnnl_binary};
     return ops.count(kind) != 0;
 }
 
@@ -604,7 +604,7 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
             impl::op_kind::Divide, impl::op_kind::Elu, impl::op_kind::HardTanh,
             impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sigmoid,
             impl::op_kind::Sqrt, impl::op_kind::Square, impl::op_kind::Tanh,
-            op_kind::dnnl_swish};
+            op_kind::dnnl_swish, op_kind::dnnl_binary};
 
     auto &subgraph = sg->get_mutable_ops();
     auto &prm_attr_mgr = sg->prm_attr_mgr_;
@@ -616,25 +616,27 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
         std::set<op_t *> visited;
-        for (auto &cur_op : subgraph) {
-            if (!has_post_ops(cur_op->get_kind())
-                    || visited.count(cur_op.get()) != 0)
-                continue;
+        impl::topo_order_visit(
+                impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
+                    if (!has_post_ops(op->get_kind()) || visited.count(op) != 0)
+                        return impl::status::success;
 
-            assertm(cur_op->num_outputs() == 1,
-                    "cur_op should have only one output value.");
-            auto out_val = cur_op->get_output_values()[0];
-            auto consumers = out_val->get_consumers();
-            if (consumers.empty()) continue;
+                    assertm(op->num_outputs() == 1,
+                            "cur_op should have only one output value.");
+                    auto out_val = op->get_output_values()[0];
+                    auto consumers = out_val->get_consumers();
+                    if (consumers.empty()) return impl::status::success;
 
-            auto &next_op = consumers[0].get_op();
-            if (post_ops_kinds.count(next_op.get_kind()) == 0) continue;
+                    auto &next_op = consumers[0].get_op();
+                    if (post_ops_kinds.count(next_op.get_kind()) == 0)
+                        return impl::status::success;
 
-            fuse_groups.emplace_back(
-                    std::pair<op_t *, op_t *> {cur_op.get(), &next_op});
-            visited.insert(cur_op.get());
-            visited.insert(&next_op);
-        }
+                    fuse_groups.emplace_back(
+                            std::pair<op_t *, op_t *> {op, &next_op});
+                    visited.insert(op);
+                    visited.insert(&next_op);
+                    return impl::status::success;
+                });
 
         if (fuse_groups.empty()) {
             changed = false;
@@ -691,7 +693,10 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     }
                 }
                 pops.append_eltwise(scale, alg, alpha, beta);
-            } else if (post_op->get_kind() == impl::op_kind::Add) {
+            } else if (post_op->get_kind() == op_kind::dnnl_binary
+                    && static_cast<impl::op_kind_t>(
+                               post_op->get_attr<int64_t>("alg_kind"))
+                            == impl::op_kind::Add) {
                 // As Add is commutative, the base op can be
                 // 0 / 1 input of Add
                 size_t mul_scale_op_offset = 2;
@@ -774,36 +779,25 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                         }
                     } else {
                         // use binary post-ops for broadcast add
-                        auto dst_lt = dst->get_logical_tensor();
-                        const logical_tensor_wrapper_t dst_ltw(dst_lt);
-                        int dst_ndims = dst_ltw.ndims();
                         memory::desc post_src = make_dnnl_memory_desc(
                                 other_in->get_logical_tensor());
-                        post_src = expand(post_src, dst_ndims);
-
-                        // insert a expand op to preprocess the post src
-                        op_ptr expand_op
-                                = std::make_shared<op_t>(op_kind::expand);
-                        insert_op_before(expand_op.get(), post_op,
-                                1 - fuse_op_predecessor_offset);
-                        subgraph.emplace_back(expand_op);
-
-                        for (int i = dst_ndims - 1; i >= 0; i--) {
-                            if (post_src.dims()[i] != 1
-                                    && dst_ltw.dims()[i]
-                                            != post_src.dims()[i]) {
-                                return impl::status::compile_fail;
-                            }
-                        }
 
                         pops.append_binary(algorithm::binary_add, post_src);
                         base_op->set_attr<bool>("with_binary", true);
                     }
                 }
-            } else if (post_op->get_kind() == impl::op_kind::Divide) {
-                const auto &post_src = make_dnnl_memory_desc(
+            } else if (post_op->get_kind() == op_kind::dnnl_binary
+                    && static_cast<impl::op_kind_t>(
+                               post_op->get_attr<int64_t>("alg_kind"))
+                            != impl::op_kind::Add) {
+                memory::desc post_src = make_dnnl_memory_desc(
                         post_op->get_input_value(1)->get_logical_tensor());
-                pops.append_binary(dnnl::algorithm::binary_div, post_src);
+
+                const auto algo
+                        = get_binary_alg_map().at(static_cast<impl::op_kind_t>(
+                                post_op->get_attr<int64_t>("alg_kind")));
+                pops.append_binary(algo, post_src);
+                base_op->set_attr<bool>("with_binary", true);
             } else if (post_op->get_kind() == impl::op_kind::Convolution) {
                 const auto get_dnn_dt = [](const value_ptr &val) {
                     const auto graph_dt
@@ -892,9 +886,9 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
         cnt++;
     } while (changed && cnt <= max_num_limit);
 
-    assertm(cnt <= max_num_limit,
+    assertm(cnt <= max_num_limit + 1,
             "Failed to fuse all post ops since there has unsupported ones.");
-    if (cnt > max_num_limit) return impl::status::unsupported;
+    if (cnt > max_num_limit + 1) return impl::status::unsupported;
     return status::success;
 }
 
@@ -1505,6 +1499,62 @@ impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg) {
 
     // add dnnl_sum to subgraph
     subgraph.emplace_back(sum_op);
+
+    return impl::status::success;
+}
+
+impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    const static std::set<impl::op_kind_t> binary_op_set = {impl::op_kind::Add,
+            impl::op_kind::Multiply, impl::op_kind::Divide,
+            impl::op_kind::Minimum, impl::op_kind::Maximum};
+
+    auto &subgraph = sg->get_mutable_ops();
+
+    for (auto &cur_op : subgraph) {
+        if (!binary_op_set.count(cur_op->get_kind())) continue;
+
+        // check doable
+        auto src0_lt = cur_op->get_input_value(0)->get_logical_tensor();
+        auto src1_lt = cur_op->get_input_value(1)->get_logical_tensor();
+        if (!binary_doable(ltw(src0_lt).vdims(), ltw(src1_lt).vdims())) {
+            return status::invalid_shape;
+        }
+
+        // insert expand op
+        int32_t src0_ndims = src0_lt.ndims;
+        int32_t src1_ndims = src1_lt.ndims;
+        int32_t target_ndims = std::max(src0_ndims, src1_ndims);
+        std::vector<int32_t> in_ndims {src0_ndims, src1_ndims};
+        for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
+            if (in_ndims[i] == target_ndims) { continue; }
+
+            auto expand_op = std::make_shared<op_t>(op_kind::expand);
+            expand_op->set_attr<int64_t>("expand_to", target_ndims);
+            insert_op_before(expand_op, cur_op, i);
+            to_be_inserted_ops.emplace_back(expand_op);
+        }
+
+        // replace original op to dnnl specific op
+        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_binary);
+        new_op->set_attr<int64_t>(
+                "alg_kind", static_cast<int64_t>(cur_op->get_kind()));
+        replace_op(cur_op, new_op);
+        to_be_inserted_ops.emplace_back(new_op);
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
 
     return impl::status::success;
 }

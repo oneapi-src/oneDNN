@@ -87,6 +87,9 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_sum) {
             exec = std::make_shared<sum_executable_t>(
                     cur_op, p_engine, prm_attr_mgr);
+        } else if (cur_op->get_kind() == op_kind::dnnl_binary) {
+            exec = std::make_shared<binary_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else {
             assertm(false, "unimplemented op, can't compile it");
             return impl::status::compile_fail;
