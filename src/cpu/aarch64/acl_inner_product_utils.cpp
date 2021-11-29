@@ -134,6 +134,12 @@ status_t init_conf_ip(acl_ip_conf_t &aip, memory_desc_t &src_md,
     const auto &post_ops = attr.post_ops_;
     aip.with_sum = (post_ops.len() == 1) && post_ops.entry_[0].is_sum();
 
+    // Fast math mode
+    auto math_mode = get_fpmath_mode();
+    bool is_fastmath_enabled
+            = one_of(math_mode, fpmath_mode::bf16, fpmath_mode::any);
+    aip.fc_info.enable_fast_math = is_fastmath_enabled;
+
     // clang-format off
     // Validate fully connected layer manually to check for return status
     auto acl_st = arm_compute::NEFullyConnectedLayer::validate(
