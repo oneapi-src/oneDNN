@@ -1,4 +1,6 @@
 # main op
 --reset
---dt=f32,bf16 --alg=SOFTMAX --tag=abx,axb --axis=0,1,2 8x384x1024
---dt=f32,bf16 --alg=LOGSOFTMAX --tag=abx,axb --axis=0,1,2 8x384x1024
+--dt=f32 --alg=SOFTMAX --tag=abx,axb --axis=0,1,2 8x384x1024
+
+--reset
+--dt=f32 --alg=LOGSOFTMAX --tag=abx,axb --axis=0,1,2 8x384x1024

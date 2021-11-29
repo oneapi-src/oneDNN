@@ -1,0 +1,10 @@
+#reorder op bf16
+--reset
+--sdt=bf16 --ddt=bf16 2x64x3x3
+
+#typecast op
+--reset
+--sdt=bf16 --ddt=f32  2x64x3x3
+
+--reset
+--sdt=f32  --ddt=bf16 2x64x3x3

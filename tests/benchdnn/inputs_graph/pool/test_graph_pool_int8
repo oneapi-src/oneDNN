@@ -1,5 +1,0 @@
---reset
---alg=MAX
---cfg=s8,u8
---dir=FWD_I
---batch=shapes_2d

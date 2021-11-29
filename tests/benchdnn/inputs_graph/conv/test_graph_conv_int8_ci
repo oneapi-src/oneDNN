@@ -1,0 +1,33 @@
+# --reset
+# --attr-scale=per_oc:2.25
+# --cfg=u8s8u8,u8s8s8
+# --stag=axb --dtag=axb --batch=harness_conv_resnet_50
+
+# int8
+--reset
+--cfg=u8s8u8,u8s8s8 --dir=FWD_I --attr-oscale=per_oc:2.25 mb50ic64ih56oc64oh56kh1ph0
+
+# int8, asym quant
+--reset
+--cfg=u8s8u8 --attr-oscale=per_oc:2.25 --attr-zero-points=src:common:2+dst:common:3 --stag=acdb --wtag=any  --dtag=acdb ic3ih224oc64oh112kh7sh2ph3
+
+# int8 post sum with scale,zp and post relu
+--reset
+--cfg=u8s8u8 --attr-oscale=per_oc:1 --attr-post-ops=sum:0.0137735:3+relu mb32ic64ih56iw56oc256oh56ow56kh1kw1sh1sw1ph0pw0dh0dw0
+
+# int8 post relu with scale
+--reset
+--cfg=u8s8u8
+--stag=abcd
+--attr-post-ops=relu:0:0:1.2
+g32mb1ic2048ih14iw14oc2048oh14ow14kh3kw3sh1sw1ph1pw1dh0dw0
+
+# x8s8f32 cases
+--reset
+--cfg=u8s8f32
+--dir=FWD_I,FWD_B
+--attr-oscale=per_oc:2.25
+# sum:1:0:s8+relu case will not work in --api=P due to sum_src_dt == dst_dt restriction
+# oneDNN graph is not limited by it, because of additional reorder
+--attr-post-ops=,relu,sum:1:0:s8+relu
+mb50ic64ih56oc64oh56kh1ph0

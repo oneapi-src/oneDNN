@@ -1,0 +1,18 @@
+# main op
+--reset
+--sdt=s8   --ddt=s8   2x64x3x3
+
+--reset
+--sdt=u8   --ddt=u8   2x64x3x3
+
+#dequantize op
+--reset
+--sdt=s8,u8 --ddt=f32  --attr-oscale=,COMMON:0.5,PER_DIM_0:0.2,PER_DIM_1:0.5 --attr-zero-points=,src:common:2+dst:common:0  2x64x3x3
+
+#quantize op
+--reset
+--sdt=f32 --ddt=s8,u8  --attr-zero-points=,src:common:0+dst:common:2 2x64x3x3
+
+#typecast+quantize fusion op
+--reset
+--sdt=bf16 --ddt=u8,s8  --attr-oscale=,common:0.5 --attr-zero-points=,src:common:0+dst:common:2 2x64x3x3

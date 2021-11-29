@@ -1,0 +1,3 @@
+# main op
+--reset
+--dt=bf16 --inplace=false,true --attr-post-ops=,relu mb96_ic192_ih71iw71_n

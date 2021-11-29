@@ -1,0 +1,16 @@
+# no groups + post-ops
+--reset
+--dir=FWD_D,FWD_B
+--cfg=bf16bf16bf16
+--attr-post-ops=add:bf16:common,add:bf16:per_oc,sum,relu
+--batch=shapes_2d
+
+# with groups + post-ops
+--reset
+--dir=FWD_D,FWD_B
+--cfg=bf16bf16bf16
+--stag=abcd
+--wtag=acbde
+--dtag=abcd
+--attr-post-ops=add:bf16:common,add:bf16:per_oc,sum,relu
+--batch=shapes_2d_groups

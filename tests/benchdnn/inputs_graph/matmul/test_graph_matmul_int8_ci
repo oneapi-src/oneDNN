@@ -1,0 +1,55 @@
+# int8
+--reset
+--cfg=s8s8s8 --attr-oscale=per_oc:2.25 16x512:512x256:16x256
+
+# int8 post bias+relu
+--reset
+--cfg=s8s8s8
+--bia_dt=f32
+--bia_mask=1,2
+--attr-post-ops=eltwise_relu
+--attr-oscale=per_oc
+128x512:512x256:128x256
+
+# int8 asym matmul
+--reset
+--cfg=u8s8u8
+--attr-oscale=per_oc:2.25
+--attr-zero-points=dst:common:3+src:common:2
+10x10x15x30:10x10x30x15:10x10x15x15
+
+# int8 post sum with scale, zp
+--reset
+--cfg=s8s8s8
+--attr-oscale=per_oc:2.25 --attr-post-ops=sum:0.03:3 16x512:512x256:16x256
+
+# int8 post relu with scale
+--reset
+--cfg=u8s8u8
+--attr-post-ops=relu:0:0:1.2 16x512:512x256:16x256
+
+# x8s8f32 cases
+--reset
+--cfg=u8s8f32
+--bia_dt=undef,f32
+--attr-oscale=per_oc:2.25
+# sum:1:0:s8 case will not work in --api=P due to sum_src_dt == dst_dt restriction
+# oneDNN graph is not limited by it, because of additional reorder
+# gelu_erf needs to be enabled below when the correctness issue will be addressed
+--attr-post-ops=,relu,logistic,sum:1:0:s8
+--batch=shapes_int8_2d
+
+# x8s8bf16 - matmul + bias
+--reset
+--cfg=u8s8bf16
+--bia_dt=bf16
+--attr-oscale=per_oc:2.25
+--batch=shapes_int8_2d
+
+# x8s8bf16 - matmul + div
+--reset
+--cfg=u8s8bf16
+--bia_dt=undef
+--attr-oscale=per_oc:2.25
+--attr-post-ops=div:bf16
+--batch=shapes_int8_2d
