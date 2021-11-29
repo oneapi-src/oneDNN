@@ -30,6 +30,7 @@
 
 #include "binary/binary.hpp"
 #include "conv/deconv.hpp"
+#include "prelu/prelu.hpp"
 using namespace conv;
 
 namespace deconv {
@@ -333,6 +334,11 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
                  binary_po_fp, ref_engine),
             WARN);
+    std::vector<dnn_mem_t> prelu_po_fp, prelu_po_dt;
+    std::vector<int> prelu_po_args;
+    SAFE(prelu::setup_prelu_po(
+                 const_pd, prelu_po_args, prelu_po_fp, prelu_po_dt, ref_engine),
+            WARN);
 
     dnn_mem_t src_fp(src_md, fp, src_tag, ref_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, ref_engine);
@@ -374,6 +380,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         args.set(binary_po_args, binary_po_dt);
+        args.set(prelu_po_args, prelu_po_dt);
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
@@ -387,6 +394,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
             ref_args.set(binary_po_args, binary_po_fp);
+            ref_args.set(prelu_po_args, prelu_po_fp);
 
             TIME_REF(deconv::compute_ref_fwd(&p_tr, prim_ref, ref_args));
             SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
