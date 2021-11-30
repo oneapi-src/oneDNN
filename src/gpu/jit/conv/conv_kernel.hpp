@@ -1095,17 +1095,18 @@ public:
 
     ngen::Subregister src_base_ptr, wei_base_ptr, dst_base_ptr;
 
-    int grf_size, grf_simd;
+    int simd, grf_size, grf_simd;
     int a_size, b_size, c_size;
     int num_a_regs, num_b_regs, num_c_regs;
     int num_a_headers;
+    int num_regs_in_chunk, num_chunks;
     int kdhw;
 
     ngen::GRFRange b, c;
     ngen::GRFRange a_headers, b_headers;
-    ngen::GRF a[32];
-    ngen::GRF b_temp[32];
-    ngen::GRF c_temp[32];
+    std::vector<ngen::GRF> a;
+    std::vector<ngen::GRF> b_temp;
+    std::vector<ngen::GRF> c_temp;
 
     static const int ow_block;
 
@@ -1131,6 +1132,7 @@ public:
 
         finalizeInterface();
 
+        simd = cfg.simd_size;
         grf_size = ngen::GRF::bytes(hw);
         grf_simd = grf_size / sizeof(int);
         kdhw = cfg.kw * cfg.kh * cfg.kd;
@@ -1613,28 +1615,30 @@ public:
         b = ra_.alloc_range(num_b_regs, ngen::Bundle(1, ngen::Bundle::any));
 
         const auto &conf = cfg.zp_cfg;
-        const auto num_t_regs = conf.oc_outer * conf.ic_inner;
-        assert(cfg.simd_size == conf.oc_inner);
+        ir_assert(simd == conf.oc_inner);
+        ir_assert(conf.oc_inner % grf_simd == 0);
+        num_regs_in_chunk = conf.oc_inner / grf_simd;
+        num_chunks = conf.oc_outer * conf.ic_inner * num_regs_in_chunk;
 
-        for (int r = 0; r < num_t_regs; ++r) {
+        b_temp.resize(num_chunks);
+        c_temp.resize(num_chunks);
+        for (int r = 0; r < num_chunks; ++r) {
             const int bundle_id_c = (r + 7) % ngen::Bundle::bundle_count(hw);
             const int bundle_id_b = (r + 8) % ngen::Bundle::bundle_count(hw);
             const auto bundle_c = ngen::Bundle(0, bundle_id_c);
             const auto bundle_b = ngen::Bundle(1, bundle_id_b);
-            c_temp[r] = ra_.alloc_range(1, bundle_c)[0];
-            b_temp[r] = ra_.alloc_range(1, bundle_b)[0];
+            c_temp[r] = ra_.alloc_range(num_regs_in_chunk, bundle_c)[0];
+            b_temp[r] = ra_.alloc_range(num_regs_in_chunk, bundle_b)[0];
         }
 
-        for (int r = 0; r < num_a_regs; ++r)
-            a[r] = ra_.alloc(ngen::Bundle(0, ngen::Bundle::any));
+        a.resize(num_a_regs);
+        for (auto &r : a)
+            r = ra_.alloc(ngen::Bundle(0, ngen::Bundle::any));
     }
 
     void zero_out_c_temp() {
-        const auto &conf = cfg.zp_cfg;
-        const auto num_t_regs = conf.oc_outer * conf.ic_inner;
-        assert(cfg.simd_size == conf.oc_inner);
-        for (int r = 0; r < num_t_regs; ++r)
-            mov(grf_simd, c_temp[r].f(), float(0));
+        for (auto &reg : c_temp)
+            mov(simd, reg.f(), float(0));
     }
 
     void load_a_no_mask() {
@@ -1742,12 +1746,14 @@ public:
 
     void reduce_block() {
         const auto &conf = cfg.zp_cfg;
-        auto tmp = ra_.alloc();
-        mov(grf_simd, tmp.d(), int(0x01010101));
+        auto tmp = ra_.alloc_range(num_regs_in_chunk);
+        mov(simd, tmp[0].d(), int(0x01010101));
         for (int ic_outer = 0; ic_outer < conf.ic_outer; ++ic_outer) {
             for (int oc_outer = 0; oc_outer < conf.oc_outer; ++oc_outer) {
-                dp4a(grf_simd, c[oc_outer].d(), c[oc_outer].d(), tmp.d(),
-                        b[ic_outer + oc_outer * conf.ic_outer].d());
+                const int sx = num_regs_in_chunk
+                        * (ic_outer + oc_outer * conf.ic_outer);
+                const int dx = num_regs_in_chunk * oc_outer;
+                dp4a(simd, c[dx].d(), c[dx].d(), tmp[0].d(), b[sx].d());
             }
         }
         ra_.release(tmp);
@@ -1760,10 +1766,11 @@ public:
             for (int oc_outer = 0; oc_outer < conf.oc_outer; ++oc_outer) {
                 for (int ic_inner = 0; ic_inner < conf.ic_inner; ++ic_inner) {
                     const int sx = ic_inner;
-                    const int sy = ic_outer + oc_outer * conf.ic_outer;
+                    const int sy = num_regs_in_chunk
+                            * (ic_outer + oc_outer * conf.ic_outer);
                     const int dx = ic_inner + conf.ic_inner * oc_outer;
                     const int stride = conf.ic_inner;
-                    mov(grf_simd, b_temp[dx].w(0)(2), b[sy].b(sx)(stride));
+                    mov(simd, b_temp[dx].w(0)(2), b[sy].b(sx)(stride));
                 }
             }
             for (int oc_outer = 0; oc_outer < conf.oc_outer; ++oc_outer) {
@@ -1772,7 +1779,7 @@ public:
                     const int sx = ic % grf_simd;
                     const int sy = ic / grf_simd;
                     const int dx = ic_inner + conf.ic_inner * oc_outer;
-                    mad(grf_simd, c_temp[dx].d(), c_temp[dx].d(), a[sy].d(sx),
+                    mad(simd, c_temp[dx].d(), c_temp[dx].d(), a[sy].d(sx),
                             b_temp[dx].w(0)(2));
                 }
             }
@@ -1801,20 +1808,26 @@ public:
             } else {
                 mov(1, zp_common.d(), int(conf.common_src_zero_point));
             }
-            for (int i = 0; i < num_c_regs; ++i) {
-                mul(grf_simd, acc0.d(), c[i].d(), zp_common.uw(0));
-                macl(grf_simd, c[i].d(), c[i].d(), zp_common.ud(0));
+            for (int r = 0; r < num_c_regs; ++r) {
+                mul(grf_simd, acc0.d(), c[r].d(), zp_common.uw(0));
+                macl(grf_simd, c[r].d(), c[r].d(), zp_common.ud(0));
             }
         } else {
             // sum temp accs
             ir_assert(conf.ic_inner == 4);
+            std::vector<ngen::GRFRange> tmp(conf.oc_outer);
+            for (auto &r : tmp)
+                r = ra_.alloc_range(num_regs_in_chunk);
             for (int oc_outer = 0; oc_outer < conf.oc_outer; ++oc_outer) {
                 const int sx = oc_outer * conf.ic_inner;
-                add(grf_simd, c[oc_outer].d(), c_temp[sx + 0].d(),
-                        c_temp[sx + 1].d());
-                add(grf_simd, acc0.d(), c_temp[sx + 2].d(), c_temp[sx + 3].d());
-                add(grf_simd, c[oc_outer].d(), c[oc_outer].d(), acc0.d());
+                const int dx = num_regs_in_chunk * oc_outer;
+                add(simd, c[dx].d(), c_temp[sx + 0].d(), c_temp[sx + 1].d());
+                add(simd, tmp[oc_outer][0].d(), c_temp[sx + 2].d(),
+                        c_temp[sx + 3].d());
+                add(simd, c[dx].d(), c[dx].d(), tmp[oc_outer][0].d());
             }
+            for (auto &r : tmp)
+                ra_.release(r);
         }
     }
 
