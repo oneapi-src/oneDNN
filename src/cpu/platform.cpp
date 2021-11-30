@@ -159,6 +159,8 @@ unsigned get_num_cores() {
 // order to simulate the number of cores available in such environment, this
 // function supports process affinity.
 unsigned get_max_threads_to_use() {
+    // TODO: the logic below should involve number of sockets to provide exact
+    // number of cores on 2+ socket systems.
     int num_cores_per_socket = (int)dnnl::impl::cpu::platform::get_num_cores();
     // It may happen that XByak doesn't get num of threads identified, e.g. for
     // AMD. In order to make threadpool working, we supply an additional
