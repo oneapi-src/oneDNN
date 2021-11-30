@@ -17,17 +17,31 @@
 #ifndef BACKEND_DNNL_KERNELS_BATCHNORM_HPP
 #define BACKEND_DNNL_KERNELS_BATCHNORM_HPP
 
+#include <algorithm>
 #include <memory>
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
-#include "interface/backend.hpp"
-
 #include "backend/dnnl/common.hpp"
-#include "backend/dnnl/internal_ops.hpp"
+#include "backend/dnnl/constant_cache.hpp"
+#include "backend/dnnl/dnnl_partition_impl.hpp"
+#include "backend/dnnl/passes/compile_ops.hpp"
+#include "backend/dnnl/passes/constant_propagation.hpp"
+#include "backend/dnnl/passes/infer_type.hpp"
+#include "backend/dnnl/passes/insert_ops.hpp"
+#include "backend/dnnl/passes/layout_propagation.hpp"
+#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/passes/op_executable.hpp"
+#include "backend/dnnl/scratchpad.hpp"
+#include "backend/dnnl/thread_local_cache.hpp"
+#include "backend/dnnl/utils.hpp"
+
+// should be removed later
 #include "backend/dnnl/tensor.hpp"
 #include "backend/dnnl/utils.hpp"
-#include "sum.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
@@ -61,409 +75,112 @@ enum batch_normalization_bwd_inputs {
 enum batch_normalization_bwd_outputs { kDiff_src, kDiff_scale, kDiff_shift };
 } // namespace batch_normalization_bwd
 
-struct batch_normalization_forward_inference
-    : public dnnl::batch_normalization_forward,
-      public kernel_base_t {
-
-    using super = dnnl::batch_normalization_forward;
-    using dims_t = std::vector<dnnl::graph::impl::dim_t>;
-
+struct batchnorm_fwd_t : public kernel_base_t {
 private:
-    primitive_desc pd_;
-    dnnl::batch_normalization_forward prim_;
-    float epsilon_;
-
-    dnnl_tensor_t scale_shift_;
-    dnnl_tensor_t expected_mean_;
-    dnnl_tensor_t expected_var_;
-
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
+    impl::allocator_t *g_alloc_;
 
-    // FIXME(qun) NOT well designed
-    /// \note Currently we don't have enough information from framework to
-    /// decide cache or not. Also we think that caching data in a library
-    /// is not safe at this moment.
-    bool disable_cache_data_ {true};
+    std::shared_ptr<subgraph_t> subgraph_;
+    memory_planner_t memory_planner_;
+
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
-    impl::status_t compile_impl(const impl::op_t *op,
+    ~batchnorm_fwd_t() override {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+    }
+
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        std::string data_format = op->get_attr<std::string>("data_format");
-        // "NXC" format will be converted to "NCX" format
-        impl::logical_tensor_t src_lt = inputs.at(batch_normalization::kSrc);
+        p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
 
-        // "NXC"
-        if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper_t(
-                    &inputs.at(batch_normalization::kSrc))
-                             .reorder_data_dims_strides();
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
+
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, lower_down_to_dnnl_batchnorm);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
+
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
+
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
         }
 
-        using desc = dnnl_tensor_t::desc_t;
-        // prepare the inputs and outputs tensors' descs
-        desc src {src_lt};
-        const bool use_stats = inputs.size() > batch_normalization::kMean;
+        resource_ctor_ = [this]() {
+            return this->memory_planner_.get_exec_args_set().clone();
+        };
 
-        epsilon_ = op->get_attr<float>("epsilon");
-
-        auto flags = normalization_flag::use_scale_shift;
-        if (use_stats) flags |= normalization_flag::use_global_stats;
-        if (op->get_kind() == op_kind::bn_relu)
-            flags |= normalization_flag::fuse_norm_relu;
-
-        // workaround: use src once issue intel/mkl-dnn#588 is
-        // resolved
-        src = src.is_4c_blocked() ? src.to_default_format() : src;
-
-        p_engine_ = make_dnnl_engine(*g_engine);
-        pd_ = primitive_desc(
-                {prop_kind::forward_inference, src, epsilon_, flags},
-                p_engine_);
-        prim_ = super(pd_);
-        const dnnl_tensor_t::desc_t optimal_dst_desc {pd_.dst_desc()};
-        impl::logical_tensor_t *ori_dst_lt
-                = const_cast<impl::logical_tensor_t *>(
-                        &outputs.at(batch_normalization::kDst));
-        fill_layout_info(ori_dst_lt, optimal_dst_desc);
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::op_t *op,
+    impl::status_t execute_impl(const dnnl_partition_impl_t *part,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
-        std::string data_format = op->get_attr<std::string>("data_format");
-        auto &src_lt = const_cast<impl::logical_tensor_t &>(
-                inputs.at(batch_normalization::kSrc).get_logical_tensor());
-        auto &dst_lt = const_cast<impl::logical_tensor_t &>(
-                outputs.at(batch_normalization::kDst).get_logical_tensor());
-        // "NXC"
-        if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper_t(src_lt)
-                             .reorder_data_dims_strides();
-            dst_lt = impl::logical_tensor_wrapper_t(dst_lt)
-                             .reorder_data_dims_strides();
+        UNUSED(part);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
+
+        // each thread's own local resource
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
+
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
+        }
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
         }
 
-        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
+        temporary_scratchpad_t scratchpad(
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
 
-        dnnl_tensor_t x {src_lt, p_engine_, alc,
-                inputs.at(batch_normalization::kSrc).get_data_handle()};
-        dnnl_tensor_t y {dst_lt, p_engine_, alc,
-                outputs.at(batch_normalization::kDst).get_data_handle()};
-        dnnl_tensor_t w {
-                inputs.at(batch_normalization::kScale), p_engine_, alc};
-        dnnl_tensor_t b {
-                inputs.at(batch_normalization::kShift), p_engine_, alc};
-
-        auto channels = x.get_dims()[1];
-        if (channels != w.get_dims()[0]) {
-            throw std::runtime_error("channel mismatch");
+        registry_t::key_t key = 0;
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
         }
-        if (inputs.size() > batch_normalization::kMean) {
-            dnnl_tensor_t m {
-                    inputs.at(batch_normalization::kMean), p_engine_, alc};
-            dnnl_tensor_t v {
-                    inputs.at(batch_normalization::kVariance), p_engine_, alc};
-            compute(x, m, v, w, b, y, epsilon_, p_engine_, alc, p_stream_);
-        } else {
-            compute(x, w, b, y, epsilon_, p_engine_, alc, p_stream_);
+
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
         return impl::status::success;
-    }
-
-private:
-    void compute(const dnnl_tensor_t &src, const dnnl_tensor_t &scale,
-            const dnnl_tensor_t &shift, dnnl_tensor_t &dst, float epsilon,
-            const dnnl::engine &p_engine, impl::allocator_t *alc,
-            const dnnl::stream &p_stream) {
-        static dnnl_tensor_t dummy;
-        compute_impl</*use_stats=*/false>(src, dummy, dummy, scale, shift, dst,
-                epsilon, p_engine, alc, p_stream);
-    }
-
-    void compute(const dnnl_tensor_t &src, const dnnl_tensor_t &mean,
-            const dnnl_tensor_t &variance, const dnnl_tensor_t &scale,
-            const dnnl_tensor_t &shift, dnnl_tensor_t &dst, float epsilon,
-            const dnnl::engine &p_engine, impl::allocator_t *alc,
-            const dnnl::stream &p_stream) {
-        compute_impl</*use_stats=*/true>(src, mean, variance, scale, shift, dst,
-                epsilon, p_engine, alc, p_stream);
-    }
-
-    template <bool use_stats>
-    void compute_impl(const dnnl_tensor_t &src, const dnnl_tensor_t &mean,
-            const dnnl_tensor_t &variance, const dnnl_tensor_t &scale,
-            const dnnl_tensor_t &shift, dnnl_tensor_t &dst, float epsilon,
-            const dnnl::engine &p_engine, impl::allocator_t *alc,
-            const dnnl::stream &p_stream) {
-        UNUSED(epsilon);
-        // copy scale and shift to scale_shift dnnl_tensor_t and cache it
-        if (disable_cache_data_ || scale_shift_.is_empty()) {
-            if (scale_shift_.is_empty())
-                scale_shift_ = dnnl_tensor_t {pd_.weights_desc(), p_engine, alc,
-                        impl::allocator_lifetime::persistent};
-            auto *scale_shift_buf
-                    = static_cast<char *>(scale_shift_.get_data_handle());
-            if (p_engine_.get_kind() == dnnl::engine::kind::cpu) {
-#if DNNL_GRAPH_CPU_SYCL
-                cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-                q.memcpy(scale_shift_buf, scale.get_data_handle(),
-                        scale.get_size());
-                q.memcpy(scale_shift_buf + scale.get_size(),
-                        shift.get_data_handle(), shift.get_size());
-#else
-                std::memcpy(scale_shift_buf, scale.get_data_handle(),
-                        scale.get_size());
-                std::memcpy(scale_shift_buf + scale.get_size(),
-                        shift.get_data_handle(), shift.get_size());
-#endif
-            } else {
-#if DNNL_GRAPH_GPU_SYCL
-                cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-                q.memcpy(scale_shift_buf, scale.get_data_handle(),
-                        scale.get_size());
-                q.memcpy(scale_shift_buf + scale.get_size(),
-                        shift.get_data_handle(), shift.get_size());
-#else
-                std::memcpy(scale_shift_buf, scale.get_data_handle(),
-                        scale.get_size());
-                std::memcpy(scale_shift_buf + scale.get_size(),
-                        shift.get_data_handle(), shift.get_size());
-#endif
-            }
-        }
-
-        auto expected_src = src.reorder_if_differ_in(p_stream, pd_.src_desc());
-
-        dnnl_tensor_t expected_dst = dst;
-        if (pd_.dst_desc() != dst.get_desc()) {
-            expected_dst = dnnl_tensor_t {pd_.dst_desc(), p_engine, alc};
-        }
-
-        if (use_stats) {
-            // cache reordered mean and var
-            if (disable_cache_data_ || expected_mean_.is_empty()
-                    || expected_var_.is_empty()) {
-                expected_mean_
-                        = mean.reorder_if_differ_in(p_stream, pd_.mean_desc());
-                expected_var_ = variance.reorder_if_differ_in(
-                        p_stream, pd_.variance_desc());
-            }
-            prim_.execute(p_stream,
-                    {{DNNL_ARG_SRC, expected_src},
-                            {DNNL_ARG_SCALE_SHIFT, scale_shift_},
-                            {DNNL_ARG_VARIANCE, expected_var_},
-                            {DNNL_ARG_MEAN, expected_mean_},
-                            {DNNL_ARG_DST, expected_dst}});
-        } else {
-            prim_.execute(p_stream,
-                    {{DNNL_ARG_SRC, expected_src},
-                            {DNNL_ARG_SCALE_SHIFT, scale_shift_},
-                            {DNNL_ARG_DST, expected_dst}});
-        }
-
-        // if output layout has been set and different from optimal layout
-        // we have to do reorder
-        if (expected_dst.get_desc() != dst.get_desc()) {
-            expected_dst.reorder_to(p_stream, dst);
-        }
-    }
-};
-
-struct batch_normalization_forward_training
-    : public dnnl::batch_normalization_forward,
-      public kernel_base_t {
-
-    using super = dnnl::batch_normalization_forward;
-
-private:
-    float epsilon_;
-    float mom_;
-    primitive_desc pd_;
-
-    dnnl_tensor_t scale_shift_;
-    dnnl_tensor_t original_dst_;
-
-    dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
-
-public:
-    impl::status_t compile_impl(const impl::op_t *op,
-            const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = dnnl_tensor_t::desc_t;
-        epsilon_ = op->get_attr<float>("epsilon");
-        mom_ = op->get_attr<float>("momentum");
-        std::string data_format = op->get_attr<std::string>("data_format");
-
-        impl::logical_tensor_t src_lt = inputs.at(batch_normalization::kSrc);
-        // "NXC"
-        if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper_t(
-                    &inputs.at(batch_normalization::kSrc))
-                             .reorder_data_dims_strides();
-        }
-
-        // prepare the inputs and outputs tensors' descs
-        desc src {src_lt};
-        const bool use_stats = inputs.size() > batch_normalization::kMean;
-        impl::logical_tensor_t dst_lt = outputs.at(batch_normalization::kDst);
-        impl::logical_tensor_t rm_lt
-                = outputs.at(batch_normalization::kRunning_mean);
-        impl::logical_tensor_t rv_lt
-                = outputs.at(batch_normalization::kRunning_variance);
-
-        auto flags = normalization_flag::use_scale_shift;
-        if (use_stats) flags |= normalization_flag::use_global_stats;
-
-        // workaround: use src once issue intel/mkl-dnn#588 is
-        // resolved
-        src = src.is_4c_blocked() ? src.to_default_format() : src;
-
-        p_engine_ = make_dnnl_engine(*g_engine);
-        pd_ = primitive_desc(
-                {prop_kind::forward_training, src, epsilon_, flags}, p_engine_);
-        const dnnl_tensor_t::desc_t optimal_dst_desc {pd_.dst_desc()};
-        const dnnl_tensor_t::desc_t optimal_rm_desc {pd_.mean_desc()};
-        const dnnl_tensor_t::desc_t optimal_rv_desc {pd_.variance_desc()};
-        fill_layout_info(&dst_lt, optimal_dst_desc);
-        fill_layout_info(&rm_lt, optimal_rm_desc);
-        fill_layout_info(&rv_lt, optimal_rv_desc);
-        return impl::status::success;
-    }
-
-    impl::status_t execute_impl(const impl::op_t *op,
-            const impl::stream_t *g_stream,
-            const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs) override {
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
-        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
-
-        std::string data_format = op->get_attr<std::string>("data_format");
-        auto &src_lt = const_cast<impl::logical_tensor_t &>(
-                inputs.at(batch_normalization::kSrc).get_logical_tensor());
-        auto &dst_lt = const_cast<impl::logical_tensor_t &>(
-                outputs.at(batch_normalization::kDst).get_logical_tensor());
-        // "NXC"
-        if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper_t(src_lt)
-                             .reorder_data_dims_strides();
-            dst_lt = impl::logical_tensor_wrapper_t(dst_lt)
-                             .reorder_data_dims_strides();
-        }
-        dnnl_tensor_t x {src_lt, p_engine_, alc,
-                inputs.at(batch_normalization::kSrc).get_data_handle()};
-        dnnl_tensor_t w {
-                inputs.at(batch_normalization::kScale), p_engine_, alc};
-        dnnl_tensor_t b {
-                inputs.at(batch_normalization::kShift), p_engine_, alc};
-        dnnl_tensor_t y {dst_lt, p_engine_, alc,
-                outputs.at(batch_normalization::kDst).get_data_handle()};
-        dnnl_tensor_t m {inputs.at(batch_normalization::kMean), p_engine_, alc};
-        dnnl_tensor_t v {
-                inputs.at(batch_normalization::kVariance), p_engine_, alc};
-        dnnl_tensor_t rm {
-                outputs.at(batch_normalization::kRunning_mean), p_engine_, alc};
-        dnnl_tensor_t rv {outputs.at(batch_normalization::kRunning_variance),
-                p_engine_, alc};
-        dnnl_tensor_t bm {
-                outputs.at(batch_normalization::kBatch_mean), p_engine_, alc};
-        dnnl_tensor_t bv {outputs.at(batch_normalization::kBatch_variance),
-                p_engine_, alc};
-        compute(x, w, b, y, m, v, rm, rv, bm, bv, mom_, epsilon_, alc,
-                p_stream_);
-        return impl::status::success;
-    }
-
-private:
-    void compute_impl(dnnl_tensor_t &src, const dnnl_tensor_t &scale,
-            const dnnl_tensor_t &shift, dnnl_tensor_t &dst, dnnl_tensor_t &mean,
-            dnnl_tensor_t &variance, float momentum, float epsilon,
-            impl::allocator_t *alc, const dnnl::stream &p_stream) {
-        UNUSED(momentum);
-        UNUSED(epsilon);
-
-        original_dst_ = dst;
-        scale_shift_ = dnnl_tensor_t {pd_.weights_desc(), p_engine_, alc};
-        auto *scale_shift_buf
-                = static_cast<char *>(scale_shift_.get_data_handle());
-
-        if (p_engine_.get_kind() == dnnl::engine::kind::cpu) {
-#if DNNL_GRAPH_CPU_SYCL
-            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-            q.memcpy(
-                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
-            q.memcpy(scale_shift_buf + scale.get_size(),
-                    shift.get_data_handle(), shift.get_size());
-#else
-            std::memcpy(
-                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
-            std::memcpy(scale_shift_buf + scale.get_size(),
-                    shift.get_data_handle(), shift.get_size());
-#endif
-        } else {
-#if DNNL_GRAPH_GPU_SYCL
-            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-            q.memcpy(
-                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
-            q.memcpy(scale_shift_buf + scale.get_size(),
-                    shift.get_data_handle(), shift.get_size());
-#else
-            std::memcpy(
-                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
-            std::memcpy(scale_shift_buf + scale.get_size(),
-                    shift.get_data_handle(), shift.get_size());
-#endif
-        }
-
-        mean.reinit_if_possible(p_stream, pd_.mean_desc());
-        variance.reinit_if_possible(p_stream, pd_.variance_desc());
-        dst.reinit_if_possible(p_stream, pd_.dst_desc());
-        super(pd_).execute(p_stream,
-                {{DNNL_ARG_SRC, src}, {DNNL_ARG_SCALE_SHIFT, scale_shift_},
-                        {DNNL_ARG_MEAN, mean}, {DNNL_ARG_VARIANCE, variance},
-                        {DNNL_ARG_DST, dst}});
-
-        if (original_dst_.get_desc() != dst.get_desc()) {
-            dst.reorder_to(p_stream, original_dst_);
-        }
-    }
-
-    void compute(dnnl_tensor_t &src, const dnnl_tensor_t &scale,
-            const dnnl_tensor_t &shift, dnnl_tensor_t &dst, dnnl_tensor_t &mean,
-            dnnl_tensor_t &variance, dnnl_tensor_t &running_mean,
-            dnnl_tensor_t &running_var, dnnl_tensor_t &batch_mean,
-            dnnl_tensor_t &batch_var, float momentum, float epsilon,
-            impl::allocator_t *alc, const dnnl::stream &p_stream) {
-        compute_impl(src, scale, shift, dst, mean, variance, momentum, epsilon,
-                alc, p_stream);
-        // running_mean, running_mean's buffer can be empty
-        sum_t::compute({momentum, 1 - momentum}, {running_mean, mean},
-                running_mean, p_engine_, alc, p_stream);
-        sum_t::compute({momentum, 1 - momentum}, {running_var, variance},
-                running_var, p_engine_, alc, p_stream);
-        // copy data
-        batch_mean.reinit_if_possible(p_stream, mean.get_desc());
-        batch_var.reinit_if_possible(p_stream, variance.get_desc());
-#if DNNL_GRAPH_WITH_SYCL
-        cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-        q.memcpy(batch_mean.get_data_handle(), mean.get_data_handle(),
-                batch_mean.get_size());
-        q.memcpy(batch_var.get_data_handle(), variance.get_data_handle(),
-                batch_var.get_size());
-#else
-        std::memcpy(batch_mean.get_data_handle(), mean.get_data_handle(),
-                batch_mean.get_size());
-        std::memcpy(batch_var.get_data_handle(), variance.get_data_handle(),
-                batch_var.get_size());
-#endif
     }
 };
 

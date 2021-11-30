@@ -189,7 +189,8 @@ namespace op_kind {
     X(x8x8float_matmul_div, X8X8FLOAT_MatMul_div) \
     X(dnnl_sum, Dnnl_sum) \
     X(x8x8float_matmul_div_add, X8X8FLOAT_MatMul_div_add) \
-    X(dnnl_binary, Dnnl_binary)
+    X(dnnl_binary, Dnnl_binary) \
+    X(dnnl_batchnorm, Dnnl_batchnorm)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

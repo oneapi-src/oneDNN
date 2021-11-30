@@ -390,7 +390,7 @@ void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
         impl::tensor_t *mean = nullptr, impl::tensor_t *variance = nullptr,
         float epsilon = 0.001f,
         std::function<float(const float)> activation = nullptr,
-        bool channel_last = false) {
+        bool channel_last = false, bool is_training = false) {
     if (!activation) activation = [](const float v) { return v; };
 
     float *mean_ptr = nullptr;
@@ -418,40 +418,42 @@ void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
 
     float *src_ptr = src->get_data_handle<float>();
 
-    // derives ref mean
-    for (size_t channel = 0; channel < ic_; ++channel) {
-        mean_ptr[channel] = 0.f;
-        for (size_t batch = 0; batch < mb_; ++batch) {
-            for (size_t h = 0; h < ih_; ++h) {
-                for (size_t w = 0; w < iw_; ++w) {
-                    size_t idx = channel_last
-                            ? channel + w * ic_ + h * iw_ * ic_
-                                    + batch * ih_ * iw_ * ic_
-                            : w + h * iw_ + channel * ih_ * iw_
-                                    + batch * ic_ * ih_ * iw_;
-                    mean_ptr[channel] += src_ptr[idx];
+    if (is_training) {
+        // derives ref mean
+        for (size_t channel = 0; channel < ic_; ++channel) {
+            mean_ptr[channel] = 0.f;
+            for (size_t batch = 0; batch < mb_; ++batch) {
+                for (size_t h = 0; h < ih_; ++h) {
+                    for (size_t w = 0; w < iw_; ++w) {
+                        size_t idx = channel_last
+                                ? channel + w * ic_ + h * iw_ * ic_
+                                        + batch * ih_ * iw_ * ic_
+                                : w + h * iw_ + channel * ih_ * iw_
+                                        + batch * ic_ * ih_ * iw_;
+                        mean_ptr[channel] += src_ptr[idx];
+                    }
                 }
             }
+            mean_ptr[channel] /= static_cast<float>(mb_ * ih_ * iw_);
         }
-        mean_ptr[channel] /= static_cast<float>(mb_ * ih_ * iw_);
-    }
-    // derives ref variance
-    for (size_t channel = 0; channel < ic_; ++channel) {
-        variance_ptr[channel] = 0.f;
-        for (size_t batch = 0; batch < mb_; ++batch) {
-            for (size_t h = 0; h < ih_; ++h) {
-                for (size_t w = 0; w < iw_; ++w) {
-                    size_t idx = channel_last
-                            ? channel + w * ic_ + h * iw_ * ic_
-                                    + batch * ih_ * iw_ * ic_
-                            : w + h * iw_ + channel * ih_ * iw_
-                                    + batch * ic_ * ih_ * iw_;
-                    float variance_tmp = src_ptr[idx] - mean_ptr[channel];
-                    variance_ptr[channel] += variance_tmp * variance_tmp;
+        // derives ref variance
+        for (size_t channel = 0; channel < ic_; ++channel) {
+            variance_ptr[channel] = 0.f;
+            for (size_t batch = 0; batch < mb_; ++batch) {
+                for (size_t h = 0; h < ih_; ++h) {
+                    for (size_t w = 0; w < iw_; ++w) {
+                        size_t idx = channel_last
+                                ? channel + w * ic_ + h * iw_ * ic_
+                                        + batch * ih_ * iw_ * ic_
+                                : w + h * iw_ + channel * ih_ * iw_
+                                        + batch * ic_ * ih_ * iw_;
+                        float variance_tmp = src_ptr[idx] - mean_ptr[channel];
+                        variance_ptr[channel] += variance_tmp * variance_tmp;
+                    }
                 }
             }
+            variance_ptr[channel] /= static_cast<float>(mb * ih * iw);
         }
-        variance_ptr[channel] /= static_cast<float>(mb * ih * iw);
     }
 
     float *dst_ptr = dst->get_data_handle<float>();
@@ -478,6 +480,7 @@ void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
 
 struct dnnl_graph_test_batchnorm_params {
     impl::op_kind_t op_kind;
+    bool with_relu;
     impl::dim_t N;
     impl::dim_t IC;
     impl::dim_t IH;
@@ -497,9 +500,14 @@ public:
         auto params = ::testing::TestWithParam<
                 dnnl_graph_test_batchnorm_params>::GetParam();
 
-        impl::op_t batchnorm_op(params.op_kind);
+        impl::op_t batchnorm_op(0, params.op_kind, "batchnorm");
         batchnorm_op.set_attr("epsilon", params.epsilon);
         batchnorm_op.set_attr("data_format", params.data_format);
+        impl::op_t relu_op(1, impl::op_kind::ReLU, "relu");
+
+        bool is_training
+                = params.op_kind == impl::op_kind::BatchNormForwardTraining;
+        if (is_training) batchnorm_op.set_attr("momentum", 0.1f);
 
         impl::engine_t &engine = get_engine();
 
@@ -515,13 +523,16 @@ public:
         // |---------------------|-----------|-----------|
         // |in-order (true)      | NCHW      | NHWC      |
         // |out-of-order (false) | NHWC      | HCHW      |
-        if ((params.data_format == "NCX") ^ dims_in_order)
+        // if ((params.data_format == "NCX") ^ dims_in_order)
+        if (params.data_format == "NXC")
             src_dims = {N, IH, IW, IC};
         else
             src_dims = {N, IC, IH, IW};
         // Scale/shift tensor dimensions.
         dims scale_dims = {IC};
         dims shift_dims = {IC};
+        dims mean_dims = {IC};
+        dims variance_dims = {IC};
 
         // prepare logical tensor
         impl::logical_tensor_t src
@@ -530,13 +541,81 @@ public:
                 1, scale_dims, impl::data_type::f32);
         impl::logical_tensor_t shift = utils::logical_tensor_init(
                 2, shift_dims, impl::data_type::f32);
+        impl::logical_tensor_t mean = utils::logical_tensor_init(
+                3, mean_dims, impl::data_type::f32);
+        impl::logical_tensor_t variance = utils::logical_tensor_init(
+                4, variance_dims, impl::data_type::f32);
+        impl::logical_tensor_t running_mean = utils::logical_tensor_init(
+                5, mean_dims, impl::data_type::f32);
+        impl::logical_tensor_t running_variance = utils::logical_tensor_init(
+                6, variance_dims, impl::data_type::f32);
+        impl::logical_tensor_t batch_mean = utils::logical_tensor_init(
+                7, mean_dims, impl::data_type::f32);
+        impl::logical_tensor_t batch_variance = utils::logical_tensor_init(
+                8, variance_dims, impl::data_type::f32);
         impl::logical_tensor_t dst
-                = utils::logical_tensor_init(3, src_dims, impl::data_type::f32);
+                = utils::logical_tensor_init(9, src_dims, impl::data_type::f32);
+        impl::logical_tensor_t relu_dst = utils::logical_tensor_init(
+                10, src_dims, impl::data_type::f32);
+
+        batchnorm_op.add_input(src);
+        batchnorm_op.add_input(scale);
+        batchnorm_op.add_input(shift);
+        batchnorm_op.add_input(mean);
+        batchnorm_op.add_input(variance);
+        batchnorm_op.add_output(dst);
+        if (is_training) {
+            batchnorm_op.add_output(running_mean);
+            batchnorm_op.add_output(running_variance);
+            batchnorm_op.add_output(batch_mean);
+            batchnorm_op.add_output(batch_variance);
+        }
+
+        relu_op.add_input(dst);
+        relu_op.add_output(relu_dst);
+
+        impl::graph_t g(engine.kind());
+        g.add_op(&batchnorm_op);
+        if (params.with_relu) g.add_op(&relu_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = params.with_relu
+                ? get_pass("bn_relu_fusion")
+                : (is_training ? get_pass("bn_fw_train_pass")
+                               : get_pass("bn_pass"));
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src, &scale, &shift, &mean, &variance};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst};
+        if (params.with_relu) outputs[0] = &relu_dst;
+        if (is_training) {
+            outputs.emplace_back(&running_mean);
+            outputs.emplace_back(&running_variance);
+            outputs.emplace_back(&batch_mean);
+            outputs.emplace_back(&batch_variance);
+        }
+
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine),
+                impl::status::success);
 
         // Allocate buffers.
         test::vector<float> src_data(static_cast<size_t>(N * IC * IH * IW));
         test::vector<float> scale_data(static_cast<size_t>(IC));
         test::vector<float> shift_data(static_cast<size_t>(IC));
+        test::vector<float> mean_data(static_cast<size_t>(IC));
+        test::vector<float> variance_data(static_cast<size_t>(IC));
+        test::vector<float> running_mean_data(static_cast<size_t>(IC));
+        test::vector<float> running_variance_data(static_cast<size_t>(IC));
+        test::vector<float> batch_mean_data(static_cast<size_t>(IC));
+        test::vector<float> batch_variance_data(static_cast<size_t>(IC));
         test::vector<float> dst_data(src_data.size(), 0.0);
         test::vector<float> ref_dst_data(src_data.size(), 0.0);
         // Initialize src.
@@ -554,49 +633,79 @@ public:
             static int i = 0;
             return std::tan(i++);
         });
-
-        auto &op_factory = get_dnnl_kernel_registry();
-        auto bn_kernel = op_factory.create_kernel(batchnorm_op);
-        ASSERT_TRUE(bn_kernel);
-
-        std::vector<impl::logical_tensor_t> inputs {src, scale, shift};
-        std::vector<impl::logical_tensor_t> outputs {dst};
-
-        // compile the bn operator
-        bn_kernel->compile(&batchnorm_op, &engine, inputs, outputs);
-
-        ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
+        if (!is_training) {
+            // Initialize mean.
+            std::generate(mean_data.begin(), mean_data.end(), []() {
+                static int i = 0;
+                return std::sin(static_cast<float>(i++) * 2.f);
+            });
+            // Initialize variance.
+            std::generate(variance_data.begin(), variance_data.end(), []() {
+                static int i = 0;
+                return static_cast<float>(i++);
+            });
+        } else {
+            // Initialize mean.
+            std::generate(
+                    running_mean_data.begin(), running_mean_data.end(), []() {
+                        static int i = 0;
+                        return std::sin(static_cast<float>(i++) * 2.f);
+                    });
+            // Initialize variance.
+            std::generate(running_variance_data.begin(),
+                    running_variance_data.end(), []() {
+                        static int i = 0;
+                        return static_cast<float>(i++);
+                    });
+        }
 
         impl::tensor_t src_ts(src, &engine, src_data.data());
         impl::tensor_t scale_ts(scale, &engine, scale_data.data());
         impl::tensor_t shift_ts(shift, &engine, shift_data.data());
-        impl::tensor_t dst_ts(dst, &engine, dst_data.data());
-        impl::tensor_t ref_dst_ts(dst, &engine, ref_dst_data.data());
+        impl::tensor_t mean_ts(mean, &engine, mean_data.data());
+        impl::tensor_t variance_ts(variance, &engine, variance_data.data());
+        impl::tensor_t running_mean_ts(
+                running_mean, &engine, running_mean_data.data());
+        impl::tensor_t running_variance_ts(
+                running_variance, &engine, running_variance_data.data());
+        impl::tensor_t batch_mean_ts(
+                batch_mean, &engine, batch_mean_data.data());
+        impl::tensor_t batch_variance_ts(
+                batch_variance, &engine, batch_variance_data.data());
+        impl::tensor_t dst_ts = params.with_relu
+                ? impl::tensor_t(relu_dst, &engine, dst_data.data())
+                : impl::tensor_t(dst, &engine, dst_data.data());
+        impl::tensor_t ref_dst_ts = params.with_relu
+                ? impl::tensor_t(relu_dst, &engine, ref_dst_data.data())
+                : impl::tensor_t(dst, &engine, ref_dst_data.data());
 
         impl::stream_t &strm = get_stream();
 
-        if (dims_in_order) {
-            bn_kernel->execute(&batchnorm_op, &strm,
-                    {src_ts, scale_ts, shift_ts}, {dst_ts});
-            strm.wait();
-
-            std::function<float(const float)> activation = nullptr;
-            if (params.op_kind == impl::dnnl_impl::op_kind::bn_relu) {
-                activation = [](const float v) { return v < 0.f ? 0.f : v; };
-            }
-            ref_batchnorm_fwd(N, IC, IH, IW, &src_ts, &ref_dst_ts, &scale_ts,
-                    &shift_ts, nullptr, nullptr, params.epsilon, activation,
-                    params.data_format == "NXC");
-
-            for (size_t i = 0; i < dst_data.size(); ++i) {
-                ASSERT_NEAR(dst_data[i], ref_dst_data[i], 1.e-6f);
-            }
+        if (!is_training) {
+            cp.execute(&strm,
+                    {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
+                    {dst_ts});
         } else {
-            EXPECT_THROW(bn_kernel->execute(&batchnorm_op, &strm,
-                                 {src_ts, scale_ts, shift_ts}, {dst_ts}),
-                    std::runtime_error);
-            strm.wait();
-        };
+            cp.execute(&strm,
+                    {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
+                    {dst_ts, running_mean_ts, running_variance_ts,
+                            batch_mean_ts, batch_variance_ts});
+        }
+
+        strm.wait();
+
+        std::function<float(const float)> activation = nullptr;
+        if (params.with_relu) {
+            activation = [](const float v) { return v < 0.f ? 0.f : v; };
+        }
+        ref_batchnorm_fwd(N, IC, IH, IW, &src_ts, &ref_dst_ts, &scale_ts,
+                &shift_ts, &mean_ts, &variance_ts, params.epsilon, activation,
+                params.data_format == "NXC",
+                params.op_kind == impl::op_kind::BatchNormForwardTraining);
+
+        for (size_t i = 0; i < dst_data.size(); ++i) {
+            ASSERT_NEAR(dst_data[i], ref_dst_data[i], 1.e-6f);
+        }
     }
 
     void Test() {
@@ -612,17 +721,20 @@ TEST_P(BatchNorm4D, TestBatchnorm) {
 INSTANTIATE_TEST_SUITE_P(Execute, BatchNorm4D,
         ::testing::Values(
                 dnnl_graph_test_batchnorm_params {
-                        impl::op_kind::BatchNormInference, 3, 3, 2, 2, 0.001f,
-                        "NCX", "dnnl", impl::data_type::f32},
+                        impl::op_kind::BatchNormInference, false, 3, 3, 2, 2,
+                        0.001f, "NCX", "dnnl", impl::data_type::f32},
                 dnnl_graph_test_batchnorm_params {
-                        impl::op_kind::BatchNormInference, 3, 3, 2, 2, 0.001f,
-                        "NXC", "dnnl", impl::data_type::f32},
+                        impl::op_kind::BatchNormInference, true, 3, 3, 2, 2,
+                        0.001f, "NCX", "dnnl", impl::data_type::f32},
                 dnnl_graph_test_batchnorm_params {
-                        impl::dnnl_impl::op_kind::bn_relu, 3, 3, 2, 2, 0.001f,
-                        "NCX", "dnnl", impl::data_type::f32},
+                        impl::op_kind::BatchNormInference, false, 3, 3, 2, 2,
+                        0.001f, "NXC", "dnnl", impl::data_type::f32},
                 dnnl_graph_test_batchnorm_params {
-                        impl::dnnl_impl::op_kind::bn_relu, 3, 3, 2, 2, 0.001f,
-                        "NXC", "dnnl", impl::data_type::f32}));
+                        impl::op_kind::BatchNormForwardTraining, false, 3, 3, 2,
+                        2, 0.001f, "NCX", "dnnl", impl::data_type::f32},
+                dnnl_graph_test_batchnorm_params {
+                        impl::op_kind::BatchNormForwardTraining, false, 3, 3, 2,
+                        2, 0.001f, "NXC", "dnnl", impl::data_type::f32}));
 
 TEST(Compile, BatchNormBackpropFp32) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;

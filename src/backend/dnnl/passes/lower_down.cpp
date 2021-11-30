@@ -57,7 +57,8 @@ static bool has_post_ops(op_kind_t kind) {
             op_kind::dnnl_convolution, impl::op_kind::ConvTranspose,
             op_kind::dnnl_convtranspose, impl::op_kind::MatMul,
             impl::op_kind::AvgPool, impl::op_kind::MaxPool, op_kind::dnnl_pool,
-            impl::op_kind::ReLU, op_kind::dnnl_binary};
+            impl::op_kind::ReLU, op_kind::dnnl_binary, op_kind::dnnl_batchnorm,
+            impl::op_kind::BatchNormInference};
     return ops.count(kind) != 0;
 }
 
@@ -621,8 +622,6 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     if (!has_post_ops(op->get_kind()) || visited.count(op) != 0)
                         return impl::status::success;
 
-                    assertm(op->num_outputs() == 1,
-                            "cur_op should have only one output value.");
                     auto out_val = op->get_output_values()[0];
                     auto consumers = out_val->get_consumers();
                     if (consumers.empty()) return impl::status::success;
@@ -668,6 +667,18 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                 auto alg = get_eltwise_alg_map().at(post_op->get_kind());
                 float alpha = 0;
                 float beta = 0;
+
+                // for BatchNormForwardTraining, set dnnl_fuse_norm_relu flag
+                // instead of post op
+                if ((base_op->get_kind() == op_kind::dnnl_batchnorm
+                            && base_op->get_attr<bool>("is_training"))
+                        && post_op->get_kind() == impl::op_kind::ReLU) {
+                    base_op->set_attr<bool>("fuse_relu", true);
+                    // remove the fused post_ops op
+                    fuse_op_to_predecessor(
+                            post_op, subgraph, fuse_op_predecessor_offset);
+                    continue;
+                }
 
                 if (post_op->has_attr("alpha")) {
                     alpha = post_op->get_attr<float>("alpha");
@@ -1458,6 +1469,43 @@ impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg) {
                     });
             if (pos != subgraph.end()) subgraph.erase(pos);
         }
+    return impl::status::success;
+}
+
+impl::status_t lower_down_to_dnnl_batchnorm(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> to_be_removed_ops, to_be_inserted_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::BatchNormInference
+                && cur_op->get_kind()
+                        != impl::op_kind::BatchNormForwardTraining)
+            continue;
+
+        // create new dnnl_batchnorm
+        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_batchnorm);
+
+        // decide if this is for training or inference
+        if (cur_op->get_kind() == impl::op_kind::BatchNormInference)
+            new_op->set_attr<bool>("is_training", false);
+        else
+            new_op->set_attr<bool>("is_training", true);
+
+        // replace original oneDNN Graph ops with dnnl_batchnorm
+        replace_op(cur_op, new_op);
+        to_be_inserted_ops.emplace_back(new_op);
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
     return impl::status::success;
 }
 

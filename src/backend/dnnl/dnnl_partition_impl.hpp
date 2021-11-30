@@ -357,6 +357,9 @@ public:
                 op_kind::x8s8f32_quant_wei_matmul_bias_gelu,
                 op_kind::x8x8float_matmul_div,
                 op_kind::x8x8float_matmul_div_add,
+                // fp32 bn pattern
+                impl::op_kind::BatchNormInference,
+                impl::op_kind::BatchNormForwardTraining, op_kind::bn_relu,
                 // f32 conv pattern
                 impl::op_kind::Convolution, op_kind::conv_relu,
                 op_kind::conv_add, op_kind::conv_add_relu,

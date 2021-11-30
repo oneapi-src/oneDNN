@@ -311,6 +311,17 @@ status_t infer_dnnl_conv_bwd_data_output_shape(op_t *n,
     return status::success;
 }
 
+status_t infer_dnnl_batchnorm_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    status_t stat = status::success;
+    if (n->get_attr<bool>("is_training"))
+        stat = infer_bn_fwd_train_output_shape(n, inputs, outputs);
+    else
+        stat = infer_identity_output_shape(n, inputs, outputs);
+    return stat;
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

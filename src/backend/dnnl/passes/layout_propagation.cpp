@@ -290,6 +290,46 @@ static void layout_propagation_for_pool(op_ptr &op,
     }
 }
 
+static void layout_propagation_for_batchnorm(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair
+            = create_batchnorm_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    value_ptr src = op->get_input_value(0);
+    fill_layout_info(src, pd.src_desc());
+
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    value_ptr dst = op->get_output_value(0);
+    fill_layout_info(dst, pd.dst_desc());
+
+    if (op->get_attr<bool>("is_training")) {
+        value_ptr running_mean = op->get_output_value(1);
+        value_ptr running_variance = op->get_output_value(2);
+        value_ptr batch_mean = op->get_output_value(3);
+        value_ptr batch_variance = op->get_output_value(4);
+
+        fill_layout_info(running_mean, pd.mean_desc());
+        fill_layout_info(running_variance, pd.variance_desc());
+        fill_layout_info(batch_mean, pd.mean_desc());
+        fill_layout_info(batch_variance, pd.variance_desc());
+    }
+
+    // make scratchpad as batchnorm's last output
+    value_ptr scratchpad_val = insert_scratchpad(op);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+    // if batchnorm's prop_kind is forward_training and fused with ReLU
+    if (op->has_attr("fuse_relu") && op->get_attr<bool>("fuse_relu")) {
+        value_ptr workspace_val = insert_workspace(op);
+        fill_layout_info(workspace_val, pd.workspace_desc());
+    }
+}
+
 static void layout_propagation_for_permute(
         op_ptr &op, std::vector<op_ptr> &reorder_ops) {
     std::shared_ptr<impl::value_t> src, dst;
@@ -731,6 +771,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                     || cur_op->get_kind() == impl::op_kind::AvgPool
                     || cur_op->get_kind() == op_kind::dnnl_pool) {
                 layout_propagation_for_pool(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm) {
+                layout_propagation_for_batchnorm(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (is_eltwise_kind(cur_op->get_kind())) {
                 layout_propagation_for_eltwise(

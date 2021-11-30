@@ -134,12 +134,10 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::ConvTranspose, float_convtranspose_fwd)
     DNNL_REGISTER_KERNEL(op_kind::convtranspose_fusion, float_convtranspose_fwd)
     // bn related operators
-    DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormInference,
-            batch_normalization_forward_inference)
+    DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormInference, batchnorm_fwd_t)
+    DNNL_REGISTER_KERNEL(op_kind::bn_relu, batchnorm_fwd_t)
     DNNL_REGISTER_KERNEL(
-            op_kind::bn_relu, batch_normalization_forward_inference)
-    DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormForwardTraining,
-            batch_normalization_forward_training)
+            impl::op_kind::BatchNormForwardTraining, batchnorm_fwd_t)
     DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormTrainingBackprop,
             batch_normalization_backward)
 
@@ -339,7 +337,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::int8_avgpool, quantized_pooling);
 
     // sum fusion
-    DNNL_REGISTER_KERNEL(op_kind::dnnl_sum, sum_v2);
+    DNNL_REGISTER_KERNEL(op_kind::dnnl_sum, sum_t);
 
 #undef DNNL_REGISTER_KERNEL
 

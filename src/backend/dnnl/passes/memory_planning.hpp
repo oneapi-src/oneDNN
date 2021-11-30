@@ -367,6 +367,9 @@ private:
     void bind_memory_for_conv_bwd_data(op_t *op, const dnnl::engine &p_engine,
             primitive_attr_mgr_t &prm_attr_mgr);
 
+    void bind_memory_for_batchnorm(op_t *op, const dnnl::engine &p_engine,
+            primitive_attr_mgr_t &prm_attr_mgr);
+
     impl::status_t prepare_execution_args_set(
             const std::vector<std::shared_ptr<impl::op_t>> &subgraph,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr);

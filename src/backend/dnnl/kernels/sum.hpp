@@ -43,14 +43,12 @@
 #include "backend/dnnl/thread_local_cache.hpp"
 #include "backend/dnnl/utils.hpp"
 
-#include "backend/dnnl/tensor.hpp"
-
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-struct sum_v2 : public kernel_base_t {
+struct sum_t : public kernel_base_t {
 private:
     // primitive engine
     dnnl::engine p_engine_;
@@ -63,7 +61,7 @@ private:
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
-    ~sum_v2() override {
+    ~sum_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
@@ -170,31 +168,6 @@ public:
         }
 
         return impl::status::success;
-    }
-};
-
-struct sum_t : public dnnl::sum {
-    using super = dnnl::sum;
-
-    static void compute(const scale_t &scales,
-            const std::vector<dnnl_tensor_t> &srcs, dnnl_tensor_t &dst,
-            const dnnl::engine &p_engine, impl::allocator_t *alc,
-            const dnnl::stream &p_stream) {
-        UNUSED(alc);
-        auto src_descs = utils::fmap(srcs, [](const dnnl_tensor_t &t) {
-            // "upcast" vector<tensor::desc> to vector<memory::desc>
-            return static_cast<memory::desc>(t.get_desc());
-        });
-        auto pd = primitive_desc(scales, src_descs, p_engine);
-
-        dst.reinit_if_possible(p_stream, pd.dst_desc());
-
-        exec_args args {{DNNL_ARG_DST, dst}};
-        for (int i = 0; i < srcs.size(); ++i) {
-            args.insert(
-                    {DNNL_ARG_MULTIPLE_SRC + i, srcs[static_cast<size_t>(i)]});
-        }
-        super(pd).execute(p_stream, args);
     }
 };
 

@@ -291,6 +291,66 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
     return {pd, true};
 }
 
+inline std::pair<dnnl::batch_normalization_forward::primitive_desc, bool>
+create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<
+                        dnnl::batch_normalization_forward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    float epsilon = op->get_attr<float>("epsilon");
+
+    auto flags = normalization_flag::none;
+    // for inference
+    if (!op->get_attr<bool>("is_training")) {
+        flags |= normalization_flag::use_global_stats;
+        flags |= normalization_flag::use_scale;
+        flags |= normalization_flag::use_shift;
+    } else {
+        // for training, inputs: [src, gamma, beta, mean, variance]
+        if (op->num_inputs() > 3) {
+            flags |= normalization_flag::use_scale;
+            flags |= normalization_flag::use_shift;
+        }
+
+        if (op->has_attr("fuse_relu") && op->get_attr<bool>("fuse_relu"))
+            flags |= normalization_flag::fuse_norm_relu;
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+
+    // workaround: for issue intel/mkl-dnn#588
+    const auto &blk = src.data.format_desc.blocking;
+    if (blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
+            && blk.inner_blks[0] == 4) {
+        // to default format
+        src = to_default_format(src);
+    }
+
+    auto pkind = op->get_attr<bool>("is_training")
+            ? prop_kind::forward_training
+            : prop_kind::forward_inference;
+
+    dnnl::batch_normalization_forward::primitive_desc pd(
+            {pkind, src, epsilon, flags}, prm_attr, p_engine);
+
+    pd_cache.insert({op.get(), pd});
+    return {pd, true};
+}
+
 inline std::pair<dnnl::convolution_backward_data::primitive_desc, bool>
 create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
@@ -946,6 +1006,73 @@ private:
     dnnl::convolution_backward_data::primitive_desc pd_;
     dnnl::convolution_backward_data prim_;
     bool perm_dst_ {false};
+};
+
+struct batchnorm_executable_t : public op_executable_t {
+    batchnorm_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        is_training_ = op->get_attr<bool>("is_training");
+        float momentum = 0.5;
+        if (op->has_attr("momentum"))
+            momentum = op->get_attr<float>("momentum");
+        scales_ = {momentum, 1 - momentum};
+        pd_ = create_batchnorm_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        prim_ = dnnl::batch_normalization_forward(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        if (!is_training_) {
+            prim_.execute(stream, args);
+            return;
+        }
+
+        std::unordered_map<int, memory> exe_args = args;
+        exe_args.erase(DNNL_ARG_SRC_1);
+        exe_args.erase(DNNL_ARG_SRC_2);
+        exe_args.erase(DNNL_ARG_DST_1);
+        exe_args.erase(DNNL_ARG_DST_2);
+
+        prim_.execute(stream, exe_args);
+
+        // calculate running_mean and running_variance
+        auto batch_mean = args.find(DNNL_ARG_MEAN)->second;
+        auto batch_variance = args.find(DNNL_ARG_VARIANCE)->second;
+        auto old_running_mean = args.find(DNNL_ARG_SRC_1)->second;
+        auto old_running_variance = args.find(DNNL_ARG_SRC_2)->second;
+        auto new_running_mean = args.find(DNNL_ARG_DST_1)->second;
+        auto new_running_variance = args.find(DNNL_ARG_DST_2)->second;
+
+        dnnl::engine p_engine = stream.get_engine();
+        // new_running_mean = momentum * old_running_mean +
+        //                                      (1 - momentum) * batch_mean
+        dnnl::sum(
+                {scales_, {old_running_mean.get_desc(), batch_mean.get_desc()},
+                        p_engine})
+                .execute(stream,
+                        {{DNNL_ARG_MULTIPLE_SRC, old_running_mean},
+                                {DNNL_ARG_MULTIPLE_SRC + 1, batch_mean},
+                                {DNNL_ARG_DST, new_running_mean}});
+        // new_running_variance = momentum * old_running_variance +
+        //                                  (1 - momentum) * batch_variance
+        dnnl::sum({scales_,
+                          {old_running_variance.get_desc(),
+                                  batch_variance.get_desc()},
+                          p_engine})
+                .execute(stream,
+                        {{DNNL_ARG_MULTIPLE_SRC, old_running_variance},
+                                {DNNL_ARG_MULTIPLE_SRC + 1, batch_variance},
+                                {DNNL_ARG_DST, new_running_variance}});
+    }
+
+private:
+    dnnl::batch_normalization_forward::primitive_desc pd_;
+    dnnl::batch_normalization_forward prim_;
+    bool is_training_ {false};
+    std::vector<float> scales_;
 };
 
 struct sum_executable_t : public op_executable_t {

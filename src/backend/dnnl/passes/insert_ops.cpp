@@ -44,6 +44,9 @@ static bool need_insert_permute(op_kind_t kind) {
             impl::op_kind::MaxPool,
             impl::op_kind::AvgPool,
             op_kind::dnnl_pool,
+            op_kind::dnnl_batchnorm,
+            impl::op_kind::BatchNormInference,
+            impl::op_kind::BatchNormForwardTraining,
     };
     return ops.count(kind) != 0;
 }
@@ -127,7 +130,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
 
         // remove the attrs in cur_op to avoid re-permute
         cur_op->set_attr<std::string>("data_format", "NCX");
-        cur_op->set_attr<std::string>("filter_format", "OIX");
+        if (cur_op->has_attr("filter_format"))
+            cur_op->set_attr<std::string>("filter_format", "OIX");
         // conv + depthwise case
         if (need_permute_2)
             cur_op->set_attr<std::string>("dw_filter_format", "OIX");

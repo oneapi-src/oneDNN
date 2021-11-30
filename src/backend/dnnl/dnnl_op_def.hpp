@@ -2725,6 +2725,43 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_swish, 1,
                 .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({3, 4, 5}))
+                .set_outputs_option(op_schema_t::param_num_option::optional)
+                .set_num_outputs(std::set<size_t>({1, 5}))
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "gamma", "gamma scaling for normalized value")
+                .set_input(
+                        2, "beta", "beta added to the scaled normalized value")
+                .set_input(3, "mean", "value for mean normalization")
+                .set_input(4, "variance", "value for variance normalization")
+                .set_output(0, "output", "output tensor")
+                .set_output(1, "running mean", "the computed running mean")
+                .set_output(
+                        2, "running variance", "the computed running variance")
+                .set_output(3, "batch mean", "the computed batch mean")
+                .set_output(4, "batch variance", "the computed batch variance")
+                .set_attr("epsilon",
+                        "the number to be added to the variance to avoid "
+                        "division by zero",
+                        true, attribute_kind::f)
+                .set_attr("momentum",
+                        "used for the computation of running_mean and "
+                        "running_var",
+                        false, attribute_kind::f)
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                .set_attr("is_training", "whether this is for training", false,
+                        attribute_kind::b)
+                .set_attr("fuse_relu", "whether to fuse relu (training only)",
+                        false, attribute_kind::b)
+                .set_shape_inference_function(
+                        infer_dnnl_batchnorm_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(dnnl_sum, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::variadic)
