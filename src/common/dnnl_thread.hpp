@@ -109,10 +109,10 @@ inline int dnnl_get_max_threads() {
         assert(def_max_threads > 0);
     });
 
-    // Use the default value if the threadpool-provided is outside the range
-    // [1, def_max_threads]
-    return tp ? std::min(std::max(1, tp->get_num_threads()), def_max_threads)
-              : def_max_threads;
+    // Make user responsible for number of threads provided at execution time.
+    // This relates to the fact that the library may identify `def_max_threads`
+    // incorrectly for a platform.
+    return tp ? std::max(1, tp->get_num_threads()) : def_max_threads;
 }
 inline int dnnl_in_parallel() {
     using namespace dnnl::impl::threadpool_utils;
