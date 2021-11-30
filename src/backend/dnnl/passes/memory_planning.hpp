@@ -377,7 +377,13 @@ private:
     execution_args_set_t exec_args_set_;
 
     std::unordered_map<const value_t *, const value_t *> alias_map_;
-    std::unordered_map<const value_t *, const value_t *> reverse_alias_map_;
+    // reverse_alias_map: map from in_value to out_value
+    // it can be multimap, meaning one in_value can be used to
+    // generate several out_values, which is used in the case
+    // of input alias, i.e. conv+add: conv's first input is also
+    // used for add's second input.
+    std::unordered_multimap<const value_t *, const value_t *>
+            reverse_alias_map_;
     std::unordered_map<const value_t *, assign_info_t> buffer_assignments_;
 
     std::unordered_map<size_t, size_t> temporary_buffer_ref_count_;

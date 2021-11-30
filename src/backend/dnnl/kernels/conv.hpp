@@ -300,9 +300,12 @@ public:
             // layout type because of frontend users didn't process this
             // situation at this moment. In the future, we need to fix this for
             // more inplace opportunities.
+            // Here the condition of post_src_id != inputs[0].id is to disable
+            // the inplace option for src = conv(src) + src
             if (((post_src_lt.is_opaque() && dst_lt.is_opaque())
                         || (post_src_lt.is_strided() && dst_lt.is_strided()))
-                    && post_src_lt.is_similar(dst_lt))
+                    && post_src_lt.is_similar(dst_lt)
+                    && post_src_id != inputs[0].id)
                 inplace_pairs_.push_back({post_src_id, outputs[0].id});
         }
         return impl::status::success;

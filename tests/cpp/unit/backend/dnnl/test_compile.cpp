@@ -193,6 +193,21 @@ impl::status_t run_graph(impl::graph_t &agraph,
         return impl::status::success;
     });
 }
+
+template <typename T>
+static bool allclose(const test::vector<T> &a, const test::vector<T> &b,
+        float rtol, float atol) {
+    if (a.size() != b.size()) return false;
+    bool flag = true;
+    for (size_t i = 0; i < a.size(); i++) {
+        if (std::abs(static_cast<float>(a[i]) - static_cast<float>(b[i]))
+                > (atol + rtol * std::abs(static_cast<float>(b[i])))) {
+            flag = false;
+            break;
+        }
+    }
+    return flag;
+}
 } // namespace
 
 TEST(Compile, ConvolutionFp32) {
@@ -4944,6 +4959,68 @@ TEST(Execute, ConvolutionBf16Bf16Bf16) {
     strm.wait();
 }
 
+TEST(Compile, ConvAddSharedInputs) {
+    /*      /\  /
+           / Conv
+           \  /
+           Add
+    */
+    using dims = impl::dnnl_impl::dims;
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt
+            = utils::logical_tensor_init(1, {1, 1, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t conv_dst_lt
+            = utils::logical_tensor_init(2, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(3, {1, 1, 4, 4}, impl::data_type::f32);
+
+    // create op conv
+    impl::op_t conv_op(0, impl::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>("strides", dims {1, 1});
+    conv_op.set_attr<dims>("dilations", dims {1, 1});
+    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
+    conv_op.set_attr<dims>("pads_end", dims {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(conv_dst_lt);
+    // create op add
+    impl::op_t add_op(1, impl::op_kind::Add, "Add");
+    add_op.add_input(conv_dst_lt);
+    add_op.add_input(src_lt);
+    add_op.add_output(add_dst_lt);
+    // build graph
+    impl::engine_t &eng = get_engine();
+    impl::graph_t g(eng.kind());
+    g.add_op(&conv_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    // run pass
+    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile conv+add partition
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &weight_lt, &src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    // check inplace pairs
+    std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
+    ASSERT_EQ(inplace_pairs.size(), 0);
+}
+
 TEST(Execute, GroupConvolution) {
     using dims = impl::dnnl_impl::dims;
 
@@ -5320,6 +5397,112 @@ TEST(Execute, ConvolutionBnFp32) {
         max_diff = std::max(max_diff, std::abs(bn_dst[i] - convbn_dst[i]));
     }
     ASSERT_LT(max_diff, 1e-6f);
+}
+
+TEST(Compile, ConvBnSharedInputs) {
+    // bn has shared gamma/beta/mean/var
+    using dims = impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    impl::op_t conv_op(0, impl::op_kind::Convolution, "conv");
+    conv_op.set_attr<dims>("strides", dims {1, 1});
+    conv_op.set_attr<dims>("dilations", dims {1, 1});
+    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
+    conv_op.set_attr<dims>("pads_end", dims {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+
+    impl::op_t bn_op(1, impl::op_kind::BatchNormInference, "bn");
+    bn_op.set_attr<std::string>("data_format", "NCX");
+    bn_op.set_attr("epsilon", 1e-6f);
+
+    // prepare logical tensor
+    impl::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
+            0, {8, 32, 16, 16}, impl::data_type::f32);
+    impl::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
+            1, {32, 32, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
+            2, {8, 32, 16, 16}, impl::data_type::f32);
+    impl::logical_tensor_t shared_lt
+            = utils::logical_tensor_init(3, {32}, impl::data_type::f32);
+    impl::logical_tensor_t bn_dst_lt = utils::logical_tensor_init(
+            7, {8, 32, 16, 16}, impl::data_type::f32);
+
+    test::vector<float> conv_src(8 * 32 * 16 * 16);
+    test::vector<float> conv_weight(32 * 32 * 1 * 1);
+    test::vector<float> bn_shared_input(32);
+    test::vector<float> bn_dst(8 * 32 * 16 * 16);
+
+    // Initialize
+    std::default_random_engine generator;
+    std::normal_distribution<float> distribution(0.0f, 0.1f);
+
+    std::generate(conv_src.begin(), conv_src.end(),
+            [&]() { return distribution(generator); });
+    std::generate(conv_weight.begin(), conv_weight.end(),
+            [&]() { return distribution(generator); });
+    std::generate(bn_shared_input.begin(), bn_shared_input.end(),
+            [&]() { return distribution(generator); });
+
+    impl::tensor_t conv_src_ts(conv_src_lt, &eng, conv_src.data());
+    impl::tensor_t conv_weight_ts(conv_weight_lt, &eng, conv_weight.data());
+    impl::tensor_t bn_shared_input_ts(shared_lt, &eng, bn_shared_input.data());
+    impl::tensor_t bn_dst_ts(bn_dst_lt, &eng, bn_dst.data());
+
+    conv_op.add_input(conv_src_lt);
+    conv_op.add_input(conv_weight_lt);
+    conv_op.add_output(conv_dst_lt);
+    bn_op.add_input(conv_dst_lt);
+    bn_op.add_input(shared_lt);
+    bn_op.add_input(shared_lt);
+    bn_op.add_input(shared_lt);
+    bn_op.add_input(shared_lt);
+    bn_op.add_output(bn_dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&conv_op);
+    g.add_op(&bn_op);
+    g.build_graph();
+
+    // run unfused graph to compute the reference
+    ASSERT_EQ(run_graph(g,
+                      {conv_src_ts, conv_weight_ts, bn_shared_input_ts,
+                              bn_shared_input_ts, bn_shared_input_ts,
+                              bn_shared_input_ts},
+                      {bn_dst_ts}, eng, strm),
+            impl::status::success);
+
+    // run fusion partition
+    impl::pass::pass_base_ptr apass = get_pass("conv_bn_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&conv_src_lt,
+            &conv_weight_lt, &shared_lt, &shared_lt, &shared_lt, &shared_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&bn_dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    test::vector<float> convbn_dst(8 * 32 * 16 * 16, 0.0);
+    impl::tensor_t convbn_dst_ts(bn_dst_lt, &eng, convbn_dst.data());
+
+    cp.execute(&strm,
+            {conv_src_ts, conv_weight_ts, bn_shared_input_ts,
+                    bn_shared_input_ts, bn_shared_input_ts, bn_shared_input_ts},
+            {convbn_dst_ts});
+    strm.wait();
+    ASSERT_TRUE(allclose(bn_dst, convbn_dst, /*rtol*/ 0.1f, 1e-6f));
 }
 
 TEST(Execute, ConvAdd) {
@@ -7984,21 +8167,6 @@ TEST(Execute, DequantizePerChannelSymmetric) {
     for (size_t i = 0; i < src.size(); ++i) {
         ASSERT_EQ(dst[i], ref_dst[i]);
     }
-}
-
-template <typename T>
-static bool allclose(const test::vector<T> &a, const test::vector<T> &b,
-        float rtol, float atol) {
-    if (a.size() != b.size()) return false;
-    bool flag = true;
-    for (size_t i = 0; i < a.size(); i++) {
-        if (std::abs(static_cast<float>(a[i]) - static_cast<float>(b[i]))
-                > (atol + rtol * std::abs(static_cast<float>(b[i])))) {
-            flag = false;
-            break;
-        }
-    }
-    return flag;
 }
 
 // FIXME(qun) If the atol and rtol in the following cases are too small, then

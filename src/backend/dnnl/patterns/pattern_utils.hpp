@@ -561,58 +561,6 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
     });
 }
 
-// function to do graph rewriting
-inline void pattern_utils_t::rewrite(dnnl::graph::impl::graph_t &backend_graph,
-        op_t *origin_pattern, op_t *optimized_pattern,
-        std::vector<std::vector<op_t *>> &fusion_ops) {
-    std::vector<op_t *> pattern_vec = pattern2vector(origin_pattern);
-    std::unordered_set<op_t *> visited;
-    std::unordered_set<value_t *> visited_value;
-
-    for (auto &ops : fusion_ops) {
-        visited.clear();
-        visited_value.clear();
-        op_t *fused_op = backend_graph.create_op(
-                optimized_pattern->get_kind(), "fused_op");
-        //need discuss: how to add into graph
-        fused_op->merge_attributes(optimized_pattern->get_attributes());
-        for (size_t i = 0; i < ops.size(); ++i) {
-            op_t *cur_op = ops[i];
-            visited.insert(cur_op);
-            fused_op->merge_attributes(cur_op->get_attributes());
-            fused_op->add_op_ids(cur_op->get_id());
-            const op_t *pattern_op = pattern_vec[i];
-            // if cur_op has input op which isn't in pattern,
-            // update value's connection. if cur_op has input op
-            // which is in pattern, add its output_tensor into visited
-            for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
-                std::shared_ptr<value_t> in_value = cur_op->get_input_value(j);
-                //if in_op isn't in pattern,
-                //set it as a input op of fused_op
-                if (!in_value->has_producer()
-                        || !visited.count(&in_value->get_producer())) {
-                    in_value->remove_consumer(*cur_op, j);
-                    in_value->add_consumer(*fused_op, fused_op->num_inputs());
-                    fused_op->add_input(in_value);
-                }
-            }
-            if (pattern_op->num_outputs() == 0) {
-                // it's a end op of pattern, need to update
-                // op connection of it's output ops
-                for (size_t k = 0; k < cur_op->num_outputs(); ++k) {
-                    auto out_value = cur_op->get_output_value(k);
-                    out_value->set_producer(*fused_op);
-                    fused_op->add_output(out_value);
-                }
-            }
-        }
-
-        for (size_t i = 0; i < ops.size(); ++i) {
-            backend_graph.delete_op(ops[i]);
-        }
-    }
-}
-
 // function to do fusion but not rewrite the graph
 inline void pattern_utils_t::fuse(dnnl::graph::impl::graph_t &backend_graph,
         op_t *origin_pattern, op_t *opt_pattern,

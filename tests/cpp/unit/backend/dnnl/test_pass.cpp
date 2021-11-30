@@ -119,6 +119,62 @@ TEST(Pass, FuseConvBn) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
+TEST(Pass, FuseConvBnWithSharedInputs) {
+    /*   conv
+          |
+         bn
+    */
+    graph_t agraph;
+    op_t conv {0, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t bn {1, BatchNormInference, "bn"};
+    bn.set_attr("epsilon", 0.001f);
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    conv.add_input(lt_vec[0]);
+    conv.add_input(lt_vec[1]);
+    conv.add_output(lt_vec[2]);
+    bn.add_input(lt_vec[2]);
+    //assume gamma/beta/mean/var are using the same lt
+    bn.add_input(lt_vec[3]);
+    bn.add_input(lt_vec[3]);
+    bn.add_input(lt_vec[3]);
+    bn.add_input(lt_vec[3]);
+    bn.add_output(lt_vec[4]);
+
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&bn), status::success);
+
+    agraph.build_graph();
+
+    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), Convolution);
+    ASSERT_EQ(agraph.get_ops()[0]->num_inputs(), 2);
+    ASSERT_EQ(agraph.get_ops()[0]->num_outputs(), 1);
+    ASSERT_EQ(agraph.get_ops()[1]->get_kind(), BatchNormInference);
+    ASSERT_EQ(agraph.get_ops()[1]->num_inputs(), 5);
+    ASSERT_EQ(agraph.get_ops()[1]->num_outputs(), 1);
+
+    pass::pass_base_ptr apass = get_pass("conv_bn_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::conv_bn);
+
+    // For a partition with N inputs that have the same id
+    // It is required that those inputs are input N times
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 6);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[4].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[5].id, 3);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
+}
+
 TEST(Pass, FailToFuseConvBnWithBias) {
     /*   conv
           |
@@ -4789,9 +4845,10 @@ TEST(Pass, CheckSameInput) {
     apass = get_pass("sum_pass");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
     ASSERT_EQ(
             get_fused_op(agraph.get_partitions()[0])->get_kind(), Convolution);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(), Add);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
@@ -4799,6 +4856,15 @@ TEST(Pass, CheckSameInput) {
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2);
+
+    // For a partition with N inputs that have the same id
+    // It is required that those inputs are input N times
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[0].id, 2);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[1].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[1]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 3);
 }
 
 TEST(Pass, FuseToInt8Conv) {

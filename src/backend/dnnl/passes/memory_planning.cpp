@@ -417,10 +417,11 @@ impl::status_t memory_planner_t::assign_external_inputs_buffer(
     while (!q.empty()) {
         auto val_info = q.front();
         q.pop();
-        if (reverse_alias_map_.count(val_info.first)) {
-            const value_t *alias = reverse_alias_map_.at(val_info.first);
-            buffer_assignments_.insert(std::make_pair(alias, val_info.second));
-            q.push(std::make_pair(alias, val_info.second));
+        for (const auto &iter : reverse_alias_map_) {
+            if (iter.first != val_info.first) continue;
+            buffer_assignments_.insert(
+                    std::make_pair(iter.second, val_info.second));
+            q.push(std::make_pair(iter.second, val_info.second));
         }
     }
     return status::success;
