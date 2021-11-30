@@ -307,12 +307,11 @@ dnnl::graph::compiled_partition compile_partition(const func_t &init_pd_func,
     if (is_bench_mode(PERF)) {
         // Measure parititon compilation perf.
         measure_partition_compl(
-                res->par_compl_timer, par, inputs, outputs, engine);
+                res->timer_map.par_compl_timer(), par, inputs, outputs, engine);
 
-        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-        // This function call here is needed
-        // to measure primitive creation time.
-        init_prim(prim, init_pd_func, prb, res);
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> user_prim;
+        measure_prim_create(res->timer_map.prim_create_timer(), user_prim,
+                init_pd_func, prb, res);
     }
 
     return cp;

@@ -40,8 +40,8 @@ void base_perf_report_t::report(res_t *res, const char *prb_str) const {
 
 void base_perf_report_t::handle_option(std::ostream &s, const char *&option,
         res_t *res, const char *prb_str) const {
-    const auto &par_compl_timer = res->par_compl_timer;
-    const auto &prim_create_timer = res->prim_create_timer;
+    const auto &prim_create_timer = res->timer_map.prim_create_timer();
+    const auto &par_compl_timer = res->timer_map.par_compl_timer();
 
     timer::timer_t::mode_t mode = timer::timer_t::min;
     (void)mode;

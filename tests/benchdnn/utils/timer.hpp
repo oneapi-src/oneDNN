@@ -70,12 +70,16 @@ struct timer_t {
     // Section with timer fixed timer names for ease of use
     static const std::string perf_timer;
     static const std::string ref_timer;
+    static const std::string prim_create_timer;
+    static const std::string par_compl_timer;
 };
 
 struct timer_map_t {
     timer_t &get_timer(const std::string &name);
 
     timer_t &perf_timer();
+    timer_t &prim_create_timer();
+    timer_t &par_compl_timer();
 
     std::map<std::string, timer_t> timers;
 };

@@ -77,7 +77,6 @@ api_mode_t str2api_mode(const char *str) {
     return mode;
 }
 
-
 /* result structure */
 const char *state2str(res_state_t state) {
     if (state == UNTESTED) return "UNTESTED_FAILED"; // for easier fail search
@@ -174,9 +173,10 @@ void parse_result(
         const auto &t = res.timer_map.perf_timer();
         for (int mode = 0; mode < (int)bt::n_modes; ++mode) {
             bs.ms[mode] += t.ms((bt::mode_t)mode);
-            bs.par_compl_ms[mode] += res.par_compl_timer.ms((bt::mode_t)mode);
             bs.prim_create_ms[mode]
-                    += res.prim_create_timer.ms((bt::mode_t)mode);
+                    += res.timer_map.prim_create_timer().ms((bt::mode_t)mode);
+            bs.par_compl_ms[mode]
+                    += res.timer_map.par_compl_timer().ms((bt::mode_t)mode);
         }
         if (is_bench_mode(CORR)) {
             using bt = timer::timer_t;

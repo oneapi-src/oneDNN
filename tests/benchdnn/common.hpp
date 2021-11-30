@@ -128,6 +128,7 @@ extern api_mode_t api_mode;
 extern double max_ms_per_prb; /** maximum time spends per prb in ms */
 extern int min_times_per_prb; /** minimal amount of runs per prb */
 extern int fix_times_per_prb; /** if non-zero run prb that many times */
+extern int ctimes_per_prb; /** amount of ctime measurements per prb */
 
 extern bool fast_ref_gpu;
 extern bool allow_enum_tags_only;
@@ -176,8 +177,6 @@ struct res_t {
     res_state_t state;
     size_t errors, total;
     timer::timer_map_t timer_map;
-    timer::timer_t par_compl_timer;
-    timer::timer_t prim_create_timer;
     std::string impl_name;
     skip_reason_t reason;
     size_t ibytes, obytes;

@@ -112,8 +112,18 @@ timer_t &timer_map_t::perf_timer() {
     return get_timer(timer_t::perf_timer);
 }
 
+timer_t &timer_map_t::prim_create_timer() {
+    return get_timer(timer_t::prim_create_timer);
+}
+
+timer_t &timer_map_t::par_compl_timer() {
+    return get_timer(timer_t::par_compl_timer);
+}
+
 // Initializing timers with fixed names.
 const std::string timer_t::perf_timer = "perf_timer";
 const std::string timer_t::ref_timer = "compute_ref_timer";
+const std::string timer_t::prim_create_timer = "prim_create_timer";
+const std::string timer_t::par_compl_timer = "par_compl_timer";
 
 } // namespace timer
