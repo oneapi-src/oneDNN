@@ -171,11 +171,11 @@ bool xe_hp_systolic_gemm_t::pd_t::use_fma() {
     if (d->n() < 32 && d->k() < 32) return true;
 
     // Use FMA for small/medium sizes.
-    if (utils::one_of(d->c_type(), bf16, f16, s32)) {
+    if (utils::one_of(d->a_type(), bf16, f16, s8, u8)) {
         const nocopy_table_t *all_tables[3] = {xe_hp_f16_nocopy_table,
                 xe_hp_bf16_nocopy_table, xe_hp_x8x8s32_nocopy_table};
         const int type_idx
-                = (d->c_type() == f16) ? 0 : (d->c_type() == bf16) ? 1 : 2;
+                = (d->a_type() == f16) ? 0 : (d->a_type() == bf16) ? 1 : 2;
         const nocopy_table_t *table = all_tables[type_idx];
         const long mnl = table->mn_limit[d->transa()][d->transb()];
         const long kl = table->k_limit[d->transa()][d->transb()];

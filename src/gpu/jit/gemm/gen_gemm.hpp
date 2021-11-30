@@ -105,8 +105,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                         && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
 
                 attr_skip_mask |= smask_t::zero_points_runtime;
-            } else if (d->c_type() == bf16) {
-                ok = ok && d->a_type() == bf16 && d->b_type() == bf16
+            } else if (d->a_type() == bf16) {
+                ok = ok && d->b_type() == bf16
+                        && utils::one_of(d->c_type(), bf16, f32)
                         && utils::one_of(d->acc_type, bf16, f32);
             } else {
                 ok = ok && utils::one_of(d->c_type(), f32, f16)
@@ -156,7 +157,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             // int8 not enabled on Xe_HP/Xe_HPG for now. bf16 only enabled on Xe_HP+.
             ok &= IMPLICATION(utils::one_of(d->a_type(), s8, u8), int8_ok);
-            ok &= IMPLICATION(d->c_type() == bf16, arch_ >= arch_t::xe_hp);
+            ok &= IMPLICATION(d->a_type() == bf16, arch_ >= arch_t::xe_hp);
 
             if (!ok) return status::unimplemented;
 

@@ -950,9 +950,9 @@ void gen_gemm_nocopy_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
                  : (arch == compute::gpu_arch_t::xe_hpc) ? 3
                  : (arch >= compute::gpu_arch_t::xe_hp) ? 2
                  : 0;
-    int type_idx = (c_type == data_type::f16) ? 1
-                : (c_type == data_type::bf16) ? 2
-                :  (c_type == data_type::s32) ? 3 : 0;
+    int type_idx = (a_type == data_type::f32) ? 0
+                 : (a_type == data_type::f16) ? 1
+                 : (a_type == data_type::bf16) ? 2 : 3;
     // clang-format on
 
     const kernel_table_t *table
