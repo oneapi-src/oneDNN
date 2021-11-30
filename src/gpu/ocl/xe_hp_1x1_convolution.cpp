@@ -194,7 +194,8 @@ status_t xe_hp_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("OC_CALC_BLOCK", conf.calc_block);
 
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
-    def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_);
+    def_attr_info(
+            kernel_ctx, conf.attr_info, attr()->post_ops_, &(dst_md()->dims));
 
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
 

@@ -192,7 +192,8 @@ status_t xe_hp_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IC_NCHUNK", utils::div_up(conf.ic, conf.ic_block));
     kernel_ctx.define_int("OW_NCHUNK", utils::div_up(conf.ow, conf.ow_block));
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
-    def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_);
+    def_attr_info(
+            kernel_ctx, conf.attr_info, attr()->post_ops_, &(dst_md()->dims));
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
     kernel_ctx.define_int("LWS_0", conf.lws_d[0]);
     kernel_ctx.define_int("LWS_1", conf.lws_d[1]);
