@@ -108,7 +108,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         brgattr.hint_expected_C_size = 0;
         brgattr.wary_tail_read = false;
         const bool is_amx = brgemm_convolution_utils::is_amx(isa);
-        brgattr.use_uker = is_amx && brg.rdb > 1;
+        const bool is_small_mb = jcp_.mb == 1;
+        brgattr.use_uker = is_amx && !is_small_mb && brg.rdb > 1;
         brgattr.use_interleave_stores = brgattr.use_uker;
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
         auto LDD = jcp_.oc_without_padding;
