@@ -1740,8 +1740,7 @@ private:
 
         // TODO: improve estimate register count, it fails to account for tmp
         // values like mask_registers among other things.
-        double reg_factor = is_bwd_w ? 0.875 : 0.95;
-        int max_regs = int(regs * reg_factor);
+        int max_regs = regs;
         int regs = estimate_register_count();
         if (regs <= max_regs) return true;
 
@@ -1906,6 +1905,8 @@ private:
 
         int estimated_regs = data_regs + reorder_regs + header_regs;
 
+        double reg_factor = (is_bwd_w && is_dp_fma()) ? 1 / 0.875 : 1 / 0.95;
+        estimated_regs = std::ceil(reg_factor * estimated_regs);
         return estimated_regs;
     }
 
