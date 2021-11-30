@@ -35,11 +35,8 @@ struct jit_amx_tilecfg_t : public jit_generator {
 
 private:
     void generate() override {
-        preamble();
-
         ldtilecfg(ptr[abi_param1]);
-
-        postamble();
+        ret();
     }
 };
 
@@ -56,11 +53,8 @@ struct jit_amx_tilerelease_t : public jit_generator {
 
 private:
     void generate() override {
-        preamble();
-
         tilerelease();
-
-        postamble();
+        ret();
     }
 };
 
