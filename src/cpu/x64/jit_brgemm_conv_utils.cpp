@@ -1719,6 +1719,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.is_1x1) return status::unimplemented;
     // TODO: check these restrictions
     if (is_amx(isa)) {
+        // disabled for two convolutions from ssd_resnet34
+        if ((jcp.ic == jcp.oc) && (jcp.ic == 128 || jcp.ic == 256)
+                && (jcp.oh == jcp.ow) && (jcp.oh == 150))
+            return status::unimplemented;
         // disabled for first convolutions excepting 3d
         const bool is_3d = jcp.ndims == 5;
         if (jcp.ic <= 4 && !is_3d) return status::unimplemented;
