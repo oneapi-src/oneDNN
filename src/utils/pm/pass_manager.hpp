@@ -76,9 +76,7 @@ private:
     pass_registry_t &pass_registry_;
 
 public:
-    pass_manager_t(pass_registry_t &registry) : pass_registry_(registry) {
-        pass_registry_.sort_passes();
-    }
+    pass_manager_t(pass_registry_t &registry) : pass_registry_(registry) {}
 
     // get all registered passes
     const std::list<pass_base_ptr> &get_passes() {

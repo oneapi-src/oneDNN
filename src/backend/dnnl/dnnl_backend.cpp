@@ -70,6 +70,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PASSES_CALL(eltwise_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(quantize_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(sum_fusion, pass_registry_);
+    pass_registry_.sort_passes();
 
     return true;
 }
