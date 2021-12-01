@@ -65,7 +65,7 @@ enum mem_keys {
 // - When iterating over the dimension sizes, starting at the trailing
 //   dimension, the dimension sizes must either be equal, one of them is 1, or
 //   one of them does not exist.
-struct binary : public kernel_base_t {
+struct binary_t : public kernel_base_t {
     using super = dnnl::binary;
 
 private:
@@ -127,7 +127,7 @@ private:
     }
 
 public:
-    ~binary() override {
+    ~binary_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
