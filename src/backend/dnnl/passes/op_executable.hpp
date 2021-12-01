@@ -561,6 +561,73 @@ inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
     return {pd, true};
 }
 
+inline std::pair<dnnl::softmax_forward::primitive_desc, bool> create_softmax_pd(
+        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<dnnl::softmax_forward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+
+    int64_t axis = op->get_attr<int64_t>("axis");
+    if (axis < 0) { axis += src.data.ndims; }
+
+    dnnl::softmax_forward::primitive_desc pd;
+    pd = dnnl::softmax_forward::primitive_desc(
+            {prop_kind::forward_inference, src, static_cast<int>(axis)},
+            prm_attr, p_engine);
+
+    pd_cache.insert({op.get(), pd});
+
+    return {pd, true};
+}
+
+inline std::pair<dnnl::logsoftmax_forward::primitive_desc, bool>
+create_logsoftmax_pd(std::shared_ptr<impl::op_t> &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<dnnl::logsoftmax_forward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+
+    int64_t axis = op->get_attr<int64_t>("axis");
+    if (axis < 0) { axis += src.data.ndims; }
+
+    dnnl::logsoftmax_forward::primitive_desc pd;
+    pd = dnnl::logsoftmax_forward::primitive_desc(
+            {prop_kind::forward_inference, src, static_cast<int>(axis)},
+            prm_attr, p_engine);
+
+    pd_cache.insert({op.get(), pd});
+
+    return {pd, true};
+}
+
 struct op_executable_t {
     virtual ~op_executable_t() = default;
     virtual void execute(const stream &stream,
@@ -1159,6 +1226,46 @@ struct sum_executable_t : public op_executable_t {
 private:
     dnnl::sum::primitive_desc pd_;
     dnnl::sum prim_;
+};
+
+struct softmax_executable_t : public op_executable_t {
+    softmax_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_softmax_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        prim_ = dnnl::softmax_forward(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::softmax_forward::primitive_desc pd_;
+    dnnl::softmax_forward prim_;
+};
+
+struct logsoftmax_executable_t : public op_executable_t {
+    logsoftmax_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_logsoftmax_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        prim_ = dnnl::logsoftmax_forward(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::logsoftmax_forward::primitive_desc pd_;
+    dnnl::logsoftmax_forward prim_;
 };
 
 } // namespace dnnl_impl

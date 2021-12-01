@@ -17,6 +17,7 @@
 #ifndef BACKEND_DNNL_KERNELS_LOGSOFTMAX_HPP
 #define BACKEND_DNNL_KERNELS_LOGSOFTMAX_HPP
 
+#include <memory>
 #include <vector>
 
 #include "backend/dnnl/tensor.hpp"
@@ -26,81 +27,110 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-namespace logsoftmax {
-enum logsoftmax_inputs { kSrc };
-enum logsoftmax_outputs { kDst };
-} // namespace logsoftmax
-
 namespace logsoftmax_bwd {
 enum logsoftmax_bwd_inputs { kDiff_dst, kDst };
 enum logsoftmax_bwd_outputs { kDiff_src };
 } // namespace logsoftmax_bwd
 
-struct logsoftmax_forward : public dnnl::logsoftmax_forward,
-                            public kernel_base_t {
-    using super = dnnl::logsoftmax_forward;
-
+struct logsoftmax_fwd_t : public kernel_base_t {
 private:
-    primitive_desc pd_;
-    dnnl::logsoftmax_forward prim_;
-    int64_t axis_;
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
+    impl::allocator_t *g_alloc_;
+    std::shared_ptr<subgraph_t> subgraph_;
+    memory_planner_t memory_planner_;
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
-    void compute(const dnnl_tensor_t &src, dnnl_tensor_t &dst,
-            const dnnl::engine &p_engine, impl::allocator_t *alc,
-            const dnnl::stream &p_stream) {
-        auto expected_src = src.reorder_if_differ_in(p_stream, pd_.src_desc());
-        dnnl_tensor_t expected_dst = dst;
-        if (pd_.dst_desc() != dst.get_desc()) {
-            expected_dst = dnnl_tensor_t {pd_.dst_desc(), p_engine, alc};
-        }
-
-        prim_.execute(p_stream,
-                {{DNNL_ARG_SRC, expected_src}, {DNNL_ARG_DST, expected_dst}});
-
-        if (expected_dst != dst) {
-            dnnl::reorder(expected_dst, dst)
-                    .execute(p_stream, expected_dst, dst);
-        }
+    ~logsoftmax_fwd_t() override {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
 
-    impl::status_t compile_impl(const impl::op_t *op,
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = dnnl_tensor_t::desc_t;
-        // prepare the inputs and outputs' tensors' descs
-        const desc src {inputs.at(logsoftmax::kSrc)};
-        impl::logical_tensor_t *dst_lt
-                = const_cast<logical_tensor_t *>(&outputs.at(logsoftmax::kDst));
-
         p_engine_ = make_dnnl_engine(*g_engine);
-        axis_ = op->get_attr<int64_t>("axis");
-        if (axis_ < 0) { axis_ += src.get_ndims(); }
-        BACKEND_DNNL_ENFORCE(axis_ >= 0 && axis_ < src.get_ndims(),
-                "Invalid logsoftmax axis.");
+        g_alloc_ = g_engine->get_allocator();
 
-        pd_ = primitive_desc(
-                {prop_kind::forward, src, static_cast<int>(axis_)}, p_engine_);
-        prim_ = super(pd_);
-        const dnnl_tensor_t::desc_t optimal_dst_desc {pd_.dst_desc()};
-        fill_layout_info(dst_lt, optimal_dst_desc);
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
+
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
+
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
+
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
+        }
+
+        resource_ctor_ = [this]() {
+            return this->memory_planner_.get_exec_args_set().clone();
+        };
+
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::op_t *op,
+    impl::status_t execute_impl(const dnnl_partition_impl_t *part,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(op);
+        UNUSED(part);
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        dnnl_tensor_t src_ts {inputs.at(logsoftmax::kSrc), p_engine_, alc};
-        dnnl_tensor_t dst_ts {outputs.at(logsoftmax::kDst), p_engine_, alc};
-        logsoftmax_forward::compute(src_ts, dst_ts, p_engine_, alc, p_stream);
+        // each thread's own local resource
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
+
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
+        }
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
+        }
+
+        temporary_scratchpad_t scratchpad(
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
+
+        registry_t::key_t key = 0;
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
+        }
+
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+        }
+
         return impl::status::success;
     }
 };

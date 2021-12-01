@@ -211,11 +211,11 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::MaxPoolBackprop, pooling_backward)
 
     // softmax operators
-    DNNL_REGISTER_KERNEL(impl::op_kind::SoftMax, softmax_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::SoftMax, softmax_fwd_t)
     DNNL_REGISTER_KERNEL(impl::op_kind::SoftMaxBackprop, softmax_backward)
 
     // logsoftmax operators
-    DNNL_REGISTER_KERNEL(impl::op_kind::LogSoftmax, logsoftmax_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::LogSoftmax, logsoftmax_fwd_t)
     DNNL_REGISTER_KERNEL(impl::op_kind::LogSoftmaxBackprop, logsoftmax_backward)
 
     // layernorm kernel

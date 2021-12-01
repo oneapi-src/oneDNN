@@ -651,7 +651,9 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                             op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == impl::op_kind::MaxPool
                         || op->get_kind() == impl::op_kind::AvgPool
-                        || op->get_kind() == op_kind::dnnl_pool) {
+                        || op->get_kind() == op_kind::dnnl_pool
+                        || op->get_kind() == impl::op_kind::SoftMax
+                        || op->get_kind() == impl::op_kind::LogSoftmax) {
                     const bool is_training = op->has_attr("is_training")
                             ? op->get_attr<bool>("is_training")
                             : false;

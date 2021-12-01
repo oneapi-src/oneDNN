@@ -7101,9 +7101,9 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
 }
 
 TEST(Execute, Softmax) {
-    impl::op_t softmax_op(impl::op_kind::SoftMax);
     impl::engine_t &eng = get_engine();
 
+    impl::op_t softmax_op(impl::op_kind::SoftMax);
     softmax_op.set_attr<int64_t>("axis", 0);
 
     test::vector<float> src_data {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
@@ -7116,20 +7116,36 @@ TEST(Execute, Softmax) {
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             1, {2, 3}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    softmax_op.add_input(src);
+    softmax_op.add_output(dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto softmax_kernel = op_factory.create_kernel(softmax_op);
+    impl::graph_t g(eng.kind());
+    g.add_op(&softmax_op);
+    g.build_graph();
 
-    softmax_kernel->compile(&softmax_op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass = get_pass("softmax_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    impl::partition_t p;
+    p.init(part);
+
+    // compile
+    std::vector<const impl::logical_tensor_t *> inputs {&src};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src, &eng, src_data.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst_data.data());
+    impl::tensor_t dst_ts(lt, &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    softmax_kernel->execute(&softmax_op, &strm, {src_ts}, {dst_ts});
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -7137,9 +7153,9 @@ TEST(Execute, Softmax) {
 }
 
 TEST(Execute, SoftmaxWithLastDim) {
-    impl::op_t softmax_op(impl::op_kind::SoftMax);
     impl::engine_t &eng = get_engine();
 
+    impl::op_t softmax_op(impl::op_kind::SoftMax);
     softmax_op.set_attr<int64_t>("axis", -1);
 
     test::vector<float> src_data {3.0, 3.0, 1.0, 1.0};
@@ -7152,20 +7168,36 @@ TEST(Execute, SoftmaxWithLastDim) {
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             1, {2, 2}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    softmax_op.add_input(src);
+    softmax_op.add_output(dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto softmax_kernel = op_factory.create_kernel(softmax_op);
+    impl::graph_t g(eng.kind());
+    g.add_op(&softmax_op);
+    g.build_graph();
 
-    softmax_kernel->compile(&softmax_op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass = get_pass("softmax_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    impl::partition_t p;
+    p.init(part);
+
+    // compile
+    std::vector<const impl::logical_tensor_t *> inputs {&src};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src, &eng, src_data.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst_data.data());
+    impl::tensor_t dst_ts(lt, &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    softmax_kernel->execute(&softmax_op, &strm, {src_ts}, {dst_ts});
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -7214,9 +7246,9 @@ TEST(Execute, SoftmaxBackward) {
 }
 
 TEST(Execute, LogSoftmax) {
-    impl::op_t logsoftmax_op(impl::op_kind::LogSoftmax);
     impl::engine_t &eng = get_engine();
 
+    impl::op_t logsoftmax_op(impl::op_kind::LogSoftmax);
     logsoftmax_op.set_attr<int64_t>("axis", 0);
 
     test::vector<float> src_data {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
@@ -7230,20 +7262,37 @@ TEST(Execute, LogSoftmax) {
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             1, {2, 3}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src};
-    std::vector<impl::logical_tensor_t> outputs {dst};
+    logsoftmax_op.add_input(src);
+    logsoftmax_op.add_output(dst);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto softmax_kernel = op_factory.create_kernel(logsoftmax_op);
+    impl::graph_t g(eng.kind());
+    g.add_op(&logsoftmax_op);
+    g.build_graph();
 
-    softmax_kernel->compile(&logsoftmax_op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass = get_pass("log_softmax_pass");
+    ASSERT_TRUE(apass);
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    impl::partition_t p;
+    p.init(part);
+
+    // compile
+    std::vector<const impl::logical_tensor_t *> inputs {&src};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src, &eng, src_data.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst_data.data());
+    impl::tensor_t dst_ts(lt, &eng, dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    softmax_kernel->execute(&logsoftmax_op, &strm, {src_ts}, {dst_ts});
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);

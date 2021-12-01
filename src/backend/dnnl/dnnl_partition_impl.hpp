@@ -409,6 +409,9 @@ public:
                 op_kind::maximum_sigmoid, impl::op_kind::Minimum,
                 op_kind::minimum_add, op_kind::minimum_relu,
                 op_kind::minimum_sigmoid, impl::op_kind::Divide,
+                // softmax
+                impl::op_kind::SoftMax, impl::op_kind::LogSoftmax,
+                // concat
                 impl::op_kind::Concat};
 
         // compile will transform the subgraph in partition, so we make

@@ -96,6 +96,12 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_binary) {
             exec = std::make_shared<binary_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind() == impl::op_kind::SoftMax) {
+            exec = std::make_shared<softmax_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind() == impl::op_kind::LogSoftmax) {
+            exec = std::make_shared<logsoftmax_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else {
             assertm(false, "unimplemented op, can't compile it");
             return impl::status::compile_fail;

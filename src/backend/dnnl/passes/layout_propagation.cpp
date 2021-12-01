@@ -701,6 +701,52 @@ static void layout_propagation_for_dnnl_sum(op_ptr &op,
     }
 }
 
+static void layout_propagation_for_softmax(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    value_ptr src = op->get_input_value(0);
+    assertm(!ltw(src->get_logical_tensor()).is_any(),
+            "softmax's src can't be any layout now");
+
+    const auto &pd_flag_pair
+            = create_softmax_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    value_ptr dst = op->get_output_value(0);
+    fill_layout_info(dst, pd.dst_desc());
+
+    // make scratchpad as softmax's last output
+    value_ptr scratchpad_val = insert_scratchpad(op);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+}
+
+static void layout_propagation_for_logsoftmax(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    value_ptr src = op->get_input_value(0);
+    assertm(!ltw(src->get_logical_tensor()).is_any(),
+            "logsoftmax's src can't be any layout now");
+
+    const auto &pd_flag_pair
+            = create_logsoftmax_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    value_ptr dst = op->get_output_value(0);
+    fill_layout_info(dst, pd.dst_desc());
+
+    // make scratchpad as logsoftmax's last output
+    value_ptr scratchpad_val = insert_scratchpad(op);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+}
+
 static void remove_optional_conv_dw_output(
         std::vector<op_ptr> &subgraph, pd_cache_t &pd_cache) {
     std::vector<op_ptr> to_be_inserted_ops;
@@ -828,6 +874,12 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, prm_attr_mgr, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_binary) {
                 layout_propagation_for_binary(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == impl::op_kind::SoftMax) {
+                layout_propagation_for_softmax(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == impl::op_kind::LogSoftmax) {
+                layout_propagation_for_logsoftmax(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else {
                 assertm(false,
