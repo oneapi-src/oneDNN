@@ -25,6 +25,12 @@
 #include <vector>
 #include <initializer_list>
 
+#if defined(__GNUC__) && __GNUC__ == 7
+// GCC 7.x issues a false positive warning 'array subscript is above array bounds'
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -815,3 +821,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#if defined(__GNUC__) && __GNUC__ == 7
+#pragma GCC diagnostic pop
+#endif
