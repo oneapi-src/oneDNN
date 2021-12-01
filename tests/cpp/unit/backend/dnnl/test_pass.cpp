@@ -9539,3 +9539,48 @@ TEST(PassPriority, TestX8s8bf16MatmulDiv) {
     ASSERT_GT(pass4->get_priority(), pass2->get_priority());
     ASSERT_GT(pass5->get_priority(), pass1->get_priority());
 }
+
+TEST(Pass, FuseBnReLUWithSharedInputs) {
+    /*   bn
+          |
+         relu
+    */
+    graph_t agraph;
+    op_t bn {0, BatchNormInference, "bn"};
+    bn.set_attr("epsilon", 0.001f);
+    op_t relu {1, ReLU, "relu"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    bn.add_input(lt_vec[0]);
+    //assume gamma/beta/mean/var are using the same lt
+    bn.add_input(lt_vec[1]);
+    bn.add_input(lt_vec[1]);
+    bn.add_input(lt_vec[1]);
+    bn.add_input(lt_vec[1]);
+    bn.add_output(lt_vec[2]);
+    relu.add_input(lt_vec[2]);
+    relu.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&bn), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("bn_relu_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::bn_relu);
+
+    // For a partition with N inputs that have the same id
+    // It is required that those inputs are input N times
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 5);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[4].id, 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+}
