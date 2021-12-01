@@ -78,7 +78,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
 
     CHECK(attr_.set_default_formats(dst_md(0)));
 
-    if (use_fma()) return status::unimplemented;
+    if (use_nocopy()) return status::unimplemented;
 
     // LIMITATIONS:
     // - batch is not supported for unpacked inputs.
@@ -98,9 +98,8 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
 
     if (dt_int_ok) attr_skip_mask |= smask_t::zero_points_runtime;
 
-    bool arch_ok = (arch == arch_t::xe_hp);
-    arch_ok |= (arch == arch_t::xe_hpg);
-    arch_ok |= (arch == arch_t::xe_hpc) && (packed_a() || packed_b());
+    bool arch_ok = utils::one_of(
+            arch, arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc);
 
     ok = true && limits_ok && (dt_float_ok || dt_int_ok) && arch_ok
             && compute_engine->mayiuse(compute::device_ext_t::
@@ -140,13 +139,15 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
 }
 
 namespace {
+// Use no-copy if m*n < mn_limit * mn_limit and k < k_limit.
+// Zero means no limit.
 struct nocopy_table_t {
-    int mn_limit[2][2]; // Use no-copy if m*n < mn_limit * mn_limit and
-    int k_limit[2][2]; // Use no-copy if k < k_limit
+    int mn_limit[2][2];
+    int k_limit[2][2];
 };
 
 const nocopy_table_t xe_hp_f16_nocopy_table[] = {
-        // NN     NT     TN    TT
+        // NN    NT     TN   TT
         {{{1280, 768}, {512, 384}}, {{512, 768}, {1024, 512}}}};
 
 const nocopy_table_t xe_hp_bf16_nocopy_table[] = {
@@ -156,31 +157,71 @@ const nocopy_table_t xe_hp_bf16_nocopy_table[] = {
 const nocopy_table_t xe_hp_x8x8s32_nocopy_table[] = {
         // NN   NT     TN   TT
         {{{384, 384}, {384, 384}}, {{384, 512}, {384, 256}}}};
+
+const nocopy_table_t xe_hpc_f16_nocopy_table[] = {
+        // NN    NT   TN   TT
+        {{{0, 1024}, {2048, 0}}, {{0, 0}, {0, 0}}}};
+
+const nocopy_table_t xe_hpc_bf16_nocopy_table[] = {
+        // NN    NT   TN   TT
+        {{{0, 1024}, {2048, 0}}, {{0, 0}, {0, 0}}}};
+
+const nocopy_table_t xe_hpc_x8x8s32_nocopy_table[] = {
+        // NN    NT      TN    TT
+        {{{1024, 1024}, {1024, 1024}}, {{0, 0}, {0, 0}}}};
+
+const nocopy_table_t xe_hpc_f16_nocopy_bad_ld_table[] = {
+        // NN    NT      TN    TT
+        {{{1024, 1024}, {1024, 1024}}, {{0, 0}, {0, 0}}}};
+
+const nocopy_table_t xe_hpc_bf16_nocopy_bad_ld_table[] = {
+        // NN    NT      TN    TT
+        {{{1024, 1024}, {1024, 1024}}, {{0, 0}, {0, 0}}}};
+
+const nocopy_table_t xe_hpc_x8x8s32_nocopy_bad_ld_table[] = {
+        // NN    NT      TN    TT
+        {{{1024, 1024}, {1024, 1024}}, {{0, 0}, {0, 0}}}};
 } // namespace
 
-bool xe_hp_systolic_gemm_t::pd_t::use_fma() {
+bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
     using namespace data_type;
 
     const auto &d = desc();
+    bool xehpc = (dev_info_->gpu_arch() == compute::gpu_arch_t::xe_hpc);
 
-    if (any_prepacked_) return false;
+    if (any_prepacked_ || (packed_a_ && packed_b_)) return false;
 
-    // Use FMA implementation if one matrix is very small.
+    // Use no-copy implementation if one matrix is very small.
     if (d->m() < 32 && d->n() < 32) return true;
     if (d->m() < 32 && d->k() < 32) return true;
     if (d->n() < 32 && d->k() < 32) return true;
 
-    // Use FMA for small/medium sizes.
+    // Use no-copy for small/medium sizes.
     if (utils::one_of(d->a_type(), bf16, f16, s8, u8)) {
-        const nocopy_table_t *all_tables[3] = {xe_hp_f16_nocopy_table,
-                xe_hp_bf16_nocopy_table, xe_hp_x8x8s32_nocopy_table};
-        const int type_idx
-                = (d->a_type() == f16) ? 0 : (d->a_type() == bf16) ? 1 : 2;
-        const nocopy_table_t *table = all_tables[type_idx];
-        const long mnl = table->mn_limit[d->transa()][d->transb()];
-        const long kl = table->k_limit[d->transa()][d->transb()];
+        // clang-format off
+        const nocopy_table_t *all_tables[2][2][3] = {
+            {{xe_hp_f16_nocopy_table, xe_hp_bf16_nocopy_table, xe_hp_x8x8s32_nocopy_table},
+             {xe_hp_f16_nocopy_table, xe_hp_bf16_nocopy_table, xe_hp_x8x8s32_nocopy_table}},
+            {{xe_hpc_f16_nocopy_table, xe_hpc_bf16_nocopy_table, xe_hpc_x8x8s32_nocopy_table},
+             {xe_hpc_f16_nocopy_bad_ld_table, xe_hpc_bf16_nocopy_bad_ld_table, xe_hpc_x8x8s32_nocopy_bad_ld_table}}
+        };
+        // clang-format on
+        int type_idx = (d->a_type() == f16) ? 0 : (d->a_type() == bf16) ? 1 : 2;
+        int arch_idx = xehpc ? 1 : 0;
+        bool bad_ld = false;
 
-        if ((d->m() * d->n() < mnl * mnl) && (d->k() < kl)) return true;
+        auto lda_bytes = d->lda() * types::data_type_size(d->a_type());
+        auto ldb_bytes = d->ldb() * types::data_type_size(d->b_type());
+        if (!packed_a_) bad_ld |= ((lda_bytes & 0xF) != 0);
+        if (!packed_b_) bad_ld |= ((ldb_bytes & 0xF) != 0);
+
+        auto table = all_tables[arch_idx][int(bad_ld)][type_idx];
+        long mnl = table->mn_limit[d->transa()][d->transb()];
+        long kl = table->k_limit[d->transa()][d->transb()];
+
+        if ((mnl == 0 || d->m() * d->n() < mnl * mnl)
+                && (kl == 0 || d->k() < kl))
+            return true;
     }
 
     return false;

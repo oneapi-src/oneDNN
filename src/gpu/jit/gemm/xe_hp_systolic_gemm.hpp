@@ -49,7 +49,7 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
 
         status_t init(engine_t *engine);
 
-        bool use_fma();
+        bool use_nocopy();
         bool set_default_formats(data_type_t dt);
 
         size_t dyn_offset_a = 0;
