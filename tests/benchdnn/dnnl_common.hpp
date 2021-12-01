@@ -361,7 +361,7 @@ inline const engine_t &get_cpu_engine() {
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(res_t *res, const dnnl_primitive_desc_t &pd_no_attr);
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
-        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd);
+        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd, res_t *res);
 
 template <typename op_desc_t>
 int check_pd_w_and_wo_attr(
@@ -434,7 +434,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     // Collect memory footprint for a given primitive descriptor.
     SAFE(get_memory_footprint(pd, res), WARN);
 
-    SAFE(test_persistent_cache_api(prim, pd), WARN);
+    SAFE(test_persistent_cache_api(prim, pd, res), WARN);
 
     user_prim.reset(prim.release());
     return OK;

@@ -151,7 +151,7 @@ lru_cache_t &get_test_cache() {
 }
 
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
-        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd) {
+        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd, res_t *res) {
     if (!is_gpu() || (is_gpu() && DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL)) {
         return OK;
     }
@@ -181,6 +181,21 @@ int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
     } else {
         std::vector<uint8_t> cache_blob;
         SAFE(get_cache_blob(cache_blob, prim), WARN);
+
+        // The cross-engine reorder is a special primitive that may contain no
+        // kernels therefore the cache blob will always be empty, which is
+        // the correct behavior.
+        if (cache_blob.empty()) {
+            set_primitive_cache_capacity_without_clearing(old_capacity);
+            if (res->impl_name.find("cross_engine") != std::string::npos)
+                return OK;
+
+            BENCHDNN_PRINT(
+                    0, "error: %s\n", "cache blob is not expected to be empty");
+            res->state = FAILED;
+            return FAIL;
+        }
+
         DNN_SAFE(dnnl_primitive_create_from_cache_blob(
                          &p, pd, cache_blob.size(), cache_blob.data()),
                 WARN);
