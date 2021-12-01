@@ -210,6 +210,7 @@ const gemm_recipe_t gemm_recipes[] = {
     {ngen::HW::XeHPC, "SSS", "NTN", {}, 64, 32, "aB8/4x2+B8@2 aB8/4x2+B8@2 aB nse di wg 4x8 bo pt sr sb256 kc8 grf256 bk0", {}, {}},
     {ngen::HW::XeHPC, "SSS", "NTN", {}, 16, 16, "aB8x2+B8@2 aB8x2+B8@2 aB nse di wg 4x8 bo pt sr kc8 sb256 bk0", {}, {}},
     {ngen::HW::XeHPC, "SSS", "TNN", {}, 64, 32, "aS8+S1,16@2/0 aS16+S1,16@2/0 aB nse di wg 4x8 bo pt sr kc8 sm sn sb256 grf256 bk0", {}, {}},
+    {ngen::HW::XeHPC, "SSS", "TNN", {}, 16, 16, "aS16x2+S1,16@3 aS16x2+S1,16@3 aB nse di wg 4x8 bo pt sr kc8 sm sn sb256 bk0", {}, {}},
     {ngen::HW::XeHPC, "SSS", "TNN", {}, 16, 8,  "aS16+S1,16@2 aS16+S1,16@2 aB nse di wg 4x8 bo pt sr kc8 sm sn sb256 bk0", {}, {}},
     {ngen::HW::XeHPC, "SSS", "TTN", {}, 32, 64, "aS8+S1,16@2/0 aB8/4+B8@2/0 aU nse di wg 8x4 bo pt sr kc8 sm sb256 grf256 bk0", {}, {}},
     {ngen::HW::XeHPC, "HHS", "ABN", make_crosspack(2, 16), 64, 32, "aB16+B16@3 aB16+B16@3 aB nse di sys grf256 af hi pt wg 4x8 sr sb256", {}, {}},

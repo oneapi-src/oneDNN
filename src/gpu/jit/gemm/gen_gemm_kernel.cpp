@@ -855,6 +855,7 @@ const kernel_table_t xe_hpc_f32_nocopy_nt_table[] = {
 
 const kernel_table_t xe_hpc_f32_nocopy_tn_table[] = {
     {{16,  8}, { 0,  0}, {0, 0}, {}, {}},
+    {{16, 16}, { 0,  0}, {0, 0}, {}, {}},
     {{64, 32}, {-1, -1}, {0, 0}, {}, {}}
 };
 
