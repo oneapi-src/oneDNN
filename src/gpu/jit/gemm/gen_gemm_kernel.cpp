@@ -1012,6 +1012,8 @@ void gen_gemm_xe_systolic_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
         data_type_t c_type, dim_t m, dim_t n, dim_t k, dim_t batch,
         int &unroll_m, int &unroll_n, char &tag) {
 
+    using namespace data_type;
+
     switch (arch) {
         case compute::gpu_arch_t::xe_hp:
         case compute::gpu_arch_t::xe_hpg:
@@ -1024,13 +1026,18 @@ void gen_gemm_xe_systolic_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
                 tag = (m * n >= 13824 * eu_count) ? 'B' : 'A';
             break;
         case compute::gpu_arch_t::xe_hpc:
-            if (unroll_m != 0)
-                unroll_n = (unroll_m > 16) ? 32 : 16;
-            else if (unroll_n != 0)
-                unroll_m = (unroll_n > 16) ? 64 : 16;
-            else if (m * n < 4096 * eu_count)
-                unroll_m = unroll_n = 16;
-            else {
+            if (utils::one_of(a_type, f16, bf16)) {
+                if (unroll_m != 0)
+                    unroll_n = (unroll_m > 16) ? 32 : 16;
+                else if (unroll_n != 0)
+                    unroll_m = (unroll_n > 16) ? 64 : 16;
+                else if (m * n < 4096 * eu_count)
+                    unroll_m = unroll_n = 16;
+                else {
+                    unroll_m = 64;
+                    unroll_n = 32;
+                }
+            } else {
                 unroll_m = 64;
                 unroll_n = 32;
             }
