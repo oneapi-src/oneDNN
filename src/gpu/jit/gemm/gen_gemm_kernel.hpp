@@ -161,7 +161,8 @@ struct gen_gemm_xe_systolic_kernel_t : public gen_gemm_kernel_t {
             offset_t b_offset, offset_t c_offset, offset_t bias, float alpha,
             float beta, const post_ops_t &post_ops, data_type_t a_type,
             data_type_t b_type, data_type_t c_type, data_type_t co_type,
-            data_type_t acc_type, int unroll_m, int unroll_n, char tag) {
+            data_type_t acc_type, bool packed_c, int unroll_m, int unroll_n,
+            char tag) {
 
         bool arch_ok = (arch == compute::gpu_arch_t::xe_hp);
         arch_ok |= (arch == compute::gpu_arch_t::xe_hpg);
@@ -190,13 +191,14 @@ struct gen_gemm_xe_systolic_kernel_t : public gen_gemm_kernel_t {
         problem_.A.tileR = (arch == compute::gpu_arch_t::xe_hpc) ? 16 : 8;
         problem_.A.tileC = ksys;
         problem_.A.padded = problem_.B.padded = true;
-        problem_.C.padded = false;
         problem_.A.setAlignment(32);
         problem_.B.setAlignment(32);
         problem_.C.setAlignment(int(types::data_type_size(c_type)));
         problem_.A.base = ngen::AddressBase::createA64(true);
         problem_.B.base = ngen::AddressBase::createA64(true);
         problem_.C.base = ngen::AddressBase::createA64(true);
+        if (packed_c) problem_.C = problem_.B;
+        problem_.C.padded = false;
         if (batch_dims > 0) {
             problem_.batch = BatchMode::Strided;
             problem_.batchDims = batch_dims;

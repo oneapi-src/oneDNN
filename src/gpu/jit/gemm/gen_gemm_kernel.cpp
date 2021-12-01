@@ -97,6 +97,13 @@ status_t gen_gemm_kernel_t::complete_strategy() {
     strategy_.checkAdd32 = strategy_.emulate.emulate64;
     strategy_.spf = !problem_.fused;
 
+    bool c_large_cp = (problem_.C.crosspack > 1
+            && (problem_.C.crosspack * problem_.Tc.size()) > 4);
+    bool c_col_major = utils::one_of(problem_.C.layout, MatrixLayout::N,
+                               MatrixLayout::Pc)
+            ^ c_large_cp;
+    char alt_layout_c = c_col_major ? 'N' : 'T';
+
     for (int r = 0; r < gemm_recipe_count; r++) {
         auto &recipe = gemm_recipes[r];
         if (matching_hw(hw_, recipe.hw)
@@ -105,7 +112,8 @@ status_t gen_gemm_kernel_t::complete_strategy() {
                 && recipe.precisions[2] == precision_char(problem_.Tc)
                 && recipe.layouts[0] == layout_char(problem_.A.layout)
                 && recipe.layouts[1] == layout_char(problem_.B.layout)
-                && recipe.layouts[2] == layout_char(problem_.C.layout)
+                && utils::one_of(recipe.layouts[2],
+                        layout_char(problem_.C.layout), alt_layout_c)
                 && recipe.extra.aCP == problem_.A.crosspack
                 && recipe.extra.bCP == problem_.B.crosspack
                 && (problem_.A.alignment % recipe.extra.aAlign == 0)
@@ -123,7 +131,9 @@ status_t gen_gemm_kernel_t::complete_strategy() {
                         problem_.B.layout, MatrixLayout::N, MatrixLayout::T))
                 problem_.B.setAlignment(
                         std::max(problem_.Tb.size(), recipe.extra.bAlign));
-            problem_.C.setAlignment(problem_.Tc_ext.size());
+            if (utils::one_of(
+                        problem_.C.layout, MatrixLayout::N, MatrixLayout::T))
+                problem_.C.setAlignment(problem_.Tc_ext.size());
             problem_.CO.setAlignment(problem_.Tco.size());
 
             auto status = read_strategy(recipe.strategyString);

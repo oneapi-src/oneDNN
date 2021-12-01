@@ -158,6 +158,9 @@ enum class KernelScheduling : uint8_t {
     Dynamic,
 };
 
+// Preferences for using scattered accesses.
+enum class ScatterSIMD { Default, Wide, Narrow };
+
 struct GRFMultirange {
     std::vector<ngen::GRFRange> ranges;
 
@@ -170,6 +173,22 @@ struct GRFMultirange {
             idx -= r.getLen();
         }
         throw std::runtime_error("Index out of bounds");
+    }
+
+    GRFMultirange subrange(int start, int count) const {
+        GRFMultirange result;
+        for (auto &r : ranges) {
+            if (start < r.getLen()) {
+                auto got = std::min(count, r.getLen() - start);
+                result.ranges.push_back(
+                        ngen::GRFRange {r.getBase() + start, got});
+                count -= got;
+                start = 0;
+                if (count <= 0) break;
+            } else
+                start -= r.getLen();
+        }
+        return result;
     }
 
     bool contiguous(int start, int count) const {
@@ -192,6 +211,11 @@ struct GRFMultirange {
         ranges.push_back(r);
     }
 
+    void append(const GRFMultirange &r) {
+        for (auto &rr : r.ranges)
+            append(rr);
+    }
+
     uint8_t getLen() const {
         uint8_t len = 0;
         for (auto &r : ranges)
@@ -200,20 +224,6 @@ struct GRFMultirange {
     }
 
     bool empty() const { return ranges.empty(); }
-
-    GRFMultirange subrange(int off, int len) const {
-        GRFMultirange result;
-        int cur = 0;
-        for (auto &r : ranges) {
-            if (cur >= off + len) break;
-            int soff = std::max(0, off - cur);
-            int send = std::min(r.getLen(), off + len - cur);
-            if (soff < r.getLen())
-                result.ranges.push_back(
-                        ngen::GRFRange(r.getBase() + soff, send - soff));
-        }
-        return result;
-    }
 };
 
 // A pair of Subregisters in opposite banks.
@@ -378,6 +388,8 @@ private:
 struct MatrixAddressingStrategy {
     AccessType accessType = AccessType::Block; // Block/scattered/etc. access
     uint8_t tileR = 0, tileC = 0; // Desired tiling (0 if none) in registers.
+    ScatterSIMD smode
+            = ScatterSIMD::Default; // SIMD selection for scattered accesses.
     unsigned atomic : 1; // Atomic access? (only relevant for C)
     unsigned address2D : 1; // Use 2D addressing? (media block-style loads)
     unsigned prefetch : 1; // Prefetch only?
@@ -474,7 +486,8 @@ struct RegisterBlock {
     uint8_t ld; // Leading dimension, in elements.
     uint8_t offsetR, offsetC; // Row and column offset within matrix block
     uint8_t colMajor : 1; // Is this block column-major? (columns stored consecutively inside each register)
-    uint8_t crosspack : 7; // Crosspack for this block (1 if none).
+    uint8_t splitComplex : 1; // True if complex data split into successive real and imaginary parts
+    uint8_t crosspack : 6; // Crosspack for this block (1 if none).
     uint16_t bytes; // # of bytes in this block
     uint16_t offsetBytes; // Byte offset within register block
 
@@ -588,11 +601,11 @@ struct CommonState {
     VirtualFlagAllocator raVFlag;
     ngen::Subregister readFailures;
     ngen::Subregister fusedID;
-    ngen::Subregister lsDescConstant[3];
+    ngen::Subregister lsDescConstant[4];
     ngen::FlagRegister flagSwizzle;
     EmulationState emulate;
     ngen::GRFRange eatomicAddRegs[2];
-    ngen::GRFRange remaskRegs;
+    ngen::GRFRange remaskRegs[2];
     VirtualFlag vflagEAtomicAdd;
     ngen::Subregister all1s;
     ngen::RegData r0_info;
@@ -751,9 +764,6 @@ struct GEMMProblem : public CommonProblem {
 
 struct GEMMState;
 
-// Preferences for using scattered accesses.
-enum class ScatterSIMD { Default, Wide, Narrow };
-
 // How to split A/B amongst threads in a workgroup.
 enum class CoopSplit {
     K, // Split in k dimension
@@ -839,7 +849,6 @@ struct GEMMStrategy : public CommonStrategy {
     bool cAccumulators
             = false; // Use accumulator registers for part of C (to save a few registers)?
     bool cLoadAhead = false; // Load C before doing FMAs?
-    bool forceWideSIMDC = false; // Force wider SIMD for C?
     bool forceCopyC = false; // Force C to be copied before the update step?
     bool noJumpTables = false; // Disallow jump tables?
     RemainderHandling remHandling[3]; // m, n, k remainder handling.
@@ -1038,6 +1047,7 @@ struct GEMMState : public CommonState {
     int C_accCount;
     bool cSwapActive = false;
     int C_count = 1;
+    int C_buffers = 1;
     bool allocedAo = false, allocedBo = false;
     bool allowEmptyC = false;
     bool copyC = false;
@@ -1509,8 +1519,8 @@ protected:
     bool getBlockInfo(Type T, const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy, int r, int c,
             bool remainderR, bool remainderC, bool writable, bool avoidFragment,
-            ScatterSIMD smode, int maxRBlock, int maxCBlock, int &rblock,
-            int &cblock, RegisterBlock &layout);
+            int maxRBlock, int maxCBlock, int &rblock, int &cblock,
+            RegisterBlock &layout);
     bool getSubblock(Type T, RegisterBlock &blockDst,
             const RegisterBlock &blockSrc, bool column, int x1, int x2,
             int x1Unclamped, int x2Unclamped, bool overrunOK,
@@ -1569,24 +1579,24 @@ protected:
 
     bool addToRegLayout(Type T, std::vector<RegisterBlock> &layout, int r,
             int c, int roff, int coff, bool remainderR, bool remainderC,
-            bool writable, bool avoidFragment, ScatterSIMD smode, int maxRBlock,
-            int maxCBlock, const MatrixAddressing &atype,
+            bool writable, bool avoidFragment, int maxRBlock, int maxCBlock,
+            const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy);
     bool add1DBlockToRegLayout(Type T, std::vector<RegisterBlock> &layout,
             int r, int c, bool writable, const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy);
     bool getRegLayout(Type T, std::vector<RegisterBlock> &layout, int r, int c,
             bool remainderR, bool remainderC, bool writable, bool avoidFragment,
-            ScatterSIMD smode, int maxRBlock, int maxCBlock,
-            const MatrixAddressing &atype,
+            int maxRBlock, int maxCBlock, const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
             bool reverseOrder = false);
     void makeUnbackedRegLayout(Type T, std::vector<RegisterBlock> &layout,
             int r, int c, bool colMajor, int crosspack = 1, int tileR = 0,
             int tileC = 0);
 
-    void setupTeardownLoadStoreDesc(
-            bool setup, const CommonStrategy &strategy, CommonState &state);
+    void setupTeardownLoadStoreDesc(bool setup,
+            const std::vector<RegisterBlock> &layout,
+            const CommonStrategy &strategy, CommonState &state);
     void loadLoadStoreDescriptors(bool load, bool store, RegisterBlock &block,
             const ngen::Subregister &count, const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
@@ -1649,11 +1659,11 @@ protected:
             ngen::Subregister (&indices)[3], const CommonStrategy &strategy,
             CommonState &state, int start = 0);
 
-    void setupTeardownRemask(Type T, bool setup, int nq,
+    void setupTeardownRemask(Type T, int index, bool setup, int nq,
             const ngen::Subregister &remQ, const CommonStrategy &strategy,
             CommonState &state,
             const ngen::Subregister &offQ = ngen::Subregister());
-    void remaskLayout(Type T, bool column,
+    void remaskLayout(Type T, int index, bool column,
             const std::vector<RegisterBlock> &layout, const GRFMultirange &regs,
             const CommonStrategy &strategy, CommonState &state, int offset = 0);
 
@@ -1812,8 +1822,9 @@ protected:
             const GRFMultirange &C_load, GEMMProblem &problem,
             GEMMStrategy &strategy, GEMMState &state);
     void updateCLayout(const std::vector<RegisterBlock> &layoutExt,
-            const ngen::GRFRange (&C_addr0)[2], COperation op,
-            GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
+            const ngen::GRFRange (&C_addr0)[2], const RegisterBlock &C_block0,
+            COperation op, GEMMProblem &problem, GEMMStrategy &strategy,
+            GEMMState &state);
     bool doStdCRemainder(std::vector<RegisterBlock> &layoutExt,
             std::vector<RegisterBlock> &layoutExtUnmasked, bool inside,
             bool columns[2], StdCRemType remTypes[2], bool fragments[2],
@@ -1967,6 +1978,8 @@ protected:
 
     bool gemmKLoop(int ka_repack, int kb_repack, bool lateKLoopCheck,
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
+    bool gemmKLoopDispatch(int ka_repack, int kb_repack, bool lateKLoopCheck,
+            GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     bool gemmAccumulateC(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     bool gemmAccessC(COperation op, GEMMProblem &problem,
@@ -2119,8 +2132,8 @@ protected:
             const GEMMStrategy &strategy, int chunkA);
 
     bool copyRegisterBlock(Type Ts, Type Td, const RegisterBlock &blockSrc,
-            const RegisterBlock &blockDst, const ngen::GRFRange &src,
-            const ngen::GRFRange &dst, int dOffR, int dOffC,
+            const RegisterBlock &blockDst, const GRFMultirange &src,
+            const GRFMultirange &dst, int dOffR, int dOffC,
             const CommonStrategy &strategy, CommonState &state,
             bool preserveSrc = false);
     bool copyRegisters(Type Ts, Type Td,

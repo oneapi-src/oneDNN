@@ -281,9 +281,6 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
             || c_mdw.matches_tag(b_packed_tag_32);
     bool bc_prepacked_48 = b_mdw.matches_tag(b_packed_tag_48)
             || c_mdw.matches_tag(b_packed_tag_48);
-    bool c_prepacked = c_mdw.matches_tag(b_packed_tag_16)
-            || c_mdw.matches_tag(b_packed_tag_32)
-            || c_mdw.matches_tag(b_packed_tag_48);
 
     any_prepacked_ = a_prepacked_16 || a_prepacked_32 || a_prepacked_64
             || bc_prepacked_16 || bc_prepacked_32 || bc_prepacked_48;
@@ -298,7 +295,7 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     if (bc_prepacked_32) unroll_n_ = 32;
     if (bc_prepacked_48) unroll_n_ = 48;
 
-    use_new_kernels_ = !c_prepacked && !with_ab_zero_points() && (d->k() >= 64);
+    use_new_kernels_ = !with_ab_zero_points() && (d->k() >= 64);
     use_new_kernels_ |= (arch >= compute::gpu_arch_t::xe_hpc);
 
     new_kernel_t::choose_unrolls(arch, dev_info_->eu_count(), d->a_type(),
@@ -311,7 +308,7 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     format_tag_t b_packed_tag = (unroll_n_ == 48)
             ? b_packed_tag_48
             : (unroll_n_ == 32) ? b_packed_tag_32 : b_packed_tag_16;
-    format_tag_t c_packed_tag = use_new_kernels_ ? unpacked_tag : b_packed_tag;
+    format_tag_t c_packed_tag = b_packed_tag;
 
     packed_a_ = packed_b_ = packed_c_ = false;
 
@@ -585,8 +582,8 @@ status_t xe_hp_systolic_gemm_t::init_compute_new(engine_t *engine) {
                 auto status = kernel.init(arch_, pd()->with_batch(), ab_offset,
                         ab_offset, this_c_offset, bias_offset, pd()->alpha(),
                         this_beta, *this_post_ops, a_type, b_type, c_type,
-                        co_type, acc_type, pd()->unroll_m(), pd()->unroll_n(),
-                        pd()->kernel_tag());
+                        co_type, acc_type, pd()->packed_c(), pd()->unroll_m(),
+                        pd()->unroll_n(), pd()->kernel_tag());
 
                 if (status != status::success) return status;
 
