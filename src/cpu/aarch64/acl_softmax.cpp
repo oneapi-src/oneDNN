@@ -40,7 +40,7 @@ status_t acl_softmax_fwd_t<data_type>::execute_forward(
     acl_obj.src_tensor.allocator()->import_memory(const_cast<data_t *>(src));
     acl_obj.dst_tensor.allocator()->import_memory(dst);
 
-    acl_obj.softmax.run();
+    acl_obj.softmax->run();
 
     acl_obj.src_tensor.allocator()->free();
     acl_obj.dst_tensor.allocator()->free();
