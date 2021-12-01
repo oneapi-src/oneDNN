@@ -2658,6 +2658,35 @@ private:
     sbid_manager_t *external_sbid_mgr_ = nullptr;
 };
 
+// Work around due to limited scoping functionality in current generator
+// Prepends all newly created var_t names with given prefix.
+class var_prepender_t : public ir_mutator_t {
+public:
+    var_prepender_t(const std::string &prefix) : prefix_(prefix) {}
+    object_t _mutate(const for_t &obj) override {
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        auto new_var = var_t::make(
+                obj.var.type(), prefix_ + obj.var.as<var_t>().name);
+        new_obj = substitute(new_obj, obj.var, new_var);
+        return new_obj;
+    }
+    object_t _mutate(const let_t &obj) override {
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        auto new_var = var_t::make(
+                obj.var.type(), prefix_ + obj.var.as<var_t>().name);
+        new_obj = substitute(new_obj, obj.var, new_var);
+        return new_obj;
+    }
+
+private:
+    std::string prefix_;
+};
+
+object_t prepend_new_vars(const object_t &root, const std::string &prefix) {
+    var_prepender_t mutator(prefix);
+    return mutator.mutate(root);
+}
+
 // Perform pipelining operation. The goal is to transform
 // the loop structure from:
 //
@@ -2699,11 +2728,10 @@ pipeline_ctx_t pipeline(
 
     int pipe_len = std::min(init + length, bound);
 
-    stmt_t prefetch_idx = var_t::make(
-            idx.as<var_t>().type, "prefetch_" + idx.as<var_t>().name);
-    stmt_t prologue = for_t::make(prefetch_idx, init, pipe_len,
-            substitute(A_block, idx, prefetch_idx),
-            pipe_len <= loop.unroll() ? pipe_len : 1);
+    stmt_t prologue = prepend_new_vars(
+            for_t::make(idx, init, pipe_len, A_block,
+                    pipe_len <= loop.unroll() ? pipe_len : 1),
+            "prefetch_");
 
     expr_t A_idx = idx + pipe_len;
     stmt_t body = if_t::make(
@@ -2732,8 +2760,9 @@ public:
         auto A_block = find_stmt_group(loop_body, stmt_label_t::prefetch());
         auto B_block = remove_stmt_group(loop_body, stmt_label_t::prefetch());
         size_t prefetch_count = 0;
+        size_t max_nested_prefetch = 2;
         for (size_t i = 0; i < loops.size(); i++) {
-            if (prefetch_count < 1) {
+            if (prefetch_count < max_nested_prefetch) {
                 if (!contains_object(A_block, loops[i].var)) {
                     // No point in prefetching a constant in a loop
                     B_block = for_t::make(loops[i].var, loops[i].init(),
