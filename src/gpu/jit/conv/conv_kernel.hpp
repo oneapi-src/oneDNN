@@ -4348,8 +4348,14 @@ private:
         auto scratch = scope.alloc_range(inj.preferred_scratch_regs());
         inj.set_scratch(scratch);
         inj.prepare();
-        inj.compute(ngen::GRFRange(
-                data_rd.base(), elems * sizeof(float) / grf_size));
+
+        int regs = elems * sizeof(float) / grf_size;
+        int step = 2;
+        for (int i = 0; i < regs; i += step) {
+            int cur_regs = std::min(step, regs - i);
+            auto cur_rd = data_rd.format(i * grf_size);
+            inj.compute(ngen::GRFRange(cur_rd.base(), cur_regs));
+        }
     }
 
     bool try_emit_if_continue(const if_t &obj, const ngen_operand_t &cond_op) {
