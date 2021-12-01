@@ -27,7 +27,7 @@ namespace cpu {
 namespace aarch64 {
 
 struct acl_softmax_obj_t {
-    arm_compute::NESoftmaxLayer softmax;
+    std::unique_ptr<arm_compute::IFunction> softmax;
     arm_compute::Tensor src_tensor;
     arm_compute::Tensor dst_tensor;
 };
@@ -37,6 +37,7 @@ struct acl_softmax_conf_t {
     arm_compute::TensorInfo dst_info;
     float beta;
     int32_t axis;
+    bool is_logsoftmax;
 };
 
 struct acl_softmax_resource_t : public resource_t {
@@ -49,13 +50,30 @@ struct acl_softmax_resource_t : public resource_t {
         // Init Compute Library tensors based on info from descriptor
         acl_obj_->src_tensor.allocator()->init(asp.src_info);
         acl_obj_->dst_tensor.allocator()->init(asp.dst_info);
-        // clang-format off
-        acl_obj_->softmax.configure(
-            &acl_obj_->src_tensor,
-            &acl_obj_->dst_tensor,
-            asp.beta,
-            asp.axis);
-        // clang-format on
+
+        if (asp.is_logsoftmax) {
+            auto logsoftmax
+                    = std::make_unique<arm_compute::NELogSoftmaxLayer>();
+            // clang-format off
+            logsoftmax->configure(
+                &acl_obj_->src_tensor,
+                &acl_obj_->dst_tensor,
+                asp.beta,
+                asp.axis);
+            // clang-format on
+            acl_obj_->softmax = std::move(logsoftmax);
+        } else {
+            auto softmax = std::make_unique<arm_compute::NESoftmaxLayer>();
+            // clang-format off
+            softmax->configure(
+                &acl_obj_->src_tensor,
+                &acl_obj_->dst_tensor,
+                asp.beta,
+                asp.axis);
+            // clang-format on
+            acl_obj_->softmax = std::move(softmax);
+        }
+
         return status::success;
     }
 
@@ -93,11 +111,10 @@ struct acl_softmax_fwd_t : public primitive_t {
             // Guards against a 0-sized dimension
             if (src_d.has_zero_dim()) return status::unimplemented;
 
-            // Not yet implemented using ACL
-            if (is_logsoftmax()) return status::unimplemented;
-
             // No scaling
             asp_.beta = 1;
+
+            asp_.is_logsoftmax = is_logsoftmax();
 
             // The strides give us the in memory inner size
             dim_t inner_size_ = src_d.blocking_desc().strides[axis()];
@@ -114,25 +131,23 @@ struct acl_softmax_fwd_t : public primitive_t {
                     = acl_common_utils::get_acl_data_t(data_type);
 
             const int threads = dnnl_get_max_threads();
-            dim_t total_size = outer_size_ * axis_size_ * inner_size_;
             if (inner_size_ == 1) {
                 // A rough empirical heuristic created by fitting a polynomial
                 // of the tensor sizes and thread count to the run time of the
-                // ref and ACL softmax. It is greater than zero when ref is
-                // faster, and less than zero when ACL is faster. We can
+                // ref and ACL softmax. This variable is greater than zero when
+                // ref is faster, and less than zero when ACL is faster. We can
                 // interpret the constant term as the constant overhead
                 // associated with calling the external library and the negative
                 // coefficient on total_size as ACL being faster at processing
                 // each element
-                if (threads == 1 || outer_size_ == 1) {
-                    if (2 + 0.03 * outer_size_ - 0.005 * total_size > 0)
-                        return status::unimplemented;
-                } else {
-                    if (20 + 0.02 * outer_size_ - 0.006 * total_size / threads
-                                    + 3 * threads
-                            > 0)
-                        return status::unimplemented;
+                double acl_ref_performance_diff = 1 + 0.005 * outer_size_
+                        - 0.0027 * axis_size_
+                                * std::ceil(double(outer_size_) / threads);
+                if (threads > 1 || outer_size_ > 1) {
+                    // Using threads within ACL adds another constant overhead
+                    acl_ref_performance_diff += 17;
                 }
+                if (acl_ref_performance_diff > 0) return status::unimplemented;
 
                 // If the inner size is 1, we can get rid of the dimension.
                 // This stops ACL doing a unnecessary permute
@@ -146,8 +161,17 @@ struct acl_softmax_fwd_t : public primitive_t {
                         acl_tensor_shape, 1, acl_data_t, acl_layout);
             } else {
                 // A rough empirical heuristic, see comment above
-                if (2 - 0.005 * total_size / threads + 3 * threads > 0)
-                    return status::unimplemented;
+                // The only difference here is that ACL does a reorder, and so
+                // is considerably better
+                double acl_ref_performance_diff = 1 + 0.005 * outer_size_
+                        - 0.01 * inner_size_ * axis_size_
+                                * std::ceil(double(outer_size_) / threads);
+                if (threads > 1 || outer_size_ > 1) {
+                    // Using threads within ACL adds another constant overhead
+                    acl_ref_performance_diff += 17;
+                }
+
+                if (acl_ref_performance_diff > 0) return status::unimplemented;
 
                 // Irrespective of the input dimensions, we construct a tensor
                 // with dimensions such that softmax can be applied over the
@@ -164,8 +188,14 @@ struct acl_softmax_fwd_t : public primitive_t {
             }
 
             // Validate manually to check for return status
-            auto acl_st = arm_compute::NESoftmaxLayer::validate(
-                    &asp_.src_info, &asp_.dst_info, asp_.beta, asp_.axis);
+            arm_compute::Status acl_st;
+            if (asp_.is_logsoftmax) {
+                acl_st = arm_compute::NELogSoftmaxLayer::validate(
+                        &asp_.src_info, &asp_.dst_info, asp_.beta, asp_.axis);
+            } else {
+                acl_st = arm_compute::NESoftmaxLayer::validate(
+                        &asp_.src_info, &asp_.dst_info, asp_.beta, asp_.axis);
+            }
             if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
                 MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
                 return status::unimplemented;
