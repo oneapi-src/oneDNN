@@ -57,10 +57,10 @@ where \f$t,l\f$ are the indices of the timestamp and the layer of the cell being
 
 The RNN API provides four cell functions:
 
--   [Vanilla RNN](#Vanilla-RNN), a single-gate recurrent cell,
--   [LSTM](#LSTM), a four-gate long short-term memory cell,
--   [GRU](#GRU), a three-gate gated recurrent unit cell,
--   [Linear-before-reset GRU](#Linear-before-reset-GRU), a three-gate recurrent
+-   [Vanilla RNN](#vanilla-rnn), a single-gate recurrent cell,
+-   [LSTM](#lstm), a four-gate long short-term memory cell,
+-   [GRU](#gru), a three-gate gated recurrent unit cell,
+-   [Linear-before-reset GRU](#linear-before-reset-gru), a three-gate recurrent
     unit cell with the linear layer before the reset gate.
 
 ### Vanilla RNN
