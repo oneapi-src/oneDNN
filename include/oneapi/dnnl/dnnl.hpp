@@ -357,6 +357,10 @@ struct primitive : public handle<dnnl_primitive_t> {
     /// Returns a cache blob for the primitive.
     ///
     /// @returns Vector containing the cache blob.
+    ///
+    /// @note The cache blob can be empty. It's the user's responsibility to
+    ///     check whether it's empty prior to passing it to the primitive
+    ///     constructor.
     inline std::vector<uint8_t> get_cache_blob() const;
 
     /// Executes computations specified by the primitive in a specified stream.

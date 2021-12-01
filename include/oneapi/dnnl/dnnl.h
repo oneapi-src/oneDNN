@@ -282,6 +282,10 @@ dnnl_status_t DNNL_API dnnl_primitive_get_primitive_desc(
 ///     nullptr then the size of the cache blob is returned in @p size.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
+///
+/// @note The cache blob can be empty. It's the user's responsibility to check
+///     whether it's empty prior to passing it to
+///     #dnnl_primitive_create_from_cache_blob().
 dnnl_status_t DNNL_API dnnl_primitive_get_cache_blob(
         const_dnnl_primitive_t primitive, size_t *size, uint8_t *cache_blob);
 
