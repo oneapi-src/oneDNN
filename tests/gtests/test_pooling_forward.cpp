@@ -247,16 +247,6 @@ protected:
                 : create_md(
                         {pd.mb, pd.c, pd.oh, pd.ow}, data_type, p.dst_format);
 
-        auto p_src = test::make_memory(p_src_desc, eng);
-        auto p_dst = test::make_memory(p_dst_desc, eng);
-
-        fill_data<data_t>(
-                p_src.get_desc().get_size() / sizeof(data_t), p_src, 1., true);
-        fill_data<data_t>(
-                p_dst.get_desc().get_size() / sizeof(data_t), p_dst, 1., true);
-        check_zero_tail<data_t>(1, p_src);
-        check_zero_tail<data_t>(1, p_dst);
-
         memory::dims strides, ker, dilation, pad_l, pad_r;
         if (p.ndims == 5) {
             strides = memory::dims({pd.strd, pd.strh, pd.strw});
@@ -287,6 +277,7 @@ protected:
             SKIP_IF_CUDA(dilation[i] != 0, "Dilation is not supported!");
         }
 
+        memory p_src, p_dst;
         if (pd.dd == 0 && pd.dh == 0 && pd.dw == 0) {
             auto pool_desc = pooling_forward::desc(p.aprop_kind, p.aalgorithm,
                     p_src_desc, p_dst_desc, strides, ker, pad_l, pad_r);
@@ -297,9 +288,21 @@ protected:
                     = pooling_forward::primitive_desc(pool_prim_desc.get());
 
             check_prim_desc<pooling_forward::primitive_desc>(pool_prim_desc);
+            if (p.src_format != memory::format_tag::any) {
+                ASSERT_TRUE(p_src_desc == pool_prim_desc.src_desc());
+            }
 
             auto workspace_desc = pool_prim_desc.workspace_desc();
             workspace = test::make_memory(workspace_desc, eng);
+            p_src = test::make_memory(pool_prim_desc.src_desc(), eng);
+            p_dst = test::make_memory(pool_prim_desc.dst_desc(), eng);
+
+            fill_data<data_t>(p_src.get_desc().get_size() / sizeof(data_t),
+                    p_src, 1., true);
+            fill_data<data_t>(p_dst.get_desc().get_size() / sizeof(data_t),
+                    p_dst, 1., true);
+            check_zero_tail<data_t>(1, p_src);
+            check_zero_tail<data_t>(1, p_dst);
 
             EXPECT_ANY_THROW(pooling_forward(pool_prim_desc, {}));
             pooling_forward(pool_prim_desc)
@@ -317,9 +320,21 @@ protected:
                     = pooling_v2_forward::primitive_desc(pool_prim_desc.get());
 
             check_prim_desc<pooling_v2_forward::primitive_desc>(pool_prim_desc);
+            if (p.src_format != memory::format_tag::any) {
+                ASSERT_TRUE(p_src_desc == pool_prim_desc.src_desc());
+            }
 
             auto workspace_desc = pool_prim_desc.workspace_desc();
             workspace = test::make_memory(workspace_desc, eng);
+            p_src = test::make_memory(pool_prim_desc.src_desc(), eng);
+            p_dst = test::make_memory(pool_prim_desc.dst_desc(), eng);
+
+            fill_data<data_t>(p_src.get_desc().get_size() / sizeof(data_t),
+                    p_src, 1., true);
+            fill_data<data_t>(p_dst.get_desc().get_size() / sizeof(data_t),
+                    p_dst, 1., true);
+            check_zero_tail<data_t>(1, p_src);
+            check_zero_tail<data_t>(1, p_dst);
 
             EXPECT_ANY_THROW(pooling_v2_forward(pool_prim_desc, {}));
             pooling_v2_forward(pool_prim_desc)

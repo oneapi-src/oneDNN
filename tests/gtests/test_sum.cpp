@@ -177,7 +177,29 @@ protected:
 
         for (size_t i = 0; i < num_srcs; i++) {
             auto desc = memory::desc(p.dims, src_data_type, p.srcs_format[i]);
-            auto src_memory = test::make_memory(desc, eng);
+            srcs_md.push_back(desc);
+        }
+
+        memory dst;
+        sum::primitive_desc sum_pd;
+
+        if (p.is_output_omitted) {
+            ASSERT_NO_THROW(
+                    sum_pd = sum::primitive_desc(p.scale, srcs_md, eng));
+        } else {
+            auto dst_desc = memory::desc(p.dims, dst_data_type, p.dst_format);
+            sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_md, eng);
+
+            ASSERT_EQ(sum_pd.dst_desc().data.ndims, dst_desc.data.ndims);
+        }
+        dst = test::make_memory(sum_pd.dst_desc(), eng);
+        // test construction from a C pd
+        sum_pd = sum::primitive_desc(sum_pd.get());
+        for (size_t i = 0; i < num_srcs; i++) {
+            if (p.srcs_format[i] != memory::format_tag::any) {
+                ASSERT_TRUE(srcs_md[(int)i] == sum_pd.src_desc((int)i));
+            }
+            auto src_memory = test::make_memory(sum_pd.src_desc((int)i), eng);
             const size_t sz
                     = src_memory.get_desc().get_size() / sizeof(src_data_t);
             fill_data<src_data_t>(sz, src_memory);
@@ -196,25 +218,8 @@ protected:
                     *((uint_type *)&src_ptr[i]) &= mask;
                 }
             }
-            srcs_md.push_back(desc);
             srcs.push_back(src_memory);
         }
-
-        memory dst;
-        sum::primitive_desc sum_pd;
-
-        if (p.is_output_omitted) {
-            ASSERT_NO_THROW(
-                    sum_pd = sum::primitive_desc(p.scale, srcs_md, eng));
-        } else {
-            auto dst_desc = memory::desc(p.dims, dst_data_type, p.dst_format);
-            sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_md, eng);
-
-            ASSERT_EQ(sum_pd.dst_desc().data.ndims, dst_desc.data.ndims);
-        }
-        dst = test::make_memory(sum_pd.dst_desc(), eng);
-        // test construction from a C pd
-        sum_pd = sum::primitive_desc(sum_pd.get());
 
         ASSERT_TRUE(sum_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == sum_pd.dst_desc());

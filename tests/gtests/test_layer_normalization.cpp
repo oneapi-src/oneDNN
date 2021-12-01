@@ -80,11 +80,6 @@ protected:
         diff_d = std::make_shared<memory::desc>(
                 p.dims, memory::data_type::f32, p.diff_tag);
 
-        src = std::make_shared<test_memory>(*data_d, eng);
-        dst = std::make_shared<test_memory>(*data_d, eng);
-        diff_src = std::make_shared<test_memory>(*diff_d, eng);
-        diff_dst = std::make_shared<test_memory>(*diff_d, eng);
-
         auto training = prop_kind::forward_training;
         auto inference = prop_kind::forward_inference;
 
@@ -141,6 +136,12 @@ protected:
         ASSERT_TRUE(
                 lnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_SCALE_SHIFT)
                 == lnorm_fwd_pd.weights_desc());
+        if (p.data_tag != memory::format_tag::any) {
+            ASSERT_TRUE(*data_d == lnorm_fwd_pd.src_desc());
+        }
+
+        src = std::make_shared<test_memory>(lnorm_fwd_pd.src_desc(), eng);
+        dst = std::make_shared<test_memory>(lnorm_fwd_pd.dst_desc(), eng);
 
         if (useScaleShift || useScale)
             weights = test::make_memory(lnorm_fwd_pd.weights_desc(), eng);
@@ -204,6 +205,14 @@ protected:
         ASSERT_TRUE(lnorm_bwd_pd.query_md(
                             query::exec_arg_md, DNNL_ARG_DIFF_SCALE_SHIFT)
                 == lnorm_bwd_pd.diff_weights_desc());
+        if (p.diff_tag != memory::format_tag::any) {
+            ASSERT_TRUE(*diff_d == lnorm_bwd_pd.diff_src_desc());
+        }
+
+        diff_src = std::make_shared<test_memory>(
+                lnorm_bwd_pd.diff_src_desc(), eng);
+        diff_dst = std::make_shared<test_memory>(
+                lnorm_bwd_pd.diff_dst_desc(), eng);
 
         if (useScaleShift || useScale)
             weights = test::make_memory(lnorm_bwd_pd.weights_desc(), eng);

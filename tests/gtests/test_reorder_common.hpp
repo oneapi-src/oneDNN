@@ -147,17 +147,6 @@ protected:
         auto md_i = memory::desc(p.dims, prec_i, p.fmt_i);
         auto md_o = memory::desc(p.dims, prec_o, p.fmt_o);
 
-        auto src = test::make_memory(md_i, eng_i);
-        auto dst = test::make_memory(md_o, eng_o);
-
-        /* initialize input data */
-        const dnnl::impl::memory_desc_wrapper mdw_i(md_i.data);
-        {
-            auto src_data = map_memory<data_i_t>(src);
-            for (size_t i = 0; i < nelems; ++i)
-                src_data[mdw_i.off_l(i, false)] = data_i_t(i);
-        }
-
         reorder::primitive_desc r_pd(
                 eng_i, md_i, eng_o, md_o, primitive_attr());
         // test construction from a C pd
@@ -167,6 +156,20 @@ protected:
                 == r_pd.src_desc());
         ASSERT_TRUE(r_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == r_pd.dst_desc());
+        if (p.fmt_i != memory::format_tag::any) {
+            ASSERT_TRUE(md_i == r_pd.src_desc());
+        }
+
+        auto src = test::make_memory(r_pd.src_desc(), eng_i);
+        auto dst = test::make_memory(r_pd.dst_desc(), eng_o);
+
+        /* initialize input data */
+        const dnnl::impl::memory_desc_wrapper mdw_i(md_i.data);
+        {
+            auto src_data = map_memory<data_i_t>(src);
+            for (size_t i = 0; i < nelems; ++i)
+                src_data[mdw_i.off_l(i, false)] = data_i_t(i);
+        }
 
         EXPECT_ANY_THROW(reorder(r_pd, {}));
         auto r = reorder(r_pd);

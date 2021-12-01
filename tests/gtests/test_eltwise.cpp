@@ -390,20 +390,6 @@ protected:
     void Forward() {
         data_desc = std::make_shared<memory::desc>(
                 p.dims, data_type, p.data_format);
-        src = test::make_memory(*data_desc, eng);
-        auto dst = test::make_memory(*data_desc, eng);
-        auto ref_dst = test::make_memory(*data_desc, eng);
-
-        data_t data_median = data_t(0);
-        data_t data_deviation = (p.alg_kind == algorithm::eltwise_elu
-                                        || p.alg_kind == algorithm::eltwise_exp)
-                        || (p.alg_kind == algorithm::eltwise_swish)
-                ? data_t(1.0)
-                : p.alg_kind == algorithm::eltwise_square ? data_t(6.0)
-                                                          : data_t(100.0);
-        fill_data<data_t>(
-                n_elems(*data_desc), src, data_median, data_deviation);
-        check_zero_tail<data_t>(1, src);
 
         auto eltwise_desc = eltwise_forward::desc(prop_kind::forward_training,
                 p.alg_kind, *data_desc, p.alpha, p.beta);
@@ -415,6 +401,24 @@ protected:
                 == eltwise_prim_desc.src_desc());
         ASSERT_TRUE(eltwise_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == eltwise_prim_desc.dst_desc());
+        if (p.data_format != memory::format_tag::any) {
+            ASSERT_TRUE(*data_desc == eltwise_prim_desc.src_desc());
+        }
+
+        src = test::make_memory(eltwise_prim_desc.src_desc(), eng);
+        auto dst = test::make_memory(eltwise_prim_desc.dst_desc(), eng);
+        auto ref_dst = test::make_memory(eltwise_prim_desc.dst_desc(), eng);
+
+        data_t data_median = data_t(0);
+        data_t data_deviation = (p.alg_kind == algorithm::eltwise_elu
+                                        || p.alg_kind == algorithm::eltwise_exp)
+                        || (p.alg_kind == algorithm::eltwise_swish)
+                ? data_t(1.0)
+                : p.alg_kind == algorithm::eltwise_square ? data_t(6.0)
+                                                          : data_t(100.0);
+        fill_data<data_t>(
+                n_elems(*data_desc), src, data_median, data_deviation);
+        check_zero_tail<data_t>(1, src);
 
         EXPECT_ANY_THROW(eltwise_forward(eltwise_prim_desc, {}));
         eltwise_forward(eltwise_prim_desc)

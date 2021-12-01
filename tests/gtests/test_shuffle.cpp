@@ -115,7 +115,6 @@ protected:
 
     void Forward() {
         memory::desc src_desc(p.dims, data_type, p.data_format);
-        memory::desc dst_desc(p.dims, data_type, p.data_format);
 
         auto shuffle_desc = shuffle_forward::desc(
                 p.aprop_kind, src_desc, p.axis, p.group_size);
@@ -130,9 +129,12 @@ protected:
         ASSERT_TRUE(
                 shuffle_fwd_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == shuffle_fwd_prim_desc.dst_desc());
+        if (p.data_format != memory::format_tag::any) {
+            ASSERT_TRUE(src_desc == shuffle_fwd_prim_desc.src_desc());
+        }
 
-        test_memory src(src_desc, eng);
-        test_memory dst(dst_desc, eng);
+        test_memory src(shuffle_fwd_prim_desc.src_desc(), eng);
+        test_memory dst(shuffle_fwd_prim_desc.dst_desc(), eng);
 
         fill_data<data_t>(src.get_size() / sizeof(data_t), src.get());
         check_zero_tail<data_t>(1, src.get());
@@ -168,6 +170,9 @@ protected:
         ASSERT_TRUE(shuffle_prim_desc.query_md(
                             query::exec_arg_md, DNNL_ARG_DIFF_DST)
                 == shuffle_prim_desc.diff_dst_desc());
+        if (p.data_format != memory::format_tag::any) {
+            ASSERT_TRUE(diff_src_desc == shuffle_prim_desc.diff_src_desc());
+        }
 
         fill_data<data_t>(diff_dst.get_size() / sizeof(data_t), diff_dst.get());
 

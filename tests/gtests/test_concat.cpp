@@ -143,12 +143,7 @@ protected:
         std::vector<memory> srcs;
         for (size_t i = 0; i < p.srcs_cds.size(); i++) {
             auto md = memory::desc(p.srcs_cds[i], data_type, p.srcs_format[i]);
-            auto src_memory = test::make_memory(md, eng);
-            const size_t sz = src_memory.get_desc().get_size() / sizeof(data_t);
-            fill_data<data_t>(sz, src_memory);
-            check_zero_tail<data_t>(1, src_memory);
             srcs_md.push_back(md);
-            srcs.push_back(src_memory);
         }
 
         auto dst_desc = memory::desc(p.dst_cds, data_type, p.dst_format);
@@ -159,16 +154,32 @@ protected:
 
         ASSERT_TRUE(concat_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == concat_pd.dst_desc());
-        for (int i = 0; i < (int)srcs.size(); i++)
-            ASSERT_TRUE(concat_pd.query_md(
-                                query::exec_arg_md, DNNL_ARG_MULTIPLE_SRC + i)
-                    == concat_pd.src_desc(i));
+
+        for (int i = 0; i < (int)srcs.size(); i++) {
+            if (p.srcs_format[i] != memory::format_tag::any) {
+                ASSERT_TRUE(srcs_md[i] == concat_pd.src_desc(i));
+            }
+        }
 
         auto dst = test::make_memory(concat_pd.dst_desc(), eng);
         fill_data<data_t>(dst.get_desc().get_size() / sizeof(data_t), dst);
         check_zero_tail<data_t>(1, dst);
 
         ASSERT_EQ(concat_pd.dst_desc().data.ndims, dst_desc.data.ndims);
+
+        for (size_t i = 0; i < p.srcs_cds.size(); i++) {
+            auto md = concat_pd.src_desc((int)i);
+            auto src_memory = test::make_memory(md, eng);
+            const size_t sz = src_memory.get_desc().get_size() / sizeof(data_t);
+            fill_data<data_t>(sz, src_memory);
+            check_zero_tail<data_t>(1, src_memory);
+            srcs.push_back(src_memory);
+        }
+
+        for (int i = 0; i < (int)srcs.size(); i++)
+            ASSERT_TRUE(concat_pd.query_md(
+                                query::exec_arg_md, DNNL_ARG_MULTIPLE_SRC + i)
+                    == concat_pd.src_desc(i));
 
         EXPECT_ANY_THROW(concat(concat_pd, {}));
         concat c(concat_pd);
