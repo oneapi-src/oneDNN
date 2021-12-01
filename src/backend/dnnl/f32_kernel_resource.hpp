@@ -137,45 +137,6 @@ public:
     exec_args exec_args_no_bias_;
 };
 
-struct f32_concat_resource_t {
-    struct desc_t {
-        std::vector<memory::desc> cvt_src_;
-        std::vector<memory::desc> opt_src_;
-        memory::desc cvt_dst_;
-        memory::desc opt_dst_;
-    };
-
-    f32_concat_resource_t(const desc_t &desc, const dnnl::engine &p_engine) {
-        cvt_src_mems_.reserve(desc.cvt_src_.size());
-        std::for_each(desc.cvt_src_.cbegin(), desc.cvt_src_.cend(),
-                [this, &p_engine](const memory::desc &desc) {
-                    cvt_src_mems_.push_back(
-                            make_dnnl_memory(desc, p_engine, nullptr));
-                });
-        cvt_dst_mem_ = make_dnnl_memory(desc.cvt_dst_, p_engine, nullptr);
-
-        opt_src_mems_.reserve(desc.opt_src_.size());
-        std::for_each(desc.opt_src_.cbegin(), desc.opt_src_.cend(),
-                [this, &p_engine](const memory::desc &desc) {
-                    opt_src_mems_.push_back(
-                            make_dnnl_memory(desc, p_engine, nullptr));
-                });
-        opt_dst_mem_ = make_dnnl_memory(desc.opt_dst_, p_engine, nullptr);
-
-        exec_args_.reserve(opt_src_mems_.size() + 1);
-        for (size_t i = 0; i < opt_src_mems_.size(); ++i) {
-            exec_args_.emplace(DNNL_ARG_MULTIPLE_SRC + i, opt_src_mems_[i]);
-        }
-        exec_args_.emplace(DNNL_ARG_DST, opt_dst_mem_);
-    }
-    std::vector<memory> cvt_src_mems_;
-    std::vector<memory> opt_src_mems_;
-    memory cvt_dst_mem_;
-    memory opt_dst_mem_;
-
-    exec_args exec_args_;
-};
-
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

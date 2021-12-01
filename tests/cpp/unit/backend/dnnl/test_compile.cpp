@@ -875,12 +875,8 @@ public:
         test::vector<float> dst_data(params.ref_dst.size(), 0.);
         const auto &axis = params.axis;
 
-        impl::op_t concat_op(impl::op_kind::Concat);
+        impl::op_t concat_op(impl::op_kind::Concat, "concat");
         concat_op.set_attr<int64_t>("axis", axis);
-
-        auto &op_factory = get_dnnl_kernel_registry();
-        const auto concat_kernel = op_factory.create_kernel(concat_op);
-        ASSERT_TRUE(concat_kernel);
 
         impl::logical_tensor_t src0_lt = utils::logical_tensor_init(
                 0, src0_dims, impl::data_type::f32, impl::layout_type::strided);
@@ -898,19 +894,40 @@ public:
             src1_lt = utils::logical_tensor_init(
                     1, src1_dims, permuted_strides, impl::data_type::f32);
         }
+
         impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
                 2, dst_dims, impl::data_type::f32, impl::layout_type::strided);
 
-        const auto &eng = get_engine();
-        concat_kernel->compile(&concat_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+        concat_op.add_input(src0_lt);
+        concat_op.add_input(src1_lt);
+        concat_op.add_output(dst_lt);
+
+        auto &eng = get_engine();
+        impl::graph_t g(eng.kind());
+        g.add_op(&concat_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("concat_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+        p.compile(&cp, inputs, outputs, &eng);
 
         impl::tensor_t src0_ts(src0_lt, &eng, src0_data.data());
         impl::tensor_t src1_ts(src1_lt, &eng, src1_data.data());
         impl::tensor_t dst_ts(dst_lt, &eng, dst_data.data());
 
         auto &strm = get_stream();
-
-        concat_kernel->execute(&concat_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+        cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
         strm.wait();
 
         for (size_t i = 0; i < dst_data.size(); ++i) {

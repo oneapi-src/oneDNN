@@ -223,6 +223,31 @@ static void layout_propagation_for_binary(op_ptr &op,
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
+static void layout_propagation_for_concat(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        std::vector<op_ptr> &reorder_ops) {
+    auto pd = create_concat_pd(op, p_engine, prm_attr_mgr);
+
+    for (size_t i = 0; i < op->num_inputs(); ++i) {
+        insert_reorder_before(
+                op, i, pd.src_desc(static_cast<int>(i)), reorder_ops);
+        fill_layout_info(
+                op->get_input_value(i), pd.src_desc(static_cast<int>(i)));
+    }
+
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    fill_layout_info(op->get_output_value(0), pd.dst_desc());
+
+    auto scratchpad_val = insert_scratchpad(op);
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+
+    fill_layout_info(scratchpad_val, scratchpad_desc);
+}
+
 static void layout_propagation_for_matmul(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
@@ -778,6 +803,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (is_eltwise_kind(cur_op->get_kind())) {
                 layout_propagation_for_eltwise(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == impl::op_kind::Concat) {
+                layout_propagation_for_concat(
+                        cur_op, p_engine, prm_attr_mgr, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::permute) {
                 layout_propagation_for_permute(cur_op, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::mul_scales) {

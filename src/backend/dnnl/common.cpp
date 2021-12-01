@@ -354,7 +354,7 @@ void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td) {
 }
 
 void fill_layout_info(
-        std::shared_ptr<impl::value_t> &val, const memory::desc &td) {
+        const std::shared_ptr<impl::value_t> &val, const memory::desc &td) {
     impl::logical_tensor_t lt = val->get_logical_tensor();
     const impl::logical_tensor_wrapper_t ltw(lt);
     if (ltw.is_any()) { // we only reset any format

@@ -473,6 +473,54 @@ inline dnnl::sum::primitive_desc create_dnnl_sum_pd(
     std::vector<float> scales(op->num_inputs(), 1.f);
 
     dnnl::sum::primitive_desc pd(dst_desc, scales, src_descs, p_engine);
+
+    return pd;
+}
+
+inline dnnl::concat::primitive_desc create_concat_pd(
+        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr_t &prm_attr_mgr) {
+    // Here we force to use plain-in-plain-out (acdb) for 4D case to make
+    // sure good performance of DensenNet121 (reducing reorder overhead).
+    // But for other cases like 2D/3D (e.g. DLRM), we just use default
+    // format since there may be followed by a non-DNNL op which requires an
+    // input with default format. Anyway it looks like a bit tricky.
+    auto get_forced_format_tag = [](const dims &in_dims) -> format_tag {
+        if (in_dims.size() == 4)
+            return format_tag::acdb;
+        else
+            return get_default_format(in_dims);
+    };
+
+    const auto rank = op->get_output_value(0)->get_logical_tensor().ndims;
+    const auto res
+            = utils::try_reverse_axis(op->get_attr<int64_t>("axis"), rank);
+    assertm(res.first, "Incorrect axis value.");
+    const auto axis = res.second;
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    std::vector<memory::desc> src_mds;
+    src_mds.reserve(op->num_inputs());
+    for (const auto &in_val : op->get_input_values()) {
+        const auto tmp_desc
+                = make_dnnl_memory_desc(in_val->get_logical_tensor());
+        src_mds.push_back(memory::desc {tmp_desc.dims(), tmp_desc.data_type(),
+                get_forced_format_tag(tmp_desc.dims())});
+    }
+    const auto tmp_desc = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+    auto dst = memory::desc {tmp_desc.dims(), tmp_desc.data_type(),
+            get_forced_format_tag(tmp_desc.dims())};
+
+    dnnl::concat::primitive_desc pd(
+            dst, static_cast<int>(axis), src_mds, p_engine, prm_attr);
+
     return pd;
 }
 
@@ -696,6 +744,25 @@ private:
     dnnl::binary::primitive_desc pd_;
     dnnl::binary prim_;
     bool with_sum_ {false};
+};
+
+struct concat_executable_t : public op_executable_t {
+    concat_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+        pd_ = create_concat_pd(op, p_engine, prm_attr_mgr);
+        prim_ = dnnl::concat(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::concat::primitive_desc pd_;
+    dnnl::concat prim_;
 };
 
 struct pool_executable_t : public op_executable_t {

@@ -258,12 +258,10 @@ void memory_planner_t::prepare_args_for_siso_op(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-// for multiple-inputs-single-output op
 void memory_planner_t::prepare_args_for_miso_op(op_t *op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
     UNUSED(prm_attr_mgr);
     exec_args args;
-
     memory mem;
 
     for (int i = 0; i < op->num_inputs(); ++i) {
@@ -274,6 +272,11 @@ void memory_planner_t::prepare_args_for_miso_op(op_t *op,
 
     exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
     args.insert({DNNL_ARG_DST, mem});
+
+    if (op->num_outputs() > 1) {
+        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
+        args.insert({DNNL_ARG_SCRATCHPAD, mem});
+    }
 
     exec_args_set_.add_exec_args(args);
 }
@@ -654,6 +657,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                             : false;
                     prepare_args_for_siso_op(
                             op, p_engine, prm_attr_mgr, true, is_training);
+                } else if (op->get_kind() == impl::op_kind::Concat) {
+                    prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
                 } else if (is_eltwise_kind(op->get_kind())
                         || op->get_kind() == impl::op_kind::Reorder
                         || op->get_kind() == op_kind::mul_scales

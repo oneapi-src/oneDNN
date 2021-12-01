@@ -408,7 +408,8 @@ public:
                 op_kind::maximum_add, op_kind::maximum_relu,
                 op_kind::maximum_sigmoid, impl::op_kind::Minimum,
                 op_kind::minimum_add, op_kind::minimum_relu,
-                op_kind::minimum_sigmoid, impl::op_kind::Divide};
+                op_kind::minimum_sigmoid, impl::op_kind::Divide,
+                impl::op_kind::Concat};
 
         // compile will transform the subgraph in partition, so we make
         // a copy

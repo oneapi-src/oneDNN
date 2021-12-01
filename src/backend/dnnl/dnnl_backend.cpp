@@ -89,7 +89,7 @@ bool dnnl_backend::register_kernels() {
                     &kernel_registry_t::create_kernel<kernel_class_>);
 
     // concat
-    DNNL_REGISTER_KERNEL(impl::op_kind::Concat, concat);
+    DNNL_REGISTER_KERNEL(impl::op_kind::Concat, float_concat);
 
     // conv related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::Convolution, float_conv_fwd)
