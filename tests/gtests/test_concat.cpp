@@ -192,6 +192,7 @@ using concat_test_bf16 = concat_test_t<bfloat16_t>;
 TEST_P(concat_test_float, TestsConcat) {}
 TEST_P(concat_test_s8, TestsConcat) {}
 TEST_P(concat_test_bf16, TestsConcat) {}
+TEST_P(concat_test_float16, TestConcat) {}
 
 using fmt = memory::format_tag;
 
