@@ -142,6 +142,11 @@ status_t ocl_gpu_device_info_t::init_attributes(engine_t *engine) {
             &eu_count, nullptr);
     OCL_CHECK(err);
     eu_count_ = (int32_t)eu_count;
+    size_t max_wg_size = 0;
+    err = clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE,
+            sizeof(max_wg_size), &max_wg_size, nullptr);
+    OCL_CHECK(err);
+    max_wg_size_ = max_wg_size;
 
     return status::success;
 }

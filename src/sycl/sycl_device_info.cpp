@@ -122,6 +122,7 @@ status_t sycl_device_info_t::init_attributes(engine_t *engine) {
     auto &device
             = utils::downcast<const sycl_engine_base_t *>(engine)->device();
     eu_count_ = device.get_info<::sycl::info::device::max_compute_units>();
+    max_wg_size_ = device.get_info<::sycl::info::device::max_work_group_size>();
     return status::success;
 }
 

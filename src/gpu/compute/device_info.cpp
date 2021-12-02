@@ -82,6 +82,28 @@ bool device_info_t::mayiuse_sub_group(int size) const {
     }
 }
 
+int device_info_t::max_eus_per_wg(gpu_arch_t gpu_arch) {
+    switch (gpu_arch) {
+        case gpu::compute::gpu_arch_t::gen9:
+        case gpu::compute::gpu_arch_t::xe_hpc: return 8;
+        case gpu::compute::gpu_arch_t::xe_lp:
+        case gpu::compute::gpu_arch_t::xe_hp:
+        case gpu::compute::gpu_arch_t::xe_hpg: return 16;
+        default: return 8;
+    }
+}
+
+int device_info_t::threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode) {
+    switch (gpu_arch) {
+        case gpu::compute::gpu_arch_t::gen9:
+        case gpu::compute::gpu_arch_t::xe_lp: return 7;
+        case gpu::compute::gpu_arch_t::xe_hp:
+        case gpu::compute::gpu_arch_t::xe_hpg:
+        case gpu::compute::gpu_arch_t::xe_hpc: return large_grf_mode ? 4 : 8;
+        default: return 7;
+    }
+}
+
 status_t device_info_t::init_attributes_common(engine_t *engine) {
     // TODO: Fix for discrete GPUs. The code below is written for
     // integrated GPUs assuming that last-level cache for GPU is shared
@@ -111,35 +133,10 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     if (ocl_backend && gpu_arch_ == gpu::compute::gpu_arch_t::xe_hpc)
         eu_count_ /= 2;
 
-    // Assume 7 threads by default
-    int32_t threads_per_eu[2] = {7, 7};
-    switch (gpu_arch_) {
-        case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::xe_lp:
-            threads_per_eu[0] = 7;
-            threads_per_eu[1] = 7;
-            break;
-        case gpu::compute::gpu_arch_t::xe_hp:
-        case gpu::compute::gpu_arch_t::xe_hpg:
-        case gpu::compute::gpu_arch_t::xe_hpc:
-            threads_per_eu[0] = 8; // 128 regs/thread
-            threads_per_eu[1] = 4; // 256 regs/thread
-            break;
-        default: break;
-    }
+    hw_threads_[0] = eu_count_ * threads_per_eu(gpu_arch_, false);
+    hw_threads_[1] = eu_count_ * threads_per_eu(gpu_arch_, true);
 
-    hw_threads_[0] = eu_count_ * threads_per_eu[0];
-    hw_threads_[1] = eu_count_ * threads_per_eu[1];
-
-    max_eus_per_wg_ = 8;
-    switch (gpu_arch_) {
-        case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::xe_hpc: max_eus_per_wg_ = 8; break;
-        case gpu::compute::gpu_arch_t::xe_lp:
-        case gpu::compute::gpu_arch_t::xe_hp:
-        case gpu::compute::gpu_arch_t::xe_hpg: max_eus_per_wg_ = 16; break;
-        default: break;
-    }
+    max_eus_per_wg_ = max_eus_per_wg(gpu_arch_);
 
     mayiuse_non_uniform_work_groups_ = ocl_backend;
 

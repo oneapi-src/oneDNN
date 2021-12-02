@@ -203,11 +203,15 @@ public:
     gpu_arch_t gpu_arch() const { return gpu_arch_; }
     int stepping_id() const { return stepping_id_; }
     int max_eus_per_wg() const { return max_eus_per_wg_; }
+    static int max_eus_per_wg(gpu_arch_t gpu_arch);
+    int max_wg_size() const { return max_wg_size_; }
     int eu_count() const { return eu_count_; }
     int hw_threads() const { return hw_threads_[0]; }
     int hw_threads(bool large_grf_mode) const {
         return hw_threads_[large_grf_mode ? 1 : 0];
     }
+    static int threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode = false);
+
     size_t llc_cache_size() const { return llc_cache_size_; }
 
     const runtime_version_t &runtime_version() const {
@@ -242,6 +246,7 @@ protected:
     int32_t hw_threads_[2] = {0, 0};
     int32_t eu_count_ = 0;
     int32_t max_eus_per_wg_ = 0;
+    size_t max_wg_size_ = 0;
     size_t llc_cache_size_ = 0;
 
     // extensions_ and gpu_arch_ describe effective extensions and GPU architecture.
