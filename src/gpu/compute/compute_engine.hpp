@@ -49,7 +49,7 @@ public:
     const device_info_t *device_info() const { return device_info_.get(); }
 
     virtual status_t create_kernel(compute::kernel_t *kernel,
-            jit::jit_generator_base &jitter, cache_blob_t cache_blob) const = 0;
+            jit::jit_generator_base *jitter, cache_blob_t cache_blob) const = 0;
 
     virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,

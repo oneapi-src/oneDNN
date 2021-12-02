@@ -123,8 +123,8 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
 } // namespace
 
 status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
-        jit::jit_generator_base &jitter, cache_blob_t cache_blob) const {
-    auto kernel_name = jitter.kernel_name();
+        jit::jit_generator_base *jitter, cache_blob_t cache_blob) const {
+    auto kernel_name = jitter->kernel_name();
 
     if (cache_blob) {
         std::vector<compute::kernel_t> kernels(1);
@@ -136,7 +136,7 @@ status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
     }
 
     ocl_wrapper_t<cl_kernel> ocl_kernel
-            = jitter.get_kernel(context(), device());
+            = jitter->get_kernel(context(), device());
     std::vector<gpu::compute::scalar_type_t> arg_types;
     CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 

@@ -492,7 +492,7 @@ status_t xe_hp_systolic_gemm_t::init_compute_old(engine_t *engine) {
 
                             create_kernel(engine,
                                     &kernel_[first_k_block][last_k_block],
-                                    kernel);
+                                    &kernel);
 
                             if (!got_info) {
                                 compute_info_ = kernel.driver_info(eu_count_);
@@ -510,7 +510,7 @@ status_t xe_hp_systolic_gemm_t::init_compute_old(engine_t *engine) {
 
                             create_kernel(engine,
                                     &kernel_[first_k_block][last_k_block],
-                                    kernel);
+                                    &kernel);
 
                             if (!got_info) {
                                 compute_info_ = kernel.driver_info(eu_count_);
@@ -594,7 +594,7 @@ status_t xe_hp_systolic_gemm_t::init_compute_new(engine_t *engine) {
                 }
 
                 create_kernel(
-                        engine, &kernel_[first_k_block][last_k_block], kernel);
+                        engine, &kernel_[first_k_block][last_k_block], &kernel);
 
                 if (!kernel_[first_k_block][last_k_block])
                     return status::runtime_error;

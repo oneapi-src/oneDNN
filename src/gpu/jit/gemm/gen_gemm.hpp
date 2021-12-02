@@ -375,7 +375,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         if (status != status::success) return status;
 
-        create_kernel(engine, &nocopy_kernel_, kernel);
+        create_kernel(engine, &nocopy_kernel_, &kernel);
 
         nocopy_info_ = kernel.driver_info();
 

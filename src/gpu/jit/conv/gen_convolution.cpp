@@ -98,7 +98,8 @@ compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
     if (!jit_kernel) return compute::kernel_t();
 
     compute::kernel_t kernel;
-    status_t status = primitive->create_kernel(engine, &kernel, *jit_kernel);
+    status_t status
+            = primitive->create_kernel(engine, &kernel, jit_kernel.get());
     if (status != status::success) return compute::kernel_t();
     return kernel;
 }

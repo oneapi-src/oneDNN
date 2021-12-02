@@ -32,7 +32,7 @@ status_t gen9_simple_sum_t::init(engine_t *engine) {
     if (!gpu_engine) return status::runtime_error;
 
     auto jitter = gen9_simple_sum_kernel_f32_t();
-    CHECK(create_kernel(engine, &kernel_, jitter));
+    CHECK(create_kernel(engine, &kernel_, &jitter));
 
     return status::success;
 }

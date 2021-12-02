@@ -70,8 +70,9 @@ public:
     status_t create_stream(stream_t **stream, ::sycl::queue &queue);
 
     status_t create_kernel(gpu::compute::kernel_t *kernel,
-            gpu::jit::jit_generator_base &jitter,
+            gpu::jit::jit_generator_base *jitter,
             cache_blob_t cache_blob) const override {
+
         UNUSED(cache_blob);
         if (kind() != engine_kind::gpu) {
             assert(!"not expected");
@@ -83,9 +84,9 @@ public:
         auto status = create_ocl_engine(&ocl_engine);
         if (status != status::success) return status;
 
-        auto kernel_name = jitter.kernel_name();
+        auto kernel_name = jitter->kernel_name();
 
-        gpu::ocl::ocl_wrapper_t<cl_kernel> ocl_kernel = jitter.get_kernel(
+        gpu::ocl::ocl_wrapper_t<cl_kernel> ocl_kernel = jitter->get_kernel(
                 ocl_engine->context(), ocl_engine->device());
 
         gpu::ocl::dump_kernel_binary(ocl_kernel.get());

@@ -151,7 +151,7 @@ public:
             binary_format_kernel_t<hw> binary_format_kernel;
 
             auto status
-                    = engine->create_kernel(&kernel, binary_format_kernel, {});
+                    = engine->create_kernel(&kernel, &binary_format_kernel, {});
             if (status != status::success) return nullptr;
         } else {
             switch (engine->device_info()->gpu_arch()) {
