@@ -40,11 +40,9 @@ namespace threadpool_interop {
 
 /// Constructs an execution stream for the specified engine and threadpool.
 ///
-/// @sa @ref dev_guide_threadpool
-///
 /// @param aengine Engine to create the stream on.
 /// @param threadpool Pointer to an instance of a C++ class that implements
-///     dnnl::graph::threapdool_iface interface.
+///     dnnl::graph::threadpool_iface interface.
 /// @returns An execution stream.
 inline dnnl::graph::stream make_stream(
         const dnnl::graph::engine &aengine, threadpool_iface *threadpool) {
@@ -57,11 +55,9 @@ inline dnnl::graph::stream make_stream(
 
 /// Returns the pointer to a threadpool that is used by an execution stream.
 ///
-/// @sa @ref dev_guide_threadpool
-///
 /// @param astream An execution stream.
 /// @returns Output pointer to an instance of a C++ class that implements
-///     dnnl::graph::threapdool_iface interface or NULL if the stream was
+///     dnnl::graph::threadpool_iface interface or NULL if the stream was
 ///     created without threadpool.
 inline threadpool_iface *get_threadpool(const dnnl::graph::stream &astream) {
     void *tp;
