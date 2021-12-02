@@ -268,8 +268,8 @@ public:
                 const int pref_ow_block
                         = (mb_thr_blk == 1) ? 8 : kw > 1 ? 4 : 1;
                 ow_thr_blk = ow < pref_ow_block * pref_ow_thr_dim
-                        ? (1 << math::ilog2q(
-                                   utils::div_up(ow, pref_ow_thr_dim)))
+                        ? utils::rnd_down_pow2(
+                                utils::div_up(ow, pref_ow_thr_dim))
                         : pref_ow_block;
                 ow_thr_dim = pref_ow_thr_dim;
             }
@@ -320,7 +320,7 @@ public:
         int ic_padded = utils::rnd_up(ic, ic_blk);
         ic_thr_blk = ir_utils::safe_divide(ic_padded, ic_thr_dim);
 
-        ow_thr_dim = (1 << math::ilog2q(ow_thr_dim));
+        ow_thr_dim = utils::rnd_down_pow2(ow_thr_dim);
 
 #ifdef GEN_CONV_DEBUG
         mb_thr_blk = getenv_int("mb_thr_blk", mb_thr_blk);
@@ -335,10 +335,9 @@ public:
         tg_grid_dim[1] = mb_thr_dim * ow_thr_dim;
         tg_grid_dim[2] = ic_thr_dim;
 
-        // Round down to a power of 2.
-        tg_grid_dim[0] = (1 << math::ilog2q(tg_grid_dim[0]));
-        tg_grid_dim[1] = (1 << math::ilog2q(tg_grid_dim[1]));
-        tg_grid_dim[2] = (1 << math::ilog2q(tg_grid_dim[2]));
+        tg_grid_dim[0] = utils::rnd_down_pow2(tg_grid_dim[0]);
+        tg_grid_dim[1] = utils::rnd_down_pow2(tg_grid_dim[1]);
+        tg_grid_dim[2] = utils::rnd_down_pow2(tg_grid_dim[2]);
 
 #ifdef GEN_CONV_DEBUG
         tg_grid_dim[0] = getenv_int("tg0", tg_grid_dim[0]);
@@ -451,14 +450,14 @@ public:
         mb_thr_dim = 1;
 
         iw_thr_dim = std::min(4, utils::div_up(iw, iw_thr_blk));
-        iw_thr_dim = (1 << math::ilog2q(iw_thr_dim));
+        iw_thr_dim = utils::rnd_down_pow2(iw_thr_dim);
 
         if (optimize_strided) {
             iw_thr_dim = ir_utils::max_divisor(iw / sw, {1, 2, 4});
         }
 
         ic_thr_dim = std::min(4, utils::div_up(ic, ic_thr_blk));
-        ic_thr_dim = (1 << math::ilog2q(ic_thr_dim));
+        ic_thr_dim = utils::rnd_down_pow2(ic_thr_dim);
 
         tg_grid_dim[0] = ic_thr_dim;
         tg_grid_dim[1] = mb_thr_dim * iw_thr_dim;
@@ -634,10 +633,9 @@ public:
         tg_grid_dim[1] = ic_thr_dim;
         tg_grid_dim[2] = 1;
 
-        // Round down to a power of 2.
-        tg_grid_dim[0] = (1 << math::ilog2q(tg_grid_dim[0]));
-        tg_grid_dim[1] = (1 << math::ilog2q(tg_grid_dim[1]));
-        tg_grid_dim[2] = (1 << math::ilog2q(tg_grid_dim[2]));
+        tg_grid_dim[0] = utils::rnd_down_pow2(tg_grid_dim[0]);
+        tg_grid_dim[1] = utils::rnd_down_pow2(tg_grid_dim[1]);
+        tg_grid_dim[2] = utils::rnd_down_pow2(tg_grid_dim[2]);
 
 #ifdef GEN_CONV_DEBUG
         tg_grid_dim[0] = getenv_int("tg0", tg_grid_dim[0]);
@@ -1132,7 +1130,7 @@ private:
             int reduction_threshold = 32;
             if (reduction_blocks < reduction_threshold) {
                 int max_ic_thr_dim = utils::div_up(eu_count, nthr);
-                max_ic_thr_dim = (1 << math::ilog2q(max_ic_thr_dim));
+                max_ic_thr_dim = utils::rnd_down_pow2(max_ic_thr_dim);
                 ret_ic_thr_dim = std::min(ret_ic_thr_dim, max_ic_thr_dim);
             }
         }
@@ -1142,7 +1140,7 @@ private:
     static int init_thr_dim(
             int x, int x_thr_blk, int max_thr_dim, double target_eff = 0.9) {
         int x_thr_dim = std::min(max_thr_dim, utils::div_up(x, x_thr_blk));
-        x_thr_dim = (1 << math::ilog2q(x_thr_dim));
+        x_thr_dim = utils::rnd_down_pow2(x_thr_dim);
         while (x_thr_dim != 1) {
             int x_padded = utils::rnd_up(x, x_thr_dim * x_thr_blk);
             double x_eff = (double)x / x_padded;

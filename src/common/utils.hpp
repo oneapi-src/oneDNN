@@ -318,6 +318,12 @@ inline typename remove_reference<T>::type rnd_up_pow2(const T a) {
     }
 }
 
+template <typename T>
+inline typename remove_reference<T>::type rnd_down_pow2(const T a) {
+    auto ret = rnd_up_pow2(a);
+    return ret == a ? ret : ret / 2;
+}
+
 template <typename T, typename U>
 inline typename remove_reference<T>::type max_div(const T a, const U b) {
     U div = b;
