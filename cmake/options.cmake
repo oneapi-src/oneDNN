@@ -73,6 +73,14 @@ if(NOT "${DNNL_GRAPH_CPU_RUNTIME}" MATCHES "^(OMP|SEQ|DPCPP|THREADPOOL)$")
     message(FATAL_ERROR "Unsupported CPU runtime: ${DNNL_GRAPH_CPU_RUNTIME}")
 endif()
 
+set(_DNNL_GRAPH_TEST_THREADPOOL_IMPL "STANDALONE" CACHE STRING
+    "specifies which threadpool implementation to use when
+    DNNL_GRAPH_CPU_RUNTIME=THREADPOOL is selected. Valid values: STANDALONE")
+if(NOT "${_DNNL_GRAPH_TEST_THREADPOOL_IMPL}" MATCHES "^(STANDALONE)$")
+    message(FATAL_ERROR
+        "Unsupported threadpool implementation: ${_DNNL_GRAPH_TEST_THREADPOOL_IMPL}")
+endif()
+
 set(DNNL_GRAPH_GPU_RUNTIME "NONE" CACHE STRING
     "specifies the runtime to use for GPU engines.
     Can be NONE (default; no GPU engines)
@@ -106,6 +114,9 @@ set(DNNL_GRAPH_TEST_SET "CI" CACHE STRING
 if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "DPCPP")
     set(DNNL_GRAPH_CPU_SYCL true)
     add_definitions(-DDNNL_GRAPH_CPU_SYCL)
+elseif(DNNL_GRAPH_CPU_RUNTIME STREQUAL "THREADPOOL")
+    message(STATUS "Compiling with RUNTIME THREADPOOL support")
+    add_definitions(-DDNNL_GRAPH_WITH_RUNTIME_THREADPOOL)
 endif()
 
 if(DNNL_GRAPH_GPU_RUNTIME STREQUAL "DPCPP")

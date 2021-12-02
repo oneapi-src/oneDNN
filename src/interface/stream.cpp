@@ -18,6 +18,7 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
+#include "oneapi/dnnl/dnnl_graph_threadpool.h"
 
 #include "interface/c_types_map.hpp"
 #include "interface/partition.hpp"
@@ -80,6 +81,39 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
     UNUSED(created_stream);
     UNUSED(engine);
     UNUSED(queue);
+    return status::unsupported;
+#endif
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
+        stream_t **created_stream, const engine_t *engine, void *threadpool) {
+#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+    if (utils::any_null(created_stream, engine, threadpool)) {
+        return status::invalid_argument;
+    }
+    auto tp = static_cast<dnnl::graph::threadpool_interop::threadpool_iface *>(
+            threadpool);
+    *created_stream = new stream_t {engine, tp};
+    return status::success;
+#else
+    UNUSED(created_stream);
+    UNUSED(engine);
+    UNUSED(threadpool);
+    return status::unsupported;
+#endif
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_get_threadpool(
+        stream_t *astream, void **threadpool) {
+#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+    if (utils::any_null(astream, threadpool)) return status::invalid_argument;
+    dnnl::graph::threadpool_interop::threadpool_iface *tp;
+    auto status = astream->get_threadpool(&tp);
+    if (status == status::success) *threadpool = static_cast<void *>(tp);
+    return status;
+#else
+    UNUSED(astream);
+    UNUSED(threadpool);
     return status::unsupported;
 #endif
 }

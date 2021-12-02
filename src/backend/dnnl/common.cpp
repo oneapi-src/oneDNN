@@ -35,6 +35,10 @@ const size_t DNNL_CPU_MEMALIGNMENT = 4096;
 const size_t DNNL_SYCL_MEMALIGNMENT = 16;
 #endif
 
+#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#include "dnnl_threadpool.hpp"
+#endif
+
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -138,6 +142,12 @@ dnnl::stream make_dnnl_stream(
 #ifdef DNNL_GRAPH_CPU_SYCL
         return dnnl::sycl_interop::make_stream(
                 p_engine, const_cast<cl::sycl::queue &>(g_stream.get_queue()));
+#elif DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+        dnnl::graph::threadpool_interop::threadpool_iface *tp;
+        auto status = g_stream.get_threadpool(&tp);
+        return dnnl::threadpool_interop::make_stream(p_engine,
+                reinterpret_cast<dnnl::threadpool_interop::threadpool_iface *>(
+                        tp));
 #else
         return dnnl::stream(p_engine);
 #endif

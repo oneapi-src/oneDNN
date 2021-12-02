@@ -80,6 +80,9 @@ impl::stream_t &get_stream() {
         static cl::sycl::queue q {get_context(), get_device(),
                 cl::sycl::property::queue::in_order {}};
         static impl::stream_t strm {&get_engine(), q};
+#elif DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+        static impl::stream_t strm {
+                &get_engine(), dnnl::graph::testing::get_threadpool()};
 #else
         static impl::stream_t strm {&get_engine()};
 #endif

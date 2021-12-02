@@ -398,7 +398,14 @@ int measure_perf(timer::timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
     if (is_bench_mode(PERF)) {
+#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+        dnnl::graph::stream stream
+                = dnnl::graph::threadpool_interop::make_stream(
+                        ::benchdnnext::get_test_engine(),
+                        dnnl::graph::testing::get_threadpool());
+#else
         dnnl::graph::stream stream(::benchdnnext::get_test_engine());
+#endif
         return measure_perf_individual(t, stream, perf_func, inputs, outputs);
     } else {
         return OK;

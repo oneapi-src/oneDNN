@@ -30,12 +30,15 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_scratchpad.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_subgraph_pass.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_local_cache.cpp
+    ${GRAPH_TEST_THREAD}
     )
 
 target_include_directories(${OBJ_LIB}
     PRIVATE
     ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
+    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/
+    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/src/
     )
     
 set_property(GLOBAL APPEND PROPERTY ${LIB_NAME}_UNIT_TEST_DEPS

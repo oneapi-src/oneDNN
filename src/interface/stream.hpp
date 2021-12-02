@@ -23,6 +23,9 @@
 #include <CL/sycl.hpp>
 #endif
 
+#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#include "oneapi/dnnl/dnnl_graph_threadpool_iface.hpp"
+#endif
 struct dnnl_graph_thread_pool {
     int num_threads_ {0};
     dnnl_graph_thread_pool(int num_threads) : num_threads_(num_threads) {}
@@ -52,6 +55,26 @@ public:
         UNUSED(attr);
     }
 #endif // DNNL_GRAPH_WITH_SYCL
+
+#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+    dnnl_graph_stream(const dnnl::graph::impl::engine_t *engine,
+            dnnl::graph::threadpool_interop::threadpool_iface *threadpool,
+            const dnnl::graph::impl::stream_attr_t *attr = nullptr)
+        : dnnl_graph_stream(engine) {
+        UNUSED(attr);
+        assert(engine->kind() == dnnl::graph::impl::engine_kind::cpu);
+        threadpool_ = threadpool;
+    }
+
+    dnnl::graph::impl::status_t get_threadpool(
+            dnnl::graph::threadpool_interop::threadpool_iface **threadpool)
+            const {
+        if (engine_->kind() != dnnl::graph::impl::engine_kind::cpu)
+            return dnnl::graph::impl::status::invalid_argument;
+        *threadpool = threadpool_;
+        return dnnl::graph::impl::status::success;
+    }
+#endif
     ~dnnl_graph_stream() = default;
 
     const dnnl::graph::impl::engine_t *get_engine() const noexcept {
@@ -73,6 +96,9 @@ private:
     const dnnl::graph::impl::engine_t *engine_;
 #if DNNL_GRAPH_WITH_SYCL
     cl::sycl::queue queue_;
+#endif
+#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+    dnnl::graph::threadpool_interop::threadpool_iface *threadpool_ = nullptr;
 #endif
 };
 

@@ -27,6 +27,11 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
+#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#include "oneapi/dnnl/dnnl_graph_threadpool.hpp"
+#include "test_thread.hpp"
+#endif
+
 #include "dnn_graph_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"

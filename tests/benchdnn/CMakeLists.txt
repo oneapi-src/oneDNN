@@ -24,11 +24,13 @@ file(GLOB_RECURSE SOURCES
     )
 
 list(APPEND SOURCES ${TEST_THREAD})
+list(APPEND SOURCES ${GRAPH_TEST_THREAD})
 include_directories_with_host_compiler(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/src
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/tests/
     )
 
 if(BENCHDNN_USE_RDPMC)

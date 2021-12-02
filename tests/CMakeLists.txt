@@ -57,6 +57,13 @@ if(WIN32)
     append(CMAKE_CXX_FLAGS "-DNOMINMAX") # to allow std::max on Windows with parentheses
 endif()
 
+if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "THREADPOOL")
+    # Only enable this for threadpool runtime to avoid complaints about empty
+    # object files.
+    set(GRAPH_TEST_THREAD ${CMAKE_CURRENT_SOURCE_DIR}/test_thread.cpp)
+    set(TEST_THREAD ${PROJECT_SOURCE_DIR}/third_party/oneDNN/tests/test_thread.cpp)
+endif()
+
 add_subdirectory(cpp)
 add_subdirectory(benchdnn)
 add_subdirectory(demo)

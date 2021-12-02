@@ -27,6 +27,9 @@
 #include <CL/sycl.hpp>
 #endif
 
+#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#include "test_thread.hpp"
+#endif
 namespace impl = dnnl::graph::impl;
 
 #if DNNL_GRAPH_WITH_SYCL
