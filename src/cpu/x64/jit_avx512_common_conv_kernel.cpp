@@ -4386,6 +4386,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_loop_partial() {
             = is_ddst_layout_nxc() ? jcp.ngroups * jcp.oc : jcp.oc_block;
     const int input_bottom_padding_overlap
             = div_up(jcp.ih + jcp.t_pad - (jcp.kh - 1), jcp.stride_h);
+    const int bottom_pad_input_correction
+            = jcp.ih + jcp.t_pad - input_bottom_padding_overlap * jcp.stride_h;
 
     const size_t filter_shift = jcp.typesize_out * jcp.kw * ic_block * oc_block;
     const size_t input_shift = jcp.typesize_in * jcp.iw * inp_mult;
@@ -4454,8 +4456,14 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_loop_partial() {
             sub(reg_kernel, (jcp.t_pad - jcp.oh * jcp.stride_h) * filter_shift);
         }
 
-        /* Apply correction */
-        mov(reg_kh, inp_ker_overlap);
+        /* Set filter element count for outside the t_pad region */
+        if (jcp.t_pad + jcp.ih < jcp.kh + jcp.stride_h) {
+            // filter now overlaps with b_pad
+            mov(reg_kh, bottom_pad_input_correction);
+        } else {
+            mov(reg_kh, inp_ker_overlap);
+        }
+
         jmp(common_block_label);
 
         L(top_padding_end_label);
@@ -4471,9 +4479,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_loop_partial() {
 
         /* Execute overlap correction between the filter and the initial
          * bottom padding region. */
-        mov(reg_kh,
-                jcp.ih + jcp.t_pad
-                        - input_bottom_padding_overlap * jcp.stride_h);
+        mov(reg_kh, bottom_pad_input_correction);
         jmp(bottom_padding_end_label, T_NEAR);
 
         L(bottom_padding_label);
@@ -4511,6 +4517,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_od_loop_partial() {
     int ow = jcp.ow;
     const int input_backpad_overlap
             = div_up(jcp.id + jcp.f_pad - (jcp.kd - 1), jcp.stride_d);
+    const int back_pad_input_correction
+            = jcp.id + jcp.f_pad - input_backpad_overlap * jcp.stride_d;
 
     const size_t filter_shift
             = jcp.typesize_out * jcp.kh * jcp.kw * ic_block * oc_block;
@@ -4579,8 +4587,14 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_od_loop_partial() {
             sub(reg_kernel, (jcp.f_pad - jcp.od * jcp.stride_d) * filter_shift);
         }
 
-        /* Apply correction */
-        mov(reg_kd_count, inp_ker_overlap);
+        /* Set filter element count for outside the f_pad region */
+        if (jcp.f_pad + jcp.id < jcp.kd + jcp.stride_d) {
+            // filter now overlaps with back_pad
+            mov(reg_kd_count, back_pad_input_correction);
+        } else {
+            mov(reg_kd_count, inp_ker_overlap);
+        }
+
         jmp(common_block_label);
 
         L(fpad_end_label);
@@ -4596,8 +4610,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_od_loop_partial() {
 
         /* Execute overlap correction between the filter and the initial
          * back_pad region. */
-        mov(reg_kd_count,
-                jcp.id + jcp.f_pad - input_backpad_overlap * jcp.stride_d);
+        mov(reg_kd_count, back_pad_input_correction);
         jmp(backpad_end_label, T_NEAR);
 
         L(backpad_label);
