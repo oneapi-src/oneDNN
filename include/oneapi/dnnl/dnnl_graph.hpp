@@ -733,6 +733,8 @@ public:
     }
 };
 
+/// @} dnnl_graph_api_compiled_partition
+
 /// @addtogroup dnnl_graph_api_op Op
 ///
 /// OP is an abstraction of compute logic for deep neural network operation.
@@ -1042,8 +1044,6 @@ private:
 };
 
 /// @} dnnl_graph_api_op
-
-/// @} dnnl_graph_api_compiled_partition
 
 /// @addtogroup dnnl_graph_api_partition Partition
 ///
