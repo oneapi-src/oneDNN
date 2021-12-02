@@ -444,8 +444,9 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
     const algorithm algo = eltwise_alg_pos != eltwise_alg_map.end()
             ? eltwise_alg_pos->second
             : algorithm::undef;
-    if (algo == algorithm::undef)
+    if (algo == algorithm::undef) {
         BACKEND_DNNL_ENFORCE(0, "Unsupported eltwise op.");
+    }
 
     dnnl::eltwise_forward::primitive_desc pd;
     pd = dnnl::eltwise_forward::primitive_desc(
