@@ -16,6 +16,7 @@
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 
+#include <algorithm>
 #include <mutex>
 
 #ifdef _WIN32
@@ -47,14 +48,11 @@ inline int read_num_threads_from_env() {
     env_num_threads = ::getenv(env_var_name);
 #endif
 
-    int num_threads = 0;
+    int num_threads = (int)dnnl::impl::cpu::platform::get_max_threads_to_use();
     if (env_num_threads) {
         char *endp;
-        int nt = strtol(env_num_threads, &endp, 10);
-        if (*endp == '\0') num_threads = nt;
-    }
-    if (num_threads <= 0) {
-        num_threads = (int)dnnl::impl::cpu::platform::get_max_threads_to_use();
+        int nt = std::max(1L, strtol(env_num_threads, &endp, 10));
+        if (*endp == '\0') num_threads = std::min(nt, num_threads);
     }
     return num_threads;
 }
