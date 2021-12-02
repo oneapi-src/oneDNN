@@ -27,7 +27,7 @@ set(dnnl_graph_platform_cmake_included true)
 include("cmake/utils.cmake")
 
 if (DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
-    add_definitions(-DDNNL_GRAPH_DLL_EXPORTS)
+    add_definitions(-DDNNL_GRAPH_DLL)
 endif()
 
 set(CMAKE_CCXX_FLAGS)

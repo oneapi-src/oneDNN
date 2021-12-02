@@ -38,10 +38,14 @@
 #endif
 #endif
 
+#ifdef DNNL_GRAPH_DLL
 #ifdef DNNL_GRAPH_DLL_EXPORTS
 #define DNNL_GRAPH_API DNNL_GRAPH_HELPER_DLL_EXPORT
 #else
 #define DNNL_GRAPH_API DNNL_GRAPH_HELPER_DLL_IMPORT
+#endif
+#else
+#define DNNL_GRAPH_API
 #endif
 
 #ifdef __cplusplus
