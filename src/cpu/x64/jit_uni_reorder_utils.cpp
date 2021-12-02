@@ -265,22 +265,26 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
                     om_d.extra().asymm_compensation_mask))
         return status::unimplemented;
 
-    const auto compute_strides
-            = [&](ptrdiff_t *strides, const int mask) {
-                  ptrdiff_t last_stride = 1;
-                  for (int d = old.ndims - 1; d >= 0; --d) {
-                      assert((d == 0 || old.id[d - 1] <= old.id[d])
-                                    && "logical dimensions should be in ascending order");
-                      if (mask & (1 << old.id[d])) {
-                          strides[d] = last_stride;
-                          last_stride *= old.dims[d];
-                      }
-                  }
-              };
-
     ptrdiff_t ss[max_ndims] = {0}; // scales strides
-    if (p.scale_type == scale_type_t::MANY)
-        compute_strides(ss, attr->output_scales_.mask_);
+    if (p.scale_type == scale_type_t::MANY) {
+        const int mask = attr->output_scales_.mask_;
+        ptrdiff_t dense_stride = 1;
+        ptrdiff_t last_stride = 1;
+        for (int d = old.ndims - 1; d >= 0; --d) {
+            assert((d == 0 || old.id[d - 1] <= old.id[d])
+                    && "logical dimensions should be in ascending order");
+            if (mask & (1 << old.id[d])) {
+                if ((d + 1) < old.ndims && old.id[d + 1] != old.id[d]
+                        && (mask & (1 << old.id[d + 1]))) {
+                    dense_stride = dense_stride * imd.dims[old.id[d + 1]];
+                    last_stride = dense_stride;
+                }
+                ss[d] = last_stride;
+                last_stride *= old.dims[d];
+            }
+        }
+    }
+
     const auto compensation_needed = p.req_s8s8_comp || p.req_asymmetric_comp;
     if (compensation_needed) {
         p.compensation_mask = p.req_s8s8_comp
