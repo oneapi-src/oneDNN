@@ -931,6 +931,7 @@ public:
     data_type_t acc_data_type;
 
     ngen::HW hw = ngen::HW::Unknown;
+    int stepping_id;
     int eu_count;
     bool large_grf_support;
     int simd_size; // SIMD width.
@@ -1060,6 +1061,9 @@ public:
 private:
     int init_fwd_ic_thr_dim(
             int mb_thr_blk, int oc_thr_blk, int ow_thr_blk, int ic_blk) const {
+        // XXX: Do not use k-slicing with XeHPG A0 due to issues with SLM.
+        if (hw == ngen::HW::XeHPG && stepping_id == 0) return 1;
+
         if (mb_thr_blk > 1) return 1;
 
         int ic_blocks = utils::div_up(ic, ic_blk);
@@ -1105,6 +1109,7 @@ private:
                 = utils::downcast<compute::compute_engine_t *>(engine);
         auto device_info = compute_engine->device_info();
         gpu_arch_t gpu_arch = device_info->gpu_arch();
+        stepping_id = device_info->stepping_id();
         eu_count = device_info->eu_count();
         large_grf_support = compute_engine->mayiuse_large_grf_mode();
 
