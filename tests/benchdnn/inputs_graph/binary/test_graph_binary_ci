@@ -13,3 +13,7 @@
 # post eltwise
 --reset
 --alg=MIN --ddt=f32 --sdt=f32:f32 --attr-post-ops=logistic --stag=abx:abx 64x128x28x28:64x128x28x28
+
+# post add
+--reset
+--alg=ADD --ddt=f32 --sdt=f32:f32 --attr-post-ops=add:f32:per_tensor --stag=abx:abx 32x32:32x32

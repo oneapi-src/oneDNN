@@ -41,6 +41,8 @@ binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
     data_format = convert_tag(prb->dtag);
 
     op_kind = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
+
+    if (src0_dims == src1_dims) auto_broadcast = "none";
 }
 
 void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {

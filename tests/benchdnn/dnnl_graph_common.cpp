@@ -570,6 +570,8 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
             {p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"],
                     p.tensor_descs_[BIN_SRC]},
             {p.tensor_descs_[BIN_DST]}, "binary");
+    if (bin_src_dims == dst_dims)
+        binary.set_attr("auto_broadcast", std::string("none"));
 
     p.ops_.emplace_back(binary);
     p.curr_out_map_ids_.assign({TENSOR_ID});
