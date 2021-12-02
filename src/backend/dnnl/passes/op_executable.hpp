@@ -510,8 +510,8 @@ inline dnnl::concat::primitive_desc create_concat_pd(
     for (const auto &in_val : op->get_input_values()) {
         const auto tmp_desc
                 = make_dnnl_memory_desc(in_val->get_logical_tensor());
-        src_mds.push_back(memory::desc {tmp_desc.dims(), tmp_desc.data_type(),
-                get_forced_format_tag(tmp_desc.dims())});
+        src_mds.emplace_back(memory::desc {tmp_desc.dims(),
+                tmp_desc.data_type(), get_forced_format_tag(tmp_desc.dims())});
     }
     const auto tmp_desc = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
