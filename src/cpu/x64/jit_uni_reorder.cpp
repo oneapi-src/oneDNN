@@ -2015,9 +2015,9 @@ status_t jit_uni_reorder_t::pd_t::init(
 }
 
 void jit_uni_reorder_t::pd_t::init_scratchpad() {
-    const memory_desc_wrapper id(src_md());
-    const auto G = with_groups_ ? id.dims()[0] : 1;
-    const auto N = id.dims()[with_groups_ ? 1 : 0];
+    const memory_desc_wrapper od(dst_md());
+    const auto G = with_groups_ ? od.padded_dims()[0] : 1;
+    const auto N = od.padded_dims()[with_groups_ ? 1 : 0];
     static constexpr int cache_line_size = 16;
     const auto wspace_per_thr_size
             = utils::rnd_up(G * N, cache_line_size) * sizeof(int32_t);
@@ -2298,9 +2298,9 @@ void jit_uni_reorder_t::omp_driver(const char *in, char *out,
     int32_t *compensation_reduce_scratch = scratchpad.template get<int32_t>(
             memory_tracking::names::key_reorder_space);
 
-    const memory_desc_wrapper id(pd()->src_md());
-    const auto G = pd()->with_groups_ ? id.dims()[0] : 1;
-    const auto N = id.dims()[pd()->with_groups_ ? 1 : 0];
+    const memory_desc_wrapper od(pd()->dst_md());
+    const auto G = pd()->with_groups_ ? od.padded_dims()[0] : 1;
+    const auto N = od.padded_dims()[pd()->with_groups_ ? 1 : 0];
     static constexpr int cache_line_size = 16;
     const auto wspace_per_thr_size = utils::rnd_up(G * N, cache_line_size);
     const auto wspace_per_thr_bytes = wspace_per_thr_size * sizeof(int32_t);
@@ -2355,46 +2355,35 @@ void jit_uni_reorder_t::reduce_compensation(char *out,
         const dim_t wspace_per_thr_size) const {
 
     const memory_desc_wrapper od(pd()->dst_md());
-    const auto G = pd()->with_groups_ ? od.dims()[0] : 1;
-    const auto N = od.dims()[pd()->with_groups_ ? 1 : 0];
-
     const size_t offset = od.size() - od.additional_buffer_size();
 
     static constexpr auto comp_dt_size = sizeof(int32_t);
     static constexpr int32_t comp_s8s8_shift = 128;
 
-    // zero out the compensation memory in case of padding
-    const auto G_padded = pd()->with_groups_ ? od.padded_dims()[0] : 1;
-    const auto N_padded = od.padded_dims()[pd()->with_groups_ ? 1 : 0];
-    const auto GN_padded_elems = G_padded * N_padded;
+    // Note: We do not need to explicitly zero-out compensation buffer, as the
+    // per_thread buffers are already zeroed out in the padded area.
+    const auto G = pd()->with_groups_ ? od.padded_dims()[0] : 1;
+    const auto N = od.padded_dims()[pd()->with_groups_ ? 1 : 0];
     const auto GN = G * N;
     const bool req_s8s8_comp = pd()->prb_.req_s8s8_comp;
     const bool req_asymmetric_comp = pd()->prb_.req_asymmetric_comp;
-    const size_t zp_offset = offset
-            + (pd()->prb_.req_s8s8_comp ? GN_padded_elems * comp_dt_size : 0);
+    const size_t zp_offset
+            = offset + (pd()->prb_.req_s8s8_comp ? GN * comp_dt_size : 0);
 
-    if (GN_padded_elems != GN) {
-        if (req_s8s8_comp)
-            std::memset(out + offset, 0, GN_padded_elems * comp_dt_size);
-        if (req_asymmetric_comp)
-            std::memset(out + zp_offset, 0, GN_padded_elems * comp_dt_size);
-    }
-
-    parallel_nd(G, N, [&](int g, int n) {
+    parallel_nd(GN, [&](int idx) {
         int32_t acc = 0;
-        const auto g_n_off = g * N + n;
         for (int ithr = 0; ithr < nthr; ithr++) {
             acc -= compensation_reduce_scratch[ithr * wspace_per_thr_size
-                    + g_n_off];
+                    + idx];
         }
         if (req_s8s8_comp) {
             int32_t *out_comp = reinterpret_cast<int32_t *>(&out[offset]);
-            out_comp[g_n_off] = comp_s8s8_shift * acc;
+            out_comp[idx] = comp_s8s8_shift * acc;
         }
         if (req_asymmetric_comp) {
             int32_t *out_asym_comp
                     = reinterpret_cast<int32_t *>(&out[zp_offset]);
-            out_asym_comp[g_n_off] = acc;
+            out_asym_comp[idx] = acc;
         }
     });
 }
