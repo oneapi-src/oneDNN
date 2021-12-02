@@ -979,6 +979,7 @@ public:
     ngen::HW hw = ngen::HW::Unknown;
     int stepping_id;
     int eu_count;
+    int max_wg_size;
     bool large_grf_support;
     int simd_size; // SIMD width.
     int regs; // Number of registers.
@@ -1180,11 +1181,13 @@ private:
         gpu_arch_t gpu_arch = device_info->gpu_arch();
         stepping_id = device_info->stepping_id();
         eu_count = device_info->eu_count();
+        max_wg_size = device_info->max_wg_size();
         large_grf_support = compute_engine->mayiuse_large_grf_mode();
 
 #ifdef GEN_CONV_DEBUG
         gpu_arch_t old_arch = gpu_arch;
-        gpu_arch = ir_utils::getenv_gpu("gpu_arch", gpu_arch, &eu_count);
+        gpu_arch = ir_utils::getenv_gpu(
+                "gpu_arch", gpu_arch, &eu_count, &max_wg_size);
         if (old_arch != gpu_arch)
             large_grf_support = gpu_arch >= compute::gpu_arch_t::xe_hp;
 #endif
@@ -1954,10 +1957,18 @@ private:
         return estimated_regs;
     }
 
-    int get_optimal_tg_size(int regs) {
-        const int eus_per_subslice = 8;
-        const int threads_per_eu = hw >= ngen::HW::XeHP && regs <= 128 ? 8 : 4;
-        return eus_per_subslice * threads_per_eu;
+    int get_optimal_tg_size(int regs) const {
+        const compute::gpu_arch_t arch = convert_ngen_arch_to_dnnl(hw);
+        const int max_eus_per_wg = compute::device_info_t::max_eus_per_wg(arch);
+        const int threads_per_eu
+                = compute::device_info_t::threads_per_eu(arch, regs > 128);
+        const int wg_per_thr = simd_size
+                * compute::device_info_t::threads_per_eu(arch) / threads_per_eu;
+
+        // Optimal thread group size may differ from hardware thread count due
+        // to simd_size used in computation.
+        return std::min(max_eus_per_wg * utils::rnd_down_pow2(threads_per_eu),
+                max_wg_size / wg_per_thr);
     }
 
     const layout_t &a_layout() const {
