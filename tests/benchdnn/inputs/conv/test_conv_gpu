@@ -96,26 +96,8 @@ g2ic2ih1iw2oc4oh1ow2kh1kw1ph0pw0
 --stag=axb
 --cfg=f16 --mb=1,16 --batch=set_gpu
 
-# regression
---reset
---cfg=f32,f16
---dir=FWD_B,BWD_D,BWD_WB
---dtag=axb
-g1ic16iw5oc16ow5kw1pw0
-mb3g1ic33iw5oc33ow17kw1pw0
-mb16ic16ih224oc64oh112kh7sh2ph3n
-
---reset
---cfg=bf16bf16bf16
---stag=axb
---dtag=axb
-mb32ic256ih14oc256oh14kh3ph1
-
---reset
---cfg=bf16bf16bf16
---dir=BWD_WB
-mb32ic128ih1oc129oh1kh1ph0
-mb32ic32ih1oc129oh1kh1ph0
+# regression test cases
+--batch=test_conv_regression_gpu
 
 #test user scratchpad
 --reset
