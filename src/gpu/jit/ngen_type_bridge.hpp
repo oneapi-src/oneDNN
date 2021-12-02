@@ -18,6 +18,7 @@
 #define GPU_JIT_NGEN_TYPE_BRIDGE_HPP
 
 #include "common/c_types_map.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "gpu/jit/ngen/ngen_core.hpp"
 
 namespace dnnl {
@@ -41,6 +42,28 @@ inline ngen::DataType convert_dnnl_type_to_ngen(data_type_t dt) {
     }
 
     return dt_out;
+}
+
+inline ngen::HW convert_dnnl_arch_to_ngen(compute::gpu_arch_t gpu_arch) {
+    switch (gpu_arch) {
+        case compute::gpu_arch_t::gen9: return ngen::HW::Gen9;
+        case compute::gpu_arch_t::xe_lp: return ngen::HW::XeLP;
+        case compute::gpu_arch_t::xe_hp: return ngen::HW::XeHP;
+        case compute::gpu_arch_t::xe_hpg: return ngen::HW::XeHPG;
+        case compute::gpu_arch_t::xe_hpc: return ngen::HW::XeHPC;
+        default: return ngen::HW::Unknown;
+    }
+}
+
+inline compute::gpu_arch_t convert_ngen_arch_to_dnnl(ngen::HW gpu_arch) {
+    switch (gpu_arch) {
+        case ngen::HW::Gen9: return compute::gpu_arch_t::gen9;
+        case ngen::HW::XeLP: return compute::gpu_arch_t::xe_lp;
+        case ngen::HW::XeHP: return compute::gpu_arch_t::xe_hp;
+        case ngen::HW::XeHPG: return compute::gpu_arch_t::xe_hpg;
+        case ngen::HW::XeHPC: return compute::gpu_arch_t::xe_hpc;
+        default: return compute::gpu_arch_t::unknown;
+    }
 }
 
 } // namespace jit

@@ -32,6 +32,7 @@
 #include "gpu/jit/conv/tensor_config.hpp"
 #include "gpu/jit/conv/utils.hpp"
 #include "gpu/jit/jit_eltwise_injector.hpp"
+#include "gpu/jit/ngen_type_bridge.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -1188,15 +1189,9 @@ private:
             large_grf_support = gpu_arch >= compute::gpu_arch_t::xe_hp;
 #endif
 
-        switch (gpu_arch) {
-            case gpu_arch_t::gen9: hw = ngen::HW::Gen9; break;
-            case gpu_arch_t::xe_lp: hw = ngen::HW::XeLP; break;
-            case gpu_arch_t::xe_hp: hw = ngen::HW::XeHP; break;
-            case gpu_arch_t::xe_hpg: hw = ngen::HW::XeHPG; break;
-            case gpu_arch_t::xe_hpc: hw = ngen::HW::XeHPC; break;
-            default: return status::unimplemented;
-        }
-        return status::success;
+        hw = convert_dnnl_arch_to_ngen(gpu_arch);
+        return hw != ngen::HW::Unknown ? status::success
+                                       : status::unimplemented;
     }
 
     // Initializes A/B/C data types (GEMM notation: C += A * B) according to
