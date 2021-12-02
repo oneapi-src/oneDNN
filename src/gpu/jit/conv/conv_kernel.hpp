@@ -4474,9 +4474,12 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     expr_binding_t expr_binding;
 
     // Bind grid indices.
-    expr_binding.bind(builder.kernel_grid_idx(0), r0.ud(1));
-    expr_binding.bind(builder.kernel_grid_idx(1), r0.ud(6));
-    expr_binding.bind(builder.kernel_grid_idx(2), r0.ud(7));
+    int r0_sub_idxs[] = {1, 6, 7};
+    for (int i = 0; i < 3; i++) {
+        auto tmp = ra_.alloc_sub<int32_t>();
+        mov(1, tmp, r0.ud(r0_sub_idxs[i]));
+        expr_binding.bind(builder.kernel_grid_idx(i), tmp);
+    }
 
     // Bind local IDs.
     for (int i = 0; i < 3; i++) {
