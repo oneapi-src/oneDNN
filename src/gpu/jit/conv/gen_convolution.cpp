@@ -62,6 +62,13 @@ std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&... args) {
 template <template <ngen::HW> class KernelT, typename... ArgsT>
 compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
         gpu_gen_t arch, ArgsT &&... args) {
+    compute::kernel_t kernel;
+
+    if (primitive->cache_blob()) {
+        status_t status = primitive->create_kernel(engine, &kernel, nullptr);
+        if (status != status::success) return compute::kernel_t();
+        return kernel;
+    }
 
     std::unique_ptr<jit::jit_generator_base> jit_kernel;
 #define CASE(gpu_arch) \
@@ -97,7 +104,6 @@ compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
 
     if (!jit_kernel) return compute::kernel_t();
 
-    compute::kernel_t kernel;
     status_t status
             = primitive->create_kernel(engine, &kernel, jit_kernel.get());
     if (status != status::success) return compute::kernel_t();

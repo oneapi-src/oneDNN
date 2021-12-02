@@ -92,6 +92,8 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
     cl_int err = CL_SUCCESS;
     for (size_t i = 0; i < kernel_names.size(); i++) {
         if (!kernel_names[i]) continue;
+        std::string kernel_name(kernel_names[i]);
+
         const uint8_t *binary = nullptr;
         size_t binary_size = 0;
 
@@ -103,17 +105,38 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
         err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
         OCL_CHECK(err);
 
+        if (kernel_name.empty()) {
+            // Handle the ngen cases when kernel name is not available.
+            // Query the kernel name from the program. It's expected that
+            // an ngen based program contains only 1 kernel.
+            if (kernel_names.size() != 1 || kernels->size() != 1)
+                return status::invalid_arguments;
+            size_t kernel_name_size = 0;
+            err = clGetProgramInfo(program, CL_PROGRAM_KERNEL_NAMES, 0, nullptr,
+                    &kernel_name_size);
+            OCL_CHECK(err);
+
+            kernel_name.resize(kernel_name_size);
+            err = clGetProgramInfo(program, CL_PROGRAM_KERNEL_NAMES,
+                    kernel_name_size, &kernel_name[0], nullptr);
+            OCL_CHECK(err);
+            assert(!kernel_name.empty());
+            if (kernel_name.empty()) return status::runtime_error;
+            // Remove the null terminator as std::string already includes it.
+            kernel_name.pop_back();
+        }
         auto ocl_kernel = make_ocl_wrapper(
-                clCreateKernel(program, kernel_names[i], &err));
+                clCreateKernel(program, kernel_name.c_str(), &err));
         OCL_CHECK(err);
+
         std::vector<gpu::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
         OCL_CHECK(err);
 
         auto shared_binary = std::make_shared<compute::binary_t>(
                 binary, binary + binary_size);
-        (*kernels)[i] = compute::kernel_t(new ocl_gpu_kernel_t(
-                shared_binary, kernel_names[i], arg_types));
+        (*kernels)[i] = compute::kernel_t(
+                new ocl_gpu_kernel_t(shared_binary, kernel_name, arg_types));
         dump_kernel_binary(ocl_engine, (*kernels)[i]);
         OCL_CHECK(clReleaseProgram(program));
     }
@@ -124,7 +147,9 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
 
 status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
         jit::jit_generator_base *jitter, cache_blob_t cache_blob) const {
-    auto kernel_name = jitter->kernel_name();
+    if (!jitter && !cache_blob) return status::invalid_arguments;
+
+    const char *kernel_name = jitter ? jitter->kernel_name() : "";
 
     if (cache_blob) {
         std::vector<compute::kernel_t> kernels(1);
