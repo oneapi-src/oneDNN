@@ -200,7 +200,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     int16_t ao = 0, bo = 0;
     int cmask = 0;
 
-    if (c_type == data_type::s32) {
+    if (pd()->with_c_zero_points()) {
         off_co0 = co->offset() / types::data_type_size(c_type)
                 + pd()->dyn_offset_co;
     } else if (pd()->with_bias()) {

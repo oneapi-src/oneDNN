@@ -8238,11 +8238,11 @@ template <HW hw>
 void gemm_kernel_generator_t<hw>::gemmFixedOffsetC(const Subregister &offset,
         const GEMMProblem &problem, const GEMMStrategy &strategy,
         GEMMState &state) {
-    auto offsetTc = offset.reinterpret(0, problem.Tc.ngen());
-    if (problem.Tc != problem.Tco) emov(1, offsetTc, offset, strategy, state);
+    auto offsetTacc = offset.reinterpret(0, state.Tacc.ngen());
+    if (state.Tacc != problem.Tco) emov(1, offsetTacc, offset, strategy, state);
 
-    map(hw, problem.Tc, state.C_regs[0], state.C_layout, strategy,
-            [&](int simd, const RegData &r) { add(simd, r, r, offsetTc); });
+    map(hw, state.Tacc, state.C_regs[0], state.C_layout, strategy,
+            [&](int simd, const RegData &r) { add(simd, r, r, offsetTacc); });
 }
 
 // Add row-wise or column-wise offsets to C, possibly multiplying by a scalar.
@@ -8251,8 +8251,8 @@ void gemm_kernel_generator_t<hw>::gemmVariableOffsetC(bool column,
         const GRFMultirange &offsets, const Subregister &scale,
         const GEMMProblem &problem, const GEMMStrategy &strategy,
         GEMMState &state, Type Tco, vector<RegisterBlock> CO_layout) {
-    auto Tc = problem.Tc;
-    auto ne = elementsPerGRF(hw, Tc);
+    auto Tacc = state.Tacc;
+    auto ne = elementsPerGRF(hw, Tacc);
     auto globalCM = isLayoutColMajor(state.C_layout);
     auto unrollX = strategy.unroll[globalCM ? LoopM : LoopN];
     auto unrollY = strategy.unroll[globalCM ? LoopN : LoopM];
@@ -8260,10 +8260,10 @@ void gemm_kernel_generator_t<hw>::gemmVariableOffsetC(bool column,
     auto stride = [&]() { return (column == globalCM) ? 0 : crosspack; };
     const GRFMultirange *offsetsPtr = &offsets;
 
-    if (Tco == Type::invalid) Tco = Tc;
+    if (Tco == Type::invalid) Tco = Tacc;
 
-    bool needRepack = (Tc != Tco);
-    needRepack |= (stride() > 1 && hw >= HW::XeHP && Tc.isFP());
+    bool needRepack = (Tacc != Tco);
+    needRepack |= (stride() > 1 && hw >= HW::XeHP && Tacc.isFP());
 
     GRFMultirange repackOffsets;
     if (needRepack) {
@@ -8271,10 +8271,10 @@ void gemm_kernel_generator_t<hw>::gemmVariableOffsetC(bool column,
         vector<RegisterBlock> repackLayout;
         int r = column ? 1 : strategy.unroll[LoopM];
         int c = !column ? 1 : strategy.unroll[LoopN];
-        makeUnbackedRegLayout(Tc, repackLayout, r, c, !column);
+        makeUnbackedRegLayout(Tacc, repackLayout, r, c, !column);
         repackOffsets = state.ra.alloc_range(getRegCount(repackLayout));
-        copyRegisters(Tco, Tc, CO_layout, repackLayout, offsets, repackOffsets,
-                0, 0, false, strategy, state);
+        copyRegisters(Tco, Tacc, CO_layout, repackLayout, offsets,
+                repackOffsets, 0, 0, false, strategy, state);
         crosspack = 1;
         offsetsPtr = &repackOffsets;
     }
@@ -8286,11 +8286,11 @@ void gemm_kernel_generator_t<hw>::gemmVariableOffsetC(bool column,
             int nc;
             const RegisterBlock *C_block;
             Subregister C = findBlockReg(
-                    Tc, state.C_layout, i, j, state.C_regs[0], nc, C_block);
+                    Tacc, state.C_layout, i, j, state.C_regs[0], nc, C_block);
 
             nc = std::min(nc, strategy.fmaSIMD / crosspack);
             auto nco = (column ? j : i) * crosspack;
-            auto offBase = (*offsetsPtr)[nco / ne].sub(nco % ne, Tc.ngen());
+            auto offBase = (*offsetsPtr)[nco / ne].sub(nco % ne, Tacc.ngen());
             if (scale.isValid())
                 mad(nc, C(1), C(1), offBase(stride()), scale);
             else
@@ -11359,8 +11359,9 @@ template <HW hw>
 bool gemm_kernel_generator_t<hw>::gemmUpdateC(
         GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state) {
 
-    auto Ts = problem.Ts;
+    auto Ts = problem.Ts, Tco = problem.Tco;
 
+    auto Tc = problem.Tc;
     status << "C update" << status_stream::endl;
 
     auto &alphar = problem.alpha_real;
@@ -11372,9 +11373,11 @@ bool gemm_kernel_generator_t<hw>::gemmUpdateC(
     }
 
     // C early offset.
-    if (problem.cOffset == COffset::Pre)
+    if (problem.cOffset == COffset::Pre) {
+        if (Tco != Tc && Tco.size() >= Tc.size())
+            (void)gemmConvertC(Tco, problem, strategy, state);
         if (!gemmApplyCOffsetDispatch(problem, strategy, state)) return false;
-
+    }
     // Prepare postop injector if configured.
     GRFRange postOpScratch;
     if (problem.hasPostOp()) {

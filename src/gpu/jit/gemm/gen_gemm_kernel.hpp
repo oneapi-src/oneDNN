@@ -120,7 +120,10 @@ struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
             problem_.batchDims = batch_dims;
         }
         if (ab_offset) problem_.abOffset = ABOffset::Calc;
-        if (c_type == data_type::s32) problem_.Ts = Type::f32;
+
+        bool dt_int_ok = (a_type == data_type::s8 || a_type == data_type::u8);
+        if (dt_int_ok) problem_.Ts = Type::f32;
+
         if (post_ops.len() > 0) {
             problem_.post_ops = post_ops;
             if (a_type == data_type::f16) problem_.Ts = Type::f32;

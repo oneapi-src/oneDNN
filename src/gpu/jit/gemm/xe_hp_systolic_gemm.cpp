@@ -53,7 +53,8 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
             && utils::one_of(d->c_type(), f32, d->a_type()));
 
     bool dt_int_ok = (utils::one_of(d->a_type(), u8, s8)
-            && utils::one_of(d->b_type(), u8, s8) && (d->c_type() == s32));
+            && utils::one_of(d->b_type(), u8, s8)
+            && utils::one_of(d->c_type(), s32, f32, s8, u8, f16));
 
     if (dt_int_ok) {
         if (attr()->zero_points_.defined(DNNL_ARG_SRC)) {
@@ -108,7 +109,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
             && attr()->has_default_values(attr_skip_mask)
             && attr()->output_scales_.mask_ == 0 && attr()->post_ops_.len() <= 2
             && IMPLICATION(with_bias(),
-                    dt_float_ok
+                    (dt_float_ok || dt_int_ok)
                             && utils::one_of(d->bias_type(), d->a_type(), f32)
                             && utils::one_of(bias_cmask(), 0, 1 << 0, 1 << 1));
 
@@ -132,6 +133,8 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
         attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask_c, nullptr);
         ok &= (cmask_a == 0) && (cmask_b == 0)
                 && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
+        ok &= IMPLICATION(utils::one_of(d->c_type(), f32, s8, u8, f16),
+                (attr()->post_ops_.len() == 0) && use_new_kernels());
     }
 
     if (!ok) return status::unimplemented;
@@ -537,7 +540,7 @@ status_t xe_hp_systolic_gemm_t::init_compute_new(engine_t *engine) {
     auto a_type = pd()->desc()->a_type();
     auto b_type = pd()->desc()->b_type();
     auto c_type = pd()->desc()->c_type();
-    auto co_type = pd()->with_bias() ? pd()->desc()->bias_type() : c_type;
+    auto co_type = pd()->impl_co_type();
     auto acc_type = pd()->impl_acc_type();
 
     offset_t ab_offset

@@ -68,10 +68,10 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             const auto d = desc();
 
-            if (d->c_type() == s32) {
+            if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
+                    && utils::one_of(d->a_type(), u8, s8)) {
                 ok = ok && utils::one_of(d->a_type(), u8, s8)
                         && utils::one_of(d->b_type(), u8, s8)
-                        && d->acc_type == d->c_type()
                         && (attr()->zero_points_.has_default_values(
                                     DNNL_ARG_DST)
                                 || !attr()->zero_points_.defined(DNNL_ARG_DST));
@@ -105,6 +105,16 @@ struct gen_gemm_t : public gpu_gemm_t {
                         && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
 
                 attr_skip_mask |= smask_t::zero_points_runtime;
+
+                ok = ok
+                        && IMPLICATION(
+                                utils::one_of(d->c_type(), f32, s8, u8, f16),
+                                (attr()->post_ops_.len() == 0)
+                                        && (d->k() >= 64));
+                ok = ok
+                        && IMPLICATION(
+                                utils::one_of(d->c_type(), f32, s8, u8, f16),
+                                arch_ >= arch_t::xe_hp);
             } else if (d->a_type() == bf16) {
                 ok = ok && d->b_type() == bf16
                         && utils::one_of(d->c_type(), bf16, f32)
@@ -120,19 +130,17 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
                             d->k(), d->lda(), d->ldb(), d->ldc(), d->batch())
                     && IMPLICATION(with_bias(),
-                            (d->bias_type() == d->c_type())
-                                    && utils::one_of(
-                                            d->bias_type(), f32, bf16, f16)
+                            utils::one_of(d->bias_type(), f32, bf16, f16)
                                     && utils::one_of(
                                             bias_cmask(), 0, 1 << 0, 1 << 1)
                                     && (d->bias_desc.ndims <= 3))
+                    && IMPLICATION(utils::one_of(d->bias_type(), bf16, f16),
+                            (d->bias_type() == d->c_type()))
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->output_scales_.mask_ == 0
                     && IMPLICATION(with_bias(),
-                            utils::one_of(d->c_type(), f32, f16, bf16)
-                                    && utils::one_of(
-                                            bias_cmask(), 0, 1 << 0, 1 << 1)
+                            utils::one_of(bias_cmask(), 0, 1 << 0, 1 << 1)
                                     && (attr()->zero_points_.has_default_values(
                                             DNNL_ARG_DST)));
 
@@ -147,16 +155,10 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (!ok) return status::unimplemented;
 
-            ok &= utils::one_of(arch_, arch_t::gen9, arch_t::xe_lp
-
-                    ,
+            ok &= utils::one_of(arch_, arch_t::gen9, arch_t::xe_lp,
                     arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc);
 
-            bool int8_ok = arch_ < arch_t::xe_hp;
-            int8_ok |= (arch_ == arch_t::xe_hpc && !ab_zp_);
-
-            // int8 not enabled on Xe_HP/Xe_HPG for now. bf16 only enabled on Xe_HP+.
-            ok &= IMPLICATION(utils::one_of(d->a_type(), s8, u8), int8_ok);
+            // bf16 only enabled on Xe_HP+.
             ok &= IMPLICATION(d->a_type() == bf16, arch_ >= arch_t::xe_hp);
 
             if (!ok) return status::unimplemented;
@@ -338,11 +340,16 @@ struct gen_gemm_t : public gpu_gemm_t {
 
     status_t init_nocopy(engine_t *engine) {
         using kernel_t = gen_gemm_nocopy_kernel_t;
+        using namespace data_type;
 
         const auto &d = pd()->desc();
         auto c_type = d->c_type();
-        auto co_type = pd()->with_bias() ? d->bias_type() : c_type;
-        auto acc_type = c_type;
+        auto co_type = pd()->with_bias()
+                ? d->bias_type()
+                : (utils::one_of(d->a_type(), s8, u8) ? s32 : c_type);
+        auto acc_type = utils::one_of(c_type, s8, u8, f16, bf16, f32)
+                ? (utils::one_of(d->a_type(), s8, u8) ? s32 : c_type)
+                : c_type;
 
         if (acc_type == data_type::bf16)
             acc_type = data_type::f32;

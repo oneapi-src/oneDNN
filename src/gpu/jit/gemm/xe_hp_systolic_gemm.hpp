@@ -56,9 +56,19 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;
 
+        data_type_t impl_co_type() const {
+            using namespace data_type;
+            return with_bias() ? desc()->bias_type()
+                               : (utils::one_of(desc()->a_type(), s8, u8)
+                                               ? s32
+                                               : desc()->c_type());
+        }
+
         data_type_t impl_acc_type() const {
             using namespace data_type;
-            return utils::one_of(desc()->c_type(), f16, bf16, f32) ? f32 : s32;
+            return utils::one_of(desc()->c_type(), s8, u8, f16, bf16, f32)
+                    ? (utils::one_of(desc()->a_type(), s8, u8) ? s32 : f32)
+                    : s32;
         }
 
         float alpha() const { return attr()->output_scales_.scales_[0]; }
