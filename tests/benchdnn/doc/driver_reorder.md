@@ -70,6 +70,6 @@ with the `s8s8_comp` flag and mask of `1`:
 ```
 
 More examples with different driver options can be found at
-inputs/reorder/test_***. Examples with different problem descriptors can be
-found at inputs/reorder/harness_*** and inputs/reorder/test_***. Examples with
+inputs/reorder/test_\*. Examples with different problem descriptors can be
+found at inputs/reorder/harness_\* and inputs/reorder/test_\*. Examples with
 different benchdnn common options can be found at driver_conv.md.
