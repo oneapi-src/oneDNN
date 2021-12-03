@@ -25,14 +25,12 @@ where `DRIVER` is one of:
 * [matmul](doc/driver_matmul.md)
 * [pool](doc/driver_pool.md)
 * [prelu](doc/driver_prelu.md)
-* [reduction](doc/driver_reduction.md)
 * [reorder](doc/driver_reorder.md)
 * [resampling](doc/driver_resampling.md)
 * [rnn](doc/driver_rnn.md)
 * [shuffle](doc/driver_shuffle.md)
 * [softmax](doc/driver_softmax.md)
 * [sum](doc/driver_sum.md)
-* [zeropad](doc/driver_zeropad.md)
 
 Refer to [`COMMON-OPTIONS`](doc/knobs_common.md) for details on options
 supported across all the drivers. Refer to each driver's documentation for

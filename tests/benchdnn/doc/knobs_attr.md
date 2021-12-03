@@ -2,7 +2,6 @@
 
 ## Usage
 ```
-    --attr-scratchpad=MODE
     --attr-oscale=POLICY[:SCALE[*]]
     --attr-scales=ARG:POLICY[:SCALE[*]][+...]
     --attr-zero-points=ARG:POLICY:ZEROPOINT[*][+...]
@@ -12,11 +11,6 @@
                     DW_K3S2P1[:DST_DT[:OUTPUTSCALE]]
                     BINARY:DT[:POLICY[:TAG]]
 ```
-
-`--attr-scratchpad` specifies the scratchpad mode to be used for benchmarking.
-`MODE` values can be `library` (the default) or `user`. Refer to
-[scratchpad primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_scratchpad.html)
-for details.
 
 `--attr-oscale` defines output scale primitive attribute. `POLICY` specifies the
 way scale values will be applied to the output tensor. `SCALE` is optional
@@ -52,11 +46,6 @@ passed to a primitive at run-time.
                      factors different for {dim2, dim3} points. Number of scale
                      factors is equal to dims[2] * dim[3]. Mask is not fixed
                      and can be different depending on ndims.
-  - `per_mb_w`       corresponds to `mask = (1 << 0) + (1 << 3)` and
-                     means elements of dim0 and dim3 will be multiplied by
-                     scale factors different for {dim0, dim3} points.
-                     Number of scale factors is equal to dims[0] * dims[3].
-                     Currently supported only in matmul primitive.
   - `per_tensor`     means each element of original tensor will be multiplied
                      by a unique number. Number of scale factor is equal to
                      `nelems`. As of now supported only by binary post-ops.

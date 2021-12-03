@@ -75,21 +75,6 @@ void check_correctness(const settings_t &s) {
     }
 }
 
-static const std::string help_flags
-        = "FLAGS    (Default: not specified)\n    Specifies normalization "
-          "flags. `FLAGS` values are:\n    * `G` for global_stats.\n    * `S` "
-          "for scaleshift.\n    * `C` for scale.\n    * `H` for shift.\n    * "
-          "`R` for fuse_norm_relu.\n";
-
-static const std::string help_check_alg
-        = "CHECK_ALG\n    Dev debug setting to validate output for different "
-          "inputs. Overrides driver's automatic choice.\n    `CHECK_ALG` "
-          "values are `alg_0` or `alg_1`.\n";
-
-static const std::string help_debug_check_ws
-        = "BOOL    (Default: `false`)\n    Instructs the driver to validates "
-          "workspace correctness on forward prop kind when set to `true`.\n";
-
 int bench(int argc, char **argv) {
     driver_name = "bnorm";
     using namespace parser;
@@ -101,15 +86,14 @@ int bench(int argc, char **argv) {
                 || parse_dir(s.dir, def.dir, argv[0])
                 || parse_dt(s.dt, def.dt, argv[0])
                 || parse_tag(s.tag, def.tag, argv[0])
-                || parse_vector_option(s.flags, def.flags, str2flags, argv[0],
-                        "flags", help_flags)
+                || parse_vector_option(
+                        s.flags, def.flags, str2flags, argv[0], "flags")
                 || parse_single_value_option(s.check_alg, def.check_alg,
-                        str2check_alg, argv[0], "check-alg", help_check_alg)
+                        str2check_alg, argv[0], "check-alg")
                 || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])
                 || parse_single_value_option(s.debug_check_ws,
-                        def.debug_check_ws, str2bool, argv[0], "debug-check-ws",
-                        help_debug_check_ws)
+                        def.debug_check_ws, str2bool, argv[0], "debug-check-ws")
                 || parse_attr(s.attr, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scratchpad_mode(
@@ -117,7 +101,7 @@ int bench(int argc, char **argv) {
                 || parse_test_pattern_match(s.pattern, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
-                || parse_reset(s, argv[0]) || parse_help(argv[0]);
+                || parse_reset(s, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 

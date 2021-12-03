@@ -360,8 +360,6 @@ inline const engine_t &get_cpu_engine() {
 
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(res_t *res, const dnnl_primitive_desc_t &pd_no_attr);
-int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
-        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd);
 
 template <typename op_desc_t>
 int check_pd_w_and_wo_attr(
@@ -469,15 +467,14 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     SAFE(init_pd_func(engine, prb, pd_, res, dir, hint), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
+
     pd.reset(pd_);
     prim.reset(prim_);
-
 #endif
     // The second (if the cache is enabled) primitive creation using
     // the global test engine.
     SAFE(init_pd_func(get_test_engine(), prb, pd_, res, dir, hint), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-
     // This primitive is expected to come from the cache.
     DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
 
@@ -486,13 +483,11 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
 
     SAFE(check_pd_cache(pd), WARN);
     SAFE(check_primitive_cache(prim), WARN);
-
     // Collect memory footprint for a given primitive descriptor.
     SAFE(get_memory_footprint(pd, res), WARN);
 
-    SAFE(test_persistent_cache_api(prim, pd), WARN);
-
     user_prim.reset(prim.release());
+
     return OK;
 }
 

@@ -20,8 +20,6 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "tests/test_thread.hpp"
-
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -108,7 +106,7 @@ int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
 int fill_memory_extra(const prb_t *prb, dnnl_memory_extra_desc_t &extra) {
     extra.flags = dnnl_memory_extra_flag_none;
 
-    if (prb->is_reorder_with_compensation(FLAG_ANY)) {
+    if (prb->is_reorder_with_compensation()) {
         for (const auto &i_oflag : prb->oflag) {
             if (i_oflag.first & FLAG_S8S8_COMP) {
                 extra.flags |= dnnl_memory_extra_flag_compensation_conv_s8s8;
@@ -132,13 +130,11 @@ int fill_memory_extra(const prb_t *prb, dnnl_memory_extra_desc_t &extra) {
     return OK;
 }
 
-int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
-        dnn_mem_t &s8_comp, dnn_mem_t &zp_comp) {
+int ref_reorder(const prb_t *prb, dnn_mem_t &dst, const dnn_mem_t &src) {
     auto dst_dt = dst.dt();
 
     const auto nelems = src.nelems();
     const int scale_mask = attr_t::get_default_mask(prb->attr.oscale.policy);
-    // This is native to reorder zero point which comes from reorder attributes.
     const int src_zero_point = prb->src_zp ? prb->src_zp[0] : 0;
     const int dst_zero_point = prb->dst_zp ? prb->dst_zp[0] : 0;
 
@@ -147,92 +143,36 @@ int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
     const int beta_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
     if (beta_idx >= 0) beta = po.entry[beta_idx].sum.scale;
 
-    // These are non-native compensations coming from other primitives with
-    // s8s8 or zero-points support to pre-compute compensated part and apply it
-    // at the end of computations.
-    const bool need_s8_comp = s8_comp.dt() == dnnl_s32;
-    const bool need_zp_comp = zp_comp.dt() == dnnl_s32;
-    const bool need_comp = need_s8_comp || need_zp_comp;
-    // `adjust_scale` participates only with s8s8 compensation.
-    const float s8_scale_factor = need_s8_comp ? reorder_rescale_factor() : 1.f;
-
-    dnnl::impl::parallel_nd(nelems, [&](int64_t idx) {
+    for (int64_t idx = 0; idx < nelems; ++idx) {
         float s = src.get_elem(idx) - src_zero_point;
         float d = 0;
         if (beta_idx >= 0) d = dst.get_elem(idx) - dst_zero_point;
 
         const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
         const float alpha = prb->scales[scale_idx];
-        float value = s8_scale_factor * alpha * s + beta * d + dst_zero_point;
+        float value = alpha * s + beta * d + dst_zero_point;
         value = maybe_saturate(dst_dt, value);
         if (dst_dt == dnnl_s32 && value >= (float)INT_MAX)
             value = BENCHDNN_S32_TO_F32_SAT_CONST;
 
         dst.set_elem(idx, round_to_nearest_representable(dst_dt, value));
-    });
-
-    if (need_comp) {
-        const auto nelems_s8_comp = s8_comp.nelems();
-        const auto nelems_zp_comp = zp_comp.nelems();
-        const auto nelems_comp = MAX2(nelems_s8_comp, nelems_zp_comp);
-        assert(IMPLICATION(need_s8_comp && need_zp_comp,
-                nelems_s8_comp == nelems_zp_comp));
-
-        const auto nelems_reduce = nelems / nelems_comp;
-        dnnl::impl::parallel_nd(nelems_comp, [&](int64_t oc) {
-            int comp_val = 0;
-            for (int64_t i = 0; i < nelems_reduce; ++i) {
-                const int64_t idx = oc * nelems_reduce + i;
-                const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
-                const float alpha = prb->scales[scale_idx];
-                const float value = src.get_elem(idx) * alpha * s8_scale_factor;
-                comp_val -= maybe_saturate(dst_dt, value);
-            }
-            if (need_zp_comp) zp_comp.set_elem(oc, comp_val);
-            comp_val *= 128;
-            if (need_s8_comp) s8_comp.set_elem(oc, comp_val);
-        });
     }
+
     return OK;
 }
 
-int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
-        dnn_mem_t &mem_zp_comp_ref, dnn_mem_t &mem_got, res_t *res) {
-    const auto padded_nelems = mem_got.nelems(true);
-    // Note: internally offset is aligned on 4, otherwise it's UB.
-    size_t first_comp_offset = div_up(padded_nelems, 4) * 4;
-    int *comp_handle
-            = reinterpret_cast<int *>((char *)mem_got + first_comp_offset);
+int compare_bootstrap(dnn_mem_t &mem_ref, dnn_mem_t &mem_got, res_t *res) {
+    bool ok = false;
+    // demand bit-wise identical results
+    const auto size_ref = mem_ref.size();
+    if (size_ref == 0) return res->state = PASSED, OK;
 
-    const auto compare_compensation = [&](const dnn_mem_t &mem_ref) {
-        // Idea behind this check:
-        // Using knowledge from the library where `comp_handle` starts, and that
-        // memory utilizes blocking over OC and G, if present, we wrap that
-        // piece of memory which is described by shortened tag coming from prb
-        // into a separate memory and reorder it to plain so that it is a
-        // straight comparison of values in native plain layout.
-        const int comp_ndims = mem_ref.md_.ndims;
-        int status = OK;
-        if (comp_ndims > 0) {
-            dnnl_memory_desc_t comp_md {};
-            SAFE(init_md(&comp_md, comp_ndims, mem_ref.md_.dims, mem_ref.dt(),
-                         trim_tag(prb->dtag, comp_ndims)),
-                    CRIT);
-            const auto &engine = mem_ref.engine();
-            dnn_mem_t comp_m(comp_md, engine, {true, comp_handle});
+    if (size_ref == mem_got.size())
+        ok = !std::memcmp((void *)mem_ref, (void *)mem_got, size_ref);
 
-            compare::compare_t cmp;
-            cmp.set_zero_trust_percent(100.f); // No sense in zero trust test.
-            status = cmp.compare(mem_ref, comp_m, attr_t(), res, engine);
-
-            // Shift original compensation pointer for next compensation
-            comp_handle += comp_m.nelems(true);
-        }
-        return status;
-    };
-
-    SAFE(compare_compensation(mem_s8_comp_ref), WARN);
-    SAFE(compare_compensation(mem_zp_comp_ref), WARN);
+    res->errors = !ok;
+    res->state = ok ? PASSED : FAILED;
+    res->total = 1;
 
     return res->state == FAILED ? FAIL : OK;
 }
@@ -318,7 +258,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         return;
     }
 
-    if (prb->is_reorder_with_compensation(FLAG_ANY)) {
+    if (prb->is_reorder_with_compensation()) {
         // compensation is supported for dst_dt = s8 so far
         const bool dt_ok = ddt == dnnl_s8;
         // compensation does not support any attributes but oscale
@@ -482,73 +422,65 @@ int doit(const prb_t *prb, res_t *res) {
 
     /* Step 6: check correctness */
     if (is_bench_mode(CORR)) {
-        compare::compare_t cmp;
-        cmp.set_data_kind(DATA);
-        const bool has_s32
-                = src_md.data_type == dnnl_s32 || dst_md.data_type == dnnl_s32;
-        const bool has_s8
-                = src_md.data_type == dnnl_s8 || dst_md.data_type == dnnl_s8;
-        const bool has_u8
-                = src_md.data_type == dnnl_u8 || dst_md.data_type == dnnl_u8;
-        if (has_u8)
-            cmp.set_zero_trust_percent(58.f); // 4/7 inputs becomes 0
-        else if (has_s32 || has_s8)
-            cmp.set_zero_trust_percent(43.f); // 3/7 inputs becomes 0
+        if (prb->is_reorder_with_compensation()) {
+            /* "bootstrap" approach: compare to another oneDNN reorder. use
+             * this when benchdnn does not know about all details of the data
+             * layout, as is the case for compensated weights formats. */
 
-        // A hack to avoid false-positive result from f32->s32 conversion
-        // in case of sum post-op on GPU happening when two max_dt values
-        // are summed together.
-        using cmp_args_t = compare::compare_t::driver_check_func_args_t;
-        const auto reorder_add_check = [&](const cmp_args_t &args) {
-            if (args.dt == dnnl_s32 && args.got == max_dt(args.dt)
-                    && is_gpu()) {
-                // 128.f = float(INT_MAX)
-                //                - BENCHDNN_S32_TO_F32_SAT_CONST;
-                return args.diff == 128.f;
-            }
-            return false;
-        };
-        cmp.set_driver_check_function(reorder_add_check);
+            /* Step 5a: oneDNN reorder from ref format to output format */
+            dnnl_memory_extra_desc_t dst_extra {};
+            fill_memory_extra(prb, dst_extra);
+            dnn_mem_t ref_dst_dt_out_fmt_out(dst_md, dst_engine);
+            ref_dst_dt_out_fmt_out.md_.extra = dst_extra;
 
-        const auto assign_comp_mem = [&](dnn_mem_t &m, flag_bit_t flag) {
-            if (prb->is_reorder_with_compensation(flag)) {
-                dnnl_memory_desc_t md;
-                dims_t dims = prb->get_compensation_dims(flag);
-                int ndims = static_cast<int>(dims.size());
-                SAFE(init_md(&md, ndims, dims.data(), dnnl_s32, tag::abx),
-                        CRIT);
-                m = dnn_mem_t(md, dst_engine);
-            }
-            return OK;
-        };
+            const_dnnl_primitive_attr_t const_attr;
+            DNN_SAFE(dnnl_primitive_desc_get_attr(const_pd, &const_attr), WARN);
 
-        dnn_mem_t dst_s8_comp_ref, dst_zp_comp_ref;
-        assign_comp_mem(dst_s8_comp_ref, FLAG_S8S8_COMP);
-        assign_comp_mem(dst_zp_comp_ref, FLAG_ZP_COMP);
+            SAFE(ref_dst_dt_out_fmt_out.reorder(src_dt_in_fmt_ref, const_attr),
+                    WARN);
 
-        SAFE(ref_reorder(prb, src_dt_in_fmt_ref, dst_dt_out_fmt_ref,
-                     dst_s8_comp_ref, dst_zp_comp_ref),
-                WARN);
+            /* Step 5b: compare results (expect bit-wise exactness) */
+            SAFE(compare_bootstrap(
+                         ref_dst_dt_out_fmt_out, dst_dt_out_fmt_out, res),
+                    WARN);
+        } else {
+            /* (default) "reference" approach: compare to benchdnn reorder */
 
-        // Validate main reorder part.
-        // Remove extra desc so that reorders with compensation could have
-        // proper reorder from blocked layout to plain for comparison.
-        dnnl_memory_extra_desc_t empty_extra {};
-        const auto orig_dst_extra = dst_dt_out_fmt_out.md_.extra;
-        dst_dt_out_fmt_out.md_.extra = empty_extra;
+            /* Step 5b: execute benchdnn reorder */
+            SAFE(ref_reorder(prb, dst_dt_out_fmt_ref, src_dt_in_fmt_ref), WARN);
 
-        // TODO: enable additional checks for border values validity.
-        SAFE(cmp.compare(dst_dt_out_fmt_ref, dst_dt_out_fmt_out, prb->attr, res,
-                     dst_engine),
-                WARN);
+            /* Step 5c: compare benchdnn and oneDNN output */
+            using cmp_t = compare::compare_t;
+            cmp_t cmp;
+            const bool has_s32 = src_md.data_type == dnnl_s32
+                    || dst_md.data_type == dnnl_s32;
+            const bool has_s8 = src_md.data_type == dnnl_s8
+                    || dst_md.data_type == dnnl_s8;
+            const bool has_u8 = src_md.data_type == dnnl_u8
+                    || dst_md.data_type == dnnl_u8;
+            if (has_u8)
+                cmp.set_zero_trust_percent(58.f); // 4/7 inputs becomes 0
+            else if (has_s32 || has_s8)
+                cmp.set_zero_trust_percent(43.f); // 3/7 inputs becomes 0
 
-        // Restore extra for compensation comparison and performance mode.
-        dst_dt_out_fmt_out.md_.extra = orig_dst_extra;
+            // A hack to avoid false-positive result from f32->s32 conversion
+            // in case of sum post-op on GPU happening when two max_dt values
+            // are summed together.
+            using cmp_args_t = compare::compare_t::driver_check_func_args_t;
+            const auto reorder_add_check = [&](const cmp_args_t &args) {
+                if (args.dt == dnnl_s32 && args.got == max_dt(args.dt)
+                        && is_gpu()) {
+                    // 128.f = float(INT_MAX)
+                    //                - BENCHDNN_S32_TO_F32_SAT_CONST;
+                    return args.diff == 128.f;
+                }
+                return false;
+            };
+            cmp.set_driver_check_function(reorder_add_check);
 
-        // Validate compensated reorder part.
-        if (prb->is_reorder_with_compensation(FLAG_ANY)) {
-            SAFE(compare_compensation(prb, dst_s8_comp_ref, dst_zp_comp_ref,
-                         dst_dt_out_fmt_out, res),
+            // TODO: enable additional checks for border values validity.
+            SAFE(cmp.compare(dst_dt_out_fmt_ref, dst_dt_out_fmt_out, prb->attr,
+                         res, dst_engine),
                     WARN);
         }
     }

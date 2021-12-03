@@ -23,9 +23,8 @@ where *reorder-knobs* are:
  - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
- - `--def-scales=FLOAT` -- output scale, used to improve testing
-            coverage. If `--attr-oscale` is specified, does not have an effect.
-            Example: --def-scales=0.125,0.25,0.5,1,2,4,8
+ - `--def-scales={N1[,N2][,N3]...}` -- input scales, separated by ','.
+            Example: 0.125, 0.25, 0.5, 1, 2, 4, 8
  - `--oflag=FLAG:MASK[+...]` -- memory descriptor extra field specifier. By
             default `FLAG` is empty and `MASK` is `0`. Possible `FLAG` values
             are:
@@ -35,10 +34,6 @@ where *reorder-knobs* are:
  - `--cross-engine={none [default], cpu2gpu, gpu2cpu}` -- defines what kind of
             cross-engine reorder will be used. If `--engine` is set to `cpu`,
             `none` is the only supported value.
- - `--runtime_dim_mask=INT` -- a bit-mask that indicates whether a dimension is
-            `DNNL_RUNTIME_DIM_VAL` (indicated as 1-bit in the corresponding
-            dimension position). The default is `0`, meaning all tensor
-            dimensions are fully defined at primitive creation.
 
 and *reorder-desc* is a problem descriptor. The canonical form is:
 ```

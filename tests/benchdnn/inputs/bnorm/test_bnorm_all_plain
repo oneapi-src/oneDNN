@@ -30,7 +30,7 @@
 --flags=,G,S
 --mb=1,17
 --tag=abx
---attr-post-ops=,relu,relu:0.05
+--attr-post-ops=,relu
 --batch=set_nd
 
 --mb=1,64
@@ -42,7 +42,7 @@
 
 --flags=
 --mb=1
---attr-post-ops=relu,relu:0.05
+--attr-post-ops=relu
 --batch=set_nd
 
 ## int8

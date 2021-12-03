@@ -33,7 +33,6 @@ enum flag_bit_t {
     FLAG_NONE = 0x0U,
     FLAG_S8S8_COMP = 0x1U,
     FLAG_ZP_COMP = 0x2U,
-    FLAG_ANY = ~FLAG_NONE, // For internal use only.
 };
 using flag_t = std::pair<flag_bit_t, int>;
 flag_t str2flag(const char *str);
@@ -121,8 +120,9 @@ struct prb_t : public prb_dims_t {
     float *scales;
     int32_t *src_zp, *dst_zp;
 
-    bool is_reorder_with_compensation(flag_bit_t flag) const;
-    dims_t get_compensation_dims(flag_bit_t flag) const;
+    bool is_reorder_with_compensation() const {
+        return !oflag.empty() && oflag[0].first != FLAG_NONE;
+    }
     float *generate_oscales();
     int32_t *generate_zero_points(int arg) const;
 };
@@ -173,10 +173,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res);
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem);
-int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
-        dnn_mem_t &s8_comp, dnn_mem_t &zp_comp);
-int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
-        dnn_mem_t &mem_zp_comp_ref, dnn_mem_t &mem_got, res_t *res);
+int ref_reorder(const prb_t *prb, dnn_mem_t &dst, const dnn_mem_t &src);
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
 

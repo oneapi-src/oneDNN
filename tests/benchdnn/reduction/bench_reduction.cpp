@@ -67,14 +67,6 @@ void check_correctness(const settings_t &s) {
     }
 }
 
-static const std::string help_p
-        = "FLOAT    (Default: `1.f`)\n    Specifies algorithm parameter "
-          "extension where applicable.\n";
-
-static const std::string help_eps
-        = "FLOAT    (Default: `0.f`)\n    Specifies algorithm parameter "
-          "extension where applicable.\n";
-
 int bench(int argc, char **argv) {
     driver_name = "reduction";
     using namespace parser;
@@ -87,14 +79,13 @@ int bench(int argc, char **argv) {
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
-                || parse_alg(s.alg, def.alg, str2alg, argv[0])
-                || parse_vector_option(s.p, def.p, atof, argv[0], "p", help_p)
-                || parse_vector_option(
-                        s.eps, def.eps, atof, argv[0], "eps", help_eps)
                 || parse_attr_post_ops(s.post_ops, argv[0])
+                || parse_alg(s.alg, def.alg, str2alg, argv[0])
+                || parse_vector_option(s.p, def.p, atof, argv[0], "p")
+                || parse_vector_option(s.eps, def.eps, atof, argv[0], "eps")
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
-                || parse_reset(s, argv[0]) || parse_help(argv[0]);
+                || parse_reset(s, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 

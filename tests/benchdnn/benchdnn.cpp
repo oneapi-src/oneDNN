@@ -81,8 +81,6 @@ int main(int argc, char **argv) {
     --argc;
     ++argv;
 
-    if (parse_main_help(argv[0])) return 0;
-
     init_fp_mode();
 
     for (; argc > 0; --argc, ++argv)

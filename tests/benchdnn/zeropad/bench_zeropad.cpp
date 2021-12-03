@@ -64,7 +64,7 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.tag, def.tag, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
-                || parse_reset(s, argv[0]) || parse_help(argv[0]);
+                || parse_reset(s, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 

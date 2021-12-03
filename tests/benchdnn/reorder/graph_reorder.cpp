@@ -247,8 +247,10 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
     if (is_bench_mode(CORR)) {
+        //TODO: do we need runtime compensation??
+        SAFE(ref_reorder(prb, dst_fp, src_fp), WARN);
+
         compare::compare_t cmp;
-        cmp.set_data_kind(DATA);
         const bool has_s32 = spec.src_dt == dt::s32 || spec.dst_dt == dt::s32;
         const bool has_s8 = spec.src_dt == dt::s8 || spec.dst_dt == dt::s8;
         const bool has_u8 = spec.src_dt == dt::u8 || spec.dst_dt == dt::u8;
@@ -272,43 +274,8 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         };
         cmp.set_driver_check_function(reorder_add_check);
 
-        const auto assign_comp_mem
-                = [&](dnn_mem_t &m, ::reorder::flag_bit_t flag) {
-                      if (prb->is_reorder_with_compensation(flag)) {
-                          dims_t dims = prb->get_compensation_dims(flag);
-                          dnnl::graph::logical_tensor var {(size_t)1000 + flag,
-                                  dt::s32, dims, lt::undef};
-                          m = make_dnn_mem(var, dt::s32, "abx");
-                      }
-                      return OK;
-                  };
-
-        dnn_mem_t dst_s8_comp_ref, dst_zp_comp_ref;
-        assign_comp_mem(dst_s8_comp_ref, ::reorder::FLAG_S8S8_COMP);
-        assign_comp_mem(dst_zp_comp_ref, ::reorder::FLAG_ZP_COMP);
-
-        SAFE(ref_reorder(prb, src_fp, dst_fp, dst_s8_comp_ref, dst_zp_comp_ref),
-                WARN);
-
-        // Validate main reorder part.
-        // Remove extra desc so that reorders with compensation could have
-        // proper reorder from blocked layout to plain for comparison.
-        dnnl_memory_extra_desc_t empty_extra {};
-        const auto orig_dst_extra = dst_dt.md_.extra;
-        dst_dt.md_.extra = empty_extra;
-
         // TODO: enable additional checks for border values validity.
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
-
-        // Restore extra for compensation comparison and performance mode.
-        dst_dt.md_.extra = orig_dst_extra;
-
-        // Validate compensated reorder part.
-        if (prb->is_reorder_with_compensation(::reorder::FLAG_ANY)) {
-            SAFE(compare_compensation(
-                         prb, dst_s8_comp_ref, dst_zp_comp_ref, dst_dt, res),
-                    WARN);
-        }
     }
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
