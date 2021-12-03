@@ -162,7 +162,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     for (int d = 0; d < MAX_NDIMS; d++) {
         if (d < conf.ndims)
-            dst_dims[d] = conf.dst_md_info.dims[d];
+            dst_dims[d] = (conf.prop_kind & dnnl_backward)
+                    ? conf.src_md_info.dims[d]
+                    : conf.dst_md_info.dims[d];
         else
             dst_dims[d] = 1;
     }
