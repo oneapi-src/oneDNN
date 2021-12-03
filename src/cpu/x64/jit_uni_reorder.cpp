@@ -2354,19 +2354,18 @@ void jit_uni_reorder_t::reduce_compensation(char *out,
         const int32_t *compensation_reduce_scratch, const int nthr,
         const dim_t wspace_per_thr_size) const {
 
-    const memory_desc_wrapper id(pd()->dst_md());
-    const auto G = pd()->with_groups_ ? id.dims()[0] : 1;
-    const auto N = id.dims()[pd()->with_groups_ ? 1 : 0];
-
     const memory_desc_wrapper od(pd()->dst_md());
+    const auto G = pd()->with_groups_ ? od.dims()[0] : 1;
+    const auto N = od.dims()[pd()->with_groups_ ? 1 : 0];
+
     const size_t offset = od.size() - od.additional_buffer_size();
 
     static constexpr auto comp_dt_size = sizeof(int32_t);
     static constexpr int32_t comp_s8s8_shift = 128;
 
     // zero out the compensation memory in case of padding
-    const auto G_padded = pd()->with_groups_ ? id.padded_dims()[0] : 1;
-    const auto N_padded = id.padded_dims()[pd()->with_groups_ ? 1 : 0];
+    const auto G_padded = pd()->with_groups_ ? od.padded_dims()[0] : 1;
+    const auto N_padded = od.padded_dims()[pd()->with_groups_ ? 1 : 0];
     const auto GN_padded_elems = G_padded * N_padded;
     const auto GN = G * N;
     const bool req_s8s8_comp = pd()->prb_.req_s8s8_comp;
