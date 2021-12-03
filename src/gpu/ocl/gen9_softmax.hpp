@@ -146,8 +146,8 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
                     && attr()->has_default_values()
-                    && (diff_src_d.matches_one_of_tag(nwc, nhwc, ndhwc)
-                            == undef);
+                    && (diff_src_d.matches_one_of_tag(ncw, nchw, ncdhw)
+                            != undef);
             if (!ok) return status::unimplemented;
 
             group_size = 16;
