@@ -27,6 +27,17 @@
 
 #include "cpu/x64/jit_uni_reorder.hpp"
 
+// #define TR_DEBUG
+#if defined(TR_DEBUG)
+#define DEBUg(...) \
+    do { \
+        __VA_ARGS__ \
+    } while (0)
+#else
+#define DEBUg(...)
+#endif
+#define DEBUG(...) DEBUg(__VA_ARGS__)
+
 using namespace dnnl::impl::types;
 using namespace dnnl::impl::status;
 
@@ -364,6 +375,25 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     const int sum_idx = attr->post_ops_.find(primitive_kind::sum);
     p.beta = sum_idx == -1 ? 0.f : attr->post_ops_.entry_[sum_idx].sum.scale;
+
+    DEBUG({
+        printf("init : ");
+        prb_dump(prb);
+    });
+    // Sort the prb array in increasing sizes of the output stride
+    prb_normalize(p);
+    DEBUG({
+        printf("norm : ");
+        prb_dump(prb);
+    });
+
+    /* Combine the variables, which appear together on both
+             * sides of the reorder */
+    prb_simplify(p);
+    DEBUG({
+        printf("smpl : ");
+        prb_dump(prb);
+    });
 
     return success;
 }
