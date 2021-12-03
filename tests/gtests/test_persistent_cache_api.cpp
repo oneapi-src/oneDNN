@@ -21,7 +21,10 @@
 
 namespace dnnl {
 
-TEST(persistent_cache_api_test, TestPersistentCacheAPI) {
+class persistent_cache_api_test_t : public ::testing::Test {};
+
+HANDLE_EXCEPTIONS_FOR_TEST(
+        persistent_cache_api_test_t, TestPersistentCacheAPI) {
     engine e = get_test_engine();
     auto pd = convolution_forward::primitive_desc {
             {prop_kind::forward_training, algorithm::convolution_direct,
