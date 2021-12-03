@@ -137,6 +137,9 @@ public:
 
     // Set register count.
     void setRegisterCount(int rcount);
+    int getRegisterCount() const { return reg_count;}
+
+    int countAllocedRegisters() const;
 
     void dump(std::ostream &str);
 

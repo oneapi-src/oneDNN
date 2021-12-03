@@ -206,6 +206,20 @@ void RegisterAllocator::setRegisterCount(int rcount)
     reg_count = rcount;
 }
 
+int RegisterAllocator::countAllocedRegisters() const {
+
+   int register_count = 0;
+   int group_size = sizeof(this->free_whole[0]);
+   int register_groups = this->reg_count / group_size;
+   for (int group = 0; group < register_groups; group++) {
+       for (int subgroup = 0; subgroup < group_size; subgroup++) {
+           if ((this->free_whole[group] & (1 << subgroup)) == 0)
+               register_count++;
+       }
+   }
+   return register_count;
+}
+
 void RegisterAllocator::release(GRF reg)
 {
     if (reg.isInvalid()) return;
