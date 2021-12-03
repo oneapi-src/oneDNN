@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <algorithm>
+#include <sstream>
 #include <CL/cl.h>
 
 #include "gpu/ocl/ocl_gpu_engine.hpp"
@@ -143,6 +144,51 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
 
     return status::success;
 }
+
+cl_int maybe_print_debug_info(
+        cl_int err, cl_program program, cl_device_id dev) {
+    // Return error code if verbose is not enabled.
+    if (err == CL_SUCCESS || get_verbose() == 0) return err;
+
+    size_t log_length = 0;
+    err = clGetProgramBuildInfo(
+            program, dev, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_length);
+    assert(err == CL_SUCCESS);
+
+    std::vector<char> log_buf(log_length);
+    err = clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, log_length,
+            log_buf.data(), nullptr);
+    assert(err == CL_SUCCESS);
+    printf("Error during the build of OpenCL program.\nBuild "
+           "log:\n%s\n",
+            log_buf.data());
+    return err;
+};
+
+inline status_t preprocess_headers(
+        std::stringstream &pp_code, const char *code) {
+    std::stringstream code_stream(code);
+
+    for (std::string line; std::getline(code_stream, line);) {
+        const size_t include_pos = line.find("#include");
+        if (include_pos != std::string::npos) {
+            static constexpr size_t include_len = 8;
+            const size_t first_quote_pos
+                    = line.find("\"", include_pos + include_len);
+            const size_t second_quote_pos
+                    = line.find("\"", first_quote_pos + 1);
+            const size_t kernel_name_len
+                    = second_quote_pos - first_quote_pos - 1;
+            const auto header_name
+                    = line.substr(first_quote_pos + 1, kernel_name_len);
+            CHECK(preprocess_headers(pp_code, get_kernel_header(header_name)));
+        } else {
+            pp_code << line << std::endl;
+        }
+    }
+    return status::success;
+}
+
 } // namespace
 
 status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
@@ -208,65 +254,23 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
             = utils::downcast<const ocl_gpu_device_info_t *>(device_info());
     options += " " + dev_info->get_cl_ext_options();
 
-    const auto release_headers = [](const std::vector<cl_program> &headers) {
-        for (auto &p : headers) {
-            if (p) OCL_CHECK(clReleaseProgram(p));
-        }
-        return status::success;
-    };
-
-    const auto print_debug_info = [](cl_int err, cl_program p, cl_device_id d) {
-        // Return error if verbose is not enabled.
-        if (err == CL_SUCCESS || get_verbose() == 0) return err;
-
-        size_t log_length = 0;
-        err = clGetProgramBuildInfo(
-                p, d, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_length);
-        assert(err == CL_SUCCESS);
-
-        std::vector<char> log_buf(log_length);
-        err = clGetProgramBuildInfo(p, d, CL_PROGRAM_BUILD_LOG, log_length,
-                log_buf.data(), nullptr);
-        assert(err == CL_SUCCESS);
-        printf("Error during the build of OpenCL program.\nBuild "
-               "log:\n%s\n",
-                log_buf.data());
-        return err;
-    };
-
     cl_int err;
-    // Prepare kernel headers
-    const cl_uint n_headers = static_cast<cl_uint>(get_kernel_headers().size());
-    std::vector<cl_program> kernel_headers(n_headers);
-    for (cl_uint i = 0; i < n_headers; i++) {
-        const char *header = get_kernel_headers()[i];
-        kernel_headers[i] = clCreateProgramWithSource(
-                context(), 1, &header, nullptr, &err);
-        if (err != CL_SUCCESS) {
-            CHECK(release_headers(kernel_headers));
-            OCL_CHECK(err);
-        }
-    }
+    std::stringstream pp_code;
+    // The `cl_cache` requires using `clBuildProgram`. Unfortunately, unlike
+    // `clCompileProgram` `clBuildProgram` doesn't take headers. Because of
+    // that, a manual preprocessing of `include` header directives in the
+    // OpenCL kernels is required.
+    CHECK(preprocess_headers(pp_code, code_string));
+    std::string pp_code_str = pp_code.str();
+    const char *pp_code_str_ptr = pp_code_str.c_str();
 
-    cl_program program = clCreateProgramWithSource(
-            context(), 1, &code_string, nullptr, &err);
-    if (err != CL_SUCCESS) {
-        CHECK(release_headers(kernel_headers));
-        OCL_CHECK(err);
-    }
+    auto program = make_ocl_wrapper(clCreateProgramWithSource(
+            context(), 1, &pp_code_str_ptr, nullptr, &err));
+    OCL_CHECK(err);
 
     cl_device_id dev = device();
-    auto kernel_header_names = get_kernel_header_names();
-    err = clCompileProgram(program, 1, &dev, options.c_str(), n_headers,
-            kernel_headers.data(), kernel_header_names.data(), nullptr,
-            nullptr);
-
-    CHECK(release_headers(kernel_headers));
-    OCL_CHECK(print_debug_info(err, program, dev));
-
-    program = clLinkProgram(context(), 1, &dev, options.c_str(), 1, &program,
-            nullptr, nullptr, &err);
-    OCL_CHECK(print_debug_info(err, program, dev));
+    err = clBuildProgram(program, 1, &dev, options.c_str(), nullptr, nullptr);
+    OCL_CHECK(maybe_print_debug_info(err, program, dev));
 
     std::shared_ptr<compute::binary_t> shared_binary;
     CHECK(get_ocl_program_binary(program, dev, shared_binary));
@@ -285,7 +289,6 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
         dump_kernel_binary(this, (*kernels)[i]);
     }
 
-    OCL_CHECK(clReleaseProgram(program));
     return status::success;
 }
 

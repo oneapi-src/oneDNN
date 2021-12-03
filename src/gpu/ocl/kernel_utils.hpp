@@ -29,8 +29,7 @@ namespace gpu {
 namespace ocl {
 
 const char *get_kernel_source(const char *name);
-const std::vector<const char *> &get_kernel_headers();
-const std::vector<const char *> &get_kernel_header_names();
+const char *get_kernel_header(const std::string &name);
 
 template <typename GetKernelSourceFunc>
 status_t create_kernels(const compute::compute_engine_t *engine,

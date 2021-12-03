@@ -68,10 +68,8 @@ function(gen_gpu_kernel_list ker_list_templ ker_list_src ker_sources headers)
         list(APPEND _sources "${gen_file}")
         set(KER_HEADERS_EXTERN
             "${KER_HEADERS_EXTERN}\nextern const char *${header_name}_header;")
-        set(KER_HEADERS
-            "${KER_HEADERS}\n        ${header_name}_header,")
-        set(KER_HEADER_NAMES
-            "${KER_HEADER_NAMES}\n        \"${header_full_name}\",")
+        set(KER_HEADER_LIST_ENTRIES
+            "${KER_HEADER_LIST_ENTRIES}\n        {\"${header_full_name}\", ${header_name}_header},")
     endforeach()
 
     set(unique_ker_names)

@@ -40,18 +40,13 @@ const char *get_kernel_source(const char *name) {
     return kernel_list.at(name);
 }
 
-const std::vector<const char *> &get_kernel_headers() {
-    static const std::vector<const char *> kernel_headers = {
-        @KER_HEADERS@
+const char *get_kernel_header(const std::string &name) {
+    static const std::unordered_map<std::string, const char *> kernel_header_list ={
+        @KER_HEADER_LIST_ENTRIES@
     };
-    return kernel_headers;
-}
 
-const std::vector<const char *> &get_kernel_header_names() {
-    static const std::vector<const char *> kernel_header_names = {
-        @KER_HEADER_NAMES@
-    };
-    return kernel_header_names;
+    assert(kernel_header_list.count(name) == 1);
+    return kernel_header_list.at(name);
 }
 
 } // namespace ocl
