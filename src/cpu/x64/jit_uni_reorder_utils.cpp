@@ -148,6 +148,19 @@ static bool is_with_groups(const memory_desc_t &dst_md) {
                     dst_d.extra().asymm_compensation_mask);
 }
 
+static void prb_set_compensation_strides(prb_t &p) {
+    const auto compensation_needed = p.req_s8s8_comp || p.req_asymmetric_comp;
+    if (!compensation_needed) return;
+    int mask = p.compensation_mask;
+    ptrdiff_t cs = 1;
+    for (int d = 0; d < p.ndims; ++d) {
+        if (mask & (1 << p.nodes[d].dim_id)) {
+            p.nodes[d].cs = cs;
+            cs = cs * p.nodes[d].n;
+        }
+    }
+}
+
 status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
         const primitive_attr_t *attr) {
     auto im_d = memory_desc_wrapper(imd);
@@ -268,9 +281,6 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     ptrdiff_t ss[max_ndims] = {0}; // scales strides
     if (p.scale_type == scale_type_t::MANY)
         compute_strides(ss, attr->output_scales_.mask_);
-
-    ptrdiff_t cs_[max_ndims] = {0}; // compensation strides
-    ptrdiff_t *cs = cs_;
     const auto compensation_needed = p.req_s8s8_comp || p.req_asymmetric_comp;
     if (compensation_needed) {
         p.compensation_mask = p.req_s8s8_comp
@@ -283,13 +293,6 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
         assert(p.compensation_mask == tr::prb_t::standard_comp_mask
                 || p.compensation_mask == tr::prb_t::comp_mask_with_groups);
-        if (p.scale_type == scale_type_t::MANY
-                && attr->output_scales_.mask_ == p.compensation_mask)
-            cs = ss;
-        else {
-            compute_strides(cs_, p.compensation_mask);
-            cs = cs_;
-        }
     }
 
     int ndims = 0;
@@ -312,7 +315,6 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos];
             p.nodes[ndims].ss = ss[o_pos];
-            p.nodes[ndims].cs = cs[o_pos];
             ++ndims;
             ++i_pos;
             ++o_pos;
@@ -339,7 +341,6 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos] * factor;
             p.nodes[ndims].ss = ss[o_pos] * factor;
-            p.nodes[ndims].cs = cs[o_pos] * factor;
             ++ndims;
             ++i_pos;
             old.dims[o_pos] = factor;
@@ -360,7 +361,6 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].is = ild.strides[i_pos] * factor;
             p.nodes[ndims].os = old.strides[o_pos];
             p.nodes[ndims].ss = ss[o_pos];
-            p.nodes[ndims].cs = cs[o_pos];
             ++ndims;
             ++o_pos;
             ild.dims[i_pos] = factor;
@@ -386,6 +386,9 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
         printf("norm : ");
         prb_dump(prb);
     });
+
+    // compensation strides require prb_normalized
+    prb_set_compensation_strides(p);
 
     /* Combine the variables, which appear together on both
              * sides of the reorder */
