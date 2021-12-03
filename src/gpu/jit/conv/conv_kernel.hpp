@@ -3145,10 +3145,17 @@ public:
         int bf_size = sizeof(uint16_t);
 
         auto elem_vec = ra_.alloc_range(elems_per_thr * ud_size / grf_size);
+        auto elem_vec_q_strided
+                = ra_.alloc_range(elems_per_thr * uq_size / grf_size);
         auto src_ptr_vec = ra_.alloc_range(elems_per_thr * uq_size / grf_size);
 
         auto get_elem = [&](int i) {
             return get_subregister(hw, ngen::DataType::ud, elem_vec, i);
+        };
+
+        auto get_elem_q_strided = [&](int i) {
+            return get_subregister(
+                    hw, ngen::DataType::ud, elem_vec_q_strided, i * 2);
         };
 
         auto S = ra_.alloc_range(elems_per_thr * f_size / grf_size);
@@ -3174,7 +3181,9 @@ public:
             if (use_a64) {
                 auto src_ptr_sub_vec = get_subregister(
                         hw, ngen::DataType::uq, src_ptr_vec, i)(1);
-                eshl(8, src_ptr_sub_vec, get_elem(i)(1), math::ilog2q(f_size));
+                emov(8, get_elem_q_strided(i)(2), get_elem(i)(1));
+                eshl(8, src_ptr_sub_vec, get_elem_q_strided(i)(2),
+                        math::ilog2q(f_size));
                 eadd(8, src_ptr_sub_vec, src_ptr_sub_vec, src_ptr_);
             }
         }
@@ -3214,7 +3223,8 @@ public:
                     h = dst_header[off / grf_size].ud(
                             (off % grf_size) / ud_size)(1);
                 }
-                eshl(8, h, get_elem(i + j)(1), math::ilog2q(bf_size));
+                emov(8, get_elem_q_strided(i + j)(2), get_elem(i + j)(1));
+                eshl(8, h, get_elem_q_strided(i + j)(2), math::ilog2q(bf_size));
                 if (use_a64) eadd(8, h, h, dst_ptr_);
             }
 
