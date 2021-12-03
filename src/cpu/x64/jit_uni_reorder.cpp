@@ -2039,25 +2039,6 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
     status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);
     if (prb_init_status != status::success) return prb_init_status;
 
-    DEBUG({
-        printf("init : ");
-        prb_dump(prb);
-    });
-    // Sort the prb array in increasing sizes of the output stride
-    prb_normalize(prb);
-    DEBUG({
-        printf("norm : ");
-        prb_dump(prb);
-    });
-
-    /* Combine the variables, which appear together on both
-             * sides of the reorder */
-    prb_simplify(prb);
-    DEBUG({
-        printf("smpl : ");
-        prb_dump(prb);
-    });
-
     prb_block_for_cache(prb);
     DEBUG({
         printf("cache: ");
@@ -2469,23 +2450,6 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
     // TODO: Add tail processing support in blk_reorder
     if (prb.is_tail_present) return status::unimplemented;
 
-    DEBUG({
-        printf("init : ");
-        prb_dump(prb);
-    });
-    // Sort the prb array in increasing sizes of the output stride
-    prb_normalize(prb);
-    DEBUG({
-        printf("norm : ");
-        prb_dump(prb);
-    });
-    /* Combine the variables, which appear together on both
-             * sides of the reorder */
-    prb_simplify(prb);
-    DEBUG({
-        printf("smpl : ");
-        prb_dump(prb);
-    });
     prb_tile_normalize(prb);
     DEBUG({
         printf("tile : ");
