@@ -633,6 +633,8 @@ public:
         if (dst.is_reg_data()) {
             if (src0.is_reg_data()) {
                 emov(mod, dst.reg_data(), src0.reg_data());
+            } else if (src0.is_reg_buf_data()) {
+                emov(mod, dst.reg_data(), src0.reg_buf_data().reg_data());
             } else if (src0.is_immediate()) {
                 emov(mod, dst.reg_data(), src0.immediate());
             } else {
