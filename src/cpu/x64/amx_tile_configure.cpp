@@ -41,7 +41,7 @@ private:
 };
 
 struct jit_amx_tilerelease_t : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_amx_tilecfg_t)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_amx_tilerelease_t)
 
     // TODO: Need to check status
     jit_amx_tilerelease_t()
