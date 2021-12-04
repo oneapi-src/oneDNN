@@ -4048,8 +4048,8 @@ private:
         auto &bc_attr = alloc.get_attr<bank_conflict_attr_t>();
         auto it = bc_allocations_.find(bc_attr);
         ir_assert(it != bc_allocations_.end());
-        it->second.release();
-        if (it->second.refs() == 0) { bc_allocations_.erase(bc_attr); }
+        it->second.release(alloc.buf);
+        if (it->second.refs() == 0) bc_allocations_.erase(bc_attr);
     }
 
     void signal(const func_call_attr_t &attr) {

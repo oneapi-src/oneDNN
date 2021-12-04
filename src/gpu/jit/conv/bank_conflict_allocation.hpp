@@ -43,14 +43,13 @@ public:
         refs_++;
     }
 
-    void release() {
+    void release(const expr_t &buf) {
         ir_assert(refs_ > 0);
         refs_--;
-        if (refs_ == 0) {
-            for (auto &kv : buf_map_)
-                kv.second.release(*ra_);
-            buf_map_.clear();
-        }
+        auto it = buf_map_.find(buf);
+        ir_assert(it != buf_map_.end()) << "Buffer not found: " << buf;
+        it->second.release(*ra_);
+        buf_map_.erase(it);
     }
 
     const reg_buf_t &get_reg_buf(const expr_t &buf) const {
