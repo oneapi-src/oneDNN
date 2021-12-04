@@ -1493,6 +1493,21 @@ public:
         return new_obj;
     }
 
+    object_t _mutate(const store_t &obj) override {
+        auto new_obj = ir_mutator_t::_mutate(obj);
+
+        auto &store = new_obj.as<store_t>();
+        if (!store.value.is<load_t>()) return new_obj;
+
+        auto &load = store.value.as<load_t>();
+        if (!store.buf.is_equal(load.buf)) return new_obj;
+        if (!store.off.is_equal(load.off)) return new_obj;
+        if (store.stride != load.stride) return new_obj;
+
+        // This is a load/store of the same value which is a no-op.
+        return stmt_t();
+    }
+
 private:
     static op_kind_t flip_cmp_op(op_kind_t op_kind) {
         switch (op_kind) {
