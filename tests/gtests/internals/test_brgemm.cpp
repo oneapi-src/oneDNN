@@ -261,9 +261,9 @@ private:
         }
     }
 
+    std::shared_ptr<engine> eng_;
     test_gemm_data gemm_data_;
     std::shared_ptr<test_memory> b_mem_reordered_;
-    std::shared_ptr<engine> eng_;
 };
 
 TEST_P(brgemm_test_t, TestsBRGEMM) {}
