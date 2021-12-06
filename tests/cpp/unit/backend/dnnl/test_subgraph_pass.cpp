@@ -200,6 +200,8 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     dnnl_impl::infer_shape(subgraph);
     dnnl_impl::infer_type(subgraph);
 
+    dnnl_impl::eltwise_canonicalization(subgraph);
+
     // 4. fuse post ops to int8 conv
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), status::success);
 
@@ -315,6 +317,8 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
 
     // 3. fuse output mul_scales op to matmul's output scale
     dnnl_impl::fuse_output_scales(subgraph);
+
+    dnnl_impl::eltwise_canonicalization(subgraph);
 
     // 4. fuse post ops to int8 matmul
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), status::success);
@@ -498,6 +502,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     dnnl_impl::infer_type(subgraph);
 
     // run lower down passes
+    dnnl_impl::eltwise_canonicalization(subgraph);
     dnnl_impl::check_with_bias(subgraph);
     dnnl_impl::split_quant_dequant(subgraph);
     dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
@@ -746,6 +751,7 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
 
     dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
 
+    dnnl_impl::eltwise_canonicalization(subgraph);
     dnnl_impl::split_quant_dequant(subgraph);
     dnnl_impl::fuse_to_int8_matmul(subgraph);
     dnnl_impl::folding_mul_scales(subgraph);
@@ -882,6 +888,8 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
         dnnl_impl::constant_propagation(subgraph);
     }
 
+    ASSERT_EQ(dnnl_impl::eltwise_canonicalization(subgraph),
+            impl::status::success);
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
     ASSERT_EQ(subgraph->get_ops().size(), params.final_subgraph_size);
 }

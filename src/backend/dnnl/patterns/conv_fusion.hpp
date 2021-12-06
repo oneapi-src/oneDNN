@@ -2213,6 +2213,161 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bwd_f_biasadd_bwd_fusion)
                     return fused_op;
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_simple_resblock_fusion)
+        .set_priority(5.f) // low priority to avoid current functionality
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *conv0
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv0->SET_NUM_INPUTS_CHECK(2);
+                    pm::pb_op *relu0 = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv0, 0)});
+
+                    pm::pb_op *conv1
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, relu0, 0)});
+                    conv1->SET_NUM_INPUTS_CHECK(2);
+                    pm::pb_op *relu1 = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv1, 0)});
+
+                    pm::pb_op *conv2
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, relu1, 0)});
+                    conv2->SET_NUM_INPUTS_CHECK(2);
+
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv2, 0)});
+                    add->set_commutative_pair({0, 1});
+                    add->allow_internal_inputs({0, 1});
+
+                    pm::pb_op *relu2 = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::conv_simple_resblock);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_conv_bias_relu_conv_bias_relu_conv_bias_add_relu_fusion)
+        // .set_priority(10.7f)
+        .set_priority(5.f) // low priority to not break current integration
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    // int8_conv_bias_relu
+                    pm::pb_op *dequant_src0
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *dequant_wei0
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *conv0
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_src0, 0),
+                                            in_edge(1, dequant_wei0, 0)});
+                    conv0->SET_NUM_INPUTS_CHECK(3);
+                    pm::pb_op *relu0 = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv0, 0)});
+                    pm::pb_op *quant_dst0
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu0, 0)});
+
+                    // int8_conv_bias_relu
+                    pm::pb_op *dequant_src1
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_dst0, 0)});
+                    pm::pb_op *dequant_wei1
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *conv1
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_src1, 0),
+                                            in_edge(1, dequant_wei1, 0)});
+                    conv1->SET_NUM_INPUTS_CHECK(3);
+                    pm::pb_op *relu1 = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv1, 0)});
+                    pm::pb_op *quant_dst1
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu1, 0)});
+
+                    // int8_conv_bias_add_relu
+                    pm::pb_op *dequant_src2
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_dst1, 0)});
+                    pm::pb_op *dequant_wei2
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *dequant_other
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *conv2
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_src2, 0),
+                                            in_edge(1, dequant_wei2, 0)});
+                    conv2->SET_NUM_INPUTS_CHECK(3);
+                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, conv2, 0),
+                                    in_edge(1, dequant_other, 0)});
+                    add->set_commutative_pair({0, 1});
+                    pm::pb_op *relu2 = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, add, 0)});
+                    pm::pb_op *quant2
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu2, 0)});
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_conv_relu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_conv_bias_relu_conv_bias_relu_fusion)
+        // .set_priority(10.7f)
+        .set_priority(5.f) // low priority to not break current integration
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    // int8_conv_bias_relu
+                    pm::pb_op *dequant_src0
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *dequant_wei0
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *conv0
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_src0, 0),
+                                            in_edge(1, dequant_wei0, 0)});
+                    conv0->SET_NUM_INPUTS_CHECK(3);
+                    pm::pb_op *relu0 = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv0, 0)});
+                    pm::pb_op *quant_dst0
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu0, 0)});
+
+                    // int8_conv_bias_relu
+                    pm::pb_op *dequant_src1
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_dst0, 0)});
+                    pm::pb_op *dequant_wei1
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op *conv1
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_src1, 0),
+                                            in_edge(1, dequant_wei1, 0)});
+                    conv1->SET_NUM_INPUTS_CHECK(3);
+                    pm::pb_op *relu1 = pgraph->append_op(impl::op_kind::ReLU,
+                            in_edges_t {in_edge(0, conv1, 0)});
+                    pm::pb_op *quant_dst1
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, relu1, 0)});
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_conv_relu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass

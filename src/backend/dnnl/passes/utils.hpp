@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "interface/c_types_map.hpp"
 #include "interface/graph.hpp"
@@ -220,9 +221,9 @@ void set_all_layout_to_any(std::vector<std::shared_ptr<op_t>> &subgraph);
 void set_weight_bias_constant(std::vector<std::shared_ptr<op_t>> &subgraph);
 
 inline bool is_preprocess_op(impl::op_t &op) {
-    static std::set<impl::op_kind_t> preprocess_ops
-            = {op_kind::permute, op_kind::to_group, op_kind::expand,
-                    op_kind::squeeze, impl::op_kind::StaticReshape};
+    static const std::set<impl::op_kind_t> preprocess_ops = {op_kind::permute,
+            op_kind::to_group, op_kind::expand, op_kind::squeeze,
+            impl::op_kind::StaticReshape, impl::op_kind::StaticTranspose};
     return preprocess_ops.count(op.get_kind()) != 0;
 }
 
@@ -277,6 +278,22 @@ const std::map<op_kind_t, dnnl::algorithm> &get_binary_alg_map();
 // (3, 4, 5) * (2, 4, 5) is NOT doable
 bool binary_doable(
         const std::vector<dim_t> &shape_0, const std::vector<dim_t> &shape_1);
+
+// For some shapes, such as the binary add shape [n,1,1,w] in BERT MHA pattern,
+// post binary will run into oneDNN's ref path and has poor performance. So, we
+// check the shape in this function and only make per_tensor, per_channel and
+// full tensor broadcast binary able to be fused.
+bool post_binary_fusible(const impl::op_t *base_op, const impl::op_t *bin_op);
+
+// oneDNN support post depthwise conv fusion. This function is used to check if
+// the conv op can be fused as a depthwise conv.
+bool post_depthwise_conv_fusible(const impl::op_t *conv_op);
+
+// Get the map between base op kind and fusible post ops kinds. The map is
+// determined by oneDNN's fusion capability and may change. For example, a
+// dnnl_eltwise op can't fuse dnnl_eltwise op, but dnnl_convolution can.
+const std::unordered_map<impl::op_kind_t, std::unordered_set<impl::op_kind_t>> &
+get_post_ops_fusible_map();
 
 } // namespace dnnl_impl
 } // namespace impl

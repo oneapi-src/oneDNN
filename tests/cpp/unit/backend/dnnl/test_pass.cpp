@@ -9586,3 +9586,25 @@ TEST(Pass, FuseBnReLUWithSharedInputs) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
+
+TEST(Pass, Int8MhaFusion) {
+    dnnl::graph::impl::graph_t agraph;
+    dnnl::graph::tests::unit::utils::construct_int8_MHA(&agraph);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.get_ops().size(), 21);
+
+    dnnl::graph::impl::pass::pass_base_ptr apass = get_pass("int8_MHA_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+}
+
+TEST(Pass, F32MhaFusion) {
+    dnnl::graph::impl::graph_t agraph;
+    dnnl::graph::tests::unit::utils::construct_f32_MHA(&agraph);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.get_ops().size(), 13);
+
+    dnnl::graph::impl::pass::pass_base_ptr apass = get_pass("f32_MHA_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+}

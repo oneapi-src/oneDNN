@@ -437,7 +437,11 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
-    const auto op_kind = op->get_kind();
+    const auto op_kind
+            = static_cast<impl::op_kind_t>(op->get_attr<int64_t>("alg_kind"));
+    assertm(is_eltwise_kind(op_kind),
+            "alg_kind of dnnl_eltwise should be able to mapped to "
+            "eltwise op kind");
 
     const auto &eltwise_alg_map = get_eltwise_alg_map();
     const auto eltwise_alg_pos = eltwise_alg_map.find(op_kind);
@@ -882,12 +886,16 @@ struct reorder_executable_t : public op_executable_t {
                 std::vector<int32_t> neg_zps = dnnl_impl::utils::fmap(zps,
                         [](int64_t zp) { return static_cast<int32_t>(-zp); });
                 initial_attr.set_zero_points(DNNL_ARG_FROM, mask, neg_zps);
-            } else if (op->has_attr("dst_zps")) {
+            }
+
+            if (op->has_attr("dst_zps")) {
                 auto zps = op->get_attr<std::vector<int64_t>>("dst_zps");
                 std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(zps,
                         [](int64_t zp) { return static_cast<int32_t>(zp); });
                 initial_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
-            } else if (op->get_kind() == op_kind::dnnl_u8_to_s8) {
+            }
+
+            if (op->get_kind() == op_kind::dnnl_u8_to_s8) {
                 initial_attr.set_zero_points(DNNL_ARG_TO, mask, {-128});
             }
 

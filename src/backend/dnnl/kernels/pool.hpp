@@ -102,6 +102,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, eltwise_canonicalization);
 
         // for those primitive ops like pooling, it requires the scales and zps
         // between input tensor and output tensor are the same. So here, we

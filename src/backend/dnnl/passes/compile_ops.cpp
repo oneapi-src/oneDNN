@@ -58,7 +58,7 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
             exec = std::make_shared<matmul_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
-        } else if (is_eltwise_kind(cur_op->get_kind())) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_eltwise) {
             exec = std::make_shared<eltwise_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::MaxPool
@@ -78,7 +78,8 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
                 || cur_op->get_kind() == op_kind::to_group
                 || cur_op->get_kind() == op_kind::expand
                 || cur_op->get_kind() == op_kind::squeeze
-                || cur_op->get_kind() == impl::op_kind::StaticReshape) {
+                || cur_op->get_kind() == impl::op_kind::StaticReshape
+                || cur_op->get_kind() == impl::op_kind::StaticTranspose) {
             // For preprocess ops. The memory_reparser will not do
             // computation, it only re-parses the existing buffer.
             exec = std::make_shared<memory_reparser_t>();

@@ -92,6 +92,7 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_matmul);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_quantize);
         }
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
@@ -103,6 +104,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, eltwise_canonicalization);
 
         if (quantized) {
             // split quant/dequant to pairs of mul_scales and add_zps
@@ -140,6 +142,8 @@ public:
         }
 
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_adjacent_reorders);
 
         // do constant propagation again since layout propagation may
         // insert/delete operators
