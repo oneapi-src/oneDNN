@@ -2263,9 +2263,11 @@ private:
                 break;
             }
             case op_kind_t::_prelu: {
-                // FIXME
-                auto temp = scope_.alloc_reg_buf_data(mod.getExecSize())
-                                    .format(0, ngen::DataType::f);
+                int grf_size = ngen::GRF::bytes(hw);
+                int regs = utils::div_up(
+                        mod.getExecSize() * sizeof(float), grf_size);
+                auto temp = scope_.alloc_reg_buf_data(regs).format(
+                        0, ngen::DataType::f);
                 host_->emul(mod, temp, dst, src1);
                 host_->csel(mod | host_->le, dst.reg_data(), temp,
                         dst.reg_data(), dst.reg_data());
