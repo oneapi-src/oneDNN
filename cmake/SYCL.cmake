@@ -56,23 +56,16 @@ if(DNNL_SYCL_CUDA)
     #   function call with eplicit template arguments is a C++20 extension
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++20-extensions")
 
-    # Explicitly linking against OpenCL without finding the right one can
-    # end up linking the tests against Nvidia OpenCL. This can be
-    # problematic as Intel OpenCL CPU backend will not work. When multiple
-    # OpenCL backends are available we need to make sure that we are linking
-    # against the correct one.
-    find_package(OpenCL REQUIRED)
     find_package(cuBLAS REQUIRED)
     find_package(cuDNN REQUIRED)
 
     if(NOT WIN32)
         # XXX: CUDA contains OpenCL headers that conflict with the OpenCL
-        # headers found via `find_package(OpenCL REQUIRED)` above. The
-        # workaround is the following:
+        # headers located in the compiler's directory.
+        # The workaround is the following:
         # Get interface include directories from all CUDA related import
         # targets and lower their priority via `-idirafter` so that the
-        # compiler picks up the OpenCL headers that have been found via
-        # `find_package(OpenCL REQUIRED)` above.
+        # compiler picks up the proper OpenCL headers.
         set(cuda_include_dirs)
         foreach(cuda_import_target cuBLAS::cuBLAS;cuDNN::cuDNN)
             get_target_property(cuda_import_target_include_dirs ${cuda_import_target} INTERFACE_INCLUDE_DIRECTORIES)
@@ -85,7 +78,6 @@ if(DNNL_SYCL_CUDA)
             append(CMAKE_CXX_FLAGS "-idirafter${cuda_include_dir}")
         endforeach()
     endif()
-    list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
 else()
     find_library(OPENCL_LIBRARY OpenCL PATHS ENV LIBRARY_PATH ENV LIB NO_DEFAULT_PATH)
     if(OPENCL_LIBRARY)
