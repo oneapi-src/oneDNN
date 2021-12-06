@@ -360,6 +360,8 @@ public:
                 // fp32 bn pattern
                 impl::op_kind::BatchNormInference,
                 impl::op_kind::BatchNormForwardTraining, op_kind::bn_relu,
+                // fp32 layoutnorm pattern
+                impl::op_kind::LayerNorm,
                 // f32 conv pattern
                 impl::op_kind::Convolution, op_kind::conv_relu,
                 op_kind::conv_add, op_kind::conv_add_relu,

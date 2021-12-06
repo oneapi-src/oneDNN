@@ -7574,9 +7574,9 @@ TEST(Execute, LayernormTraining) {
     test::vector<float> mean(ref_mean.size(), 0.0);
     test::vector<float> var(ref_var.size(), 0.0);
 
-    impl::op_t op(impl::op_kind::LayerNorm);
+    impl::op_t layernorm_op(impl::op_kind::LayerNorm);
 
-    op.set_attr<float>("epsilon", 0);
+    layernorm_op.set_attr<float>("epsilon", 0);
 
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {1, 3, 2}, impl::data_type::f32);
@@ -7584,34 +7584,52 @@ TEST(Execute, LayernormTraining) {
             = utils::logical_tensor_init(1, {2}, impl::data_type::f32);
     impl::logical_tensor_t shift_lt
             = utils::logical_tensor_init(2, {2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            3, {1, 3, 2}, impl::data_type::f32, impl::layout_type::any);
-    impl::logical_tensor_t mean_lt = utils::logical_tensor_init(
-            4, {1, 3}, impl::data_type::f32, impl::layout_type::any);
-    impl::logical_tensor_t variance_lt = utils::logical_tensor_init(
-            5, {1, 3}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 3, 2}, impl::data_type::f32);
+    impl::logical_tensor_t mean_lt
+            = utils::logical_tensor_init(4, {1, 3}, impl::data_type::f32);
+    impl::logical_tensor_t variance_lt
+            = utils::logical_tensor_init(5, {1, 3}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, scale_lt, shift_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt, mean_lt, variance_lt};
+    impl::engine_t &engine = get_engine();
+    impl::graph_t g(engine.kind());
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
+    layernorm_op.add_input(src_lt);
+    layernorm_op.add_input(scale_lt);
+    layernorm_op.add_input(shift_lt);
+    layernorm_op.add_output(dst_lt);
+    layernorm_op.add_output(mean_lt);
+    layernorm_op.add_output(variance_lt);
 
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-    ASSERT_EQ(outputs[1].layout_type, impl::layout_type::opaque);
-    ASSERT_EQ(outputs[2].layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(g.add_op(&layernorm_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("ln_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &scale_lt, &shift_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {
+            &dst_lt, &mean_lt, &variance_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t scale_ts(scale_lt, &eng, scale.data());
     impl::tensor_t shift_ts(shift_lt, &eng, shift.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
-    impl::tensor_t mean_ts(outputs[1], &eng, mean.data());
-    impl::tensor_t var_ts(outputs[2], &eng, var.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+    impl::tensor_t mean_ts(mean_lt, &eng, mean.data());
+    impl::tensor_t var_ts(variance_lt, &eng, var.data());
 
     impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, scale_ts, shift_ts},
-            {dst_ts, mean_ts, var_ts});
+    cp.execute(&strm, {src_ts, scale_ts, shift_ts}, {dst_ts, mean_ts, var_ts});
     strm.wait();
 
     for (size_t i = 0; i < ref_dst.size(); ++i) {
@@ -7633,10 +7651,10 @@ TEST(Execute, LayernormInference) {
     test::vector<float> ref_dst {-1.0, 3.0, -1.0, 3.0, 1.0, -1.0, -1.0, 3.0};
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::op_t op(impl::op_kind::LayerNorm);
+    impl::op_t layernorm_op(impl::op_kind::LayerNorm);
 
-    op.set_attr<float>("epsilon", 0);
-    op.set_attr<bool>("keep_stats", false); //inference
+    layernorm_op.set_attr<float>("epsilon", 0);
+    layernorm_op.set_attr<bool>("keep_stats", false); //inference
 
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {2, 2, 2}, impl::data_type::f32);
@@ -7644,27 +7662,45 @@ TEST(Execute, LayernormInference) {
             = utils::logical_tensor_init(1, {2}, impl::data_type::f32);
     impl::logical_tensor_t shift_lt
             = utils::logical_tensor_init(2, {2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            3, {2, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {2, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, scale_lt, shift_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    impl::engine_t &engine = get_engine();
+    impl::graph_t g(engine.kind());
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
+    layernorm_op.add_input(src_lt);
+    layernorm_op.add_input(scale_lt);
+    layernorm_op.add_input(shift_lt);
+    layernorm_op.add_output(dst_lt);
 
-    kernel->compile(&op, &eng, inputs, outputs);
+    ASSERT_EQ(g.add_op(&layernorm_op), impl::status::success);
+    g.build_graph();
 
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass = get_pass("ln_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &scale_lt, &shift_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t scale_ts(scale_lt, &eng, scale.data());
     impl::tensor_t shift_ts(shift_lt, &eng, shift.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, scale_ts, shift_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts, scale_ts, shift_ts}, {dst_ts});
     strm.wait();
+
     for (size_t i = 0; i < ref_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -7677,33 +7713,48 @@ TEST(Execute, LayernormInferenceWithoutScaleShift) {
     test::vector<float> ref_dst {-1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0};
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::op_t op(impl::op_kind::LayerNorm);
+    impl::op_t layernorm_op(impl::op_kind::LayerNorm);
 
-    op.set_attr<float>("epsilon", 0);
-    op.set_attr<bool>("keep_stats", false); //inference
-    op.set_attr<bool>("use_affine", false);
+    layernorm_op.set_attr<float>("epsilon", 0);
+    layernorm_op.set_attr<bool>("keep_stats", false); //inference
+    layernorm_op.set_attr<bool>("use_affine", false);
 
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {2, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            3, {2, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {2, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    impl::engine_t &engine = get_engine();
+    impl::graph_t g(engine.kind());
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
+    layernorm_op.add_input(src_lt);
+    layernorm_op.add_output(dst_lt);
 
-    kernel->compile(&op, &eng, inputs, outputs);
+    ASSERT_EQ(g.add_op(&layernorm_op), impl::status::success);
+    g.build_graph();
 
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass = get_pass("ln_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts}, {dst_ts});
+    cp.execute(&strm, {src_ts}, {dst_ts});
     strm.wait();
+
     for (size_t i = 0; i < ref_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }

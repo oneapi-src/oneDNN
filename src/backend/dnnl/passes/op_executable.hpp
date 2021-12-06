@@ -351,6 +351,45 @@ create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
     return {pd, true};
 }
 
+inline std::pair<dnnl::layer_normalization_forward::primitive_desc, bool>
+create_layernorm_pd(std::shared_ptr<impl::op_t> &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<
+                        dnnl::layer_normalization_forward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    float epsilon = 1e-5;
+    if (op->has_attr("epsilon")) epsilon = op->get_attr<float>("epsilon");
+    bool keep_stats = true;
+    if (op->has_attr("keep_stats"))
+        keep_stats = op->get_attr<bool>("keep_stats");
+    bool use_affine = true;
+    if (op->has_attr("use_affine"))
+        use_affine = op->get_attr<bool>("use_affine");
+
+    auto flags = normalization_flag::none;
+    if (use_affine)
+        flags |= (normalization_flag::use_scale
+                | normalization_flag::use_shift);
+
+    prop_kind pkind = keep_stats ? prop_kind::forward_training
+                                 : prop_kind::forward_inference;
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+
+    dnnl::layer_normalization_forward::primitive_desc pd(
+            {pkind, src, epsilon, flags}, p_engine);
+
+    pd_cache.insert({op.get(), pd});
+    return {pd, true};
+}
+
 inline std::pair<dnnl::convolution_backward_data::primitive_desc, bool>
 create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
@@ -1216,6 +1255,26 @@ private:
     dnnl::batch_normalization_forward prim_;
     bool is_training_ {false};
     std::vector<float> scales_;
+};
+
+struct layernorm_executable_t : public op_executable_t {
+    layernorm_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_layernorm_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        prim_ = dnnl::layer_normalization_forward(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::layer_normalization_forward::primitive_desc pd_;
+    dnnl::layer_normalization_forward prim_;
 };
 
 struct sum_executable_t : public op_executable_t {

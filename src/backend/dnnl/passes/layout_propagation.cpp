@@ -355,6 +355,33 @@ static void layout_propagation_for_batchnorm(op_ptr &op,
     }
 }
 
+static void layout_propagation_for_layernorm(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair
+            = create_layernorm_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    value_ptr dst = op->get_output_value(0);
+    fill_layout_info(dst, pd.dst_desc());
+
+    if (op->num_outputs() > 1) {
+        // keep_stats is true
+        value_ptr mean = op->get_output_value(1);
+        value_ptr variance = op->get_output_value(2);
+        fill_layout_info(mean, pd.mean_desc());
+        fill_layout_info(variance, pd.variance_desc());
+    }
+
+    // make scratchpad as batchnorm's last output
+    value_ptr scratchpad_val = insert_scratchpad(op);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+}
+
 static void layout_propagation_for_permute(
         op_ptr &op, std::vector<op_ptr> &reorder_ops) {
     std::shared_ptr<impl::value_t> src, dst;
@@ -878,6 +905,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm) {
                 layout_propagation_for_batchnorm(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == impl::op_kind::LayerNorm) {
+                layout_propagation_for_layernorm(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_eltwise) {
                 layout_propagation_for_eltwise(
