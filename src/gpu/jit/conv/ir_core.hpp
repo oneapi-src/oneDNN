@@ -278,6 +278,46 @@ public:
         return undef();
     }
 
+    template <typename T>
+    T max() const {
+        switch (kind()) {
+            case type_kind_t::u8:
+            case type_kind_t::s8:
+            case type_kind_t::u16:
+            case type_kind_t::s16:
+            case type_kind_t::u32:
+            case type_kind_t::s32:
+            case type_kind_t::u64:
+            case type_kind_t::s64: {
+                int bits = 8 * size();
+                if (is_signed()) bits--;
+                T ret = T(1) << (bits - 1);
+                return ret + (ret - 1);
+            }
+            default: ir_error_not_expected();
+        }
+        return 0;
+    }
+
+    template <typename T>
+    T min() const {
+        switch (kind()) {
+            case type_kind_t::u8:
+            case type_kind_t::s8:
+            case type_kind_t::u16:
+            case type_kind_t::s16:
+            case type_kind_t::u32:
+            case type_kind_t::s32:
+            case type_kind_t::u64:
+            case type_kind_t::s64: {
+                if (is_unsigned()) return 0;
+                return -max<T>() - 1;
+            }
+            default: ir_error_not_expected();
+        }
+        return 0;
+    }
+
     static bool is_vector(int elems) { return elems != 1; }
 
     type_t() : type_t(type_t::undef()) {}
@@ -357,6 +397,12 @@ public:
     bool is_u32() const { return kind() == type_kind_t::u32; }
     bool is_x32() const {
         return utils::one_of(kind(), type_kind_t::s32, type_kind_t::u32);
+    }
+
+    bool is_s64() const { return kind() == type_kind_t::s64; }
+    bool is_u64() const { return kind() == type_kind_t::u64; }
+    bool is_x64() const {
+        return utils::one_of(kind(), type_kind_t::s64, type_kind_t::u64);
     }
 
     bool is_signed(int elems = -1) const {

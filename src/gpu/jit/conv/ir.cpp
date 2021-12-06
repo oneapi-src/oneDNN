@@ -596,25 +596,11 @@ bool modulus_info_t::is_modulus_constraint(const expr_t &e) {
     return true;
 }
 
-int64_t bound_finder_t::find_bound_impl(const expr_t &e, bool is_low) const {
+int64_t bound_finder_base_t::find_bound_impl(
+        const expr_t &e, bool is_low) const {
     int64_t def_bound = unlimited_bound(is_low);
     if (is_const(e)) return to_cpp<int64_t>(e);
-    if (is_var(e)) {
-        auto it = relations_.find(e);
-        if (it == relations_.end()) return def_bound;
-
-        int64_t ret = def_bound;
-        for (auto &rel : it->second) {
-            bool is_ge = (rel.op_kind() == op_kind_t::_ge);
-            if (is_ge != is_low) continue;
-            if (is_ge) {
-                ret = std::max(to_cpp<int64_t>(rel.rhs()), ret);
-            } else {
-                ret = std::min(to_cpp<int64_t>(rel.rhs()), ret);
-            }
-        }
-        return ret;
-    }
+    if (is_var(e)) return get_var_bound(e, is_low);
 
     auto *unary = e.as_ptr<unary_op_t>();
     if (unary) {
@@ -646,25 +632,16 @@ int64_t bound_finder_t::find_bound_impl(const expr_t &e, bool is_low) const {
                 if (!is_const(a)) return def_bound;
 
                 auto a_const = to_cpp<int64_t>(a);
+                if (a_const == 0) return 0;
 
                 auto b_lo = find_low_bound(b);
                 auto b_hi = find_high_bound(b);
                 auto b_lo_ok = is_good_bound(b_lo);
                 auto b_hi_ok = is_good_bound(b_hi);
 
-                bool b_ge_0 = b_lo_ok && (b_lo >= 0);
-                bool b_le_0 = b_hi_ok && (b_hi <= 0);
-                bool b_same_sign = (b_ge_0 || b_le_0);
+                if ((a_const > 0) == is_low && b_lo_ok) return a_const * b_lo;
+                if ((a_const > 0) != is_low && b_hi_ok) return a_const * b_hi;
 
-                if (a_const >= 0 && b_same_sign) {
-                    if (is_low && b_lo_ok) return a_const * b_lo;
-                    if (b_hi_ok) return a_const * b_hi;
-                }
-
-                if (a_const <= 0 && b_same_sign) {
-                    if (is_low && b_hi_ok) return a_const * b_hi;
-                    if (b_lo_ok) return a_const * b_lo;
-                }
                 break;
             }
             case op_kind_t::_div: {
@@ -697,6 +674,23 @@ int64_t bound_finder_t::find_bound_impl(const expr_t &e, bool is_low) const {
             }
             default: break;
         }
+    }
+
+    auto *cast = e.as_ptr<cast_t>();
+    if (cast) {
+        // Saturate if needed, otherwise assume the same bounds.
+        if (!cast->saturate) return find_bound_impl(cast->expr, is_low);
+
+        if (is_low) {
+            auto type_lo = cast->type.min<int64_t>();
+            auto lo = find_low_bound(cast->expr);
+            return std::max(type_lo, lo);
+        }
+        // Check u64 explicitly as its max doesn't fit into int64_t.
+        if (cast->type.is_u64()) return find_bound_impl(cast->expr, is_low);
+        auto type_hi = cast->type.max<int64_t>();
+        auto hi = find_high_bound(cast->expr);
+        return std::min(type_hi, hi);
     }
 
     return def_bound;

@@ -691,12 +691,8 @@ inline std::ostream &operator<<(std::ostream &out, const modulus_info_t &mod) {
 
 // Helper class to find constant bounds of integer expressions based on known
 // relations.
-class bound_finder_t {
+class bound_finder_base_t {
 public:
-    bound_finder_t(
-            const object_map_t<expr_t, std::vector<relation_t>> &relations)
-        : relations_(relations) {}
-
     int64_t find_low_bound(const expr_t &e) const {
         return find_bound_impl(e, /*is_low=*/true);
     }
@@ -705,28 +701,61 @@ public:
         return find_bound_impl(e, /*is_low=*/false);
     }
 
-    static bool is_good_bound(int64_t bound) {
-        if (bound == unlimited_bound(true)) return false;
-        if (bound == unlimited_bound(false)) return false;
-        return true;
-    }
-
-private:
-    // If is_low is true, searches for proven low bound, and high bound
-    // otherwise.
-    int64_t find_bound_impl(const expr_t &e, bool is_low) const;
+    virtual int64_t get_var_bound(const expr_t &e, bool is_low) const = 0;
 
     static int64_t unlimited_bound(bool is_low) {
         if (is_low) return std::numeric_limits<int64_t>::min();
         return std::numeric_limits<int64_t>::max();
     }
 
+    static bool is_good_bound(int64_t bound) {
+        if (bound == unlimited_bound(true)) return false;
+        if (bound == unlimited_bound(false)) return false;
+        return true;
+    }
+
+protected:
+    // If is_low is true, searches for proven low bound, and high bound
+    // otherwise.
+    virtual int64_t find_bound_impl(const expr_t &e, bool is_low) const;
+};
+
+class bound_finder_t : public bound_finder_base_t {
+public:
+    bound_finder_t(
+            const object_map_t<expr_t, std::vector<relation_t>> &relations)
+        : relations_(relations) {}
+
+    int64_t get_var_bound(const expr_t &e, bool is_low) const override {
+        ir_assert(is_var(e));
+        int64_t def_bound = unlimited_bound(is_low);
+        auto it = relations_.find(e);
+        if (it == relations_.end()) return def_bound;
+
+        int64_t ret = def_bound;
+        for (auto &rel : it->second) {
+            bool is_ge = (rel.op_kind() == op_kind_t::_ge);
+            if (is_ge != is_low) continue;
+            if (is_ge) {
+                ret = std::max(to_cpp<int64_t>(rel.rhs()), ret);
+            } else {
+                ret = std::min(to_cpp<int64_t>(rel.rhs()), ret);
+            }
+        }
+        return ret;
+    }
+
+private:
     object_map_t<expr_t, std::vector<relation_t>> relations_;
 };
 
 // TODO: Add integers check (only integers can be constrained).
 class constraint_set_t {
 public:
+    const object_map_t<expr_t, std::vector<relation_t>> &relations() const {
+        return relations_;
+    }
+
     void add_constraint(const expr_t &e);
 
     bool can_prove(const expr_t &e, bool try_simplify = true) const {
