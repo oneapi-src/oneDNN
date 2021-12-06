@@ -7000,6 +7000,10 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
+#ifdef _WIN32
+    GTEST_SKIP();
+#endif
+
     SKIP_IF(engine.kind() == impl::engine_kind::gpu,
             "Skip for GPU - not supported yet.");
 
