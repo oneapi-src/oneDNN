@@ -204,7 +204,7 @@ public:
     int stepping_id() const { return stepping_id_; }
     int max_eus_per_wg() const { return max_eus_per_wg_; }
     static int max_eus_per_wg(gpu_arch_t gpu_arch);
-    int max_wg_size() const { return max_wg_size_; }
+    size_t max_wg_size() const { return max_wg_size_; }
     int eu_count() const { return eu_count_; }
     int hw_threads() const { return hw_threads_[0]; }
     int hw_threads(bool large_grf_mode) const {

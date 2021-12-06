@@ -979,7 +979,7 @@ public:
     ngen::HW hw = ngen::HW::Unknown;
     int stepping_id;
     int eu_count;
-    int max_wg_size;
+    size_t max_wg_size;
     bool large_grf_support;
     int simd_size; // SIMD width.
     int regs; // Number of registers.
@@ -1968,7 +1968,7 @@ private:
         // Optimal thread group size may differ from hardware thread count due
         // to simd_size used in computation.
         return std::min(max_eus_per_wg * utils::rnd_down_pow2(threads_per_eu),
-                max_wg_size / wg_per_thr);
+                static_cast<int>(max_wg_size / wg_per_thr));
     }
 
     const layout_t &a_layout() const {
