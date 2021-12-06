@@ -106,8 +106,6 @@ protected:
 
 using conv_any_fmt_test_float = convolution_any_fmt_test_t<float>;
 
-TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt) {}
-
 #define CPARAMS prop_kind::forward, algorithm::convolution_direct
 
 using tf32 = conv_any_fmt_test_params_t;
@@ -128,6 +126,8 @@ using tf32 = conv_any_fmt_test_params_t;
     }
 
 #if DNNL_X64
+TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt) {}
+
 CPU_INSTANTIATE_TEST_SUITE_P(TestConvolutionAlexnetAnyFmtForward,
         conv_any_fmt_test_float, ::testing::Values(ALEXNET_SUITE(BLK)));
 #endif
