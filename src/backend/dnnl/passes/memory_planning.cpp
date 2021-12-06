@@ -395,6 +395,43 @@ void memory_planner_t::bind_memory_for_batchnorm(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
+void memory_planner_t::bind_memory_for_layernorm(op_t *op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+    memory mem;
+    exec_args args;
+
+    size_t in_index = 0;
+#define INSERT_ARGS(key, val_offset, direction) \
+    exec_args_set_.find_value_mem_map( \
+            op->get_##direction##_value(val_offset).get(), mem); \
+    args.insert({key, mem});
+
+    // bind mem for inputs
+    INSERT_ARGS(DNNL_ARG_SRC, in_index++, input);
+    if (!op->has_attr("use_affine") || op->get_attr<bool>("use_affine")) {
+        INSERT_ARGS(DNNL_ARG_SCALE, in_index++, input);
+        INSERT_ARGS(DNNL_ARG_SHIFT, in_index++, input);
+    }
+
+    size_t out_index = 0;
+    // bind mem for outputs
+    INSERT_ARGS(DNNL_ARG_DST, out_index++, output);
+    if (!op->has_attr("keep_stats") || op->get_attr<bool>("keep_stats")) {
+        // meam
+        INSERT_ARGS(DNNL_ARG_MEAN, out_index++, output);
+        // variance
+        INSERT_ARGS(DNNL_ARG_VARIANCE, out_index++, output);
+    }
+
+    // scratchpad
+    if (op->num_outputs() > out_index) {
+        INSERT_ARGS(DNNL_ARG_SCRATCHPAD, out_index++, output);
+    }
+
+#undef INSERT_ARGS
+    exec_args_set_.add_exec_args(args);
+}
+
 // Assign partition's input edges to user given external inputs buffer. Those
 // external inputs buffers may be used by other partition (which is under the
 // control of user), so we can't reuse them.
@@ -678,6 +715,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     bind_memory_for_conv_bwd_data(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_batchnorm) {
                     bind_memory_for_batchnorm(op, p_engine, prm_attr_mgr);
+                } else if (op->get_kind() == impl::op_kind::LayerNorm) {
+                    bind_memory_for_layernorm(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_sum) {
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_binary) {

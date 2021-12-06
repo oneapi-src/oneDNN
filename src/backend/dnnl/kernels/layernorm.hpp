@@ -17,239 +17,137 @@
 #ifndef BACKEND_DNNL_KERNELS_LAYERNORM_HPP
 #define BACKEND_DNNL_KERNELS_LAYERNORM_HPP
 
+#include <algorithm>
+#include <memory>
+#include <set>
+#include <string>
+#include <utility>
 #include <vector>
-#include <unordered_map>
 
-#include "backend/dnnl/tensor.hpp"
+#include "backend/dnnl/common.hpp"
+#include "backend/dnnl/constant_cache.hpp"
+#include "backend/dnnl/dnnl_partition_impl.hpp"
+#include "backend/dnnl/passes/compile_ops.hpp"
+#include "backend/dnnl/passes/constant_propagation.hpp"
+#include "backend/dnnl/passes/infer_type.hpp"
+#include "backend/dnnl/passes/insert_ops.hpp"
+#include "backend/dnnl/passes/layout_propagation.hpp"
+#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/passes/op_executable.hpp"
+#include "backend/dnnl/scratchpad.hpp"
+#include "backend/dnnl/thread_local_cache.hpp"
+#include "backend/dnnl/utils.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-namespace layernorm {
-enum layernorm_inputs { kSrc, kScale, kShift };
-enum layernorm_outputs { kDst, kMean, kVariance };
-} // namespace layernorm
-
-struct layer_normalization_forward : public dnnl::layer_normalization_forward,
-                                     public kernel_base_t {
-    using super = dnnl::layer_normalization_forward;
-
+struct layernorm_fwd_t : public kernel_base_t {
 private:
-    primitive_desc pd_;
-    dnnl::layer_normalization_forward prim_;
-    float epsilon_ = 0.00001f;
-    //todo(jihui):need to support begin_norm_axis_
-    int64_t begin_norm_axis_ = -1;
-    bool use_affine_ = true;
-    bool keep_stats_ = true;
-
     dnnl::engine p_engine_;
+    impl::allocator_t *g_alloc_;
+
+    std::shared_ptr<subgraph_t> subgraph_;
+    memory_planner_t memory_planner_;
+
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
-    void compute(dnnl_tensor_t &scale, dnnl_tensor_t &shift,
-            impl::allocator_t *alc, const dnnl::stream &p_stream,
-            const dnnl_tensor_t &expected_src,
-            const dnnl_tensor_t &expected_dst,
-            const dnnl_tensor_t &expected_mean,
-            const dnnl_tensor_t &expected_variance) const {
-        dnnl_tensor_t scale_shift;
-
-        if (use_affine_) {
-            if (scale_shift.is_empty()) {
-                scale_shift
-                        = dnnl_tensor_t {pd_.weights_desc(), p_engine_, alc};
-            }
-
-            auto *scale_shift_buf
-                    = static_cast<char *>(scale_shift.get_data_handle());
-            if (p_engine_.get_kind() == dnnl::engine::kind::cpu) {
-#if DNNL_GRAPH_CPU_SYCL
-                cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-                q.memcpy(scale_shift_buf, scale.get_data_handle(),
-                        scale.get_size());
-                q.memcpy(scale_shift_buf + scale.get_size(),
-                        shift.get_data_handle(), shift.get_size());
-#else
-                std::memcpy(scale_shift_buf, scale.get_data_handle(),
-                        scale.get_size());
-                std::memcpy(scale_shift_buf + scale.get_size(),
-                        shift.get_data_handle(), shift.get_size());
-#endif
-            } else {
-#if DNNL_GRAPH_GPU_SYCL
-                cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-                q.memcpy(scale_shift_buf, scale.get_data_handle(),
-                        scale.get_size());
-                q.memcpy(scale_shift_buf + scale.get_size(),
-                        shift.get_data_handle(), shift.get_size());
-#else
-                std::memcpy(scale_shift_buf, scale.get_data_handle(),
-                        scale.get_size());
-                std::memcpy(scale_shift_buf + scale.get_size(),
-                        shift.get_data_handle(), shift.get_size());
-#endif
-            }
-        }
-
-        exec_args ln_args;
-
-        ln_args.insert({DNNL_ARG_SRC, expected_src});
-        ln_args.insert({DNNL_ARG_DST, expected_dst});
-        if (use_affine_) ln_args.insert({DNNL_ARG_SCALE_SHIFT, scale_shift});
-        if (keep_stats_) {
-            ln_args.insert({DNNL_ARG_MEAN, expected_mean});
-            ln_args.insert({DNNL_ARG_VARIANCE, expected_variance});
-        }
-
-        prim_.execute(p_stream, ln_args);
+    ~layernorm_fwd_t() override {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
 
-    impl::status_t compile_impl(const impl::op_t *op,
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = dnnl_tensor_t::desc_t;
-        // prepare the inputs and outputs' tensors' descs
-        const desc src {inputs.at(layernorm::kSrc)};
-        const desc dst {outputs.at(layernorm::kDst)};
-
-        if (op->has_attr("epsilon")) epsilon_ = op->get_attr<float>("epsilon");
-        if (op->has_attr("begin_norm_axis"))
-            begin_norm_axis_ = op->get_attr<int64_t>("begin_norm_axis");
-        if (op->has_attr("keep_stats"))
-            keep_stats_ = op->get_attr<bool>("keep_stats");
-        if (op->has_attr("use_affine"))
-            use_affine_ = op->get_attr<bool>("use_affine");
-
         p_engine_ = make_dnnl_engine(*g_engine);
-        normalization_flag flags = normalization_flag::none;
+        g_alloc_ = g_engine->get_allocator();
 
-        if (use_affine_) flags = normalization_flag::use_scale_shift;
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
 
-        if (keep_stats_)
-            pd_ = primitive_desc(
-                    {prop_kind::forward_training, src, epsilon_, flags},
-                    p_engine_);
-        else
-            pd_ = primitive_desc(
-                    {prop_kind::forward_inference, src, epsilon_, flags},
-                    p_engine_);
-        prim_ = super(pd_);
-        const dnnl_tensor_t::desc_t optimal_dst_desc {pd_.dst_desc()};
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
 
-        impl::logical_tensor_t *ori_dst_lt
-                = const_cast<impl::logical_tensor_t *>(
-                        &outputs.at(layernorm::kDst));
-        fill_layout_info(ori_dst_lt, optimal_dst_desc);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
-        if (keep_stats_) {
-            if (outputs.size() < 3) {
-                BACKEND_DNNL_ENFORCE(
-                        0, "Wrong output number for layernorm compile");
-            }
-            const dnnl_tensor_t::desc_t optimal_mean_desc {pd_.mean_desc()};
-            impl::logical_tensor_t *ori_mean_lt
-                    = const_cast<impl::logical_tensor_t *>(
-                            &outputs.at(layernorm::kMean));
-            fill_layout_info(ori_mean_lt, optimal_mean_desc);
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
-            const dnnl_tensor_t::desc_t optimal_var_desc {pd_.variance_desc()};
-            impl::logical_tensor_t *ori_var_lt
-                    = const_cast<impl::logical_tensor_t *>(
-                            &outputs.at(layernorm::kVariance));
-            fill_layout_info(ori_var_lt, optimal_var_desc);
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
+
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
+
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
         }
-        return impl::status::success;
+
+        resource_ctor_ = [this]() {
+            return this->memory_planner_.get_exec_args_set().clone();
+        };
+
+        return status::success;
     }
 
-    impl::status_t execute_impl(const impl::op_t *op,
+    impl::status_t execute_impl(const dnnl_partition_impl_t *part,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(op);
+        UNUSED(part);
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        dnnl_tensor_t expected_src, expected_dst;
-        dnnl_tensor_t expected_mean, expected_variance;
+        // each thread's own local resource
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
 
-        dnnl_tensor_t src {inputs.at(layernorm::kSrc), p_engine_, alc};
-        if (src.get_desc() != pd_.src_desc()) {
-            if (expected_src.is_empty()) {
-                expected_src = dnnl_tensor_t {pd_.src_desc(), p_engine_, alc};
-            }
-            src.reorder_to(p_stream, expected_src);
-        } else {
-            expected_src = src;
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
+        }
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
         }
 
-        dnnl_tensor_t scale;
-        dnnl_tensor_t shift;
-        if (use_affine_) {
-            if (inputs.size() < 3) {
-                BACKEND_DNNL_ENFORCE(
-                        0, "Wrong input number for layernorm execute");
-            }
-            scale = dnnl_tensor_t {
-                    inputs.at(layernorm::kScale), p_engine_, alc};
-            shift = dnnl_tensor_t {
-                    inputs.at(layernorm::kShift), p_engine_, alc};
-        }
-        dnnl_tensor_t dst {outputs.at(layernorm::kDst), p_engine_, alc};
-        dnnl_tensor_t mean;
-        dnnl_tensor_t variance;
-        if (dst.get_desc() != pd_.dst_desc()) {
-            if (expected_dst.is_empty()) {
-                expected_dst = dnnl_tensor_t {pd_.dst_desc(), p_engine_, alc};
-            }
-        } else
-            expected_dst = dst;
+        temporary_scratchpad_t scratchpad(
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
 
-        if (keep_stats_) {
-            if (outputs.size() < 3) {
-                BACKEND_DNNL_ENFORCE(
-                        0, "Wrong output number for layernorm execute");
-            }
-            mean = dnnl_tensor_t {outputs.at(layernorm::kMean), p_engine_, alc};
-            variance = dnnl_tensor_t {
-                    outputs.at(layernorm::kVariance), p_engine_, alc};
-
-            if (mean.get_desc() != pd_.mean_desc()) {
-                if (expected_mean.is_empty()) {
-                    expected_mean
-                            = dnnl_tensor_t {pd_.dst_desc(), p_engine_, alc};
-                }
-            } else
-                expected_mean = mean;
-
-            if (variance.get_desc() != pd_.variance_desc()) {
-                if (expected_variance.is_empty()) {
-                    expected_variance
-                            = dnnl_tensor_t {pd_.dst_desc(), p_engine_, alc};
-                }
-            } else
-                expected_variance = variance;
+        registry_t::key_t key = 0;
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
         }
 
-        compute(scale, shift, alc, p_stream, expected_src, expected_dst,
-                expected_mean, expected_variance);
-
-        if (expected_dst != dst) expected_dst.reorder_to(p_stream, dst);
-
-        if (keep_stats_) {
-            if (expected_mean != mean) expected_mean.reorder_to(p_stream, mean);
-            if (expected_variance != variance)
-                expected_variance.reorder_to(p_stream, variance);
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
-        return impl::status::success;
+
+        return status::success;
     }
-}; // namespace dnnl_impl
-
-struct layer_normalization_backward_t
-    : public dnnl::layer_normalization_backward {
-    static void compute() {}
 };
 
 } // namespace dnnl_impl

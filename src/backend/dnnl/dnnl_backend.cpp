@@ -220,7 +220,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::LogSoftmaxBackprop, logsoftmax_backward)
 
     // layernorm kernel
-    DNNL_REGISTER_KERNEL(impl::op_kind::LayerNorm, layer_normalization_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::LayerNorm, layernorm_fwd_t)
 
     //interpolate kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::Interpolate, resampling_forward)
