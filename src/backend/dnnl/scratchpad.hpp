@@ -80,6 +80,9 @@ public:
 
     // book a piece of memory according to the size and alignment
     void book(const key_t &key, size_t size, size_t alignment) {
+        // If the piece is booked, skip it
+        if (offset_map_.count(key)) return;
+
         if (size_ % alignment != 0) {
             size_ = ((size_ / alignment) + 1) * alignment;
         }

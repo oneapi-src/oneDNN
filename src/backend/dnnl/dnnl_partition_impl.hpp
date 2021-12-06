@@ -412,7 +412,10 @@ public:
                 // softmax
                 impl::op_kind::SoftMax, impl::op_kind::LogSoftmax,
                 // concat
-                impl::op_kind::Concat};
+                impl::op_kind::Concat,
+                // single partition multi primitives
+                op_kind::conv_simple_resblock, op_kind::int8_MHA,
+                op_kind::f32_MHA, op_kind::chained_relu};
 
         // compile will transform the subgraph in partition, so we make
         // a copy

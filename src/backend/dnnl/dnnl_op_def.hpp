@@ -2792,6 +2792,26 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_eltwise, 1,
+        op_schema_t()
+                // dnnl_eltwise can fuse dnnl_binary, so its input number is
+                // variadic
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>(
+                        {1, std::numeric_limits<size_t>::max()}))
+                .set_num_outputs(1)
+                .set_attr("alg_kind",
+                        "specifies algorithm kind, can be one of "
+                        "relu/tanh/sigmoid/elu/gelu/...",
+                        true, attribute_kind::i)
+                .set_attr("alpha",
+                        "alpha, whose meaning is depended on the alg_kind",
+                        false, attribute_kind::f, 0.f)
+                .set_attr("beta",
+                        "beta, whose meaning is depended on the alg_kind",
+                        false, attribute_kind::f, 0.f)
+                .set_shape_inference_function(infer_identity_output_shape))
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

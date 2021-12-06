@@ -85,7 +85,8 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
                     || op->get_kind() == impl::op_kind::StaticReshape
                     || op->get_kind() == op_kind::dnnl_binary
                     || op->get_kind() == impl::op_kind::SoftMax
-                    || op->get_kind() == impl::op_kind::LogSoftmax) {
+                    || op->get_kind() == impl::op_kind::LogSoftmax
+                    || op->get_kind() == impl::op_kind::StaticTranspose) {
                 auto in_lt = op->get_input_value(0)->get_logical_tensor();
                 auto out_lt = op->get_output_value(0)->get_logical_tensor();
                 if (out_lt.data_type == impl::data_type::undef) {

@@ -197,6 +197,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, eltwise_canonicalization);
 
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
@@ -331,6 +332,7 @@ public:
         });
         pass_pipeline_t pipeline(vis);
 
+        BACKEND_DNNL_ADD_PASS(pipeline, eltwise_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, conv_bwd_data_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 

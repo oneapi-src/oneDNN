@@ -486,6 +486,39 @@ static void layout_propagation_for_reshape(op_ptr &op) {
     }
 }
 
+static void layout_propagation_for_transpose(
+        op_ptr &op, std::vector<op_ptr> &reorder_ops) {
+    std::shared_ptr<impl::value_t> src, dst;
+    src = op->get_input_value(0);
+    dst = op->get_output_value(0);
+    auto in_lt = src->get_logical_tensor();
+    auto out_lt = dst->get_logical_tensor();
+
+    assertm(!ltw(in_lt).is_any(), "transpose's src can't be any layout now");
+
+    // calculate the expected transposed layout by permuting the md
+    dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
+    auto order = op->get_attr<std::vector<int64_t>>("order");
+    std::vector<int> axes;
+    axes.reserve(order.size());
+    for (int64_t &x : order) {
+        axes.emplace_back(static_cast<int>(x));
+    }
+
+    dnnl::memory::desc expected_out_md = in_md.permute_axes(axes);
+    if (ltw(out_lt).is_any()) {
+        fill_layout_info(dst, expected_out_md);
+    } else {
+        // if the output layout is specified, we need to check if it's matched
+        // with the expected out layout. If not, we should insert a reorder op
+        // to convert the transposed layout to the specified one.
+        dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
+        if (expected_out_md != out_md) {
+            insert_reorder_after(op, 0, expected_out_md, reorder_ops);
+        }
+    }
+}
+
 static void layout_propagation_for_expand(op_ptr &op) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
@@ -846,7 +879,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm) {
                 layout_propagation_for_batchnorm(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
-            } else if (is_eltwise_kind(cur_op->get_kind())) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_eltwise) {
                 layout_propagation_for_eltwise(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == impl::op_kind::Concat) {
@@ -860,6 +893,8 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 layout_propagation_for_to_group(cur_op);
             } else if (cur_op->get_kind() == impl::op_kind::StaticReshape) {
                 layout_propagation_for_reshape(cur_op);
+            } else if (cur_op->get_kind() == impl::op_kind::StaticTranspose) {
+                layout_propagation_for_transpose(cur_op, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::expand) {
                 layout_propagation_for_expand(cur_op);
             } else if (cur_op->get_kind() == impl::op_kind::Reorder

@@ -1859,7 +1859,7 @@ TEST(Execute, AddRelu) {
 
     std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
     std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
-    p.compile(&cp, inputs, outputs, &eng);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     impl::logical_tensor_t compiled_dst_lt;
     cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
@@ -1922,7 +1922,7 @@ TEST(Execute, AddSigmoid) {
     impl::compiled_partition_t cp(p);
     std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
     std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
-    p.compile(&cp, inputs, outputs, &eng);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     impl::logical_tensor_t compiled_dst_lt;
     cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
@@ -1987,7 +1987,7 @@ TEST(Execute, BinaryOp) {
         std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
         std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
 
-        p.compile(&cp, inputs, outputs, &eng);
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
         impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
         impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
@@ -2047,7 +2047,7 @@ TEST(Execute, MulEltwise) {
         impl::compiled_partition_t cp(p);
         std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
         std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
-        p.compile(&cp, inputs, outputs, &eng);
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
         impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
         impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
@@ -14340,6 +14340,12 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
     impl::stream_t &strm = get_stream();
 
     if (engine.kind() == impl::engine_kind::gpu) return;
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core
+                    && engine.kind() == impl::engine_kind::cpu,
+            "Skip bf16 examples for systems that do not support avx512_core.");
+
     std::vector<std::string> dtypes = {"uint8", "int8"};
 
     std::vector<int64_t> src_shape = {8, 4, 16, 8};
@@ -15200,5 +15206,423 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
     impl::tensor_t bias_bf16_ts(bias_bf16, &engine, bias_data.data());
     impl::tensor_t dst_ts(dst_u8, &engine, dst_data.data());
     cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_bf16_ts}, {dst_ts});
+    strm.wait();
+}
+
+TEST(Execute, ConvResBlock) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    impl::op_t conv0(0, impl::op_kind::Convolution, "conv0");
+    impl::op_t relu0(1, impl::op_kind::ReLU, "relu0");
+    impl::op_t conv1(2, impl::op_kind::Convolution, "conv1");
+    impl::op_t relu1(3, impl::op_kind::ReLU, "relu1");
+    impl::op_t conv2(4, impl::op_kind::Convolution, "conv2");
+    impl::op_t relu2(5, impl::op_kind::ReLU, "relu2");
+    impl::op_t add(6, impl::op_kind::Add, "add");
+
+    std::vector<int64_t> v_1_1 = {1, 1}, v_0_0 = {0, 0};
+    utils::set_conv_common_attr(
+            conv0, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+    utils::set_conv_common_attr(
+            conv1, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+    utils::set_conv_common_attr(
+            conv2, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+
+    // prepare logical tensor
+    std::vector<impl::dim_t> src_shape = {8, 8, 32, 32};
+    std::vector<impl::dim_t> wei_shape = {8, 8, 1, 1};
+    impl::data_type_t dtype = impl::data_type::f32;
+    auto conv0_src = utils::logical_tensor_init(0, src_shape, dtype);
+    auto conv0_wei = utils::logical_tensor_init(1, wei_shape, dtype);
+    auto relu0_src = utils::logical_tensor_init(2, src_shape, dtype);
+    auto conv1_src = utils::logical_tensor_init(3, src_shape, dtype);
+    auto conv1_wei = utils::logical_tensor_init(4, wei_shape, dtype);
+    auto relu1_src = utils::logical_tensor_init(5, src_shape, dtype);
+    auto conv2_src = utils::logical_tensor_init(6, src_shape, dtype);
+    auto conv2_wei = utils::logical_tensor_init(7, wei_shape, dtype);
+    auto add_src0 = utils::logical_tensor_init(8, src_shape, dtype);
+    auto relu2_src = utils::logical_tensor_init(9, src_shape, dtype);
+    auto relu2_dst = utils::logical_tensor_init(10, src_shape, dtype);
+
+    conv0.add_input(conv0_src);
+    conv0.add_input(conv0_wei);
+    conv0.add_output(relu0_src);
+    relu0.add_input(relu0_src);
+    relu0.add_output(conv1_src);
+    conv1.add_input(conv1_src);
+    conv1.add_input(conv1_wei);
+    conv1.add_output(relu1_src);
+    relu1.add_input(relu1_src);
+    relu1.add_output(conv2_src);
+    conv2.add_input(conv2_src);
+    conv2.add_input(conv2_wei);
+    conv2.add_output(add_src0);
+    add.add_input(add_src0);
+    add.add_input(conv1_src);
+    add.add_output(relu2_src);
+    relu2.add_input(relu2_src);
+    relu2.add_output(relu2_dst);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&conv0);
+    g.add_op(&relu0);
+    g.add_op(&conv1);
+    g.add_op(&relu1);
+    g.add_op(&conv2);
+    g.add_op(&add);
+    g.add_op(&relu2);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 7);
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_simple_resblock_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &conv0_src, &conv0_wei, &conv1_wei, &conv2_wei};
+    std::vector<const impl::logical_tensor_t *> outputs {&relu2_dst};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    test::vector<float> conv0_src_data(8 * 8 * 32 * 32);
+    test::vector<float> conv0_wei_data(8 * 8 * 1 * 1);
+    test::vector<float> conv1_wei_data(8 * 8 * 1 * 1);
+    test::vector<float> conv2_wei_data(8 * 8 * 1 * 1);
+    test::vector<float> relu2_dst_data(8 * 8 * 32 * 32);
+    test::vector<float> ref_dst_data(8 * 8 * 32 * 32);
+
+    // Initialize
+    std::default_random_engine generator;
+    std::normal_distribution<float> distribution(0.0f, 0.1f);
+
+    std::generate(conv0_src_data.begin(), conv0_src_data.end(),
+            [&]() { return distribution(generator); });
+    std::generate(conv0_wei_data.begin(), conv0_wei_data.end(),
+            [&]() { return distribution(generator); });
+    std::generate(conv1_wei_data.begin(), conv1_wei_data.end(),
+            [&]() { return distribution(generator); });
+    std::generate(conv2_wei_data.begin(), conv2_wei_data.end(),
+            [&]() { return distribution(generator); });
+
+    impl::tensor_t conv0_src_ts(conv0_src, &eng, conv0_src_data.data());
+    impl::tensor_t conv0_wei_ts(conv0_wei, &eng, conv0_wei_data.data());
+    impl::tensor_t conv1_wei_ts(conv1_wei, &eng, conv1_wei_data.data());
+    impl::tensor_t conv2_wei_ts(conv2_wei, &eng, conv2_wei_data.data());
+    impl::tensor_t relu2_dst_ts(relu2_dst, &eng, relu2_dst_data.data());
+    impl::tensor_t ref_dst_ts(relu2_dst, &eng, ref_dst_data.data());
+
+    ASSERT_EQ(cp.execute(&strm,
+                      {conv0_src_ts, conv0_wei_ts, conv1_wei_ts, conv2_wei_ts},
+                      {relu2_dst_ts}),
+            impl::status::success);
+    strm.wait();
+}
+
+TEST(Execute, Int8Mha) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    impl::graph_t g(eng.kind());
+    utils::construct_int8_MHA(&g);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 21);
+
+    impl::pass::pass_base_ptr apass = get_pass("int8_MHA_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 5);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : partition_inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : partition_outputs) {
+        outputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        outputs_ts.emplace_back(lt, &eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    strm.wait();
+}
+
+TEST(Execute, F32Mha) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    impl::graph_t g(eng.kind());
+    utils::construct_f32_MHA(&g);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 13);
+
+    impl::pass::pass_base_ptr apass = get_pass("f32_MHA_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 5);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : partition_inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : partition_outputs) {
+        outputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        outputs_ts.emplace_back(lt, &eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    strm.wait();
+}
+
+TEST(Execute, Int8Bf16Mha) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    if (eng.kind() == impl::engine_kind::gpu) return;
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core
+                    && eng.kind() == impl::engine_kind::cpu,
+            "Skip bf16 examples for systems that do not support avx512_core.");
+
+    impl::graph_t g(eng.kind());
+    utils::construct_int8_bf16_MHA(&g);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 29);
+
+    impl::pass::pass_base_ptr apass = get_pass("int8_bf16_MHA_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 5);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<uint16_t>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : partition_inputs) {
+        inputs_data.emplace_back(
+                test::vector<uint16_t>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : partition_outputs) {
+        outputs_data.emplace_back(
+                test::vector<uint16_t>(utils::product(ltw(lt).vdims())));
+        outputs_ts.emplace_back(lt, &eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    strm.wait();
+}
+
+TEST(Execute, ChainedReLU) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    impl::graph_t g(eng.kind());
+    utils::construct_chained_relu(&g);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 10);
+
+    impl::pass::pass_base_ptr apass = get_pass("chained_relu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 1);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : partition_inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : partition_outputs) {
+        outputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        outputs_ts.emplace_back(lt, &eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    strm.wait();
+}
+
+TEST(Execute, Int8ConvBlock) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    impl::graph_t g(eng.kind());
+    utils::construct_int8_conv_block(&g);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 10);
+
+    impl::pass::pass_base_ptr apass
+            = get_pass("int8_conv_bias_relu_conv_bias_relu_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 5);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : partition_inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : partition_outputs) {
+        outputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        outputs_ts.emplace_back(lt, &eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
     strm.wait();
 }

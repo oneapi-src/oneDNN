@@ -2401,6 +2401,280 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_add_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_MHA_fusion)
+        .set_priority(5.0f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto query_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "query_reshape");
+                    auto query_transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, query_reshape, 0)},
+                                    "query_transpose");
+                    auto quantize_query
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, query_transpose, 0)},
+                                    "quantize_query");
+                    auto dequantize_query
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quantize_query, 0)},
+                                    "dequantize_query");
+
+                    auto key_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "key_reshape");
+                    auto key_transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, key_reshape, 0)},
+                                    "key_transpose");
+                    auto key_transpose2
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, key_transpose, 0)},
+                                    "key_transpose2");
+                    auto quantize_key
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, key_transpose2, 0)},
+                                    "quantize_key");
+                    auto dequantize_key
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quantize_key, 0)},
+                                    "dequantize_key");
+                    auto matmul_qk = pgraph->append_op(impl::op_kind::MatMul,
+                            in_edges_t {in_edge(0, dequantize_query, 0),
+                                    in_edge(1, dequantize_key, 0)},
+                            "matmul_qk");
+
+                    auto fscore_scale = pgraph->append_op(impl::op_kind::Divide,
+                            in_edges_t {in_edge(0, matmul_qk, 0)},
+                            "fscore_scale");
+                    auto fscore_add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, fscore_scale, 0)},
+                            "fscore_add");
+                    fscore_add->set_commutative_pair({0, 1});
+                    auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
+                            in_edges_t {in_edge(0, fscore_add, 0)}, "softmax");
+                    auto quantize_softmax
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, softmax, 0)},
+                                    "quantize_softmax");
+                    auto dequantize_softmax = pgraph->append_op(
+                            impl::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, quantize_softmax, 0)},
+                            "dequantize_softmax");
+
+                    auto value_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "value_reshape");
+                    auto value_transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, value_reshape, 0)},
+                                    "value_transpose");
+                    auto quantize_value
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, value_transpose, 0)},
+                                    "quantize_value");
+                    auto dequantize_value
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quantize_value, 0)},
+                                    "dequantize_value");
+                    auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
+                            in_edges_t {in_edge(0, dequantize_softmax, 0),
+                                    in_edge(1, dequantize_value, 0)},
+                            "matmul_v");
+                    auto transpose_output
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, matmul_v, 0)},
+                                    "transpose_output");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_MHA);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_MHA_fusion)
+        .set_priority(5.0f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto query_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "query_reshape");
+                    auto query_transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, query_reshape, 0)},
+                                    "query_transpose");
+
+                    auto key_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "key_reshape");
+                    auto key_transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, key_reshape, 0)},
+                                    "key_transpose");
+                    auto key_transpose2
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, key_transpose, 0)},
+                                    "key_transpose2");
+                    auto matmul_qk = pgraph->append_op(impl::op_kind::MatMul,
+                            in_edges_t {in_edge(0, query_transpose, 0),
+                                    in_edge(1, key_transpose2, 0)},
+                            "matmul_qk");
+
+                    auto fscore_scale = pgraph->append_op(impl::op_kind::Divide,
+                            in_edges_t {in_edge(0, matmul_qk, 0)},
+                            "fscore_scale");
+                    auto fscore_add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, fscore_scale, 0)},
+                            "fscore_add");
+                    fscore_add->set_commutative_pair({0, 1});
+                    auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
+                            in_edges_t {in_edge(0, fscore_add, 0)}, "softmax");
+
+                    auto value_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "value_reshape");
+                    auto value_transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, value_reshape, 0)},
+                                    "value_transpose");
+
+                    auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
+                            in_edges_t {in_edge(0, softmax, 0),
+                                    in_edge(1, value_transpose, 0)},
+                            "matmul_v");
+                    auto transpose_output
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, matmul_v, 0)},
+                                    "transpose_output");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::f32_MHA);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_bf16_MHA_fusion)
+        .set_priority(5.0f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto query_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "query_reshape");
+                    auto query_transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, query_reshape, 0)},
+                                    "query_transpose");
+                    auto bf16_to_f32_query
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, query_transpose, 0)},
+                                    "bf16_to_f32_query");
+                    auto quantize_query = pgraph->append_op(
+                            impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, bf16_to_f32_query, 0)},
+                            "quantize_query");
+                    auto dequantize_query
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quantize_query, 0)},
+                                    "dequantize_query");
+                    auto f32_to_bf16_query = pgraph->append_op(
+                            impl::op_kind::TypeCast,
+                            in_edges_t {in_edge(0, dequantize_query, 0)},
+                            "f32_to_bf16_query");
+
+                    auto key_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "key_reshape");
+                    auto key_transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, key_reshape, 0)},
+                                    "key_transpose");
+                    auto key_transpose2
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, key_transpose, 0)},
+                                    "key_transpose2");
+                    auto bf16_to_f32_key
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, key_transpose2, 0)},
+                                    "bf16_to_f32_key");
+                    auto quantize_key
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, bf16_to_f32_key, 0)},
+                                    "quantize_key");
+                    auto dequantize_key
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quantize_key, 0)},
+                                    "dequantize_key");
+                    auto f32_to_bf16_key
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequantize_key, 0)},
+                                    "f32_to_bf16_key");
+                    auto matmul_qk = pgraph->append_op(impl::op_kind::MatMul,
+                            in_edges_t {in_edge(0, f32_to_bf16_query, 0),
+                                    in_edge(1, f32_to_bf16_key, 0)},
+                            "matmul_qk");
+
+                    auto fscore_scale = pgraph->append_op(impl::op_kind::Divide,
+                            in_edges_t {in_edge(0, matmul_qk, 0)},
+                            "fscore_scale");
+                    auto fscore_add = pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, fscore_scale, 0)},
+                            "fscore_add");
+                    fscore_add->set_commutative_pair({0, 1});
+                    auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
+                            in_edges_t {in_edge(0, fscore_add, 0)}, "softmax");
+                    auto bf16_to_f32_softmax
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, softmax, 0)},
+                                    "bf16_to_f32_softmax");
+                    auto quantize_softmax = pgraph->append_op(
+                            impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, bf16_to_f32_softmax, 0)},
+                            "quantize_softmax");
+                    auto dequantize_softmax = pgraph->append_op(
+                            impl::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, quantize_softmax, 0)},
+                            "dequantize_softmax");
+                    auto f32_to_bf16_softmax = pgraph->append_op(
+                            impl::op_kind::TypeCast,
+                            in_edges_t {in_edge(0, dequantize_softmax, 0)},
+                            "f32_to_bf16_softmax");
+
+                    auto value_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "value_reshape");
+                    auto value_transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, value_reshape, 0)},
+                                    "value_transpose");
+                    auto bf16_to_f32_value
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, value_transpose, 0)},
+                                    "bf16_to_f32_value");
+                    auto quantize_value = pgraph->append_op(
+                            impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, bf16_to_f32_value, 0)},
+                            "quantize_value");
+                    auto dequantize_value
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quantize_value, 0)},
+                                    "dequantize_value");
+                    auto f32_to_bf16_value = pgraph->append_op(
+                            impl::op_kind::TypeCast,
+                            in_edges_t {in_edge(0, dequantize_value, 0)},
+                            "f32_to_bf16_value");
+                    auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
+                            in_edges_t {in_edge(0, f32_to_bf16_softmax, 0),
+                                    in_edge(1, f32_to_bf16_value, 0)},
+                            "matmul_v");
+                    auto transpose_output
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, matmul_v, 0)},
+                                    "transpose_output");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_MHA);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass

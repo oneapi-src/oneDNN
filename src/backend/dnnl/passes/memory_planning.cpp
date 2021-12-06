@@ -661,7 +661,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                             op, p_engine, prm_attr_mgr, true, is_training);
                 } else if (op->get_kind() == impl::op_kind::Concat) {
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
-                } else if (is_eltwise_kind(op->get_kind())
+                } else if (op->get_kind() == op_kind::dnnl_eltwise
                         || op->get_kind() == impl::op_kind::Reorder
                         || op->get_kind() == op_kind::mul_scales
                         || op->get_kind() == op_kind::permute
@@ -669,7 +669,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::expand
                         || op->get_kind() == op_kind::squeeze
                         || op->get_kind() == op_kind::dnnl_u8_to_s8
-                        || op->get_kind() == impl::op_kind::StaticReshape) {
+                        || op->get_kind() == impl::op_kind::StaticReshape
+                        || op->get_kind() == impl::op_kind::StaticTranspose) {
                     prepare_args_for_siso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
                     bind_memory_for_bn_folding(op, p_engine);

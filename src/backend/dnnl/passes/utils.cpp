@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "interface/shape_infer.hpp"
 #include "interface/value.hpp"
@@ -535,6 +536,106 @@ bool binary_doable(
         if (!match) return false;
     }
     return true;
+}
+
+static bool post_binary_fusible_impl(const std::vector<dim_t> &fused_shape,
+        const std::vector<dim_t> &other_shape, const std::string &data_fmt) {
+    assertm(fused_shape.size() == other_shape.size(),
+            "must have same ndims, pls run binary_canonicalization pass first");
+    // full tensor and per tensor broadcasted
+    if (fused_shape == other_shape
+            || std::all_of(other_shape.begin(), other_shape.end(),
+                    [](dim_t i) { return i == 1; }))
+        return true;
+
+    // per channel broadcasted
+    int32_t output_ndims = static_cast<int32_t>(fused_shape.size());
+    int32_t c_axis = data_fmt == "NXC" ? output_ndims - 1 : 1;
+    for (int32_t i = output_ndims - 1; i >= 0; i--) {
+        if (other_shape[i] == 1) continue;
+        if (i != c_axis || fused_shape[i] != other_shape[i]) { return false; }
+    }
+    return true;
+}
+
+bool post_binary_fusible(const impl::op_t *base_op, const impl::op_t *bin_op) {
+    std::string data_fmt = base_op->has_attr("data_format")
+            ? base_op->get_attr<std::string>("data_format")
+            : "NCX";
+    auto fused_out = base_op->get_output_values()[0];
+    auto consumers = fused_out->get_consumers();
+    if (consumers.size() != 1) return false;
+
+    size_t fused_in_off = consumers[0].get_offset();
+    auto fused_in = bin_op->get_input_value(fused_in_off)->get_logical_tensor();
+    auto other_in
+            = bin_op->get_input_value(1 - fused_in_off)->get_logical_tensor();
+    return post_binary_fusible_impl(
+            ltw(fused_in).vdims(), ltw(other_in).vdims(), data_fmt);
+}
+
+bool post_depthwise_conv_fusible(const impl::op_t *conv_op) {
+    if (!conv_op->has_attr("groups")) return false;
+    if (conv_op->has_attr("auto_pad")
+            && conv_op->get_attr<std::string>("auto_pad") != "None")
+        return false;
+    const auto strides = conv_op->get_attr<dims>("strides");
+    const auto pads_begin = conv_op->get_attr<dims>("pads_begin");
+    const auto pads_end = conv_op->get_attr<dims>("pads_end");
+    const int32_t attrs_size = 2;
+    for (int32_t i = 0; i < attrs_size; ++i) {
+        if ((strides[i] != 1 && strides[i] != 2) || pads_begin[i] != 1
+                || pads_end[i] != 1)
+            return false;
+    }
+    const size_t wei_offset = 1;
+    const logical_tensor_t wei_port
+            = conv_op->get_input_value(wei_offset)->get_logical_tensor();
+    if (wei_port.ndims != 4) return false;
+    const auto groups = conv_op->get_attr<int64_t>("groups");
+    const std::string wei_format = (conv_op->has_attr("filter_format"))
+            ? conv_op->get_attr<std::string>("filter_format")
+            : "XIO";
+    const size_t oc_offset = (wei_format == "OIX") ? 0 : wei_port.ndims - 1;
+    const size_t ic_offset = (wei_format == "OIX") ? 1 : wei_port.ndims - 2;
+    const auto oc = wei_port.dims[oc_offset];
+    const auto ic_over_g = wei_port.dims[ic_offset];
+    if (groups == oc && oc == groups * ic_over_g) return true;
+    return false;
+}
+
+const std::unordered_map<impl::op_kind_t, std::unordered_set<impl::op_kind_t>> &
+get_post_ops_fusible_map() {
+    using namespace impl::op_kind;
+    using namespace dnnl_impl::op_kind;
+    static const std::unordered_map<impl::op_kind_t,
+            std::unordered_set<impl::op_kind_t>>
+            fusible_map = {
+                    // conv
+                    {Convolution,
+                            {dnnl_eltwise, dnnl_binary, Convolution,
+                                    dnnl_convolution}},
+                    {dnnl_convolution,
+                            {dnnl_eltwise, dnnl_binary, Convolution,
+                                    dnnl_convolution}},
+                    // deconv
+                    {ConvTranspose, {dnnl_eltwise, dnnl_binary}},
+                    {dnnl_convtranspose, {dnnl_eltwise, dnnl_binary}},
+                    // matmul
+                    {MatMul, {dnnl_eltwise, dnnl_binary}},
+                    // pool
+                    {AvgPool, {dnnl_binary}},
+                    {MaxPool, {dnnl_binary}},
+                    {dnnl_pool, {dnnl_binary}},
+                    // eltwise
+                    {dnnl_eltwise, {dnnl_binary}},
+                    // binary
+                    {dnnl_binary, {dnnl_eltwise, dnnl_binary}},
+                    // bn
+                    {dnnl_batchnorm, {dnnl_eltwise}},
+                    {BatchNormInference, {dnnl_eltwise}},
+            };
+    return fusible_map;
 }
 
 } // namespace dnnl_impl
