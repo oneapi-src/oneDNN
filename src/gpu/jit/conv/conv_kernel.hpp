@@ -199,7 +199,6 @@ inline ngen::Subregister get_subregister(const ngen::RegData &rd) {
 enum class ngen_operand_kind_t {
     invalid,
     immediate,
-    reg_data,
     reg_buf_data,
     flag_register
 };
@@ -214,11 +213,6 @@ public:
         : kind_(ngen_operand_kind_t::flag_register)
         , ptr_(new ngen::FlagRegister(flag),
                   destroy<ngen_operand_kind_t::flag_register>) {}
-
-    ngen_operand_t(const ngen::RegData &reg_data)
-        : kind_(ngen_operand_kind_t::reg_data)
-        , ptr_(new ngen::RegData(reg_data),
-                  destroy<ngen_operand_kind_t::reg_data>) {}
 
     ngen_operand_t(const reg_buf_data_t &reg_buf_data)
         : kind_(ngen_operand_kind_t::reg_buf_data)
@@ -241,19 +235,14 @@ public:
         return *(const ngen::Immediate *)ptr_.get();
     }
 
-    const ngen::RegData &reg_data() const {
-        ir_assert(is_reg_data());
-        return *(const ngen::RegData *)ptr_.get();
-    }
-
     const reg_buf_data_t &reg_buf_data() const {
         ir_assert(is_reg_buf_data());
         return *(const reg_buf_data_t *)ptr_.get();
     }
 
-    ngen_operand_t promote_reg_data() const {
-        if (!is_reg_buf_data()) return *this;
-        return ngen_operand_t(reg_buf_data().reg_data(), mod_);
+    ngen::RegData reg_data() const {
+        auto &rd = reg_buf_data().reg_data();
+        return is_negated_ ? -rd : rd;
     }
 
     const ngen::FlagRegister &flag_register() const {
@@ -275,29 +264,28 @@ public:
         return kind_ == ngen_operand_kind_t::immediate;
     }
 
-    bool is_reg_data() const { return kind_ == ngen_operand_kind_t::reg_data; }
+    bool is_reg_buf_data() const {
+        return kind_ == ngen_operand_kind_t::reg_buf_data;
+    }
+
+    bool is_reg_data() const { return is_reg_buf_data(); }
 
     bool is_flag_register() const {
         return kind_ == ngen_operand_kind_t::flag_register;
-    }
-
-    bool is_reg_buf_data() const {
-        return kind_ == ngen_operand_kind_t::reg_buf_data;
     }
 
     bool is_negated() const { return is_negated_; }
 
     ngen::DataType type() const {
         if (is_immediate()) return immediate().getType();
-        if (is_reg_data()) return reg_data().getType();
+        if (is_reg_buf_data()) return reg_buf_data().type();
         ir_error_not_expected();
         return ngen::DataType::invalid;
     }
 
     ngen_operand_t operator-() const {
-        if (is_immediate()) { return ngen_operand_t(ngen_negate(immediate())); }
-        if (is_reg_data()) { return ngen_operand_t(-reg_data()); }
-        if (is_flag_register()) {
+        if (is_immediate()) return ngen_operand_t(ngen_negate(immediate()));
+        if (is_reg_buf_data() || is_flag_register()) {
             auto ret = *this;
             ret.is_negated_ = !ret.is_negated_;
             return ret;
@@ -307,27 +295,18 @@ public:
     }
 
     ngen_operand_t reinterpret(const type_t &new_type) const {
-        ir_assert(is_reg_data());
         ir_assert(new_type.is_scalar());
-        auto sub = get_subregister(reg_data());
-        return ngen_operand_t(sub.reinterpret(0, to_ngen(new_type)), mod_);
+        return ngen_operand_t(
+                reg_buf_data().reinterpret(to_ngen(new_type)), mod_);
     }
 
     // Creates an operand with the requested register region based on the
     // existing region. off - offset in elements of the region data type.
-    ngen_operand_t sub_reg_data(ngen::HW hw, int off, int exec_size) const {
-        ir_assert(is_reg_data());
-        auto rd = reg_data();
-        int new_base = rd.getBase();
-        int new_off = rd.getByteOffset() + off * rd.getBytes() * rd.getHS();
-        int grf_size = ngen::GRF::bytes(hw);
-        new_base += (new_off / grf_size);
-        new_off = (new_off % grf_size);
-
-        rd.setBase(new_base);
-        rd.setOffset(new_off / rd.getBytes());
-        rd.setRegion(1, exec_size, rd.getHS());
-        rd.fixup(exec_size, ngen::DataType::invalid, false, 1);
+    ngen_operand_t sub_reg_data(int off, int exec_size) const {
+        int off_bytes = off * ngen::getBytes(reg_buf_data().type())
+                * reg_buf_data().hs();
+        auto rd = reg_buf_data().format(
+                off_bytes, ngen::DataType::invalid, exec_size);
         return ngen_operand_t(rd, exec_size);
     }
 
@@ -341,8 +320,6 @@ public:
                 return (this_imm.getType() == other_imm.getType())
                         && (uint64_t(this_imm) == uint64_t(other_imm));
             }
-            case ngen_operand_kind_t::reg_data:
-                return reg_data() == other.reg_data();
             case ngen_operand_kind_t::flag_register:
                 return flag_register() == other.flag_register();
             case ngen_operand_kind_t::reg_buf_data:
@@ -361,9 +338,6 @@ private:
             case ngen_operand_kind_t::immediate:
                 delete (ngen::Immediate *)ptr;
                 break;
-            case ngen_operand_kind_t::reg_data:
-                delete (ngen::RegData *)ptr;
-                break;
             case ngen_operand_kind_t::reg_buf_data:
                 delete (reg_buf_data_t *)ptr;
                 break;
@@ -378,9 +352,9 @@ private:
     std::shared_ptr<void> ptr_;
     ngen::InstructionModifier mod_;
 
-    // Whether the operand is negated. Applicable to flag registers only.
-    // Negation of register data and immediate operands is directly supported
-    // through nGEN API.
+    // Whether the operand is negated. Applicable to flag registers and
+    // register data operands only. Negation of immediate operands is directly
+    // supported through nGEN API.
     bool is_negated_ = false;
 };
 
@@ -406,6 +380,8 @@ public:
     }
 
     reg_allocator_t &register_allocator() { return *ra_; }
+
+    ngen::HW hw() const { return ra_->hardware(); }
 
     ~ngen_register_scope_t() {
         for (auto &r : grf_ranges_)
@@ -443,6 +419,23 @@ public:
         return alloc_reg_buf(regs, base_bundle);
     }
 
+    reg_buf_data_t alloc_reg_data(const type_t &type, int stride_bytes = -1,
+            ngen::Bundle bundle = ngen::Bundle()) {
+        if (type.is_scalar()) {
+            auto sub = alloc_sub(to_ngen(type), bundle);
+            return reg_buf_data_t(hw(), sub);
+        }
+
+        int type_size = type.scalar().size();
+        if (stride_bytes == -1) stride_bytes = type_size;
+        int grf_size = ngen::GRF::bytes(hw());
+        int regs = utils::div_up(type.elems() * stride_bytes, grf_size);
+        auto buf = alloc_reg_buf(regs, bundle);
+        reg_buf_data_t rbd(buf);
+        return rbd.format(0, to_ngen(type.scalar()), type.elems(),
+                stride_bytes / type_size);
+    }
+
     ngen::GRF alloc(ngen::Bundle bundle = ngen::Bundle()) {
         auto range = ra_->alloc_range(1, bundle);
         grf_ranges_.push_back(range);
@@ -453,24 +446,6 @@ public:
             ngen::DataType type, ngen::Bundle bundle = ngen::Bundle()) {
         auto ret = ra_->alloc_sub(type, bundle);
         subregisters_.push_back(ret);
-        return ret;
-    }
-
-    ngen::RegData alloc_reg_data(const type_t &type, int stride_bytes = -1,
-            ngen::Bundle bundle = ngen::Bundle()) {
-        if (type.is_scalar()) return alloc_sub(to_ngen(type), bundle);
-
-        if (stride_bytes == -1) stride_bytes = type.scalar().size();
-
-        ir_assert(stride_bytes > 0);
-        ir_assert(stride_bytes % type.scalar().size() == 0);
-
-        int grf_size = ngen::GRF::bytes(ra_->hardware());
-        int regs = utils::div_up(type.elems() * stride_bytes, grf_size);
-        auto sub = alloc_reg_buf_data(regs, bundle)
-                           .subregister(0, to_ngen(type.scalar()));
-        auto ret = sub(stride_bytes / type.scalar().size());
-        ret.fixup(type.elems(), ngen::DataType::invalid, false, 1);
         return ret;
     }
 
@@ -495,7 +470,7 @@ private:
 
 class expr_binding_t {
 public:
-    expr_binding_t() = default;
+    expr_binding_t(ngen::HW hw) : hw_(hw) {}
 
     ~expr_binding_t() {
         if (!cpp_compat::uncaught_exceptions()) {
@@ -539,6 +514,10 @@ public:
         return expr2operand_.at(expr);
     }
 
+    void bind(const expr_t &expr, const ngen::Subregister &sub) {
+        bind(expr, ngen_operand_t(reg_buf_data_t(hw_, sub)));
+    }
+
     void bind(const expr_t &expr, const ngen_operand_t &operand) {
         if (is_dst_bound(expr)) unbind_dst(expr);
 
@@ -553,8 +532,9 @@ public:
             ir_assert(expr.type().is_scalar() || esize == 1)
                     << "Expected broadcast.";
             // Can't bind scalar to vector, extract scalar and bind.
-            if (operand.is_reg_data() && esize != 1) {
-                op_to_bind = get_subregister(operand.reg_data());
+            if (operand.is_reg_buf_data() && esize != 1) {
+                op_to_bind = operand.reg_buf_data().format(
+                        0, ngen::DataType::invalid, 1);
             }
         }
 
@@ -571,6 +551,7 @@ public:
     }
 
 private:
+    ngen::HW hw_;
     object_map_t<expr_t, ngen_operand_t> expr2dst_;
     object_map_t<expr_t, ngen_operand_t> expr2operand_;
 };
@@ -765,9 +746,9 @@ public:
         setDefaultNoMask(false);
 
         for (int i = 0; i < mod.getExecSize(); i += width) {
-            fdiv_ieee(alt_mod, flag, dst.sub_reg_data(hw, i, width).reg_data(),
+            fdiv_ieee(alt_mod, flag, dst.sub_reg_data(i, width).reg_data(),
                     src0_tmp[i / width].f(),
-                    src1.sub_reg_data(hw, i, width).reg_data(), zero, one, tmp);
+                    src1.sub_reg_data(i, width).reg_data(), zero, one, tmp);
         }
 
         ra_.safeRelease(one);
@@ -2152,7 +2133,7 @@ public:
             // Split length into powers of two.
             while (length > 0) {
                 int exec_size = (1 << math::ilog2q(length));
-                auto chunk_op = dst_op.sub_reg_data(hw, off, exec_size);
+                auto chunk_op = dst_op.sub_reg_data(off, exec_size);
                 eval(obj.vec[idx], ngen_operand_t(chunk_op, exec_size));
                 length -= exec_size;
                 off += exec_size;
@@ -2167,9 +2148,9 @@ public:
             case op_kind_t::_mad: {
                 auto dst_op = alloc_dst_op(obj);
                 auto mod = dst_op.mod();
-                auto src0_op = eval(obj.a).promote_reg_data();
-                auto src1_op = eval(obj.b).promote_reg_data();
-                auto src2_op = eval(obj.c).promote_reg_data();
+                auto src0_op = eval(obj.a);
+                auto src1_op = eval(obj.b);
+                auto src2_op = eval(obj.c);
                 if (obj.op_kind == op_kind_t::_add3) {
                     host_->eadd3(mod, dst_op, src0_op, src1_op, src2_op);
                 } else {
@@ -2252,11 +2233,8 @@ private:
     }
 
     void ebinary(const binary_op_t &obj, const ngen::InstructionModifier &mod,
-            const ngen_operand_t &_dst, const ngen_operand_t &_src0,
-            const ngen_operand_t &_src1) {
-        auto dst = _dst.promote_reg_data();
-        auto src0 = _src0.promote_reg_data();
-        auto src1 = _src1.promote_reg_data();
+            const ngen_operand_t &dst, const ngen_operand_t &src0,
+            const ngen_operand_t &src1) {
         switch (obj.op_kind) {
             case op_kind_t::_add: host_->eadd(mod, dst, src0, src1); break;
             case op_kind_t::_sub: host_->eadd(mod, dst, src0, -src1); break;
@@ -2281,7 +2259,9 @@ private:
                 break;
             }
             case op_kind_t::_prelu: {
-                auto temp = scope_.alloc_range(mod.getExecSize())[0].f();
+                // FIXME
+                auto temp = scope_.alloc_reg_buf_data(mod.getExecSize())
+                                    .format(0, ngen::DataType::f);
                 host_->emul(mod, temp, dst, src1);
                 host_->csel(mod | host_->le, dst.reg_data(), temp,
                         dst.reg_data(), dst.reg_data());
@@ -3845,7 +3825,7 @@ public:
 
     void _visit(const for_t &obj) override {
         auto scope = register_scope();
-        auto var_op = scope.alloc_sub(to_ngen(obj.var.type()));
+        auto var_op = scope.alloc_reg_data(obj.var.type());
         auto init_op = eval(obj.init, scope);
         auto bound_op = eval(obj.bound, scope);
 
@@ -3987,7 +3967,7 @@ public:
         if (!mask_op.is_invalid()) mod |= mask_op.flag_register_mod();
         auto dst_rbd = buf_op.reg_buf_data().format(
                 off, to_ngen(type.scalar()), type.elems(), stride);
-        ngen_operand_t dst(dst_rbd.reg_data(), mod);
+        ngen_operand_t dst(dst_rbd, mod);
         eval(obj.value, scope, dst);
     }
 
@@ -4319,7 +4299,7 @@ private:
         // Emit send instruction.
         auto rd = send_maybe_make_dense_payload(scope, send_func, reg_buf_op);
         spec_impl.emit(host_, scope, mod, mem_buf_rd, surf_bti,
-                mem_off_op.reg_buf_data().reg_data(), rd);
+                mem_off_op.reg_data(), rd);
     }
 
     ngen::RegData send_maybe_make_dense_payload(ngen_register_scope_t &scope,
@@ -4471,7 +4451,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     barrierheader(signal_header_);
 
     // Bind "external" variables.
-    expr_binding_t expr_binding;
+    expr_binding_t expr_binding(hw);
 
     // Bind grid indices.
     int r0_sub_idxs[] = {1, 6, 7};

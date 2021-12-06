@@ -119,6 +119,11 @@ public:
         : reg_buf_(std::make_shared<reg_buf_t>(reg_buf))
         , rd_(ngen::GRF(reg_buf_->base(0))) {}
 
+    reg_buf_data_t(ngen::HW hw, const ngen::Subregister &sub)
+        : reg_buf_(std::make_shared<reg_buf_t>(
+                hw, ngen::GRFRange(sub.getBase(), 1)))
+        , rd_(sub) {}
+
     bool is_empty() const { return !reg_buf_; }
 
     ngen::HW hw() const { return reg_buf_->hw(); }
@@ -165,8 +170,19 @@ public:
         return (*reg_buf_ == *other.reg_buf_) && (rd_ == other.rd_);
     }
 
+    bool operator!=(const reg_buf_data_t &other) const {
+        return !operator==(other);
+    }
+
     reg_buf_data_t reinterpret(ngen::DataType new_type) const {
-        return format(0, new_type);
+        if (ngen::getBytes(new_type) == ngen::getBytes(type())) {
+            auto ret = *this;
+            ret.rd_.setType(new_type);
+            return ret;
+        }
+        if (rd_.getHS() == 0) return format(0, new_type, 1, 0);
+        ir_error_not_expected() << "Can't reinterpret.";
+        return reg_buf_data_t();
     }
 
     ngen::Subregister subregister(int off_bytes,
