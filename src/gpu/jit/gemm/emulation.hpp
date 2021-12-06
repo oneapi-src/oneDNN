@@ -206,8 +206,20 @@ struct EmulationImplementation {
 
         bool dstQ = isQW(dst);
         bool s0Q = isQW(src0);
+        bool s0D = isDW(src0);
 
-        if ((dstQ || s0Q) && strategy.emulate64) {
+        if ((dstQ && s0D) && strategy.emulate64) {
+            if (src0.getNeg()) stub();
+            bool s0Signed = isSigned(src0.getType());
+            RegData dstHi, dstLo;
+            splitToDW(dst, dstLo, dstHi);
+            g.mov(mod, dstLo, src0);
+            if (!s0Signed) {
+                g.mov(mod, dstHi, 0);
+            } else {
+                g.asr(mod, dstHi, dstLo, uint16_t(31));
+            }
+        } else if ((dstQ || s0Q) && strategy.emulate64) {
             if (dstQ != s0Q) stub();
 
             auto mod2x = mod;
