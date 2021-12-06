@@ -24,14 +24,14 @@
 
 # test any
 --reset
---cfg=f32,f16,f16f16s8,f16f16u8,bf16bf16bf16,s8s8f32
+--cfg=f32,f16,f16f16s8,f16f16u8,bf16bf16bf16,s8s8f32,s8s8f16
 --bia_dt=undef
 --stag=ab,ba,any --wtag=ab,ba,any --dtag=ab,any
 1x30:30x20:1x20
 
 # test x8x8x8
 --reset
---cfg=u8s8s32,u8s8f32,s8s8s8
+--cfg=u8s8s32,u8s8f32,s8s8s8,u8s8f16
 --runtime_dims_masks=0:2,1:2
 --bia_dt=undef,f32,u8
 --stag=ab,ba --wtag=ab --dtag=ab

@@ -283,3 +283,8 @@ ic64ih28iw27oc64oh28ow14kh1kw1sh1sw2ph0pw0n"1x1_mixed_strides"
 --skip-impl=
 --attr-post-ops=add:f32:per_tensor,mul:f32:per_oc
 g2ic32id5oc6od3kd3pd0noc%simd_width_!=0_with_im2col
+
+# AVX512 2d/3d reduction error when the filter overlaps with both top and bottom padding
+--reset
+--dir=BWD_W
+mb1_ic16oc16_id4od2kd2sd4dd0pd1_ih4oh2kh2sh4dh0ph1_iw6ow7kw2sw1dw0pw1

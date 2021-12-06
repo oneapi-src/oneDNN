@@ -80,7 +80,8 @@ size_t set_primitive_cache_capacity_without_clearing(size_t capacity) {
     return size_t(0);
 }
 
-int get_cache_blob_id(std::vector<uint8_t> &id, dnnl_primitive_desc_t pd) {
+int get_cache_blob_id(
+        std::vector<uint8_t> &cache_blob_id, dnnl_primitive_desc_t pd) {
     dnnl_dim_t count;
     const uint8_t *c_id;
     DNN_SAFE(dnnl_primitive_desc_query(
@@ -89,7 +90,7 @@ int get_cache_blob_id(std::vector<uint8_t> &id, dnnl_primitive_desc_t pd) {
     DNN_SAFE(dnnl_primitive_desc_query(
                      pd, dnnl_query_cache_blob_id, 0, (void **)&c_id),
             WARN);
-    id = {c_id, c_id + count};
+    cache_blob_id = {c_id, c_id + count};
     return OK;
 }
 
@@ -151,7 +152,7 @@ lru_cache_t &get_test_cache() {
 }
 
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
-        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd) {
+        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd, res_t *res) {
     if (!is_gpu() || (is_gpu() && DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL)) {
         return OK;
     }
@@ -160,10 +161,10 @@ int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
     // 1. Disable primitive cache to make sure that the next primitive will
     // be created from the cache blob and not fetched from the primitive cache.
     const auto old_capacity = set_primitive_cache_capacity_without_clearing(0);
-    // 2. Get primitive descriptor ID to use it as a key for the `test_cache`.
-    std::vector<uint8_t> id;
-    SAFE(get_cache_blob_id(id, pd), WARN);
-    // 3. Check if a cache blob for the obtained ID is present in the
+    // 2. Get cache blob ID to use it as a key for the `test_cache`.
+    std::vector<uint8_t> cache_blob_id;
+    SAFE(get_cache_blob_id(cache_blob_id, pd), WARN);
+    // 3. Check if a cache blob for the obtained cache blob ID is present in the
     //    `test_cache`.
     //    a) If the cache blob is found the primitive is created from it.
     //    b) If the cache blob is not found then get it from the previously
@@ -171,7 +172,7 @@ int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
     //       from it.
     dnnl_primitive_t p {};
     auto &cache = get_test_cache();
-    auto cache_value = cache.get(id);
+    auto cache_value = cache.get(cache_blob_id);
     if (!cache_value.empty()) {
         const size_t size = cache_value.size();
         const uint8_t *cache_blob = cache_value.data();
@@ -181,10 +182,25 @@ int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
     } else {
         std::vector<uint8_t> cache_blob;
         SAFE(get_cache_blob(cache_blob, prim), WARN);
+
+        // The cross-engine reorder is a special primitive that may contain no
+        // kernels therefore the cache blob will always be empty, which is
+        // the correct behavior.
+        if (cache_blob.empty()) {
+            set_primitive_cache_capacity_without_clearing(old_capacity);
+            if (res->impl_name.find("cross_engine") != std::string::npos)
+                return OK;
+
+            BENCHDNN_PRINT(
+                    0, "error: %s\n", "cache blob is not expected to be empty");
+            res->state = FAILED;
+            return FAIL;
+        }
+
         DNN_SAFE(dnnl_primitive_create_from_cache_blob(
                          &p, pd, cache_blob.size(), cache_blob.data()),
                 WARN);
-        cache.add(id, cache_blob);
+        cache.add(cache_blob_id, cache_blob);
     }
     prim.reset(p);
 
