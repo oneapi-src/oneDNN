@@ -134,6 +134,10 @@ public:
 
     int byte_offset() const { return rd_.getByteOffset(); }
 
+    int offset() const { return rd_.getOffset(); }
+
+    int hs() const { return rd_.getHS(); }
+
     const ngen::RegData &reg_data() const { return rd_; }
 
     operator ngen::RegData() const { return rd_; }

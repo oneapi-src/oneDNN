@@ -2233,8 +2233,12 @@ private:
     }
 
     void ebinary(const binary_op_t &obj, const ngen::InstructionModifier &mod,
-            const ngen_operand_t &dst, const ngen_operand_t &src0,
-            const ngen_operand_t &src1) {
+            const ngen_operand_t &_dst, const ngen_operand_t &_src0,
+            const ngen_operand_t &_src1) {
+        auto dst = _dst;
+        auto src0 = _src0;
+        auto src1 = _src1;
+        align_src_dst_offset(host_, scope_, mod, dst, src0, src1);
         switch (obj.op_kind) {
             case op_kind_t::_add: host_->eadd(mod, dst, src0, src1); break;
             case op_kind_t::_sub: host_->eadd(mod, dst, src0, -src1); break;
@@ -3389,6 +3393,12 @@ private:
     ngen::Subregister global_id_;
 };
 
+// Aligns src offset with dst offset when src is not broadcasted.
+template <typename GeneratorT>
+void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
+        const ngen::InstructionModifier &mod, const reg_buf_data_t &dst,
+        reg_buf_data_t &src);
+
 // Performs 1D reorder, possibly with strides and type conversion.
 template <typename GeneratorT>
 void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
@@ -3407,6 +3417,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         dst = dst.reinterpret(dst_type);
     }
 
+    int grf_size = ngen::GRF::bytes(hw);
     int src_stride_bytes = src_stride * ngen::getBytes(src_type);
     int dst_stride_bytes = dst_stride * ngen::getBytes(dst_type);
     bool dst_b = ngen_is_b(dst_type);
@@ -3414,11 +3425,13 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool dst_d = ngen_is_dw(dst_type) || (dst_type == ngen::DataType::f);
     bool dst_f = (dst_type == ngen::DataType::f);
     bool dst_hf = (dst_type == ngen::DataType::hf);
+    bool dst_xf = dst_bf || dst_f || dst_hf;
     bool src_b = ngen_is_b(src_type);
     bool src_hf = (src_type == ngen::DataType::hf);
     bool src_bf = (src_type == ngen::DataType::bf);
     bool src_d = ngen_is_dw(src_type) || (src_type == ngen::DataType::f);
     bool src_f = (src_type == ngen::DataType::f);
+    bool src_xf = src_bf || src_f || src_hf;
     bool f_to_xf = (src_f && (dst_bf || dst_hf));
 
     auto get_step = [&]() {
@@ -3504,12 +3517,90 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     for (int i = 0; i < width; i += step) {
         int esize = std::min(step, width - i);
         ir_assert(math::is_pow2(esize));
-        ir_assert(!f_to_xf || utils::one_of(i % 16, 0, 8))
-                << "Not always supported in HW.";
-        auto s = src.subregister(i, esize, src_stride_bytes);
-        auto d = dst.subregister(i, esize, dst_stride_bytes);
-        host->emov(esize, d(dst_stride), s(src_stride));
+        auto s = src.format(i * src_stride_bytes, ngen::DataType::invalid,
+                esize, src_stride);
+        auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
+                esize, dst_stride);
+        // Float pipe has some register regioning limitations. If mov is not
+        // allowed then fix regioning by switching to integer pipe which has
+        // less limitations.
+        if (esize > 1 && s.hs() != 0 && (src_xf || dst_xf)
+                && s.offset() != d.offset()) {
+            bool ok = false;
+            bool s_half_grf_aligned = (src_hf || src_bf)
+                    && utils::one_of(s.byte_offset(), 0, grf_size / 2);
+            bool d_half_grf_aligned = (dst_hf || dst_bf)
+                    && utils::one_of(d.byte_offset(), 0, grf_size / 2);
+            if (dst_f && d.offset() == 0 && s_half_grf_aligned) ok = true;
+            if (src_f && s.offset() == 0 && d_half_grf_aligned) ok = true;
+            if (!ok) {
+                auto i_type = to_ngen(type_t::u(ngen::getBytes(src_type) * 8));
+                s = s.reinterpret(i_type);
+                align_src_dst_offset(host, scope, esize, d, s);
+                s = s.reinterpret(src_type);
+            }
+        }
+        host->emov(esize, d, s);
     }
+}
+
+template <typename GeneratorT>
+void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
+        const ngen::InstructionModifier &mod, const reg_buf_data_t &dst,
+        reg_buf_data_t &src) {
+    int src_stride = src.hs();
+    // src is broadcasted, no need to align, return.
+    if (src_stride == 0) return;
+
+    int src_type_size = ngen::getBytes(src.type());
+    int src_off = src.offset();
+    int dst_off = dst.offset();
+    // src is aligned with dst, return.
+    if (src_off == dst_off) return;
+
+    int esize = mod.getExecSize();
+    int grf_size = ngen::GRF::bytes(scope.hw());
+    int src_size = std::max(src_type_size * esize * src_stride, src_type_size);
+
+    auto new_src = scope.alloc_reg_buf_data(
+            utils::div_up(src_size + dst_off * src_type_size, grf_size));
+    new_src = new_src.format(
+            dst_off * src_type_size, src.type(), esize, src_stride);
+    emit_reorder_1d_tile(scope.hw(), host, scope, esize, src, src_stride,
+            new_src, src_stride);
+    src = new_src;
+}
+
+template <typename GeneratorT>
+void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
+        const ngen::InstructionModifier &mod, const reg_buf_data_t &dst,
+        reg_buf_data_t &src0, reg_buf_data_t &src1) {
+    align_src_dst_offset(host, scope, mod, dst, src0);
+    align_src_dst_offset(host, scope, mod, dst, src1);
+}
+
+template <typename GeneratorT>
+void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
+        const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
+        ngen_operand_t &src) {
+    if (!dst.is_reg_data()) return;
+    if (!src.is_reg_data()) return;
+
+    auto rd = src.reg_buf_data();
+    align_src_dst_offset(host, scope, mod, dst.reg_buf_data(), rd);
+    if (rd == src.reg_buf_data()) return;
+
+    bool is_negated = src.is_negated();
+    src = ngen_operand_t(rd, src.mod());
+    if (is_negated) src = -src;
+}
+
+template <typename GeneratorT>
+void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
+        const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
+        ngen_operand_t &src0, ngen_operand_t &src1) {
+    align_src_dst_offset(host, scope, mod, dst, src0);
+    align_src_dst_offset(host, scope, mod, dst, src1);
 }
 
 class reorder_impl_t {
@@ -4170,39 +4261,8 @@ private:
                     << "dst/src0 must be aligned to the same GRF offset.";
             auto _src1 = src1;
             auto _src2 = src2;
-            maybe_fix_mad_src(dst, _src1, _src2, mad_func, scope);
+            align_src_dst_offset(host_, scope, mod, dst, _src1, _src2);
             host_->mad(mod, dst, src0, _src1, _src2);
-        }
-    }
-
-    void maybe_fix_mad_src(const reg_buf_data_t &dst, reg_buf_data_t &src1,
-            reg_buf_data_t &src2, const mad_t &mad_func,
-            ngen_register_scope_t &scope) {
-        int grf_size = ngen::GRF::bytes(hw);
-        auto dst_off = dst.byte_offset();
-        auto src1_off = src1.byte_offset();
-        auto src2_off = src2.byte_offset();
-
-        // src1 must be aligned with dst if not broadcasted.
-        if (mad_func.src1_stride != 0 && src1_off != dst_off) {
-            auto new_src1 = scope.alloc_reg_buf_data(
-                    utils::div_up(mad_func.src1_size() + dst_off, grf_size));
-            new_src1 = new_src1.format(dst_off, src1.type(), mad_func.simd_size,
-                    mad_func.src1_stride);
-            emit_reorder_1d_tile(hw, host_, scope, mad_func.simd_size, src1,
-                    mad_func.src1_stride, new_src1, mad_func.src1_stride);
-            src1 = new_src1;
-        }
-
-        // src2 must be aligned with dst if not broadcasted.
-        if (mad_func.src2_stride != 0 && src2_off != dst_off) {
-            auto new_src2 = scope.alloc_reg_buf_data(
-                    utils::div_up(mad_func.src2_size() + dst_off, grf_size));
-            new_src2 = new_src2.format(dst_off, src2.type(), mad_func.simd_size,
-                    mad_func.src2_stride);
-            emit_reorder_1d_tile(hw, host_, scope, mad_func.simd_size, src2,
-                    mad_func.src2_stride, new_src2, mad_func.src2_stride);
-            src2 = new_src2;
         }
     }
 
