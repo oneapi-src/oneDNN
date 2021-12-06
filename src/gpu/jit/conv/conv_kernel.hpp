@@ -3644,7 +3644,8 @@ private:
             auto sub_src = src_rd.format(src_off, to_ngen(src_type), 1);
             auto sub_dst = dst_rd.format(dst_off, to_ngen(dst_type), 1);
 
-            emit_reorder_1d_tile(hw_, host, scope, tile_elems, sub_src,
+            ngen_register_scope_t tile_scope(scope.register_allocator());
+            emit_reorder_1d_tile(hw_, host, tile_scope, tile_elems, sub_src,
                     src_stride, sub_dst, dst_stride);
         });
     }
