@@ -1936,6 +1936,13 @@ public:
             const expr_binding_t &expr_binding, ngen_register_scope_t &scope)
         : host_(host), expr_binding_(expr_binding), scope_(scope) {}
 
+    bool is_int_up_convert(const expr_t &e, type_t &type) const {
+        auto it = int_up_converts_.find(e);
+        if (it == int_up_converts_.end()) return false;
+        type = it->second;
+        return true;
+    }
+
     // If `dst_operand` is not empty, use its pre-allocated location for the
     // result.
     ngen_operand_t eval(const expr_t &e,
@@ -1986,6 +1993,23 @@ public:
                 auto b_out_op = maybe_alloc_strided_op(obj.type, obj.b);
                 auto src0_op = eval(obj.a, a_out_op);
                 auto src1_op = eval(obj.b, b_out_op);
+
+                // XXX: (q x d) case is not supported. Try to downgrade it to
+                // (d x d) based on the previous assignments.
+                if (obj.op_kind == op_kind_t::_mul && obj.a.type().is_x64()) {
+                    type_t orig_type;
+                    if (is_int_up_convert(obj.a, orig_type)) {
+                        src0_op = src0_op.reinterpret(orig_type);
+                        // XXX: sync workaround is to fix an issue with
+                        // mul(q, d, d) instruction on XeHP. For some reason
+                        // the result is incorrect when dst and src0 are
+                        // accessed from the same register.
+                        host_->sync(ngen::SyncFunction::nop,
+                                ngen::SWSB<uint64_t>(1));
+                    } else {
+                        ir_error_not_expected();
+                    }
+                }
                 ebinary(obj, mod, dst_op, src0_op, src1_op);
                 break;
             }
@@ -2028,10 +2052,13 @@ public:
 
         // Handle integer (down-)conversion, assume bitwise equality in this
         // case. Examples: d <-> ud, d -> w, q -> d.
-        bool is_int_convert = (from_type.is_scalar() && to_type.is_scalar()
-                && from_type.is_int() && to_type.is_int()
-                && from_type.size() >= to_type.size());
-        if (is_int_convert) {
+        bool is_int_convert = from_type.is_scalar() && to_type.is_scalar()
+                && from_type.is_int() && to_type.is_int();
+        bool is_int_down_convert
+                = is_int_convert && from_type.size() >= to_type.size();
+        bool is_int_up_convert
+                = is_int_convert && from_type.size() < to_type.size();
+        if (is_int_down_convert) {
             eval(obj.expr, dst_op.reinterpret(from_type));
             bind(obj, dst_op);
             return;
@@ -2041,6 +2068,7 @@ public:
         auto mod = dst_op.mod();
         if (obj.saturate) mod |= host_->sat;
         host_->emov(mod, dst_op, expr_op);
+        if (is_int_up_convert) int_up_converts_.emplace(obj, from_type);
         bind(obj, dst_op);
     }
 
@@ -2282,6 +2310,8 @@ private:
     conv_kernel_t<hw> *host_;
     expr_binding_t expr_binding_;
     ngen_register_scope_t &scope_;
+
+    object_eq_map_t<expr_t, type_t> int_up_converts_;
 };
 
 template <typename DataSpecT, typename = void>
