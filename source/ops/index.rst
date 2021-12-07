@@ -57,6 +57,7 @@ subset of the operation set.
    arithmetic/Pow_1.rst
    arithmetic/PowBackprop_1.rst
    arithmetic/PowBackpropExponent_1.rst
+   activation/PReLU_1.rst
    lower_precision/Quantize_1.rst
    reduction/ReduceSum_1.rst
    activation/ReLU_1.rst
