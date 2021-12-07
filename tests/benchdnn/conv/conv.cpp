@@ -693,13 +693,15 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             // Compute Library supports only one eltwise post-op or
             // sum+eltwise post-ops
             if (eltwise_only || sum_with_eltwise) {
-                const auto act_type = po.entry[sum_with_eltwise].eltwise.alg;
-                eltwise_ok
-                        = one_of(act_type, dnnl_eltwise_relu, dnnl_eltwise_tanh,
-                                dnnl_eltwise_elu, dnnl_eltwise_square,
-                                dnnl_eltwise_abs, dnnl_eltwise_sqrt,
-                                dnnl_eltwise_linear, dnnl_eltwise_bounded_relu,
-                                dnnl_eltwise_soft_relu, dnnl_eltwise_logistic);
+                using alg_t = attr_t::post_ops_t::kind_t;
+                const std::vector<alg_t> supported_algs
+                        = {alg_t::RELU, alg_t::TANH, alg_t::ELU, alg_t::SQUARE,
+                                alg_t::ABS, alg_t::SQRT, alg_t::LINEAR,
+                                alg_t::BRELU, alg_t::SRELU, alg_t::LOGISTIC};
+                const auto act_type = po.entry[sum_with_eltwise].kind;
+                eltwise_ok = std::any_of(supported_algs.cbegin(),
+                        supported_algs.cend(),
+                        [&](const alg_t alg) { return act_type == alg; });
             }
 
             const bool post_ops_ok = eltwise_ok || (po.len() == 0);
