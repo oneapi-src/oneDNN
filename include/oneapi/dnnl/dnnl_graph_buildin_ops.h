@@ -64,6 +64,7 @@
     _(Multiply) \
     _(Pow) \
     _(PowBackprop) \
+    _(PReLU) \
     _(ReduceSum) \
     _(ReLU) \
     _(ReLUBackprop) \

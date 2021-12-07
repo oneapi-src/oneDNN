@@ -782,6 +782,7 @@ public:
         Multiply = kMultiply,
         Pow = kPow,
         PowBackprop = kPowBackprop,
+        PReLU = kPReLU,
         ReduceSum = kReduceSum,
         ReLU = kReLU,
         ReLUBackprop = kReLUBackprop,
