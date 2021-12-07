@@ -69,8 +69,13 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
     src = to_format_any(src);
-    auto weight = make_dnnl_memory_desc(
-            op->get_input_value(1)->get_logical_tensor());
+    // assume constant weight is for inference scenario
+    const auto &wei_lt = op->get_input_value(1)->get_logical_tensor();
+    auto pkind = (impl::logical_tensor_wrapper_t(wei_lt).property_type()
+                         == property_type::constant)
+            ? prop_kind::forward_inference
+            : prop_kind::forward_training;
+    auto weight = make_dnnl_memory_desc(wei_lt);
     weight = to_format_any(weight);
     size_t dst_offset = 0;
     if (op->get_kind() == op_kind::dnnl_conv_depthwise) {
@@ -92,15 +97,13 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
                 op->get_input_value(2)->get_logical_tensor());
         bias = to_format_any(bias);
         pd = dnnl::convolution_forward::primitive_desc(
-                {prop_kind::forward_inference, algorithm::convolution_direct,
-                        src, weight, bias, dst, strides, dilates, pads_begin,
-                        pads_end},
+                {pkind, algorithm::convolution_direct, src, weight, bias, dst,
+                        strides, dilates, pads_begin, pads_end},
                 prm_attr, p_engine);
     } else {
         pd = dnnl::convolution_forward::primitive_desc(
-                {prop_kind::forward_inference, algorithm::convolution_direct,
-                        src, weight, dst, strides, dilates, pads_begin,
-                        pads_end},
+                {pkind, algorithm::convolution_direct, src, weight, dst,
+                        strides, dilates, pads_begin, pads_end},
                 prm_attr, p_engine);
     }
 

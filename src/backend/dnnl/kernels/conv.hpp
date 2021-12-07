@@ -216,6 +216,11 @@ public:
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+
+        if (enable_constant_cache_) {
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<false>);
+        }
+
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
         BACKEND_DNNL_ADD_PASS(pipeline, common_reorder_elimination);
 
