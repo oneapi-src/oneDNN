@@ -394,6 +394,15 @@ public:
 
     status_t get_partitions(
             impl::graph_t &agraph, impl::partition_policy_t policy) override {
+        // Note: This environment variable is internal and for test purpose. It
+        // can be changed or removed without prior notice. Users should avoid
+        // using it in their applications. Enabling the environment variable may
+        // cause some tests and examples to fail.
+        const bool disable_dnnl_bkd
+                = impl::utils::getenv_int("_DNNL_GRAPH_DISABLE_DNNL_BACKEND", 0)
+                > 0;
+        if (disable_dnnl_bkd) return status::success;
+
         impl::pass::pass_manager_t pm(get_pass_registry());
 #ifdef DNNL_GRAPH_ENABLE_DUMP
         std::string pass_config_json = "dnnl_graph_passes.json";
