@@ -33,14 +33,11 @@ namespace reorder {
 
 int get_n_scales(const prb_t *prb) {
     const int mask = attr_t::get_default_mask(prb->attr.oscale.policy);
-    assert(IMPLICATION(mask >= (1 << 1), prb->ndims > 1));
-    switch (mask) {
-        case 0: return 1;
-        case (1 << 0): return prb->dims[0];
-        case (1 << 1): return prb->dims[1];
-        case (1 << 1) + (1 << 0): return prb->dims[1] * prb->dims[0];
-        default: assert(!"unsupported mask"); return 1;
+    int n_scales = 1;
+    for (int d = 0; d < prb->ndims; ++d) {
+        if (mask & (1 << d)) n_scales *= prb->dims[d];
     }
+    return n_scales;
 }
 
 // Filling for integers is different due to problematic int -> float conversion.

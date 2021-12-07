@@ -1,6 +1,18 @@
-# s8, f32, bf16 -> s8 w/ compensations
+# f32 -> s8 w/ scales and compensations
 --reset
---sdt=f32,bf16,s8
+--sdt=f32
+--ddt=s8
+--attr-oscale=,common:2,per_dim_0:2,per_dim_1:3,per_dim_01:3,per_tensor:0.7
+--oflag=,s8s8_comp:1,zp_comp:1,s8s8_comp:1+zp_comp:1
+--stag=abx,xba,bxa
+--dtag=xba,ABx2b8a4b,ABx4a4b,ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
+32x32x3
+32x32x3x3 80x24x3x5
+32x32x3x3x3
+
+
+# s8, bf16 -> s8 w/ compensations
+--sdt=bf16,s8
 --ddt=s8
 
 # Non-grouped cases
@@ -11,6 +23,9 @@
 32x32x3
 32x32x3x3 80x24x3x5
 32x32x3x3x3
+
+# test for all sdt data types
+--sdt=f32,bf16,s8
 # Special case: no general 0D-spatial support
 --dtag=ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
 80x24
