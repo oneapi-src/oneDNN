@@ -164,7 +164,6 @@ is enabled:
     * [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
 * DPCPP runtime with NVIDIA GPU support requires
     * [oneAPI DPC++ Compiler](https://github.com/intel/llvm)
-    * OpenCL runtime library (OpenCL version 1.2 or later)
     * NVIDIA CUDA\* driver
     * cuBLAS 10.1 or later
     * cuDNN 7.6 or later
