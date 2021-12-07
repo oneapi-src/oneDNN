@@ -22,8 +22,7 @@ export CXX=/path/to/dpcpp/install/bin/clang++
 mkdir build
 cd build
 cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP \
-      -DDNNL_GPU_VENDOR=NVIDIA -G Ninja \
-      -DOPENCLROOT=/path/to/the/root/folder/of/libOpenCL.so ..
+      -DDNNL_GPU_VENDOR=NVIDIA -G Ninja ..
 ```
 
 ## Memory
