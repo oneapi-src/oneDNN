@@ -1319,6 +1319,40 @@ DNNL_GRAPH_OP_SCHEMA(DynamicTranspose, 1,
                         "T2", {data_type::s8, data_type::u8, data_type::s32})
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(DynamicQuantize, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "", "T1")
+                .set_input(1, "scales", "", "T1")
+                .set_input(2, "zps", "", "T2")
+                .set_output(0, "output", "", "T3")
+                .set_attr("qtype", "", false, attribute_kind::s, "per_tensor")
+                .set_attr("axis", "", false, attribute_kind::i, int64_t(1))
+                .set_type_constraints("T1", {data_type::f32})
+                .set_type_constraints(
+                        "T2", {data_type::u8, data_type::s8, data_type::s32})
+                .set_type_constraints("T3", {data_type::u8, data_type::s8})
+                .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(DynamicDequantize, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "", "T1")
+                .set_input(1, "scales", "", "T2")
+                .set_input(2, "zps", "", "T3")
+                .set_output(0, "output", "", "T2")
+                .set_attr("qtype", "", false, attribute_kind::s, "per_tensor")
+                .set_attr("axis", "", false, attribute_kind::i, int64_t(1))
+                .set_type_constraints("T1", {data_type::u8, data_type::s8})
+                .set_type_constraints("T2", {data_type::f32})
+                .set_type_constraints(
+                        "T3", {data_type::u8, data_type::s8, data_type::s32})
+                .set_shape_inference_function(infer_identity_output_shape))
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

@@ -28,6 +28,7 @@ TEST(api_op, create_all_ops) {
 
     // This list should be the same as the definition of `op::kind` in
     // dnnl_graph.hpp.
+    // clang-format off
     std::vector<op::kind> all_kind_enums {
             op::kind::Abs,
             op::kind::Add,
@@ -97,7 +98,10 @@ TEST(api_op, create_all_ops) {
             op::kind::StaticTranspose,
             op::kind::DynamicReshape,
             op::kind::DynamicTranspose,
+            op::kind::DynamicQuantize,
+            op::kind::DynamicDequantize
     };
+    // clang-format on
 
     const auto num_ops = all_kind_enums.size();
     for (size_t i = static_cast<size_t>(first_op);

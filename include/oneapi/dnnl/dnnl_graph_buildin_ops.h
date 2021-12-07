@@ -94,7 +94,9 @@
     _(StaticReshape) \
     _(StaticTranspose) \
     _(DynamicReshape) \
-    _(DynamicTranspose)
+    _(DynamicTranspose) \
+    _(DynamicQuantize) \
+    _(DynamicDequantize)
 
 #endif
 
