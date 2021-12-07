@@ -347,9 +347,18 @@ private:
     void store_signal(bool force_fence = false);
 
     void body();
+    void generate();
 
 public:
-    xehp_systolic_gemm_kernel_t(config_t cfg_);
+    explicit xehp_systolic_gemm_kernel_t(config_t cfg_) : cfg(cfg_) {
+        if (!cfg.valid()) assert(!"Invalid configuration");
+        externalName("xehp_systolic_gemm_kernel");
+    }
+
+    cl_kernel get_kernel(cl_context context, cl_device_id device) override {
+        generate();
+        return jit_generator<hw>::get_kernel(context, device);
+    }
 };
 
 } // namespace jit
