@@ -3270,3 +3270,142 @@ TEST(OpSchema, FailToAddWildcard) {
     wildcard_op.add_output(lt_out);
     EXPECT_TRUE(wildcard_op_schema->verify(&wildcard_op));
 }
+
+struct dynamic_quantization_params_t {
+    data_type_t data_type;
+    data_type_t scales_type;
+    data_type_t zps_type;
+    data_type_t out_type;
+    std::string qtype;
+    bool asymmetric;
+    int64_t axis;
+    bool supported;
+};
+
+template <op_kind_t kind>
+class DynamicQuantize
+    : public ::testing::TestWithParam<dynamic_quantization_params_t> {
+public:
+    void Test() {
+        const op_schema_t *schema = op_schema_registry_t::get_op_schema(kind);
+
+        auto params = ::testing::TestWithParam<
+                dynamic_quantization_params_t>::GetParam();
+
+        op_t dynamic_quantize {0, kind, "dynamic_quantize"};
+        logical_tensor_t lt_data = logical_tensor_init(0, params.data_type);
+        logical_tensor_t lt_scales = logical_tensor_init(1, params.scales_type);
+        logical_tensor_t lt_zps = logical_tensor_init(2, params.zps_type);
+        logical_tensor_t lt_output = logical_tensor_init(3, params.out_type);
+
+        dynamic_quantize.add_input(lt_data);
+        dynamic_quantize.add_input(lt_scales);
+        dynamic_quantize.add_output(lt_output);
+
+        if (params.asymmetric) dynamic_quantize.add_input(lt_zps);
+
+        dynamic_quantize.set_attr<std::string>("qtype", params.qtype);
+        if (params.qtype == "per_channel")
+            dynamic_quantize.set_attr<int64_t>("axis", params.axis);
+
+        EXPECT_EQ(schema->verify(&dynamic_quantize), params.supported);
+    }
+};
+
+using dynamic_quantize_t = DynamicQuantize<op_kind::DynamicQuantize>;
+
+TEST_P(dynamic_quantize_t, TestDynamicQuantize) {
+    Test();
+}
+
+static auto QuantizeCases = []() {
+    std::vector<dynamic_quantization_params_t> cases;
+
+    cases.push_back({data_type::f32, data_type::f32, data_type::f32,
+            data_type::s8, "per_tensor", false, 1, true});
+    cases.push_back({data_type::f32, data_type::f32, data_type::f32,
+            data_type::s8, "per_channel", false, 1, true});
+
+    cases.push_back({data_type::f32, data_type::f32, data_type::f32,
+            data_type::u8, "per_tensor", false, 1, true});
+    cases.push_back({data_type::f32, data_type::f32, data_type::f32,
+            data_type::u8, "per_channel", false, 1, true});
+
+    cases.push_back({data_type::f32, data_type::f32, data_type::s8,
+            data_type::s8, "per_tensor", true, 1, true});
+    cases.push_back({data_type::f32, data_type::f32, data_type::s8,
+            data_type::s8, "per_channel", true, 1, true});
+
+    cases.push_back({data_type::f32, data_type::f32, data_type::u8,
+            data_type::u8, "per_tensor", true, 1, true});
+    cases.push_back({data_type::f32, data_type::f32, data_type::u8,
+            data_type::u8, "per_channel", true, 1, true});
+
+    cases.push_back({data_type::f32, data_type::f32, data_type::s32,
+            data_type::s8, "per_tensor", true, 1, true});
+    cases.push_back({data_type::f32, data_type::f32, data_type::s32,
+            data_type::s8, "per_channel", true, 1, true});
+
+    // negative cases
+    cases.push_back({data_type::f16, data_type::f32, data_type::s32,
+            data_type::s8, "per_tensor", true, 1, false});
+    cases.push_back({data_type::f16, data_type::f16, data_type::s32,
+            data_type::s8, "per_channel", true, 1, false});
+    cases.push_back({data_type::bf16, data_type::bf16, data_type::s32,
+            data_type::s8, "per_channel", true, 1, false});
+    cases.push_back({data_type::bf16, data_type::bf16, data_type::s32,
+            data_type::u8, "per_tensor", false, 1, false});
+
+    return ::testing::ValuesIn(cases);
+};
+
+INSTANTIATE_TEST_SUITE_P(OpSchema, dynamic_quantize_t, QuantizeCases());
+
+using dynamic_dequantize_t = DynamicQuantize<op_kind::DynamicDequantize>;
+
+TEST_P(dynamic_dequantize_t, TestDynamicDequantize) {
+    Test();
+}
+
+static auto DequantizeCases = []() {
+    std::vector<dynamic_quantization_params_t> cases;
+
+    cases.push_back({data_type::s8, data_type::f32, data_type::f32,
+            data_type::f32, "per_tensor", false, 1, true});
+    cases.push_back({data_type::s8, data_type::f32, data_type::f32,
+            data_type::f32, "per_channel", false, 1, true});
+
+    cases.push_back({data_type::u8, data_type::f32, data_type::f32,
+            data_type::f32, "per_tensor", false, 1, true});
+    cases.push_back({data_type::u8, data_type::f32, data_type::f32,
+            data_type::f32, "per_channel", false, 1, true});
+
+    cases.push_back({data_type::s8, data_type::f32, data_type::s8,
+            data_type::f32, "per_tensor", true, 1, true});
+    cases.push_back({data_type::s8, data_type::f32, data_type::s8,
+            data_type::f32, "per_channel", true, 1, true});
+
+    cases.push_back({data_type::u8, data_type::f32, data_type::u8,
+            data_type::f32, "per_tensor", true, 1, true});
+    cases.push_back({data_type::u8, data_type::f32, data_type::u8,
+            data_type::f32, "per_channel", true, 1, true});
+
+    cases.push_back({data_type::s8, data_type::f32, data_type::s32,
+            data_type::f32, "per_tensor", true, 1, true});
+    cases.push_back({data_type::s8, data_type::f32, data_type::s32,
+            data_type::f32, "per_channel", true, 1, true});
+
+    // negative cases
+    cases.push_back({data_type::s8, data_type::f32, data_type::s32,
+            data_type::f16, "per_tensor", true, 1, false});
+    cases.push_back({data_type::s8, data_type::f16, data_type::s32,
+            data_type::f16, "per_channel", true, 1, false});
+    cases.push_back({data_type::s8, data_type::bf16, data_type::s32,
+            data_type::bf16, "per_channel", true, 1, false});
+    cases.push_back({data_type::u8, data_type::bf16, data_type::s32,
+            data_type::bf16, "per_tensor", false, 1, false});
+
+    return ::testing::ValuesIn(cases);
+};
+
+INSTANTIATE_TEST_SUITE_P(OpSchema, dynamic_dequantize_t, DequantizeCases());

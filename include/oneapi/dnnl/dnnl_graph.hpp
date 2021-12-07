@@ -763,6 +763,8 @@ public:
         ConvTranspose = kConvTranspose,
         Dequantize = kDequantize,
         Divide = kDivide,
+        DynamicDequantize = kDynamicDequantize,
+        DynamicQuantize = kDynamicQuantize,
         DynamicReshape = kDynamicReshape,
         DynamicTranspose = kDynamicTranspose,
         Elu = kElu,

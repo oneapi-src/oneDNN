@@ -141,6 +141,8 @@ const op_kind_t StaticReshape = kStaticReshape;
 const op_kind_t StaticTranspose = kStaticTranspose;
 const op_kind_t DynamicReshape = kDynamicReshape;
 const op_kind_t DynamicTranspose = kDynamicTranspose;
+const op_kind_t DynamicQuantize = kDynamicQuantize;
+const op_kind_t DynamicDequantize = kDynamicDequantize;
 const op_kind_t LastSymbol = kLastSymbol;
 
 #define REGISTER_SYMBOL(s) #s,
