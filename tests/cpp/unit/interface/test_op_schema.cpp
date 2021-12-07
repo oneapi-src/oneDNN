@@ -1797,6 +1797,24 @@ TEST(OpSchema, InferPowBackpropOutputShape) {
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 }
 
+TEST(OpSchema, PReLU) {
+    const op_kind_t op_kind_ = op_kind::PReLU;
+    const size_t expected_in_size = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 2;
+    const std::map<std::string, bool> attrs_data
+            = {{"data_format", false}, {"per_channel_broadcast", false}};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, PReLUOutputShape) {
+    const op_kind_t op_kind_ = op_kind::PReLU;
+
+    verify_two_ins_identity_shape_infer(op_kind_);
+}
+
 TEST(OpSchema, ReduceSum) {
     const op_kind_t op_kind_ = op_kind::ReduceSum;
     const size_t expected_in_size = 2;

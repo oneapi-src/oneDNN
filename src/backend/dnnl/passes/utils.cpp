@@ -638,6 +638,56 @@ get_post_ops_fusible_map() {
     return fusible_map;
 }
 
+// data_format = NXC:
+// (1, 2, 3, 4); (4) is doable
+// data_format = NCX, channel broadcast = false:
+// (1, 2, 3, 4); (4) is doable
+// data_format = NCX, channel broadcast = true:
+// (1, 2, 3, 4); (2) is doable
+
+// src      wei
+// (3, 4); (3, 4) is doable
+// (1, 4); (3, 4) is not doable
+// (3, 4); (1, 4) is doable
+// (3, 4, 5); (4, 5) is doable
+// (3, 4, 5); (1, 5) is doable
+// (3, 4, 5); (2, 4, 5) is NOT doable
+bool prelu_doable(const std::vector<dim_t> &src_dims,
+        const std::vector<dim_t> &wei_dims, const std::string &data_format,
+        const bool per_channel_broadcast) {
+    const int src_ndims = static_cast<int>(src_dims.size());
+    const int wei_ndims = static_cast<int>(wei_dims.size());
+    // src ndims should be equal or greater than wei ndims
+    if (src_ndims < wei_ndims) return false;
+
+    bool doable = false;
+    if (wei_ndims == 1) {
+        if (per_channel_broadcast) {
+            // if broadcast to channel,
+            // then src channel dim should be equal to wei dim
+            const int channel_dim_num
+                    = data_format == "NCX" ? 1 : src_dims[src_ndims - 1];
+            doable = src_dims[channel_dim_num] == wei_dims[0];
+        } else {
+            // if no broadcast to channel,
+            // then last src dim should be equal to wei dim
+            doable = src_dims[src_ndims - 1] == wei_dims[0];
+        }
+    } else {
+        for (int i = 1; i <= wei_ndims; ++i) {
+            // Weights are broadcastable to src when:
+            // 1) they are equal on the same ndims,
+            // 2) one of them is 1,
+            // 3) In the case when weights have fewer dimensions,
+            //    1s are added to the front and then 1) and 2) must be met.
+            doable = src_dims[src_ndims - i] == wei_dims[wei_ndims - i]
+                    || wei_dims[wei_ndims - i] == 1;
+            if (!doable) break;
+        }
+    }
+    return doable;
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

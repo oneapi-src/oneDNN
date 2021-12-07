@@ -15781,3 +15781,120 @@ TEST(Execute, Int8ConvBlock) {
     ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
     strm.wait();
 }
+
+struct dnnl_graph_test_prelu_params {
+    dnnl::graph::impl::dims wei_dims;
+    test::vector<float> wei;
+    test::vector<float> ref_dst;
+    std::string data_format;
+    bool per_channel_broadcast;
+};
+
+class Prelu : public ::testing::TestWithParam<dnnl_graph_test_prelu_params> {
+public:
+    void TestPrelu() {
+        const auto params = ::testing::TestWithParam<
+                dnnl_graph_test_prelu_params>::GetParam();
+        impl::engine_t &eng = get_engine();
+
+        impl::op_t op(impl::op_kind::PReLU, "prelu");
+        op.set_attr<std::string>("data_format", params.data_format);
+        op.set_attr<bool>(
+                "per_channel_broadcast", params.per_channel_broadcast);
+
+        test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -1.0, 1.0};
+        test::vector<float> wei = params.wei;
+        test::vector<float> dst(src.size(), 0.0);
+
+        dnnl::graph::impl::dims dims {1, 2, 2, 2};
+
+        impl::logical_tensor_t src_lt
+                = utils::logical_tensor_init(0, dims, impl::data_type::f32);
+        impl::logical_tensor_t wei_lt = utils::logical_tensor_init(
+                1, params.wei_dims, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                2, dims, impl::data_type::f32, impl::layout_type::any);
+
+        op.add_input(src_lt);
+        op.add_input(wei_lt);
+        op.add_output(dst_lt);
+
+        impl::graph_t g(eng.kind());
+        g.add_op(&op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("prelu_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &wei_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+        p.compile(&cp, inputs, outputs, &eng);
+
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(dst_lt.id, &lt);
+
+        ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+
+        impl::tensor_t src_ts(src_lt, &eng, src.data());
+        impl::tensor_t wei_ts(wei_lt, &eng, wei.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+        impl::stream_t &strm = get_stream();
+
+        cp.execute(&strm, {src_ts, wei_ts}, {dst_ts});
+        strm.wait();
+
+        for (size_t i = 0; i < src.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst[i], params.ref_dst[i]);
+        }
+    }
+};
+
+TEST_P(Prelu, TestPrelu) {
+    TestPrelu();
+}
+
+INSTANTIATE_TEST_SUITE_P(Execute, Prelu,
+        ::testing::Values(
+                // no broadcast
+                dnnl_graph_test_prelu_params {{1, 2, 2, 2},
+                        {2.0, 2.0, 2.0, 0.0, 0.0, 1.0, 1.0, 1.0},
+                        {-4.0, 0.0, -2.0, -0.5, 0.0, 3.5, 0.0, 1.0}, "NXC",
+                        false},
+                // channel-shared broadcast
+                dnnl_graph_test_prelu_params {{1, 1, 1, 1}, {2.0},
+                        {-4.0, -3.0, -2.0, -1.0, 0.0, 3.5, -2.0, 1.0}, "NXC",
+                        false},
+                // shared-axes broadcast
+                dnnl_graph_test_prelu_params {{1, 2, 2, 1},
+                        {2.0, 1.0, 1.0, 2.0},
+                        {-4.0, -3.0, -1.0, -0.5, 0.0, 3.5, -2.0, 1.0}, "NCX",
+                        false},
+                // channel-wise broadcast, NCX
+                dnnl_graph_test_prelu_params {{1, 2, 1, 1}, {1.0, 0.0},
+                        {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, 0.0, 1.0}, "NCX",
+                        true},
+                // channel-wise broadcast, NXC
+                dnnl_graph_test_prelu_params {{1, 2, 1, 1}, {1.0, 0.0},
+                        {-2.0, 0.0, -1.0, 0.0, 0.0, 3.5, -1.0, 1.0}, "NXC",
+                        true},
+                // 1D weights broadcast, NXC
+                dnnl_graph_test_prelu_params {{2}, {1.0, 2.0},
+                        {-2.0, -1.5, -2.0, -1.0, 0.0, 3.5, -2.0, 1.0}, "NXC",
+                        true},
+                // 1d weights, no channel-wise broadcast, NCX
+                dnnl_graph_test_prelu_params {{2}, {1.0, 2.0},
+                        {-2.0, -3.0, -1.0, -1.0, 0.0, 3.5, -1.0, 1.0}, "NCX",
+                        false},
+                // 1d weights, channel-wise broadcast, NCX
+                dnnl_graph_test_prelu_params {{2}, {1.0, 2.0},
+                        {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -2.0, 1.0}, "NCX",
+                        true}));

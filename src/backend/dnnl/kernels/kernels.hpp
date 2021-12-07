@@ -27,6 +27,7 @@
 #include "logsoftmax.hpp"
 #include "matmul.hpp"
 #include "pool.hpp"
+#include "prelu.hpp"
 #include "quantize.hpp"
 #include "reorder.hpp"
 #include "resampling.hpp"

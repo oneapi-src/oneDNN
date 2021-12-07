@@ -66,6 +66,7 @@ TEST(api_op, create_all_ops) {
             op::kind::Multiply,
             op::kind::Pow,
             op::kind::PowBackprop,
+            op::kind::PReLU,
             op::kind::ReduceSum,
             op::kind::ReLU,
             op::kind::ReLUBackprop,

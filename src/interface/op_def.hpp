@@ -948,6 +948,25 @@ DNNL_GRAPH_OP_SCHEMA(PowBackpropExponent, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_exponent_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(PReLU, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "data", "input tensor", "T")
+                .set_input(1, "slope", "slope tensor", "T")
+                .set_output(0, "output", "output tensor", "T")
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                .set_attr("per_channel_broadcast",
+                        "whether to apply per channel broadcast when slope is "
+                        "1D tensor",
+                        false, attribute_kind::b, true)
+                .set_type_constraints(
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(infer_identity_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(ReduceSum, 1,
         op_schema_t()
                 .set_num_inputs(2)

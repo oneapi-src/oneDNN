@@ -36,19 +36,13 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 // TODO(xxx): extend to support other ops
 // for those ops with data_format/filter_format attributes
 static bool need_insert_permute(op_kind_t kind) {
-    static const std::set<op_kind_t> ops {
-            op_kind::dnnl_convolution,
-            op_kind::conv_depthwise,
-            impl::op_kind::Convolution,
-            impl::op_kind::ConvTranspose,
-            op_kind::dnnl_convtranspose,
-            impl::op_kind::MaxPool,
-            impl::op_kind::AvgPool,
-            op_kind::dnnl_pool,
-            op_kind::dnnl_batchnorm,
-            impl::op_kind::BatchNormInference,
-            impl::op_kind::BatchNormForwardTraining,
-    };
+    static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
+            op_kind::conv_depthwise, impl::op_kind::Convolution,
+            impl::op_kind::ConvTranspose, op_kind::dnnl_convtranspose,
+            impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool,
+            op_kind::dnnl_batchnorm, impl::op_kind::BatchNormInference,
+            impl::op_kind::BatchNormForwardTraining, impl::op_kind::PReLU,
+            op_kind::dnnl_prelu};
     return ops.count(kind) != 0;
 }
 
@@ -61,7 +55,8 @@ static bool require_input_format(op_kind_t kind) {
             impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
             impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::ReLU,
             impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_sum};
+            impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_sum,
+            impl::op_kind::PReLU, op_kind::dnnl_prelu};
     return ops.count(kind) != 0;
 }
 
@@ -547,6 +542,75 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
+    return impl::status::success;
+}
+
+impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    auto &subgraph = sg->get_mutable_ops();
+
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::PReLU) continue;
+
+        // check doable
+        auto src_lt = cur_op->get_input_value(0)->get_logical_tensor();
+        auto wei_lt = cur_op->get_input_value(1)->get_logical_tensor();
+        const std::string data_format
+                = cur_op->get_attr<std::string>("data_format");
+        const bool per_channel_broadcast
+                = cur_op->get_attr<bool>("per_channel_broadcast");
+
+        if (!prelu_doable(ltw(src_lt).vdims(), ltw(wei_lt).vdims(), data_format,
+                    per_channel_broadcast)) {
+            return status::invalid_shape;
+        }
+        // insert expand op
+        int32_t src_ndims = src_lt.ndims;
+        int32_t wei_ndims = wei_lt.ndims;
+        // we only broadcast wei dims
+        if (wei_ndims != src_ndims) {
+            auto expand_op = std::make_shared<op_t>(op_kind::expand);
+            expand_op->set_attr<int64_t>("expand_to", src_ndims);
+            // insert op before weights, which are the second input
+            int wei_input_id = 1;
+            insert_op_before(expand_op, cur_op, wei_input_id);
+            to_be_inserted_ops.emplace_back(expand_op);
+
+            if (per_channel_broadcast && data_format == "NCX") {
+                // When performing channel to broadcast and data format
+                // is NCX, after expanding weights, we additionally
+                // have to permute them.
+                auto perm_op = std::make_shared<op_t>(op_kind::permute);
+                perm_op->set_attr<std::string>("permute_kind", "permute");
+                perm_op->set_attr<std::string>("from_format", "NXC");
+                perm_op->set_attr<std::string>("to_format", "NCX");
+                // insert op before weights, which are the second input
+                insert_op_before(perm_op, cur_op, wei_input_id);
+                to_be_inserted_ops.emplace_back(perm_op);
+            }
+        }
+
+        // replace original op to dnnl specific op
+        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_prelu);
+        replace_op(cur_op, new_op);
+        to_be_inserted_ops.emplace_back(new_op);
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
     return impl::status::success;
 }
 

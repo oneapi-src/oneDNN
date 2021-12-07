@@ -417,6 +417,8 @@ public:
                 impl::op_kind::Concat,
                 // shuffle
                 op_kind::dnnl_shuffle,
+                // prelu
+                impl::op_kind::PReLU,
                 // single partition multi primitives
                 op_kind::conv_simple_resblock, op_kind::int8_MHA,
                 op_kind::f32_MHA, op_kind::chained_relu};

@@ -76,6 +76,14 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
 /// src and weight's dtype are both uint8
 impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg);
 
+/// Insert expand_to op to make PReLU input shapes meet DNNL requirements
+///
+/// expand_to inserts 1 at the beginning of the weight dims as many
+/// as needed, so that the weights have the same number of ndims as src.
+/// When performing channel to broadcast and data format is NCX,
+/// after expanding weights, we additionally have to permute them.
+impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
