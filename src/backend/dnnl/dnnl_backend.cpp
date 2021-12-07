@@ -233,6 +233,9 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::Reorder, reorder)
     DNNL_REGISTER_KERNEL(impl::op_kind::TypeCast, reorder)
 
+    // prelu kernel
+    DNNL_REGISTER_KERNEL(impl::op_kind::PReLU, float_prelu_fwd)
+
     // quantize and dequantize kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::Quantize, quantize_dequantize)
     DNNL_REGISTER_KERNEL(impl::op_kind::Dequantize, quantize_dequantize)

@@ -2658,6 +2658,23 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
                         attribute_kind::s)
                 .set_shape_inference_function(infer_dnnl_pool_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_prelu, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "data", "input tensor")
+                .set_input(1, "slope", "slope tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                .set_attr("per_channel_broadcast",
+                        "whether to apply per channel broadcast when slope is "
+                        "1D tensor",
+                        false, attribute_kind::b, true)
+                .set_shape_inference_function(infer_identity_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(dnnl_u8_to_s8, 1,
         op_schema_t()
                 .set_num_inputs(1)

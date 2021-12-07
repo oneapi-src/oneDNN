@@ -110,6 +110,7 @@ const op_kind_t Minimum = kMinimum;
 const op_kind_t Multiply = kMultiply;
 const op_kind_t Pow = kPow;
 const op_kind_t PowBackprop = kPowBackprop;
+const op_kind_t PReLU = kPReLU;
 const op_kind_t ReduceSum = kReduceSum;
 const op_kind_t ReLU = kReLU;
 const op_kind_t ReLUBackprop = kReLUBackprop;

@@ -196,7 +196,8 @@ namespace op_kind {
     X(conv_simple_resblock, Conv_simple_resblock) \
     X(int8_MHA, INT8_MHA) \
     X(f32_MHA, F32_MHA) \
-    X(chained_relu, Chained_relu)
+    X(chained_relu, Chained_relu) \
+    X(dnnl_prelu, Dnnl_prelu)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

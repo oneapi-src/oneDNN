@@ -279,6 +279,10 @@ const std::map<op_kind_t, dnnl::algorithm> &get_binary_alg_map();
 bool binary_doable(
         const std::vector<dim_t> &shape_0, const std::vector<dim_t> &shape_1);
 
+bool prelu_doable(const std::vector<dim_t> &src_dims,
+        const std::vector<dim_t> &wei_dims, const std::string &data_format,
+        const bool per_channel_broadcast);
+
 // For some shapes, such as the binary add shape [n,1,1,w] in BERT MHA pattern,
 // post binary will run into oneDNN's ref path and has poor performance. So, we
 // check the shape in this function and only make per_tensor, per_channel and
