@@ -43,6 +43,7 @@ Lp-norm-power-p:
 where \f$eps\_op\f$ can be max and sum.
 
 ### Notes
+
  * The reduction primitive requires the source and destination tensors to have
    the same number of dimensions.
  * Reduction dimensions are of size 1 in a destination tensor.
@@ -68,12 +69,12 @@ argument index as specified by the following table.
    will derive the most appropriate memory format based on the format of the
    source tensor.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 The following attributes are supported:
 
-| Type    | Operation                                      | Description                                                                    | Restrictions
-| :--     | :--                                            | :--                                                                            | :--
+| Type    | Operation                                      | Description                                                                    | Restrictions                        |
+| :--     | :--                                            | :--                                                                            | :--                                 |
 | Post-op | [Sum](@ref dnnl::post_ops::append_sum)         | Adds the operation result to the destination tensor instead of overwriting it. |                                     |
 | Post-op | [Eltwise](@ref dnnl::post_ops::append_eltwise) | Applies an @ref dnnl_api_eltwise operation to the result.                      |                                     |
 | Post-op | [Binary](@ref dnnl::post_ops::append_binary)   | Applies a @ref dnnl_api_binary operation to the result                         | General binary post-op restrictions |
@@ -100,8 +101,8 @@ meaning associated with any of the dimensions of a tensor.
 1. Whenever possible, avoid specifying different memory formats for source
    and destination tensors.
 
-## Examples
+## Example
 
-### @ref reduction_example_cpp - CPU/GPU
-
-@copydetails reduction_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Reduction Primitive Example](@ref reduction_example_cpp) | @copydetails reduction_example_cpp_short |

@@ -150,8 +150,8 @@ object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
   and destinations memory format tags when create an inner product primitive
   to allow the library to choose the most appropriate memory format.
 
-## Examples
+## Example
 
-### @ref inner_product_example_cpp - CPU/GPU
-
-@copydetails inner_product_example_cpp_short
+| Engine  | Name                       | Comments                                    |
+| :--     | :--                        | :--                                         |
+| CPU/GPU | [Inner Product Primitive Example](@ref inner_product_example_cpp) | @copydetails inner_product_example_cpp_short |

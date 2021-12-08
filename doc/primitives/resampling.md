@@ -95,6 +95,7 @@ argument index as specified by the following table.
 ## Implementation Details
 
 ### General Notes
+
 1. Resampling implementation supports data with arbitrary data tag (nchw, nhwc,
    nChw16c, etc.) but memory tags for `src` and `dst` are expected to be the
    same. Resampling primitive supports `dst` and `diff_src` memory tag
@@ -128,12 +129,12 @@ source and destination memory objects:
 | forward / backward | f32, s32, bf16, s8, u8 | f32, s32, bf16, s8, u8 |
 | forward            | f16                    | f16                    |
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 The following attributes are supported:
 
-| Type    | Operation                                      | Description                                                                    | Restrictions
-| :--     | :--                                            | :--                                                                            | :--
+| Type    | Operation                                      | Description                                                                    | Restrictions                        |
+| :--     | :--                                            | :--                                                                            | :--                                 |
 | Post-op | [Sum](@ref dnnl::post_ops::append_sum)         | Adds the operation result to the destination tensor instead of overwriting it. |                                     |
 | Post-op | [Eltwise](@ref dnnl::post_ops::append_eltwise) | Applies an @ref dnnl_api_eltwise operation to the result.                      |                                     |
 | Post-op | [Binary](@ref dnnl::post_ops::append_binary)   | Applies a @ref dnnl_api_binary operation to the result                         | General binary post-op restrictions |
@@ -147,8 +148,8 @@ The following attributes are supported:
 
 N/A
 
-## Examples
+## Example
 
-### @ref resampling_example_cpp - CPU/GPU
-
-@copydetails resampling_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Resampling Primitive Example](@ref resampling_example_cpp) | @copydetails resampling_example_cpp_short |

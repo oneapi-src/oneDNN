@@ -81,7 +81,7 @@ saturation is used. For instance:
 The reorder primitive works with arbitrary data tensors. There is no special
 meaning associated with any logical dimensions.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 The reorder primitive support the following attributes and post-ops:
 
@@ -122,8 +122,8 @@ floating point data type.
 
 N/A
 
-## Examples
+## Example
 
-### @ref reorder_example_cpp - CPU/GPU
-
-@copydetails reorder_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Reorder Primitive Example](@ref reorder_example_cpp) | @copydetails reorder_example_cpp_short |

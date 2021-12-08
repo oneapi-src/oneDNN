@@ -138,8 +138,8 @@ The LRN primitive does not support any post-ops or attributes.
    same because of the API). Different formats are functionally supported but
    lead to highly suboptimal performance.
 
-## Examples
+## Example
 
-### @ref lrn_example_cpp - CPU/GPU
-
-@copydetails lrn_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Local Response Normalization Primitive Example](@ref lrn_example_cpp) | @copydetails lrn_example_cpp_short |

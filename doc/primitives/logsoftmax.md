@@ -78,7 +78,7 @@ argument index as specified by the following table.
    `diff_dst` can be used as input and output for backward propagation. In case
    of in-place operation, the original data will be overwritten.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 The logsoftmax primitive does not support any post-ops or attributes.
 
@@ -133,8 +133,9 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
                     softmax axis 2 (C), format tag #dnnl_acdb, and
                     and \f$D \cdot B \ne 1\f$
 
-## Examples
+## Example
 
-### @ref logsoftmax_example_cpp - CPU/GPU
-
-@copydetails logsoftmax_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Logsoftmax Primitive Example](@ref logsoftmax_example_cpp) | @copydetails logsoftmax_example_cpp_short |
+ 

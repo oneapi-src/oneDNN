@@ -65,7 +65,7 @@ argument index as specified by the following table.
    be overwritten. In-place mode requires the \dst and source 0 data types to be
    the same. Different data types will unavoidably lead to correctness issues.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 The following attributes are supported:
 
@@ -112,10 +112,7 @@ meaning associated with any of tensors dimensions.
 
 ## Examples
 
-### @ref binary_example_cpp - CPU/GPU
-
-@copydetails binary_example_cpp_short
-
-### @ref bnorm_u8_via_binary_postops_cpp - CPU/GPU
-
-@copydetails bnorm_u8_via_binary_postops_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Binary Primitive Example](@ref binary_example_cpp) | @copydetails binary_example_cpp_short |
+| CPU/GPU | [Bnorm u8 by binary post-ops example](@ref bnorm_u8_via_binary_postops_cpp) | @copydetails bnorm_u8_via_binary_postops_cpp_short |
