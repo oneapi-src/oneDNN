@@ -395,8 +395,6 @@ public:
             do_loop_unroll = false;
         }
 
-        regs = hw <= ngen::HW::XeLP ? 128 : 256;
-
         // XXX: in case of nhwc or small mb allow reorders on XeHPC
         // since A/B tile loads may be strided
         if (hw >= ngen::HW::XeHPC
@@ -445,8 +443,6 @@ public:
 
         // Try to enable special optimization for strided BWD_D convolution.
         if (can_optimize_strided_bwd_d()) optimize_strided = true;
-
-        regs = 256;
 
         mb_thr_dim = 1;
 
@@ -1776,6 +1772,7 @@ private:
     }
 
     bool try_reduce_grf_usage() {
+        regs = large_grf_support && estimate_register_count() > 128 ? 256 : 128;
         if (!reduce_grf_usage) return true;
 
         // TODO: improve estimate register count, it fails to account for tmp
