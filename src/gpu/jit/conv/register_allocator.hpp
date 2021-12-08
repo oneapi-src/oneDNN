@@ -51,6 +51,7 @@ public:
             ir_warning() << kernel_name
                          << " uselessly enables large grf mode as "
                          << peak_grf_usage << " registers were used\n";
+        ir_assert(!is_speculate) << "Speculative allocation never finished\n";
 #endif
     }
 
@@ -129,16 +130,29 @@ public:
 #ifdef GEN_CONV_DEBUG
     int get_peak_grf_usage() const { return peak_grf_usage; }
 
+    // For performing speculative allocations that may not be used in the final
+    // register allocation
+    void start_speculate() { is_speculate = true; }
+    void finish_speculate() {
+        is_speculate = false;
+        update_peak_grf_usage();
+    }
+
 protected:
     void update_peak_grf_usage() {
+        if (is_speculate) return;
         int register_count = ra.countAllocedRegisters();
         if (peak_grf_usage < register_count) peak_grf_usage = register_count;
     }
 
     int peak_grf_usage = 0;
     int warn_flags;
+    bool is_speculate;
     std::string kernel_name;
 #else
+    void start_speculate() {}
+    void finish_speculate() {}
+
 protected:
     void update_peak_grf_usage() {}
 #endif

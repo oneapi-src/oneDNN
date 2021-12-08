@@ -608,6 +608,8 @@ bool search(search_context_t &ctx, int block_idx = 0) {
 reg_mask_t create_available_reg_mask(
         reg_allocator_t &ra, const hw_context_t *hw_ctx) {
     reg_mask_t reg_mask(hw_ctx, 0);
+    ra.start_speculate();
+
     // Query the allocator to get information about free registers.
     for (;;) {
         auto grf = ra.try_alloc();
@@ -621,6 +623,8 @@ reg_mask_t create_available_reg_mask(
             ra.safeRelease(grf);
         }
     }
+
+    ra.finish_speculate();
     return reg_mask;
 }
 
