@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <memory>
 #include <set>
@@ -1756,7 +1757,9 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             if (axis != -1) fused_op->set_attr<int64_t>("axis", axis);
 
             if (std::find_if(fused_scales.begin(), fused_scales.end(),
-                        [](const float &s) { return std::abs(s - 1.f) > 1e-6; })
+                        [](const float &s) {
+                            return std::fabs(s - 1.f) > 1e-6;
+                        })
                     != fused_scales.end()) {
                 fused_op->set_attr<std::vector<float>>("scales", fused_scales);
             }
