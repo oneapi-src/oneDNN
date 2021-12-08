@@ -21,7 +21,7 @@ an offset (``beta``).
   * **Description**: *epsilon* is the number to be added to the variance to
     avoid division by zero when normalizing a value. For example, *epsilon*
     equal to 0.001 means that 0.001 is added to the variance.
-  * **Range of values**: arbitrary positive f32 value 
+  * **Range of values**: arbitrary positive f32 value
   * **Type**: f32
   * **Default value**: None
   * **Required**: *yes*
@@ -40,40 +40,40 @@ an offset (``beta``).
 * **1**: ``input`` - input tensor with data for normalization. The format is
   specified by *data_format*. **Required.**
 
-  * **Type**: T
+  * **Type**: T1
 
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor with the
   same span as input's channel axis. **Required.**
 
-  * **Type**: f32
+  * **Type**: T2
 
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor with
   the same span as input's channel axis.. **Required.**
 
-  * **Type**: f32
+  * **Type**: T2
 
 * **4**: ``mean`` - value for mean normalization. A 1D tensor with the same span
   as input's channel axis. **Required.**
 
-  * **Type**: f32
+  * **Type**: T2
 
 * **5**: ``variance`` - value for variance normalization. A 1D tensor with the
   same span as input's channel axis.. **Required.**
 
-  * **Type**: f32
+  * **Type**: T2
 
 **Outputs**
 
-* **1**: The result of normalization. A tensor of the same shape and 
+* **1**: The result of normalization. A tensor of the same shape and
   format with 1st input tensor.
 
-  * **Type**: T
+  * **Type**: T1
 
 **Types**
 
-* *T*: f32, f16, bf16.
-* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
-  data type. For example, if *T* is f32, all these tensors are f32 tensor.
+* *T1*: f32, f16, bf16.
+* *T2*: f32, bf16.
+* Constraints: *T2* can be bf16 only when *T1* is bf16.
 
 **Mathematical Formulation**
 

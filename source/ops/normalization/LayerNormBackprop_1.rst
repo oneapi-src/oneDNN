@@ -38,7 +38,7 @@ LayerNormBackprop
 * *epsilon*
 
   * **Description**: *epsilon* is a constant to improve numerical stability
-  * **Range of values**: arbitrary positive f32 value 
+  * **Range of values**: arbitrary positive f32 value
   * **Type**: f32
   * **Default value**: 1e-5
   * **Required**: *no*
@@ -57,49 +57,49 @@ LayerNormBackprop
 
 * **1**: ``input_forward`` - input tensor. **Required.**
 
-  * **Type**: T
+  * **Type**: T1
 
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of the same
   span as input's channel axis. Required by attribute ``use_affine``.
   **Optional.**
 
-  * **Type**: f32
+  * **Type**: T2
 
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor with
   the same span as input's channel axis.Required by attribute ``use_affine``.
   **Optional.**
 
-  * **Type**: f32
+  * **Type**: T2
 
 * **4**: ``mean`` - mean of input. Required by attribute ``use_stats``.
   **Optional.**
 
-  * **Type**: f32
+  * **Type**: T2
 
 * **5**: ``variance`` - variance of input. Required by attribute ``use_stats``.
   **Optional.**
 
-  * **Type**: f32
+  * **Type**: T2
 
 **Outputs**
 
 * **1**: ``input_delta`` - the the gradient tensor with respect to the output of
   the layer normalization. **Required.**
 
-  * **Type**: T
-  
+  * **Type**: T1
+
 * **2**: ``gamma_delta`` - the the gradient tensor with respect to the gamma of
   the layer normalization. **Optional.**
 
-  * **Type**: f32
+  * **Type**: T2
 
 * **3**: ``beta_delta`` - the the gradient tensor with respect to the beta of
   the layer normalization. **Optional.**
 
-  * **Type**: f32
+  * **Type**: T2
 
 **Types**
 
-* *T*: f32, f16, bf16.
-* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
-  data type. For example, if *T* is f32, all these tensors are f32 tensor.
+* *T1*: f32, f16, bf16.
+* *T2*: f32, bf16.
+* Constraints: *T2* can be bf16 only when *T1* is bf16.
