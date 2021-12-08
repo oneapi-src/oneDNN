@@ -526,10 +526,14 @@ inline void l_dims_by_l_offset(
     }
 }
 
-inline int get_dims_mask(const dims_t dims1, const dims_t dims2, int ndims) {
+inline int get_dims_mask(const dims_t dims1, const dims_t dims2, int ndims,
+        bool skip_dim_of_one = false) {
     int mask = 0;
-    for (int d = 0; d < ndims; ++d)
-        mask += dims1[d] == dims2[d] ? (1 << d) : 0;
+    for (int d = 0; d < ndims; ++d) {
+        // Disable mask_bit for dimensions of `1` by request.
+        int mask_bit = skip_dim_of_one && dims1[d] == 1 ? 0 : (1 << d);
+        mask += dims1[d] == dims2[d] ? mask_bit : 0;
+    }
     return mask;
 };
 

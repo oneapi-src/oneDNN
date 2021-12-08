@@ -852,7 +852,7 @@ public:
                 int mask = po.is_prelu()
                         ? po.prelu.mask
                         : utils::get_dims_mask(pd->invariant_dst_md()->dims,
-                                po.binary.src1_desc.dims, ndims);
+                                po.binary.src1_desc.dims, ndims, true);
                 // These cases don't have message-related limitations.
                 if ((mask & (1 << 1)) == 0 || mask == (1 << 1)) continue;
                 auto rhs_layout = po.is_prelu() ? layout_t(type_t::f32(), 0,
