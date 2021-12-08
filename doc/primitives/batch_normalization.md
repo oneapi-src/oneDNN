@@ -107,7 +107,7 @@ requires different inputs and outputs.  For clarity, a summary is shown below.
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output      | Execution argument index  |
+| Primitive Input/Output      | Execution Argument Index  |
 | ---                         | ---                       |
 | \src                        | DNNL_ARG_SRC              |
 | \f$\gamma, \beta\f$         | DNNL_ARG_SCALE_SHIFT      |
@@ -209,7 +209,7 @@ Here *optimized^* means the format that
 [comes out](@ref memory_format_propagation_cpp)
 of any preceding compute-intensive primitive.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 Post-ops and attributes enable you to modify the behavior of the batch
 normalization primitive by chaining certain operations after the batch
@@ -245,8 +245,8 @@ directly.
 
 2. Use in-place operations whenever possible (see caveats in General Notes).
 
-## Examples
+## Example
 
-### @ref batch_normalization_example_cpp - CPU/GPU
-
-@copydetails batch_normalization_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [CBatch Normalization Primitive Example](@ref batch_normalization_example_cpp) | @copydetails batch_normalization_example_cpp_short |

@@ -87,7 +87,7 @@ The shuffle primitive supports the following combinations of data types:
 
 @warning
     There might be hardware and/or implementation specific restrictions.
-    Check [Implementation Limitations](@ref dg_shuffle_impl_limits) section
+    Check the [Implementation Limitations](@ref dg_shuffle_impl_limits) section
     below.
 
 ## Data Layouts
@@ -108,10 +108,9 @@ Here *optimized^* means the format that
 [comes out](@ref memory_format_propagation_cpp)
 of any preceding compute-intensive primitive.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 The shuffle primitive does not support any post-ops or attributes.
-
 
 @anchor dg_shuffle_impl_limits
 ## Implementation Limitations
@@ -119,13 +118,12 @@ The shuffle primitive does not support any post-ops or attributes.
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
-
 ## Performance Tips
 
 N/A
 
-## Examples
+## Example
 
-### @ref shuffle_example_cpp - CPU/GPU
-
-@copydetails shuffle_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Shuffle Primitive Example](@ref shuffle_example_cpp) | @copydetails shuffle_example_cpp_short |

@@ -58,7 +58,7 @@ matching the data type of the destination tensor).
 The concat primitive works with arbitrary data tensors. There is no special
 meaning associated with any logical dimensions.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 The concat primitive does not support any post-ops or attributes.
 
@@ -88,8 +88,8 @@ The concat primitive does not support any post-ops or attributes.
    Consider reordering sources to the same data format before using the concat
    primitive.
 
-## Examples
+## Example
 
-### @ref concat_example_cpp - CPU/GPU
-
-@copydetails concat_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Concat Primitive Example](@ref concat_example_cpp) | @copydetails concat_example_cpp_short |

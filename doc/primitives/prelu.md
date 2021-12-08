@@ -21,7 +21,8 @@ Example broadcasts:
 | Whole-tensor    | \f$\{n, c, h ,w\}\f$ | \f$\{n, c, h ,w\}\f$ |
 | Shared-axes     | \f$\{n, c, h ,w\}\f$ | \f$\{n, 1, h ,1\}\f$ |
 
-note: Shared-axes indicates broadcast with any combination of shared
+@note
+   Shared-axes indicates broadcast with any combination of shared
 dimensions.
 
 ### Forward
@@ -74,6 +75,7 @@ dimensions, since \f$\diffweights\f$ tensor must match \f$\weights\f$ tensor.
 
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
@@ -128,8 +130,8 @@ memory format by passing weights_md with format_tag::any.
 For best performance, the weights memory format should match
 data memory format.
 
-## Examples
+## Example
 
-### @ref prelu_example_cpp - CPU/GPU
-
-@copydetails prelu_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [PReLU Primitive Example](@ref prelu_example_cpp) | @copydetails prelu_example_cpp_short |

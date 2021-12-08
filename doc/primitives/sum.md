@@ -48,7 +48,7 @@ argument index as specified by the following table.
    the output tensor to be either bigger than or equal to the size of the \dst
    memory descriptor used for primitive creation.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 The sum primitive does not support any post-ops or attributes.
 
@@ -83,8 +83,9 @@ meaning associated with any logical dimensions.
 
  * Use in-place operations whenever possible (see caveats in General Notes).
 
-## Examples
+## Example
 
-### @ref sum_example_cpp - CPU/GPU
-
-@copydetails sum_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Sum Primitive Example](@ref sum_example_cpp) | @copydetails sum_example_cpp_short |
+ 

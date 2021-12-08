@@ -468,8 +468,8 @@ the convolution.)
   memory format tags when create a convolution primitive to allow the library
   to choose the most appropriate memory format.
 
-## Examples
+## Example
 
-### @ref convolution_example_cpp - CPU/GPU
-
-@copydetails convolution_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Convolution Primitive Example](@ref convolution_example_cpp) | @copydetails convolution_example_cpp_short |

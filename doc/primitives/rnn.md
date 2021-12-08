@@ -325,7 +325,7 @@ argument index as specified by the following table.
 | \diffdstiter           | DNNL_ARG_DIFF_DST_ITER           |
 | \diffdstiterc          | DNNL_ARG_DIFF_DST_ITER_C         |
 
-## Implementation details
+## Implementation Details
 
 ### Data Type Support
 
@@ -377,7 +377,7 @@ The RNN primitive supports padded tensors and views. So even if
 two memory descriptors share the same data layout, they might still be
 different.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 Currently post-ops and attributes are only used by the int8 variants of
 LSTM and GRU. See the markdown @ref cpu_rnn_inference_int8_cpp for more
@@ -396,14 +396,17 @@ details on how to use and set these quantization parameters.
       Extension(AMX) support.
 
 2. **GPU**
-    - No support for GRU
-    - No support for Peephole LSTM and Projection LSTM
+    - No support for GRU.
+    - No support for Peephole LSTM and Projection LSTM.
     - Bias must always be present (that is, the corresponding memory descriptor
       argument cannot be zero memory descriptor when the RNN operation
       descriptor is initialized).
 
-## Examples
+## Example
 
-### @ref lstm_example_cpp - CPU/GPU
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [LSTM RNN Primitive Example](@ref lstm_example_cpp) | @copydetails lstm_example_cpp_short |
+ 
 
-@copydetails lstm_example_cpp_short
+

@@ -139,7 +139,7 @@ Here *optimized^* means the format that
 [comes out](@ref memory_format_propagation_cpp)
 of any preceding compute-intensive primitive.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 | Propagation | Type    | Operation                                    | Description                                            | Restrictions                        |
 | :--         | :--     | :--                                          | :--                                                    | :--                                 |
@@ -159,8 +159,8 @@ of any preceding compute-intensive primitive.
 
 N/A
 
-## Examples
+## Example
 
-### @ref pooling_example_cpp - CPU/GPU
-
-@copydetails pooling_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Pooling Primitive Example](@ref pooling_example_cpp) | @copydetails pooling_example_cpp_short |

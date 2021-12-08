@@ -121,8 +121,8 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
                     softmax axis 2 (C), format tag #dnnl_acdb, and
                     and \f$D \cdot B \ne 1\f$
 
-## Examples
+## Example
 
-### @ref softmax_example_cpp - CPU/GPU
-
-@copydetails softmax_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Softmax Primitive Example](@ref softmax_example_cpp) | @copydetails softmax_example_cpp_short |

@@ -141,7 +141,7 @@ finally the result is converted to the output data type.
 The eltwise primitive works with arbitrary data tensors. There is no special
 meaning associated with any logical dimensions.
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 | Propagation | Type    | Operation                                    | Description                                            | Restrictions                        |
 | :--         | :--     | :--                                          | :--                                                    | :--                                 |
@@ -174,8 +174,8 @@ meaning associated with any logical dimensions.
       propagation (e.g., if the convolution operation satisfies these
       conditions).
 
-## Examples
+## Example
 
-### @ref eltwise_example_cpp - CPU/GPU
-
-@copydetails eltwise_example_cpp_short
+| Engine  | Name                         | Comments                                   |
+| :--     | :--                          | :--                                        |
+| CPU/GPU | [Element-Wise Primitive Example](@ref eltwise_example_cpp) | @copydetails eltwise_example_cpp_short |
