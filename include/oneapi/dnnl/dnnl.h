@@ -981,7 +981,7 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_prelu(
 /// Returns the parameters of a prelu post-op.
 ///
 /// @param post_ops Post-ops.
-/// @param index Index of the preu post-op.
+/// @param index Index of the prelu post-op.
 /// @param mask Mask of the prelu post-op.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.

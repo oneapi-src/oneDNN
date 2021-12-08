@@ -312,7 +312,7 @@ is the sequence number of the prelu in post-operations chain;
 - only plain layout (a, ab, acb, acdb, acdeb) is supported for weights tensor;
 - mask defines the correspondence between the output tensor dimensions and
   the prelu weights tensor. The set i-th bit indicates that a dedicated weights
-  value is used for each index along that dimension. Mask 0 valuee means common
+  value is used for each index along that dimension. Mask 0 value means common
   (scalar) weights value for the whole output tensor.
 - the order of dimensions does not depend on how elements are laid out in memory.
 For example:

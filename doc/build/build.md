@@ -205,7 +205,7 @@ If the library is built for the host system, you can run unit tests using:
 ctest
 ~~~
 
-## Build documenation
+## Build documentation
 
 - Install the requirements
 ~~~sh
