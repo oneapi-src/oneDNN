@@ -10567,11 +10567,11 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
                             ? state.Bi_regs[slmCopyStore]
                             : state.Bo_regs;
                     if (noshareRemask || !remaskA)
-                        setupTeardownRemask(Tb, 1, true, strategy.unrollKSLM,
+                        setupTeardownRemask(Tb, 0, true, strategy.unrollKSLM,
                                 state.K, strategy, state, offK_B);
-                    remaskLayout(Tb, 1, false, state.Bo_layout, B_regs,
+                    remaskLayout(Tb, 0, false, state.Bo_layout, B_regs,
                             strategy, state);
-                    setupTeardownRemask(Tb, 1, false, strategy.unrollKSLM,
+                    setupTeardownRemask(Tb, 0, false, strategy.unrollKSLM,
                             state.K, strategy, state, offK_B);
                 }
             }
