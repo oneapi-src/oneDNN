@@ -142,8 +142,24 @@ public:
                 auto &info = *kernel_infos[i];
                 switch (info.id()) {
                     case kernel_id_t::convolution:
-                        kernels_.push_back(make_kernel<conv_kernel_t>(primitive,
-                                engine, cfg.hw, cfg, primitive->pd(), info));
+                        try {
+                            kernels_.push_back(make_kernel<conv_kernel_t>(
+                                    primitive, engine, cfg.hw, cfg,
+                                    primitive->pd(), info));
+                        } catch (const ngen::out_of_registers_exception &e) {
+                            if (cfg.regs < 256 && cfg.large_grf_support) {
+                                ir_warning()
+                                        << "Failed to generate kernel with "
+                                           "default register mode, attempting "
+                                           "again with large_grf_mode "
+                                           "enabled\n";
+                                kernels_.push_back(make_kernel<conv_kernel_t>(
+                                        primitive, engine, cfg.hw, cfg,
+                                        primitive->pd(), info, true));
+                            } else {
+                                throw e;
+                            }
+                        }
                         break;
                     case kernel_id_t::pre_reorder: {
                         auto src_layout = cfg.tensor_config.user_layout(

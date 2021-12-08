@@ -591,14 +591,14 @@ public:
     friend class send_impl_t;
 
     conv_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
-            const kernel_info_t &kernel_info);
+            const kernel_info_t &kernel_info, bool force_large_grf = false);
 
     void setup_interface(
             const stmt_t &kernel_body, const kernel_info_t &kernel_info) {
         externalName("gen_conv");
         requireLocalID(3);
         requireLocalSize();
-        requireGRF(cfg_.regs);
+        requireGRF(regs_);
         requireSIMD(cfg_.simd_size);
         requireBarrier();
         if (utils::one_of(cfg_.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw))
@@ -950,6 +950,7 @@ public:
 
 private:
     const conv_config_t &cfg_;
+    const int regs_;
     reg_allocator_t ra_;
     ngen::GRF signal_header_;
 
@@ -4047,7 +4048,7 @@ private:
             return it->second.get_reg_buf(alloc.buf);
         }
         auto bca = bank_conflict_allocation_t::create(
-                host_->ra_, host_->cfg_.regs, bc_attr);
+                host_->ra_, host_->regs_, bc_attr);
         if (bca.is_empty()) return {};
 
         auto ret = bc_allocations_.emplace(bc_attr, std::move(bca));
@@ -4423,10 +4424,13 @@ private:
 
 template <ngen::HW hw>
 conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
-        const convolution_pd_t *pd, const kernel_info_t &kernel_info)
-    : cfg_(cfg), ra_(hw, "conv_kernel_t", reg_allocator_t::warn_all) {
+        const convolution_pd_t *pd, const kernel_info_t &kernel_info,
+        bool force_large_grf)
+    : cfg_(cfg)
+    , regs_(!force_large_grf ? cfg.regs : 256)
+    , ra_(hw, "conv_kernel_t", reg_allocator_t::warn_all) {
 
-    ra_.setRegisterCount(cfg_.regs);
+    ra_.setRegisterCount(regs_);
 
     // XXX: BWD_W does 32x32 multiplication in the inner loop which may cause
     // hangs when using with split barrier. Switch to emulation to work around
