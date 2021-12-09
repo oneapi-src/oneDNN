@@ -9,24 +9,24 @@ Linux perf.
 
 ## Build-Time Controls
 
-At build-time, support for this feature is controlled via cmake option
+At build-time, support for this feature is controlled by the CMake option
 `ONEDNN_ENABLE_JIT_PROFILING`.
 
-| CMake Option                | Supported Values (defaults in bold) | Description
-| :---                        | :---                                | :---
-| ONEDNN_ENABLE_JIT_PROFILING | **ON**, OFF                         | Enables performance profilers integration
+| CMake Option                | Supported Values      | Description                               |
+| :---                        | :---                  | :---                                      |
+| ONEDNN_ENABLE_JIT_PROFILING | **ON** (default), OFF | Enables performance profilers integration |
 
 ## Run-Time Controls
 
 When the feature is enabled at build-time, the `ONEDNN_JIT_PROFILE` environment
 variable can be used to manage integration with performance profilers.
 
-| Environment Variable | Value  | Description                                                            | x64            | AArch64        |
-| :---                 | :---   | :---                                                                   | :---           | :---           |
-| ONEDNN_JIT_PROFILE   | 1      | Enables VTune Amplifier integration                                    | **x(default)** | N/A            |
-|                      | 2      | Enables basic Linux perf integration                                   | x              | **x(default)** |
-|                      | 6      | Enables Linux perf integration with JIT dump output                    | x              | x              |
-|                      | 14     | Enables Linux perf integration with JIT dump output and TSC timestamps | x              | N/A            |
+| Environment Variable | Value            | Description                                                            | x64             | AArch64
+| :---                 | :---             | :---                                                                   | :---            | :---
+| ONEDNN_JIT_PROFILE   | 1                | Enables VTune Amplifier integration                                    | **x** (default) | N/A
+| ^                    | 2                | Enables basic Linux perf integration                                   | x               | **x** (default)
+| ^                    | 6                | Enables Linux perf integration with JIT dump output                    | x               | x
+| ^                    | 14               | Enables Linux perf integration with JIT dump output and TSC timestamps | x               | N/A
 
 Other valid values for `ONEDNN_JIT_PROFILE` include integer values representing
 a combination of flags accepted by the @ref dnnl_set_jit_profiling_flags
@@ -42,9 +42,9 @@ This feature can also be managed at run-time with the following functions:
 
 Function settings take precedence over environment variables.
 
-## Features for VTune Amplifier
+### Features for VTune Amplifier
 
-### ITT Tagging for Primitive Execution
+#### ITT Tagging for Primitive Execution
 
 oneDNN supports ITT tagging at primitive execution in order to provide
 performance information on the level of a oneDNN primitive. This feature is
@@ -58,25 +58,25 @@ potential performance issues.
    vectorization on the primitive level.
 3. Map primitive with related computation kernels.
 
-#### Build-Time Controls
+##### Build-Time Controls
 
-At build-time, support for this feature is controlled via cmake option
+At build-time, support for this feature is controlled by the CMake option
 `ONEDNN_ENABLE_ITT_TASKS`.
 
-| CMake Option             | Supported Values (defaults in bold) | Description                            | 
-| :---                     | :---                                | :---                                   |
-| ONEDNN_ENABLE_ITT_TASKS  | **ON**, OFF                         | Enables ITT tagging for primitive execution |
+| CMake Option                | Supported Values      | Description
+| :---                        | :---                  | :---
+| ONEDNN_ENABLE_ITT_TASKS     | **ON** (default), OFF | Enables ITT tagging for primitive execution
 
-#### Run-Time Controls
+##### Run-Time Controls
 
 When the feature is enabled at build-time, the `ONEDNN_ITT_TASK_LEVEL` environment
 variable can be used to enable different level of ITT tagging.
 
-| Environment Variable  | Value     | Description                                      |
-| :---                  | :---      | :---                                             |
-| ONEDNN_ITT_TASK_LEVEL | 0         | No ITT event will be triggered                   | 
-|                       | 1         | ITT events are only triggered in master thread   |
-|                       | **2**     | **ITT events are triggered in all OMP/TBB threads** |
+| Environment Variable  | Value        | Description
+| :---                  | :---         | :---
+| ONEDNN_ITT_TASK_LEVEL | 0            | no ITT event will be triggered
+| ^                     | 1            | ITT events are only triggered in master thread
+| ^                     | **2** (default) | **ITT events are triggered in all OMP/TBB threads**
 
 ## Example: Profiling with VTune Amplifier
 
@@ -120,7 +120,6 @@ benchdnn  libgomp.so.1.0.0  func@0x19370                           82.609694
 benchdnn  libdnnl.so.1.8    dnnl::impl::cpu::x64::jit_avx512_co..  35.682241
 benchdnn  vmlinux           [vmlinux]
        10.763433
-
 ~~~
 
 The JIT-ed function `_jit_avx512_common_conv_fwd_kernel` is shown as belonging
@@ -137,7 +136,6 @@ convolution         1451.459338
 [Outside any task]  280.489764
 reorder             10.434821 
        10.763433
-
 ~~~
 
 ### Profiling for Microarchitecture Information
@@ -214,7 +212,7 @@ Front-End Bound:Front-End Latency:ICache Misses:Self
 
 ~~~
 
-See more examples in the [VTune Amplifier User Guide](https://software.intel.com/content/www/us/en/develop/documentation/vtune-help/top/introduction/tutorials-and-samples.html).
+See more examples in the [VTune Amplifier User Guide](https://software.intel.com/content/www/us/en/develop/documentation/vtune-help/top/introduction/tutorials-and-samples.html)
 
 
 ## Example: Profiling with Linux Perf
@@ -269,4 +267,4 @@ enabled, but annotating a JIT-ed functions disassembly, which requires
 jitdump, seems to often fail on kernels before 5.x.
 
 See more on
-[Brendan Gregg's excellent perf examples page](http://www.brendangregg.com/perf.html).
+[Brendan Gregg's excellent perf examples page](http://www.brendangregg.com/perf.html)
