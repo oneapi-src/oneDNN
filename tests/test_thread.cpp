@@ -16,7 +16,6 @@
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 
-#include <algorithm>
 #include <mutex>
 
 #ifdef _WIN32
@@ -48,11 +47,14 @@ inline int read_num_threads_from_env() {
     env_num_threads = ::getenv(env_var_name);
 #endif
 
-    int num_threads = (int)dnnl::impl::cpu::platform::get_max_threads_to_use();
+    int num_threads = 0;
     if (env_num_threads) {
         char *endp;
-        int nt = std::max(1L, strtol(env_num_threads, &endp, 10));
-        if (*endp == '\0') num_threads = std::min(nt, num_threads);
+        int nt = strtol(env_num_threads, &endp, 10);
+        if (*endp == '\0') num_threads = nt;
+    }
+    if (num_threads <= 0) {
+        num_threads = (int)dnnl::impl::cpu::platform::get_max_threads_to_use();
     }
     return num_threads;
 }
@@ -116,7 +118,6 @@ public:
 #include "tbb/parallel_for.h"
 #include "tbb/task_arena.h"
 
-#include "src/cpu/platform.hpp"
 namespace dnnl {
 namespace testing {
 
@@ -124,8 +125,7 @@ class threadpool : public dnnl::threadpool_interop::threadpool_iface {
 public:
     explicit threadpool(int num_threads = 0) { (void)num_threads; }
     int get_num_threads() const override {
-        return std::min(tbb::this_task_arena::max_concurrency(),
-                (int)dnnl::impl::cpu::platform::get_max_threads_to_use());
+        return tbb::this_task_arena::max_concurrency();
     }
     bool get_in_parallel() const override { return 0; }
     uint64_t get_flags() const override { return 0; }
