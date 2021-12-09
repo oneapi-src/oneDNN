@@ -45,6 +45,7 @@ target_link_libraries(${LIB_NAME}_unit_test
     ${DNNL_GRAPH_TEST_LINK_FLAGS}
     ${LIB_NAME}_gtest
     dnnl
+    ${${LIB_NAME}_EXTRA_INTERFACE}
     ${DNNL_GRAPH_EXTRA_SHARED_LIBS}
     ${DNNL_GRAPH_COMMON_LINK_FLAGS} # FIXME: consider target_link_options from cmake 3.13
     )

@@ -102,6 +102,9 @@ option(DNNL_GRAPH_ENABLE_ASAN "builds oneDNN Graph with AddressSanitizer" OFF)
 # ======================================
 
 option(DNNL_GRAPH_BUILD_COMPILER_BACKEND "builds graph compiler backend" OFF)
+if(DNNL_GRAPH_BUILD_COMPILER_BACKEND)
+    add_definitions(-DDNNL_GRAPH_ENABLE_COMPILER_BACKEND)
+endif()
 set(DNNL_GRAPH_LLVM_CONFIG "AUTO" CACHE STRING "graph compiler backend LLVM config")
 
 # ===================

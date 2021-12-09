@@ -15,7 +15,7 @@
 #===============================================================================
 
 if(NOT DNNL_GRAPH_BUILD_COMPILER_BACKEND)
-    message(STATUS "graph compiler backend is disabled.")
+    message(STATUS "Graph compiler backend is disabled.")
     return()
 endif()
 
@@ -31,26 +31,42 @@ set(SC_LLVM_CONFIG ${DNNL_GRAPH_LLVM_CONFIG})
 find_llvm()
 
 if(${SC_LLVM_VERSION} STREQUAL OFF OR ${SC_LLVM_VERSION} LESS 8)
-    message(FATAL_ERROR "Expecting LLVM version >=8, got ${SC_LLVM_VERSION}, 
-            graph compiler backend is disabled.")
+    message(FATAL_ERROR "Expecting LLVM version >= 8, got ${SC_LLVM_VERSION}. "
+    "Consider turning off graph compiler backend, or use a higher LLVM version.")
 else()
     if("${SC_LLVM_INCLUDE_PATH}" STREQUAL OFF)
-        message(FATAL_ERROR "LLVM_INCLUDE_PATH is not successfully set, 
-            graph compiler backend is disabled.")
+        message(FATAL_ERROR "LLVM_INCLUDE_PATH is not successfully set. "
+        "Consider turning off graph compiler backend, or recheck LLVM Config.")
     else()
         message(STATUS "Found LLVM_VERSION=" ${SC_LLVM_VERSION})
     endif()
 endif()
 
 if(DNNL_GRAPH_CPU_RUNTIME MATCHES "(TBB|SEQ|DPCPP|THREADPOOL)$")
-    message(FATAL_ERROR "graph compiler backend does not support the chosen CPU runtime. "
-    "Consider changing DNNL_GRAPH_CPU_RUNTIME to OMP or turning of graph compiler backend.")
+    message(FATAL_ERROR "Graph compiler backend does not support the chosen CPU runtime. "
+    "Consider changing DNNL_GRAPH_CPU_RUNTIME to OMP or turning off graph compiler backend.")
 endif()
 
-message(STATUS "graph compiler backend is enabled.")
+message(STATUS "Graph compiler backend is enabled.")
 if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "OMP")
     set(SC_OMP_ENABLED "ON")
 endif()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/core)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/core/src/)
+
+file(GLOB SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
+    )
+
+set(OBJ_LIB ${LIB_NAME}_backend_compiler)
+add_library(${OBJ_LIB} OBJECT ${SOURCES})
+
+set_target_properties(${OBJ_LIB}
+    PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    CXX_VISIBILITY_PRESET "hidden"
+    VISIBILITY_INLINES_HIDDEN 1)
+
+set_property(GLOBAL APPEND PROPERTY ${LIB_NAME}_LIB_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)

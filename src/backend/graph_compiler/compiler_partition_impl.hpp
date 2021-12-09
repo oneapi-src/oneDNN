@@ -1,0 +1,109 @@
+/*******************************************************************************
+ * Copyright 2021 Intel Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
+#ifndef BACKEND_GRAPH_COMPILER_COMPILER_PARTITION_IMPL_HPP
+#define BACKEND_GRAPH_COMPILER_COMPILER_PARTITION_IMPL_HPP
+
+#include <cassert>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "interface/backend.hpp"
+#include "interface/partition.hpp"
+
+#include "compiler_backend.hpp"
+#include "compiler_graph.hpp"
+#include "utils.hpp"
+
+namespace dnnl {
+namespace graph {
+namespace impl {
+namespace compiler_impl {
+
+class compiler_partition_impl_t : public partition_impl_t {
+    friend class compiler_backend_t;
+
+public:
+    compiler_partition_impl_t(impl::engine_kind_t engine_kind)
+        : impl::partition_impl_t(engine_kind), is_init_(true) {}
+
+    compiler_partition_impl_t(const compiler_partition_impl_t &other);
+
+    virtual ~compiler_partition_impl_t() = default;
+
+    bool is_initialized() const override;
+    std::shared_ptr<impl::partition_impl_t> clone() override;
+    impl::status_t infer_shape(
+            std::vector<const impl::logical_tensor_t *> &inputs,
+            std::vector<impl::logical_tensor_t *> &outputs) const override;
+    impl::status_t compile(impl::compiled_partition_t *compiled_partition,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs,
+            const impl::engine_t *aengine) const override;
+    std::string to_string() const override;
+
+    const impl::backend *get_assigned_backend() const override {
+        return &compiler_backend_t::get_singleton();
+    }
+
+    // add op to backend partition
+    void add_op(const std::shared_ptr<op_t> &op) { ops_.emplace_back(op); }
+
+    // add ops to backend partition
+    void add_op(const std::vector<std::shared_ptr<op_t>> &ops) {
+        for (auto &op : ops) {
+            add_op(op);
+        }
+    }
+
+    // add backend partition's input tensor
+    void add_input_tensor(const std::shared_ptr<value_t> &v) {
+        auto in_pos = std::find_if(inputs_.begin(), inputs_.end(),
+                [&](const impl::logical_tensor_t &alt) -> bool {
+                    return alt.id == v->get_logical_tensor().id;
+                });
+        if (in_pos == inputs_.end()) {
+            inputs_.push_back(v->get_logical_tensor());
+        }
+    }
+
+    // add backend partition's output tensor
+    void add_output_tensor(const std::shared_ptr<value_t> &v) {
+        auto out_pos = std::find_if(outputs_.begin(), outputs_.end(),
+                [&](const impl::logical_tensor_t &alt) -> bool {
+                    return alt.id == v->get_logical_tensor().id;
+                });
+        if (out_pos == outputs_.end()) {
+            outputs_.push_back(v->get_logical_tensor());
+        }
+    }
+
+    bool is_op_exist(const op_t *aop) {
+        auto pos = std::find_if(ops_.begin(), ops_.end(),
+                [&](const std::shared_ptr<impl::op_t> &cur) -> bool {
+                    return cur->get_id() == aop->get_id();
+                });
+        return pos != ops_.end();
+    }
+
+private:
+    bool is_init_ = false;
+};
+} // namespace compiler_impl
+} // namespace impl
+} // namespace graph
+} // namespace dnnl
+#endif
