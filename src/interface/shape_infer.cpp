@@ -307,7 +307,6 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs) {
     auto in0 = logical_tensor_wrapper_t(inputs[0]); // data
     auto in1 = logical_tensor_wrapper_t(inputs[1]); // filter
-    auto out0 = logical_tensor_wrapper_t(outputs[0]); // output
 
     // get attr value
     const dim_t g = n->get_attr<dim_t>("groups");

@@ -42,7 +42,7 @@ TEST(Op, Validate) {
         int ndims;
         dnnl::graph::logical_tensor::layout_type ltype;
     };
-    std::array<int64_t, 5> proto_dims = {1, 2, 3, 4, 5};
+    std::array<int64_t, 5> proto_dims = {{1, 2, 3, 4, 5}};
     std::vector<param> proto_inputs {
             {0, dnnl::graph::logical_tensor::data_type::s8, 1,
                     dnnl::graph::logical_tensor::layout_type::undef},

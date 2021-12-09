@@ -29,11 +29,7 @@ using namespace dnnl::graph::tests::unit::utils;
 
 const iport_t IN0 = 0;
 const iport_t IN1 = 1;
-const iport_t IN2 = 2;
-const iport_t IN3 = 3;
 const oport_t OUT0 = 0;
-const oport_t OUT1 = 1;
-const oport_t OUT2 = 2;
 
 #define MUTE(x) (void)(x)
 

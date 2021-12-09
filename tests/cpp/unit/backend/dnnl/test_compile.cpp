@@ -3688,7 +3688,6 @@ TEST(Execute, MatmulBiasAddPerChannelBroadcast) {
 
 TEST(Compile, MatmulBiasAddUnsupportedBroadcast) {
     impl::engine_t &engine = get_engine();
-    impl::stream_t &strm = get_stream();
 
     std::vector<impl::dims> post_src_shapes = {{3}, {1, 3}};
 
@@ -6374,7 +6373,7 @@ test::vector<float> sigmoid_func(const test::vector<float> &ref_dst) {
     for (auto &rdst : ref_dst) {
         out.emplace_back(static_cast<float>(1 / (exp(-rdst) + 1)));
     }
-    return std::move(out);
+    return out;
 }
 
 test::vector<float> tanh_func(const test::vector<float> &ref_dst) {
@@ -6383,7 +6382,7 @@ test::vector<float> tanh_func(const test::vector<float> &ref_dst) {
         out.emplace_back(static_cast<float>(
                 (exp(rdst) - exp(-rdst)) / (exp(rdst) + exp(-rdst))));
     }
-    return std::move(out);
+    return out;
 }
 
 test::vector<float> sqrt_func(const test::vector<float> &ref_dst) {
@@ -6391,7 +6390,7 @@ test::vector<float> sqrt_func(const test::vector<float> &ref_dst) {
     for (auto &rdst : ref_dst) {
         out.emplace_back(static_cast<float>(sqrt(rdst)));
     }
-    return std::move(out);
+    return out;
 }
 
 test::vector<float> round_func(const test::vector<float> &ref_dst) {
@@ -6399,7 +6398,7 @@ test::vector<float> round_func(const test::vector<float> &ref_dst) {
     for (auto &rdst : ref_dst) {
         out.emplace_back(static_cast<float>(round(rdst)));
     }
-    return std::move(out);
+    return out;
 }
 
 void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
@@ -6997,7 +6996,6 @@ TEST(Execute, ConvAddEltwise) {
 }
 
 TEST(ExecuteSubgraphFp32, ConvDepthwise) {
-    using dims = impl::dnnl_impl::dims;
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -7106,7 +7104,6 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
 }
 
 TEST(ExecuteSubgraphFp32, Shuffle) {
-    using dims = impl::dnnl_impl::dims;
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -8599,7 +8596,7 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
 
     for_(const auto &nd : nds)
     for_(const auto &g : groups)
-    for_(const auto &with_bias : with_biases)
+    for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
         if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
@@ -8777,7 +8774,7 @@ TEST(ExecuteSubgraphInt8, Convtranspose1d2d3d) {
 
     for_(const auto &nd : nds)
     for_(const auto &g : groups)
-    for_(const auto &with_bias : with_biases)
+    for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
         if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
@@ -8954,7 +8951,7 @@ TEST(ExecuteSubgraphInt8, Conv2dRelu) {
     static auto isa = dnnl_get_effective_cpu_isa();
 
     for_(const auto &g : groups)
-    for_(const auto &with_bias : with_biases)
+    for_(const auto with_bias : with_biases)
     for (const auto &wei_qtype : weight_qtypes) {
         // prepare data
         int64_t in_channel = 8, out_channel = 8;
@@ -9127,8 +9124,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
     std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
 
     for_(const auto &g : groups)
-    for_(const auto &with_bias : with_biases)
-    for_(const auto &swap : swaps)
+    for_(const auto with_bias : with_biases)
+    for_(const auto swap : swaps)
     for_(const auto &other_qtype : other_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
         // prepare data
@@ -9341,7 +9338,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
 
     for_(const auto &g : groups)
-    for_(const auto &with_bias : with_biases)
+    for_(const auto with_bias : with_biases)
     for (const auto &wei_qtype : weight_qtypes) {
         // prepare fp32 data
         int64_t in_channel = 8, out_channel = 8;
@@ -9560,7 +9557,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
 
     for_(const auto &nd : nds)
     for_(const auto &g : groups)
-    for_(const auto &with_bias : with_biases)
+    for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
         if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
@@ -9608,9 +9605,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
         }
 
         float scale_src = 1 / 255.f; // map to 0~255
-        float scale_out = 1;
         int64_t zp_src = src_qtype == "symmetric" ? 0 : 128;
-        int64_t zp_out = 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
@@ -9731,7 +9726,7 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
             "avx512_core_vnni.");
 
     for_(const auto &g : groups)
-    for_(const auto &with_bias : with_biases)
+    for_(const auto with_bias : with_biases)
     for (const auto &wei_qtype : weight_qtypes) {
         // prepare data
         int64_t in_channel = 8, out_channel = 8;
@@ -9766,9 +9761,7 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
         }
 
         float scale_src = 1 / 255.f; // map to 0~255
-        float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_out = 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
@@ -9897,7 +9890,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
 
     for_(const auto &g : groups)
-    for_(const auto &with_bias : with_biases)
+    for_(const auto with_bias : with_biases)
     for (const auto &wei_qtype : weight_qtypes) {
         // prepare fp32 data
         int64_t in_channel = 8, out_channel = 8;
@@ -9937,10 +9930,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
 
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_other = 1 / 127.f;
-        float scale_out = 1;
         int64_t zp_src = 0;
         int64_t zp_other = 0;
-        int64_t zp_out = 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
@@ -10103,7 +10094,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
 
     for_(const auto &g : groups)
-    for_(const auto &with_bias : with_biases)
+    for_(const auto with_bias : with_biases)
     for (const auto &wei_qtype : weight_qtypes) {
         // prepare fp32 data
         int64_t in_channel = 8, out_channel = 8;
@@ -10143,10 +10134,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
 
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_other = 1 / 127.f;
-        float scale_out = 1;
         int64_t zp_src = 0;
         int64_t zp_other = 0;
-        int64_t zp_out = 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
@@ -11281,10 +11270,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2dX8s8f32) {
         });
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_other = 1 / 127.f;
-        float scale_out = 1;
         int64_t zp_src = 0;
         int64_t zp_other = 0;
-        int64_t zp_out = 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
@@ -11447,11 +11434,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasNdx2dX8s8f32) {
         std::generate(bias_data.begin(), bias_data.end(),
                 [&]() { return f32_distribution(generator); });
         float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = 0;
-        int64_t zp_out = 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
@@ -11584,11 +11567,7 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
             return static_cast<int8_t>(s8_distribution(generator));
         });
         float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = 0;
-        int64_t zp_out = 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
@@ -11720,11 +11699,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluNdx2dX8s8f32) {
         std::generate(bias_data.begin(), bias_data.end(),
                 [&]() { return f32_distribution(generator); });
         float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = 0;
-        int64_t zp_out = 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
@@ -11834,7 +11809,6 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
-    impl::stream_t &strm = get_stream();
 
     if (engine.kind() == impl::engine_kind::gpu) return;
 
@@ -12131,7 +12105,6 @@ TEST(Execute, AvgpoolAdd) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
-    impl::stream_t &strm = get_stream();
 
     std::vector<std::string> data_formats {"NCX", "NXC"};
     std::vector<bool> with_channel_broadcast_flags {true, false};
@@ -12231,7 +12204,6 @@ TEST(Execute, MaxpoolAdd) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
-    impl::stream_t &strm = get_stream();
 
     std::vector<std::string> data_formats {"NCX", "NXC"};
     std::vector<bool> with_channel_broadcast_flags {true, false};
@@ -12522,8 +12494,6 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
         qout_op.set_attr<int64_t>("axis", 0);
 
         // prepare logical tensor
-        impl::logical_tensor_t src_f32 = utils::logical_tensor_init(
-                0, src_shape, impl::data_type::f32);
         impl::logical_tensor_t src_u8
                 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
         impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
@@ -12756,7 +12726,6 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
 }
 
 TEST(Compile, MatmulAddGetInplacePair) {
-    using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
     impl::graph_t agraph(eng.kind());
@@ -12840,7 +12809,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
 
     for_(const auto &g : groups)
-    for_(const auto &with_bias : with_biases)
+    for_(const auto with_bias : with_biases)
     for (const auto &wei_qtype : weight_qtypes) {
         // prepare fp32 data
         int64_t in_channel = 8, out_channel = 8;
@@ -13320,10 +13289,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
             return static_cast<int8_t>(s8_distribution(generator));
         });
         float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = 0;
         int64_t zp_out = 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
@@ -13790,7 +13757,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
     SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx,
             "skip on machine without AVX");
     impl::engine_t &engine = get_engine();
-    impl::stream_t &strm = get_stream();
 
     if (engine.kind() == impl::engine_kind::gpu) return;
 
@@ -14289,9 +14255,10 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
     strm.wait();
 
     static auto isa = dnnl_get_effective_cpu_isa();
-    if (isa >= dnnl_cpu_isa_avx512_core_vnni)
+    if (isa >= dnnl_cpu_isa_avx512_core_vnni) {
         ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
                 /*atol*/ 1.f));
+    }
 }
 
 TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
@@ -15694,8 +15661,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
 }
 
 TEST(Execute, ConvResBlock) {
-    using dims = impl::dnnl_impl::dims;
-
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -15814,8 +15779,6 @@ TEST(Execute, ConvResBlock) {
 }
 
 TEST(Execute, Int8Mha) {
-    using dims = impl::dnnl_impl::dims;
-
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -15872,8 +15835,6 @@ TEST(Execute, Int8Mha) {
 }
 
 TEST(Execute, F32Mha) {
-    using dims = impl::dnnl_impl::dims;
-
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -15930,8 +15891,6 @@ TEST(Execute, F32Mha) {
 }
 
 TEST(Execute, Int8Bf16Mha) {
-    using dims = impl::dnnl_impl::dims;
-
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -15995,8 +15954,6 @@ TEST(Execute, Int8Bf16Mha) {
 }
 
 TEST(Execute, ChainedReLU) {
-    using dims = impl::dnnl_impl::dims;
-
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -16053,8 +16010,6 @@ TEST(Execute, ChainedReLU) {
 }
 
 TEST(Execute, Int8ConvBlock) {
-    using dims = impl::dnnl_impl::dims;
-
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -16112,7 +16067,6 @@ TEST(Execute, Int8ConvBlock) {
 }
 
 TEST(Execute, ReorderAddBf16) {
-    using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -16168,7 +16122,6 @@ TEST(Execute, ReorderAddBf16) {
 }
 
 TEST(Compile, ReorderAddGetInplacePair) {
-    using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
     impl::graph_t agraph(eng.kind());

@@ -64,7 +64,7 @@ void check_correctness(const settings_t &s) {
         if (attr.post_ops.convolution_index() != -1)
             status = conv_dw_fusion::doit(&prb, &res);
         else
-            const int status = [&prb, &res](api_mode_t mode) {
+            status = [&prb, &res](api_mode_t mode) {
                 if (mode == PRIMITIVE)
                     return doit(&prb, &res);
                 else if (mode == GRAPH)

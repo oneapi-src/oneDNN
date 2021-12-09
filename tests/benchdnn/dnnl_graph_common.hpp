@@ -413,22 +413,22 @@ private:
             const float *scales = nullptr, const int n_oc = 0,
             const bool def_oscales = false, const bool with_typecast = false)
         : src_dt(src_dt)
-        , dst_dt(dst_dt)
         , wei_dt(wei_dt)
+        , dst_dt(dst_dt)
         , stag(stag)
         , wtag(wtag)
         , dtag(dtag)
         , wei_strides(0)
         , oscale_policy(oscale_policy)
         , oscales(oscales)
-        , dst_scale(dst_scale)
         , src_zp(src_zp)
         , wei_zp(wei_zp)
         , dst_zp(dst_zp)
         , scales(scales)
         , n_oc(n_oc)
+        , with_typecast(with_typecast)
         , def_oscales(def_oscales)
-        , with_typecast(with_typecast) {};
+        , dst_scale(dst_scale) {};
 };
 
 struct po_handlers_t {

@@ -1048,8 +1048,6 @@ TEST(SubgraphPass, MemoryPlanning) {
     mul_scales -> mul_scales -> permute -> mul_scales -> permute -> mul_scales
     -> mul_scales
     */
-    using dims = impl::dnnl_impl::dims;
-
     dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
 
     std::vector<int64_t> shape_NCX {64, 32, 256, 256};

@@ -287,8 +287,6 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     args_t ref_args;
 
     if (is_bench_mode(CORR)) {
-        const auto fp = dnnl_f32;
-        const auto src_tag = tag::abx;
         dnnl_primitive_t c_ref = nullptr;
         ref_args.set(DNNL_ARG_SRC, src_fp);
         ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
@@ -309,7 +307,6 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         }
         ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
 
-        const auto &dnnl_test_engine = ::get_test_engine();
         ::conv::compute_ref_fwd(prb, c_ref, ref_args);
         SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
     }

@@ -86,7 +86,7 @@ TEST(ThreadLocalCache, Multithreading) {
         ASSERT_EQ(resource_ptr1->data_, 30);
 
         size_t key3 = (size_t)3;
-        test_resource_t *resource_ptr3 = cache.get_or_add(
+        cache.get_or_add(
                 key3, []() { return std::make_shared<test_resource_t>(100); });
 
         ASSERT_EQ(cache.size(), 3);

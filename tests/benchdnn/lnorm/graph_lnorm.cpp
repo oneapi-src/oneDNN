@@ -164,7 +164,6 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 

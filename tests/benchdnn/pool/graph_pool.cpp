@@ -162,8 +162,6 @@ fill_status_t pool_graph_prb_t::handle_bin_(
 }
 
 fill_status_t pool_graph_prb_t::handle_low_precision_() {
-    using op = dnnl::graph::op;
-
     low_precision_attr lp_attr = low_precision_attr::lp_attr(
             spec_.src_dt, spec_.dst_dt, spec_.raw_data_format);
 

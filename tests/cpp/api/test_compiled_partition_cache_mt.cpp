@@ -66,13 +66,13 @@ TEST(compiled_partition_cache_mt_test, SingleOpCase) {
             partition par {elt, engine_kind};
 
             // highly possibly cache_miss
-            tasks.emplace_back([&kind_set, &eng, par, input, output]() {
+            tasks.emplace_back([&eng, par, input, output]() {
                 // Partition compilation
                 auto cp = par.compile({input}, {output}, eng);
             });
 
             // highly possibly cache_hit
-            tasks.emplace_back([&kind_set, &eng, par, input, output]() {
+            tasks.emplace_back([&eng, par, input, output]() {
                 // Partition compilation
                 auto cp = par.compile({input}, {output}, eng);
             });

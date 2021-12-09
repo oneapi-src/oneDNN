@@ -3107,8 +3107,9 @@ TEST(Pass, FuseConvtransposeRelu) {
                 with_bias ? 3 : 2);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
-        if (with_bias)
+        if (with_bias) {
             ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 2);
+        }
 
         ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
         ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id,
@@ -9115,8 +9116,6 @@ TEST(Pass, MixInt8AndBf16MatmulBias) {
            quant
              | (u8/s8)
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -9294,8 +9293,6 @@ TEST(Pass, MixInt8AndBf16Matmul) {
            quant
              | (u8/s8)
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -9463,8 +9460,6 @@ TEST(Pass, FuseAddIntoSum) {
              Add
              ...
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
 
     const size_t rep_times = 5;
@@ -9513,8 +9508,6 @@ TEST(Pass, FuseBroadcastAddIntoSum) {
            Add
             ...
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
 
     op_t add0 {0, op_kind::Add, "add0"};
@@ -9553,8 +9546,6 @@ TEST(Pass, FuseTypecaseQuantize) {
            quant
              | (u8/s8)
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -9945,8 +9936,6 @@ TEST(Pass, FailToFuseReorderAdd) {
             add
              |
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     op_t reorder {0, Reorder, "reorder"};
     op_t add {1, Add, "add"};

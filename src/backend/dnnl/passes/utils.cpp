@@ -247,6 +247,7 @@ void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
     }
 }
 
+#ifdef DNNL_GRAPH_ENABLE_DUMP
 namespace {
 std::string layout2str(const dnnl::memory::desc &md) {
     std::string str;
@@ -327,6 +328,7 @@ std::string property2str(impl::property_type_t ptype) {
     return str;
 }
 } // namespace
+#endif
 
 status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
         const std::string &name_suffix, bool is_layout_sensitive,
@@ -339,7 +341,7 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
     std::string backend_name = dnnl_backend::get_singleton().get_name();
     std::string partition_name = "partition_" + std::to_string(partition_id_);
     std::string index_str = std::to_string(index_++);
-    std::string pass_name = name_suffix;
+    const std::string &pass_name = name_suffix;
 
     // file_name: (backend_name)_partition_(id)_(index)_(pass_name).dot
     std::string file_name = backend_name + "_" + partition_name + "_"
@@ -382,7 +384,7 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
     auto val2str = [this, is_layout_sensitive, is_memory_sensitive](
                            const value_t *val) {
         auto dims2str = [](const impl::dims &dims) {
-            if (dims.size() < 1) return std::string("");
+            if (dims.empty()) return std::string("");
 
             std::string str;
             str += std::to_string(dims[0]);

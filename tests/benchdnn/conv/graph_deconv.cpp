@@ -150,8 +150,6 @@ fill_status_t deconv_graph_prb_t::handle_elt_(
 
 fill_status_t deconv_graph_prb_t::handle_low_precision_(
         const ::conv::prb_t *prb) {
-    using op = dnnl::graph::op;
-
     const bool def_oscales = prb->attr.oscale.is_def();
 
     // currently, only policy_t::COMMON is supported for asymmetric quant

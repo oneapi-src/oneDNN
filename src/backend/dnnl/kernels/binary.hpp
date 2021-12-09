@@ -136,9 +136,6 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using ltw = impl::logical_tensor_wrapper_t;
-        using desc = dnnl::memory::desc;
-
         p_engine_ = make_dnnl_engine(*g_engine);
         g_alloc_ = g_engine->get_allocator();
 
@@ -224,7 +221,6 @@ public:
         grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
                 scratchpad.get_buffer());
 
-        registry_t::key_t key = 0;
         for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
             mem_offkey.first.set_data_handle(
                     var_grantor.get(mem_offkey.second));

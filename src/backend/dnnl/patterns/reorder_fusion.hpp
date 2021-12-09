@@ -82,9 +82,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_fusion)
                     pm::pb_op *reorder
                             = pgraph->append_op(impl::op_kind::Reorder,
                                     {in_edge(0, dequant, 0)}, "preorder");
-                    pm::pb_op *quant
-                            = pgraph->append_op(impl::op_kind::Quantize,
-                                    {in_edge(0, reorder, 0)}, "pquant");
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            {in_edge(0, reorder, 0)}, "pquant");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -116,9 +115,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_sum_fusion)
                                 == "none";
                     });
                     add->set_commutative_pair({0, 1});
-                    pm::pb_op *quant
-                            = pgraph->append_op(impl::op_kind::Quantize,
-                                    {in_edge(0, add, 0)}, "pquant");
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            {in_edge(0, add, 0)}, "pquant");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

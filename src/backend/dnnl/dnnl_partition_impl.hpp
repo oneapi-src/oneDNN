@@ -300,8 +300,6 @@ public:
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
             const impl::engine_t *g_engine) const override {
-        using ltw = impl::logical_tensor_wrapper_t;
-
         static std::set<op_kind_t> subgraph_patterns {op_kind::int8_conv_relu,
                 op_kind::int8_conv, op_kind::int8_conv_bias_relu,
                 op_kind::int8_conv_bias, op_kind::int8_conv_bias_add,

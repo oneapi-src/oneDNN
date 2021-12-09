@@ -795,6 +795,7 @@ static void layout_propagation_for_dnnl_sum(op_ptr &op,
         }
     }
 
+    MAYBE_UNUSED(input_has_any_format);
     assertm(!input_has_any_format,
             "input format of sum primitive cannot be any.");
 

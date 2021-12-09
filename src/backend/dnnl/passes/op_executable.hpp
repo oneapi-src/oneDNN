@@ -473,8 +473,6 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    auto dst = make_dnnl_memory_desc(
-            op->get_output_value(0)->get_logical_tensor());
 
     const auto op_kind
             = static_cast<impl::op_kind_t>(op->get_attr<int64_t>("alg_kind"));
@@ -1330,7 +1328,6 @@ struct conv_bwd_data_executable_t : public op_executable_t {
 private:
     dnnl::convolution_backward_data::primitive_desc pd_;
     dnnl::convolution_backward_data prim_;
-    bool perm_dst_ {false};
 };
 
 struct batchnorm_executable_t : public op_executable_t {

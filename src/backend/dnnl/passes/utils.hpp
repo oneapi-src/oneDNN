@@ -111,10 +111,14 @@ public:
     subgraph_visualizer_t(size_t partition_id,
             const std::function<std::string(const value_t *)> &mem_info_func
             = {})
-        : partition_id_(partition_id)
-        , enabled_(false)
+        : enabled_(false)
+        , mem_info_func_(mem_info_func)
+#ifdef DNNL_GRAPH_ENABLE_DUMP
+        , partition_id_(partition_id)
         , index_(0)
-        , mem_info_func_(mem_info_func) {
+#endif
+    {
+        MAYBE_UNUSED(partition_id);
         // Set DNNL_GRAPH_DUMP=2 to enable dump subgraph
         enabled_ = impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 1;
     }
@@ -124,10 +128,12 @@ public:
             bool is_memory_sensitive = false);
 
 private:
-    size_t partition_id_;
     bool enabled_;
-    size_t index_;
     std::function<std::string(const value_t *)> mem_info_func_;
+#ifdef DNNL_GRAPH_ENABLE_DUMP
+    size_t partition_id_;
+    size_t index_;
+#endif
 };
 
 // The pass_pipeline_t class is used to manage all transformation passes to run
