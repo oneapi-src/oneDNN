@@ -510,14 +510,14 @@ public:
         // and exceeding the instruction cache.
         if (!is_stride1() && !optimize_strided) do_loop_unroll = false;
 
-        fixup_inference_consistency();
-        if (!try_reduce_grf_usage()) return status::unimplemented;
-
         // XXX: in case of nhwc or small mb allow reorders on XeHPC
         // since A/B tile loads may be strided
         if (hw >= ngen::HW::XeHPC
                 && (mb_thr_blk == 1 || is_src_nhwc || is_dst_nhwc))
             allow_grf_reorder = true;
+
+        fixup_inference_consistency();
+        if (!try_reduce_grf_usage()) return status::unimplemented;
 
 #ifdef GEN_CONV_DEBUG
         estimated_peak_grf_usage = estimate_register_count();
