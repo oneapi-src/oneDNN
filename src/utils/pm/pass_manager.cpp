@@ -108,13 +108,13 @@ void pass_manager_t::run_passes(
             fflush(stdout);
             const std::list<pass_base_ptr> &passes = get_passes();
             for (auto &pass : passes) {
-                pass->run(agraph);
+                if (pass->get_enable()) { pass->run(agraph); }
             }
         }
     } else {
         const std::list<pass_base_ptr> &passes = get_passes();
         for (auto &pass : passes) {
-            pass->run(agraph);
+            if (pass->get_enable()) { pass->run(agraph); }
         }
     }
 }

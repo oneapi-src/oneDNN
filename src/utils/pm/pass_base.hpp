@@ -163,6 +163,13 @@ public:
     }
     float get_priority() const { return priority_; }
 
+    // set enable status
+    // can be used for override default value of enable_
+    pass_base &set_enable(bool enable) {
+        enable_ = enable;
+        return *this;
+    }
+
     bool get_enable() const { return enable_; }
     /*!
     * \brief Register additional attributes.
