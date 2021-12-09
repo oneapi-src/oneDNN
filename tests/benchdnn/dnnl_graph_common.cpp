@@ -256,7 +256,7 @@ int scale_bia(
         dst = std::move(src);
         return OK;
     }
-    constexpr float eps = 1.e-9;
+    float eps = 1.e-9;
     std::vector<float> bia_scales(scales.size(), 0.f);
     std::transform(scales.begin(), scales.end(), bia_scales.begin(),
             [eps](const float scale) { return 1.f / (scale + eps); });
@@ -738,7 +738,6 @@ po_handlers_t::low_precision_handler_t::handle_low_precision_post_sum(
 
     const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
-    const auto dst_dt = lp_attr.dst_dt;
 
     const size_t new_op_id = p.ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);

@@ -80,9 +80,15 @@ bool dnnl_backend::register_passes() {
 }
 
 bool dnnl_backend::register_kernels() {
+#if defined(__GNUC__)
+#define DNNL_GRAPH_ATTR_UNUSED __attribute__((unused))
+#else
+#define DNNL_GRAPH_ATTR_UNUSED
+#endif
     // Register DNNL kernel
 #define DECLARE_KERNEL_EX(kernel_class_, counter) \
-    static auto _registered_dnnl_kernel_##kernel_class_##_##counter##_
+    static DNNL_GRAPH_ATTR_UNUSED auto \
+            _registered_dnnl_kernel_##kernel_class_##_##counter##_
 
 #define DECLARE_KERNEL(kernel_class_, counter) \
     DECLARE_KERNEL_EX(kernel_class_, counter)
@@ -358,6 +364,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::dnnl_shuffle, shuffle_fwd_t);
 
 #undef DNNL_REGISTER_KERNEL
+#undef DNNL_GRAPH_ATTR_UNUSED
 
     return true;
 }

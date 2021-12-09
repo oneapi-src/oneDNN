@@ -716,11 +716,6 @@ inline void construct_f32_MHA(dnnl::graph::impl::graph_t *agraph,
     auto matmul_v_out = unit::utils::logical_tensor_init(
             lt_id++, MATMUL_V_OUTPUT_SHAPE, data_type::f32);
 
-    auto softmax_out_q = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::u8);
-    auto softmax_out_deq = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
-
     auto context_transpose_out = unit::utils::logical_tensor_init(
             lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
 
@@ -1118,8 +1113,7 @@ inline void construct_int8_bf16_MHA(dnnl::graph::impl::graph_t *agraph,
     }
 
     std::vector<std::shared_ptr<impl::op_kind_t>> to_be_inserted;
-    size_t new_lt_id_start = 1000,
-           new_op_id_start = 1000; // big enough to avoid conflict
+    size_t new_lt_id_start = 1000;
     for (auto &op : target_ops) {
         // insert bf16->f32 typecase op before quantize
         if (op->get_kind() == impl::op_kind::Quantize) {

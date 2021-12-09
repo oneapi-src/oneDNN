@@ -121,7 +121,6 @@ public:
         grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
                 scratchpad.get_buffer());
 
-        registry_t::key_t key = 0;
         for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
             mem_offkey.first.set_data_handle(
                     var_grantor.get(mem_offkey.second));

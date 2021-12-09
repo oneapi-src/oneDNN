@@ -436,7 +436,6 @@ private:
     dnnl_layout_id_manager_t layout_id_manager_;
     kernel_registry_t kernel_registry_;
     impl::pass::pass_registry_t pass_registry_;
-    impl::op_schema_registry_t op_schema_registry_;
 };
 
 } // namespace dnnl_impl

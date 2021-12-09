@@ -40,6 +40,10 @@
 #define UNUSED(x) ((void)(x))
 #endif
 
+#ifndef MAYBE_UNUSED
+#define MAYBE_UNUSED(x) UNUSED(x)
+#endif
+
 #ifndef assertm
 #define assertm(exp, msg) assert(((void)(msg), (exp)))
 #endif

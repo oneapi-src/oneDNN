@@ -28,8 +28,6 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
     using ltw = impl::logical_tensor_wrapper_t;
 
     auto backup = *inputs[1];
-    auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    bool out_shape_unknown = out0.is_shape_unknown();
     if (n->get_attr<int64_t>("groups") > 1) {
         auto ndims = ltw(inputs[1]).ndims() - 1;
         auto dims = ltw(inputs[1]).vdims();
@@ -84,8 +82,6 @@ status_t infer_dnnl_convtranspose_output_shape(op_t *n,
     using ltw = impl::logical_tensor_wrapper_t;
 
     auto backup = *inputs[1];
-    auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    bool out_shape_unknown = out0.is_shape_unknown();
     if (n->get_attr<int64_t>("groups") > 1) {
         // [g, O/g, I/g, H, W]
         auto ndims = ltw(inputs[1]).ndims() - 1;
@@ -108,8 +104,6 @@ status_t infer_dnnl_convtranspose_output_shape(op_t *n,
 status_t infer_dnnl_pool_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    bool out_shape_unknown
-            = logical_tensor_wrapper_t(outputs[0]).is_shape_unknown();
     infer_pool_output_shape(n, inputs, outputs);
     return status::success;
 }
@@ -291,8 +285,6 @@ status_t infer_dnnl_conv_bwd_data_output_shape(op_t *n,
     using ltw = impl::logical_tensor_wrapper_t;
 
     auto backup = *inputs[1];
-    auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    bool out_shape_unknown = out0.is_shape_unknown();
     if (n->get_attr<int64_t>("groups") > 1) {
         auto ndims = ltw(inputs[1]).ndims() - 1;
         auto dims = ltw(inputs[1]).vdims();

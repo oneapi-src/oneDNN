@@ -46,20 +46,6 @@ static bool need_insert_permute(op_kind_t kind) {
     return ops.count(kind) != 0;
 }
 
-// TODO(xxx): extend to support other ops
-// for those ops whose input's format must be defined, such as pool, eltwise,...
-static bool require_input_format(op_kind_t kind) {
-    static const std::set<op_kind_t> ops {op_kind::dnnl_pool,
-            // eltwise algorithms
-            impl::op_kind::Abs, impl::op_kind::MaxPool, impl::op_kind::AvgPool,
-            impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
-            impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::ReLU,
-            impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_sum,
-            impl::op_kind::PReLU, op_kind::dnnl_prelu};
-    return ops.count(kind) != 0;
-}
-
 static inline dims get_dense_strides(const dims &shape) {
     dims strides(shape.size());
     for (auto it = shape.begin(); it < shape.end(); ++it) {
@@ -472,8 +458,6 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
         assertm(new_src_ndims >= 1 && new_wei_ndims >= 1, "invalid dims");
 
         std::vector<int32_t> ori_ndims {new_src_ndims, new_wei_ndims};
-        int32_t dst_ndims
-                = cur_op->get_output_value(0)->get_logical_tensor().ndims;
         for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
             auto expand_op = std::make_shared<op_t>(op_kind::expand);
             if (i < 2) { // src and weight

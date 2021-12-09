@@ -153,8 +153,6 @@ fill_status_t matmul_graph_prb_t::handle_typecast_(
 
 fill_status_t matmul_graph_prb_t::handle_low_precision_(
         const ::matmul::prb_t *prb_) {
-    using op = dnnl::graph::op;
-
     const bool with_tc = with_typecast(get_dtypes());
     const bool def_oscales = prb_->attr.oscale.is_def();
 
@@ -342,7 +340,6 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     args_t ref_args;
 
     if (is_bench_mode(CORR)) {
-        const auto &dnnl_test_engine = ::get_test_engine();
         ref_args.set(DNNL_ARG_SRC, src_fp);
         ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
         ref_args.set(DNNL_ARG_DST, dst_fp);

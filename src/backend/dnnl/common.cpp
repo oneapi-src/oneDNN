@@ -143,8 +143,8 @@ dnnl::stream make_dnnl_stream(
         return dnnl::sycl_interop::make_stream(
                 p_engine, const_cast<cl::sycl::queue &>(g_stream.get_queue()));
 #elif DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
-        dnnl::graph::threadpool_interop::threadpool_iface *tp;
-        auto status = g_stream.get_threadpool(&tp);
+        dnnl::graph::threadpool_interop::threadpool_iface *tp = nullptr;
+        g_stream.get_threadpool(&tp);
         return dnnl::threadpool_interop::make_stream(p_engine,
                 reinterpret_cast<dnnl::threadpool_interop::threadpool_iface *>(
                         tp));

@@ -81,7 +81,7 @@ if(MSVC)
         append(CMAKE_CCXX_FLAGS "-Wno-overriding-t-option")
     endif()
 elseif(UNIX OR MINGW)
-    append(CMAKE_CCXX_FLAGS "-Werror -Wno-unknown-pragmas")
+    append(CMAKE_CCXX_FLAGS "-Wall -Werror -Wno-unknown-pragmas")
     if(DNNL_GRAPH_WITH_SYCL)
         # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
         append(CMAKE_CCXX_FLAGS "-w -Wno-deprecated-declarations")

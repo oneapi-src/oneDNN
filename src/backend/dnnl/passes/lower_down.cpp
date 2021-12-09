@@ -55,17 +55,6 @@ static bool has_int8_support(op_kind_t kind) {
 }
 
 // TODO(xxx): extend to support other ops
-static bool has_post_ops(op_kind_t kind) {
-    std::set<op_kind_t> ops {impl::op_kind::Convolution,
-            op_kind::dnnl_convolution, impl::op_kind::ConvTranspose,
-            op_kind::dnnl_convtranspose, impl::op_kind::MatMul,
-            impl::op_kind::AvgPool, impl::op_kind::MaxPool, op_kind::dnnl_pool,
-            impl::op_kind::ReLU, op_kind::dnnl_binary, op_kind::dnnl_batchnorm,
-            impl::op_kind::BatchNormInference};
-    return ops.count(kind) != 0;
-}
-
-// TODO(xxx): extend to support other ops
 static bool is_output_scales_supported(op_kind_t kind) {
     // ops which don't support output scales
     std::set<op_kind_t> ops {
@@ -975,7 +964,6 @@ impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg) {
 
     for (auto &fusion_group : fusion_groups) {
         op_t *reshape0 = fusion_group[0];
-        op_t *transpose = fusion_group[1];
         op_t *reshape1 = fusion_group[2];
 
         op_ptr shuffle = std::make_shared<op_t>(op_kind::dnnl_shuffle);
@@ -1643,7 +1631,7 @@ impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
             continue;
         visited.insert(cur_op.get());
 
-        // check if the sigmoid op belongs to a swish pattern.
+        /* check if the sigmoid op belongs to a swish pattern.
         // A swish pattern is composed by a sigmoid op and a multiply op:
         //        any
         //       /   \
@@ -1652,6 +1640,7 @@ impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
         //      multiply
         //         |
         //        any
+        */
         auto sigmoid_out = cur_op->get_output_value(0);
         auto sigmoid_csm = sigmoid_out->get_consumers();
         if (sigmoid_csm.size() != 1) continue;

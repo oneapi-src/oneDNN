@@ -2479,10 +2479,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_MHA_fusion)
                             in_edges_t {in_edge(0, dequantize_softmax, 0),
                                     in_edge(1, dequantize_value, 0)},
                             "matmul_v");
-                    auto transpose_output
-                            = pgraph->append_op(impl::op_kind::StaticTranspose,
-                                    in_edges_t {in_edge(0, matmul_v, 0)},
-                                    "transpose_output");
+                    pgraph->append_op(impl::op_kind::StaticTranspose,
+                            in_edges_t {in_edge(0, matmul_v, 0)},
+                            "transpose_output");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -2539,10 +2538,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_MHA_fusion)
                             in_edges_t {in_edge(0, softmax, 0),
                                     in_edge(1, value_transpose, 0)},
                             "matmul_v");
-                    auto transpose_output
-                            = pgraph->append_op(impl::op_kind::StaticTranspose,
-                                    in_edges_t {in_edge(0, matmul_v, 0)},
-                                    "transpose_output");
+                    pgraph->append_op(impl::op_kind::StaticTranspose,
+                            in_edges_t {in_edge(0, matmul_v, 0)},
+                            "transpose_output");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -2662,10 +2660,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_bf16_MHA_fusion)
                             in_edges_t {in_edge(0, f32_to_bf16_softmax, 0),
                                     in_edge(1, f32_to_bf16_value, 0)},
                             "matmul_v");
-                    auto transpose_output
-                            = pgraph->append_op(impl::op_kind::StaticTranspose,
-                                    in_edges_t {in_edge(0, matmul_v, 0)},
-                                    "transpose_output");
+                    pgraph->append_op(impl::op_kind::StaticTranspose,
+                            in_edges_t {in_edge(0, matmul_v, 0)},
+                            "transpose_output");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

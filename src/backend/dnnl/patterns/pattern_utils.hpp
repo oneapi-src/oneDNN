@@ -212,8 +212,6 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
                 // find the input that will NOT be mapped to post-ops's src1
                 op_t &pin0_producer
                         = pfront.first->get_input_value(0)->get_producer();
-                op_t &pin1_producer
-                        = pfront.first->get_input_value(1)->get_producer();
 
                 size_t no_post_src_index
                         = pin0_producer.get_kind() == impl::op_kind::Wildcard
@@ -621,7 +619,6 @@ inline void pattern_utils_t::fuse(dnnl::graph::impl::graph_t &backend_graph,
 
         for (auto &op_map : fusion_ops_set) {
             op_t *cur_op = op_map.first;
-            impl::utils::pm::pb_op *pattern_op = op_map.second;
             // merge the attrs and op ids
             partition_fused_op->merge_attributes(cur_op->get_attributes());
             partition_fused_op->add_op_ids(cur_op->get_op_ids());

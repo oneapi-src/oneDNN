@@ -32,16 +32,16 @@ namespace graph {
 namespace impl {
 
 /// convert shape to ncx or oix
-static dims canonicalize(const dims &shape, const std::string &format);
+dims canonicalize(const dims &shape, const std::string &format);
 
-static inline dims ncx2nxc(const dims &shape);
+inline dims ncx2nxc(const dims &shape);
 
 /// make a dims according to the format. Only for data format ncx or nxc.
-static inline dims make_data_dims(
+inline dims make_data_dims(
         const std::string &format, const dim_t n, const dim_t c, const dims &x);
 
 /// make a dims according to the format. Only for filter format xio or oix.
-static inline dims make_filter_dims(
+inline dims make_filter_dims(
         const std::string &format, const dim_t i, const dim_t o, const dims &x);
 
 /// validate the inferred shape with the expected one.
@@ -49,37 +49,35 @@ bool validate(const dims &inferred, const dims &expected);
 
 /// get the dense strides of a given shape
 /// eg. (3, 4, 5) -> (20, 5, 1)
-static inline dims get_dense_strides(const dims &shape);
+inline dims get_dense_strides(const dims &shape);
 
 /// shapes of the logical tensors in the vector are known
-static inline bool every_shape_is_known(
-        const std::vector<logical_tensor_t *> &lts);
+inline bool every_shape_is_known(const std::vector<logical_tensor_t *> &lts);
 
-static inline bool verify_shapes_in_range(
-        const std::vector<logical_tensor_t *> &lts, const size_t begin,
-        const size_t end, const std::function<bool(const dims)> &validator);
+inline bool verify_shapes_in_range(const std::vector<logical_tensor_t *> &lts,
+        const size_t begin, const size_t end,
+        const std::function<bool(const dims)> &validator);
 
 void set_shape_and_strides(logical_tensor_t &lt, const dims &shape);
 
-static inline void set_shapes_in_range(
-        const std::vector<logical_tensor_t *> &lts, const size_t begin,
-        const size_t end, const dims &shape);
+inline void set_shapes_in_range(const std::vector<logical_tensor_t *> &lts,
+        const size_t begin, const size_t end, const dims &shape);
 
 /// infer the padding sizes according auto_pad type
-static status_t infer_auto_pad(const dim_t in_dim, const dim_t stride,
+status_t infer_auto_pad(const dim_t in_dim, const dim_t stride,
         const dim_t kernel, const dim_t dilation, const std::string &auto_pad,
         dim_t &pad_begin, dim_t &pad_end, bool is_deconv = false);
 
 /// numpy broadcasting
 /// TODO(xxx): 0-D broadcasting?
-static status_t broadcast(const dims &lhs, const dims &rhs, dims &broadcasted);
+status_t broadcast(const dims &lhs, const dims &rhs, dims &broadcasted);
 
 /// This function assumes the size of all vectors are correct. Eg. size of
 /// strides/dilations/pads should be the same as spatial size of src_dims and
 /// fil_dims. Size of output_dims should be the same as size of src_dims.
-static inline void infer_conv_ncx_oix(const dims &src_dims,
-        const dims &fil_dims, const dims &strides, const dims &dilations,
-        const dims &pads_begin, const dims &pads_end, dims &output_dims);
+inline void infer_conv_ncx_oix(const dims &src_dims, const dims &fil_dims,
+        const dims &strides, const dims &dilations, const dims &pads_begin,
+        const dims &pads_end, dims &output_dims);
 
 /// Calculate convolution output shape according to the input shapes. If
 /// auto_pad, the real size of pads_begin and pads_end will also be calculated.
@@ -117,7 +115,7 @@ status_t infer_identity_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
-static status_t identity_output_shape_on_pos(op_t *n,
+status_t identity_output_shape_on_pos(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs,
         std::vector<uint32_t> &positions);

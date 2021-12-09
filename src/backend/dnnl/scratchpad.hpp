@@ -159,7 +159,8 @@ private:
 class grantor_t {
 public:
     grantor_t(const registry_t &registry, char *base_ptr)
-        : registry_(registry), base_ptr_(base_ptr) {
+        : registry_(registry) {
+        UNUSED(base_ptr);
         size_t lcm_alignment = registry.lcm_alignment();
         aligned_base_ptr_ = reinterpret_cast<char *>(
                 (reinterpret_cast<size_t>(base_ptr) + lcm_alignment - 1)
@@ -172,7 +173,6 @@ public:
 
 private:
     const registry_t &registry_;
-    char *base_ptr_;
     char *aligned_base_ptr_;
 };
 
