@@ -57,10 +57,7 @@ dependencies.
 
 CPU engine was validated on RedHat* Enterprise Linux 7 with
 
-* GNU Compiler Collection 4.8
-* GNU Compiler Collection 8.2
-* GNU Compiler Collection 9.3
-* GNU Compiler Collection 10.2
+* GNU Compiler Collection 4.8, 6.3, 8.2, 9.3, 10.2
 
 on Ubuntu* 18.04 with
 
