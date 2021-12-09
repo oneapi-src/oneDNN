@@ -263,7 +263,9 @@ public:
     status_t init_fwd(convolution_pd_t *conv_pd) {
         using namespace ir_utils;
 
-        if (ic < 16 && (is_s32_accumulator() || (!is_dp_fma() && !is_dw)))
+        if (ic < 16
+                && ((is_s32_accumulator() && hw < ngen::HW::XeHPC)
+                        || (!is_dp_fma() && !is_dw)))
             return status::unimplemented;
 
         bool is_src_nhwc = is_nhwc("src");
@@ -327,7 +329,8 @@ public:
             if (hw >= ngen::HW::XeHPC && !is_small_ic()) oc_thr_blk = 64;
             oc_thr_dim = init_thr_dim(oc, oc_thr_blk, /*max_thr_dim=*/4);
             if (is_small_ic()) {
-                ow_thr_blk = std::min(utils::rnd_up_pow2(ow), 4);
+                ow_thr_blk = std::min(
+                        utils::rnd_up_pow2(ow), hw >= ngen::HW::XeHPC ? 8 : 4);
             } else {
                 ow_thr_blk = (mb < 16 ? 16 : 1);
                 if (ow < ow_thr_blk) ow_thr_blk = 8;
@@ -969,7 +972,7 @@ public:
     bool is_int8_dst() const {
         return utils::one_of(dst_data_type, data_type::s8, data_type::u8);
     }
-    bool is_small_ic() const { return ic < simd_size; }
+    bool is_small_ic() const { return ic < 8; }
     bool is_dp_fma() const {
         return utils::one_of(fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw,
                 fma_kind_t::dp4a);
