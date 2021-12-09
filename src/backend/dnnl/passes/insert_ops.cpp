@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <set>
 #include <string>
@@ -62,6 +63,17 @@ static bool require_input_format(op_kind_t kind) {
             impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
             impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_sum};
     return ops.count(kind) != 0;
+}
+
+static inline dims get_dense_strides(const dims &shape) {
+    dims strides(shape.size());
+    for (auto it = shape.begin(); it < shape.end(); ++it) {
+        const auto val = std::accumulate(
+                std::next(it), shape.end(), 1, std::multiplies<dim_t>());
+        const auto dist = std::distance(shape.begin(), it);
+        strides[static_cast<size_t>(dist)] = val;
+    }
+    return strides;
 }
 
 impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
@@ -174,6 +186,47 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
+    return impl::status::success;
+}
+
+impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
+    // optimization for NXC case - it will help to hit an optimized kernel
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> to_be_inserted_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_shuffle) continue;
+
+        impl::logical_tensor_t src_lt
+                = cur_op->get_input_value(0)->get_logical_tensor();
+        const logical_tensor_wrapper_t src(src_lt);
+        const auto axis = cur_op->get_attr<int64_t>("axis");
+        const auto known_strides
+                = (src.is_strided()) ? !src.is_stride_unknown() : false;
+        const bool need_permute = axis == src.ndims() - 1 && known_strides
+                && src.vstrides() == get_dense_strides(src.vdims());
+        if (!need_permute) continue;
+
+        const int64_t new_axis = 1;
+        cur_op->set_attr("axis", new_axis);
+        op_ptr perm_src_op = std::make_shared<impl::op_t>(op_kind::permute);
+        perm_src_op->set_attr<std::string>("permute_kind", "permute");
+        perm_src_op->set_attr<std::string>("from_format", "NXC");
+        perm_src_op->set_attr<std::string>("to_format", "NCX");
+        insert_op_before(perm_src_op, cur_op, 0);
+        to_be_inserted_ops.emplace_back(perm_src_op);
+
+        // permute output back to NXC
+        op_ptr perm_dst_op = std::make_shared<impl::op_t>(op_kind::permute);
+        perm_dst_op->set_attr<std::string>("permute_kind", "permute");
+        perm_dst_op->set_attr<std::string>("from_format", "NCX");
+        perm_dst_op->set_attr<std::string>("to_format", "NXC");
+        insert_op_after(perm_dst_op, cur_op, 0);
+        to_be_inserted_ops.emplace_back(perm_dst_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops)
+        subgraph.emplace_back(op);
+
     return impl::status::success;
 }
 

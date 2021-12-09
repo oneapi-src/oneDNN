@@ -31,6 +31,8 @@ namespace dnnl_impl {
 
 impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg);
 
+impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg);
+
 impl::status_t insert_to_group_for_conv_or_deconv(
         std::shared_ptr<subgraph_t> &sg);
 

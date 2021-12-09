@@ -15,6 +15,7 @@
  *******************************************************************************/
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <set>
@@ -586,6 +587,63 @@ impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
 
         subgraph.emplace_back(q_pool_op);
     }
+    return impl::status::success;
+}
+
+impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<std::vector<op_t *>> fusion_groups;
+    for (const auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::StaticReshape) continue;
+
+        if (cur_op->get_output_value(0)->get_consumers().size() != 1) continue;
+        auto &next0 = cur_op->get_output_value(0)->get_consumers()[0].get_op();
+        if (next0.get_kind() != impl::op_kind::StaticTranspose) continue;
+
+        if (next0.get_output_value(0)->get_consumers().size() != 1) continue;
+        auto &next1 = next0.get_output_value(0)->get_consumers()[0].get_op();
+        if (next1.get_kind() != impl::op_kind::StaticReshape) continue;
+
+        fusion_groups.emplace_back(
+                std::vector<op_t *> {cur_op.get(), &next0, &next1});
+    }
+
+    for (auto &fusion_group : fusion_groups) {
+        op_t *reshape0 = fusion_group[0];
+        op_t *transpose = fusion_group[1];
+        op_t *reshape1 = fusion_group[2];
+
+        op_ptr shuffle = std::make_shared<op_t>(op_kind::dnnl_shuffle);
+
+        value_ptr in_value = reshape0->get_input_value(0);
+        value_ptr out_value = reshape1->get_output_value(0);
+
+        const auto src_shape = ltw(in_value->get_logical_tensor()).vdims();
+        const auto attr_shape
+                = reshape0->get_attr<std::vector<int64_t>>("shape");
+        const auto res = std::mismatch(
+                src_shape.cbegin(), src_shape.cend(), attr_shape.cbegin());
+        const size_t axis = std::distance(src_shape.cbegin(), res.first);
+        const int64_t group = attr_shape[axis];
+        shuffle->set_attr<int64_t>("axis", static_cast<int64_t>(axis));
+        shuffle->set_attr<int64_t>("group", group);
+
+        shuffle->connect_input(0, in_value);
+        in_value->remove_consumer(*reshape0, 0);
+
+        shuffle->add_output(out_value);
+
+        for (auto &del_op : fusion_group) {
+            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                    [del_op](const op_ptr &f_op) {
+                        return del_op == f_op.get();
+                    });
+            if (pos != subgraph.end()) subgraph.erase(pos);
+        }
+
+        subgraph.emplace_back(shuffle);
+    }
+
     return impl::status::success;
 }
 

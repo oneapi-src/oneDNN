@@ -187,15 +187,16 @@ namespace op_kind {
     X(dnnl_conv_bwd_data, Dnnl_conv_bwd_data) \
     X(dnnl_swish, Dnnl_swish) \
     X(x8x8float_matmul_div, X8X8FLOAT_MatMul_div) \
-    X(dnnl_sum, Dnnl_sum) \
     X(x8x8float_matmul_div_add, X8X8FLOAT_MatMul_div_add) \
-    X(dnnl_binary, Dnnl_binary) \
     X(dnnl_batchnorm, Dnnl_batchnorm) \
+    X(dnnl_binary, Dnnl_binary) \
+    X(dnnl_eltwise, Dnnl_eltwise) \
+    X(dnnl_shuffle, Dnnl_shuffle) \
+    X(dnnl_sum, Dnnl_sum) \
     X(conv_simple_resblock, Conv_simple_resblock) \
     X(int8_MHA, INT8_MHA) \
     X(f32_MHA, F32_MHA) \
-    X(chained_relu, Chained_relu) \
-    X(dnnl_eltwise, Dnnl_eltwise)
+    X(chained_relu, Chained_relu)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

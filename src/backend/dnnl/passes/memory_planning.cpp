@@ -700,6 +700,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_eltwise
                         || op->get_kind() == impl::op_kind::Reorder
+                        || op->get_kind() == op_kind::dnnl_shuffle
                         || op->get_kind() == op_kind::mul_scales
                         || op->get_kind() == op_kind::permute
                         || op->get_kind() == op_kind::to_group
