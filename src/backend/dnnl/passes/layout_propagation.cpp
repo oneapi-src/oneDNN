@@ -248,6 +248,29 @@ static void layout_propagation_for_concat(op_ptr &op,
     fill_layout_info(scratchpad_val, scratchpad_desc);
 }
 
+static void layout_propagation_for_shuffle(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair
+            = create_shuffle_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    value_ptr src = op->get_input_value(0);
+    value_ptr dst = op->get_output_value(0);
+
+    assertm(!ltw(src->get_logical_tensor()).is_any(),
+            "shuffle's src can't be any layout");
+
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    fill_layout_info(dst, pd.dst_desc());
+
+    value_ptr scratchpad_val = insert_scratchpad(op);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+}
+
 static void layout_propagation_for_matmul(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
@@ -945,6 +968,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == impl::op_kind::LogSoftmax) {
                 layout_propagation_for_logsoftmax(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::dnnl_shuffle) {
+                layout_propagation_for_shuffle(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else {
                 assertm(false,

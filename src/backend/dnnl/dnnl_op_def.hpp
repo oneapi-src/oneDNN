@@ -2812,6 +2812,22 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_eltwise, 1,
                         false, attribute_kind::f, 0.f)
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_shuffle, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("axis",
+                        "specifies the index of a dimension along which "
+                        "shuffle is done",
+                        true, attribute_kind::i)
+                .set_attr("group",
+                        "specifies the number of groups to split shuffle "
+                        "dimension into",
+                        true, attribute_kind::i)
+                .set_shape_inference_function(infer_identity_output_shape))
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

@@ -30,6 +30,7 @@
 #include "quantize.hpp"
 #include "reorder.hpp"
 #include "resampling.hpp"
+#include "shuffle.hpp"
 #include "softmax.hpp"
 #include "sum.hpp"
 

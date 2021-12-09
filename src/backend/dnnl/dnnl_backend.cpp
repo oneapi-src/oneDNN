@@ -30,6 +30,7 @@
 #include "patterns/matmul_fusion.hpp"
 #include "patterns/pool_fusion.hpp"
 #include "patterns/quantize_fusion.hpp"
+#include "patterns/shuffle_fusion.hpp"
 #include "patterns/single_op_pattern.hpp"
 #include "patterns/sum_fusion.hpp"
 #include "tensor.hpp"
@@ -70,6 +71,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PASSES_CALL(eltwise_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(quantize_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(sum_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(shuffle_fusion, pass_registry_);
     pass_registry_.sort_passes();
 
     return true;
@@ -342,6 +344,9 @@ bool dnnl_backend::register_kernels() {
 
     // sum fusion
     DNNL_REGISTER_KERNEL(op_kind::dnnl_sum, sum_t);
+
+    // shuffle fusion
+    DNNL_REGISTER_KERNEL(op_kind::dnnl_shuffle, shuffle_fwd_t);
 
 #undef DNNL_REGISTER_KERNEL
 

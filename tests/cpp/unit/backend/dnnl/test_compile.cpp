@@ -7104,6 +7104,110 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
     }
 }
 
+TEST(ExecuteSubgraphFp32, Shuffle) {
+    using dims = impl::dnnl_impl::dims;
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu,
+            "Skip for GPU - not supported yet.");
+
+    const std::vector<std::pair<size_t, test::vector<float>>> configs {
+            {1,
+                    {1., 1., 2., 2., 5., 5., 6., 6., 3., 3., 4., 4., 7., 7., 8.,
+                            8.}},
+            {3,
+                    {1., 2., 1., 2., 3., 4., 3., 4., 5., 6., 5., 6., 7., 8., 7.,
+                            8.}}};
+    const std::vector<int64_t> base_shape {1, 2, 2, 2};
+    const int64_t g = 2;
+
+    for (const auto &config : configs) {
+        const auto axis = config.first;
+        const auto &expected_data = config.second;
+        auto configured_shape = base_shape;
+        configured_shape[axis] = 4;
+
+        std::vector<int64_t> reshape0_src_shape = configured_shape;
+        std::vector<int64_t> reshape1_dst_shape = configured_shape;
+
+        std::vector<int64_t> reshape0_dst_shape = configured_shape;
+        reshape0_dst_shape[axis] /= g;
+        reshape0_dst_shape.insert(reshape0_dst_shape.begin() + axis, g);
+
+        std::vector<int64_t> transpose_dst_shape = reshape0_dst_shape;
+        std::swap(transpose_dst_shape[axis], transpose_dst_shape[axis + 1]);
+
+        std::vector<int64_t> order(transpose_dst_shape.size());
+        std::iota(order.begin(), order.end(), 0);
+        std::swap(order[axis], order[axis + 1]);
+
+        test::vector<float> src_data {
+                1., 1., 2., 2., 3., 3., 4., 4., 5., 5., 6., 6., 7., 7., 8., 8.};
+
+        impl::op_t reshape0 {0, impl::op_kind::StaticReshape, "reshape0"};
+        reshape0.set_attr("shape", reshape0_dst_shape);
+        reshape0.set_attr("special_zero", false);
+
+        impl::op_t transpose {1, impl::op_kind::StaticTranspose, "transpose"};
+        transpose.set_attr("order", order);
+
+        impl::op_t reshape1 {2, impl::op_kind::StaticReshape, "reshape1"};
+        reshape1.set_attr("shape", reshape1_dst_shape);
+        reshape1.set_attr("special_zero", false);
+
+        impl::logical_tensor_t reshape0_src = utils::logical_tensor_init(
+                0, reshape0_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t reshape0_dst = utils::logical_tensor_init(
+                1, reshape0_dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t transpose_dst = utils::logical_tensor_init(
+                2, transpose_dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t reshape1_dst = utils::logical_tensor_init(
+                3, reshape1_dst_shape, impl::data_type::f32);
+
+        reshape0.add_input(reshape0_src);
+        reshape0.add_output(reshape0_dst);
+
+        transpose.add_input(reshape0_dst);
+        transpose.add_output(transpose_dst);
+
+        reshape1.add_input(transpose_dst);
+        reshape1.add_output(reshape1_dst);
+
+        impl::graph_t agraph(engine.kind());
+        agraph.add_op(&reshape0);
+        agraph.add_op(&transpose);
+        agraph.add_op(&reshape1);
+        agraph.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("shuffle_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        auto part = agraph.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins {&reshape0_src};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&reshape1_dst};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        test::vector<float> dst_data(product(reshape1_dst_shape));
+        impl::tensor_t reshape0_src_ts(reshape0_src, &engine, src_data.data());
+        impl::tensor_t reshape1_dst_ts(reshape1_dst, &engine, dst_data.data());
+
+        cp.execute(&strm, {reshape0_src_ts}, {reshape1_dst_ts});
+        strm.wait();
+
+        for (size_t i = 0; i < expected_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(expected_data[i], dst_data[i]);
+        }
+    }
+}
+
 TEST(Execute, Softmax) {
     impl::engine_t &eng = get_engine();
 
