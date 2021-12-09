@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -550,7 +550,7 @@ public:
         error::check_succeed(dnnl_graph_logical_tensor_has_same_layout(
                                      &data, &lt.data, &is_same),
                 "could not compare the layout between these logical tensors");
-        return static_cast<bool>(is_same);
+        return is_same != 0;
     }
 
 private:
@@ -1151,7 +1151,7 @@ public:
         error::check_succeed(
                 dnnl_graph_partition_is_supported(get(), &supported),
                 "could not get supporting status of the partition");
-        return static_cast<bool>(supported);
+        return supported != 0;
     }
 
     /// Returns a list of input logical tensors from the partition

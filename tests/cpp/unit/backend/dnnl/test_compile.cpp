@@ -6895,7 +6895,7 @@ TEST(Execute, Abs) {
 }
 
 TEST(Execute, Round) {
-    test::vector<float> src {1.1, -2.3, 4.7, 1.0, 0.0, -8.34};
+    test::vector<float> src {1.1f, -2.3f, 4.7f, 1.0f, 0.0f, -8.34f};
     test::vector<float> ref_dst = round_func(src);
 
     dnnl::graph::impl::dims dims {1, 2, 3};
@@ -7772,8 +7772,8 @@ TEST(Execute, LogSoftmax) {
     logsoftmax_op.set_attr<int64_t>("axis", 0);
 
     test::vector<float> src_data {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
-    test::vector<float> ref_dst_data {-0.6931472, -0.6931472, -0.6931472,
-            -0.6931472, -0.6931472, -0.6931472};
+    test::vector<float> ref_dst_data {-0.6931472f, -0.6931472f, -0.6931472f,
+            -0.6931472f, -0.6931472f, -0.6931472f};
     test::vector<float> dst_data(ref_dst_data.size(), 0.0);
 
     // prepare logical tensor
@@ -7825,7 +7825,8 @@ TEST(Execute, LogsoftmaxBackward) {
 
     logsoftmax_op.set_attr<int64_t>("axis", 1);
 
-    test::vector<float> dst {-0.6931472, -0.6931472, -0.6931472, -0.6931472};
+    test::vector<float> dst {
+            -0.6931472f, -0.6931472f, -0.6931472f, -0.6931472f};
     test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
     test::vector<float> ref_diff_src {-2, 2, -1, 1};
     test::vector<float> diff_src(ref_diff_src.size(), 0.0);
@@ -8488,7 +8489,7 @@ TEST(Execute, Typecast) {
     impl::engine_t &engine = get_engine();
 
     test::vector<float> f32_val {
-            12.5234537, 0, -32.6735142, -1, -2.8765223, 66.66};
+            12.5234537f, 0.f, -32.6735142f, -1.f, -2.8765223f, 66.66f};
     test::vector<uint16_t> bf16_val(f32_val.size(), 10);
 
     impl::op_t typecast_op(impl::op_kind::TypeCast);
@@ -9203,21 +9204,24 @@ TEST_P(test_reduce_compile, TestReduceCompile) {
 }
 
 INSTANTIATE_TEST_SUITE_P(TestReduceCompile, test_reduce_compile,
-        ::testing::Values(dnnl_graph_test_reduce_params {{4.5, 2.5, 3.5, 5.5},
-                                  impl::op_kind::ReduceL1},
+        ::testing::Values(
                 dnnl_graph_test_reduce_params {
-                        {2.47487378, 1.62018514, 2.03100967, 2.93683505},
+                        {4.5f, 2.5f, 3.5f, 5.5f}, impl::op_kind::ReduceL1},
+                dnnl_graph_test_reduce_params {
+                        {2.47487378f, 1.62018514f, 2.03100967f, 2.93683505f},
                         impl::op_kind::ReduceL2},
                 dnnl_graph_test_reduce_params {
-                        {-0.5, 0.0, 1.5, 2.0}, impl::op_kind::ReduceMax},
-                dnnl_graph_test_reduce_params {{-1.125, -0.625, 0.875, 1.375},
-                        impl::op_kind::ReduceMean},
+                        {-0.5f, 0.0f, 1.5f, 2.0f}, impl::op_kind::ReduceMax},
                 dnnl_graph_test_reduce_params {
-                        {-1.75, -1.25, 0.25, 0.75}, impl::op_kind::ReduceMin},
-                dnnl_graph_test_reduce_params {{0.984375, 0.0, 0.234375, 2.625},
+                        {-1.125f, -0.625f, 0.875f, 1.375f},
+                        impl::op_kind::ReduceMean},
+                dnnl_graph_test_reduce_params {{-1.75f, -1.25f, 0.25f, 0.75f},
+                        impl::op_kind::ReduceMin},
+                dnnl_graph_test_reduce_params {
+                        {0.984375f, 0.0f, 0.234375f, 2.625f},
                         impl::op_kind::ReduceProd},
                 dnnl_graph_test_reduce_params {
-                        {-4.5, -2.5, 3.5, 5.5}, impl::op_kind::ReduceSum}));
+                        {-4.5f, -2.5f, 3.5f, 5.5f}, impl::op_kind::ReduceSum}));
 
 TEST(ExecuteSubgraphFp32, ReduceAdd) {
     using op_info_t = std::pair<impl::op_kind_t, std::string>;

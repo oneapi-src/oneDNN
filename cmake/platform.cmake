@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2021 Intel Corporation
+# Copyright 2016-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ if(MSVC)
     append(CMAKE_CCXX_FLAGS "/WX")
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         append(CMAKE_CCXX_FLAGS "/MP")
+        append(CMAKE_CCXX_FLAGS "/bigobj")
         # int -> bool
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4800")
         # unknown pragma
@@ -52,9 +53,12 @@ if(MSVC)
         # todo(xinyu): add reason
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4018")
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4996")
+        # decorated name length exceeded
+        append(CMAKE_CCXX_NOWARN_FLAGS "/wd4503")
     endif()
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         append(CMAKE_CCXX_FLAGS "/MP")
+        append(CMAKE_CCXX_FLAGS "/bigobj")
         # disable: loop was not vectorized with "simd"
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:13379")
         # disable: loop was not vectorized with "simd"

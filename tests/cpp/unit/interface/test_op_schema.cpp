@@ -2898,7 +2898,7 @@ TEST(OpSchema, Quantize) {
     quant_op.add_input(lt_data);
     quant_op.add_output(lt_out);
     quant_op.set_attr("zps", std::vector<int64_t> {1});
-    quant_op.set_attr("scales", std::vector<float> {0.1});
+    quant_op.set_attr("scales", std::vector<float> {0.1f});
     EXPECT_TRUE(quant_op_schema->verify(&quant_op));
 }
 
@@ -2912,7 +2912,7 @@ TEST(OpSchema, QuantizeWithFloatZps) {
     quant_op.add_input(lt_data);
     quant_op.add_output(lt_out);
     quant_op.set_attr("scales", std::vector<int64_t> {1});
-    quant_op.set_attr("zps", std::vector<float> {0.1});
+    quant_op.set_attr("zps", std::vector<float> {0.1f});
 
     //Quantize op does not support float zps and int64 scales
     EXPECT_FALSE(quant_op_schema->verify(&quant_op));
@@ -2928,7 +2928,7 @@ TEST(OpSchema, Dequantize) {
     dequant_op.add_input(lt_data);
     dequant_op.add_output(lt_out);
     dequant_op.set_attr("zps", std::vector<int64_t> {1});
-    dequant_op.set_attr("scales", std::vector<float> {0.1});
+    dequant_op.set_attr("scales", std::vector<float> {0.1f});
     EXPECT_TRUE(dequant_op_schema->verify(&dequant_op));
 }
 
@@ -3472,7 +3472,7 @@ TEST(OpSchema, InferInterpolateShape) {
 
     // sizes and scales should not be valid at the same time
     op_.set_attr<std::string>("data_format", "NCX");
-    op_.set_attr<std::vector<float>>("scales", {0.5, 0.6});
+    op_.set_attr<std::vector<float>>("scales", {0.5f, 0.6f});
     lt_out = logical_tensor_init(2, data_type::f32, layout_type::strided);
     ret = op_schema_->shape_infer(&op_, in, out);
     EXPECT_NE(ret, status::success);
@@ -3487,7 +3487,7 @@ TEST(OpSchema, InferInterpolateShape) {
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     // scales.size() == in.ndims() -2
-    op_.set_attr<std::vector<float>>("scales", {0.5, 0.6, 0.7});
+    op_.set_attr<std::vector<float>>("scales", {0.5f, 0.6f, 0.7f});
     lt_out = logical_tensor_init(2, data_type::f32, layout_type::strided);
     ret = op_schema_->shape_infer(&op_, in, out);
     EXPECT_NE(ret, status::success);

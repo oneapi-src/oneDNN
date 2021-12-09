@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,6 +35,10 @@ dnnl_graph_result_t destory(int *i) {
  * 3. Expect the deleter to be invoked
  */
 TEST(api_base_test, managed_handle) {
+// skip for vs2015
+#if defined(_MSC_VER) && (_MSC_VER == 1900)
+    GTEST_SKIP();
+#endif
     constexpr int expected_deletion {1};
     const int deletion_counter_before_deletion = [] {
         using handle = dnnl::graph::detail::handle<int, destory>;
@@ -51,6 +55,10 @@ TEST(api_base_test, managed_handle) {
  * 3. Expect the deleter to be not invoked
  */
 TEST(api_base_test, unmanaged_handle) {
+// skip for vs2015
+#if defined(_MSC_VER) && (_MSC_VER == 1900)
+    GTEST_SKIP();
+#endif
     constexpr int expected_deletion {0};
     const int deletion_counter_before_deletion = [] {
         using handle = dnnl::graph::detail::handle<int, destory>;
