@@ -22,8 +22,8 @@
 #include <thread>
 #include <vector>
 
+#include "common/optional.hpp"
 #include "gpu/jit/conv/ir_core.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -506,7 +506,8 @@ std::vector<stmt_t> find_stmt_groups(
 
 // Returns a statement group matching the label. `root` must have exactly one
 // occurrence.
-stmt_t find_stmt_group(const object_t &root, const stmt_label_t &label);
+utils::optional_t<stmt_t> find_stmt_group(
+        const object_t &root, const stmt_label_t &label);
 
 // Removes all statement groups matching the label.
 object_t remove_stmt_group(const object_t &root, stmt_label_t label);

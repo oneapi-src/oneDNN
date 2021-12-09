@@ -17,6 +17,7 @@
 #include <sstream>
 
 #include "common/math_utils.hpp"
+#include "common/optional.hpp"
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/ir_core.hpp"
 
@@ -468,10 +469,13 @@ std::vector<stmt_t> find_stmt_groups(
     return ret;
 }
 
-stmt_t find_stmt_group(const object_t &root, const stmt_label_t &label) {
+utils::optional_t<stmt_t> find_stmt_group(
+        const object_t &root, const stmt_label_t &label) {
     auto groups = find_stmt_groups(root, label);
-    ir_assert(groups.size() == 1);
-    return groups[0];
+    if (groups.size() == 1)
+        return groups[0];
+    else
+        return utils::nullopt;
 }
 
 class stmt_group_remover_t : public ir_mutator_t {
