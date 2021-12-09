@@ -153,21 +153,11 @@ unsigned get_num_cores() {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 // The purpose of this function is to return the potential maximum number of
 // threads in user's threadpool. It is assumed that the number of threads in an
-// actual threadpool will not exceed the number cores in a socket reported by
-// the OS, which may or may not be equal to the number of total physical cores
-// in a socket depending on the OS configuration (read -- VM environment). In
-// order to simulate the number of cores available in such environment, this
-// function supports process affinity.
+// actual threadpool will not exceed the number of cores in the platform
+// (read -- VM environment). In order to simulate the number of cores available in
+// such environment, this function supports process affinity.
 unsigned get_max_threads_to_use() {
-    // TODO: the logic below should involve number of sockets to provide exact
-    // number of cores on 2+ socket systems.
-    int num_cores_per_socket = (int)dnnl::impl::cpu::platform::get_num_cores();
-    // It may happen that XByak doesn't get num of threads identified, e.g. for
-    // AMD. In order to make threadpool working, we supply an additional
-    // condition to have some reasonable number of threads available at
-    // primitive descriptor creation time.
-    if (num_cores_per_socket == 0)
-        num_cores_per_socket = std::thread::hardware_concurrency();
+  int num_cores_per_socket = std::thread::hardware_concurrency();
 
 #if defined(_WIN32)
     DWORD_PTR proc_affinity_mask;
