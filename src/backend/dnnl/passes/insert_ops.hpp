@@ -36,6 +36,8 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg);
 impl::status_t insert_to_group_for_conv_or_deconv(
         std::shared_ptr<subgraph_t> &sg);
 
+impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg);
+
 /// Insert a transpose op for matmul's input tensors
 ///
 /// Only valid for below scenarios:

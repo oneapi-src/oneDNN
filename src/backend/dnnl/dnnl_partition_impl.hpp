@@ -415,6 +415,9 @@ public:
                 impl::op_kind::SoftMax, impl::op_kind::LogSoftmax,
                 // concat
                 impl::op_kind::Concat,
+                // reorder
+                impl::op_kind::Reorder, impl::op_kind::TypeCast,
+                op_kind::reorder_sum, op_kind::int8_reorder,
                 // shuffle
                 op_kind::dnnl_shuffle,
                 // prelu
