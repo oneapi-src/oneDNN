@@ -160,6 +160,7 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
 
         std::shared_ptr<primitive_desc_t> reorder_pd_;
         memory_desc_t reordered_stat_md_;
+        int nthr_; // To not exceed the limit in execute used for set up.
 
     private:
         void init_scratchpad() {
@@ -171,8 +172,8 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
                 scratchpad.template book<float>(
                         key_lnorm_tmp_var, across_axis());
             }
-            scratchpad.template book<float>(key_lnorm_reduction,
-                    2 * norm_axis() * dnnl_get_max_threads());
+            scratchpad.template book<float>(
+                    key_lnorm_reduction, 2 * norm_axis() * nthr_);
             scratchpad.template book<float>(
                     key_lnorm_tmp_diff_ss, 2 * norm_axis());
             if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
