@@ -105,6 +105,49 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, dnnl, Reorder, 8.f)
 
 #undef DNNL_BACKEND_SINGLE_OP_TRANSFORM
 
+// if op is interpolate, need to filter out attrs not supported by dnnl
+#define INTERPOLATE_ATTR_CHECK() \
+    append_decision_function([](op_t *graph_op) -> bool { \
+        if (graph_op->get_attr<std::string>("coordinate_transformation_mode") \
+                != std::string("half_pixel")) \
+            return false; \
+        return true; \
+    })
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_pass)
+        .set_priority(8.f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op *p_interpolate = pgraph->append_op(
+                            impl::op_kind::Interpolate, "p-interpolate");
+                    p_interpolate->INTERPOLATE_ATTR_CHECK();
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            impl::op_kind::Interpolate);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_bwd_pass)
+        .set_priority(8.f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op *p_interpolate_bwd
+                            = pgraph->append_op(
+                                    impl::op_kind::InterpolateBackprop,
+                                    "p-interpolate_bwd");
+                    p_interpolate_bwd->INTERPOLATE_ATTR_CHECK();
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            impl::op_kind::InterpolateBackprop);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
 // if op is typecast, need to filter out bf16-in-f16-out and
 // f16-in-bf16-out and same dtype in/out.
 #define SET_BF16_F16_CHECK() \
