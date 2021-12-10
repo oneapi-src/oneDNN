@@ -92,7 +92,7 @@ types for source, destination, weights, and bias tensors:
 | Source | Weights | Destination            | Bias                   |
 | :--    | :--     | :--                    | :--                    |
 | f32    | f32     | f32                    | f32                    |
-| f16    | f16     | f16, u8, s8            | f16              |
+| f16    | f16     | f16, u8, s8            | f16                    |
 | bf16   | bf16    | f32, bf16              | bf16, f32              |
 | u8, s8 | u8, s8  | u8, s8, s32, f32, bf16 | u8, s8, s32, f32, bf16 |
 
@@ -101,9 +101,9 @@ types for source, destination, weights, and bias tensors:
 
 The MatMul primitive expects the following tensors:
 
-| Dims | Source                                                        | Weights                                                           | Destination                                                   | Bias                                                     |
-| :--  | :--                                                           | :--                                                               | :--                                                           | :--                                                      |
-| 2D   | M \f$\times\f$ K                                              | K \f$\times\f$ N                                                  | M \f$\times\f$ N                                              | None or \f$(M \text{ or } 1) \times (N  \text{ or } 1)\f$|
+| Dims | Source                                                        | Weights                                         | Destination           | Bias                                                     |
+| :--  | :--                                                           | :--                                             | :--                   | :--                                                      |
+| 2D   | M \f$\times\f$ K                                              | K \f$\times\f$ N                                | M \f$\times\f$ N      | None or \f$(M \text{ or } 1) \times (N  \text{ or } 1)\f$|
 | ND   | S \f$\times\f$ M \f$\times\f$ K | W \f$\times\f$ K \f$\times\f$ N | D \f$\times\f$ M \f$\times\f$ N | None or B |
 
 where for the sake of notational convenience, we have
@@ -187,11 +187,27 @@ in the argument with index set to
 
 The following examples are available: 
 
-### Matrix Multiplication Primitive Example
+### Matrix Multiplication Primitive Examples
 
-| Engine  | Name                       | Comments                          |
-| :--     | :--                        | :--                               |
-| CPU/GPU | [MatMul Primitive Example](@ref matmul_example_cpp) | @copydetails matmul_example_cpp_short |
-| CPU     | [MatMul Tutorial: Comparison with SGEMM](@ref cpu_sgemm_and_matmul_cpp) | @copydetails cpu_sgemm_and_matmul_cpp_short |
-| CPU/GPU | [MatMul Tutorial: INT8 Inference](@ref inference_int8_matmul_cpp) | @copydetails inference_int8_matmul_cpp_short |
-| CPU     | [MatMul Tutorial: Quantization](@ref cpu_matmul_quantization_cpp) | @copydetails cpu_matmul_quantization_cpp_short |
+[**MatMul Primitive Example**](@ref matmul_example_cpp)
+Engine: CPU/GPU
+
+@copydetails matmul_example_cpp_short
+
+
+[**MatMul Tutorial: Comparison with SGEMM**](@ref cpu_sgemm_and_matmul_cpp)
+Engine: CPU
+
+@copydetails cpu_sgemm_and_matmul_cpp_short
+
+
+[**MatMul Tutorial: INT8 Inference**](@ref inference_int8_matmul_cpp) | 
+Engine: CPU/GPU
+
+@copydetails inference_int8_matmul_cpp_short
+
+
+[**MatMul Tutorial: Quantization**](@ref cpu_matmul_quantization_cpp)
+Engine: CPU
+
+@copydetails cpu_matmul_quantization_cpp_short

@@ -247,6 +247,7 @@ directly.
 
 ## Example
 
-| Engine  | Name                         | Comments                                   |
-| :--     | :--                          | :--                                        |
-| CPU/GPU | [CBatch Normalization Primitive Example](@ref batch_normalization_example_cpp) | @copydetails batch_normalization_example_cpp_short |
+[**Batch Normalization Primitive Example**](@ref batch_normalization_example_cpp)
+Engine: CPU/GPU
+
+@copydetails batch_normalization_example_cpp_short

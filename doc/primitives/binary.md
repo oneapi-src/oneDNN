@@ -71,9 +71,9 @@ The following attributes are supported:
 | Type      | Operation                                       | Description                                                                    | Restrictions
 | :--       | :--                                             | :--                                                                            | :--
 | Attribute | [Scales](@ref dnnl::primitive_attr::set_scales) | Scales the corresponding input tensor by the given scale factor(s).            | Only one scale per tensor is supported. Input tensors only. |
-| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)          | Adds the operation result to the destination tensor instead of overwriting it. |                                                                                                             |
-| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)  | Applies an @ref dnnl_api_eltwise operation to the result.                      |                                                                                                             |
-| Post-op   | [Binary](@ref dnnl::post_ops::append_binary)    | Applies a @ref dnnl_api_binary operation to the result                         | General binary post-op restrictions                                                                         |
+| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)          | Adds the operation result to the destination tensor instead of overwriting it. |                                                             |
+| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)  | Applies an @ref dnnl_api_eltwise operation to the result.                      |                                                             |
+| Post-op   | [Binary](@ref dnnl::post_ops::append_binary)    | Applies a @ref dnnl_api_binary operation to the result                         | General binary post-op restrictions                         |
 
 ### Data Types Support
 
@@ -111,7 +111,13 @@ meaning associated with any of tensors dimensions.
 
 ## Examples
 
-| Engine  | Name                         | Comments                                   |
-| :--     | :--                          | :--                                        |
-| CPU/GPU | [Binary Primitive Example](@ref binary_example_cpp) | @copydetails binary_example_cpp_short |
-| CPU/GPU | [Bnorm u8 by binary post-ops example](@ref bnorm_u8_via_binary_postops_cpp) | @copydetails bnorm_u8_via_binary_postops_cpp_short |
+[**Binary Primitive Example**](@ref binary_example_cpp)
+Engine: CPU/GPU
+ 
+@copydetails binary_example_cpp_short
+
+
+[**Bnorm u8 by Binary Post-Ops Example**](@ref bnorm_u8_via_binary_postops_cpp)
+Engine: CPU/GPU 
+
+@copydetails bnorm_u8_via_binary_postops_cpp_short

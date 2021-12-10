@@ -118,7 +118,7 @@ always \f$N \times C\f$) the memory format is always
 | 3D      | NCDHW / OIDHW                   | #dnnl_ncdhw (#dnnl_abcde) / #dnnl_oidhw (#dnnl_abcde)
 | 3D      | NCDHW / OIDHW                   | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba)
 
-### Post-ops and Attributes
+### Post-Ops and Attributes
 
 Post-ops and attributes enable you to modify the behavior of the inner product
 primitive by chaining certain operations after the inner product operation.
@@ -152,6 +152,7 @@ object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
 
 ## Example
 
-| Engine  | Name                       | Comments                                    |
-| :--     | :--                        | :--                                         |
-| CPU/GPU | [Inner Product Primitive Example](@ref inner_product_example_cpp) | @copydetails inner_product_example_cpp_short |
+[**Inner Product Primitive Example**](@ref inner_product_example_cpp) 
+Engine: CPU/GPU
+
+@copydetails inner_product_example_cpp_short

@@ -201,6 +201,7 @@ The layer normalization primitive is optimized for the following memory formats:
 
 ## Example
 
-| Engine  | Name                         | Comments                                   |
-| :--     | :--                          | :--                                        |
-| CPU/GPU | [Layer Normalization Primitive Example](@ref layer_normalization_example_cpp) | @copydetails layer_normalization_example_cpp_short |
+[**Layer Normalization Primitive Example**](@ref layer_normalization_example_cpp)
+Engine: CPU/GPU 
+ 
+@copydetails layer_normalization_example_cpp_short

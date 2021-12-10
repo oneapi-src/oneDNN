@@ -470,6 +470,7 @@ the convolution.)
 
 ## Example
 
-| Engine  | Name                         | Comments                                   |
-| :--     | :--                          | :--                                        |
-| CPU/GPU | [Convolution Primitive Example](@ref convolution_example_cpp) | @copydetails convolution_example_cpp_short |
+[**Convolution Primitive Example**](@ref convolution_example_cpp)
+Engine: CPU/GPU
+
+@copydetails convolution_example_cpp_short
