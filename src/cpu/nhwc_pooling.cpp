@@ -372,8 +372,9 @@ status_t nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
         return OSP * OC * mb + OSP * oc + SP * od + OW * oh + ow;
     };
     const bool are_postops_set = !(pd()->attr()->post_ops_.entry_.empty());
+    const int nthr = pd()->nthr_;
 
-    parallel_nd_ext(0, MB, OD, OH, OW,
+    parallel_nd_ext(nthr, MB, OD, OH, OW,
             [&](int ithr, int, dim_t mb, dim_t od, dim_t oh, dim_t ow) {
                 const size_t dst_offset_init = strided_offset(mb, dst_n_stride,
                         od, dst_d_stride, oh, dst_h_stride, ow, dst_w_stride);
@@ -672,8 +673,9 @@ status_t nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
     auto apply_offset = [=](dim_t index, dim_t offset) {
         return (index > offset) ? index - offset : 0;
     };
+    const int nthr = pd()->nthr_;
 
-    parallel_nd_ext(0, MB, ID, IH, IW,
+    parallel_nd_ext(nthr, MB, ID, IH, IW,
             [&](int ithr, int, dim_t mb, dim_t id, dim_t ih, dim_t iw) {
                 size_t src_offset_init = strided_offset(mb, diff_src_n_stride,
                         id, diff_src_d_stride, ih, diff_src_h_stride, iw,

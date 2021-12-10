@@ -616,6 +616,8 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
         (*kernel_)(&arg);
     };
 
+    const int nthr = jpp.nthr;
+
     if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
         const auto nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
         parallel_nd(jpp.mb, jpp.oh, nb2_c, [&](dim_t n, dim_t oh, dim_t b2_c) {
@@ -626,7 +628,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
     } else {
         if (trans_src || trans_dst) {
             // ncsp format
-            parallel_nd_ext(0, jpp.mb, jpp.nb_c,
+            parallel_nd_ext(nthr, jpp.mb, jpp.nb_c,
                     [&](dim_t ithr, dim_t nthr, dim_t n, dim_t b_c) {
                         if (trans_src)
                             transpose_facade.execute_transpose_input(
@@ -639,7 +641,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
                     });
         } else {
             // nChw16c, nChw8c format
-            parallel(0, [&](dim_t ithr, dim_t nthr) {
+            parallel(nthr, [&](dim_t ithr, dim_t nthr) {
                 dim_t work_amount = jpp.mb * jpp.nb_c * jpp.oh;
                 if (ithr >= work_amount) return;
 
@@ -742,6 +744,8 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
         (*kernel_)(&arg);
     };
 
+    const int nthr = jpp.nthr;
+
     if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
         const auto nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
         parallel_nd(jpp.mb, jpp.od, nb2_c, [&](dim_t n, dim_t od, dim_t b2_c) {
@@ -761,7 +765,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
         });
     } else {
         if (trans_src || trans_dst) {
-            parallel_nd_ext(0, jpp.mb, jpp.nb_c,
+            parallel_nd_ext(nthr, jpp.mb, jpp.nb_c,
                     [&](dim_t ithr, dim_t nthr, dim_t n, dim_t b_c) {
                         if (trans_src)
                             transpose_facade.execute_transpose_input(
@@ -954,7 +958,9 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
             transpose_facade.execute_transpose_output(ithr, n, b_c);
     };
 
-    parallel(0, [&](int ithr, int nthr) {
+    const int nthr = jpp.nthr;
+
+    parallel(nthr, [&](int ithr, int nthr) {
         const auto nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
         const std::size_t work_amount
                 = static_cast<std::size_t>(jpp.mb) * nb2_c;
@@ -1104,6 +1110,8 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
         }
     };
 
+    const int nthr = jpp.nthr;
+
     if (jpp.simple_alg) {
         if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
             const dim_t nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
@@ -1117,7 +1125,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
         } else {
             assert(jpp.ur_bc == 1);
             if (trans_src || trans_dst) {
-                parallel_nd_ext(0, jpp.mb, jpp.nb_c,
+                parallel_nd_ext(nthr, jpp.mb, jpp.nb_c,
                         [&](dim_t ithr, dim_t nthr, dim_t n, dim_t b_c) {
                             if (trans_src)
                                 transpose_facade.execute_transpose_input(
@@ -1150,7 +1158,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
             if (!trans_src) {
                 const size_t chunk_size
                         = (size_t)jpp.id * jpp.ih * jpp.iw * jpp.c_block;
-                parallel_nd_ext(0, jpp.mb, jpp.nb_c,
+                parallel_nd_ext(nthr, jpp.mb, jpp.nb_c,
                         [&](dim_t ithr, dim_t nthr, dim_t n, dim_t b_c) {
                             const size_t offset
                                     = ((size_t)n * jpp.nb_c + b_c) * chunk_size;
@@ -1163,7 +1171,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
 
         const auto nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
         if (trans_src || trans_dst) {
-            parallel_nd_ext(0, jpp.mb, nb2_c,
+            parallel_nd_ext(nthr, jpp.mb, nb2_c,
                     [&](dim_t ithr, dim_t nthr, dim_t n, dim_t b2_c) {
                         const dim_t b_c = b2_c * jpp.ur_bc;
 

@@ -608,8 +608,10 @@ status_t nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
 
     dim_t c_blk = pd()->channel_block_size_;
     dim_t c_blk_tail = C % c_blk;
+    const int nthr = pd()->nthr_;
+
     if (alg == alg_kind::pooling_max) {
-        parallel_nd_ext(0, MB, utils::div_up(C, c_blk),
+        parallel_nd_ext(nthr, MB, utils::div_up(C, c_blk),
                 [&](int ithr, int, dim_t mb, dim_t cb) {
                     bool is_last_c_block
                             = c_blk_tail > 0 && (cb + 1) * c_blk > C;
@@ -647,7 +649,7 @@ status_t nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
                             diff_src_fp32, src_sp_size * curr_c_block);
                 });
     } else {
-        parallel_nd_ext(0, MB, utils::div_up(C, c_blk),
+        parallel_nd_ext(nthr, MB, utils::div_up(C, c_blk),
                 [&](int ithr, int, dim_t mb, dim_t cb) {
                     bool is_last_c_block
                             = c_blk_tail > 0 && (cb + 1) * c_blk > C;

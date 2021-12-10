@@ -139,6 +139,7 @@ struct nchw_pooling_bwd_t : public primitive_t {
                 ws_md_ = *hint_fwd_pd_->workspace_md();
             }
 
+            nthr_ = dnnl_get_max_threads();
             calculate_channel_block_size();
             init_scratchpad();
 
@@ -146,6 +147,7 @@ struct nchw_pooling_bwd_t : public primitive_t {
         }
 
         dim_t channel_block_size_;
+        int nthr_; // To not exceed the limit in execute used for set up.
 
     private:
         void init_scratchpad() {
@@ -153,13 +155,12 @@ struct nchw_pooling_bwd_t : public primitive_t {
             if (diff_dst_md()->data_type == data_type::bf16) {
                 size_t dst_sz_ = OD() * OH() * OW();
                 size_t src_sz_ = ID() * IH() * IW();
-                size_t nthrs = dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
 
                 scratchpad.template book<float>(key_pool_src_bf16cvt,
-                        src_sz_ * nthrs * channel_block_size_);
+                        src_sz_ * nthr_ * channel_block_size_);
                 scratchpad.template book<float>(key_pool_dst_bf16cvt,
-                        dst_sz_ * nthrs * channel_block_size_);
+                        dst_sz_ * nthr_ * channel_block_size_);
             }
         }
 
@@ -169,8 +170,7 @@ struct nchw_pooling_bwd_t : public primitive_t {
             // spatial
             dim_t dst_sz_ = OD() * OH() * OW();
             dim_t src_sz_ = ID() * IH() * IW();
-            dim_t nthrs = dnnl_get_max_threads();
-            dim_t C_per_thr = nstl::min(MB() * IC() / nthrs, IC());
+            dim_t C_per_thr = nstl::min(MB() * IC() / nthr_, IC());
             const dim_t max_block_size
                     = platform::get_per_core_cache_size(1) / 2;
             dim_t data_size_per_ch = (dst_sz_ + src_sz_) * 6; // f32 + bf16
