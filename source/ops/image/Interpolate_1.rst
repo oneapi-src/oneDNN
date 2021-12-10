@@ -10,39 +10,16 @@ Interpolate
 
 **Category**: *Image processing*
 
-**Short description**: *Interpolate* layer performs interpolation of independent
-slices in input tensor by specified dimensions and attributes.
-
-**OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_image_Interpolate_4.html>`__
+**Short description**: *Interpolate* layer performs interpolation on input
+tensor at spatial dimensions.
 
 **Attributes**
 
 * *mode*
 
   * **Description**: specifies type of interpolation
-  * **Range of values**: one of ``nearest``, ``linear``, ``linear_onnx``,
-    ``cubic``
-  * **Type**: string
-  * **Default value**: none
-  * **Required**: *yes*
-
-* *shape_calculation_mode*
-
-  * **Description**: specifies which input, ``sizes`` or ``scales``, is used to
-    calculate an output shape.
-  * **Range of values**: name of a shape calculation mode in string format:
-
-    * ``sizes`` - an output shape is calculated as ``output_shape[axes[i]] =
-      sizes[i]`` for all ``i in range(0, len(axes))`` and ``output_shape[j] =
-      input_shape[j] + pads_begin[j] + pads_end[j]`` for ``j not in axes``,
-      ``j in range(0, rank(data))``.
-    * ``scales`` - an output shape is calculated as ``output_shape[axes[i]] =
-      floor(scales[i] * (input_shape[axes[i]] + pads_begin[axes[i]] +
-      pads_end[axes[i]]))`` for all ``i in range(0, len(axes))`` and
-      ``output_shape[j] = input_shape[j] + pads_begin[j] + pads_end[j]`` for
-      ``j not in axes``, ``j in range(0, rank(data))``
-
+  * **Range of values**: one of ``nearest``, ``linear``, ``bilinear``,
+    ``trilinear``
   * **Type**: string
   * **Default value**: none
   * **Required**: *yes*
@@ -57,13 +34,6 @@ slices in input tensor by specified dimensions and attributes.
 
     * ``half_pixel`` - the coordinate in the original tensor axis ``x`` is
       calculated as ``((x_resized + 0.5) / scale[x]) - 0.5``.
-    * ``pytorch_half_pixel`` -  the coordinate in the original tensor axis ``x``
-      is calculated by ``(x_resized + 0.5) / scale[x] - 0.5 if
-      output_shape[x] > 1 else 0.0``.
-    * ``asymmetric`` - the coordinate in the original tensor axis ``x`` is
-      calculated according to the formula ``x_resized / scale[x]``.
-    * ``tf_half_pixel_for_nn`` - the coordinate in the original tensor axis
-      ``x`` is ``(x_resized + 0.5) / scale[x]``.
     * ``align_corners`` - the coordinate in the original tensor axis ``x`` is
       calculated as ``0 if output_shape[x] == 1 else  x_resized *
       (input_shape[x] - 1) / (output_shape[x] - 1)``.
@@ -72,115 +42,58 @@ slices in input tensor by specified dimensions and attributes.
   * **Default value**: ``half_pixel``
   * **Required**: *no*
 
-* *nearest_mode*
+* *sizes*
 
-  * **Description**: specifies round mode when ``mode == nearest`` and is used
-    only when ``mode == nearest``.
-  * **Range of values**: name of the round mode in string format:
+  * **Description**: specifies output shape for spatial axes. *sizes* and
+    *scales* can't be valid at the same time. When *sizes* is used, optional
+    *scales* should not be set.
+  * **Range of values**:positive s64
+  * **Type**: s64[]
+  * **Default value**: none
+  * **Required**: *no*
 
-    * ``round_prefer_floor`` - this mode is known as round half down.
-    * ``round_prefer_ceil`` - it is round half up mode.
-    * ``floor`` - this mode computes the largest integer value not greater than
-      rounded value.
-    * ``ceil`` - this mode computes the smallest integer value not less than
-      rounded value.
-    * ``simple`` - this mode behaves as ``ceil`` mode when ``Interpolate`` is
-      downsample, and as dropping the fractional part otherwise.
+* *scales*
 
+  * **Description**: specifies scales for spatial axes. *sizes* and *scales*
+    can't be valid at the same time. When *scales* is used, optional *size*
+    should not be set.
+  * **Range of values**: f32
+  * **Type**: f32[]
+  * **Default value**: none
+  * **Required**: *no*
+
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input and
+    output data.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D, DHW for 3D)
   * **Type**: string
-  * **Default value**: ``round_prefer_floor``
-  * **Required**: *no*
-
-* *antialias*
-
-  * **Description**: *antialias* is a flag that specifies whether to perform
-    anti-aliasing.
-  * **Range of values**:
-
-    * False - do not perform anti-aliasing
-    * True - perform anti-aliasing
-
-  * **Type**: bool
-  * **Default value**: False
-  * **Required**: *no*
-
-* *pads_begin*
-
-  * **Description**: *pads_begin* specifies the number of pixels to add to the
-    beginning of the image being interpolated. This addition of pixels is done
-    before interpolation calculation.
-  * **Range of values**: Non-negative s64 values
-  * **Type**: s64[]
-  * **Default value**: array of all ''0'', array length = rank(input)
-  * **Required**: *no*
-
-* *pads_end*
-
-  * **Description**: *pads_end* specifies the number of pixels to add to the end
-    of the image being interpolated. This addition of pixels is done before
-    interpolation calculation.
-  * **Range of values**: Non-negative s64 values
-  * **Type**: s64[]
-  * **Default value**: array of all ''0'', array length = rank(input)
-  * **Required**: *no*
-
-* *cube_coeff*
-
-  * **Description**: *cube_coeff* specifies the parameter *a* for cubic
-    interpolation (see, e.g.
-    `article <https://ieeexplore.ieee.org/document/1163711/>`__). *cube_coeff*
-    is used only when ``mode == cubic``.
-  * **Range of values**: arbitrary valid f32 value 
-  * **Type**: f32
-  * **Default value**: ``-0.75``
+  * **Default value**: *NXC*
   * **Required**: *no*
 
 **Inputs**
 
 * **1**: ``data`` - Input tensor with data for interpolation. **Required**.
 
-  * **Type**: T
+  * **Type**: T1
 
-* **2**: ``sizes`` - 1D tensor describing output shape for spatial axes. Number
-  of elements matches the number of indices in ``axes`` input, the order matches
-  as well. **Required**.
+* **2**: ``sizes`` - 1D tensor describing output shape for spatial axes. It is a
+  non-differentiable tensor. **optional**.
 
-  * **Type**: s32
-
-* **3**: ``scales`` - 1D tensor describing scales for spatial axes. Number and
-  order of elements match the number and order of indices in ``axes`` input.
-  **Required**.
-
-  * **Type**: T
-
-* **4**: ``axes`` - 1D tensor specifying dimension indices where interpolation
-  is applied, and ``axes`` is any unordered list of indices of different
-  dimensions of input tensor, e.g. ``[0, 4]``, ``[4, 0]``, ``[4, 2, 1]``,
-  ``[1, 2, 3]``. These indices should be non-negative integers from ``0`` to
-  ``rank(data) - 1`` inclusively. Other dimensions do not change. The order of
-  elements in ``axes`` attribute matters, and mapped directly to elements in the
-  second input ``sizes``. **Optional** with default value
-  ``[0,...,rank(data) - 1]``.
-
-  * **Type**: s32
+  * **Type**: T2
 
 **Outputs**
 
 * **1**: Resulting interpolated tensor with elements of the same type as input
   ``data`` tensor. The shape of the output matches input ``data`` shape except
-  spatial dimensions mentioned in ``axes`` attribute. For other dimensions shape
-  matches sizes from ``sizes`` in order specified in ``axes``.
+  spatial dimensions. For spatial dimensions shape matches sizes from ``sizes``
+  or calculated from``scales``.
 
-  * **Type**: T
+  * **Type**: T1
 
 **Types**:
 
-* **T**: f32, f16, bf16.
+* **T1**: f32, f16, bf16.
+* **T2**: s32.
 * **Note**: Tensors denoted with same data type symbol(such as *T*) have same
   data type. For example, if *T* is f32, all these tensors are f32 tensor.
-
-**Detailed description**
-Calculations are performed according to the following rules.
-
-.. literalinclude:: ../../code_snippets/interpolate.py
-   :language: python
