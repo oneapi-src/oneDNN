@@ -78,8 +78,7 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
 
 template <cpu_isa_t isa>
 status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
-        memory_tracking::registrar_t &scratchpad, const pooling_pd_t *ppd,
-        int nthreads) {
+        memory_tracking::registrar_t &scratchpad, const pooling_pd_t *ppd) {
 
     const auto &pd = *ppd->desc();
     const memory_desc_wrapper src_d(
@@ -89,6 +88,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
 
     const int ndims = src_d.ndims();
 
+    jpp.nthr = dnnl_get_max_threads();
     jpp.is_training = pd.prop_kind == prop_kind::forward_training;
     jpp.is_backward = pd.prop_kind == prop_kind::backward_data;
 
@@ -250,7 +250,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                     ? (ndims == 5 && jpp.simple_alg ? jpp.od : 1)
                     : (ndims == 5 ? jpp.od : jpp.oh);
             work *= jpp.mb * nb2_c;
-            auto eff = (float)work / utils::rnd_up(work, nthreads);
+            auto eff = (float)work / utils::rnd_up(work, jpp.nthr);
             if (eff > best_eff) {
 
                 best_eff = eff;

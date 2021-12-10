@@ -66,8 +66,7 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
                 init_default_ws();
 
             auto scratchpad = scratchpad_registry().registrar();
-            CHECK(jit_uni_pool_kernel<isa>::init_conf(
-                    jpp_, scratchpad, this, dnnl_get_max_threads()));
+            CHECK(jit_uni_pool_kernel<isa>::init_conf(jpp_, scratchpad, this));
 
             return status::success;
         }
@@ -132,9 +131,11 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
                 init_default_ws();
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
+
             auto scratchpad = scratchpad_registry().registrar();
-            return jit_uni_pool_kernel<isa>::init_conf(
-                    jpp_, scratchpad, this, dnnl_get_max_threads());
+            CHECK(jit_uni_pool_kernel<isa>::init_conf(jpp_, scratchpad, this));
+
+            return status::success;
         }
 
         jit_pool_conf_t jpp_;

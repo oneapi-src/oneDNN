@@ -687,6 +687,7 @@ struct jit_pool_conf_t {
     bool with_postops;
     bool with_eltwise;
     bool with_binary;
+    int nthr;
 };
 
 struct jit_pool_call_s {
