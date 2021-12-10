@@ -320,6 +320,7 @@ public:
                 op_kind::x8s8f32_matmul_bias_sigmoid,
                 op_kind::x8s8f32_matmul_gelu, op_kind::x8s8f32_matmul_bias_gelu,
                 op_kind::int8_maxpool, op_kind::int8_avgpool,
+                op_kind::int8_avgpool_add, op_kind::int8_maxpool_add,
                 op_kind::x8s8f32_conv_relu, op_kind::x8s8f32_conv,
                 op_kind::x8s8f32_conv_bias_relu, op_kind::x8s8f32_conv_bias,
                 op_kind::x8s8f32_conv_bias_add_relu,

@@ -82,6 +82,8 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
                 || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
             exec = std::make_shared<reorder_executable_t>(
                     cur_op, p_engine, prm_attr_mgr);
+        } else if (cur_op->get_kind() == op_kind::dnnl_constant) {
+            exec = std::make_shared<const_memory_filler_t>(cur_op);
         } else if (cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group
                 || cur_op->get_kind() == op_kind::expand

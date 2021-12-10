@@ -322,6 +322,16 @@ status_t infer_dnnl_batchnorm_output_shape(op_t *n,
     return stat;
 }
 
+status_t infer_dnnl_constant_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    // `dnnl_constant` op doesn't have any inputs
+    auto out_shape = n->get_attr<std::vector<int64_t>>("shape");
+    set_shape_and_strides(*outputs[0], out_shape);
+
+    return status::success;
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

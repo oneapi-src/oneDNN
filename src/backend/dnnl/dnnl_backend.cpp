@@ -347,7 +347,9 @@ bool dnnl_backend::register_kernels() {
 
     // quantized pooling
     DNNL_REGISTER_KERNEL(op_kind::int8_maxpool, quantized_pooling);
+    DNNL_REGISTER_KERNEL(op_kind::int8_maxpool_add, quantized_pooling);
     DNNL_REGISTER_KERNEL(op_kind::int8_avgpool, quantized_pooling);
+    DNNL_REGISTER_KERNEL(op_kind::int8_avgpool_add, quantized_pooling);
 
     // sum fusion
     DNNL_REGISTER_KERNEL(op_kind::dnnl_sum, sum_t);

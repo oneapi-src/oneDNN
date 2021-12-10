@@ -750,6 +750,35 @@ struct memory_reparser_t : public op_executable_t {
     }
 };
 
+struct const_memory_filler_t : public op_executable_t {
+    const_memory_filler_t(std::shared_ptr<impl::op_t> &op) {
+        scales_ = op->get_attr<std::vector<float>>("scales");
+    }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        void *data_handle
+                = static_cast<void *>(const_cast<float *>(scales_.data()));
+        const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
+
+        auto is_cpu = dst_mem.get_engine().get_kind() == engine::kind::cpu;
+        // handle cross-engine case
+        auto src_eng = (is_cpu) ? dst_mem.get_engine()
+                                : engine(dflt_eng_kind, dflt_eng_idx);
+
+        const memory src_mem
+                = make_dnnl_memory(dst_mem.get_desc(), src_eng, data_handle);
+        dnnl::reorder(src_mem, dst_mem)
+                .execute(stream, const_cast<memory &>(src_mem),
+                        const_cast<memory &>(dst_mem));
+    }
+
+private:
+    const engine::kind dflt_eng_kind = engine::kind::cpu;
+    const size_t dflt_eng_idx = 0;
+    std::vector<float> scales_;
+};
+
 struct conv_fwd_executable_t : public op_executable_t {
     conv_fwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,

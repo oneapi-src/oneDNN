@@ -35,6 +35,9 @@ impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t split_quant_dequant(std::shared_ptr<subgraph_t> &sg);
 
+impl::status_t replace_quant_dequant_with_mul_scales(
+        std::shared_ptr<subgraph_t> &sg);
+
 impl::status_t folding_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg);
@@ -48,6 +51,9 @@ impl::status_t fuse_to_int8_reorder(std::shared_ptr<subgraph_t> &sg);
 impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t replace_output_scales_with_binary(
+        std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg);
 

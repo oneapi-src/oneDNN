@@ -365,6 +365,9 @@ private:
     void prepare_args_for_miso_op(op_t *op, const dnnl::engine &p_engine,
             primitive_attr_mgr_t &prm_attr_mgr);
 
+    void prepare_args_for_niso_op(op_t *op, const dnnl::engine &p_engine,
+            primitive_attr_mgr_t &prm_attr_mgr);
+
     void bind_memory_for_bn_folding(op_t *op, const dnnl::engine &p_engine);
 
     void bind_memory_for_conv_bwd_data(op_t *op, const dnnl::engine &p_engine,

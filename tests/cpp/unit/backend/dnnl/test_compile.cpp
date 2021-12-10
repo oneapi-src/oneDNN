@@ -19,6 +19,7 @@
 #include <limits>
 #include <random>
 #include <string>
+#include <tuple>
 
 #include <gtest/gtest.h>
 
@@ -12577,6 +12578,175 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
                     /*atol*/ 1.f));
         else
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
+    }
+}
+
+TEST(ExecuteSubgraphInt8, PoolAdd) {
+    using dims = impl::dnnl_impl::dims;
+    using config_t = std::tuple<impl::op_kind_t, std::string, bool>;
+
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    const auto confs = std::vector<config_t> {
+            config_t {impl::op_kind::AvgPool, "int8_avgpool_add_fusion", true},
+            config_t {impl::op_kind::AvgPool, "int8_avgpool_add_fusion", false},
+            config_t {impl::op_kind::MaxPool, "int8_maxpool_add_fusion", true},
+            config_t {
+                    impl::op_kind::MaxPool, "int8_maxpool_add_fusion", false}};
+    const auto swap_add_ins = std::vector<bool> {true, false};
+
+    for_(const auto swap_add_in : swap_add_ins)
+    for (const auto &conf : confs) {
+        impl::op_kind_t base_op;
+        std::string fuse_name;
+        bool per_channel_broadcast;
+        std::tie(base_op, fuse_name, per_channel_broadcast) = conf;
+
+        const std::string data_format {"NCX"};
+        const int64_t channels = 2;
+        std::vector<int64_t> src_shape {2, channels, 4, 4};
+        std::vector<int64_t> dst_shape {2, channels, 2, 2};
+        std::vector<int64_t> other_shape {1, 1, 1, 1};
+        if (per_channel_broadcast) other_shape[1] = channels;
+
+        test::vector<int8_t> src_s8_data(product(src_shape));
+        test::vector<int8_t> other_s8_data(product(other_shape));
+        test::vector<int8_t> case1_dst_s8_data(product(dst_shape));
+        test::vector<int8_t> case2_dst_s8_data(product(dst_shape));
+
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
+        std::generate(src_s8_data.begin(), src_s8_data.end(), [&]() {
+            return static_cast<uint8_t>(s8_distribution(generator));
+        });
+        std::generate(other_s8_data.begin(), other_s8_data.end(), [&]() {
+            return static_cast<uint8_t>(s8_distribution(generator));
+        });
+
+        const float scale_src = 5 / 127.f;
+        const float scale_out = 10 / 127.f;
+        const float scale_other = 2 / 127.f;
+        const int64_t zp_src = 0;
+        const int64_t zp_out = 0;
+        const int64_t zp_other = 0;
+
+        impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
+        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
+        dqdata_op.set_attr<int64_t>("axis", 0);
+
+        impl::op_t pool_op(1, base_op, "pool_op");
+        size_t spatial_size = src_shape.size() - 2;
+        pool_op.set_attr<dims>("strides", dims(spatial_size, 2));
+        pool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
+        pool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
+        pool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
+        pool_op.set_attr<std::string>("data_format", data_format);
+        if (base_op == impl::op_kind::AvgPool)
+            pool_op.set_attr<bool>("exclude_pad", false);
+        else
+            // MaxPool
+            pool_op.set_attr<dims>("dilations", dims(spatial_size, 1));
+
+        impl::op_t qout_op(2, impl::op_kind::Quantize, "qout_op");
+        qout_op.set_attr<std::string>("qtype", "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
+        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
+        qout_op.set_attr<int64_t>("axis", 0);
+
+        impl::op_t dqother_op(3, impl::op_kind::Dequantize, "dqother_op");
+        dqother_op.set_attr<std::string>("qtype", "per_tensor");
+        dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_other});
+        dqother_op.set_attr<std::vector<float>>("scales", {scale_other});
+        dqother_op.set_attr<int64_t>("axis", 0);
+
+        impl::op_t add_op(4, impl::op_kind::Add, "add_op");
+
+        auto src_s8
+                = utils::logical_tensor_init(0, src_shape, impl::data_type::s8);
+        auto src_f32_dq = utils::logical_tensor_init(
+                1, src_shape, impl::data_type::f32);
+        auto dst_f32 = utils::logical_tensor_init(
+                2, dst_shape, impl::data_type::f32);
+        auto dst_s8
+                = utils::logical_tensor_init(3, dst_shape, impl::data_type::s8);
+        auto other_s8 = utils::logical_tensor_init(
+                4, other_shape, impl::data_type::s8);
+        auto other_f32_dq = utils::logical_tensor_init(
+                5, other_shape, impl::data_type::f32);
+        auto dst_add_f32 = utils::logical_tensor_init(
+                6, dst_shape, impl::data_type::f32);
+
+        dqdata_op.add_input(src_s8);
+        dqdata_op.add_output(src_f32_dq);
+
+        pool_op.add_input(src_f32_dq);
+        pool_op.add_output(dst_f32);
+
+        dqother_op.add_input(other_s8);
+        dqother_op.add_output(other_f32_dq);
+
+        if (swap_add_in) {
+            add_op.add_input(other_f32_dq);
+            add_op.add_input(dst_f32);
+        } else {
+            add_op.add_input(dst_f32);
+            add_op.add_input(other_f32_dq);
+        }
+        add_op.add_output(dst_add_f32);
+
+        qout_op.add_input(dst_add_f32);
+        qout_op.add_output(dst_s8);
+
+        impl::graph_t g(engine.kind());
+        g.add_op(&dqdata_op);
+        g.add_op(&pool_op);
+        g.add_op(&dqother_op);
+        g.add_op(&add_op);
+        g.add_op(&qout_op);
+        g.build_graph();
+
+        impl::tensor_t src_s8_ts(src_s8, &engine, src_s8_data.data());
+        impl::tensor_t other_s8_ts(other_s8, &engine, other_s8_data.data());
+        impl::tensor_t case1_dst_s8_ts(
+                dst_s8, &engine, case1_dst_s8_data.data());
+        impl::tensor_t case2_dst_s8_ts(
+                dst_s8, &engine, case2_dst_s8_data.data());
+
+        // -------------------------case 1----------------------------------
+        ASSERT_EQ(run_graph(g, {src_s8_ts, other_s8_ts}, {case1_dst_s8_ts},
+                          engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass = get_pass(fuse_name);
+        apass->run(g);
+
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+        std::vector<const impl::logical_tensor_t *> lt_ins {&src_s8, &other_s8};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        cp.execute(&strm, {src_s8_ts, other_s8_ts}, {case2_dst_s8_ts});
+        strm.wait();
+
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_dst_s8_data, case2_dst_s8_data,
+                    /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_dst_s8_data, case2_dst_s8_data,
+                    /*rtol*/ 0.01f,
                     /*atol*/ 1.f));
     }
 }
