@@ -127,6 +127,7 @@ namespace op_kind {
     X(x8s8float_matmul_add, X8S8FLOAT_MatMul_add) \
     X(x8s8float_matmul_bias_add, X8S8FLOAT_MatMul_bias_add) \
     X(mul_scales, Mul_scales) \
+    X(dnnl_constant, Dnnl_constant) \
     X(add_zps, Add_zps) \
     X(permute, Permute) \
     X(to_group, To_group) \
@@ -135,6 +136,7 @@ namespace op_kind {
     X(dnnl_convolution, Dnnl_convolution) \
     X(dnnl_convtranspose, Dnnl_convtranspose) \
     X(int8_maxpool, INT8_MaxPool) \
+    X(int8_maxpool_add, INT8_MaxPool_add) \
     X(relu_add, Relu_add) \
     X(add_relu, Add_relu) \
     X(add_sigmoid, Add_sigmoid) \
@@ -181,6 +183,7 @@ namespace op_kind {
     X(x8s8f32_quant_wei_conv_bias_add_relu, \
             X8S8F32_Quant_wei_Conv_bias_add_relu) \
     X(int8_avgpool, INT8_AvgPool) \
+    X(int8_avgpool_add, INT8_AvgPool_add) \
     X(dnnl_pool, Dnnl_pool) \
     X(dnnl_u8_to_s8, Dnnl_u8_to_s8) \
     X(dnnl_bn_folding, Dnnl_bn_folding) \

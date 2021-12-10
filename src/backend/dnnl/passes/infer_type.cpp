@@ -67,7 +67,8 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
     do {
         changed = false;
         impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
-            if (op->get_kind() == op_kind::mul_scales) {
+            if (op->get_kind() == op_kind::mul_scales
+                    || op->get_kind() == op_kind::dnnl_constant) {
                 auto out_lt = op->get_output_value(0)->get_logical_tensor();
                 if (out_lt.data_type == impl::data_type::undef) {
                     op->get_output_value(0)->set_data_type(

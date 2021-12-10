@@ -1004,7 +1004,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::dnnl_shuffle) {
                 layout_propagation_for_shuffle(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
-            } else {
+            } else if (cur_op->get_kind() != op_kind::dnnl_constant) {
                 assertm(false,
                         "none layout propagation function for current op");
             }

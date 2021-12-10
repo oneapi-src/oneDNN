@@ -104,6 +104,31 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_avgpool_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_avgpool_add_fusion)
+        .set_priority(10.0f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *dequant_other
+                            = apattern->create_op(impl::op_kind::Dequantize);
+
+                    op_t *pool = apattern->create_op(impl::op_kind::AvgPool);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
+
+                    pool->fill_and_connect_input(0, *dequant_data, 0);
+                    add->fill_and_connect_input(0, *pool, 0);
+                    add->fill_and_connect_input(1, *dequant_other, 0);
+                    quant->fill_and_connect_input(0, *add, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_avgpool_add);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_maxpool_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -119,6 +144,31 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_maxpool_fusion)
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::int8_maxpool);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_maxpool_add_fusion)
+        .set_priority(10.0f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *dequant_other
+                            = apattern->create_op(impl::op_kind::Dequantize);
+
+                    op_t *pool = apattern->create_op(impl::op_kind::MaxPool);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
+
+                    pool->fill_and_connect_input(0, *dequant_data, 0);
+                    add->fill_and_connect_input(0, *pool, 0);
+                    add->fill_and_connect_input(1, *dequant_other, 0);
+                    quant->fill_and_connect_input(0, *add, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_maxpool_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 

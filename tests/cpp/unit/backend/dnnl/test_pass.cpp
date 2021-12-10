@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <tuple>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -7113,6 +7114,164 @@ TEST(Pass, FuseToInt8Avgpool) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
             dnnl_impl::op_kind::int8_avgpool);
+}
+
+TEST(Pass, FuseToInt8PoolAdd) {
+    /*    
+             | (u8/s8)
+          dequant
+             | (f32)
+           pool
+             | (f32)
+             |     | (u8/s8)
+             |   dequant
+             |  / (f32)
+            add
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    using config_t = std::tuple<op_kind_t, op_kind_t, std::string, std::string>;
+    const auto confs = std::vector<config_t> {
+            config_t {AvgPool, dnnl_impl::op_kind::int8_avgpool_add,
+                    "int8_avgpool_fusion", "int8_avgpool_add_fusion"},
+            config_t {MaxPool, dnnl_impl::op_kind::int8_maxpool_add,
+                    "int8_maxpool_fusion", "int8_maxpool_add_fusion"}};
+
+    for (const auto &conf : confs) {
+        op_kind_t base_op;
+        op_kind_t fused_op;
+        std::string failing_fuse;
+        std::string passing_fuse;
+        std::tie(base_op, fused_op, failing_fuse, passing_fuse) = conf;
+
+        std::vector<int64_t> zps = {0};
+        std::vector<float> scales = {3.1f};
+        op_t dequant {0, Dequantize, "dequant"};
+        dequant.set_attr("scales", scales);
+        dequant.set_attr("zps", zps);
+        op_t dequant2 {1, Dequantize, "dequant"};
+        dequant2.set_attr("scales", scales);
+        dequant2.set_attr("zps", zps);
+
+        std::vector<int64_t> strides = {2, 2};
+        std::vector<int64_t> pads_begin = {0, 0};
+        std::vector<int64_t> pads_end = {0, 0};
+        std::vector<int64_t> kernel = {2, 2};
+        op_t pool {2, base_op, "pool"};
+        pool.set_attr("strides", strides);
+        pool.set_attr("pads_begin", pads_begin);
+        pool.set_attr("pads_end", pads_end);
+        pool.set_attr("kernel", kernel);
+        if (base_op == AvgPool) pool.set_attr<bool>("exclude_pad", false);
+
+        op_t add {3, Add, "add"};
+
+        op_t quant {4, Quantize, "quant"};
+        quant.set_attr("scales", scales);
+        quant.set_attr("zps", zps);
+
+        logical_tensor_t int8_data
+                = logical_tensor_init(0, {1, 1, 4, 4}, data_type::u8);
+        logical_tensor_t fp32_data
+                = logical_tensor_init(1, {1, 1, 4, 4}, data_type::f32);
+        logical_tensor_t int8_other
+                = logical_tensor_init(2, {1, 1, 1, 1}, data_type::u8);
+        logical_tensor_t fp32_other
+                = logical_tensor_init(3, {1, 1, 1, 1}, data_type::f32);
+        logical_tensor_t fp32_pool_out
+                = logical_tensor_init(4, {1, 1, 2, 2}, data_type::f32);
+        logical_tensor_t fp32_add_out
+                = logical_tensor_init(5, {1, 1, 2, 2}, data_type::f32);
+        logical_tensor_t int8_out
+                = logical_tensor_init(6, {1, 1, 2, 2}, data_type::u8);
+
+        dequant.add_input(int8_data);
+        dequant.add_output(fp32_data);
+
+        pool.add_input(fp32_data);
+        pool.add_output(fp32_pool_out);
+
+        dequant2.add_input(int8_other);
+        dequant2.add_output(fp32_other);
+
+        add.add_input(fp32_pool_out);
+        add.add_input(fp32_other);
+        add.add_output(fp32_add_out);
+
+        quant.add_input(fp32_add_out);
+        quant.add_output(int8_out);
+
+        graph_t agraph;
+        ASSERT_EQ(agraph.add_op(&dequant), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+        ASSERT_EQ(agraph.add_op(&pool), status::success);
+        ASSERT_EQ(agraph.add_op(&add), status::success);
+        ASSERT_EQ(agraph.add_op(&quant), status::success);
+        agraph.build_graph();
+
+        pass::pass_base_ptr apass2 = get_pass(failing_fuse);
+        apass2->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 0);
+
+        pass::pass_base_ptr apass = get_pass(passing_fuse);
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        ASSERT_EQ(
+                get_fused_op(agraph.get_partitions()[0])->get_kind(), fused_op);
+    }
+}
+
+TEST(PassPriority, TestInt8MaxPoolAdd) {
+    /*    
+             | (u8/s8)
+          dequant
+             | (f32)
+          maxpool
+             | (f32)
+             |     | (u8/s8)
+             |   dequant
+             |  / (f32)
+            add
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    pass::pass_base_ptr pass1 = get_pass("int8_maxpool_add_fusion");
+    pass::pass_base_ptr pass2 = get_pass("int8_maxpool_fusion");
+    pass::pass_base_ptr pass3 = get_pass("maxpool_add_fusion");
+    pass::pass_base_ptr pass4 = get_pass("quant_pass");
+    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
+    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
+    ASSERT_GT(pass1->get_priority(), pass3->get_priority());
+    ASSERT_GT(pass1->get_priority(), pass4->get_priority());
+    ASSERT_GT(pass1->get_priority(), pass5->get_priority());
+}
+
+TEST(PassPriority, TestInt8AvgPoolAdd) {
+    /*    
+             | (u8/s8)
+          dequant
+             | (f32)
+          avgpool
+             | (f32)
+             |     | (u8/s8)
+             |   dequant
+             |  / (f32)
+            add
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    pass::pass_base_ptr pass1 = get_pass("int8_avgpool_add_fusion");
+    pass::pass_base_ptr pass2 = get_pass("int8_avgpool_fusion");
+    pass::pass_base_ptr pass3 = get_pass("avgpool_add_fusion");
+    pass::pass_base_ptr pass4 = get_pass("quant_pass");
+    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
+    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
+    ASSERT_GT(pass1->get_priority(), pass3->get_priority());
+    ASSERT_GT(pass1->get_priority(), pass4->get_priority());
+    ASSERT_GT(pass1->get_priority(), pass5->get_priority());
 }
 
 TEST(Pass, FuseToInt8MatmulBiasAdd) {
