@@ -404,9 +404,7 @@ details on how to use and set these quantization parameters.
 
 ## Example
 
-| Engine  | Name                         | Comments                                   |
-| :--     | :--                          | :--                                        |
-| CPU/GPU | [LSTM RNN Primitive Example](@ref lstm_example_cpp) | @copydetails lstm_example_cpp_short |
- 
+[**LSTM RNN Primitive Example**](@ref lstm_example_cpp)
+Engine: CPU/GPU
 
-
+@copydetails lstm_example_cpp_short

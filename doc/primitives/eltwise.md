@@ -176,6 +176,7 @@ meaning associated with any logical dimensions.
 
 ## Example
 
-| Engine  | Name                         | Comments                                   |
-| :--     | :--                          | :--                                        |
-| CPU/GPU | [Element-Wise Primitive Example](@ref eltwise_example_cpp) | @copydetails eltwise_example_cpp_short |
+[**Element-Wise Primitive Example**](@ref eltwise_example_cpp)
+Engine: CPU/GPU 
+ 
+@copydetails eltwise_example_cpp_short

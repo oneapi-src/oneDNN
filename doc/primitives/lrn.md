@@ -140,6 +140,7 @@ The LRN primitive does not support any post-ops or attributes.
 
 ## Example
 
-| Engine  | Name                         | Comments                                   |
-| :--     | :--                          | :--                                        |
-| CPU/GPU | [Local Response Normalization Primitive Example](@ref lrn_example_cpp) | @copydetails lrn_example_cpp_short |
+[**Local Response Normalization Primitive Example**](@ref lrn_example_cpp)
+Engine: CPU/GPU 
+
+@copydetails lrn_example_cpp_short
