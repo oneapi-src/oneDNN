@@ -59,10 +59,13 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
 
             if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
+            nthr_ = dnnl_get_max_threads();
             init_scratchpad();
 
             return status::success;
         }
+
+        int nthr_; // To not exceed the limit in execute used for set up.
 
     private:
         void init_scratchpad() {
@@ -70,7 +73,7 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             if (!stats_is_src()) {
                 scratchpad.template book<acc_data_t>(
-                        key_bnorm_reduction, C() * dnnl_get_max_threads());
+                        key_bnorm_reduction, C() * nthr_);
 
                 if (!is_training()) {
                     scratchpad.template book<acc_data_t>(
@@ -85,8 +88,8 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
                 const bool has_spatial = utils::one_of(ndims(), 4, 5);
                 const int SP = has_spatial ? D() * H() * W() : 1;
                 const int nbufs = 2;
-                const size_t bf16cvt_buf_sz = nbufs * dnnl_get_max_threads()
-                        * utils::rnd_up(SP, simd_w);
+                const size_t bf16cvt_buf_sz
+                        = nbufs * nthr_ * utils::rnd_up(SP, simd_w);
                 scratchpad.template book<acc_data_t>(
                         key_bnorm_bf16cvt, bf16cvt_buf_sz);
             }
@@ -138,17 +141,20 @@ struct ncsp_batch_normalization_bwd_t : public primitive_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
+            nthr_ = dnnl_get_max_threads();
             init_scratchpad();
 
             return status::success;
         }
+
+        int nthr_; // To not exceed the limit in execute used for set up.
 
     private:
         void init_scratchpad() {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.template book<acc_data_t>(
-                    key_bnorm_reduction, 2 * C() * dnnl_get_max_threads());
+                    key_bnorm_reduction, 2 * C() * nthr_);
             const auto pk_is_bwd = desc()->prop_kind == prop_kind::backward;
             size_t ss_size = 0;
             if ((!use_scaleshift() && !use_scale()) || !pk_is_bwd)
@@ -165,8 +171,8 @@ struct ncsp_batch_normalization_bwd_t : public primitive_t {
                 const bool has_spatial = utils::one_of(ndims(), 4, 5);
                 const int SP = has_spatial ? D() * H() * W() : 1;
                 const int nbufs = 2 + !use_global_stats();
-                const size_t bf16cvt_buf_sz = nbufs * dnnl_get_max_threads()
-                        * utils::rnd_up(SP, simd_w);
+                const size_t bf16cvt_buf_sz
+                        = nbufs * nthr_ * utils::rnd_up(SP, simd_w);
                 scratchpad.template book<acc_data_t>(
                         key_bnorm_bf16cvt, bf16cvt_buf_sz);
             }
