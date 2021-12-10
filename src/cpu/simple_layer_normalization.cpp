@@ -153,6 +153,7 @@ status_t simple_layer_normalization_bwd_t<data_type>::pd_t::init(
                 reorder_pd_, engine, stat_md(), &reordered_stat_md_));
     }
 
+    nthr_ = dnnl_get_max_threads();
     init_scratchpad();
     return status::success;
 }
@@ -213,7 +214,7 @@ status_t simple_layer_normalization_bwd_t<data_type>::execute_backward(
         if (diff_shift == diff_scale) diff_shift = &diff_shift[diff_shift_off];
     }
 
-    const int max_nthr = dnnl_get_max_threads();
+    const int max_nthr = pd()->nthr_;
 
     parallel(max_nthr, [&](int ithr, int nthr) {
         dim_t N_start = 0, N_end = 0;
