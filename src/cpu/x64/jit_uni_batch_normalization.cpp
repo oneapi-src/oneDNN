@@ -1831,7 +1831,7 @@ namespace bnorm_impl {
 
 template <cpu_isa_t isa>
 struct driver_t : public c_compatible {
-    driver_t(const batch_normalization_pd_t *bdesc)
+    driver_t(const batch_normalization_pd_t *bdesc, int nthr)
         : bdesc_(bdesc), ker_(bdesc_) {
         const dim_t C_PADDED = get_c_padded(bdesc_);
 
@@ -1842,8 +1842,7 @@ struct driver_t : public c_compatible {
         dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
         size_t data_size = dt_size_ * bdesc_->MB() * C_PADDED * bdesc_->D()
                 * bdesc_->H() * bdesc_->W();
-        l3_size_ = platform::get_per_core_cache_size(3) * dnnl_get_max_threads()
-                / 2; // XXX
+        l3_size_ = platform::get_per_core_cache_size(3) * nthr / 2; // XXX
         // TODO: cache balancing for nspc
         do_blocking_ = is_nspc_ ? false
                                 : (data_size >= l3_size_ / 2 && l3_size_ > 0);
@@ -1852,14 +1851,13 @@ struct driver_t : public c_compatible {
     ~driver_t() = default;
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-            const batch_normalization_pd_t *bdesc) {
+            const batch_normalization_pd_t *bdesc, int nthr) {
         dim_t C_PADDED = get_c_padded(bdesc);
 
         int sbuf_sz = use_tmp_stats(bdesc) * 2 * C_PADDED;
         int pbuf_sz = (use_tmp_diff_scale(bdesc) + use_tmp_diff_shift(bdesc))
                 * C_PADDED;
-        int rbuf_sz
-                = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * dnnl_get_max_threads();
+        int rbuf_sz = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * nthr;
 
         scratchpad.book<acc_data_t>(key_bnorm_tmp_stats, sbuf_sz);
         scratchpad.book<acc_data_t>(key_bnorm_tmp_diff_ss, pbuf_sz);
@@ -2105,8 +2103,9 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
         return status::unimplemented;
     }
 
+    nthr_ = dnnl_get_max_threads();
     auto scratchpad = scratchpad_registry().registrar();
-    bnorm_impl::driver_t<isa>::init_scratchpad(scratchpad, this);
+    bnorm_impl::driver_t<isa>::init_scratchpad(scratchpad, this, nthr_);
 
     return status::success;
 }
@@ -2118,7 +2117,8 @@ jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(bnorm_driver_, new bnorm_impl::driver_t<isa>(pd())));
+    CHECK(safe_ptr_assign(
+            bnorm_driver_, new bnorm_impl::driver_t<isa>(pd(), pd()->nthr_)));
     return bnorm_driver_->create_kernel();
 }
 
@@ -2156,8 +2156,9 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
     auto scratchpad = ctx.get_scratchpad_grantor();
 
     bnorm_driver_->init_barriers(scratchpad);
+    const int nthr = pd()->nthr_;
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(nthr, [&](const int ithr, const int nthr) {
         bnorm_driver_->exec(ithr, nthr, src, nullptr, dst, nullptr, scale,
                 nullptr, shift, nullptr, mean, var, ws, scratchpad);
     });
@@ -2222,8 +2223,9 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
 
     /* TODO: extra checks required */
 
+    nthr_ = dnnl_get_max_threads();
     auto scratchpad = scratchpad_registry().registrar();
-    bnorm_impl::driver_t<isa>::init_scratchpad(scratchpad, this);
+    bnorm_impl::driver_t<isa>::init_scratchpad(scratchpad, this, nthr_);
 
     return status::success;
 }
@@ -2235,7 +2237,8 @@ jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(bnorm_driver_, new bnorm_impl::driver_t<isa>(pd())));
+    CHECK(safe_ptr_assign(
+            bnorm_driver_, new bnorm_impl::driver_t<isa>(pd(), pd()->nthr_)));
     return bnorm_driver_->create_kernel();
 }
 
@@ -2268,8 +2271,9 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
     auto scratchpad = ctx.get_scratchpad_grantor();
 
     bnorm_driver_->init_barriers(scratchpad);
+    const int nthr = pd()->nthr_;
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(nthr, [&](const int ithr, const int nthr) {
         bnorm_driver_->exec(ithr, nthr, src, diff_src, nullptr, diff_dst, scale,
                 diff_scale, nullptr, diff_shift, mean, var, ws, scratchpad);
     });

@@ -99,7 +99,7 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
         if (with_relu) return math::relu_fwd(res, pd()->alpha());
         return res;
     };
-    int nthr = dnnl_get_max_threads();
+    const int nthr = pd()->nthr_;
 
     if (calculate_stats) {
         parallel(nthr, [&](const int ithr, const int nthr) {
@@ -312,7 +312,7 @@ status_t nspc_batch_normalization_bwd_t<d_type>::execute_backward(
             platform::get_vector_register_size() / (int)sizeof(float), 8);
     const dim_t tail = C % c_blk;
     const dim_t nb_c_blk = (size_t)C / c_blk;
-    int nthr = dnnl_get_max_threads();
+    const int nthr = pd()->nthr_;
 
     parallel(nthr, [&](const int ithr, const int nthr) {
         dim_t N_s = 0, N_e = 0;

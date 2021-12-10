@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
                 jit_uni_batch_normalization_fwd_t);
 
         status_t init(engine_t *engine);
+        int nthr_; // To not exceed the limit in execute used for set up.
     };
 
     jit_uni_batch_normalization_fwd_t(const pd_t *apd);
@@ -91,6 +92,7 @@ struct jit_uni_batch_normalization_bwd_t : public primitive_t {
                 jit_uni_batch_normalization_bwd_t);
 
         status_t init(engine_t *engine);
+        int nthr_; // To not exceed the limit in execute used for set up.
     };
 
     jit_uni_batch_normalization_bwd_t(const pd_t *apd);
