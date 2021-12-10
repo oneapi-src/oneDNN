@@ -88,6 +88,7 @@ struct jit_bnorm_base_t : public jit_generator {
     size_t num_c_blocks_;
     size_t c_tail_;
     bool with_relu_;
+    bool has_alpha_value_;
 
     void compute_predefined_variables() {
         chan_data_offt_ = pd_->C() * sizeof(float);
@@ -95,6 +96,8 @@ struct jit_bnorm_base_t : public jit_generator {
         c_tail_ = pd_->C() % c_in_xmm_;
         with_relu_ = (pd_->with_relu_post_op(false) || pd_->fuse_norm_relu())
                 && pd_->is_fwd();
+        has_alpha_value_ = with_relu_ && pd_->with_relu_post_op(false)
+                && pd_->alpha() != 0;
     }
 
     void load_common_params() {
@@ -117,9 +120,7 @@ struct jit_bnorm_base_t : public jit_generator {
         mov(reg_var, ptr[reg_param + PARAM_OFF(var)]);
 #undef PARAM_OFF
 
-        if (with_relu_ && pd_->alpha() != 0.f) {
-            mov(reg_relu_alpha, float2int(pd_->alpha()));
-        }
+        if (has_alpha_value_) { mov(reg_relu_alpha, float2int(pd_->alpha())); }
     }
 
     Address mean_ptr(size_t offt = 0) {
@@ -293,7 +294,7 @@ struct jit_bnorm_s8_t<avx512_core> : public jit_bnorm_base_t<avx512_core> {
 
                 uni_vfmadd213ps(v, vscale, vshift);
                 if (with_relu_) {
-                    if (pd_->alpha() != 0)
+                    if (has_alpha_value_)
                         process_relu_alpha(v);
                     else
                         uni_vmaxps(v, v, vzero);
@@ -440,7 +441,7 @@ struct jit_bnorm_s8_t<avx2> : public jit_bnorm_base_t<avx2> {
                 uni_vfmadd213ps(v0, vscale0, vshift0);
                 uni_vfmadd213ps(v1, vscale1, vshift1);
                 if (with_relu_) {
-                    if (pd_->alpha() != 0) {
+                    if (has_alpha_value_) {
                         Vmm vmm_dst_0 = Vmm(5);
                         Vmm vmm_dst_1 = Vmm(9);
                         uni_vmovups(vmm_dst_0, v0);
@@ -590,7 +591,7 @@ struct jit_bnorm_s8_t<sse41> : public jit_bnorm_base_t<sse41> {
                 uni_vfmadd213ps(v0, vscale0, vshift0);
                 uni_vfmadd213ps(v1, vscale1, vshift1);
                 if (with_relu_) {
-                    if (pd_->alpha() != 0) {
+                    if (has_alpha_value_) {
                         Vmm vmm_dst_0 = Vmm(5);
                         Vmm vmm_dst_1 = Vmm(9);
                         movups(vmm_dst_0, v0);

@@ -211,7 +211,11 @@ struct jit_bnorm_process_relu_t {
                   && !(bdesc->fuse_norm_relu() && bdesc->is_training()))
         , bit_shift_(static_cast<int>(log2(bits_per_byte
                   * types::data_type_size(bdesc->desc()->data_desc.data_type))))
-        , alpha(with_relu_inf_only_ ? bdesc->alpha() : 0.f) {}
+        , alpha(with_relu_inf_only_
+                                  && bdesc->with_relu_post_op(
+                                          bdesc->is_training())
+                          ? bdesc->alpha()
+                          : 0.f) {}
 
     jit_bnorm_process_relu_t(const batch_normalization_pd_t *bdesc,
             jit_generator *host, Reg64 reg_off_dat, Reg64 reg_tmp,
