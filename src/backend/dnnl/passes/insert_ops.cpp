@@ -294,6 +294,49 @@ impl::status_t insert_to_group_for_conv_or_deconv(
     return impl::status::success;
 }
 
+impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> to_be_inserted_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::Reorder) continue;
+        auto in_md = make_dnnl_memory_desc(
+                cur_op->get_input_value(0)->get_logical_tensor());
+        auto out_md = make_dnnl_memory_desc(
+                cur_op->get_output_value(0)->get_logical_tensor());
+        if (in_md.data.ndims == out_md.data.ndims) {
+            // no group
+            return impl::status::success;
+        } else if (in_md.data.ndims == out_md.data.ndims + 1) {
+            // reorder's input has blocked format with group
+            // while output has plain format, perhaps for
+            // backward path. No such case for now, disable
+            return impl::status::unsupported;
+        } else if (in_md.data.ndims + 1 == out_md.data.ndims) {
+            // reorder's input has plain format while output
+            // has blocked format with group, typically for
+            // weight prepacking
+            auto group = out_md.data.dims[0];
+            if (group * out_md.data.dims[1] != in_md.data.dims[0])
+                return impl::status::compile_fail;
+
+            // insert to_group op
+            op_ptr to_group_op
+                    = std::make_shared<impl::op_t>(op_kind::to_group);
+            to_group_op->set_attr<int64_t>("groups", group);
+
+            insert_op_before(to_group_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(to_group_op);
+        } else {
+            // illegal shape
+            return impl::status::compile_fail;
+        }
+    }
+
+    for (const auto &op : to_be_inserted_ops)
+        subgraph.emplace_back(op);
+    return impl::status::success;
+}
+
 impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;

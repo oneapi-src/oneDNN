@@ -9732,6 +9732,338 @@ TEST(Pass, FuseBnReLUWithSharedInputs) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
+TEST(Pass, FuseReorderAdd) {
+    /*
+             |
+         reorder
+             |  /
+            add
+             |
+    */
+    const std::vector<data_type_t> dtypes {data_type::f32, data_type::bf16};
+    for (auto &dtype : dtypes) {
+        graph_t agraph;
+        op_t reorder {0, Reorder, "reorder"};
+        op_t add {1, Add, "add"};
+        add.set_attr<std::string>("auto_broadcast", "none");
+
+        logical_tensor_t src_lt = logical_tensor_init(0, {2, 3}, {3, 1}, dtype);
+        logical_tensor_t dst_lt = logical_tensor_init(1, {2, 3}, {1, 2}, dtype);
+        reorder.add_input(src_lt);
+        reorder.add_output(dst_lt);
+
+        logical_tensor_t add_src_lt
+                = logical_tensor_init(2, {2, 3}, {1, 2}, dtype);
+        logical_tensor_t add_dst_lt = logical_tensor_init(3, dtype);
+        add.add_input(dst_lt);
+        add.add_input(add_src_lt);
+        add.add_output(add_dst_lt);
+
+        ASSERT_EQ(agraph.add_op(&reorder), status::success);
+        ASSERT_EQ(agraph.add_op(&add), status::success);
+
+        ASSERT_EQ(agraph.build_graph(), status::success);
+
+        pass::pass_base_ptr apass = get_pass("reorder_sum_fusion");
+        apass->run(agraph);
+
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+    }
+}
+
+TEST(Pass, FailToFuseReorderAdd) {
+    /*
+             |
+         reorder
+             |  /
+            add
+             |
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    graph_t agraph;
+    op_t reorder {0, Reorder, "reorder"};
+    op_t add {1, Add, "add"};
+    // if add support auto_broadcast, it cannot be fused
+    add.set_attr<std::string>("auto_broadcast", "numpy");
+
+    logical_tensor_t src_lt
+            = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::f32);
+    logical_tensor_t dst_lt
+            = logical_tensor_init(1, {2, 3}, {1, 2}, data_type::f32);
+    reorder.add_input(src_lt);
+    reorder.add_output(dst_lt);
+
+    logical_tensor_t add_src_lt
+            = logical_tensor_init(2, {2, 3}, {1, 2}, data_type::f32);
+    logical_tensor_t add_dst_lt = logical_tensor_init(3, data_type::f32);
+    add.add_input(dst_lt);
+    add.add_input(add_src_lt);
+    add.add_output(add_dst_lt);
+
+    ASSERT_EQ(agraph.add_op(&reorder), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    ASSERT_EQ(agraph.build_graph(), status::success);
+
+    pass::pass_base_ptr apass = get_pass("reorder_sum_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
+}
+
+TEST(Pass, FuseInt8Reorder) {
+    /*
+         dequantize
+             |
+         reorder
+             |
+         quantize
+             |
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant {0, Dequantize, "dequant"};
+    dequant.set_attr("scales", scales);
+    dequant.set_attr("zps", zps);
+    op_t reorder {1, Reorder, "reorder"};
+    op_t quant {2, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_src_lt
+            = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
+    logical_tensor_t src_lt
+            = logical_tensor_init(1, {2, 3}, {3, 1}, data_type::f32);
+    logical_tensor_t dst_lt
+            = logical_tensor_init(2, {2, 3}, {1, 2}, data_type::f32);
+    logical_tensor_t int8_dst_lt
+            = logical_tensor_init(3, data_type::u8, layout_type::strided);
+    dequant.add_input(int8_src_lt);
+    dequant.add_output(src_lt);
+    reorder.add_input(src_lt);
+    reorder.add_output(dst_lt);
+    quant.add_input(dst_lt);
+    quant.add_output(int8_dst_lt);
+
+    ASSERT_EQ(agraph.add_op(&dequant), status::success);
+    ASSERT_EQ(agraph.add_op(&reorder), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    ASSERT_EQ(agraph.build_graph(), status::success);
+
+    pass::pass_base_ptr apass = get_pass("int8_reorder_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+}
+
+TEST(PassSystem, FuseInt8Reorder) {
+    /*
+         dequantize
+             |
+         reorder
+             |
+         quantize
+             |
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant {0, Dequantize, "dequant"};
+    dequant.set_attr("scales", scales);
+    dequant.set_attr("zps", zps);
+    op_t reorder {1, Reorder, "reorder"};
+    op_t quant {2, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_src_lt
+            = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
+    logical_tensor_t src_lt
+            = logical_tensor_init(1, {2, 3}, {3, 1}, data_type::f32);
+    logical_tensor_t dst_lt
+            = logical_tensor_init(2, {2, 3}, {1, 2}, data_type::f32);
+    logical_tensor_t int8_dst_lt
+            = logical_tensor_init(3, data_type::u8, layout_type::strided);
+    dequant.add_input(int8_src_lt);
+    dequant.add_output(src_lt);
+    reorder.add_input(src_lt);
+    reorder.add_output(dst_lt);
+    quant.add_input(dst_lt);
+    quant.add_output(int8_dst_lt);
+
+    ASSERT_EQ(agraph.add_op(&dequant), status::success);
+    ASSERT_EQ(agraph.add_op(&reorder), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    ASSERT_EQ(agraph.build_graph(), status::success);
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_reorder);
+}
+
+TEST(Pass, FuseInt8ReorderAdd) {
+    /*
+         dequantize
+             |
+         reorder dequantize
+             |  /
+            add
+             |
+         quantize
+             |
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant {0, Dequantize, "dequant"};
+    dequant.set_attr("scales", scales);
+    dequant.set_attr("zps", zps);
+    op_t reorder {1, Reorder, "reorder"};
+    op_t dequant_other {2, Dequantize, "dequant_other"};
+    dequant_other.set_attr("scales", scales);
+    dequant_other.set_attr("zps", zps);
+    op_t add {3, Add, "add"};
+    add.set_attr<std::string>("auto_broadcast", "none");
+    op_t quant {4, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_src_lt
+            = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
+    logical_tensor_t int8_src_other_lt
+            = logical_tensor_init(1, {2, 3}, {3, 1}, data_type::u8);
+    logical_tensor_t src_lt
+            = logical_tensor_init(2, {2, 3}, {3, 1}, data_type::f32);
+    logical_tensor_t src_other_lt
+            = logical_tensor_init(3, {2, 3}, {3, 1}, data_type::f32);
+    logical_tensor_t dst_lt
+            = logical_tensor_init(4, {2, 3}, {1, 2}, data_type::f32);
+    logical_tensor_t dst_add_lt
+            = logical_tensor_init(5, {2, 3}, {1, 2}, data_type::f32);
+    logical_tensor_t int8_dst_add_lt
+            = logical_tensor_init(6, data_type::u8, layout_type::strided);
+    dequant.add_input(int8_src_lt);
+    dequant.add_output(src_lt);
+    reorder.add_input(src_lt);
+    reorder.add_output(dst_lt);
+    dequant_other.add_input(int8_src_other_lt);
+    dequant_other.add_output(src_other_lt);
+    add.add_input(dst_lt);
+    add.add_input(src_other_lt);
+    add.add_output(dst_add_lt);
+    quant.add_input(dst_add_lt);
+    quant.add_output(int8_dst_add_lt);
+
+    ASSERT_EQ(agraph.add_op(&dequant), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant_other), status::success);
+    ASSERT_EQ(agraph.add_op(&reorder), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    ASSERT_EQ(agraph.build_graph(), status::success);
+
+    pass::pass_base_ptr apass = get_pass("int8_reorder_sum_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
+}
+
+TEST(PassSystem, FuseInt8ReorderAdd) {
+    /*
+         dequantize
+             |
+         reorder dequantize
+             |  /
+            add
+             |
+         quantize
+             |
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant {0, Dequantize, "dequant"};
+    dequant.set_attr("scales", scales);
+    dequant.set_attr("zps", zps);
+    op_t reorder {1, Reorder, "reorder"};
+    op_t dequant_other {2, Dequantize, "dequant_other"};
+    dequant_other.set_attr("scales", scales);
+    dequant_other.set_attr("zps", zps);
+    op_t add {3, Add, "add"};
+    add.set_attr<std::string>("auto_broadcast", "none");
+    op_t quant {4, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_src_lt
+            = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
+    logical_tensor_t int8_src_other_lt
+            = logical_tensor_init(1, {2, 3}, {3, 1}, data_type::u8);
+    logical_tensor_t src_lt
+            = logical_tensor_init(2, {2, 3}, {3, 1}, data_type::f32);
+    logical_tensor_t src_other_lt
+            = logical_tensor_init(3, {2, 3}, {3, 1}, data_type::f32);
+    logical_tensor_t dst_lt
+            = logical_tensor_init(4, {2, 3}, {1, 2}, data_type::f32);
+    logical_tensor_t dst_add_lt
+            = logical_tensor_init(5, {2, 3}, {1, 2}, data_type::f32);
+    logical_tensor_t int8_dst_add_lt
+            = logical_tensor_init(6, data_type::u8, layout_type::strided);
+    dequant.add_input(int8_src_lt);
+    dequant.add_output(src_lt);
+    reorder.add_input(src_lt);
+    reorder.add_output(dst_lt);
+    dequant_other.add_input(int8_src_other_lt);
+    dequant_other.add_output(src_other_lt);
+    add.add_input(dst_lt);
+    add.add_input(src_other_lt);
+    add.add_output(dst_add_lt);
+    quant.add_input(dst_add_lt);
+    quant.add_output(int8_dst_add_lt);
+
+    ASSERT_EQ(agraph.add_op(&dequant), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant_other), status::success);
+    ASSERT_EQ(agraph.add_op(&reorder), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    ASSERT_EQ(agraph.build_graph(), status::success);
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_reorder);
+}
+
 TEST(Pass, SingleInterpolatePass) {
     graph_t agraph;
     op_t interpolate {0, Interpolate, "interpolate"};

@@ -982,6 +982,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::expand) {
                 layout_propagation_for_expand(cur_op);
             } else if (cur_op->get_kind() == impl::op_kind::Reorder
+                    || cur_op->get_kind() == impl::op_kind::TypeCast
                     || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
                 layout_propagation_for_reorder(cur_op);
             } else if (cur_op->get_kind() == op_kind::squeeze) {

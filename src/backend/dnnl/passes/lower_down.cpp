@@ -49,7 +49,7 @@ static bool has_optional_bias(op_kind_t kind) {
 // TODO(xxx): extend to support other ops
 static bool has_int8_support(op_kind_t kind) {
     std::set<op_kind_t> ops {op_kind::dnnl_convolution, impl::op_kind::MatMul,
-            op_kind::dnnl_convtranspose};
+            op_kind::dnnl_convtranspose, impl::op_kind::Reorder};
     return ops.count(kind) != 0;
 }
 
@@ -531,6 +531,40 @@ impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
         subgraph.emplace_back(q_matmul_op);
         subgraph.emplace_back(mul_scales_op);
     }
+    return impl::status::success;
+}
+
+impl::status_t fuse_to_int8_reorder(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<std::vector<op_t *>> fusion_groups;
+    for (const auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::Reorder) continue;
+        auto &in = cur_op->get_input_value(0)->get_producer();
+        if (in.get_kind() == op_kind::mul_scales)
+            fusion_groups.emplace_back(std::vector<op_t *> {cur_op.get(), &in});
+    }
+
+    for (auto &fusion_group : fusion_groups) {
+        op_t *reorder_op = fusion_group[0];
+        op_t *in_op = fusion_group[1];
+
+        // update the connection relationship between reorder and mul_scales ops
+        // basically switch the order of these two ops
+        auto in_op_in_value = in_op->get_input_value(0);
+        auto reorder_op_in_value = reorder_op->get_input_value(0);
+        auto out_value = reorder_op->get_output_value(0);
+
+        reorder_op->connect_input(0, in_op_in_value);
+        in_op_in_value->remove_consumer(*in_op, 0);
+        reorder_op->connect_output(0, reorder_op_in_value);
+        reorder_op_in_value->set_producer(*reorder_op);
+        reorder_op_in_value->remove_consumer(*reorder_op, 0);
+
+        in_op->connect_input(0, reorder_op_in_value);
+        in_op->connect_output(0, out_value);
+        out_value->set_producer(*in_op);
+    }
+
     return impl::status::success;
 }
 

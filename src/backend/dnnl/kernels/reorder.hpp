@@ -18,6 +18,7 @@
 #define BACKEND_DNNL_KERNELS_REORDER_HPP
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 #include "backend/dnnl/common.hpp"
@@ -33,122 +34,182 @@ enum reorder_input { kSrc };
 enum reorder_output { kDst };
 } // namespace
 
-struct reorder : public dnnl::reorder, public kernel_base_t {
-    using super = dnnl::reorder;
-
+template <bool quantized>
+struct reorder_t : public kernel_base_t {
 private:
-    primitive_desc pd_;
-    dnnl::reorder prim_;
     dnnl::engine p_engine_;
+    impl::allocator_t *g_alloc_;
 
-    // handle the case in which the src and dst's dims are different
-    bool need_reshape_ {false};
-    // only valid if need_reshape_ is true
-    bool reshape_first_ {false};
-    memory::desc reshaped_desc_;
+    std::shared_ptr<subgraph_t> subgraph_;
+    memory_planner_t memory_planner_;
+
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
-    impl::status_t compile_impl(const op_t *op, const impl::engine_t *g_engine,
+    ~reorder_t() override {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+    }
+
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using ltw = logical_tensor_wrapper_t;
+        p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
 
-        // check same shape between input and output
-        const dims &src_lt_dims = ltw(inputs[reorder_input::kSrc]).vdims();
-        const dims &dst_lt_dims = ltw(outputs[reorder_output::kDst]).vdims();
-        if (src_lt_dims != dst_lt_dims) return status::compile_fail;
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
 
-        memory::desc src
-                = make_dnnl_memory_desc(inputs.at(reorder_input::kSrc));
-        memory::desc dst
-                = make_dnnl_memory_desc(outputs.at(reorder_output::kDst));
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
 
-        if (op->get_kind() == impl::op_kind::Reorder) {
-            const bool src_has_group = src.data.ndims == dst.data.ndims + 1;
-            const bool dst_has_group = src.data.ndims + 1 == dst.data.ndims;
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
 
-            const bool has_group = src_has_group || dst_has_group;
-            if (!(check_same_shape(src, dst) || has_group))
-                return status::compile_fail;
+        if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_reorder);
+            BACKEND_DNNL_ADD_PASS(pipeline, folding_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
+        }
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
+        if (quantized) { BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points); }
+        // insert_to_group_for_reorder: work for weight prepacking case
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_reorder);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
-            // check if the dims is in (g, O, I, H, W) format
-            bool consistency = true;
-            if (src_has_group) {
-                int group = src.data.dims[0];
-                consistency = group * src.data.dims[1] == dst.data.dims[0];
-            } else if (dst_has_group) {
-                int group = dst.data.dims[0];
-                consistency = group * dst.data.dims[1] == src.data.dims[0];
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+
+        // bind the memory for each op
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
+
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
+
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
+        }
+
+        // generate a hash key for exec_args_mgr
+        resource_ctor_ = [this]() {
+            return this->memory_planner_.get_exec_args_set().clone();
+        };
+
+        return impl::status::success;
+    }
+
+    impl::status_t execute_impl(const dnnl_partition_impl_t *part,
+            const impl::stream_t *g_stream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override {
+        UNUSED(part);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
+
+        // each thread's own local resource
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
+
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
+        }
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
+        }
+
+        temporary_scratchpad_t scratchpad(
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
+
+        registry_t::key_t key = 0;
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
+        }
+
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+        }
+
+        return impl::status::success;
+    }
+
+    impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        UNUSED(g_engine);
+
+        op_t *reorder_op = nullptr;
+        for (auto &op : subgraph_->get_ops()) {
+            if (op->get_kind() == impl::op_kind::Reorder) {
+                reorder_op = op.get();
+                break;
             }
-            if (!consistency) return status::compile_fail;
+        }
 
-            // has group
-            if (has_group) {
-                need_reshape_ = true;
-                // Case 1: if src is blocked format with group while dst has
-                // plain format, perhaps for backward path.
-                // No such case for now, so just disable
-                if (src_has_group) {
-                    return status::unsupported;
-                } else {
-                    // Case 2: if src has plain format while dst has blocked
-                    // format with group, typically for weight prepacking
-                    reshape_first_ = true;
-                    reshaped_desc_ = src.reshape(dst.dims());
+        if (reorder_op == nullptr) return impl::status::success;
+
+        bool with_sum = reorder_op->has_attr("with_sum")
+                ? reorder_op->get_attr<bool>("with_sum")
+                : false;
+
+        if (with_sum) {
+            // post_src should always be the last one input of reorder op
+            auto val
+                    = reorder_op->get_input_value(reorder_op->num_inputs() - 1);
+            if (val->has_producer()
+                    && val->get_producer().get_kind() == op_kind::permute) {
+                val = val->get_producer().get_input_value(0);
+            }
+            size_t post_src_id = val->get_logical_tensor().id;
+
+            // find the given post src index
+            size_t idx = 0;
+            for (size_t i = 0; i < inputs.size(); i++) {
+                if (inputs[i].id == post_src_id) {
+                    idx = i;
+                    break;
                 }
             }
 
-            if (need_reshape_) {
-                if (reshape_first_)
-                    src = reshaped_desc_;
-                else
-                    dst = reshaped_desc_;
-            }
+            const logical_tensor_wrapper_t post_src_lt(inputs[idx]);
+            const logical_tensor_wrapper_t dst_lt(outputs[0]);
+            // TODO(qun) we didn't report iplace pair if two lts have different
+            // layout type because of frontend users didn't process this
+            // situation at this moment. In the future, we need to fix this for
+            // more inplace opportunities.
+            if (((post_src_lt.is_opaque() && dst_lt.is_opaque())
+                        || (post_src_lt.is_strided() && dst_lt.is_strided()))
+                    && post_src_lt.is_similar(dst_lt))
+                inplace_pairs_.push_back({post_src_id, outputs[0].id});
         }
-
-        p_engine_ = make_dnnl_engine(*g_engine);
-
-        pd_ = primitive_desc(
-                /*src_engine=*/p_engine_, src, /*dst_engine=*/p_engine_, dst);
-        prim_ = super(pd_);
-        return status::success;
-    }
-
-    impl::status_t execute_impl(const op_t *op, const impl::stream_t *g_stream,
-            const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(op);
-        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
-
-        memory src
-                = make_dnnl_memory(inputs.at(reorder_input::kSrc), p_engine_);
-        memory dst
-                = make_dnnl_memory(outputs.at(reorder_output::kDst), p_engine_);
-
-        if (op->get_kind() == impl::op_kind::Reorder && need_reshape_) {
-            if (reshape_first_) {
-                src = make_dnnl_memory(reshaped_desc_, p_engine_,
-                        inputs[reorder_input::kSrc].get_data_handle());
-            } else {
-                dst = make_dnnl_memory(reshaped_desc_, p_engine_,
-                        outputs[reorder_output::kDst].get_data_handle());
-            }
-        }
-
-        prim_.execute(p_stream, src, dst);
-        return status::success;
-    }
-
-private:
-    bool check_same_shape(
-            const memory::desc &in1, const memory::desc &in2) const {
-        if (in1.data.ndims != in2.data.ndims) return false;
-        return std::equal(
-                in1.data.dims, in1.data.dims + in1.data.ndims, in2.data.dims);
+        return impl::status::success;
     }
 };
 
+using float_reorder = reorder_t</* quantized */ false>;
+using quantized_reorder = reorder_t</* quantized */ true>;
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

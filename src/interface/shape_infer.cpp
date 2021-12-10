@@ -717,7 +717,6 @@ status_t infer_identity_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs) {
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
-    if (!out0.is_shape_unknown()) return status::success;
 
     // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {

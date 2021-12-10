@@ -1046,16 +1046,28 @@ struct reorder_executable_t : public op_executable_t {
         pd_ = dnnl::reorder::primitive_desc(
                 p_engine, in_md, p_engine, out_md, prm_attr);
         prim_ = dnnl::reorder(pd_);
+        if (op->has_attr("with_sum"))
+            with_sum_ = op->get_attr<bool>("with_sum");
     }
 
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
+        if (with_sum_) {
+            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                dnnl::reorder(psrc_mem, dst_mem)
+                        .execute(stream, const_cast<memory &>(psrc_mem),
+                                const_cast<memory &>(dst_mem));
+            }
+        }
         prim_.execute(stream, args);
     }
 
 private:
     dnnl::reorder::primitive_desc pd_;
     dnnl::reorder prim_;
+    bool with_sum_ {false};
 };
 
 struct bn_folding_t : public op_executable_t {

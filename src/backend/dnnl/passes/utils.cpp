@@ -634,6 +634,9 @@ get_post_ops_fusible_map() {
                     // bn
                     {dnnl_batchnorm, {dnnl_eltwise}},
                     {BatchNormInference, {dnnl_eltwise}},
+                    // reorder
+                    {Reorder, {dnnl_binary}},
+                    {int8_reorder, {dnnl_binary}},
             };
     return fusible_map;
 }
