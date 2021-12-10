@@ -135,12 +135,12 @@ make -j
 ~~~bat
 mkdir build
 cd build
-cmake -G "Visual Studio 15 2017 Win64" ..
+cmake -G "Visual Studio 16 2019 Win64" ..
 ~~~
 For the solution to use the Intel C++ Compiler, select the corresponding
 toolchain using the cmake `-T` switch:
 ~~~bat
-cmake -G "Visual Studio 15 2017 Win64" -T "Intel C++ Compiler 19.0" ..
+cmake -G "Visual Studio 16 2019 Win64" -T "Intel C++ Compiler 19.0" ..
 ~~~
 
 - Build the library
