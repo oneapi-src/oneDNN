@@ -173,6 +173,10 @@ status_t infer_static_reshape_output_shape(op_t *n,
 status_t infer_static_transpose_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
+
+status_t infer_interpolate_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs);
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

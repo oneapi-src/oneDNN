@@ -2479,25 +2479,8 @@ TEST(OpSchema, InterpolateDefaultAttribute) {
     tmp_op.get_attr<std::string>("coordinate_transformation_mode", &sval);
     EXPECT_EQ(*sval, "half_pixel");
 
-    tmp_op.get_attr<std::string>("nearest_mode", &sval);
-    EXPECT_EQ(*sval, "round_prefer_floor");
-
-    const bool *bval {nullptr};
-    tmp_op.get_attr<bool>("antialias", &bval);
-    EXPECT_FALSE(*bval);
-
-    const std::vector<int64_t> *vval {nullptr};
-    tmp_op.get_attr<std::vector<int64_t>>("pads_begin", &vval);
-    std::vector<int64_t> vector_value(0, DNNL_GRAPH_MAX_NDIMS);
-    EXPECT_EQ(*vval, vector_value);
-
-    tmp_op.get_attr<std::vector<int64_t>>("pads_end", &vval);
-    EXPECT_EQ(*vval, vector_value);
-
-    const float *fval {nullptr};
-    tmp_op.get_attr<float>("cube_coeff", &fval);
-    float float_value {-0.75};
-    EXPECT_FLOAT_EQ(*fval, float_value);
+    tmp_op.get_attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
 }
 
 TEST(OpSchema, InterpolateBackpropDefaultAttribute) {
@@ -2512,25 +2495,8 @@ TEST(OpSchema, InterpolateBackpropDefaultAttribute) {
     tmp_op.get_attr<std::string>("coordinate_transformation_mode", &sval);
     EXPECT_EQ(*sval, "half_pixel");
 
-    tmp_op.get_attr<std::string>("nearest_mode", &sval);
-    EXPECT_EQ(*sval, "round_prefer_floor");
-
-    const bool *bval {nullptr};
-    tmp_op.get_attr<bool>("antialias", &bval);
-    EXPECT_FALSE(*bval);
-
-    const std::vector<int64_t> *vval {nullptr};
-    tmp_op.get_attr<std::vector<int64_t>>("pads_begin", &vval);
-    std::vector<int64_t> vector_value(0, DNNL_GRAPH_MAX_NDIMS);
-    EXPECT_EQ(*vval, vector_value);
-
-    tmp_op.get_attr<std::vector<int64_t>>("pads_end", &vval);
-    EXPECT_EQ(*vval, vector_value);
-
-    const float *fval {nullptr};
-    tmp_op.get_attr<float>("cube_coeff", &fval);
-    float float_value {-0.75};
-    EXPECT_FLOAT_EQ(*fval, float_value);
+    tmp_op.get_attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
 }
 
 TEST(OpSchema, LayerNormDefaultAttribute) {
@@ -3409,3 +3375,76 @@ static auto DequantizeCases = []() {
 };
 
 INSTANTIATE_TEST_SUITE_P(OpSchema, dynamic_dequantize_t, DequantizeCases());
+
+TEST(OpSchema, InterpolateInferShape) {
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind::Interpolate);
+    op_t op_ {0, kInterpolate, std::string("Interpolate")};
+
+    // test normal ncx sizes case
+    op_.set_attr<dims>("sizes", {10, 20});
+    op_.set_attr<std::string>("data_format", "NXC");
+    logical_tensor_t lt_in = logical_tensor_init(
+            0, {6, 7, 8, 9}, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> in {&lt_in};
+    logical_tensor_t lt_out
+            = logical_tensor_init(1, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> out {&lt_out};
+    status_t ret = op_schema_->shape_infer(&op_, in, out);
+    EXPECT_EQ(ret, status::success);
+    std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper_t(lt_out).vdims();
+    std::vector<int64_t> expected_out_shape = {6, 10, 20, 9};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    // sizes and scales should not be valid at the same time
+    op_.set_attr<std::string>("data_format", "NCX");
+    op_.set_attr<std::vector<float>>("scales", {0.5, 0.6});
+    lt_out = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    ret = op_schema_->shape_infer(&op_, in, out);
+    EXPECT_NE(ret, status::success);
+
+    // test normal scales case
+    op_.set_attr<dims>("sizes", {});
+    lt_out = logical_tensor_init(3, data_type::f32, layout_type::strided);
+    ret = op_schema_->shape_infer(&op_, in, out);
+    EXPECT_EQ(ret, status::success);
+    infered_out_shape = logical_tensor_wrapper_t(lt_out).vdims();
+    expected_out_shape = {6, 7, 4, 5};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    // scales.size() == in.ndims() -2
+    op_.set_attr<std::vector<float>>("scales", {0.5, 0.6, 0.7});
+    lt_out = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    ret = op_schema_->shape_infer(&op_, in, out);
+    EXPECT_NE(ret, status::success);
+
+    // sizes.size() == in.ndims() -2
+    op_.set_attr<std::vector<float>>("scales", {});
+    op_.set_attr<dims>("sizes", {20});
+    lt_out = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    ret = op_schema_->shape_infer(&op_, in, out);
+    EXPECT_NE(ret, status::success);
+}
+
+TEST(OpSchema, InferInterpolateBackpropShape) {
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind::InterpolateBackprop);
+    op_t op_ {0, kInterpolateBackprop, std::string("InterpolateBackprop")};
+    logical_tensor_t lt_in1 = logical_tensor_init(
+            0, {8, 7, 6, 5}, data_type::f32, layout_type::strided);
+    logical_tensor_t lt_in2 = logical_tensor_init(
+            1, {8, 7, 3, 2}, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> in {&lt_in1, &lt_in2};
+    logical_tensor_t lt_out
+            = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> out {&lt_out};
+    op_.set_attr<dims>("sizes", {6, 5});
+
+    status_t ret = op_schema_->shape_infer(&op_, in, out);
+    EXPECT_EQ(ret, status::success);
+    std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper_t(lt_out).vdims();
+    std::vector<int64_t> expected_out_shape = {8, 7, 6, 5};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+}

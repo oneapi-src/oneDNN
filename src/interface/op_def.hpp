@@ -530,116 +530,66 @@ DNNL_GRAPH_OP_SCHEMA(Index, 1,
 DNNL_GRAPH_OP_SCHEMA(Interpolate, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({3, 4}))
+                .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
                 .set_input(0, "data",
                         "Input tensor with data for interpolation", "T1")
                 .set_input(1, "sizes",
-                        "1D tensor describing output shape for spatial axes",
-                        "T2")
-                .set_input(2, "scales",
-                        "1D tensor describing scales for spatial axes", "T1")
-                .set_input(3, "axes",
-                        "1D tensor specifying dimension indices where "
-                        "interpolation is applied",
+                        "optional non-differentiable tensor, describing output"
+                        " shape for spatial axes",
                         "T2")
                 .set_output(0, "output",
                         "a tensor with selected data from input tensor", "T1")
                 .set_attr("mode", "specifies type of interpolation", true,
                         attribute_kind::s)
-                .set_attr("shape_calculation_mode",
-                        "specifies which input, sizes or scales, is used to "
-                        "calculate an output shape",
-                        true, attribute_kind::s)
+                .set_attr("sizes", "describing output shape for spatial axes",
+                        false, attribute_kind::is)
+                .set_attr("scales", "describing scales for spatial axes", false,
+                        attribute_kind::fs)
                 .set_attr("coordinate_transformation_mode",
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
                         false, attribute_kind::s, "half_pixel")
-                .set_attr("nearest_mode",
-                        "specifies round mode when mode == nearest and is used "
-                        "only when mode == nearest.",
-                        false, attribute_kind::s, "round_prefer_floor")
-                .set_attr("antialias",
-                        "antialias is a flag that specifies whether to perform "
-                        "anti-aliasing.",
-                        false, attribute_kind::b, false)
-                .set_attr("pads_begin", "top and left padding", false,
-                        attribute_kind::is,
-                        std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
-                .set_attr("pads_end", "bottom and right padding", false,
-                        attribute_kind::is,
-                        std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
-                .set_attr("cube_coeff",
-                        "specifies the parameter a for cubic interpolation",
-                        false, attribute_kind::f, -0.75f)
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints(
-                        "T2", {data_type::s8, data_type::u8, data_type::s32})
-                //todo(jihui):need to set real infer function
-                .set_shape_inference_function(infer_unsupported_output_shape))
+                .set_type_constraints("T2", {data_type::s32})
+                .set_shape_inference_function(infer_interpolate_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 1,
         op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({4, 5}))
-                .set_num_outputs(std::set<size_t>({1, 2}))
+                .set_num_inputs(2)
+                .set_num_outputs(1)
                 .set_input(0, "data",
                         "Input tensor with data for interpolation", "T1")
                 .set_input(1, "output_delta",
                         "the gradient with respect to the output", "T1")
-                .set_input(2, "sizes",
-                        "1D tensor describing output shape for spatial axes",
-                        "T2")
-                .set_input(3, "scales",
-                        "1D tensor describing scales for spatial axes", "T1")
-                .set_input(4, "axes",
-                        "1D tensor specifying dimension indices where "
-                        "interpolation is applied",
-                        "T1")
                 .set_output(0, "input_delta",
-                        "the gradient tensor w.r.t. the input of Interpolate",
-                        "T1")
-                .set_output(1, "scales_delta",
-                        "the gradient tensor w.r.t. the input scales of "
-                        "Interpolate. Required only when "
-                        "shape_calculation_mode is scales.",
+                        "the gradient tensor with respect to the input of "
+                        "interpolate",
                         "T1")
                 .set_attr("mode", "specifies type of interpolation", true,
                         attribute_kind::s)
-                .set_attr("shape_calculation_mode",
-                        "specifies which input, sizes or scales, is used to "
-                        "calculate an output shape",
-                        true, attribute_kind::s)
+                .set_attr("sizes", "describing output shape for spatial axes",
+                        false, attribute_kind::is)
+                .set_attr("scales", "describing scales for spatial axes", false,
+                        attribute_kind::fs)
                 .set_attr("coordinate_transformation_mode",
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
                         false, attribute_kind::s, "half_pixel")
-                .set_attr("nearest_mode",
-                        "specifies round mode when mode == nearest and is used "
-                        "only when mode == nearest.",
-                        false, attribute_kind::s, "round_prefer_floor")
-                .set_attr("antialias",
-                        "antialias is a flag that specifies whether to perform "
-                        "anti-aliasing.",
-                        false, attribute_kind::b, false)
-                .set_attr("pads_begin", "top and left padding", false,
-                        attribute_kind::is,
-                        std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
-                .set_attr("pads_end", "bottom and right padding", false,
-                        attribute_kind::is,
-                        std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
-                .set_attr("cube_coeff",
-                        "specifies the parameter a for cubic interpolation",
-                        false, attribute_kind::f, -0.75f)
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints(
-                        "T2", {data_type::s8, data_type::u8, data_type::s32})
-                //todo(jihui):need to set real infer function
-                .set_shape_inference_function(infer_unsupported_output_shape))
+                .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
         op_schema_t()

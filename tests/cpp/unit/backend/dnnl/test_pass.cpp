@@ -9730,6 +9730,38 @@ TEST(Pass, FuseBnReLUWithSharedInputs) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
+TEST(Pass, SingleInterpolatePass) {
+    graph_t agraph;
+    op_t interpolate {0, Interpolate, "interpolate"};
+
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t lt_out = logical_tensor_init(1, data_type::f32);
+    interpolate.add_input(lt_data);
+    interpolate.add_output(lt_out);
+    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr("scales", std::vector<float> {});
+    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(
+            "coordinate_transformation_mode", std::string("half_pixel"));
+
+    ASSERT_EQ(agraph.add_op(&interpolate), status::success);
+    ASSERT_EQ(agraph.build_graph(), status::success);
+    pass::pass_base_ptr apass = get_pass("interpolate_pass");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    op_t interpolate_coordinate_transformation_mode_fail = interpolate;
+    interpolate_coordinate_transformation_mode_fail.set_attr(
+            "coordinate_transformation_mode",
+            std::string("pytorch_half_pixel "));
+    graph_t fgraph;
+    ASSERT_EQ(fgraph.add_op(&interpolate_coordinate_transformation_mode_fail),
+            status::success);
+    ASSERT_EQ(fgraph.build_graph(), status::success);
+    apass->run(fgraph);
+    ASSERT_EQ(fgraph.get_num_partitions(), 0);
+}
+
 TEST(Pass, Int8MhaFusion) {
     dnnl::graph::impl::graph_t agraph;
     dnnl::graph::tests::unit::utils::construct_int8_MHA(&agraph);

@@ -1167,6 +1167,65 @@ status_t infer_static_transpose_output_shape(op_t *n,
     set_shape_and_strides(*outputs[0], out_dims);
     return status::success;
 }
+
+status_t infer_interpolate_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto in = logical_tensor_wrapper_t(inputs[0]);
+    auto in_dims = in.vdims();
+    // Number of spatial dimensions
+    int spatial_ndim = in.ndims() - 2;
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    if (!out0.is_shape_unknown()) return status::success;
+
+    std::vector<int64_t> sizes;
+    if (n->has_attr("sizes")) {
+        // sizes is set by user
+        sizes = n->get_attr<std::vector<int64_t>>("sizes");
+    }
+    std::vector<float> scales;
+    if (n->has_attr("scales")) {
+        // scales is set by user
+        scales = n->get_attr<std::vector<float>>("scales");
+    }
+    if ((!scales.empty() && !sizes.empty())
+            || (scales.empty() && sizes.empty())) {
+        // only one of them should be not none
+        return status::invalid_argument;
+    }
+
+    std::string src_fmt = n->get_attr<std::string>("data_format");
+    int spatial_dim_start_axis = 0;
+    if (src_fmt == "NXC") {
+        // "X" start from in_dims[1]
+        spatial_dim_start_axis = 1;
+    } else if (src_fmt == "NCX") {
+        // "X" start from in_dims[2]
+        spatial_dim_start_axis = 2;
+    } else {
+        return status::invalid_argument;
+    }
+
+    if (!scales.empty()) {
+        // scales length should equal spatial_ndim
+        if (scales.size() != spatial_ndim) return status::invalid_argument;
+
+        // spatial_ndim
+        for (size_t i = 0; i < spatial_ndim; i++) {
+            in_dims[i + spatial_dim_start_axis] *= scales[i];
+        }
+    }
+    if (!sizes.empty()) {
+        // sizes length should equal spatial_ndim
+        if (sizes.size() != spatial_ndim) return status::invalid_argument;
+
+        for (size_t i = 0; i < spatial_ndim; i++) {
+            in_dims[i + spatial_dim_start_axis] = sizes[i];
+        }
+    }
+    set_shape_and_strides(*outputs[0], in_dims);
+    return status::success;
+}
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
