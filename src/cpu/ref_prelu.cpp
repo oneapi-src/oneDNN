@@ -187,13 +187,13 @@ void ref_prelu_bwd_t::calculate_scalar(const byte *src, const byte *weights,
     const memory_desc_wrapper data_d(pd()->src_md(0));
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
+    const int nthr = pd()->nthr_;
     const dim_t work_amount = data_d.nelems();
-    const int thread_count
-            = nstl::min((dim_t)dnnl_get_max_threads(), work_amount);
+    const int thread_count = nstl::min((dim_t)nthr, work_amount);
 
-    std::vector<float> buf_nthr_partial_results(dnnl_get_max_threads());
+    std::vector<float> buf_nthr_partial_results(nthr);
 
-    parallel(0, [&](std::size_t ithr, std::size_t nthr) {
+    parallel(nthr, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
         dim_t start {0}, end {0};
@@ -247,11 +247,12 @@ void ref_prelu_bwd_t::calculate_no_broadcast(const byte *src,
     const memory_desc_wrapper data_d(pd()->src_md(0));
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
+    const int nthr = pd()->nthr_;
     const dim_t work_amount = data_d.nelems();
     const int mask = utils::get_dims_mask(
             data_d.dims(), weights_d.dims(), data_d.ndims());
 
-    parallel(0, [&](std::size_t ithr, std::size_t nthr) {
+    parallel(nthr, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
         dim_t start {0}, end {0};
@@ -292,8 +293,10 @@ void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
         dims_w[i] = (weights_d.dims()[i] != 0) ? weights_d.dims()[i] : 1;
     }
 
+    const int nthr = pd()->nthr_;
     const dim_t work_amount = weights_d.nelems();
-    parallel(0, [&](std::size_t ithr, std::size_t nthr) {
+
+    parallel(nthr, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
         dim_t start {0}, end {0};

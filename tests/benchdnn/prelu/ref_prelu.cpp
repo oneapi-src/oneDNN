@@ -64,9 +64,10 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
             wei_nelems, [&](int64_t i) { diff_wei_ptr[i] = 0; });
 
     if (wei_nelems == 1) {
-        const auto num_thr = dnnl_get_max_threads();
+        const auto num_thr = MIN2(
+                static_cast<int64_t>(dnnl_get_max_threads()), src_nelems);
         diff_wei_buf = new float[num_thr];
-        dnnl::impl::parallel(0, [&](const int ithr, const int nthr) {
+        dnnl::impl::parallel(num_thr, [&](const int ithr, const int nthr) {
             int64_t start {0}, end {0};
             dnnl::impl::balance211(src_nelems, nthr, ithr, start, end);
             diff_wei_buf[ithr] = 0;
