@@ -1975,9 +1975,14 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         jcp.is_ic_padded = jcp.ic > ic_padded_block;
 
         // try to choose optimal loop order
+        // TODO: incorporate loop order into smart blocking selection
         auto wei_size = (size_t)jcp.oc * jcp.ic * jcp.wei_dsz;
         auto max_size = 0.75f * brg_blocking_t::L2;
-        jcp.loop_order = max_size < wei_size ? loop_ngcdhw : loop_ndhwgc;
+        const dim_t os = jcp.od * jcp.oh * jcp.ow;
+        const dim_t os_cutoff = 400; // approximate and empiric
+        const bool use_loop_ngcdhw
+                = max_size < wei_size || (jcp.mb == 1 && os < os_cutoff);
+        jcp.loop_order = use_loop_ngcdhw ? loop_ngcdhw : loop_ndhwgc;
     }
 
     const auto min_oc_block = 16;
