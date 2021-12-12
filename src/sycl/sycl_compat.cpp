@@ -313,13 +313,10 @@ uint64_t init_extensions(const ::sycl::device &dev) {
             case device_ext_t::khr_global_int32_base_atomics:
             case device_ext_t::khr_local_int32_base_atomics:
             case device_ext_t::khr_int64_base_atomics:
-                is_ext_supported = dev.has(::sycl::aspect::int64_base_atomics);
-                break;
             case device_ext_t::khr_global_int32_extended_atomics:
             case device_ext_t::khr_local_int32_extended_atomics:
             case device_ext_t::khr_int64_extended_atomics:
-                is_ext_supported
-                        = dev.has(::sycl::aspect::int64_extended_atomics);
+                is_ext_supported = dev.has(::sycl::aspect::atomic64);
                 break;
             // SYCL 2020 assumes that subroups are always supported.
             case device_ext_t::intel_subgroups:
