@@ -57,7 +57,7 @@ GTEST_DISABLE_MSC_WARNINGS_PUSH_(
                               clients of class B */
     /* Symbol involving type with internal linkage not defined */)
 
-#ifdef __linux__
+#if defined(__linux__) && !defined(_LIBCPP_VERSION)
 
 // Disable deprecation warning for `has_trivial_copy_constructor`.
 #if defined(__GNUC__) && !defined(__INTEL_COMPILER)
@@ -114,7 +114,7 @@ has_trivial_copy_constructor_impl(long) {
 
 template <typename T>
 constexpr bool has_trivial_copy_constructor() {
-#ifdef __linux__
+#if defined(__linux__) && !defined(_LIBCPP_VERSION)
   // When both traits are available use std::is_trivially_copy_constructible.
   return has_trivial_copy_constructor_impl<T>(0);
 #else
