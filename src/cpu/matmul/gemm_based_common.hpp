@@ -112,7 +112,7 @@ inline bool check_gemm_binary_per_oc_compatible_formats(const matmul_pd_t &pd) {
 }
 
 inline size_t get_scratchpad_size(const dim_t batch, dim_t M, const dim_t N,
-        const bool can_fuse_src_batch_dims) {
+        const bool can_fuse_src_batch_dims, const int nthr) {
     assert(batch > 0);
     assert(M > 0);
     assert(N > 0);
@@ -120,7 +120,6 @@ inline size_t get_scratchpad_size(const dim_t batch, dim_t M, const dim_t N,
     if (can_fuse_src_batch_dims || batch == 1) {
         buffer_size = (size_t)batch * M * N;
     } else {
-        const int nthr = dnnl_get_max_threads();
         const size_t work_per_thr = utils::div_up((size_t)batch * M * N, nthr);
         if (work_per_thr >= (size_t)N) {
             buffer_size = nstl::min<size_t>(
@@ -132,16 +131,16 @@ inline size_t get_scratchpad_size(const dim_t batch, dim_t M, const dim_t N,
     return utils::rnd_up(buffer_size, 64);
 }
 
-inline void book_acc_scratchpad(
-        matmul_pd_t &pd, const params_t &params, size_t sizeof_acc_data) {
+inline void book_acc_scratchpad(matmul_pd_t &pd, const params_t &params,
+        size_t sizeof_acc_data, const int nthr) {
 
     if (!params.dst_is_acc_
             && !memory_desc_wrapper(pd.dst_md()).has_runtime_dims()) {
-        const size_t buffer_size = get_scratchpad_size(
-                pd.batch(), pd.M(), pd.N(), params.can_fuse_src_batch_dims_);
+        const size_t buffer_size = get_scratchpad_size(pd.batch(), pd.M(),
+                pd.N(), params.can_fuse_src_batch_dims_, nthr);
         const size_t sp_size = params.can_fuse_src_batch_dims_
                 ? buffer_size
-                : buffer_size * dnnl_get_max_threads();
+                : buffer_size * nthr;
         auto scratchpad = pd.scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
                 sp_size, sizeof_acc_data);

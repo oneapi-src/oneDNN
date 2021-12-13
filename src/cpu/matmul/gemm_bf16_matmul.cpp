@@ -64,7 +64,8 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
 
     CHECK(check_and_configure_attributes());
 
-    gemm_based::book_acc_scratchpad(*this, params_, sizeof(acc_data_t));
+    nthr_ = dnnl_get_max_threads();
+    gemm_based::book_acc_scratchpad(*this, params_, sizeof(acc_data_t), nthr_);
 
     return status::success;
 }
@@ -180,13 +181,14 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const dim_t lda = helper.lda();
     const dim_t ldb = helper.ldb();
     const dim_t ldc = helper.ldc();
+    const int nthr = pd()->nthr_;
 
     const gemm_based::params_t &params = pd()->params();
     const bool can_fuse_src_batch_dims = pd()->has_runtime_dims_or_strides()
             ? helper.can_fuse_src_batch_dims()
             : params.can_fuse_src_batch_dims_;
     const dim_t acc_stride = gemm_based::get_scratchpad_size(
-            batch, M, N, can_fuse_src_batch_dims);
+            batch, M, N, can_fuse_src_batch_dims, nthr);
     bool dst_is_acc = params.dst_is_acc_;
     acc_data_t *acc = dst_is_acc
             ? (acc_data_t *)dst
@@ -196,9 +198,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     bool need_free_acc = false;
     if (acc == nullptr) {
         acc = (acc_data_t *)malloc(sizeof(acc_data_t) * acc_stride
-                        * ((can_fuse_src_batch_dims || batch == 1)
-                                        ? 1
-                                        : (dim_t)dnnl_get_max_threads()),
+                        * ((can_fuse_src_batch_dims || batch == 1) ? 1 : nthr),
                 64);
         if (acc == nullptr) return status::out_of_memory;
         need_free_acc = true;
@@ -242,7 +242,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
         // NOTE: inside lambda, type cast variables captured by reference using
         // either c-like "(type)var" or functional "type(var)" notation in order
         // to avoid gcc bug with c++14 standard. Otherwise, capture by value.
-        parallel(0, [=, &st](int ithr, int nthr) {
+        parallel(nthr, [=, &st](int ithr, int nthr) {
             size_t t_work_start {0}, t_work_end {0};
             balance211(work_amount, nthr, ithr, t_work_start, t_work_end);
 
@@ -340,7 +340,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             const bool force_sequential = pp_kernel_->sequential_kernel();
             const float *pp_scales = params.get_post_processing_scales(scales);
 
-            parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
+            parallel(force_sequential ? 1 : nthr, [&](int ithr, int nthr) {
                 size_t start {}, end {};
                 balance211((size_t)(M * N), nthr, ithr, start, end);
                 const size_t dst_logical_off = start;
