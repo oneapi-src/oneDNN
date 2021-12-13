@@ -5,6 +5,7 @@
 --dir=FWD_D        --flags=GS,S    --attr-post-ops=relu --batch=shapes_1d
 --dir=BWD_D        --flags=        --attr-post-ops=       --batch=shapes_1d
 
+--mb=16
 --tag=abx,aBx16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=shapes_topologies_small
 --dir=FWD_D        --flags=GS,S    --attr-post-ops=relu --batch=shapes_topologies_small

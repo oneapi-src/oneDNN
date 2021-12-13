@@ -14,6 +14,7 @@
 # Special case: no general 0D-spatial support
 --dtag=ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
 80x24
+--attr-oscale=per_dim_01:1 --dtag=ABc2b8a4b 4x4x1
 
 # Following tags have no s8s8 compensation support.
 --attr-oscale=
@@ -33,9 +34,9 @@
 --dtag=xcab        2x32x32x3 2x32x32x3x3 16x32x32x3x3x3
 # Special case: no general 3D support for AMX and depthwise
 --dtag=aBCx4c16b4c 2x32x32x3 2x32x32x3x3
---dtag=aBCx4b4c    2x36x36x3 2x36x36x3x3
+--dtag=aBCx4b4c    2x36x36x3 2x36x36x3x3 2x35x35x3x3
 --dtag=aBCx2c8b4c  2x40x40x3 2x40x40x3x3
---dtag=Abcx16a,Abcx8a,Abcx4a 64x1x1x3 512x1x1x3x3
+--dtag=Abcx16a,Abcx8a,Abcx4a 64x1x1x3 512x1x1x3x3 3x2x2x3
 
 # Following tags have no s8s8 compensation support.
 --attr-oscale=
