@@ -40,9 +40,7 @@ static bool need_insert_permute(op_kind_t kind) {
             op_kind::conv_depthwise, impl::op_kind::Convolution,
             impl::op_kind::ConvTranspose, op_kind::dnnl_convtranspose,
             impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool,
-            op_kind::dnnl_batchnorm, impl::op_kind::BatchNormInference,
-            impl::op_kind::BatchNormForwardTraining, impl::op_kind::PReLU,
-            op_kind::dnnl_prelu};
+            op_kind::dnnl_batchnorm, impl::op_kind::PReLU, op_kind::dnnl_prelu};
     return ops.count(kind) != 0;
 }
 
@@ -61,58 +59,123 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<op_ptr> to_be_removed_ops;
-    for (auto &cur_op : subgraph) {
-        if (!need_insert_permute(cur_op->get_kind())) continue;
 
-        // TODO(xx) how to support multiple binary post-ops?
-        const bool need_permute_0 = cur_op->has_attr("data_format")
-                ? (cur_op->get_attr<std::string>("data_format") == "NXC")
+    // insert permute for convolution/convtranspose op
+    auto insert_permute_for_conv_or_deconv = [&](op_ptr &conv_op) -> bool {
+        const bool need_permute_0 = conv_op->has_attr("data_format")
+                ? (conv_op->get_attr<std::string>("data_format") == "NXC")
                 : false;
-        const bool need_permute_1 = cur_op->has_attr("filter_format")
-                ? (cur_op->get_attr<std::string>("filter_format") == "XIO")
+        const bool need_permute_1 = conv_op->has_attr("filter_format")
+                ? (conv_op->get_attr<std::string>("filter_format") == "XIO")
                 : false;
         // conv + depthwise case
-        const bool need_permute_2 = cur_op->has_attr("dw_filter_format")
-                ? (cur_op->get_attr<std::string>("dw_filter_format") == "XIO")
-                : false;
-        const bool need_permute_sum_1 = cur_op->has_attr("with_sum")
-                ? (cur_op->get_attr<bool>("with_sum") && need_permute_0)
-                : false;
-        const bool need_permute_binary_src_1 = cur_op->has_attr("with_binary")
-                ? (cur_op->get_attr<bool>("with_binary") && need_permute_0)
+        const bool need_permute_2 = conv_op->has_attr("dw_filter_format")
+                ? (conv_op->get_attr<std::string>("dw_filter_format") == "XIO")
                 : false;
 
-        if (!(need_permute_0 || need_permute_1 || need_permute_2
-                    || need_permute_sum_1 || need_permute_binary_src_1))
-            continue;
+        if (!(need_permute_0 || need_permute_1 || need_permute_2)) return false;
 
-        for (size_t i = 0; i < cur_op->num_inputs(); i++) {
+        for (size_t i = 0; i < conv_op->num_inputs(); ++i) {
             op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
             perm_op->set_attr<std::string>("permute_kind", "permute");
-            if (i == 0 && need_permute_0) {
+
+            if (i == 0) {
+                if (!need_permute_0) continue;
                 perm_op->set_attr<std::string>("from_format", "NXC");
                 perm_op->set_attr<std::string>("to_format", "NCX");
-            } else if ((i == 1 && need_permute_1)
-                    || (i == 2 && need_permute_2)) {
+            } else if (i == 1) {
+                if (!need_permute_1) continue;
                 perm_op->set_attr<std::string>("from_format", "XIO");
                 perm_op->set_attr<std::string>("to_format", "OIX");
-            } else if (i == cur_op->num_inputs() - 1 && need_permute_sum_1) {
-                perm_op->set_attr<std::string>("from_format", "NXC");
-                perm_op->set_attr<std::string>("to_format", "NCX");
-            } else if (i == cur_op->num_inputs() - 1
-                    && need_permute_binary_src_1) {
-                perm_op->set_attr<std::string>("from_format", "NXC");
-                perm_op->set_attr<std::string>("to_format", "NCX");
+            } else if (i == 2) {
+                // skip for bias input
+                if (conv_op->get_attr<bool>("with_bias")) continue;
+                if (need_permute_2) {
+                    perm_op->set_attr<std::string>("from_format", "XIO");
+                    perm_op->set_attr<std::string>("to_format", "OIX");
+                } else if (need_permute_0
+                        && conv_op->get_kind() != op_kind::conv_depthwise) {
+                    // this input is also the input of post binary ops
+                    perm_op->set_attr<std::string>("from_format", "NXC");
+                    perm_op->set_attr<std::string>("to_format", "NCX");
+                } else {
+                    continue;
+                }
             } else {
-                continue;
+                // if not set data_format as NXC, no need to permute for other
+                // inputs of post binary ops
+                if (!need_permute_0) continue;
+                perm_op->set_attr<std::string>("from_format", "NXC");
+                perm_op->set_attr<std::string>("to_format", "NCX");
             }
 
-            insert_op_before(perm_op, cur_op, i);
+            insert_op_before(perm_op, conv_op, i);
             to_be_inserted_ops.emplace_back(perm_op);
         }
 
+        // remove the attrs in cur_op to avoid re-permute
+        conv_op->set_attr<std::string>("data_format", "NCX");
+        conv_op->set_attr<std::string>("filter_format", "OIX");
+        // conv + depthwise case
+        if (need_permute_2)
+            conv_op->set_attr<std::string>("dw_filter_format", "OIX");
+
+        return need_permute_0;
+    };
+
+    // insert permute for those ops only requiring data_format attribute
+    // (e.g pool, batchnorm, interpolate)
+    auto insert_permute_for_op_only_require_data_format
+            = [&](op_ptr &op) -> bool {
+        const bool need_permute_0 = op->has_attr("data_format")
+                ? (op->get_attr<std::string>("data_format") == "NXC")
+                : false;
+        if (!need_permute_0) return false;
+
+        size_t num_post_binary_ops = 0;
+        auto &prm_attr_mgr = sg->prm_attr_mgr_;
+        if (op->has_attr("primitive_attr_key")) {
+            int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+            const auto &pops = prm_attr_mgr.get_attr(key).get_post_ops();
+            for (int n = 0; n < pops.len(); ++n) {
+                if (pops.kind(n) == dnnl::primitive::kind::sum
+                        || pops.kind(n) == dnnl::primitive::kind::binary)
+                    num_post_binary_ops++;
+            }
+        }
+
+        for (size_t i = 0; i < op->num_inputs(); ++i) {
+            // skip for those non-data input and non-post-binary inputs
+            if (i > 0 && i < op->num_inputs() - num_post_binary_ops) continue;
+            op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            perm_op->set_attr<std::string>("permute_kind", "permute");
+            perm_op->set_attr<std::string>("from_format", "NXC");
+            perm_op->set_attr<std::string>("to_format", "NCX");
+            insert_op_before(perm_op, op, i);
+            to_be_inserted_ops.emplace_back(perm_op);
+        }
+        // remove the attrs in cur_op to avoid re-permute
+        op->set_attr<std::string>("data_format", "NCX");
+        return true;
+    };
+
+    for (auto &cur_op : subgraph) {
+        if (!need_insert_permute(cur_op->get_kind())) continue;
+
+        bool require_output_permute = false;
+        if (cur_op->get_kind() == impl::op_kind::Convolution
+                || cur_op->get_kind() == op_kind::dnnl_convolution
+                || cur_op->get_kind() == op_kind::conv_depthwise
+                || cur_op->get_kind() == impl::op_kind::ConvTranspose
+                || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
+            require_output_permute = insert_permute_for_conv_or_deconv(cur_op);
+        } else {
+            require_output_permute
+                    = insert_permute_for_op_only_require_data_format(cur_op);
+        }
+
         // permute output back to NXC
-        if (need_permute_0) {
+        if (require_output_permute) {
             op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
             perm_op->set_attr<std::string>("permute_kind", "permute");
             perm_op->set_attr<std::string>("from_format", "NCX");
@@ -120,14 +183,6 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
             insert_op_after(perm_op, cur_op, 0);
             to_be_inserted_ops.emplace_back(perm_op);
         }
-
-        // remove the attrs in cur_op to avoid re-permute
-        cur_op->set_attr<std::string>("data_format", "NCX");
-        if (cur_op->has_attr("filter_format"))
-            cur_op->set_attr<std::string>("filter_format", "OIX");
-        // conv + depthwise case
-        if (need_permute_2)
-            cur_op->set_attr<std::string>("dw_filter_format", "OIX");
 
         if (cur_op->get_kind() == impl::op_kind::Convolution) {
             // replace impl::op_kind::Convolution to be

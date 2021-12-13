@@ -2932,6 +2932,99 @@ TEST(PassPriority, TestConvBiasBnSumRelu) {
     ASSERT_TRUE(pass3->get_priority() > pass4->get_priority());
 }
 
+TEST(Pass, FuseConvPostOpsChain) {
+    const std::vector<std::vector<size_t>> num_chain_ops {
+            {0, 3}, {5, 0}, {4, 8}, {10, 2}};
+    for (const auto &num : num_chain_ops) {
+        graph_t agraph;
+        size_t op_id = 0;
+        size_t lt_id = 0;
+        op_t conv {op_id++, Convolution, "conv"};
+        set_conv_common_attr(conv);
+
+        logical_tensor_t conv_in0
+                = logical_tensor_init(lt_id++, data_type::f32);
+        logical_tensor_t conv_in1
+                = logical_tensor_init(lt_id++, data_type::f32);
+        logical_tensor_t conv_in2
+                = logical_tensor_init(lt_id++, data_type::f32);
+        logical_tensor_t conv_out
+                = logical_tensor_init(lt_id++, data_type::f32);
+
+        conv.add_input(conv_in0);
+        conv.add_input(conv_in1);
+        conv.add_input(conv_in2);
+        conv.add_output(conv_out);
+        ASSERT_EQ(agraph.add_op(&conv), status::success);
+
+        size_t num_post_binary_ops = num[0];
+        size_t num_post_eltwise_ops = num[1];
+
+        std::vector<impl::op_kind_t> supported_binary_ops {
+                impl::op_kind::Multiply, impl::op_kind::Add};
+        std::vector<impl::op_kind_t> supported_eltwise_ops {impl::op_kind::ReLU,
+                impl::op_kind::Abs, impl::op_kind::Elu, impl::op_kind::GELU};
+
+        logical_tensor_t binary_output = conv_out;
+        for (size_t i = 0; i < num_post_binary_ops; ++i) {
+            op_t binary {op_id++, supported_binary_ops[i % 2], "binary"};
+            if (i == 0) {
+                binary.add_input(conv_out);
+            } else {
+                binary.add_input(binary_output);
+            }
+
+            logical_tensor_t other_input
+                    = logical_tensor_init(lt_id++, data_type::f32);
+            binary.add_input(other_input);
+            binary_output = logical_tensor_init(lt_id++, data_type::f32);
+            binary.add_output(binary_output);
+
+            ASSERT_EQ(agraph.add_op(&binary), status::success);
+        }
+
+        logical_tensor_t eltwise_output = binary_output;
+        for (size_t i = 0; i < num_post_eltwise_ops; ++i) {
+            auto opkind = supported_eltwise_ops[i % 4];
+            op_t eltwise {op_id++, opkind, "eltwise"};
+            if (opkind == impl::op_kind::Elu)
+                eltwise.set_attr<float>("alpha", 1.0f);
+            if (i == 0) {
+                eltwise.add_input(binary_output);
+            } else {
+                eltwise.add_input(eltwise_output);
+            }
+            eltwise_output = logical_tensor_init(lt_id++, data_type::f32);
+            eltwise.add_output(eltwise_output);
+
+            ASSERT_EQ(agraph.add_op(&eltwise), status::success);
+        }
+
+        agraph.build_graph();
+        ASSERT_EQ(agraph.num_ops(),
+                1 + num_post_binary_ops + num_post_eltwise_ops);
+
+        pass::pass_base_ptr apass = get_pass("conv_bias_related_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+                dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
+                3 + num_post_binary_ops);
+        size_t id_start = 1;
+        for (size_t i = 0; i < num_post_binary_ops; ++i, ++id_start) {
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3 + i].id,
+                    3 + id_start);
+            // skip output
+            id_start++;
+        }
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id,
+                eltwise_output.id);
+    }
+}
+
 TEST(Pass, FuseConvtransposeBiasadd) {
     /*   conv
           |
