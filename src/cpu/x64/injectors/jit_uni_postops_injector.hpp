@@ -143,7 +143,7 @@ struct post_ops_ok_args_t {
             const bool sum_at_pos_0_only = false,
             const bool sum_requires_scale_one = false,
             const bool sum_requires_zp_zero = true,
-            const bcast_set_t &enabled_bcast_strategy = default_strategies);
+            const bcast_set_t &enabled_bcast_strategy = default_strategies());
 
     const cpu_isa_t isa;
     const std::vector<post_op_type> &accepted_post_op_types;
