@@ -52,6 +52,8 @@ struct wino_reorder_t : public primitive_t {
             return status::success;
         }
 
+        int nthr_; // To not exceed the limit in execute used for set up.
+
     private:
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
                 const primitive_attr_t *attr, engine_t *src_engine,
@@ -85,10 +87,9 @@ struct wino_reorder_t : public primitive_t {
             const auto &wino_desc = memory_desc_wrapper(dst_md()).wino_desc();
             const int nb_oc = wino_desc.oc / wino_desc.oc_block;
             const int work_amount = nb_oc * wino_desc.ic;
-            const int thread_count
-                    = nstl::min(dnnl_get_max_threads(), work_amount);
+            nthr_ = nstl::min(dnnl_get_max_threads(), work_amount);
             const size_t transform_space_size = static_cast<size_t>(wino_desc.r)
-                    * wino_desc.alpha * wino_desc.oc_block * thread_count;
+                    * wino_desc.alpha * wino_desc.oc_block * nthr_;
             const size_t plain_size = static_cast<size_t>(wino_desc.alpha)
                     * wino_desc.alpha * wino_desc.oc * wino_desc.ic;
 
@@ -147,7 +148,6 @@ struct wino_reorder_t : public primitive_t {
 
         size_wino_wei_ = w_alpha_ * w_alpha_ * oc_ * ic_;
         work_amount_ = ic_ * nb_oc_;
-        thread_count_ = nstl::min(dnnl_get_max_threads(), work_amount_);
         size_wspace_thr_ = r_ * w_alpha_ * oc_block_;
 
         return status::success;
@@ -198,9 +198,10 @@ private:
         const int Z = oc_ * ic_;
         const int or_ioc_ = or_ic_ * or_oc_;
         assert(r_ == kh_ && r_ == kw_);
+        const int nthr = pd()->nthr_;
 
-        parallel_nd_ext(
-                0, ic_, nb_oc_, [&](int ithr, int nthr, dim_t iic, dim_t ob) {
+        parallel_nd_ext(nthr, ic_, nb_oc_,
+                [&](int ithr, int nthr, dim_t iic, dim_t ob) {
                     if (ithr >= work_amount_) return;
 
                     const in_data_t *__restrict _inp = has_oihw_format
@@ -455,7 +456,6 @@ private:
     dnnl_wino_memory_format_t wino_format_;
     int size_wino_wei_;
     int size_wspace_thr_;
-    int thread_count_;
     int work_amount_;
 };
 

@@ -107,7 +107,7 @@ static inline void quantize_goi(int8_t *scratch_quantized,
 
 static inline void compensate_igo(float *compensation,
         const memory_desc_wrapper &src_d, int8_t *scratch_quantized,
-        int32_t *scratch_compensation, size_t scratch_comp_sz) {
+        int32_t *scratch_compensation, size_t scratch_comp_sz, int nthr) {
     // TODO: trivial strides assumed here.
     //       Use proper strides where appropriate
     dim_t L, D, I, G, O;
@@ -116,7 +116,6 @@ static inline void compensate_igo(float *compensation,
     // We parallelize on LD and GO
     // TODO: maybe restrict parallelism as we might have large
     // parallelisation overhead if dimensions are small
-    const int nthr = dnnl_get_max_threads();
     const int LD_nthr = nstl::min(L * D, dim_t(nthr));
     const int GO_nthr = nstl::min(G * O, dim_t(nthr / LD_nthr));
     parallel(nthr, [&](const int ithr, const int nthr) {
@@ -324,6 +323,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
                     = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
             if (status != status::success) return status;
 
+            nthr_ = dnnl_get_max_threads();
             init_scratchpad();
 
             return status::success;
@@ -331,6 +331,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
 
         format_tag_t itag_ = format_tag::undef;
         size_t thr_scratch_comp_sz_ = 0;
+        int nthr_; // To not exceed the limit in execute used for set up.
 
     private:
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
@@ -408,7 +409,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
             thr_scratch_comp_sz_ = utils::rnd_up(thr_scratch_comp_sz_, 16);
             size_t reduction_size = 0;
             if (utils::one_of(itag_, ldigo, ldio))
-                reduction_size = dnnl_get_max_threads() * thr_scratch_comp_sz_;
+                reduction_size = nthr_ * thr_scratch_comp_sz_;
 
             scratchpad.template book<int8_t>(
                     key_reorder_rnn_weights_quantization, quantization_size);
@@ -486,7 +487,8 @@ private:
             case ldigo:
             case ldio:
                 compensate_igo(comp, src_d, scratch_quantized,
-                        scratch_compensation, pd()->thr_scratch_comp_sz_);
+                        scratch_compensation, pd()->thr_scratch_comp_sz_,
+                        pd()->nthr_);
                 break;
             case ldgoi:
             case ldoi: compensate_goi(comp, src_d, scratch_quantized); break;
@@ -721,7 +723,7 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                 rnn_brgemm_weights_reorder_s8_t);
 
         format_tag_t itag_;
-
+        int nthr_; // To not exceed the limit in execute used for set up.
         size_t thr_scratch_comp_sz_ = 0;
 
         status_t init(
@@ -730,6 +732,7 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                     = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
             if (status != status::success) return status;
 
+            nthr_ = dnnl_get_max_threads();
             init_scratchpad();
 
             return status::success;
@@ -821,8 +824,7 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
             // the same cache line)
             thr_scratch_comp_sz_ = (ndims == 5) ? dims[3] * dims[4] : dims[3];
             thr_scratch_comp_sz_ = utils::rnd_up(thr_scratch_comp_sz_, 16);
-            const size_t reduction_size
-                    = dnnl_get_max_threads() * thr_scratch_comp_sz_;
+            const size_t reduction_size = nthr_ * thr_scratch_comp_sz_;
 
             scratchpad.template book<int8_t>(
                     key_reorder_rnn_weights_quantization, quantization_size);
@@ -904,7 +906,7 @@ private:
 
         if (req_s8s8_comp && mask_ok(dst_d.extra().compensation_mask))
             compensate_igo(comp, src_d, scratch_quantized, scratch_compensation,
-                    pd()->thr_scratch_comp_sz_);
+                    pd()->thr_scratch_comp_sz_, pd()->nthr_);
 
         const auto off_plain
                 = [&](dim_t l, dim_t d, dim_t i, dim_t g, dim_t o) {
