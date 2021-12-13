@@ -22,12 +22,14 @@ set(OBJ_LIB ${LIB_NAME}_backend_compiler_unit_test)
 
 add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_backend_api.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern.cpp
     )
 
 target_include_directories(${OBJ_LIB}
     PRIVATE
     ${PROJECT_SOURCE_DIR}/tests # gtest related headers
     ${PROJECT_SOURCE_DIR}/src/
+    ${PROJECT_SOURCE_DIR}/src/backend/graph_compiler/core/src # for context
     )
 
 set_property(GLOBAL APPEND PROPERTY ${LIB_NAME}_UNIT_TEST_DEPS
