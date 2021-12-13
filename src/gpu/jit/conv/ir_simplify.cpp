@@ -1570,6 +1570,13 @@ stmt_t simplify_stmt(const stmt_t &s, const constraint_set_t &cset) {
     return simplifier.mutate(s);
 }
 
+int64_t get_max_const_factor(const expr_t &e) {
+    ir_assert(e.type().is_int());
+    auto o = factored_expr_t::make(nary_op_canonicalize(simplify(e)));
+    auto &expr = o.as<factored_expr_t>();
+    return to_cpp<int64_t>(expr.const_factor());
+}
+
 template <op_kind_t op_kind>
 struct op_traits_t {};
 

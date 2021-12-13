@@ -1318,6 +1318,7 @@ public:
         oss << ir_utils::make_seq_print_helper(vdims_, "x");
         if (!has_zero_vstart()) oss << " vstart: [" << vstart_ << "]";
         oss << " tlayout: " << tlayout_;
+        oss << " alignment: " << get_alignment();
         return oss.str();
     }
 
@@ -1347,6 +1348,14 @@ public:
     expr_t offset_in_bytes(const std::vector<expr_t> &vargs = {},
             bool ignore_offset = false) const {
         return offset(vargs, ignore_offset) * type().size();
+    }
+
+    int get_alignment() const {
+        // Alignment must be a power of 2.
+        const int base_alignment = 128;
+        int64_t f = get_max_const_factor(this->offset_in_bytes());
+        int alignment = f ? ir_utils::max_pow2_divisor(f) : base_alignment;
+        return std::min(base_alignment, alignment);
     }
 
     int vvar_index(const expr_t &vvar) const {

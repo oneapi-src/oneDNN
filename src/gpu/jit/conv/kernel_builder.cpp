@@ -4218,10 +4218,17 @@ private:
             if (!has_compatible_mask(s, mem_view_, tensor, mask_tensor))
                 continue;
 
-            // FIXME: Check alignment requirements in a more rigorous way.
-            if (s.alignment != type_t::undef()
-                    && (tensor.elems() * type_size) % s.alignment.size() != 0)
-                continue;
+            if (s.alignment != type_t::undef()) {
+                bool is_aligned = true;
+                mem_view_.for_each_tile(tensor, [&](std::vector<dim_t> &start) {
+                    auto tile = tensor_t(tensor.dims(), start);
+                    auto sub_view = mem_view_.create_sub_view(tile);
+                    is_aligned
+                            &= (sub_view.get_alignment() >= s.alignment.size());
+                });
+                if (!is_aligned) continue;
+            }
+
             if (is_slm() && (tensor.elems() * type_size) % 16 != 0) continue;
 
             // Success, send is found, stop iterating.

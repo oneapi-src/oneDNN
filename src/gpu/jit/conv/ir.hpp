@@ -845,6 +845,10 @@ private:
     object_map_t<expr_t, std::vector<modulus_info_t>> modulus_infos_;
 };
 
+// Determine the maximum constant factor of an expression, returns 0 in the
+// special case that the expression evaluates to 0.
+int64_t get_max_const_factor(const expr_t &e);
+
 // Simplifies expression using rewriting rules.
 expr_t simplify_rewrite(const expr_t &e);
 
