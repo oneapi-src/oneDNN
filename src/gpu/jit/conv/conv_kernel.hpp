@@ -1575,7 +1575,7 @@ public:
                     eadd(exec_size, a_headers[r].uq(), a_headers[r].uq(),
                             idx_vec);
                 } else
-                    add(exec_size, a_headers[r].uq(), a_headers[0].uq(),
+                    eadd(exec_size, a_headers[r].uq(), a_headers[0].uq(),
                             int(off));
             } else {
                 if (off == 0)
