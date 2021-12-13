@@ -847,7 +847,8 @@ void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
     float I[alpha][alpha][simd_w];
     float T[alpha][alpha][simd_w];
 
-    PRAGMA_OMP(parallel firstprivate(first_tblk, trans_ker_p, I, T))
+    PRAGMA_OMP(parallel num_threads(nthreads)
+                    firstprivate(first_tblk, trans_ker_p, I, T))
     {
         if (jcp.with_bias) {
             parallel_nd_in_omp(nthreads, jcp.oc, [&](dim_t ithr, dim_t ofm) {
@@ -945,7 +946,7 @@ void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
     }
 
     trans_ker_p.G = G_O_3x3_4x4;
-    PRAGMA_OMP(parallel firstprivate(trans_ker_p))
+    PRAGMA_OMP(parallel num_threads(nthreads) firstprivate(trans_ker_p))
     {
         parallel_nd_in_omp(jcp.nb_ic, jcp.nb_oc, jcp.oc_block, jcp.ic_block,
                 jcp.oc_reg_block,
