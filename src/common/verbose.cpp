@@ -67,19 +67,12 @@
 namespace dnnl {
 namespace impl {
 
-static setting_t<int> verbose {0};
-int get_verbose() {
-#if defined(DISABLE_VERBOSE)
-    return 0;
-#else
-    if (!verbose.initialized()) {
-        // Assumes that all threads see the same environment
-        static int val = getenv_int_user("VERBOSE", verbose.get());
-        verbose.set(val);
-    }
+static setting_t<int> &verbose() {
+    // Assumes that all threads see the same environment
+    static setting_t<int> v {getenv_int_user("VERBOSE")};
 
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
-    if (verbose.get() > 0 && !version_printed.test_and_set()) {
+    if (v.get() > 0 && !version_printed.test_and_set()) {
         printf("onednn_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
@@ -103,24 +96,30 @@ int get_verbose() {
                "time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
     }
-    return verbose.get();
+
+    return v;
+}
+
+int get_verbose() {
+#if defined(DISABLE_VERBOSE)
+    return 0;
+#else
+    return verbose().get();
 #endif
 }
 
-static setting_t<bool> verbose_timestamp {false};
+static bool verbose_timestamp() {
+    // Assumes that all threads see the same environment
+    static bool val = getenv_int_user("VERBOSE_TIMESTAMP");
+    return val;
+}
+
 bool get_verbose_timestamp() {
 #if defined(DISABLE_VERBOSE)
     return false;
 #else
-    if (verbose.get() == 0) return false;
-
-    if (!verbose_timestamp.initialized()) {
-        // Assumes that all threads see the same environment
-        static bool val
-                = getenv_int_user("VERBOSE_TIMESTAMP", verbose_timestamp.get());
-        verbose_timestamp.set(val);
-    }
-    return verbose_timestamp.get();
+    if (verbose().get() == 0) return false;
+    return verbose_timestamp();
 #endif
 }
 
@@ -393,7 +392,8 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
 
             ss << delim
                << (arg == DNNL_ARG_SRC ? "src"
-                                       : arg == DNNL_ARG_DST ? "dst" : "wei")
+                                  : arg == DNNL_ARG_DST ? "dst"
+                                                        : "wei")
                << ":" << mask;
             if (mask == 0 || is_runtime_value(*zpp))
                 ss << ":" << get_val_str(*zpp);
@@ -990,7 +990,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
 dnnl_status_t dnnl_set_verbose(int level) {
     using namespace dnnl::impl::status;
     if (level < 0 || level > 2) return invalid_arguments;
-    dnnl::impl::verbose.set(level);
+    dnnl::impl::verbose().set(level);
     return success;
 }
 
