@@ -1016,8 +1016,9 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     const auto &pops_fusible_map = get_post_ops_fusible_map();
 
                     auto base_op_kind = op->get_kind();
+                    // only fuse two ops each time
                     if (!pops_fusible_map.count(base_op_kind)
-                            || visited.count(op) != 0)
+                            || visited.count(op) != 0 || !fuse_groups.empty())
                         return impl::status::success;
 
                     auto out_val = op->get_output_values()[0];
@@ -1166,6 +1167,10 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                         }
                     }
                     pops.append_sum(scales[0], static_cast<int32_t>(-zps[0]));
+                    assertm(!base_op->has_attr("with_sum")
+                                    || !base_op->get_attr<bool>("with_sum"),
+                            "not support multiple post sum ops "
+                            "currently.");
                     base_op->set_attr<bool>("with_sum", true);
                 } else {
                     // - the add operation may need broadcast
@@ -1177,7 +1182,11 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
 
                     if (ltw(fused_in->get_logical_tensor()).vdims()
                             == ltw(other_in->get_logical_tensor()).vdims()) {
-                        if (base_op->get_kind() == op_kind::dnnl_eltwise) {
+                        if (base_op->get_kind() == op_kind::dnnl_eltwise
+                                || base_op->get_kind() == op_kind::dnnl_pool
+                                || base_op->get_kind() == impl::op_kind::MaxPool
+                                || base_op->get_kind()
+                                        == impl::op_kind::AvgPool) {
                             memory::desc post_src = make_dnnl_memory_desc(
                                     other_in->get_logical_tensor());
                             pops.append_binary(algorithm::binary_add, post_src);
@@ -1185,6 +1194,11 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                         } else {
                             // use sum post-ops for no-broadcast add
                             pops.append_sum(1.f);
+                            assertm(!base_op->has_attr("with_sum")
+                                            || !base_op->get_attr<bool>(
+                                                    "with_sum"),
+                                    "not support multiple post sum ops "
+                                    "currently.");
                             base_op->set_attr<bool>("with_sum", true);
                         }
                     } else {
@@ -1876,7 +1890,7 @@ impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-impl::status_t lower_down_to_dnnl_batchnorm(std::shared_ptr<subgraph_t> &sg) {
+impl::status_t batchnorm_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_removed_ops, to_be_inserted_ops;
     for (auto &cur_op : subgraph) {

@@ -109,7 +109,7 @@ impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg);
 /// replace all oneDNN Graph BatchNormalizationInference/
 /// BatchNormalizationTraining with dnnl_batchnorm and set corresponding
 /// attributes
-impl::status_t lower_down_to_dnnl_batchnorm(std::shared_ptr<subgraph_t> &sg);
+impl::status_t batchnorm_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 /// translate the subgraph containing chain of Adds into dnnl_sum
 ///   in0   in1

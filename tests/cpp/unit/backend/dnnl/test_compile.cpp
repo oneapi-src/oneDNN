@@ -6102,6 +6102,134 @@ TEST(Execute, ConvAddRelu) {
     }
 }
 
+TEST(Execute, ConvMultiplePostOps) {
+    using dims = impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+            2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
+    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+    test::vector<float> bias {1.0};
+    test::vector<float> mul_other {2.0, 2.0, 2.0, 2.0};
+    test::vector<float> sum_other {-1.0, -2.0, -3.0, -4.0};
+    test::vector<float> add_other {1.0};
+    test::vector<float> ref_dst {1.0, 6.0, 10.0, 2.0};
+    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+
+    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>("strides", {1, 1});
+    conv_op.set_attr<dims>("dilations", {1, 1});
+    conv_op.set_attr<dims>("pads_begin", {0, 0});
+    conv_op.set_attr<dims>("pads_end", {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    std::string data_format = "NXC";
+    std::string filter_format = "XIO";
+    conv_op.set_attr<std::string>("data_format", data_format);
+    conv_op.set_attr<std::string>("filter_format", filter_format);
+
+    impl::op_t mul_op(2, impl::op_kind::Multiply, "Mul");
+    impl::op_t sum_op(3, impl::op_kind::Add, "Sum");
+    impl::op_t relu_op(4, impl::op_kind::ReLU, "ReLU");
+    impl::op_t add_op(5, impl::op_kind::Add, "Add");
+
+    std::vector<int64_t> src_dims {1, 1, 4, 4};
+    std::vector<int64_t> weight_dims {1, 1, 3, 3};
+    std::vector<int64_t> dst_dims {1, 1, 2, 2};
+    if (data_format == "NXC") {
+        src_dims = {1, 4, 4, 1};
+        dst_dims = {1, 2, 2, 1};
+    }
+    if (filter_format == "XIO") weight_dims = {3, 3, 1, 1};
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, src_dims, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt
+            = utils::logical_tensor_init(1, weight_dims, impl::data_type::f32);
+    impl::logical_tensor_t bias_lt
+            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+    impl::logical_tensor_t mul_other_lt
+            = utils::logical_tensor_init(3, dst_dims, impl::data_type::f32);
+    impl::logical_tensor_t mul_dst_lt
+            = utils::logical_tensor_init(4, dst_dims, impl::data_type::f32);
+    impl::logical_tensor_t sum_other_lt
+            = utils::logical_tensor_init(5, dst_dims, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(6, dst_dims, impl::data_type::f32);
+    impl::logical_tensor_t sum_dst_lt
+            = utils::logical_tensor_init(7, dst_dims, impl::data_type::f32);
+    impl::logical_tensor_t add_other_lt
+            = utils::logical_tensor_init(8, {1}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(9, dst_dims, impl::data_type::f32);
+    impl::logical_tensor_t relu_dst_lt
+            = utils::logical_tensor_init(10, dst_dims, impl::data_type::f32);
+
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_input(bias_lt);
+    conv_op.add_output(dst_lt);
+    mul_op.add_input(dst_lt);
+    mul_op.add_input(mul_other_lt);
+    mul_op.add_output(mul_dst_lt);
+    sum_op.add_input(mul_dst_lt);
+    sum_op.add_input(sum_other_lt);
+    sum_op.add_output(sum_dst_lt);
+    relu_op.add_input(sum_dst_lt);
+    relu_op.add_output(relu_dst_lt);
+    add_op.add_input(relu_dst_lt);
+    add_op.add_input(add_other_lt);
+    add_op.add_output(add_dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&conv_op);
+    g.add_op(&mul_op);
+    g.add_op(&sum_op);
+    g.add_op(&relu_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_bias_related_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt,
+            &bias_lt, &mul_other_lt, &sum_other_lt, &add_other_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(add_dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t bias_ts(bias_lt, &eng, bias.data());
+    impl::tensor_t mul_other_ts(mul_other_lt, &eng, mul_other.data());
+    impl::tensor_t sum_other_ts(sum_other_lt, &eng, sum_other.data());
+    impl::tensor_t add_other_ts(add_other_lt, &eng, add_other.data());
+    impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm,
+            {src_ts, weight_ts, bias_ts, mul_other_ts, sum_other_ts,
+                    add_other_ts},
+            {add_dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
 struct dnnl_graph_test_convtranspose_add_params {
     std::vector<impl::dim_t> add_src_shape;
     test::vector<float> add_src_data;

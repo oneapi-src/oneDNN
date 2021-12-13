@@ -378,6 +378,7 @@ public:
                 op_kind::conv_bn_add, op_kind::conv_bn_add_relu,
                 op_kind::conv_bn_relu, op_kind::conv_depthwise,
                 impl::op_kind::ConvolutionBackpropData,
+                op_kind::conv_bias_post_ops_chain_fusion,
                 // fp32 contranspose pattern
                 impl::op_kind::ConvTranspose, op_kind::convtranspose_fusion,
                 // fp32 matmul pattern

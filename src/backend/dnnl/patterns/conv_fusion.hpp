@@ -2356,6 +2356,91 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_related_fusion)
+        .set_priority(7.0f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(2);
+                    pm::pb_op *biasadd
+                            = pgraph->append_op(impl::op_kind::BiasAdd,
+                                    in_edges_t {in_edge(0, conv, 0)});
+
+                    auto pograph_1 = std::make_shared<pb_graph_t>();
+                    auto addormul = pograph_1->append_alternation(
+                            {impl::op_kind::Add, impl::op_kind::Multiply});
+                    addormul->set_commutative_pair({0, 1});
+                    pograph_1->create_input_port(0, addormul, 0);
+                    pograph_1->create_input_port(1, addormul, 1);
+                    pograph_1->create_output_port(0, addormul, 0);
+
+                    auto rep1 = pgraph->append_repetition(pograph_1, {{0, 0}},
+                            0, 33, in_edges_t {in_edge(0, biasadd, 0)});
+
+                    auto pograph_2 = std::make_shared<pb_graph_t>();
+                    auto eltwise = pograph_2->append_alternation(
+                            {impl::op_kind::ReLU, impl::op_kind::Abs,
+                                    impl::op_kind::Elu, impl::op_kind::GELU});
+                    pograph_2->create_input_port(0, eltwise, 0);
+                    pograph_2->create_output_port(0, eltwise, 0);
+
+                    auto rep2 = pgraph->append_repetition(pograph_2, {{0, 0}},
+                            0, 33, in_edges_t {in_edge(0, rep1, 0)});
+
+                    auto pograph_3 = std::make_shared<pb_graph_t>();
+                    auto addormul2 = pograph_3->append_alternation(
+                            {impl::op_kind::Add, impl::op_kind::Multiply});
+                    pograph_3->create_input_port(0, addormul2, 0);
+                    pograph_3->create_output_port(0, addormul2, 0);
+
+                    pgraph->append_repetition(pograph_3, {{0, 0}}, 0, 33,
+                            in_edges_t {in_edge(0, rep2, 0)});
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *conv
+                            = pgraph->append_op(impl::op_kind::Convolution);
+                    conv->SET_NUM_INPUTS_CHECK(3);
+
+                    auto pograph_1 = std::make_shared<pb_graph_t>();
+                    auto addormul = pograph_1->append_alternation(
+                            {impl::op_kind::Add, impl::op_kind::Multiply});
+                    addormul->set_commutative_pair({0, 1});
+                    pograph_1->create_input_port(0, addormul, 0);
+                    pograph_1->create_input_port(1, addormul, 1);
+                    pograph_1->create_output_port(0, addormul, 0);
+
+                    auto rep1 = pgraph->append_repetition(pograph_1, {{0, 0}},
+                            0, 33, in_edges_t {in_edge(0, conv, 0)});
+
+                    auto pograph_2 = std::make_shared<pb_graph_t>();
+                    auto eltwise = pograph_2->append_alternation(
+                            {impl::op_kind::ReLU, impl::op_kind::Abs,
+                                    impl::op_kind::Elu, impl::op_kind::GELU});
+                    pograph_2->create_input_port(0, eltwise, 0);
+                    pograph_2->create_output_port(0, eltwise, 0);
+
+                    auto rep2 = pgraph->append_repetition(pograph_2, {{0, 0}},
+                            0, 33, in_edges_t {in_edge(0, rep1, 0)});
+
+                    auto pograph_3 = std::make_shared<pb_graph_t>();
+                    auto addormul2 = pograph_3->append_alternation(
+                            {impl::op_kind::Add, impl::op_kind::Multiply});
+                    pograph_3->create_input_port(0, addormul2, 0);
+                    pograph_3->create_output_port(0, addormul2, 0);
+
+                    pgraph->append_repetition(pograph_3, {{0, 0}}, 0, 33,
+                            in_edges_t {in_edge(0, rep2, 0)});
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::conv_bias_post_ops_chain_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass
