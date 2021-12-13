@@ -147,7 +147,7 @@ protected:
 
     int peak_grf_usage = 0;
     int warn_flags;
-    bool is_speculate;
+    bool is_speculate = false;
     std::string kernel_name;
 #else
     void start_speculate() {}
