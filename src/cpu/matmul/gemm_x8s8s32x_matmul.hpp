@@ -44,6 +44,8 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
         status_t init(engine_t *engine);
         const gemm_based::params_t &params() const { return params_; }
 
+        int nthr_; // To not exceed the limit in execute used for set up.
+
     private:
         gemm_based::params_t params_;
     };
@@ -54,7 +56,7 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
         if (pd()->params().has_pp_kernel_) {
             const bool has_runtime_dims
                     = memory_desc_wrapper(pd()->dst_md()).has_runtime_dims();
-            const int nthr = dnnl_get_max_threads();
+            const int nthr = pd()->nthr_;
             const dim_t batch = pd()->batch();
             const dim_t M = pd()->M();
 
