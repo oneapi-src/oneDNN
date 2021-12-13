@@ -97,7 +97,7 @@ status_t jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward(
             }
         }
     }
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
                 dst, src_zero_point, dst_zero_point, scratchpad,
                 post_ops_binary_rhs_arg_vec.data(),

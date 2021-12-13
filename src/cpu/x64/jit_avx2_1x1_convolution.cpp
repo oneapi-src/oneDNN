@@ -69,7 +69,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
         bias = padded_bias;
     }
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
                 dst, scratchpad, post_ops_binary_rhs_arg_vec.data(),
                 post_ops_binary_rhs_arg_vec_dw.data());
