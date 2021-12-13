@@ -24,7 +24,7 @@
 ///
 /// > Example code: @ref performance_profiling.cpp
 ///
-/// This example uses [DNNL_VERBOSE](@ref dev_guide_verbose) trace output
+/// This example uses [ONEDNN_VERBOSE](@ref dev_guide_verbose) trace output
 /// to tune oneDNN code to align
 /// with the [best practices](@ref dev_guide_inference).
 ///
@@ -69,7 +69,7 @@
 /// Before you run the program, set your `DNNL_VERBOSE` environment
 /// variable to 1:
 /// ~~~sh
-/// export DNNL_VERBOSE=1
+/// export ONEDNN_VERBOSE=1
 /// ~~~
 ///
 /// The program starts by creating oneDNN memory objects in **NCHW**
