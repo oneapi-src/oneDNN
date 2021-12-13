@@ -33,22 +33,25 @@ namespace {
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::prop_kind;
 
-// clang-format off
-const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_RESAMPLING_P({
-    {{forward}, {
-        CPU_INSTANCE_X64(jit_uni_resampling_fwd_t)
-        CPU_INSTANCE(simple_resampling_fwd_t)
-        CPU_INSTANCE(ref_resampling_fwd_t)
-        nullptr,
-    }},
-    {{backward}, REG_BWD_PK({
-        CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t)
-        CPU_INSTANCE(simple_resampling_bwd_t)
-        CPU_INSTANCE(ref_resampling_bwd_t)
-        nullptr,
-    })},
-});
-// clang-format on
+const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
+    // clang-format off
+    static std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_RESAMPLING_P({
+        {{forward}, {
+            CPU_INSTANCE_X64(jit_uni_resampling_fwd_t)
+            CPU_INSTANCE(simple_resampling_fwd_t)
+            CPU_INSTANCE(ref_resampling_fwd_t)
+            nullptr,
+        }},
+        {{backward}, REG_BWD_PK({
+            CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t)
+            CPU_INSTANCE(simple_resampling_bwd_t)
+            CPU_INSTANCE(ref_resampling_bwd_t)
+            nullptr,
+        })},
+    });
+    // clang-format on
+    return the_map;
+}
 } // namespace
 
 const impl_list_item_t *get_resampling_impl_list(
@@ -61,9 +64,9 @@ const impl_list_item_t *get_resampling_impl_list(
 
     pk_impl_key_t key {prop_kind};
 
-    const auto impl_list_it = impl_list_map.find(key);
-    return impl_list_it != impl_list_map.cend() ? impl_list_it->second.data()
-                                                : empty_list;
+    const auto impl_list_it = impl_list_map().find(key);
+    return impl_list_it != impl_list_map().cend() ? impl_list_it->second.data()
+                                                  : empty_list;
 }
 
 } // namespace cpu

@@ -28,22 +28,25 @@ using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::prop_kind;
 
 // clang-format off
-const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_LNORM_P({
-    {{forward}, {
-        CPU_INSTANCE(simple_layer_normalization_fwd_t<f32>)
-        CPU_INSTANCE(simple_layer_normalization_fwd_t<bf16>)
-        CPU_INSTANCE(ref_layer_normalization_fwd_t<f32>)
-        CPU_INSTANCE(ref_layer_normalization_fwd_t<bf16>)
-        nullptr,
-    }},
-    {{backward}, REG_BWD_PK({
-        CPU_INSTANCE(simple_layer_normalization_bwd_t<f32>)
-        CPU_INSTANCE(simple_layer_normalization_bwd_t<bf16>)
-        CPU_INSTANCE(ref_layer_normalization_bwd_t<f32>)
-        CPU_INSTANCE(ref_layer_normalization_bwd_t<bf16>)
-        nullptr,
-    })},
-});
+const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
+    static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_LNORM_P({
+        {{forward}, {
+            CPU_INSTANCE(simple_layer_normalization_fwd_t<f32>)
+            CPU_INSTANCE(simple_layer_normalization_fwd_t<bf16>)
+            CPU_INSTANCE(ref_layer_normalization_fwd_t<f32>)
+            CPU_INSTANCE(ref_layer_normalization_fwd_t<bf16>)
+            nullptr,
+        }},
+        {{backward}, REG_BWD_PK({
+            CPU_INSTANCE(simple_layer_normalization_bwd_t<f32>)
+            CPU_INSTANCE(simple_layer_normalization_bwd_t<bf16>)
+            CPU_INSTANCE(ref_layer_normalization_bwd_t<f32>)
+            CPU_INSTANCE(ref_layer_normalization_bwd_t<bf16>)
+            nullptr,
+        })},
+    });
+    return the_map;
+}
 // clang-format on
 } // namespace
 
@@ -57,9 +60,9 @@ const impl_list_item_t *get_layer_normalization_impl_list(
 
     pk_impl_key_t key {prop_kind};
 
-    const auto impl_list_it = impl_list_map.find(key);
-    return impl_list_it != impl_list_map.cend() ? impl_list_it->second.data()
-                                                : empty_list;
+    const auto impl_list_it = impl_list_map().find(key);
+    return impl_list_it != impl_list_map().cend() ? impl_list_it->second.data()
+                                                  : empty_list;
 }
 
 } // namespace cpu

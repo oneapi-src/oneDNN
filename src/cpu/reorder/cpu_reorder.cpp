@@ -22,26 +22,32 @@ namespace impl {
 namespace cpu {
 
 /* regular reorders */
-std::map<reorder_impl_key_t, const void *> regular_impl_list_map {
-        {{f32, bf16, 0}, &regular_f32_bf16_impl_list_map},
-        {{f32, f16, 0}, &regular_f32_f16_impl_list_map},
-        {{f32, f32, 0}, &regular_f32_f32_impl_list_map},
-        {{f32, s32, 0}, &regular_f32_s32_impl_list_map},
-        {{f32, s8, 0}, &regular_f32_s8_impl_list_map},
-        {{f32, u8, 0}, &regular_f32_u8_impl_list_map},
-        {{bf16, data_type::undef, 0}, &regular_bf16_impl_list_map},
-        {{f16, data_type::undef, 0}, &regular_f16_impl_list_map},
-        {{s32, data_type::undef, 0}, &regular_s32_impl_list_map},
-        {{s8, data_type::undef, 0}, &regular_s8_impl_list_map},
-        {{u8, data_type::undef, 0}, &regular_u8_impl_list_map},
-};
+static std::map<reorder_impl_key_t, const void *> &regular_impl_list_map() {
+    static std::map<reorder_impl_key_t, const void *> the_map = {
+            {{f32, bf16, 0}, &regular_f32_bf16_impl_list_map()},
+            {{f32, f16, 0}, &regular_f32_f16_impl_list_map()},
+            {{f32, f32, 0}, &regular_f32_f32_impl_list_map()},
+            {{f32, s32, 0}, &regular_f32_s32_impl_list_map()},
+            {{f32, s8, 0}, &regular_f32_s8_impl_list_map()},
+            {{f32, u8, 0}, &regular_f32_u8_impl_list_map()},
+            {{bf16, data_type::undef, 0}, &regular_bf16_impl_list_map()},
+            {{f16, data_type::undef, 0}, &regular_f16_impl_list_map()},
+            {{s32, data_type::undef, 0}, &regular_s32_impl_list_map()},
+            {{s8, data_type::undef, 0}, &regular_s8_impl_list_map()},
+            {{u8, data_type::undef, 0}, &regular_u8_impl_list_map()},
+    };
+    return the_map;
+}
 
 /* conv reorders w/ compensation */
-std::map<reorder_impl_key_t, const void *> comp_s8s8_impl_list_map {
-        {{f32, s8, 0}, &comp_f32_s8_impl_list_map},
-        {{bf16, s8, 0}, &comp_bf16_s8_impl_list_map},
-        {{s8, s8, 0}, &comp_s8_s8_impl_list_map},
-};
+static std::map<reorder_impl_key_t, const void *> &comp_s8s8_impl_list_map() {
+    static std::map<reorder_impl_key_t, const void *> the_map = {
+            {{f32, s8, 0}, &comp_f32_s8_impl_list_map()},
+            {{bf16, s8, 0}, &comp_bf16_s8_impl_list_map()},
+            {{s8, s8, 0}, &comp_s8_s8_impl_list_map()},
+    };
+    return the_map;
+}
 
 const impl_list_item_t *cpu_engine_impl_list_t::get_reorder_implementation_list(
         const memory_desc_t *src_md, const memory_desc_t *dst_md) {
@@ -49,7 +55,8 @@ const impl_list_item_t *cpu_engine_impl_list_t::get_reorder_implementation_list(
     const bool do_comp_s8s8 = dst_md->extra.flags
             & (memory_extra_flags::compensation_conv_s8s8
                     | memory_extra_flags::compensation_conv_asymmetric_src);
-    auto &map = do_comp_s8s8 ? comp_s8s8_impl_list_map : regular_impl_list_map;
+    auto &map = do_comp_s8s8 ? comp_s8s8_impl_list_map()
+                             : regular_impl_list_map();
     const impl_list_map_t *p_impl_list = (const impl_list_map_t *)map[dt_pair];
 
     static const impl_list_item_t empty_list[] = {nullptr};

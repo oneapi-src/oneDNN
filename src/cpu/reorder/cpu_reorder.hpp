@@ -66,22 +66,22 @@ using impl_list_map_t
         = std::map<reorder_impl_key_t, std::vector<impl_list_item_t>>;
 
 /* regular reorders */
-extern const impl_list_map_t regular_f32_bf16_impl_list_map;
-extern const impl_list_map_t regular_f32_f16_impl_list_map;
-extern const impl_list_map_t regular_f32_f32_impl_list_map;
-extern const impl_list_map_t regular_f32_s32_impl_list_map;
-extern const impl_list_map_t regular_f32_s8_impl_list_map;
-extern const impl_list_map_t regular_f32_u8_impl_list_map;
-extern const impl_list_map_t regular_bf16_impl_list_map;
-extern const impl_list_map_t regular_f16_impl_list_map;
-extern const impl_list_map_t regular_s32_impl_list_map;
-extern const impl_list_map_t regular_s8_impl_list_map;
-extern const impl_list_map_t regular_u8_impl_list_map;
+extern const impl_list_map_t &regular_f32_bf16_impl_list_map();
+extern const impl_list_map_t &regular_f32_f16_impl_list_map();
+extern const impl_list_map_t &regular_f32_f32_impl_list_map();
+extern const impl_list_map_t &regular_f32_s32_impl_list_map();
+extern const impl_list_map_t &regular_f32_s8_impl_list_map();
+extern const impl_list_map_t &regular_f32_u8_impl_list_map();
+extern const impl_list_map_t &regular_bf16_impl_list_map();
+extern const impl_list_map_t &regular_f16_impl_list_map();
+extern const impl_list_map_t &regular_s32_impl_list_map();
+extern const impl_list_map_t &regular_s8_impl_list_map();
+extern const impl_list_map_t &regular_u8_impl_list_map();
 
 /* conv reorders w/ compensation */
-extern const impl_list_map_t comp_f32_s8_impl_list_map;
-extern const impl_list_map_t comp_bf16_s8_impl_list_map;
-extern const impl_list_map_t comp_s8_s8_impl_list_map;
+extern const impl_list_map_t &comp_f32_s8_impl_list_map();
+extern const impl_list_map_t &comp_bf16_s8_impl_list_map();
+extern const impl_list_map_t &comp_s8_s8_impl_list_map();
 
 // clang-format off
 

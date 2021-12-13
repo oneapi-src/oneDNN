@@ -22,15 +22,18 @@ namespace cpu {
 
 // clang-format off
 
-const impl_list_map_t regular_f16_impl_list_map REG_REORDER_P({
-    // f16 ->
-    {{f16, data_type::undef, 0}, {
-        REG_SR(f16, any, f16, any, fmt_order::any, spec::reference)
-        REG_SR(f16, any, f32, any, fmt_order::any, spec::reference)
+const impl_list_map_t &regular_f16_impl_list_map() {
+    static const impl_list_map_t the_map = REG_REORDER_P({
+        // f16 ->
+        {{f16, data_type::undef, 0}, {
+            REG_SR(f16, any, f16, any, fmt_order::any, spec::reference)
+            REG_SR(f16, any, f32, any, fmt_order::any, spec::reference)
 
-        nullptr,
-    }},
-});
+            nullptr,
+        }},
+    });
+    return the_map;
+}
 
 // clang-format on
 
