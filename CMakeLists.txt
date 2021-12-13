@@ -131,10 +131,27 @@ include("cmake/host_compiler.cmake")
 include("cmake/configuring_primitive_list.cmake")
 
 if(UNIX OR MINGW)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
-    # Let SYCL to choose the C++ standard it needs.
-    if(NOT DNNL_WITH_SYCL)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+    if(CMAKE_VERSION VERSION_LESS "3.1.0")
+        # No CMAKE_<lang>_STANDARD, so add directly to CMAKE_<lang>_FLAGS
+        # (prepended so the user can override)
+        set(CMAKE_C_FLAGS "-std=c99 ${CMAKE_C_FLAGS}")
+        # Let SYCL to choose the C++ standard it needs.
+        if(NOT DNNL_WITH_SYCL)
+            set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+        endif()
+    else()
+        # CMAKE_<lang>_STANDARD support, so set it to our defaults, unless
+        # overridden by the user
+        if(NOT DEFINED CMAKE_C_STANDARD)
+            set(CMAKE_C_STANDARD 99)
+        endif()
+        if(NOT DEFINED CMAKE_CXX_STANDARD)
+            set(CMAKE_CXX_STANDARD 11)
+        endif()
+
+        # Disable -std=gnuXX and -std=gnu++XX
+        set(CMAKE_C_EXTENSIONS OFF)
+        set(CMAKE_CXX_EXTENSIONS OFF)
     endif()
 endif()
 
