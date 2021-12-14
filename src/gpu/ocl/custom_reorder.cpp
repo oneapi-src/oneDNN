@@ -906,6 +906,11 @@ status_t custom_reorder_t::pd_t::init_kernel_ctx(
         }
         kernel_ctx.define_int(
                 "NON_INNERMOST_PADDING", has_non_innermost_padding);
+        auto last_dim_dst = get_Nth_last_dim_or_block(dst_mdw);
+        kernel_ctx.define_int("DST_INNERMOST_STRIDE",
+                dst_mdw.is_plain()
+                        ? dst_mdw.blocking_desc().strides[last_dim_dst.idx]
+                        : 1);
     }
     if (conf.implementation == vectorize_groups) {
         kernel_ctx.define_int("VECTORIZE_GROUPS", 1);

@@ -568,10 +568,10 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
             const int doff = dst_off + VECT_SIZE * j;
             DST_DATA_T dst_tmp;
 #if WITH_SUM_AB
-            dst_tmp = dst[doff + sgId];
+            dst_tmp = dst[doff + sgId * DST_INNERMOST_STRIDE];
 #endif
             REORDER(dst_tmp, cache[coff + sgId], alpha, beta);
-            dst[doff + sgId] = dst_tmp;
+            dst[doff + sgId * DST_INNERMOST_STRIDE] = dst_tmp;
         }
     }
 
