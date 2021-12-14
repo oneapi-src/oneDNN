@@ -337,6 +337,7 @@ struct graph_prb_t {
 
     bool has_post_bia() const noexcept { return has_post_bia_; }
     bool has_post_bin() const noexcept { return has_post_bin_; }
+    bool has_post_dw() const noexcept { return has_post_dw_; }
     bool has_post_sum() const noexcept { return has_post_sum_; }
     bool has_post_eltwise() const noexcept { return has_post_eltwise_; }
 
@@ -349,6 +350,7 @@ protected:
 
     bool has_post_bia_ {false};
     bool has_post_bin_ {false};
+    bool has_post_dw_ {false};
     bool has_post_sum_ {false};
     bool has_post_eltwise_ {false};
 
