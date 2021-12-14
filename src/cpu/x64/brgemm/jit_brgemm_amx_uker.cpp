@@ -45,7 +45,9 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
         if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 
             static constexpr bool preserve_gpr = true;
-            static constexpr bool preserve_vmm = true;
+            // we don't use zmm1 for storing vectors
+            // so we don't need to preserve vmm
+            static constexpr bool preserve_vmm = false;
             static constexpr bool use_exact_tail_scalar_bcast = false;
             const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md);
 
@@ -65,9 +67,12 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
             const binary_injector::static_params_t bsp {
                     this->param1, enabled_bcast_strategy, rhs_sp};
 
+            eltwise_injector::static_params_t esp;
+            esp.preserve_vmm = preserve_vmm;
+
             postops_injector_ = utils::make_unique<
                     injector::jit_uni_postops_injector_t<avx512_core>>(
-                    this, brg.attr->post_ops_, bsp);
+                    this, brg.attr->post_ops_, bsp, esp);
 
             using namespace dnnl::impl::cpu::binary_injector_utils;
             std::tie(with_binary_per_oc_bcast_, with_binary_per_oc_sp_bcast_,
@@ -180,14 +185,14 @@ private:
                                                            : brg.bd_block;
     }
 
-    Xbyak::Zmm accm(int ld_block, int bd, int ld) {
-        return Xbyak::Zmm(31 - (bd * ld_block + ld));
+    Xbyak::Zmm accm(int bd) {
+        assert(bd < 30);
+        return Xbyak::Zmm(31 - bd);
     }
 
     const Xbyak::Zmm &zmm_tmp_1() const noexcept { return this->zmm0; }
     const Xbyak::Zmm &zmm_tmp_2() const noexcept { return this->zmm1; }
     const Xbyak::Zmm &zmm_tmp_3() const noexcept { return this->zmm2; }
-    const Xbyak::Zmm &zmm_inp_shift() const noexcept { return this->zmm1; }
 
     Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) const;
@@ -769,8 +774,8 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
                         size_t buf_offset
                                 = (bd * brg.ld_block) * brg.typesize_C;
                         auto vreg_acc = ils_is_ld_tail
-                                ? accm(1, bd, 0) | ld_tail_mask | T_z
-                                : accm(1, bd, 0);
+                                ? accm(bd) | ld_tail_mask | T_z
+                                : accm(bd);
                         vmovups(vreg_acc,
                                 ptr[reg_buf + buf_offset + wsp_offset]);
 
@@ -846,9 +851,8 @@ int jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2, int ld_block2,
                             && !bd_mask_buffer_ptr[bd_ind_bd])
                         continue;
                     size_t buf_offset = (bd * brg.ld_block) * brg.typesize_C;
-                    auto vreg_acc = is_ld_tail
-                            ? accm(1, bd, 0) | ld_tail_mask | T_z
-                            : accm(1, bd, 0);
+                    auto vreg_acc = is_ld_tail ? accm(bd) | ld_tail_mask | T_z
+                                               : accm(bd);
                     vmovups(vreg_acc, ptr[reg_buf + buf_offset + wsp_offset]);
 
                     const auto adj_bd_ind_bd = brg.brgattr.bd_mask_level

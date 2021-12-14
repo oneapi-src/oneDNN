@@ -113,12 +113,14 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble(
         for (size_t i = 0; i < preserved_gprs_count; ++i)
             h->push(Reg64(preserved_gpr_idxs[i]));
 
-        if (preserved_vecs_count) h->sub(h->rsp, preserved_vecs_count * vlen);
+        if (preserve_vmm_) {
+            if (preserved_vecs_count)
+                h->sub(h->rsp, preserved_vecs_count * vlen);
 
-        for (size_t i = 0; i < preserved_vecs_count; ++i)
-            h->uni_vmovups(
-                    h->ptr[h->rsp + i * vlen], Vmm(preserved_vec_idxs[i]));
-
+            for (size_t i = 0; i < preserved_vecs_count; ++i)
+                h->uni_vmovups(
+                        h->ptr[h->rsp + i * vlen], Vmm(preserved_vec_idxs[i]));
+        }
         load_table_addr();
     }
 
@@ -144,7 +146,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble_tail(
     for (size_t i = 0; i < tail_vecs_to_preserve; ++i)
         preserved_vec_idxs[idx_off + i] += tail_vecs_to_preserve;
 
-    if (save_state_) {
+    if (save_state_ && preserve_vmm_) {
         for (size_t i = 0; i < tail_vecs_to_preserve; ++i)
             h->uni_vmovups(h->ptr[h->rsp + i * vlen],
                     Vmm(preserved_vec_idxs[idx_off + i]));
@@ -160,10 +162,13 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_postamble() {
     using namespace Xbyak::util;
     if (!save_state_) return;
 
-    for (size_t i = 0; i < preserved_vecs_count; ++i)
-        h->uni_vmovups(Vmm(preserved_vec_idxs[i]), h->ptr[h->rsp + i * vlen]);
+    if (preserve_vmm_) {
+        for (size_t i = 0; i < preserved_vecs_count; ++i)
+            h->uni_vmovups(
+                    Vmm(preserved_vec_idxs[i]), h->ptr[h->rsp + i * vlen]);
 
-    if (preserved_vecs_count) h->add(h->rsp, preserved_vecs_count * vlen);
+        if (preserved_vecs_count) h->add(h->rsp, preserved_vecs_count * vlen);
+    }
 
     for (int i = aux_gprs_count() - 1; i >= 0; --i)
         h->pop(Reg64(preserved_gpr_idxs[i]));

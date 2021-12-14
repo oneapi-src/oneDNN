@@ -65,7 +65,8 @@ jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
             alg_to_eltwise_injector_.emplace(post_op.eltwise.alg,
                     jit_uni_eltwise_injector_f32<isa, Vmm>(host_,
                             post_op.eltwise, esp.save_state, esp.p_table,
-                            esp.k_mask, esp.is_fwd, esp.use_dst));
+                            esp.k_mask, esp.is_fwd, esp.use_dst,
+                            esp.preserve_vmm));
         } else if (post_op.is_binary()) {
             is_binary = true;
         }
