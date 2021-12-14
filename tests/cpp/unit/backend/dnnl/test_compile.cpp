@@ -5038,6 +5038,73 @@ TEST(Compile, ConvAddSharedInputs) {
     ASSERT_EQ(inplace_pairs.size(), 0);
 }
 
+TEST(Compile, ConvAddInplace) {
+    /*      \  /
+             Conv
+           \  /
+           Add
+    */
+    using dims = impl::dnnl_impl::dims;
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt
+            = utils::logical_tensor_init(1, {1, 1, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t conv_dst_lt
+            = utils::logical_tensor_init(2, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t add_src_lt
+            = utils::logical_tensor_init(3, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(4, {1, 1, 4, 4}, impl::data_type::f32);
+
+    // create op conv
+    impl::op_t conv_op(0, impl::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>("strides", dims {1, 1});
+    conv_op.set_attr<dims>("dilations", dims {1, 1});
+    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
+    conv_op.set_attr<dims>("pads_end", dims {0, 0});
+    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.add_input(src_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(conv_dst_lt);
+    // create op add
+    impl::op_t add_op(1, impl::op_kind::Add, "Add");
+    add_op.add_input(add_src_lt);
+    add_op.add_input(conv_dst_lt);
+    add_op.add_output(add_dst_lt);
+    // build graph
+    impl::engine_t &eng = get_engine();
+    impl::graph_t g(eng.kind());
+    g.add_op(&conv_op);
+    g.add_op(&add_op);
+    g.build_graph();
+
+    // run pass
+    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile conv+add partition
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+    // arbitrary order of inputs
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &add_src_lt, &weight_lt, &src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    // check inplace pairs
+    std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
+    ASSERT_EQ(inplace_pairs.size(), 1);
+    ASSERT_EQ(inplace_pairs[0].input, add_src_lt.id);
+    ASSERT_EQ(inplace_pairs[0].output, add_dst_lt.id);
+}
+
 TEST(Execute, GroupConvolution) {
     using dims = impl::dnnl_impl::dims;
 
