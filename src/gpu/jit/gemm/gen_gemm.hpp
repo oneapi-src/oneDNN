@@ -169,6 +169,9 @@ struct gen_gemm_t : public gpu_gemm_t {
             bool with_eltwise = (attr()->post_ops_.find(eltwise) != -1);
             ok &= IMPLICATION(tag_ == 'K', !with_bias() && !with_eltwise);
 
+            // use k-parallel kernels only with f32 accumulation
+            ok &= IMPLICATION(tag_ == 'K', utils::one_of(d->c_type(), f32));
+
             if (!ok) return status::unimplemented;
 
             return status::success;

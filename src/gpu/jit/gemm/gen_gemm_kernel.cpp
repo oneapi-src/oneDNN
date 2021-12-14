@@ -809,7 +809,8 @@ const kernel_table_t xe_hp_bf16_nocopy_nn_table[] = {
 };
 
 const kernel_table_t xe_hp_bf16_nocopy_nt_table[] = {
-    {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
+    {{ 8,  8}, { 0,  0}, {128, 128}, {}, 'K'},
+    {{16, 16}, {-1, -1}, {0,     0}, {}, {}}
 };
 
 const kernel_table_t xe_hp_bf16_nocopy_tn_table[] = {

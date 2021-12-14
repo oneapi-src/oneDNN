@@ -68,12 +68,16 @@ struct gen9_gemm_t : public gpu_gemm_t {
             using namespace data_type;
             using namespace primitive_kind;
             using smask_t = primitive_attr_t::skip_mask_t;
+            using arch_t = compute::gpu_arch_t;
 
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
             const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
+
+            dev_info_ = compute_engine->device_info();
+            arch_ = dev_info_->gpu_arch();
 
             bool ok = set_default_formats();
             if (!ok) return status::unimplemented;
@@ -119,6 +123,11 @@ struct gen9_gemm_t : public gpu_gemm_t {
                             attr()->post_ops_.find(sum) == 0
                                     && attr()->post_ops_.find(eltwise) == 1)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
+
+            // Use post-ops for bf16bf16bf16 on Xe_HP+
+            ok &= IMPLICATION(d->a_type() == bf16 && arch_ >= arch_t::xe_hp,
+                    d->c_type() == f32);
+
             if (!ok) return status::unimplemented;
 
             // The threshold values for m, n and k were obtained by collecting
@@ -386,6 +395,9 @@ struct gen9_gemm_t : public gpu_gemm_t {
         int eu_count_ = 0;
 
         type gemm_type_ = type::copy_based;
+
+        const compute::device_info_t *dev_info_;
+        compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
 
         attr_info_t attr_info_ = {};
 
