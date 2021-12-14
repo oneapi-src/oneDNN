@@ -339,6 +339,7 @@ struct graph_prb_t {
     bool has_post_bin() const noexcept { return has_post_bin_; }
     bool has_post_sum() const noexcept { return has_post_sum_; }
     bool has_post_eltwise() const noexcept { return has_post_eltwise_; }
+    bool with_quantization() const noexcept { return with_quantization_; }
 
 protected:
     std::vector<dnnl::graph::op> ops_;
@@ -351,6 +352,7 @@ protected:
     bool has_post_bin_ {false};
     bool has_post_sum_ {false};
     bool has_post_eltwise_ {false};
+    bool with_quantization_ {false};
 
     friend struct po_handlers_t;
 };
@@ -463,6 +465,9 @@ private:
         fill_status handle_low_precision_dst(
                 graph_prb_t &p, const low_precision_attr &lp_attr);
         fill_status handle_low_precision_post_sum(graph_prb_t &p,
+                const low_precision_attr &lp_attr,
+                const std::vector<attr_t::post_ops_t::entry_t> &po_entry);
+        fill_status handle_low_precision_post_bin(graph_prb_t &p,
                 const low_precision_attr &lp_attr,
                 const std::vector<attr_t::post_ops_t::entry_t> &po_entry);
     };

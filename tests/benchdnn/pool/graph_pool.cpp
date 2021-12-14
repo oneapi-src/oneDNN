@@ -105,6 +105,17 @@ void check_known_skipped_case_graph(
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
                 return;
             }
+
+            // currently, for int8 cases, in the backend we
+            // support only int8 data type for 2nd binary input
+            const dt src_dt = convert_dt(prb->cfg[SRC].dt);
+            const dt dst_dt = convert_dt(prb->cfg[DST].dt);
+            const dt bin_src_dt = convert_dt(po.binary.src1_dt);
+            if (is_low_precision({src_dt, dst_dt})
+                    && !is_low_precision({bin_src_dt})) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
+            }
         }
     }
 }
@@ -161,7 +172,8 @@ fill_status_t pool_graph_prb_t::handle_bin_(
     return po_handler.pool.bin_handler(*this, spec_.data_format, po_entry);
 }
 
-fill_status_t pool_graph_prb_t::handle_low_precision_() {
+fill_status_t pool_graph_prb_t::handle_low_precision_(
+        const ::pool::prb_t *prb_) {
     low_precision_attr lp_attr = low_precision_attr::lp_attr(
             spec_.src_dt, spec_.dst_dt, spec_.raw_data_format);
 
@@ -174,6 +186,13 @@ fill_status_t pool_graph_prb_t::handle_low_precision_() {
     ctor_status
             = po_handler.pool.low_precision_handler.handle_low_precision_dst(
                     *this, lp_attr);
+    if (ctor_status != fill_status::DONE) return ctor_status;
+
+    if (has_post_bin()) {
+        ctor_status = po_handler.pool.low_precision_handler
+                              .handle_low_precision_post_bin(*this, lp_attr,
+                                      prb_->attr.post_ops.entry);
+    }
 
     return ctor_status;
 }
