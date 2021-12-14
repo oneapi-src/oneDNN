@@ -6274,6 +6274,11 @@ TEST(Execute, ConvMultiplePostOps) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
+    std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
+    ASSERT_EQ(inplace_pairs.size(), 1);
+    ASSERT_EQ(inplace_pairs[0].input, sum_other_lt.id);
+    ASSERT_EQ(inplace_pairs[0].output, add_dst_lt.id);
+
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
