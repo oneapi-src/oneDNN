@@ -95,8 +95,21 @@ private:
                 : false;
 
         if (with_sum) {
-            // post_src should always be the last one input of conv op
-            auto val = bin_op->get_input_value(bin_op->num_inputs() - 1);
+            // get the index of post sum input
+            size_t post_sum_index = 0;
+            auto &prm_attr_mgr = subgraph_->prm_attr_mgr_;
+            if (bin_op->has_attr("primitive_attr_key")) {
+                int64_t key = bin_op->get_attr<int64_t>("primitive_attr_key");
+                const auto &pops = prm_attr_mgr.get_attr(key).get_post_ops();
+                for (int n = pops.len() - 1; n >= 0; --n) {
+                    if (pops.kind(n) != dnnl::primitive::kind::eltwise)
+                        post_sum_index++;
+                    if (pops.kind(n) == dnnl::primitive::kind::sum) break;
+                }
+            }
+
+            auto val = bin_op->get_input_value(
+                    bin_op->num_inputs() - post_sum_index);
             if (val->has_producer()
                     && val->get_producer().get_kind() == op_kind::permute) {
                 val = val->get_producer().get_input_value(0);
