@@ -288,7 +288,10 @@ bool fits_3ch(const memory_desc_wrapper &src_mdw,
 
     // src's innermost dim is assumed to be contiguous, it'll be read from
     // adjacent mem addresses
-    if (last_dim_src.size != src_mdw.padded_dims()[last_dim_src.idx]) {
+    auto src_innermost_stride
+            = src_mdw.blocking_desc().strides[last_dim_src.idx];
+    if (last_dim_src.size != src_mdw.padded_dims()[last_dim_src.idx]
+            || (src_innermost_stride > 1 && src_mdw.is_plain())) {
         return false;
     }
     if (last_dim_src.idx != last_dim_dst.idx) { return false; }
