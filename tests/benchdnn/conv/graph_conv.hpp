@@ -21,6 +21,7 @@
 
 #include "conv/conv.hpp"
 #include "conv/graph_conv_common.hpp"
+#include "conv/graph_conv_dw_fusion.hpp"
 #include "dnnl_graph_common.hpp"
 
 namespace benchdnnext {
@@ -65,6 +66,10 @@ struct conv_graph_prb_t : public graph_prb_t {
                 has_post_bin_ = true;
                 ctor_status = handle_bin_(po);
                 if (stop_work(ctor_status)) return;
+            } else if (po.is_convolution_kind()) {
+                has_post_dw_ = true;
+                ctor_status = handle_dw_(prb);
+                if (stop_work(ctor_status)) return;
             }
         }
 
@@ -88,6 +93,7 @@ private:
 
     fill_status_t handle_main_op_();
     fill_status_t handle_bia_();
+    fill_status_t handle_dw_(const ::conv::prb_t *prb);
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po);
     fill_status_t handle_sum_();
     fill_status_t handle_low_precision_(const ::conv::prb_t *prb);
