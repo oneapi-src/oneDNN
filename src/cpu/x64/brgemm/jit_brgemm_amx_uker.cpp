@@ -428,8 +428,6 @@ void jit_brgemm_amx_uker_base_t::cvt2ps(data_type_t type_in,
 void jit_brgemm_amx_uker_base_t::read_params() {
     Label label_done;
 
-    if (brg.with_binary) mov(ptr[rsp + abi_param1_offs_], param1);
-
     mov(reg_C, ptr[param1 + GET_OFF(ptr_C)]);
     mov(reg_D, ptr[param1 + GET_OFF(ptr_D)]);
     mov(reg_addr_batch, ptr[param1 + GET_OFF(batch)]);
@@ -534,12 +532,7 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_vector(const int idx,
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
     auto zmm = Zmm(idx);
 
-    const injector_utils::conditional_register_preserve_guard_t register_guard(
-            brg.with_binary, this, {param1});
-    const auto guard_space = register_guard.stack_space_occupied();
     if (brg.with_binary) {
-        mov(param1, ptr[rsp + abi_param1_offs_ + guard_space]);
-
         if (handle_binary_po_offset_) {
             rhs_arg_params.vmm_idx_to_out_reg.emplace(idx, reg_D);
             rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
@@ -553,11 +546,6 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_vector(const int idx,
         const bool p_sum_scale_reg_set = *p_sum_scale != 1.f;
         const int32_t *p_sum_zp = &brg.sum_zp;
         const bool p_sum_zp_reg_set = *p_sum_zp != 0;
-
-        const injector_utils::conditional_register_preserve_guard_t
-                register_guard(
-                        (handle_binary_po_offset_) && p_sum_scale_reg_set, this,
-                        {reg_ptr_sum_scale, reg_ptr_sum_zp});
 
         if (p_sum_scale_reg_set) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
 
