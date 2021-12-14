@@ -61,27 +61,29 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
 #else
     ACC_DATA_T acc = SRC_TO_ACC(src[data_idx]);
 #endif
-
+    float accumulator = acc;
+    if ((mb == MB_WO_PADDING && oc == OC_WO_PADDING)
+            || (mb < MB_WO_PADDING && oc < OC_WO_PADDING)) {
 #if WITH_BIAS == 1
-    const size_t bia_idx = BIA_OFF(mb, oc, 0, 0, 0);
-    acc += BIA_TO_ACC(bias[bia_idx]);
+        const size_t bia_idx = BIA_OFF(mb, oc, 0, 0, 0);
+        acc += BIA_TO_ACC(bias[bia_idx]);
 #endif
 
 #if WITH_SCALES
-    const float scale = scales[scale_stride * oc];
-    acc *= scale;
+        const float scale = scales[scale_stride * oc];
+        acc *= scale;
 #endif
 
-    // Apply postops
-    float sum_src;
+        // Apply postops
+        float sum_src;
 #if WITH_SUM
-    sum_src = DST_TO_ACC(dst[data_idx]);
+        sum_src = DST_TO_ACC(dst[data_idx]);
 #endif
 
-    float accumulator = acc;
-    if (NDIMS == 2)
-        APPLY_POST_OPS_SERIAL_BINARY_2D(
-                accumulator, float, sum_src, float, mb, 1, oc, 1);
-
+        accumulator = acc;
+        if (NDIMS == 2)
+            APPLY_POST_OPS_SERIAL_BINARY_2D(
+                    accumulator, float, sum_src, float, mb, 1, oc, 1);
+    }
     dst[data_idx] = TO_DST(accumulator);
 }

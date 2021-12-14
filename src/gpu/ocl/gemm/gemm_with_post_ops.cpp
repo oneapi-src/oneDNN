@@ -85,8 +85,8 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     auto ndims = gemm_pd_->dst_md()->ndims;
     dispatch_ = compute_engine->create_dispatch(gemm_pd_->dst_md());
-    dispatch_.define_dim("MB", 0, gemm_pd_->dst_md()->dims[0]);
-    dispatch_.define_dim("OC", 1, gemm_pd_->dst_md()->dims[1]);
+    dispatch_.define_dim("MB", 0, gemm_pd_->dst_md()->padded_dims[0]);
+    dispatch_.define_dim("OC", 1, gemm_pd_->dst_md()->padded_dims[1]);
     dispatch_.define_dim("MB3", nstl::max(1, ndims - 3),
             ndims > 3 ? gemm_pd_->dst_md()->dims[3] : 1);
     dispatch_.define_dim("MB2", nstl::max(1, ndims - 2),
@@ -125,6 +125,8 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("WITH_BIAS", with_bias);
     kernel_ctx.define_int("NDIMS", ndims);
     kernel_ctx.define_int("BIA_NDIMS", bia_d.md_->ndims);
+    kernel_ctx.define_int("MB_WO_PADDING", gemm_pd_->dst_md()->dims[0]);
+    kernel_ctx.define_int("OC_WO_PADDING", gemm_pd_->dst_md()->dims[1]);
     def_attr_info(kernel_ctx, attr_info_, attr()->post_ops_);
     def_dispatch(kernel_ctx, dispatch_);
     return status::success;
