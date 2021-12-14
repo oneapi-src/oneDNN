@@ -3,18 +3,18 @@
 .. SPDX-License-Identifier: CC-BY-4.0
 
 ---------
-ReduceSum
+ReduceMax
 ---------
 
-**Versioned name**: *ReduceSum-1*
+**Versioned name**: *ReduceMax-1*
 
 **Category**: *Reduction*
 
-**Short description**: *ReduceSum* operation performs the reduction with
-addition on a given input data along dimensions specified by axes.
+**Short description**: *ReduceMax* operation performs the reduction with finding
+the maximum value on a given input data along dimensions specified by axes.
 
 **OpenVINO description**: This OP is based on `OpenVINO OP
-<https://docs.openvino.ai/2021.4/openvino_docs_ops_reduction_ReduceSum_1.html>`__
+<https://docs.openvino.ai/2021.4/openvino_docs_ops_reduction_ReduceMax_1.html>`__
 
 **Attributes**
 
@@ -56,7 +56,7 @@ addition on a given input data along dimensions specified by axes.
 
 **Outputs**
 
-* **1**: The result of ReduceSum function applied to data input tensor.
+* **1**: The result of ReduceMax function applied to data input tensor.
   ``shape[i] = shapeOf(data)[i]`` for all ``i`` that is not in the list of
   axes from the second input. For dimensions from ``axes``, ``shape[i] == 1``
   if ``keep_dims == True``, or ``i``-th dimension is removed from the output

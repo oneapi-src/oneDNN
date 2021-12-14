@@ -1,20 +1,21 @@
-.. SPDX-FileCopyrightText: 2021 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
----------
-ReduceSum
----------
+--------
+ReduceL2
+--------
 
-**Versioned name**: *ReduceSum-1*
+**Versioned name**: *ReduceL2-1*
 
 **Category**: *Reduction*
 
-**Short description**: *ReduceSum* operation performs the reduction with
-addition on a given input data along dimensions specified by axes.
+**Short description**: *ReduceL2* operation performs the reduction with finding
+the L2 norm (square root of sum of squares) on a given input data along
+dimensions specified by axes input.
 
 **OpenVINO description**: This OP is based on `OpenVINO OP
-<https://docs.openvino.ai/2021.4/openvino_docs_ops_reduction_ReduceSum_1.html>`__
+<https://docs.openvino.ai/2021.4/openvino_docs_ops_reduction_ReduceL2_4.html>`__
 
 **Attributes**
 
@@ -56,7 +57,7 @@ addition on a given input data along dimensions specified by axes.
 
 **Outputs**
 
-* **1**: The result of ReduceSum function applied to data input tensor.
+* **1**: The result of ReduceL2 function applied to data input tensor.
   ``shape[i] = shapeOf(data)[i]`` for all ``i`` that is not in the list of
   axes from the second input. For dimensions from ``axes``, ``shape[i] == 1``
   if ``keep_dims == True``, or ``i``-th dimension is removed from the output
