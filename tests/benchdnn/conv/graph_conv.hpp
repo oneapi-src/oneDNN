@@ -45,6 +45,11 @@ struct conv_graph_prb_t : public graph_prb_t {
             if (stop_work(ctor_status)) return;
         }
 
+        auto dtypes = {spec_.src_dt, spec_.dst_dt};
+        if (benchdnnext::is_low_precision(dtypes))
+            // needs to be set before call of post-op handlers
+            with_quantization_ = true;
+
         const std::vector<attr_t::post_ops_t::entry_t> &po_entry
                 = prb->attr.post_ops.entry;
 
@@ -68,8 +73,7 @@ struct conv_graph_prb_t : public graph_prb_t {
             }
         }
 
-        auto dtypes = {spec_.src_dt, spec_.dst_dt};
-        if (benchdnnext::is_low_precision(dtypes)) {
+        if (with_quantization()) {
             ctor_status = handle_low_precision_(prb);
             if (stop_work(ctor_status)) return;
         }

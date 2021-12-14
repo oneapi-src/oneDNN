@@ -39,6 +39,10 @@ struct matmul_graph_prb_t : public graph_prb_t {
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
 
+        if (benchdnnext::is_low_precision(get_dtypes()))
+            // needs to be set before call of post-op handlers
+            with_quantization_ = true;
+
         for (const auto &po : prb->attr.post_ops.entry) {
             if (po.is_eltwise_kind()) {
                 has_post_eltwise_ = true;
@@ -60,7 +64,7 @@ struct matmul_graph_prb_t : public graph_prb_t {
             ctor_status = handle_typecast_(prb);
             if (stop_work(ctor_status)) return;
         }
-        if (is_low_precision(get_dtypes())) {
+        if (with_quantization()) {
             ctor_status = handle_low_precision_(prb);
             if (stop_work(ctor_status)) return;
         }

@@ -549,7 +549,9 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
     const auto dst_dt = dst_lt.get_data_type();
     const auto bin_src_dims
             = convert_bin_policy(dst_dims, po_entry.binary.policy, dst_dataf);
-    const auto bin_src_dt = convert_dt(po_entry.binary.src1_dt);
+    const auto bin_src_dt = p.with_quantization()
+            ? dt::f32
+            : convert_dt(po_entry.binary.src1_dt);
 
     const size_t new_op_id = p.ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
@@ -767,4 +769,43 @@ po_handlers_t::low_precision_handler_t::handle_low_precision_post_sum(
     p.ops_.emplace_back(dequant_sum);
     return fill_status::DONE;
 }
+
+fill_status
+po_handlers_t::low_precision_handler_t::handle_low_precision_post_bin(
+        graph_prb_t &p, const low_precision_attr &lp_attr,
+        const std::vector<attr_t::post_ops_t::entry_t> &po_entry) {
+    using op = dnnl::graph::op;
+
+    const size_t new_op_id = p.ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    const std::string QPBIN_SRC {TENSOR_ID + "_BIN_SRC1"};
+    const std::string POST_BIN_SRC = p.tensor_id["binary"].back() + "_SRC";
+
+    const float bin_scale_val = 1.f;
+    const int64_t bin_zp_val = 0L;
+    dt bin_src_dt = dt::undef;
+    std::string bin_src_tag = "any";
+    for (const attr_t::post_ops_t::entry_t &po : po_entry) {
+        if (po.is_binary_kind()) {
+            bin_src_dt = convert_dt(po.binary.src1_dt);
+            bin_src_tag = po.binary.tag;
+        }
+    }
+
+    const std::vector<float> bin_scales {bin_scale_val};
+    const std::vector<int64_t> bin_zp {bin_zp_val};
+    if (dt::undef == bin_src_dt) bin_src_dt = lp_attr.dst_dt;
+
+    p.tensor_descs_.emplace(QPBIN_SRC, bin_src_dt,
+            p.tensor_descs_[POST_BIN_SRC].get_dims(), bin_src_tag);
+    op dequant_bin(p.ops_.size(), op::kind::Dequantize,
+            {p.tensor_descs_[QPBIN_SRC]}, {p.tensor_descs_[POST_BIN_SRC]},
+            "dequant_bin");
+
+    dequant_bin.set_attr("scales", bin_scales).set_attr("zps", bin_zp);
+    p.ops_.emplace_back(dequant_bin);
+
+    return fill_status::DONE;
+}
+
 } // namespace benchdnnext
