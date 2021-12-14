@@ -72,7 +72,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(conv_fusion)
                                              .ndims \
                 - 2; \
         if (spatial_dims == (n)) return true; \
-        return false; \
+        return true; \
     })
 
 #define SET_KERNEL_SPATIAL_SIZE_CHECK(k) \
@@ -101,13 +101,12 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(conv_fusion)
                 && graph_op->get_attr<std::string>("auto_pad") != "None") \
             return false; \
         const auto strides = graph_op->get_attr<dims>("strides"); \
-        if (strides[0] != strides[1] || (strides[0] != 1 && strides[0] != 2)) \
-            return false; \
         const auto pads_begin = graph_op->get_attr<dims>("pads_begin"); \
         const auto pads_end = graph_op->get_attr<dims>("pads_end"); \
-        const int32_t pads_size = 2; \
-        for (int32_t i = 0; i < pads_size; ++i) { \
-            if (pads_begin[i] != 1 || (pads_end[i] != 0 && pads_end[i] != 1)) \
+        const int32_t attrs_size = 2; \
+        for (int32_t i = 0; i < attrs_size; ++i) { \
+            if ((strides[i] != 1 && strides[i] != 2) || pads_begin[i] != 1 \
+                    || pads_end[i] != 1) \
                 return false; \
         } \
         const size_t wei_offset = 1; \

@@ -27,7 +27,6 @@
 #include "conv/conv.hpp"
 #include "conv/conv_dw_fusion.hpp"
 #include "conv/graph_conv.hpp"
-#include "conv/graph_conv_dw_fusion.hpp"
 
 namespace conv {
 
@@ -63,15 +62,7 @@ void check_correctness(const settings_t &s) {
         res_t res {};
         int status = OK;
         if (attr.post_ops.convolution_index() != -1)
-            const int status = [&prb, &res](api_mode_t mode) {
-                if (mode == PRIMITIVE)
-                    return conv_dw_fusion::doit(&prb, &res);
-                else if (mode == GRAPH)
-                    return benchdnnext::conv_dw_fusion::doit(&prb, &res);
-                else
-                    return FAIL;
-            }(api_mode);
-
+            status = conv_dw_fusion::doit(&prb, &res);
         else
             status = [&prb, &res](api_mode_t mode) {
                 if (mode == PRIMITIVE)

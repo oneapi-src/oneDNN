@@ -31,8 +31,9 @@
 
 namespace conv_dw_fusion {
 
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
+static int init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_convolution_desc_t cd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 

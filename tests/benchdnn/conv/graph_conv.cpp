@@ -20,7 +20,6 @@
 #include "dnnl_graph_common.hpp"
 
 #include "binary/binary.hpp"
-#include "conv/conv_dw_fusion.hpp"
 #include "conv/graph_conv.hpp"
 #include "prelu/prelu.hpp"
 
@@ -83,60 +82,6 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
             .set_attr("filter_format", spec_.filter_format);
 
     ops_.emplace_back(conv_op);
-    curr_out_map_ids_.assign({TENSOR_ID});
-
-    return fill_status::DONE;
-}
-
-fill_status_t conv_graph_prb_t::handle_dw_(const ::conv::prb_t *prb_) {
-    using op = dnnl::graph::op;
-
-    std::unique_ptr<::conv::prb_t> dw_prb
-            = ::conv_dw_fusion::get_fused_conv_prb(prb_);
-    if (!dw_prb) return fill_status::UNSUPPORTED_OP;
-
-    conv::conv_graph_prb_t dw_graph_prb(dw_prb.get());
-    if (dw_graph_prb.ctor_status != fill_status::DONE
-            && dw_graph_prb.ctor_status
-                    != fill_status::UNHANDLED_CONFIG_OPTIONS) {
-        return dw_graph_prb.ctor_status;
-    }
-    const auto dw_spec = dw_graph_prb.spec();
-
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["dw"].push_back(TENSOR_ID);
-    const std::string DW_WEI {TENSOR_ID + "_WEI"};
-    const std::string DW_DST {TENSOR_ID + "_DST"};
-
-    dims_t wei_dims = dw_spec.wei_dims;
-    // depthwise convolution must have groups
-    if (!dw_spec.has_groups) return fill_status::UNSUPPORTED_OP;
-    // group convolution convert
-    dim_t groups = wei_dims[0];
-    wei_dims.erase(wei_dims.begin());
-    wei_dims[0] *= groups;
-
-    tensor_descs_.emplace(DW_WEI, dw_spec.wei_dt, wei_dims, dw_spec.raw_wei_tag,
-            tensor_descs_t::property_type::constant);
-    tensor_descs_.emplace(
-            DW_DST, dw_spec.dst_dt, dw_spec.dst_dims, dw_spec.raw_dst_tag);
-
-    op dw(new_op_id, op::kind::Convolution,
-            {tensor_descs_[curr_out_map_ids_.back() + "_DST"],
-                    tensor_descs_[DW_WEI]},
-            {tensor_descs_[DW_DST]}, "dw");
-
-    dw.set_attr("strides", dw_spec.strides)
-            .set_attr("pads_begin", dw_spec.pads_begin)
-            .set_attr("pads_end", dw_spec.pads_end)
-            .set_attr("dilations", dw_spec.dilations)
-            .set_attr("auto_pad", dw_spec.auto_pad)
-            .set_attr("groups", dw_spec.groups)
-            .set_attr("data_format", dw_spec.data_format)
-            .set_attr("filter_format", dw_spec.filter_format);
-
-    ops_.emplace_back(dw);
     curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
