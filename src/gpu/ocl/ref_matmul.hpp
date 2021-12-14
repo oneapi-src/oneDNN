@@ -60,7 +60,7 @@ struct ref_matmul_t : public gpu_primitive_t {
                     && !has_blocks()
                     && ((utils::one_of(src_dt_, u8, s8)
                                 && utils::one_of(wei_dt_, u8, s8)
-                                && utils::one_of(dst_dt_, f32, s8, u8, s32)
+                                && utils::one_of(dst_dt_, f32, s8, u8, s32, f16)
                                 && IMPLICATION(with_bias(),
                                         utils::one_of(
                                                 bia_dt_, f32, u8, s8, s32)))
