@@ -375,8 +375,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
     }
 
     if (!has_padding_or_scale_quant && (conf.nelems % 256 == 0)
-            && src_mdw.similar_to(dst_mdw, true, false, 0)
-            && !has_padding_or_scale_quant) {
+            && src_mdw.similar_to(dst_mdw, true, false, 0)) {
         return reorder_kernel_t::dense_vector;
     }
 
@@ -641,9 +640,6 @@ status_t custom_reorder_t::pd_t::init_conf(engine_t *engine) {
             conf.aux_data.vg.dst_loop_dim = nextlast_dim_src.idx;
             conf.aux_data.vg.innermost_size = min_common_size;
 
-            if (!may_use_sg8 && conf.sub_group_size == 8) {
-                return status_t::dnnl_unimplemented;
-            }
 
             blocks[conf.aux_data.vg.src_loop_dim] = max_group_size;
             blocks[conf.aux_data.vg.dst_loop_dim] = max_group_size;
