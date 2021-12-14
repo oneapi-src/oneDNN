@@ -292,18 +292,27 @@ public:
                 }
             }
 
+            // find conv's src index
+            auto src_val = conv_op->get_input_value(0);
+            while (src_val->has_producer()
+                    && (src_val->get_producer().get_kind() == op_kind::permute
+                            || src_val->get_producer().get_kind()
+                                    == impl::op_kind::Reorder)) {
+                src_val = src_val->get_producer().get_input_value(0);
+            }
+            size_t src_id = src_val->get_logical_tensor().id;
+
             const logical_tensor_wrapper_t post_src_lt(inputs[idx]);
             const logical_tensor_wrapper_t dst_lt(outputs[0]);
             // TODO(qun) we didn't report iplace pair if two lts have different
             // layout type because of frontend users didn't process this
             // situation at this moment. In the future, we need to fix this for
             // more inplace opportunities.
-            // Here the condition of post_src_id != inputs[0].id is to disable
+            // Here the condition of post_src_id != src_id is to disable
             // the inplace option for src = conv(src) + src
             if (((post_src_lt.is_opaque() && dst_lt.is_opaque())
                         || (post_src_lt.is_strided() && dst_lt.is_strided()))
-                    && post_src_lt.is_similar(dst_lt)
-                    && post_src_id != inputs[0].id)
+                    && post_src_lt.is_similar(dst_lt) && post_src_id != src_id)
                 inplace_pairs_.push_back({post_src_id, outputs[0].id});
         }
         return impl::status::success;
