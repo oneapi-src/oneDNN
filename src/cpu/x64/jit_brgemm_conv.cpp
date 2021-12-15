@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -446,12 +446,12 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
         const auto id_block
                 = get_inp_size(IDP, jcp.od_block, EXT_KD, SD, DD - 1);
 
-        pbuf_w_sz = jcp.ic_block * jcp.kh_sets * jcp.kw_sets * iw_block;
+        pbuf_w_sz = (dim_t)jcp.ic_block * jcp.kh_sets * jcp.kw_sets * iw_block;
         pbuf_h_sz = pbuf_w_sz * ih_block;
         pbuf_d_sz = pbuf_h_sz * id_block;
 
     } else {
-        pbuf_w_sz = jcp.ic_block * jcp.kh_sets * jcp.kw_sets * jcp.iwp;
+        pbuf_w_sz = (dim_t)jcp.ic_block * jcp.kh_sets * jcp.kw_sets * jcp.iwp;
         pbuf_h_sz = pbuf_w_sz * jcp.ihp;
         pbuf_d_sz = pbuf_h_sz * jcp.idp;
     }
@@ -767,9 +767,8 @@ void brgemm_convolution_fwd_t<isa>::perform_outwork(char *dst_base, char *dst,
     }
 
     auto call_outwork_ker = [&](bool is_postwork, int ow_pw_s, int ow_pw_l) {
-        const auto outwork_ker = kernels_po_[get_ker_po_idx(ow_pw_l - 1,
-                                                     is_postwork, is_oc_tail)]
-                                         .get();
+        auto ker_po_idx = get_ker_po_idx(ow_pw_l - 1, is_postwork, is_oc_tail);
+        const auto outwork_ker = kernels_po_[ker_po_idx].get();
         assert(ow_pw_l == outwork_ker->brg.bcast_dim);
         if (is_postwork) {
             p.ptr_out = dst_base
@@ -1235,6 +1234,15 @@ void brgemm_convolution_fwd_t<isa>::ker_trans(
                         * ((jcp.copy_block_only
                                         ? 0
                                         : ((icb + ic_block_s) * pbuf_d_sz)));
+        const auto iid_shift = jcp.copy_block_only
+                ? nstl::max(0, btc.odb * jcp.od_block * SD - FP)
+                : 0;
+        const auto iih_shift = jcp.copy_block_only
+                ? nstl::max(0, btc.ohb * jcp.oh_block * SH - TP)
+                : 0;
+        const auto iiw_shift
+                = jcp.copy_block_only ? (btc.owb * jcp.ow_block * SW) : 0;
+
         for (int i_icb = 0; i_icb < n_ic_blocks; i_icb++) {
             const auto ic_off = (ic_block_s + i_icb) * jcp.ic_block;
             const auto wei_ic = ic + ic_off;
@@ -1245,14 +1253,6 @@ void brgemm_convolution_fwd_t<isa>::ker_trans(
             const auto wei_base_ic = wei_base + wei_dsz * wei_ic * jcp.oc_block;
 
             auto k = 0;
-            const auto iid_shift = jcp.copy_block_only
-                    ? nstl::max(0, btc.odb * jcp.od_block * SD - FP)
-                    : 0;
-            const auto iih_shift = jcp.copy_block_only
-                    ? nstl::max(0, btc.ohb * jcp.oh_block * SH - TP)
-                    : 0;
-            const auto iiw_shift
-                    = jcp.copy_block_only ? (btc.owb * jcp.ow_block * SW) : 0;
             for (int kd = kd_b; kd < kd_e; kd++) {
                 const auto id = iid - iid_shift + kd * DD + FP;
                 const auto pbuf_base_kd
