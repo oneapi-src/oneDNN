@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -132,20 +132,24 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
 
     switch (memory_kind) {
         case memory_kind_ext_t::usm:
-            DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine_,
-                             dnnl_sycl_interop_usm, handle_info.ptr),
+        case memory_kind_ext_t::buffer: {
+            auto md_padded = pad_memory_desc(md_, &is_canary_protected_);
+            dnnl_sycl_interop_memory_kind_t mem_kind
+                    = (memory_kind == memory_kind_ext_t::usm
+                                    ? dnnl_sycl_interop_usm
+                                    : dnnl_sycl_interop_buffer);
+            DNN_SAFE(dnnl_sycl_interop_memory_create(&m_padded_, &md_padded,
+                             engine_, mem_kind, handle_info.ptr),
                     CRIT);
+            SAFE(init_memory(&m_, md_, m_padded_), CRIT);
             break;
-        case memory_kind_ext_t::buffer:
-            DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine_,
-                             dnnl_sycl_interop_buffer, handle_info.ptr),
-                    CRIT);
-            break;
+        }
         case memory_kind_ext_t::usm_device:
         case memory_kind_ext_t::usm_shared: {
             SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
             is_data_owner_ = true;
-            size_t sz = dnnl_memory_desc_get_size(&md_);
+            size_t sz = pad_memory_size(
+                    dnnl_memory_desc_get_size(&md_), &is_canary_protected_);
             auto eng = dnnl::engine(engine_, true);
             auto dev = dnnl::sycl_interop::get_device(eng);
             auto ctx = dnnl::sycl_interop::get_context(eng);
@@ -180,22 +184,27 @@ int dnn_mem_t::initialize_memory_create_opencl(
         return OK;
     }
 
+    SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
+
     switch (memory_kind) {
         case memory_kind_ext_t::usm:
-            DNN_SAFE(dnnl_ocl_interop_memory_create(&m_, &md_, engine_,
-                             dnnl_ocl_interop_usm, handle_info.ptr),
+        case memory_kind_ext_t::buffer: {
+            auto md_padded = pad_memory_desc(md_, &is_canary_protected_);
+            dnnl_ocl_interop_memory_kind_t mem_kind
+                    = (memory_kind == memory_kind_ext_t::usm
+                                    ? dnnl_ocl_interop_usm
+                                    : dnnl_ocl_interop_buffer);
+            DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, &md_padded,
+                             engine_, mem_kind, handle_info.ptr),
                     CRIT);
+            SAFE(init_memory(&m_, md_, m_padded_), CRIT);
             break;
-        case memory_kind_ext_t::buffer:
-            DNN_SAFE(dnnl_ocl_interop_memory_create(&m_, &md_, engine_,
-                             dnnl_ocl_interop_buffer, handle_info.ptr),
-                    CRIT);
-            break;
+        }
         case memory_kind_ext_t::usm_device:
         case memory_kind_ext_t::usm_shared: {
-            SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
             is_data_owner_ = true;
-            size_t sz = dnnl_memory_desc_get_size(&md_);
+            size_t sz = pad_memory_size(
+                    dnnl_memory_desc_get_size(&md_), &is_canary_protected_);
             if (memory_kind == memory_kind_ext_t::usm_device) {
                 data_ = dnnl::impl::gpu::ocl::usm::malloc_device(engine_, sz);
             } else {
@@ -278,6 +287,44 @@ int dnn_mem_t::cleanup_opencl() {
 dnn_mem_t dnn_mem_t::create_from_host_ptr(
         const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr) {
     return dnn_mem_t(md, engine, {true, host_ptr});
+}
+
+int dnn_mem_t::init_memory(
+        dnnl_memory_t *ret, const dnnl_memory_desc_t &md, dnnl_memory_t mem) {
+    void *handle;
+    DNN_SAFE(dnnl_memory_get_data_handle(mem, &handle), CRIT);
+
+    dnnl_engine_t engine;
+    DNN_SAFE(dnnl_memory_get_engine(mem, &engine), CRIT);
+
+    bool is_sycl = is_sycl_engine(engine);
+    bool is_opencl = is_opencl_engine(engine);
+
+    *ret = nullptr;
+
+    if (is_opencl) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        dnnl_ocl_interop_memory_kind_t mem_kind;
+        DNN_SAFE(dnnl_ocl_interop_memory_get_memory_kind(mem, &mem_kind), CRIT);
+        DNN_SAFE(dnnl_ocl_interop_memory_create(
+                         ret, &md, engine, mem_kind, handle),
+                CRIT);
+#endif
+    } else if (is_sycl) {
+#ifdef DNNL_WITH_SYCL
+        dnnl_sycl_interop_memory_kind_t mem_kind;
+        DNN_SAFE(
+                dnnl_sycl_interop_memory_get_memory_kind(mem, &mem_kind), CRIT);
+        DNN_SAFE(dnnl_sycl_interop_memory_create(
+                         ret, &md, engine, mem_kind, handle),
+                CRIT);
+#endif
+    }
+
+    // Memory must be initialized at this point in some of the branches above.
+    if (!*ret) assert(!"not expected");
+
+    return OK;
 }
 
 // Returns physical offset by logical one. Logical offset is represented by an
@@ -421,4 +468,23 @@ int check_zero_padding(const dnn_mem_t &mem, int arg, int *error_count) {
 #undef CASE
 
     return FAIL;
+}
+
+int check_buffer_overwrite(const dnn_mem_t &mem, int arg) {
+    if (!mem.is_canary_protected()) return OK;
+
+    size_t sz = mem.size();
+    size_t sz_padded = dnn_mem_t::pad_memory_size(sz);
+
+    auto *mem_ptr = (const uint8_t *)mem;
+    for (size_t i = sz; i < sz_padded; i++) {
+        if (mem_ptr[i] == dnnl_mem_default_value) continue;
+
+        BENCHDNN_PRINT(0,
+                "@@@ [arg:%d] check_buffer_overwrite failed. Expected: %d at "
+                "byte: %lld but found: %d\n",
+                arg, dnnl_mem_default_value, (long long)i, mem_ptr[i]);
+        return FAIL;
+    }
+    return OK;
 }
