@@ -11,7 +11,7 @@ ecosystem frameworks and inference engines.
 The goal of the preview branch is to:
 
 * Collect feedback on the API design, not the implementation.
-* Demonstrate the programming model of oneDNN Graph API.
+* Demonstrate the programming model of oneDNN Graph API.
 * Show ease of use of the API for framework integration.
 * Provide product-level quality support to early adoption before merging to
   oneDNN master branch.
@@ -86,7 +86,7 @@ GPU engine was validated on Ubuntu* 18.04 with
 To build the library from source code:
 
 ```bash
-git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph --recursive
+git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph-preview4 --recursive
 cd oneDNN
 mkdir build && cd build
 cmake .. -DDNNL_GRAPH_BUILD_TESTS=1 -DDNNL_GRAPH_BUILD_EXAMPLES=1
