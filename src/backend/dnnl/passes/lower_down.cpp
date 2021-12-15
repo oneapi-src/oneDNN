@@ -117,8 +117,8 @@ static std::pair<op_ptr, op_ptr> combine_scales(op_t *src_scales_op,
     std::vector<float> new_dst_scales;
     std::string new_src1_qtype;
     std::string new_dst_qtype;
-    int64_t new_src1_axis;
-    int64_t new_dst_axis;
+    int64_t new_src1_axis = 0;
+    int64_t new_dst_axis = 0;
     const auto multiplier = std::multiplies<float>();
     const auto divider = std::divides<float>();
     switch (binary_kind) {
