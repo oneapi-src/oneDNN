@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -105,51 +105,34 @@ private:
     // Register decomposition
     const reg64_t param1 = abi_param1;
 
-    const reg64_t reg_C = r15;
-    const reg64_t reg_stride_lda = r14;
     const reg64_t reg_addr_batch = r13;
+    const reg64_t reg_aux_A = r11;
+    const reg64_t reg_aux_B = r10;
+    const reg64_t reg_stride_lda = r14;
+    const reg64_t reg_stride_ldb = abi_not_param1;
+    const reg64_t reg_C = r15;
     const reg64_t reg_D = r12;
-    const reg64_t reg_A = r11;
-    const reg64_t reg_B = r10;
-    const reg64_t reg_bdb_loop = r9;
-    const reg64_t reg_ldb_loop = r8;
 
     const reg64_t reg_buf = rax;
-    const reg64_t reg_rdb_loop = rbx;
-    const reg64_t reg_stride_ldb = abi_not_param1;
-    const reg64_t reg_bias = rdx;
-    const reg64_t reg_scales = rsi;
+    const reg64_t reg_bias = rbx;
+    const reg64_t reg_scales = rbx;
 
-    const reg64_t reg_stride_ld_block = reg_ldb_loop;
-    const reg64_t reg_do_post_ops = reg_rdb_loop;
-    const reg64_t reg_tmp_gpr = reg_rdb_loop;
-    const reg64_t reg_ptr_sum_scale = reg_rdb_loop;
+    const reg64_t reg_stride_ld_block = rdx;
+    const reg64_t reg_do_post_ops = rbx;
+    const reg64_t reg_tmp_gpr = rbx;
+    const reg64_t reg_ptr_sum_scale = rbx;
 
-    const reg64_t reg_binary_postops_oc_l = reg_rdb_loop;
-    const reg64_t reg_aux_binary_postops_oc_l = reg_rdb_loop;
-    const reg64_t reg_aux_binary_postops_sp = reg_rdb_loop;
-    const reg64_t reg_binary_po_stack_frame = reg_rdb_loop;
-    const reg64_t reg_zp_comp_a = reg_rdb_loop;
-    const reg64_t reg_aux_zp_comp_a = reg_rdb_loop;
-    const reg64_t reg_zp_comp_b = reg_rdb_loop;
-    const reg64_t reg_aux_zp_comp_b = reg_rdb_loop;
-    const reg64_t reg_zp_c_values = reg_rdb_loop;
-    const reg64_t reg_aux_zp_c_values = reg_rdb_loop;
-    const reg64_t reg_ptr_sum_zp = reg_bdb_loop;
+    const reg64_t reg_zp_comp_a = rbx;
+    const reg64_t reg_aux_zp_comp_a = rbx;
+    const reg64_t reg_zp_comp_b = rbx;
+    const reg64_t reg_zp_c_values = rbx;
+    const reg64_t reg_ptr_sum_zp = r9;
 
     constexpr static int abi_param1_offs_ = 0;
-    constexpr static int reg_binary_postops_oc_l_offs_ = 8;
-    constexpr static int reg_aux_binary_postops_oc_l_offs_ = 16;
-    constexpr static int reg_binary_postops_sp_offs_ = 24;
-    constexpr static int reg_aux_binary_postops_sp_offs_ = 32;
-    constexpr static int reg_zp_comp_a_offs_ = 40;
-    constexpr static int reg_aux_zp_comp_a_offs_ = 48;
-    constexpr static int reg_zp_comp_b_offs_ = 56;
-    constexpr static int reg_aux_zp_comp_b_offs_ = 64;
-    constexpr static int reg_zp_c_values_offs_ = 72;
-    constexpr static int reg_aux_zp_c_values_offs_ = 80;
-    constexpr static int reg_data_C_ptr_ = 88;
-    constexpr static int stack_space_needed_ = 96;
+    constexpr static int reg_zp_comp_a_offs_ = 8;
+    constexpr static int reg_zp_comp_b_offs_ = 16;
+    constexpr static int reg_zp_c_values_offs_ = 24;
+    constexpr static int stack_space_needed_ = 32;
 
     bool are_post_ops_applicable_ = false;
     bool need_to_apply_alpha_beta_ = false;
@@ -161,7 +144,7 @@ private:
     bool with_binary_per_mb_w_bcast_ = false;
     bool with_binary_no_bcast_ = false;
 
-    size_t reg_b_offset_ = 0;
+    size_t b_offset_ = 0;
 
     char *bd_mask_buffer_ptr = nullptr;
     std::vector<size_t> adj_bd_mask_buffer;
@@ -239,6 +222,7 @@ private:
     int skipped_bd_mask(int bd_ind) noexcept;
 
     int A_offset(int bdb) const noexcept;
+
     int B_offset(int ldb) const noexcept;
     int C_offset(int bd, int ldb) const noexcept;
     int D_offset(int bd, int ldb) const noexcept;
@@ -434,33 +418,9 @@ void jit_brgemm_amx_uker_base_t::read_params() {
 
     mov(reg_buf, ptr[param1 + GET_OFF(ptr_buf)]);
 
-    if (with_binary_no_bcast_) {
-        mov(reg_aux_binary_postops_sp, ptr[param1 + GET_OFF(data_C_ptr_)]);
-        mov(ptr[rsp + reg_data_C_ptr_], reg_aux_binary_postops_sp);
-    }
-    if (with_binary_channel_bcast_) {
-        mov(reg_aux_binary_postops_sp,
-                ptr[param1 + GET_OFF(first_mb_matrix_addr_off)]);
-        mov(ptr[rsp + reg_binary_postops_sp_offs_], reg_aux_binary_postops_sp);
-        mov(ptr[rsp + reg_aux_binary_postops_sp_offs_],
-                reg_aux_binary_postops_sp);
-    }
-    if (with_binary_per_oc_bcast_) {
-        mov(reg_binary_postops_oc_l, ptr[param1 + GET_OFF(oc_logical_off)]);
-        mov(ptr[rsp + reg_binary_postops_oc_l_offs_], reg_binary_postops_oc_l);
-        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
-                reg_binary_postops_oc_l);
-    } else if (with_binary_per_oc_sp_bcast_) {
-        mov(reg_binary_postops_oc_l,
-                ptr[param1 + GET_OFF(dst_row_logical_off)]);
-        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
-                reg_binary_postops_oc_l);
-    }
-
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
         mov(reg_zp_comp_a, ptr[param1 + GET_OFF(a_zp_compensations)]);
         mov(ptr[rsp + reg_zp_comp_a_offs_], reg_zp_comp_a);
-        mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_zp_comp_a);
     }
 
     if (brg.zp_type_b != brgemm_broadcast_t::none) {
@@ -471,7 +431,6 @@ void jit_brgemm_amx_uker_base_t::read_params() {
     if (brg.zp_type_c != brgemm_broadcast_t::none) {
         mov(reg_zp_c_values, ptr[param1 + GET_OFF(c_zp_values)]);
         mov(ptr[rsp + reg_zp_c_values_offs_], reg_zp_c_values);
-        mov(ptr[rsp + reg_aux_zp_c_values_offs_], reg_zp_c_values);
     }
 }
 
@@ -576,9 +535,6 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_vector(const int idx,
 
 void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
         const Address &addr, const int bd, const int ldb, bool is_ld_tail) {
-    const auto reg_bias_offset = bias_offset(ldb);
-    const auto reg_scales_offset = scales_offset(ldb);
-
     auto zmm = Zmm(idx);
     auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
 
@@ -596,13 +552,13 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
         mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
 
         auto zmm_bias = zmm_tmp_1();
-        auto ptr_bias = EVEX_compress_addr(reg_bias, reg_bias_offset);
+        auto ptr_bias = EVEX_compress_addr(reg_bias, bias_offset(ldb));
         cvt2ps(brg.dt_bias, zmm_bias, ptr_bias, true, false, k_mask);
         vaddps(zmm, zmm, zmm_bias);
     }
 
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
-        mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
+        mov(reg_aux_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
 
         auto zmm_zp_comp_a = zmm_tmp_1();
         int zp_comp_a_off = zp_comp_a_offset(0);
@@ -615,12 +571,12 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
     }
 
     if (brg.zp_type_b != brgemm_broadcast_t::none) {
-        mov(reg_aux_zp_comp_b, ptr[rsp + reg_aux_zp_comp_b_offs_]);
+        mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
 
         auto zmm_zp_comp_b = zmm_tmp_1();
         int zp_comp_b_off = zp_comp_b_offset(bd);
         vcvtdq2ps(zmm_zp_comp_b,
-                EVEX_compress_addr(reg_aux_zp_comp_b, zp_comp_b_off, true));
+                EVEX_compress_addr(reg_zp_comp_b, zp_comp_b_off, true));
         vaddps(zmm, zmm, zmm_zp_comp_b);
     }
 
@@ -628,7 +584,7 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
         mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
 
         const Xbyak::Zmm scaled_zmm = zmm_mask(zmm, true, false, k_mask);
-        auto scales_ptr = EVEX_compress_addr(reg_scales, reg_scales_offset);
+        auto scales_ptr = EVEX_compress_addr(reg_scales, scales_offset(ldb));
         vmulps(scaled_zmm, scaled_zmm, scales_ptr);
     }
 
@@ -636,15 +592,14 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
         apply_post_ops_to_vector(idx, addr, bd, ldb, is_ld_tail);
 
     if (brg.zp_type_c != brgemm_broadcast_t::none) {
-        mov(reg_aux_zp_c_values, ptr[rsp + reg_aux_zp_c_values_offs_]);
+        mov(reg_zp_c_values, ptr[rsp + reg_zp_c_values_offs_]);
         auto zmm_zp_c = zmm_tmp_1();
         if (brg.zp_type_c == brgemm_broadcast_t::per_tensor) {
-            vcvtdq2ps(
-                    zmm_zp_c, EVEX_compress_addr(reg_aux_zp_c_values, 0, true));
+            vcvtdq2ps(zmm_zp_c, EVEX_compress_addr(reg_zp_c_values, 0, true));
         }
         if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
             int zp_c_off = zp_c_values_offset(0);
-            auto zp_c_addr = EVEX_compress_addr(reg_aux_zp_c_values, zp_c_off);
+            auto zp_c_addr = EVEX_compress_addr(reg_zp_c_values, zp_c_off);
             cvt2ps(data_type::s32, zmm_zp_c, zp_c_addr, true, false, k_mask);
         }
         vaddps(zmm, zmm, zmm_zp_c);
@@ -769,7 +724,7 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
 
                         const auto adj_bd_ind_bd = brg.brgattr.bd_mask_level
                                 ? adj_bd_mask_buffer_ptr[bd_ind_bd]
-                                : (bd_ind_bdb + bd);
+                                : bd_ind_bd;
                         store_vector(vreg_acc.getIdx(), adj_bd_ind_bd,
                                 ils_ldb_ind + ldb, ils_apply_post_ops,
                                 ils_is_ld_tail);
@@ -845,7 +800,7 @@ int jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2, int ld_block2,
 
                     const auto adj_bd_ind_bd = brg.brgattr.bd_mask_level
                             ? adj_bd_mask_buffer_ptr[bd_ind_bd]
-                            : (bd_ind_bdb + bd);
+                            : bd_ind_bd;
                     store_vector(vreg_acc.getIdx(), adj_bd_ind_bd,
                             ldb_ind + ldb, apply_post_ops, is_ld_tail);
                 }
@@ -866,17 +821,17 @@ int jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2, int ld_block2,
 
 void jit_brgemm_amx_uker_base_t::set_A_B_matrices(size_t batch_offset) {
     if (brg.layout == brgemm_row_major) {
-        mov(reg_A,
+        mov(reg_aux_A,
                 EVEX_compress_addr(reg_addr_batch,
                         batch_offset + GET_OFF_BATCH_ELEMENT(ptr.A)));
-        mov(reg_B,
+        mov(reg_aux_B,
                 EVEX_compress_addr(reg_addr_batch,
                         batch_offset + GET_OFF_BATCH_ELEMENT(ptr.B)));
     } else {
-        mov(reg_A,
+        mov(reg_aux_A,
                 EVEX_compress_addr(reg_addr_batch,
                         batch_offset + GET_OFF_BATCH_ELEMENT(ptr.B)));
-        mov(reg_B,
+        mov(reg_aux_B,
                 EVEX_compress_addr(reg_addr_batch,
                         batch_offset + GET_OFF_BATCH_ELEMENT(ptr.A)));
     }
@@ -930,7 +885,7 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(int bd_block2,
         for (int bdb = 0; bdb < bd_block2; bdb++) {
             bd_ind_bdb = skipped_bd_mask(bd_ind_bdb);
 
-            maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb)), reg_A,
+            maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb)), reg_aux_A,
                     static_cast<size_t>(rdb) * rdb_A_offset()
                             + A_offset(bd_ind_bdb) + a_offset,
                     reg_stride_lda,
@@ -940,9 +895,9 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(int bd_block2,
         }
         for (int ldb = 0; ldb < ld_block2; ldb++) {
             const int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
-            maybe_tileloadd_nt(Tmm(brg.get_B_tensor(idx)), reg_B,
+            maybe_tileloadd_nt(Tmm(brg.get_B_tensor(idx)), reg_aux_B,
                     static_cast<size_t>(rdb) * rdb_B_offset() + B_offset(ldb)
-                            + reg_b_offset_ + b_offset,
+                            + b_offset_ + b_offset,
                     reg_stride_ldb,
                     brg.brgattr.hint_innermost_loop
                             == brgemm_ld_loop_innermost);
@@ -959,12 +914,7 @@ int jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
         int ldb_loop_length, bool is_reg_tail, bool is_ld_tail, size_t c_offset,
         size_t d_offset, int bd_ind, int ldb_ind, bool apply_post_ops) {
 
-    if (!is_reg_tail) reg_b_offset_ = 0;
-
-    if (brg.zp_type_b != brgemm_broadcast_t::none) {
-        mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
-        mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_zp_comp_b);
-    }
+    if (!is_reg_tail) b_offset_ = 0;
 
     int res_bd = 0;
     for (int l_ldb = 0; l_ldb < ldb_loop_length; l_ldb++) {
@@ -1001,8 +951,8 @@ int jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
                 l_c_offset, l_d_offset, bd_ind, ldb_ind + l_ldb_ind,
                 apply_post_ops);
 
-        reg_b_offset_ += (is_ld_tail) ? ldb_B_offset(1, true)
-                                      : ldb_B_offset(ld_block2);
+        b_offset_ += (is_ld_tail) ? ldb_B_offset(1, true)
+                                  : ldb_B_offset(ld_block2);
     }
     return res_bd;
 }
