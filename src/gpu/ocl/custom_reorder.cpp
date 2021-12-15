@@ -643,7 +643,6 @@ status_t custom_reorder_t::pd_t::init_conf(engine_t *engine) {
             conf.aux_data.vg.dst_loop_dim = nextlast_dim_src.idx;
             conf.aux_data.vg.innermost_size = min_common_size;
 
-
             blocks[conf.aux_data.vg.src_loop_dim] = max_group_size;
             blocks[conf.aux_data.vg.dst_loop_dim] = max_group_size;
             // if src loop and dst loop dims are the same, CL code would iterate
