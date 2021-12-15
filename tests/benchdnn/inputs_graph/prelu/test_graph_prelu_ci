@@ -1,0 +1,9 @@
+--reset
+--stag=abx:abx
+--sdt=f32:f32,bf16:bf16
+
+1x2x2x2:1x2x2x2
+3x64:3x64
+3x64x8:3x64x8
+4x16x3x4:4x16x3x4
+2x7x5x3x2:2x7x5x3x2
