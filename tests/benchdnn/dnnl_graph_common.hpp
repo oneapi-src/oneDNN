@@ -518,6 +518,10 @@ public:
             binary_po_handler_t bin_handler;
             low_precision_handler_t low_precision_handler;
         } pool;
+
+        struct {
+            sum_po_handler_t sum_handler;
+        } reorder;
     };
 };
 

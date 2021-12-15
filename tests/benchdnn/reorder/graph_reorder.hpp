@@ -33,6 +33,13 @@ struct reorder_graph_prb_t : public graph_prb_t {
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
 
+        for (const auto &po : prb->attr.post_ops.entry) {
+            if (po.is_sum_kind()) {
+                has_post_sum_ = true;
+                ctor_status = handle_sum_();
+                if (stop_work(ctor_status)) return;
+            }
+        }
         ctor_status = fill_status::DONE;
     };
     fill_status_t ctor_status;
@@ -54,7 +61,10 @@ private:
 
     spec_t spec_;
 
+    po_handlers_t po_handler;
+
     fill_status_t handle_main_op_();
+    fill_status_t handle_sum_();
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::Reorder;
