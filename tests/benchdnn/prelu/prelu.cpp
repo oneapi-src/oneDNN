@@ -123,9 +123,8 @@ int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
     return OK;
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &ppd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &ppd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_prelu_desc_t pd;
     dnnl_memory_desc_t data_d, weights_d;
 
