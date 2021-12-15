@@ -635,6 +635,35 @@ static void layout_propagation_for_squeeze(
     auto in_lt = src->get_logical_tensor();
     auto out_lt = dst->get_logical_tensor();
 
+    auto predecessor_kind = src->get_producer().get_kind();
+    if (predecessor_kind == op_kind::dnnl_reduction) {
+        auto in_md = make_dnnl_memory_desc(in_lt);
+        if (ltw(out_lt).is_any()) {
+            const auto in_ndim = static_cast<int64_t>(in_md.dims().size());
+            auto axes = op->get_attr<std::vector<int64_t>>("axes");
+            std::transform(axes.begin(), axes.end(), axes.begin(),
+                    [&in_ndim](int64_t axis) -> int64_t {
+                        return axis < 0 ? in_ndim + axis : axis;
+                    });
+            for (const auto axis : axes) {
+                const bool valid
+                        = in_md.data.padded_dims[axis] == in_md.data.dims[axis]
+                        && in_md.data.dims[axis] == 1;
+                UNUSED(valid);
+                assertm(valid,
+                        "squeeze failed since there is padding in the squeezed "
+                        "dimension");
+            }
+            fill_layout_info(dst, in_md.reshape(ltw(out_lt).vdims()));
+        } else {
+            auto out_md = make_dnnl_memory_desc(out_lt);
+            auto tmp_in_md = out_md.reshape(in_md.dims());
+            if (in_md != tmp_in_md)
+                insert_reorder_before(op, 0, tmp_in_md, reorder_ops);
+        }
+        return;
+    }
+
     if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
         // `matmul (opaque) -> squeeze -> output (any)`
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
@@ -700,6 +729,18 @@ static void layout_propagation_for_squeeze(
         if (make_dnnl_memory_desc(in_lt) != tmp_in_md)
             insert_reorder_before(op, 0, tmp_in_md, reorder_ops);
     }
+}
+
+static void layout_propagation_for_unsqueeze(op_ptr &op) {
+    std::shared_ptr<impl::value_t> src, dst;
+    src = op->get_input_value(0);
+    dst = op->get_output_value(0);
+    auto in_lt = src->get_logical_tensor();
+    auto out_lt = dst->get_logical_tensor();
+
+    auto in_md = make_dnnl_memory_desc(in_lt);
+    if (ltw(out_lt).is_any())
+        fill_layout_info(dst, in_md.reshape(ltw(out_lt).vdims()));
 }
 
 static void layout_propagation_for_reorder(op_ptr &op) {
@@ -858,6 +899,29 @@ static void layout_propagation_for_logsoftmax(op_ptr &op,
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
+static void layout_propagation_for_reduction(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    value_ptr src = op->get_input_value(0);
+    assertm(!ltw(src->get_logical_tensor()).is_any(),
+            "reduction's src can't be any layout now");
+
+    const auto &pd_flag_pair
+            = create_reduction_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    value_ptr dst = op->get_output_value(0);
+    fill_layout_info(dst, pd.dst_desc());
+
+    // make scratchpad as logsoftmax's last output
+    value_ptr scratchpad_val = insert_scratchpad(op);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+}
+
 static void remove_optional_conv_dw_output(
         std::vector<op_ptr> &subgraph, pd_cache_t &pd_cache) {
     std::vector<op_ptr> to_be_inserted_ops;
@@ -988,6 +1052,8 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 layout_propagation_for_reorder(cur_op);
             } else if (cur_op->get_kind() == op_kind::squeeze) {
                 layout_propagation_for_squeeze(cur_op, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::unsqueeze) {
+                layout_propagation_for_unsqueeze(cur_op);
             } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
                 layout_propagation_for_bn_folding(cur_op, p_engine);
             } else if (cur_op->get_kind() == op_kind::dnnl_sum) {
@@ -1004,6 +1070,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_shuffle) {
                 layout_propagation_for_shuffle(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::dnnl_reduction) {
+                layout_propagation_for_reduction(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() != op_kind::dnnl_constant) {
                 assertm(false,

@@ -917,23 +917,124 @@ DNNL_GRAPH_OP_SCHEMA(PReLU, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(ReduceSum, 1,
+DNNL_GRAPH_OP_SCHEMA(ReduceL1, 1,
         op_schema_t()
-                .set_num_inputs(2)
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "axis_indices",
-                        "scalar or 1D tensor with axis indices for the 1st "
-                        "input, along which reduction is performed",
+                .set_input(1, "axes",
+                        "(optional) 1D tensor, specifies indices of input "
+                        "data, along which the reduction is performed.",
                         "T2")
                 .set_output(0, "output", "output tensor", "T1")
-                .set_attr("keep_dims",
-                        "if true, holds axes that are used for reduction.",
-                        false, attribute_kind::b, false)
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
-                .set_shape_inference_function(infer_reduce_sum_output_shape))
+                .set_shape_inference_function(infer_reduce_output_shape)
+                .SET_REDUCE_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(ReduceL2, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor", "T1")
+                .set_input(1, "axes",
+                        "(optional) 1D tensor, specifies indices of input "
+                        "data, along which the reduction is performed.",
+                        "T2")
+                .set_output(0, "output", "output tensor", "T1")
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
+                .set_shape_inference_function(infer_reduce_output_shape)
+                .SET_REDUCE_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(ReduceMax, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor", "T1")
+                .set_input(1, "axes",
+                        "(optional) 1D tensor, specifies indices of input "
+                        "data, along which the reduction is performed.",
+                        "T2")
+                .set_output(0, "output", "output tensor", "T1")
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
+                .set_shape_inference_function(infer_reduce_output_shape)
+                .SET_REDUCE_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(ReduceMean, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor", "T1")
+                .set_input(1, "axes",
+                        "(optional) 1D tensor, specifies indices of input "
+                        "data, along which the reduction is performed.",
+                        "T2")
+                .set_output(0, "output", "output tensor", "T1")
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
+                .set_shape_inference_function(infer_reduce_output_shape)
+                .SET_REDUCE_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(ReduceMin, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor", "T1")
+                .set_input(1, "axes",
+                        "(optional) 1D tensor, specifies indices of input "
+                        "data, along which the reduction is performed.",
+                        "T2")
+                .set_output(0, "output", "output tensor", "T1")
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
+                .set_shape_inference_function(infer_reduce_output_shape)
+                .SET_REDUCE_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(ReduceProd, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor", "T1")
+                .set_input(1, "axes",
+                        "(optional) 1D tensor, specifies indices of input "
+                        "data, along which the reduction is performed.",
+                        "T2")
+                .set_output(0, "output", "output tensor", "T1")
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
+                .set_shape_inference_function(infer_reduce_output_shape)
+                .SET_REDUCE_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(ReduceSum, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor", "T1")
+                .set_input(1, "axes",
+                        "(optional) 1D tensor, specifies indices of input "
+                        "data, along which the reduction is performed.",
+                        "T2")
+                .set_output(0, "output", "output tensor", "T1")
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
+                .set_shape_inference_function(infer_reduce_output_shape)
+                .SET_REDUCE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ReLU, 1,
         op_schema_t()

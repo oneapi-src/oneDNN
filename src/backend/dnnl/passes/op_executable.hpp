@@ -732,6 +732,58 @@ inline std::pair<dnnl::shuffle_forward::primitive_desc, bool> create_shuffle_pd(
     return {pd, true};
 }
 
+inline std::pair<dnnl::reduction::primitive_desc, bool> create_reduction_pd(
+        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<dnnl::reduction::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    const auto kind
+            = static_cast<impl::op_kind_t>(op->get_attr<int64_t>("alg_kind"));
+    const auto &reduction_alg_map = get_reduction_alg_map();
+    const auto reduction_alg_pos = reduction_alg_map.find(kind);
+    const algorithm alg = reduction_alg_pos != reduction_alg_map.end()
+            ? reduction_alg_pos->second
+            : algorithm::undef;
+    if (alg == algorithm::undef) {
+        BACKEND_DNNL_ENFORCE(0, "Unsupported reduction op.");
+    }
+
+    float p = [kind]() {
+        if (kind == impl::op_kind::ReduceL1)
+            return 1.0f;
+        else if (kind == impl::op_kind::ReduceL2)
+            return 2.0f;
+        else
+            return 0.0f;
+    }();
+    float eps = 0.0f;
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+    dst = to_format_any(dst);
+
+    dnnl::reduction::primitive_desc pd(
+            {alg, src, dst, p, eps}, prm_attr, p_engine);
+
+    pd_cache.insert({op.get(), pd});
+
+    return {pd, true};
+}
+
 struct op_executable_t {
     virtual ~op_executable_t() = default;
     virtual void execute(const stream &stream,
@@ -1474,6 +1526,40 @@ struct logsoftmax_executable_t : public op_executable_t {
 private:
     dnnl::logsoftmax_forward::primitive_desc pd_;
     dnnl::logsoftmax_forward prim_;
+};
+
+struct reduction_executable_t : public op_executable_t {
+    reduction_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_reduction_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        prim_ = dnnl::reduction(pd_);
+
+        if (op->has_attr("with_sum"))
+            with_sum_ = op->get_attr<bool>("with_sum");
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        if (with_sum_) {
+            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                dnnl::reorder(psrc_mem, dst_mem)
+                        .execute(stream, const_cast<memory &>(psrc_mem),
+                                const_cast<memory &>(dst_mem));
+            }
+        }
+
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::reduction::primitive_desc pd_;
+    dnnl::reduction prim_;
+    bool with_sum_ {false};
 };
 
 } // namespace dnnl_impl

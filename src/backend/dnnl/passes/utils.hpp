@@ -208,6 +208,8 @@ void insert_op_before(op_t *inserted_op, op_t *base_op, size_t offset);
 void insert_op_after(std::shared_ptr<impl::op_t> &inserted_op,
         std::shared_ptr<impl::op_t> &base_op, size_t offset);
 
+void insert_op_after(op_t *inserted_op, op_t *base_op, size_t offset);
+
 void fuse_op_to_successor(
         op_t *op, std::vector<std::shared_ptr<op_t>> &subgraph);
 
@@ -229,7 +231,8 @@ void set_weight_bias_constant(std::vector<std::shared_ptr<op_t>> &subgraph);
 inline bool is_preprocess_op(impl::op_t &op) {
     static const std::set<impl::op_kind_t> preprocess_ops = {op_kind::permute,
             op_kind::to_group, op_kind::expand, op_kind::squeeze,
-            impl::op_kind::StaticReshape, impl::op_kind::StaticTranspose};
+            op_kind::unsqueeze, impl::op_kind::StaticReshape,
+            impl::op_kind::StaticTranspose};
     return preprocess_ops.count(op.get_kind()) != 0;
 }
 
@@ -259,6 +262,19 @@ inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
                     {op_kind::dnnl_swish, dnnl::algorithm::eltwise_swish},
                     {impl::op_kind::Tanh, dnnl::algorithm::eltwise_tanh}};
     return eltwise_alg_map;
+}
+
+inline const std::map<op_kind_t, dnnl::algorithm> &get_reduction_alg_map() {
+    static const std::map<op_kind_t, dnnl::algorithm> &reduction_alg_map = {
+            {impl::op_kind::ReduceL1,
+                    dnnl::algorithm::reduction_norm_lp_power_p_sum},
+            {impl::op_kind::ReduceL2, dnnl::algorithm::reduction_norm_lp_sum},
+            {impl::op_kind::ReduceMax, dnnl::algorithm::reduction_max},
+            {impl::op_kind::ReduceMean, dnnl::algorithm::reduction_mean},
+            {impl::op_kind::ReduceMin, dnnl::algorithm::reduction_min},
+            {impl::op_kind::ReduceProd, dnnl::algorithm::reduction_mul},
+            {impl::op_kind::ReduceSum, dnnl::algorithm::reduction_sum}};
+    return reduction_alg_map;
 }
 
 inline bool is_eltwise_kind(op_kind_t kind) {

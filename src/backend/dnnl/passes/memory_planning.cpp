@@ -738,6 +738,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                 } else if (op->get_kind() == impl::op_kind::Concat) {
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_eltwise
+                        || op->get_kind() == op_kind::dnnl_reduction
                         || op->get_kind() == impl::op_kind::Reorder
                         || op->get_kind() == impl::op_kind::TypeCast
                         || op->get_kind() == op_kind::dnnl_shuffle
@@ -746,6 +747,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::to_group
                         || op->get_kind() == op_kind::expand
                         || op->get_kind() == op_kind::squeeze
+                        || op->get_kind() == op_kind::unsqueeze
                         || op->get_kind() == op_kind::dnnl_u8_to_s8
                         || op->get_kind() == impl::op_kind::StaticReshape
                         || op->get_kind() == impl::op_kind::StaticTranspose) {

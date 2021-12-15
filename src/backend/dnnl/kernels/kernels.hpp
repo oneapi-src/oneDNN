@@ -29,6 +29,7 @@
 #include "pool.hpp"
 #include "prelu.hpp"
 #include "quantize.hpp"
+#include "reduction.hpp"
 #include "reorder.hpp"
 #include "resampling.hpp"
 #include "shuffle.hpp"

@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_set>
 
 #include "interface/shape_infer.hpp"
 
@@ -1028,14 +1029,51 @@ status_t infer_exponent_output_shape(op_t *n,
     return status::success;
 }
 
-status_t infer_reduce_sum_output_shape(op_t *n,
+status_t infer_reduce_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    UNUSED(n);
-    UNUSED(inputs);
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
     // check if output shape is already known
     if (!out0.is_shape_unknown()) return status::success;
+
+    if (n->has_attr("axes")) {
+        auto axes = n->get_attr<dims>("axes");
+        // our backend doesn't support such a case
+        if (axes.empty()) return status::unsupported;
+
+        auto shape = logical_tensor_wrapper_t(inputs[0]).vdims();
+        auto ndim = static_cast<int64_t>(shape.size());
+
+        if (std::any_of(axes.begin(), axes.end(), [&ndim](int64_t axis) {
+                return axis < -ndim || axis >= ndim;
+            }))
+            return status::unsupported;
+
+        // convert negative axis to positive one
+        std::transform(axes.begin(), axes.end(), axes.begin(),
+                [&ndim](int64_t axis) -> int64_t {
+                    return axis < 0 ? ndim + axis : axis;
+                });
+
+        if (std::unordered_set<int64_t>(axes.begin(), axes.end()).size()
+                < axes.size())
+            return status::unsupported;
+
+        auto keep_dims = n->has_attr("keep_dims")
+                ? n->get_attr<bool>("keep_dims")
+                : false;
+        for (auto axis : axes)
+            shape[static_cast<size_t>(axis)] = (keep_dims) ? 1 : 0;
+        if (!keep_dims)
+            shape.erase(std::remove_if(shape.begin(), shape.end(),
+                                [](int64_t d) { return d == 0; }),
+                    shape.end());
+        if (shape.empty()) shape.push_back(1);
+
+        set_shape_and_strides(*outputs[0], shape);
+
+        return status::success;
+    }
 
     // When the second input is an empty list,
     // then this operation does nothing, it is an identity.

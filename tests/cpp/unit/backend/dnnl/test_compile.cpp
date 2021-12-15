@@ -8779,6 +8779,333 @@ TEST(Execute, DequantizePerChannelSymmetric) {
     q_dq_out.set_attr<std::vector<float>>("scales", {scale_out}); \
     q_dq_out.set_attr<int64_t>("axis", 0);
 
+struct dnnl_graph_test_reduce_params {
+    test::vector<float> ref_dst_data;
+    impl::op_kind_t op_kind;
+};
+
+class test_reduce_compile
+    : public ::testing::TestWithParam<dnnl_graph_test_reduce_params> {
+public:
+    void TestReduce() {
+        const auto apply_keep_dims_attr
+                = [](const std::vector<int64_t> &shape,
+                          const std::vector<int64_t> &axes,
+                          const bool keep_dims) {
+                      if (keep_dims) return shape;
+                      std::vector<size_t> excluded_axes;
+                      for (const auto axis : axes) {
+                          excluded_axes.push_back(static_cast<size_t>(
+                                  (axis < 0) ? shape.size() + axis : axis));
+                      }
+                      std::vector<int64_t> new_shape;
+                      for (size_t i = 0; i < shape.size(); ++i) {
+                          const auto excluded = std::find(excluded_axes.begin(),
+                                                        excluded_axes.end(), i)
+                                  != excluded_axes.end();
+                          if (!excluded) new_shape.push_back(shape[i]);
+                      }
+                      return new_shape;
+                  };
+
+        const auto params = ::testing::TestWithParam<
+                dnnl_graph_test_reduce_params>::GetParam();
+
+        impl::engine_t &engine = get_engine();
+        impl::stream_t &strm = get_stream();
+
+        std::vector<int64_t> reduce_src_shape {2, 2, 2, 2};
+        std::vector<int64_t> reduce_dst_shape {2, 1, 2, 1};
+        std::vector<bool> keep_dims_vals {true, false};
+        std::vector<int64_t> axes {-3, 3};
+        test::vector<float> src_data = {-1.75, -1.5, -1.25, -1.0, -0.75, -0.5,
+                -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0};
+
+        for (auto keep_dims : keep_dims_vals) {
+            auto new_reduce_dst_shape
+                    = apply_keep_dims_attr(reduce_dst_shape, axes, keep_dims);
+
+            impl::op_t reduce {0, params.op_kind, "reduce"};
+            reduce.set_attr<std::vector<int64_t>>("axes", axes);
+            reduce.set_attr<bool>("keep_dims", keep_dims);
+
+            impl::logical_tensor_t reduce_src = utils::logical_tensor_init(
+                    0, reduce_src_shape, impl::data_type::f32);
+            impl::logical_tensor_t reduce_dst = utils::logical_tensor_init(
+                    1, new_reduce_dst_shape, impl::data_type::f32);
+
+            reduce.add_input(reduce_src);
+            reduce.add_output(reduce_dst);
+
+            impl::graph_t g(engine.kind());
+            g.add_op(&reduce);
+            g.build_graph();
+
+            impl::pass::pass_base_ptr apass = get_pass("reduce_pass");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1);
+            auto part = g.get_partitions()[0];
+
+            impl::partition_t p;
+            p.init(part);
+
+            impl::compiled_partition_t cp(p);
+
+            std::vector<const impl::logical_tensor_t *> lt_ins {&reduce_src};
+            std::vector<const impl::logical_tensor_t *> lt_outs {&reduce_dst};
+
+            p.compile(&cp, lt_ins, lt_outs, &engine);
+
+            test::vector<float> dst_data(product(new_reduce_dst_shape));
+            impl::tensor_t reduce_src_ts(reduce_src, &engine, src_data.data());
+            impl::tensor_t reduce_dst_ts(reduce_dst, &engine, dst_data.data());
+
+            cp.execute(&strm, {reduce_src_ts}, {reduce_dst_ts});
+            strm.wait();
+
+            for (size_t i = 0; i < dst_data.size(); ++i) {
+                ASSERT_FLOAT_EQ(dst_data[i], params.ref_dst_data[i]);
+            }
+        }
+    }
+};
+
+TEST_P(test_reduce_compile, TestReduceCompile) {
+    TestReduce();
+}
+
+INSTANTIATE_TEST_SUITE_P(TestReduceCompile, test_reduce_compile,
+        ::testing::Values(dnnl_graph_test_reduce_params {{4.5, 2.5, 3.5, 5.5},
+                                  impl::op_kind::ReduceL1},
+                dnnl_graph_test_reduce_params {
+                        {2.47487378, 1.62018514, 2.03100967, 2.93683505},
+                        impl::op_kind::ReduceL2},
+                dnnl_graph_test_reduce_params {
+                        {-0.5, 0.0, 1.5, 2.0}, impl::op_kind::ReduceMax},
+                dnnl_graph_test_reduce_params {{-1.125, -0.625, 0.875, 1.375},
+                        impl::op_kind::ReduceMean},
+                dnnl_graph_test_reduce_params {
+                        {-1.75, -1.25, 0.25, 0.75}, impl::op_kind::ReduceMin},
+                dnnl_graph_test_reduce_params {{0.984375, 0.0, 0.234375, 2.625},
+                        impl::op_kind::ReduceProd},
+                dnnl_graph_test_reduce_params {
+                        {-4.5, -2.5, 3.5, 5.5}, impl::op_kind::ReduceSum}));
+
+TEST(ExecuteSubgraphFp32, ReduceAdd) {
+    using op_info_t = std::pair<impl::op_kind_t, std::string>;
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> reduce_src_shape {2, 2, 2, 2};
+    std::vector<int64_t> base_reduce_dst_shape {1, 2, 2, 1};
+    std::vector<int64_t> base_add_src1_shape {1, 2, 1, 1};
+    std::vector<int64_t> axes {0, 3};
+
+    test::vector<float> src_data(product(reduce_src_shape));
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return f32_distribution(generator); });
+
+    std::vector<bool> keep_dims_infos {true, false};
+    std::vector<bool> with_sum_infos {true, false};
+    std::vector<op_info_t> op_infos {{impl::op_kind::ReduceL1, "reducel1"},
+            {impl::op_kind::ReduceL2, "reducel2"},
+            {impl::op_kind::ReduceMax, "reducemax"},
+            {impl::op_kind::ReduceMean, "reducemean"},
+            {impl::op_kind::ReduceMin, "reducemin"},
+            {impl::op_kind::ReduceProd, "reduceprod"},
+            {impl::op_kind::ReduceSum, "reducesum"}};
+
+    for_(bool keep_dims : keep_dims_infos)
+    for_(bool with_sum : with_sum_infos)
+    for (auto &op_info : op_infos) {
+        impl::op_kind_t akind;
+        std::string kind_str;
+        std::tie(akind, kind_str) = op_info;
+
+        std::vector<int64_t> reduce_dst_shape = base_reduce_dst_shape;
+        std::vector<int64_t> add_src1_shape = base_add_src1_shape;
+        if (with_sum) { add_src1_shape[2] *= 2; }
+        if (!keep_dims) {
+            reduce_dst_shape.erase(reduce_dst_shape.begin());
+            reduce_dst_shape.erase(reduce_dst_shape.end() - 1);
+            add_src1_shape.erase(add_src1_shape.begin());
+            add_src1_shape.erase(add_src1_shape.end() - 1);
+        }
+
+        test::vector<float> src1_data(product(add_src1_shape));
+        std::generate(src1_data.begin(), src1_data.end(),
+                [&]() { return f32_distribution(generator); });
+
+        impl::op_t reduce {0, akind, "reduce"};
+        reduce.set_attr("keep_dims", keep_dims);
+        reduce.set_attr("axes", axes);
+
+        impl::op_t add {1, impl::op_kind::Add, "add"};
+
+        impl::logical_tensor_t reduce_src = utils::logical_tensor_init(
+                0, reduce_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t reduce_dst = utils::logical_tensor_init(
+                1, reduce_dst_shape, impl::data_type::f32);
+
+        impl::logical_tensor_t add_src1 = utils::logical_tensor_init(
+                2, add_src1_shape, impl::data_type::f32);
+        impl::logical_tensor_t add_dst = utils::logical_tensor_init(
+                3, reduce_dst_shape, impl::data_type::f32);
+
+        reduce.add_input(reduce_src);
+        reduce.add_output(reduce_dst);
+
+        add.add_input(reduce_dst);
+        add.add_input(add_src1);
+        add.add_output(add_dst);
+
+        impl::graph_t g(engine.kind());
+        g.add_op(&reduce);
+        g.add_op(&add);
+        g.build_graph();
+
+        impl::tensor_t reduce_src_ts(reduce_src, &engine, src_data.data());
+        impl::tensor_t add_src1_ts(add_src1, &engine, src1_data.data());
+
+        // -------------------------case 1----------------------------------
+        test::vector<float> case1_out_data(product(reduce_dst_shape));
+        impl::tensor_t add_dst_ts(add_dst, &engine, case1_out_data.data());
+
+        ASSERT_EQ(run_graph(g, {reduce_src_ts, add_src1_ts}, {add_dst_ts},
+                          engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass = get_pass(kind_str + "_add_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins {
+                &reduce_src, &add_src1};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&add_dst};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        test::vector<float> case2_out_data(product(reduce_dst_shape));
+        impl::tensor_t add_dst_ts2(add_dst, &engine, case2_out_data.data());
+
+        cp.execute(&strm, {reduce_src_ts, add_src1_ts}, {add_dst_ts2});
+        strm.wait();
+
+        for (size_t i = 0; i < case1_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
+        }
+    }
+}
+
+TEST(ExecuteSubgraphFp32, ReduceRelu) {
+    using op_info_t = std::pair<impl::op_kind_t, std::string>;
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> reduce_src_shape {2, 2, 2, 2};
+    std::vector<int64_t> base_reduce_dst_shape {1, 2, 2, 1};
+    std::vector<int64_t> axes {0, 3};
+
+    test::vector<float> src_data(product(reduce_src_shape));
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return f32_distribution(generator); });
+
+    std::vector<bool> keep_dims_infos {true, false};
+    std::vector<op_info_t> op_infos {{impl::op_kind::ReduceL1, "reducel1"},
+            {impl::op_kind::ReduceL2, "reducel2"},
+            {impl::op_kind::ReduceMax, "reducemax"},
+            {impl::op_kind::ReduceMean, "reducemean"},
+            {impl::op_kind::ReduceMin, "reducemin"},
+            {impl::op_kind::ReduceProd, "reduceprod"},
+            {impl::op_kind::ReduceSum, "reducesum"}};
+
+    for_(bool keep_dims : keep_dims_infos)
+    for (auto &op_info : op_infos) {
+        impl::op_kind_t akind;
+        std::string kind_str;
+        std::tie(akind, kind_str) = op_info;
+
+        std::vector<int64_t> reduce_dst_shape = base_reduce_dst_shape;
+        if (!keep_dims) {
+            reduce_dst_shape.erase(reduce_dst_shape.begin());
+            reduce_dst_shape.erase(reduce_dst_shape.end() - 1);
+        }
+
+        impl::op_t reduce {0, akind, "reduce"};
+        reduce.set_attr("keep_dims", keep_dims);
+        reduce.set_attr("axes", axes);
+
+        impl::op_t relu {1, impl::op_kind::ReLU, "relu"};
+
+        impl::logical_tensor_t reduce_src = utils::logical_tensor_init(
+                0, reduce_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t reduce_dst = utils::logical_tensor_init(
+                1, reduce_dst_shape, impl::data_type::f32);
+
+        impl::logical_tensor_t relu_dst = utils::logical_tensor_init(
+                3, reduce_dst_shape, impl::data_type::f32);
+
+        reduce.add_input(reduce_src);
+        reduce.add_output(reduce_dst);
+
+        relu.add_input(reduce_dst);
+        relu.add_output(relu_dst);
+
+        impl::graph_t g(engine.kind());
+        g.add_op(&reduce);
+        g.add_op(&relu);
+        g.build_graph();
+
+        impl::tensor_t reduce_src_ts(reduce_src, &engine, src_data.data());
+
+        // -------------------------case 1----------------------------------
+        test::vector<float> case1_out_data(product(reduce_dst_shape));
+        impl::tensor_t relu_dst_ts(relu_dst, &engine, case1_out_data.data());
+
+        ASSERT_EQ(run_graph(g, {reduce_src_ts}, {relu_dst_ts}, engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass = get_pass(kind_str + "_relu_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins {&reduce_src};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&relu_dst};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        test::vector<float> case2_out_data(product(reduce_dst_shape));
+        impl::tensor_t relu_dst_ts2(relu_dst, &engine, case2_out_data.data());
+
+        cp.execute(&strm, {reduce_src_ts}, {relu_dst_ts2});
+        strm.wait();
+
+        for (size_t i = 0; i < case1_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
+        }
+    }
+}
+
 TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
     using dims = impl::dnnl_impl::dims;
 
