@@ -7253,14 +7253,18 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
 
     int wei_ic = int(orig_wei_layout.dim(cfg_.with_groups ? 2 : 1));
     int src_ic = int(orig_src_layout.dim(1));
+    int dst_oc = int(orig_dst_layout.dim(1));
 
     int wei_ic_inner_blk = ir_utils::max_pow2_divisor(wei_ic);
     int src_ic_inner_blk = ir_utils::max_pow2_divisor(src_ic);
+    int dst_oc_inner_blk = ir_utils::max_pow2_divisor(dst_oc);
     wei_ic_inner_blk = std::min(wei_ic_inner_blk, cfg_.ic_thr_blk);
     src_ic_inner_blk = std::min(src_ic_inner_blk, cfg_.ic_thr_blk);
+    dst_oc_inner_blk = std::min(dst_oc_inner_blk, cfg_.oc_blk);
 
     bool check_wei_ic = (wei_ic % cfg_.ic_tg_blk != 0);
     bool check_src_ic = (src_ic % cfg_.ic_tg_blk != 0);
+    bool check_dst_oc = (dst_oc % cfg_.oc_blk != 0);
 
     int src_mb = int(orig_src_layout.dim(0));
     int dst_mb = int(orig_src_layout.dim(0));
@@ -7277,6 +7281,8 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
         wei_ic_mask = (x / wei_ic_inner_blk < wei_ic / wei_ic_inner_blk);
     if (check_src_ic)
         src_ic_mask = (x / src_ic_inner_blk < src_ic / src_ic_inner_blk);
+    if (check_dst_oc)
+        dst_oc_mask = (x / dst_oc_inner_blk < dst_oc / dst_oc_inner_blk);
     if (check_src_mb) src_mb_mask = (x < src_mb);
     if (check_dst_mb) dst_mb_mask = (x < dst_mb);
 
@@ -7305,7 +7311,7 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     dst_view.set_vdim(kh, cfg_.kh);
     dst_view.set_vdim(kw, cfg_.kw);
     dst_view.set_tdim(0, mb, src_mb_mask);
-    dst_view.set_tdim(1, oc);
+    dst_view.set_tdim(1, oc, dst_oc_mask);
 
     auto od = id - kd * (1 + cfg_.dd) + cfg_.pd;
     auto oh = ih - kh * (1 + cfg_.dh) + cfg_.ph;
