@@ -603,7 +603,7 @@ fill_status_t po_handlers_t::sum_po_handler_t::operator()(graph_prb_t &p) {
             {p.tensor_descs_[p.curr_out_map_ids_.front() + "_DST"],
                     p.tensor_descs_[SUM_SRC]},
             {p.tensor_descs_[SUM_DST]}, "sum");
-
+    sum.set_attr("auto_broadcast", std::string {"none"});
     p.ops_.emplace_back(sum);
     p.curr_out_map_ids_.assign({TENSOR_ID});
 

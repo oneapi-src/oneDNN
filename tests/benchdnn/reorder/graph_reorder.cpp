@@ -191,6 +191,10 @@ fill_status_t reorder_graph_prb_t::handle_main_op_() {
     return fill_status::DONE;
 }
 
+fill_status_t reorder_graph_prb_t::handle_sum_() {
+    return po_handler.reorder.sum_handler(*this);
+}
+
 int doit(const ::reorder::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
     res->impl_name = "graph";
@@ -243,6 +247,12 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
             dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
     tensors_out.emplace_back(
             dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
+
+    if (graph_prb.has_post_sum()) {
+        dnnl::graph::tensor sum_src1_tensor = dnnl::graph::tensor(
+                ins.back(), eng, static_cast<void *>(dst_dt));
+        tensors_in.emplace_back(sum_src1_tensor);
+    }
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
