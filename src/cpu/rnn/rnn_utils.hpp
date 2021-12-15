@@ -765,6 +765,23 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                             || rnn.is_int8() || is_bf16)
             : false;
 
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    // XXX: Threadpool runtime may use different number of threads at execute
+    // and create stages. GEMM packed API is not aware of number of threads as
+    // of now. In order to synchronize all layers, GEMM pack API should be
+    // modified to accept number of threads instead of taking it from
+    // `dnnl_get_max_threads()`, and rnn_packed_desc_t should be updated with
+    // `nthr` member to pass this information between different parts of packed
+    // API, since `get_size` call happens on RNN side, while packing happens
+    // on reorder side. Consider enabling later.
+    // `test_iface_runtime_attr` was disabled for RNN with threadpool due to
+    // this is the only working approach for int8 computations in RNN for now.
+    // Consider enabling it once resolved.
+    rnn.use_layer_packed_gemm = false;
+    rnn.use_iter_packed_gemm = false;
+    rnn.use_projection_packed_gemm = false;
+#endif
+
     /* Set packed gemm sizes */
     /* TODO: investigate the benefit of mixing packed and non-packed weights parts */
     const auto set_pack_sizes

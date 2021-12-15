@@ -360,10 +360,14 @@ CPU_TEST_F(runtime_attr_test_t, TestReorder) {
 
 TEST_F(runtime_attr_test_t, TestRNN) {
     SKIP_IF_CUDA(true, "RNN primitive not supported for CUDA");
-
+    // Int8 RNN relies on packed API solely which is available only for X64.
 #if !DNNL_X64
     return;
 #endif
+    // XXX: Threadpool doesn't work correctly with packed API which is the only
+    // working mechanism for int8 computations. Disable it for now.
+    SKIP_IF(DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL,
+            "Threadpool does not have working packed API");
 
     memory::dim n = 1, t = 1, l = 10, c = 8, g = 4, d = 1;
     memory::desc src_layer_md {{t, n, c}, data_type::u8, tag::tnc};
