@@ -78,16 +78,60 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     // 2. For exec_trans block by kw is always KW
     assert(IMPLICATION(jcp_.use_uker, is_amx && jcp_.exec_type == exec_trans));
     assert(IMPLICATION(jcp_.use_interleave_stores, jcp_.use_uker));
-    bs_s = jcp_.use_uker ? jcp_.kw : jcp_.max_batch;
-    bs_b = jcp_.use_uker ? bs_s : jcp_.max_batch;
-    bs_e = jcp_.max_batch;
-    bs_c = bs_e / bs_s;
+
+    batchsizes.resize(jcp_.max_batch + 1);
+    for (int i = 0; i <= jcp_.max_batch; i++)
+        batchsizes[i] = -1;
+
+    first_bs = 0;
+    bs_c = 0;
+    if (jcp_.use_uker) {
+        const auto SD = jcp_.stride_d;
+        const auto FP = jcp_.f_pad;
+        const auto DD = jcp_.dilate_d + 1;
+        const auto KD = jcp_.kd;
+        const auto ID = jcp_.id;
+
+        const auto SH = jcp_.stride_h;
+        const auto TP = jcp_.t_pad;
+        const auto DH = jcp_.dilate_h + 1;
+        const auto KH = jcp_.kh;
+        const auto IH = jcp_.ih;
+
+        for_(int iod = 0; iod < jcp_.od; iod++)
+        {
+            const int iid = iod * SD - FP;
+            const int kd_s = div_up(max(0, -iid), DD);
+            const int kd_f
+                    = KD - div_up(max(0, iid - ID + (KD - 1) * DD + 1), DD);
+            const auto kd_l = kd_f - kd_s;
+            for_(int ioh = 0; ioh < jcp_.oh; ioh += jcp_.oh_block)
+            {
+
+                const auto iih = ioh * SH - TP;
+                const auto kh_s
+                        = jcp_.is_os_blocking ? 0 : div_up(max(0, -iih), DH);
+                const auto kh_f
+                        = KH - div_up(max(0, iih - IH + (KH - 1) * DH + 1), DH);
+                const auto kh_l = kh_f - kh_s;
+                const auto bs = kd_l * kh_l * jcp_.kw;
+
+                if (batchsizes[bs] == -1) {
+                    batchsizes[bs] = bs_c;
+                    if (first_bs == 0) first_bs = bs;
+                    bs_c++;
+                }
+            }
+        }
+    } else {
+        batchsizes[jcp_.max_batch] = bs_c;
+        first_bs = jcp_.max_batch;
+        bs_c++;
+    }
 
     brgs_sz_ = bs_c * adj_M * 2 * 2 * 2;
     brgs_.resize(brgs_sz_);
     bd_masks.resize(brgs_sz_);
-    for (int i = 0; i < brgs_sz_; i++)
-        brgs_[i].bcast_dim = brgs_[i].load_dim = brgs_[i].reduce_dim = 0;
 
     const float alpha = 1.0;
     const float beta = 1.0;
@@ -102,6 +146,38 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             jcp_.os_block % jcp_.ow == 0 && jcp_.os_block / jcp_.ow <= jcp_.oh
                     && jcp_.os_block / jcp_.ow == jcp_.oh_block));
 
+    auto maybe_M_mask = [&](int brg_idx, brgemm_attr_t &brgattr, int vM,
+                                int vbrgM) {
+        if (!jcp_.use_M_mask) return;
+        auto sm_size = vbrgM;
+        bd_masks[brg_idx] = std::make_shared<std::vector<char>>();
+        bd_masks[brg_idx]->resize(sm_size);
+        char *bd_mask = bd_masks[brg_idx]->data();
+        if (jcp_.is_os_blocking) {
+            int ibrgM = 0;
+            int iM = 0;
+            for (int hh = 0; hh < jcp_.oh_block; hh++) {
+                auto M_mask = (iM >= vM) ? 0 : 1;
+                for (int ww = 0; ww < jcp_.ow_block && ibrgM < sm_size;
+                        ww++, ibrgM++, iM += M_mask) {
+                    bd_mask[ibrgM] = M_mask;
+                }
+                for (int kk = 0; kk < jcp_.oskip && ibrgM < sm_size;
+                        kk++, ibrgM++) {
+                    bd_mask[ibrgM] = 0;
+                }
+            }
+            for (; ibrgM < sm_size; ibrgM++) {
+                bd_mask[ibrgM] = 0;
+            }
+        } else {
+            for (int ibrgM = 0; ibrgM < sm_size; ibrgM++) {
+                bd_mask[ibrgM] = 1;
+            }
+        }
+        brgattr.bd_mask = bd_mask;
+    };
+
     const auto M_end = nstl::max(jcp_.M, jcp_.M_tail);
     for (int i = 0; i < M_end; i++) {
         auto vM = i + 1;
@@ -109,96 +185,76 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         if (one_of(jcp_.exec_type, exec_trans, exec_vpad) && vM != jcp_.M
                 && vM != jcp_.M_tail)
             continue;
-        for_(int bs = bs_b; bs <= bs_e; bs += bs_s)
-        for_(int i_init = 0; i_init < 2; i_init++)
-        for_(int i_N = 0; i_N < 2; i_N++)
-        for (int i_K = 0; i_K < 2; i_K++) {
-            auto vbeta = (i_init) ? 0 : beta;
-            auto vN = (i_N) ? jcp_.N_tail : jcp_.N;
-            auto vK = (i_K) ? jcp_.K_tail : jcp_.K;
-            auto vbrgM = jcp_.use_M_mask
-                    ? (vM == jcp_.M ? jcp_.brgM : jcp_.brgM_tail)
-                    : vM;
-            auto brg_idx = get_brg_idx(bs, i, i_init, i_N, i_K);
-            brgemm_t &brg = brgs_[brg_idx];
-            if (vN == 0 || vK == 0) continue;
-            brgemm_strides_t brg_strides;
-            brg_strides.stride_a = jcp_.brg_stride_a;
-            brg_strides.stride_b = jcp_.brg_stride_b;
-            const auto strides_ptr
-                    = (jcp_.brg_type == brgemm_strd) ? &brg_strides : nullptr;
-            CHECK(brgemm_desc_init(&brg, isa, jcp_.brg_type, src_type, wei_type,
-                    false, false, brgemm_row_major, alpha, vbeta, jcp_.LDA,
-                    jcp_.LDB, jcp_.LDC, vbrgM, vN, vK, strides_ptr));
 
-            brgemm_attr_t brgattr;
-            brgattr.use_uker = jcp_.use_uker;
-            brgattr.use_interleave_stores = jcp_.use_interleave_stores;
-            brgattr.max_bs = bs;
-            brgattr.hint_innermost_loop = jcp_.brgemm_bd_loop_innermost
-                    ? brgemm_bd_loop_innermost
-                    : brgemm_ld_loop_innermost;
-            if (jcp_.amx_tile_load_xx) {
-                // assuming 2x2 decomposition in amx brgemm kernel
-                // and overlap of input by kw
-                const auto bd_blocking = 2 * jcp_.amx_h;
-                const auto ld_blocking = 2 * 16;
-                brgattr.hint_expected_A_size
-                        = bd_blocking * jcp_.K * jcp_.kd_block * jcp_.kh_block;
-                brgattr.hint_expected_B_size = ld_blocking * jcp_.K
-                        * jcp_.kd_block * jcp_.kh_block * jcp_.kw_block;
-                brgattr.hint_expected_C_size = bd_blocking * ld_blocking;
-            } else {
-                brgattr.hint_expected_A_size = 0;
-                brgattr.hint_expected_B_size = 0;
-                brgattr.hint_expected_C_size = 0;
-            }
+        for (int bs = 0; bs <= jcp_.max_batch; bs++) {
+            if (batchsizes[bs] == -1) continue;
+            for_(int i_init = 0; i_init < 2; i_init++)
+            for_(int i_N = 0; i_N < 2; i_N++)
+            for (int i_K = 0; i_K < 2; i_K++) {
+                auto vbeta = (i_init) ? 0 : beta;
+                auto vN = (i_N) ? jcp_.N_tail : jcp_.N;
+                auto vK = (i_K) ? jcp_.K_tail : jcp_.K;
+                auto vbrgM = jcp_.use_M_mask
+                        ? (vM == jcp_.M ? jcp_.brgM : jcp_.brgM_tail)
+                        : vM;
+                auto brg_idx = get_brg_idx(bs, i, i_init, i_N, i_K);
+                // if brgemm_t already created then skip this iteration
+                if (brgs_[brg_idx] != nullptr) continue;
+                brgs_[brg_idx] = std::make_shared<brgemm_t>();
+                brgemm_t *brg = brgs_[brg_idx].get();
+                if (vN == 0 || vK == 0) continue;
+                brgemm_strides_t brg_strides;
+                brg_strides.stride_a = jcp_.brg_stride_a;
+                brg_strides.stride_b = jcp_.brg_stride_b;
+                const auto strides_ptr = (jcp_.brg_type == brgemm_strd)
+                        ? &brg_strides
+                        : nullptr;
+                CHECK(brgemm_desc_init(brg, isa, jcp_.brg_type, src_type,
+                        wei_type, false, false, brgemm_row_major, alpha, vbeta,
+                        jcp_.LDA, jcp_.LDB, jcp_.LDC, vbrgM, vN, vK,
+                        strides_ptr));
 
-            brgattr.wary_tail_read = false;
-            if (jcp_.use_M_mask) {
-                auto sm_size = vbrgM;
-                bd_masks[brg_idx] = std::make_shared<std::vector<char>>();
-                bd_masks[brg_idx]->resize(sm_size);
-                char *bd_mask = bd_masks[brg_idx]->data();
-                if (jcp_.is_os_blocking) {
-                    int ibrgM = 0;
-                    int iM = 0;
-                    for (int hh = 0; hh < jcp_.oh_block; hh++) {
-                        auto M_mask = (iM >= vM) ? 0 : 1;
-                        for (int ww = 0; ww < jcp_.ow_block && ibrgM < sm_size;
-                                ww++, ibrgM++, iM += M_mask) {
-                            bd_mask[ibrgM] = M_mask;
-                        }
-                        for (int kk = 0; kk < jcp_.oskip && ibrgM < sm_size;
-                                kk++, ibrgM++) {
-                            bd_mask[ibrgM] = 0;
-                        }
-                    }
-                    for (; ibrgM < sm_size; ibrgM++) {
-                        bd_mask[ibrgM] = 0;
-                    }
+                brgemm_attr_t brgattr;
+                brgattr.use_uker = jcp_.use_uker;
+                brgattr.use_interleave_stores = jcp_.use_interleave_stores;
+                brgattr.max_bs = bs;
+                brgattr.hint_innermost_loop = jcp_.brgemm_bd_loop_innermost
+                        ? brgemm_bd_loop_innermost
+                        : brgemm_ld_loop_innermost;
+                if (jcp_.amx_tile_load_xx) {
+                    // assuming 2x2 decomposition in amx brgemm kernel
+                    // and overlap of input by kw
+                    const auto bd_blocking = 2 * jcp_.amx_h;
+                    const auto ld_blocking = 2 * 16;
+                    brgattr.hint_expected_A_size = bd_blocking * jcp_.K
+                            * jcp_.kd_block * jcp_.kh_block;
+                    brgattr.hint_expected_B_size = ld_blocking * jcp_.K
+                            * jcp_.kd_block * jcp_.kh_block * jcp_.kw_block;
+                    brgattr.hint_expected_C_size = bd_blocking * ld_blocking;
                 } else {
-                    for (int ibrgM = 0; ibrgM < sm_size; ibrgM++) {
-                        bd_mask[ibrgM] = 1;
-                    }
+                    brgattr.hint_expected_A_size = 0;
+                    brgattr.hint_expected_B_size = 0;
+                    brgattr.hint_expected_C_size = 0;
                 }
-                brgattr.bd_mask = bd_mask;
-            }
-            brgattr.bd_mask_level = jcp_.use_M_mask;
 
-            if (is_amx) {
-                brgattr.max_top_vpad = 0;
-                brgattr.max_bottom_vpad = 0;
-            } else {
-                brgattr.max_top_vpad = jcp_.max_vpad;
-                brgattr.max_bottom_vpad = jcp_.max_vpad;
-            }
-            CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                brgattr.wary_tail_read = false;
+                maybe_M_mask(brg_idx, brgattr, vM, vbrgM);
+                brgattr.bd_mask_level = jcp_.use_M_mask;
 
-            auto LDD = jcp_.oc_without_padding;
-            brg.with_sum = with_sum;
-            CHECK(brgemm_desc_set_postops(
-                    &brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
+                if (is_amx) {
+                    brgattr.max_top_vpad = 0;
+                    brgattr.max_bottom_vpad = 0;
+                } else {
+                    brgattr.max_top_vpad = jcp_.max_vpad;
+                    brgattr.max_bottom_vpad = jcp_.max_vpad;
+                }
+                CHECK(brgemm_desc_set_attr(brg, brgattr));
+
+                auto LDD = jcp_.oc_without_padding;
+                brg->with_sum = with_sum;
+                CHECK(brgemm_desc_set_postops(
+                        brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
+            }
         }
     }
 
@@ -287,13 +343,13 @@ status_t brgemm_convolution_fwd_t<isa>::add_brg_kernel(
     if (N <= 0 || K <= 0) return status::success;
     auto brg_idx = _pd->get_brg_idx(bs, M - 1, i_init, i_N, i_K);
     auto brg = brgs[brg_idx];
-    if (!brg_kernels_[brg_idx] && brg.bcast_dim > 0 && brg.load_dim > 0
-            && brg.reduce_dim > 0) {
+    if (!brg_kernels_[brg_idx] && brg && brg->bcast_dim > 0 && brg->load_dim > 0
+            && brg->reduce_dim > 0) {
         brgemm_kernel_t *brg_kernel = nullptr;
-        CHECK(brgemm_kernel_create(&brg_kernel, brg));
+        CHECK(brgemm_kernel_create(&brg_kernel, *brg));
         CHECK(safe_ptr_assign(brg_kernels_[brg_idx], brg_kernel));
         if (is_amx) {
-            CHECK(brgemm_init_tiles(brg, &brg_kernel_palettes_[brg_idx].a[0]));
+            CHECK(brgemm_init_tiles(*brg, &brg_kernel_palettes_[brg_idx].a[0]));
         }
     }
     return status::success;
@@ -301,18 +357,19 @@ status_t brgemm_convolution_fwd_t<isa>::add_brg_kernel(
 
 template <cpu_isa_t isa>
 status_t brgemm_convolution_fwd_t<isa>::add_po_kernel(
-        brgemm_t &bcfg, int ker_idx, bool is_init) {
+        brgemm_t *bcfg, int ker_idx, bool is_init) {
+    if (!bcfg) return status::success;
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
 
-    bcfg.LDD = (is_init && jcp.use_buffer) ? jcp.LDC : jcp.LDD;
-    bcfg.dt_c = (!is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt; // inp
-    bcfg.dt_d = (is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt; // out
-    bcfg.alpha
+    bcfg->LDD = (is_init && jcp.use_buffer) ? jcp.LDC : jcp.LDD;
+    bcfg->dt_c = (!is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt; // inp
+    bcfg->dt_d = (is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt; // out
+    bcfg->alpha
             = (!is_init && IMPLICATION(jcp.with_sum, jcp.use_buffer)) ? 1 : 0;
-    bcfg.beta = is_init ? 0 : 1;
+    bcfg->beta = is_init ? 0 : 1;
     CHECK(safe_ptr_assign(kernels_po_[ker_idx],
-            new jit_brgemm_kernel_post_ops(jcp, bcfg, *_pd->attr())));
+            new jit_brgemm_kernel_post_ops(jcp, *bcfg, *_pd->attr())));
     kernels_po_[ker_idx]->create_kernel();
     return status::success;
 }
@@ -329,23 +386,29 @@ void brgemm_convolution_fwd_t<isa>::add_po_kernels(
     auto i_K = (jcp.K_tail > 0);
 
     if (init_bcast_dim > 0) {
-        auto brg_idx
-                = _pd->get_brg_idx(_pd->bs_b, init_bcast_dim - 1, 0, i_N, i_K);
-        auto init_cfg = brgs[brg_idx];
-        init_cfg.bcast_dim = init_bcast_dim;
-        auto ker_init_idx = get_ker_po_idx(init_bcast_dim - 1, false, i_N);
-        if (init_cfg.load_dim > 0 && kernels_po_[ker_init_idx] == nullptr)
-            add_po_kernel(init_cfg, ker_init_idx, true);
+        auto brg_idx = _pd->get_brg_idx(
+                _pd->first_bs, init_bcast_dim - 1, 0, i_N, i_K);
+        if (brgs[brg_idx]) {
+            auto init_cfg = *(brgs[brg_idx].get());
+            auto ker_init_idx = get_ker_po_idx(init_bcast_dim - 1, false, i_N);
+            if (init_cfg.load_dim > 0 && kernels_po_[ker_init_idx] == nullptr) {
+                init_cfg.bcast_dim = init_bcast_dim;
+                add_po_kernel(&init_cfg, ker_init_idx, true);
+            }
+        }
     }
 
     if ((need_postwork || jcp.use_buffer) && po_bcast_dim > 0) {
-        auto brg_idx
-                = _pd->get_brg_idx(_pd->bs_b, po_bcast_dim - 1, 0, i_N, i_K);
-        auto po_cfg = brgs[brg_idx];
-        po_cfg.bcast_dim = po_bcast_dim;
-        auto ker_po_idx = get_ker_po_idx(po_bcast_dim - 1, true, i_N);
-        if (po_cfg.load_dim > 0 && kernels_po_[ker_po_idx] == nullptr)
-            add_po_kernel(po_cfg, ker_po_idx, false);
+        auto brg_idx = _pd->get_brg_idx(
+                _pd->first_bs, po_bcast_dim - 1, 0, i_N, i_K);
+        if (brgs[brg_idx]) {
+            auto po_cfg = *(brgs[brg_idx].get());
+            auto ker_po_idx = get_ker_po_idx(po_bcast_dim - 1, true, i_N);
+            if (po_cfg.load_dim > 0 && kernels_po_[ker_po_idx] == nullptr) {
+                po_cfg.bcast_dim = po_bcast_dim;
+                add_po_kernel(&po_cfg, ker_po_idx, false);
+            }
+        }
     }
 }
 
@@ -459,18 +522,28 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
     is_amx = brgemm_convolution_utils::is_amx(isa);
 
     // #TODO: this needed only if we have d/h padding more then kd/kh
-    for_(int bs = _pd->bs_b; bs <= _pd->bs_e; bs += _pd->bs_s)
-    for_(int i_N = 0; i_N < 2; i_N++)
-    for_(int i_M = 0; i_M < 2; i_M++)
-    for_(int i_init = 0; i_init < 2; i_init++)
-    for (int i_K = 0; i_K < 2; i_K++) {
-        auto M = (i_M) ? jcp.M_tail : jcp.M;
-        if (M <= 0) continue;
-        add_brg_kernel(bs, M, i_N, i_K, i_init);
+    int M_begin = 0;
+    int M_end = (jcp.M_tail == jcp.M) ? 1 : 2;
+    int N_begin = 0;
+    int N_end = (jcp.N_tail == jcp.N) ? 1 : 2;
+    int K_begin = 0;
+    int K_end = (jcp.K_tail == jcp.K) ? 1 : 2;
+
+    for (int bs = 0; bs <= jcp.max_batch; bs++) {
+        if (_pd->batchsizes[bs] == -1) continue;
+
+        for_(int i_N = N_begin; i_N < N_end; i_N++)
+        for_(int i_M = M_begin; i_M < M_end; i_M++)
+        for_(int i_init = 0; i_init < 2; i_init++)
+        for (int i_K = K_begin; i_K < K_end; i_K++) {
+            auto M = (i_M) ? jcp.M_tail : jcp.M;
+            if (M <= 0) continue;
+            add_brg_kernel(bs, M, i_N, i_K, i_init);
+        }
     }
 
-    for_(int i_N = 0; i_N < 2; i_N++)
-    for (int i_M = 0; i_M < 2; i_M++) {
+    for_(int i_N = N_begin; i_N < N_end; i_N++)
+    for (int i_M = M_begin; i_M < M_end; i_M++) {
         // init init and po_kernels for cases then we never call brgemm kernels
         // e.g. for d/h padded areas
         // TODO: do this only if d/h padding > kd/kh
@@ -491,11 +564,13 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
 
                 auto M = ow_f - ow_s;
                 if (M <= 0) continue;
-                for_(int bs = _pd->bs_b; bs <= _pd->bs_e; bs += _pd->bs_s)
-                for_(int i_init = 0; i_init < 2; i_init++)
-                for_(int i_N = 0; i_N < 2; i_N++)
-                for (int i_K = 0; i_K < 2; i_K++) {
-                    add_brg_kernel(bs, M, i_N, i_K, i_init);
+                for (int bs = 0; bs <= jcp.max_batch; bs++) {
+                    if (_pd->batchsizes[bs] == -1) continue;
+                    for_(int i_init = 0; i_init < 2; i_init++)
+                    for_(int i_N = 0; i_N < 2; i_N++)
+                    for (int i_K = 0; i_K < 2; i_K++) {
+                        add_brg_kernel(bs, M, i_N, i_K, i_init);
+                    }
                 }
             }
 
@@ -526,11 +601,13 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
 
                 auto M = ow_f - ow_s;
                 if (M <= 0) continue;
-                for_(int bs = _pd->bs_b; bs <= _pd->bs_e; bs += _pd->bs_s)
-                for_(int i_init = 0; i_init < 2; i_init++)
-                for_(int i_N = 0; i_N < 2; i_N++)
-                for (int i_K = 0; i_K < 2; i_K++) {
-                    add_brg_kernel(bs, M, i_N, i_K, i_init);
+                for (int bs = 0; bs <= jcp.max_batch; bs++) {
+                    if (_pd->batchsizes[bs] == -1) continue;
+                    for_(int i_init = 0; i_init < 2; i_init++)
+                    for_(int i_N = 0; i_N < 2; i_N++)
+                    for (int i_K = 0; i_K < 2; i_K++) {
+                        add_brg_kernel(bs, M, i_N, i_K, i_init);
+                    }
                 }
             }
 

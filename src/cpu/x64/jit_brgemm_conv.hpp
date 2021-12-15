@@ -78,15 +78,17 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine);
 
         int brgs_sz_;
-        std::vector<brgemm_t> brgs_;
+        std::vector<std::shared_ptr<brgemm_t>> brgs_;
         std::vector<std::shared_ptr<std::vector<char>>> bd_masks;
         bool with_sum;
         jit_brgemm_conv_conf_t jcp_;
-        int bs_b, bs_e, bs_s, bs_c; // batch size info for unrolled kernels
+        // batch sizes info for unrolled kernels
+        int bs_c, first_bs;
+        std::vector<int> batchsizes;
         int get_brg_idx(int bs, int m, bool do_initialization, bool is_N_tail,
                 bool is_K_tail) const {
-            auto adj_bs = jcp_.use_uker ? (bs / bs_s) - 1 : 0;
-            return (((m * bs_c + adj_bs) * 2
+            auto bs_idx = jcp_.use_uker ? batchsizes[bs] : 0;
+            return (((m * bs_c + bs_idx) * 2
                             + static_cast<int>(do_initialization))
                                    * 2
                            + static_cast<int>(is_N_tail))
@@ -183,7 +185,7 @@ private:
             int last_n, int last_icc, int last_odb, int last_ohb,
             int last_owb) const;
 
-    status_t add_po_kernel(brgemm_t &bcfg, int ker_idx, bool is_init);
+    status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
     void add_po_kernels(
             int i_N, int init_bcast_dim, int po_bcast_dim, bool need_postwork);
     status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
