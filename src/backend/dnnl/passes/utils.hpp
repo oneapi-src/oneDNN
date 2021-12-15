@@ -289,10 +289,10 @@ bool prelu_doable(const std::vector<dim_t> &src_dims,
         const std::vector<dim_t> &wei_dims, const std::string &data_format,
         const bool per_channel_broadcast);
 
-// For some shapes, such as the binary add shape [n,1,1,w] in BERT MHA pattern,
-// post binary will run into oneDNN's ref path and has poor performance. So, we
-// check the shape in this function and only make per_tensor, per_channel and
-// full tensor broadcast binary able to be fused.
+// For some shapes, post binary will run into oneDNN's ref path and has poor
+// performance. So, we check the shape in this function and only make
+// per_tensor, per_channel, per_mb_w(MatMul) and full tensor broadcast
+// binary able to be fused.
 bool post_binary_fusible(const impl::op_t *base_op, const impl::op_t *bin_op);
 
 // oneDNN support post depthwise conv fusion. This function is used to check if

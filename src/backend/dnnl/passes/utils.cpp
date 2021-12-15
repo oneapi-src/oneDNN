@@ -540,7 +540,8 @@ bool binary_doable(
     return true;
 }
 
-static bool post_binary_fusible_impl(const std::vector<dim_t> &fused_shape,
+static bool post_binary_fusible_impl(const impl::op_t *base_op,
+        const std::vector<dim_t> &fused_shape,
         const std::vector<dim_t> &other_shape, const std::string &data_fmt) {
     assertm(fused_shape.size() == other_shape.size(),
             "must have same ndims, pls run binary_canonicalization pass first");
@@ -550,8 +551,20 @@ static bool post_binary_fusible_impl(const std::vector<dim_t> &fused_shape,
                     [](dim_t i) { return i == 1; }))
         return true;
 
-    // per channel broadcasted
+    // per mb_w broadcasted for 4d tensor MatMul
     int32_t output_ndims = static_cast<int32_t>(fused_shape.size());
+    if (base_op->get_kind() == impl::op_kind::MatMul && output_ndims == 4) {
+        int32_t w_axis = data_fmt == "NXC" ? 2 : 3;
+        for (int32_t i = output_ndims - 1; i >= 0; i--) {
+            if (other_shape[i] == 1) continue;
+            if ((i != 0 && i != w_axis) || fused_shape[i] != other_shape[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // per channel broadcasted
     int32_t c_axis = data_fmt == "NXC" ? output_ndims - 1 : 1;
     for (int32_t i = output_ndims - 1; i >= 0; i--) {
         if (other_shape[i] == 1) continue;
@@ -573,7 +586,7 @@ bool post_binary_fusible(const impl::op_t *base_op, const impl::op_t *bin_op) {
     auto other_in
             = bin_op->get_input_value(1 - fused_in_off)->get_logical_tensor();
     return post_binary_fusible_impl(
-            ltw(fused_in).vdims(), ltw(other_in).vdims(), data_fmt);
+            base_op, ltw(fused_in).vdims(), ltw(other_in).vdims(), data_fmt);
 }
 
 bool post_depthwise_conv_fusible(const impl::op_t *conv_op) {

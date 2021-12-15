@@ -1148,3 +1148,151 @@ TEST(SubgraphPass, MemoryPlanning) {
     //   otherwise, val8 can reuse the val2 buffer
     ASSERT_EQ(unique_offkeys.size(), 2);
 }
+
+TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
+    /*
+        | (u8/s8)  | (u8/s8)
+     dequant    dequant
+        | (f32)    | (f32)
+     typecast  typecast
+    (bf16) \     / (bf16)
+           matmul
+             | (bf16)
+            div
+             | (bf16)
+            add
+             | (bf16)
+    */
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t typecast1 {2, TypeCast, "typecast"};
+    op_t typecast2 {3, TypeCast, "typecast"};
+    op_t matmul {4, MatMul, "matmul"};
+    op_t div {5, Divide, "divide"};
+    op_t add {6, Add, "add"};
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t bf16_data = logical_tensor_init(2, data_type::bf16);
+    typecast1.add_input(fp32_data);
+    typecast1.add_output(bf16_data);
+
+    logical_tensor_t int8_weight = logical_tensor_init(3, data_type::u8);
+    logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
+    dequant2.add_input(int8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t bf16_weight = logical_tensor_init(5, data_type::bf16);
+    typecast2.add_input(fp32_weight);
+    typecast2.add_output(bf16_weight);
+
+    logical_tensor_t bf16_matmul_out = logical_tensor_init(6, data_type::bf16);
+    matmul.add_input(bf16_data);
+    matmul.add_input(bf16_weight);
+    matmul.add_output(bf16_matmul_out);
+
+    logical_tensor_t bf16_div_in = logical_tensor_init(7, data_type::bf16);
+    logical_tensor_t bf16_div_out = logical_tensor_init(8, data_type::bf16);
+    div.add_input(bf16_matmul_out);
+    div.add_input(bf16_div_in);
+    div.add_output(bf16_div_out);
+
+    logical_tensor_t bf16_add_in = logical_tensor_init(9, data_type::bf16);
+    logical_tensor_t bf16_add_out = logical_tensor_init(10, data_type::bf16);
+    add.add_input(bf16_div_out);
+    add.add_input(bf16_add_in);
+    add.add_output(bf16_add_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast1), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast2), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("x8x8bf16_matmul_div_add_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::x8x8float_matmul_div_add);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
+
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            agraph.get_partitions()[0]->get_ops(), p_eng);
+    // dequant, dequant, tc, tc, matmul, div, add
+    ASSERT_EQ(subgraph->get_ops().size(), 7);
+
+    dnnl_impl::check_with_bias(subgraph);
+
+    int8_data = logical_tensor_init(0, {16, 8, 8, 8}, impl::data_type::u8);
+    int8_weight = logical_tensor_init(3, {16, 8, 8, 8}, impl::data_type::u8);
+    bf16_div_in = logical_tensor_init(7, {1, 1, 1, 1}, impl::data_type::bf16);
+    bf16_add_in = logical_tensor_init(9, {16, 1, 1, 8}, impl::data_type::bf16);
+    bf16_add_out
+            = logical_tensor_init(10, {16, 8, 8, 8}, impl::data_type::bf16);
+
+    std::vector<logical_tensor_t> inputs
+            = {int8_data, int8_weight, bf16_div_in, bf16_add_in};
+    std::vector<logical_tensor_t> outputs = {bf16_add_out};
+
+    dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
+
+    dnnl_impl::fuse_typecast_to_matmul(subgraph);
+    dnnl_impl::fuse_typecast_to_add(subgraph);
+    dnnl_impl::fuse_post_typecast_to_matmul(subgraph);
+    dnnl_impl::fuse_typecast_to_quantize(subgraph);
+    dnnl_impl::infer_shape(subgraph);
+    dnnl_impl::binary_canonicalization(subgraph);
+    dnnl_impl::infer_shape(subgraph);
+    dnnl_impl::infer_type(subgraph);
+    dnnl_impl::eltwise_canonicalization(subgraph);
+    dnnl_impl::split_quant_dequant(subgraph);
+    dnnl_impl::fuse_to_int8_matmul(subgraph);
+    dnnl_impl::folding_mul_scales(subgraph);
+    dnnl_impl::fuse_output_scales(subgraph);
+    dnnl_impl::fuse_post_ops(subgraph);
+    dnnl_impl::fuse_zero_points(subgraph);
+    dnnl_impl::fuse_mul_scales_add_zps(subgraph);
+    // matmul
+    ASSERT_EQ(subgraph->get_ops().size(), 1);
+
+    dnnl_impl::insert_u8_to_s8_for_matmul(subgraph);
+    subgraph->infer_shape();
+    dnnl_impl::insert_transpose_for_matmul(subgraph);
+    subgraph->infer_shape();
+    dnnl_impl::insert_expand_and_squeeze_for_matmul(subgraph);
+    // reorder, matmul
+    ASSERT_EQ(subgraph->get_ops().size(), 2);
+
+    for (auto &val : subgraph->get_input_values()) {
+        auto lt = val->get_logical_tensor();
+        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+    }
+
+    for (auto &val : subgraph->get_output_values()) {
+        auto lt = val->get_logical_tensor();
+        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+    }
+
+    ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
+    ASSERT_EQ(dnnl_impl::infer_type(subgraph), impl::status::success);
+
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    // reorder, matmul
+    ASSERT_EQ(subgraph->get_ops().size(), 2);
+}
