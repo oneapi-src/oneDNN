@@ -57,8 +57,8 @@ static bool has_int8_support(op_kind_t kind) {
 // TODO(xxx): extend to support other ops
 static bool is_output_scales_supported(op_kind_t kind) {
     // ops which don't support output scales
-    std::set<op_kind_t> ops {
-            impl::op_kind::AvgPool, impl::op_kind::MaxPool, op_kind::dnnl_pool};
+    std::set<op_kind_t> ops {impl::op_kind::AvgPool, impl::op_kind::MaxPool,
+            op_kind::dnnl_pool, op_kind::dnnl_eltwise};
     return ops.count(kind) == 0;
 }
 
@@ -650,6 +650,140 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
                     });
             if (pos != subgraph.end()) subgraph.erase(pos);
         }
+    }
+    return impl::status::success;
+}
+
+impl::status_t fuse_to_int8_eltwise(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_t *> fusion_ops;
+    for (const auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_eltwise) continue;
+        fusion_ops.emplace_back(cur_op.get());
+    }
+    if (fusion_ops.empty()) return impl::status::success;
+    for (auto &eltwise_op : fusion_ops) {
+        const auto alg_kind = static_cast<impl::op_kind_t>(
+                eltwise_op->get_attr<int64_t>("alg_kind"));
+        // TODO(kgajdamo): At the moment we support only int8 eltwise relu alg.
+        // Remove below check when we will support other ops.
+        if (eltwise_op->get_kind() != op_kind::dnnl_eltwise
+                && alg_kind != impl::op_kind::ReLU)
+            continue;
+
+        op_ptr q_eltwise_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
+        q_eltwise_op->merge_attributes(eltwise_op->get_attributes());
+        q_eltwise_op->set_attr<int64_t>("alg_kind", alg_kind);
+        // mul_scales which feeds eltwise will be always removed. If binary
+        // post-op will occur, src scales data will be combined with dst
+        // scales data.
+        op_t &src_scales_op = eltwise_op->get_input_value(0)->get_producer();
+        assertm(src_scales_op.get_kind() == op_kind::mul_scales,
+                "the predecessor op of eltwise should be mul_scales.");
+        value_ptr in_value = src_scales_op.get_input_value(0);
+        in_value->remove_consumer(src_scales_op, 0);
+        q_eltwise_op->connect_input(0, in_value);
+
+        assertm(eltwise_op->get_output_value(0)->get_consumers().size() == 1,
+                "eltwise's successor op should only have one consumer.");
+        op_t &eltwise_op_successor
+                = eltwise_op->get_output_value(0)->get_consumers()[0].get_op();
+
+        std::vector<const op_t *> deleted_ops {eltwise_op, &src_scales_op};
+
+        if (eltwise_op_successor.get_kind() != op_kind::dnnl_binary) {
+            // standalone eltwise case: detach eltwise from the dst mul_scales
+            op_t &dst_scales_op = eltwise_op_successor;
+            assertm(dst_scales_op.get_kind() == op_kind::mul_scales,
+                    "the successor op of eltwise should be mul_scales or "
+                    "binary.");
+            value_ptr out_value = dst_scales_op.get_output_value(0);
+            q_eltwise_op->add_output(out_value);
+
+            deleted_ops.push_back(&dst_scales_op);
+        } else {
+            // eltwise + binary case
+            op_t &binary_op = eltwise_op_successor;
+            assertm(binary_op.num_inputs() == 2,
+                    "binary op should have exactly two inputs");
+            // binary could be commutative, depending on algorithms,
+            // so we need to check here which input is which OP.
+            const size_t src1_scales_offset
+                    = (binary_op.get_input_value(0)->get_producer().get_kind()
+                              == op_kind::mul_scales)
+                    ? 0
+                    : 1;
+            op_t &src1_scales_op
+                    = binary_op.get_input_value(src1_scales_offset)
+                              ->get_producer();
+            assertm(src1_scales_op.get_kind() == op_kind::mul_scales,
+                    "the 2nd binary input producer should be mul_scales.");
+
+            assertm(binary_op.get_output_value(0)->get_consumers().size() == 1,
+                    "binary's successor op should only have one consumer.");
+            op_t &dst_scales_op = binary_op.get_output_value(0)
+                                          ->get_consumers()[0]
+                                          .get_op();
+            assertm(dst_scales_op.get_kind() == op_kind::mul_scales,
+                    "the successor op of binary should be mul_scales.");
+
+            // <new_dst_scales_op, new_src1_scales_op (could be nullptr)>
+            std::pair<op_ptr, op_ptr> combined_scales = combine_scales(
+                    &src_scales_op, &src1_scales_op, &dst_scales_op,
+                    static_cast<op_kind_t>(
+                            binary_op.get_attr<int64_t>("alg_kind")));
+
+            // make new connections
+            value_ptr src_bin_value
+                    = binary_op.get_input_value(1 - src1_scales_offset);
+            q_eltwise_op->add_output(src_bin_value);
+
+            impl::logical_tensor_t new_dst_bin_lt
+                    = impl::empty_logical_tensor_with_default_id();
+            auto new_dst_bin_value = std::make_shared<value_t>(
+                    binary_op, 0, new_dst_bin_lt, true);
+            binary_op.connect_output(0, new_dst_bin_value);
+
+            op_ptr new_dst_scales_op = combined_scales.first;
+            value_ptr dst_scales_value = dst_scales_op.get_output_value(0);
+            new_dst_scales_op->connect_input(0, new_dst_bin_value);
+            new_dst_scales_op->add_output(dst_scales_value);
+
+            subgraph.emplace_back(new_dst_scales_op);
+
+            value_ptr src1_scales_value = src1_scales_op.get_input_value(0);
+            src1_scales_value->remove_consumer(src1_scales_op, 0);
+            if (combined_scales.second != nullptr) {
+                op_ptr new_src1_scales_op = combined_scales.second;
+                new_src1_scales_op->connect_input(0, src1_scales_value);
+
+                impl::logical_tensor_t new_src1_scales_lt
+                        = impl::empty_logical_tensor_with_default_id();
+                auto new_src1_scales_value = std::make_shared<value_t>(
+                        *new_src1_scales_op, 0, new_src1_scales_lt, true);
+                new_src1_scales_op->add_output(new_src1_scales_value);
+                binary_op.connect_input(
+                        src1_scales_offset, new_src1_scales_value);
+
+                subgraph.emplace_back(new_src1_scales_op);
+            } else {
+                // src1 mul_scales input will be connected directly to the
+                // binary op
+                binary_op.connect_input(src1_scales_offset, src1_scales_value);
+            }
+
+            deleted_ops.push_back(&src1_scales_op);
+            deleted_ops.push_back(&dst_scales_op);
+        }
+
+        for (const auto &del_op : deleted_ops) {
+            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                    [del_op](const op_ptr &f_op) {
+                        return f_op.get() == del_op;
+                    });
+            if (pos != subgraph.end()) subgraph.erase(pos);
+        }
+        subgraph.emplace_back(q_eltwise_op);
     }
     return impl::status::success;
 }
