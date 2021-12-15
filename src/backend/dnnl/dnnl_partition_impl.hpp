@@ -422,6 +422,12 @@ public:
                 op_kind::dnnl_shuffle,
                 // prelu
                 impl::op_kind::PReLU,
+                // reduction
+                impl::op_kind::ReduceL1, impl::op_kind::ReduceL2,
+                impl::op_kind::ReduceMax, impl::op_kind::ReduceMean,
+                impl::op_kind::ReduceMin, impl::op_kind::ReduceProd,
+                impl::op_kind::ReduceSum, op_kind::dnnl_reduction,
+                op_kind::reduction_fusion,
                 // single partition multi primitives
                 op_kind::conv_simple_resblock, op_kind::int8_MHA,
                 op_kind::f32_MHA, op_kind::chained_relu};

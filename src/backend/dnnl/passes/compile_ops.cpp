@@ -88,6 +88,7 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
                 || cur_op->get_kind() == op_kind::to_group
                 || cur_op->get_kind() == op_kind::expand
                 || cur_op->get_kind() == op_kind::squeeze
+                || cur_op->get_kind() == op_kind::unsqueeze
                 || cur_op->get_kind() == impl::op_kind::StaticReshape
                 || cur_op->get_kind() == impl::op_kind::StaticTranspose) {
             // For preprocess ops. The memory_reparser will not do
@@ -115,6 +116,9 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::LogSoftmax) {
             exec = std::make_shared<logsoftmax_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind() == op_kind::dnnl_reduction) {
+            exec = std::make_shared<reduction_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else {
             assertm(false, "unimplemented op, can't compile it");

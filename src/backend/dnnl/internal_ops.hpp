@@ -136,6 +136,7 @@ namespace op_kind {
     X(to_group, To_group) \
     X(expand, Expand) \
     X(squeeze, Squeeze) \
+    X(unsqueeze, Unsqueeze) \
     X(dnnl_convolution, Dnnl_convolution) \
     X(dnnl_convtranspose, Dnnl_convtranspose) \
     X(int8_maxpool, INT8_MaxPool) \
@@ -199,6 +200,8 @@ namespace op_kind {
     X(dnnl_eltwise, Dnnl_eltwise) \
     X(dnnl_shuffle, Dnnl_shuffle) \
     X(dnnl_sum, Dnnl_sum) \
+    X(dnnl_reduction, Dnnl_reduction) \
+    X(reduction_fusion, Reduction_fusion) \
     X(conv_simple_resblock, Conv_simple_resblock) \
     X(int8_MHA, INT8_MHA) \
     X(f32_MHA, F32_MHA) \

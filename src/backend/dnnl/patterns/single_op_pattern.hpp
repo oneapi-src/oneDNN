@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
@@ -181,6 +182,40 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_pass)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });
+
+#define DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(name, backend, op, p) \
+    DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name) \
+            .set_priority(p) \
+            .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
+                    [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
+                        impl::utils::pm::pb_op *reduction \
+                                = pgraph->append_op(impl::op_kind::op); \
+                        reduction->append_decision_function([](op_t *graph_op) \
+                                                                    -> bool { \
+                            if (graph_op->has_attr("axes") \
+                                    && graph_op->get_attr< \
+                                                       std::vector<int64_t>>( \
+                                                       "axes") \
+                                               .empty()) \
+                                return false; \
+                            return true; \
+                        }); \
+                    }) \
+            .set_attr<FCreateV2FusedOp>( \
+                    "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> { \
+                        std::shared_ptr<op_t> fused_op \
+                                = std::make_shared<op_t>(impl::op_kind::op); \
+                        fused_op->set_attr<std::string>("backend", #backend); \
+                        return fused_op; \
+                    });
+
+DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceL1, 8.f)
+DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceL2, 8.f)
+DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceMax, 8.f)
+DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceMean, 8.f)
+DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceMin, 8.f)
+DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceProd, 8.f)
+DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceSum, 8.f)
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 

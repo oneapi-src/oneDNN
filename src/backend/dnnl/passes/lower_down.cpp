@@ -2447,6 +2447,43 @@ impl::status_t eltwise_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+impl::status_t reduction_canonicalization(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    const static std::set<impl::op_kind_t> reduction_op_set
+            = {impl::op_kind::ReduceL1, impl::op_kind::ReduceL2,
+                    impl::op_kind::ReduceMax, impl::op_kind::ReduceMean,
+                    impl::op_kind::ReduceMin, impl::op_kind::ReduceProd,
+                    impl::op_kind::ReduceSum};
+
+    auto &subgraph = sg->get_mutable_ops();
+
+    for (auto &cur_op : subgraph) {
+        if (!reduction_op_set.count(cur_op->get_kind())) continue;
+
+        // replace original op with dnnl specific op
+        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_reduction);
+        new_op->set_attr<int64_t>(
+                "alg_kind", static_cast<int64_t>(cur_op->get_kind()));
+        replace_op(cur_op, new_op);
+        to_be_inserted_ops.emplace_back(new_op);
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

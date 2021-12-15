@@ -30,6 +30,7 @@
 #include "patterns/matmul_fusion.hpp"
 #include "patterns/pool_fusion.hpp"
 #include "patterns/quantize_fusion.hpp"
+#include "patterns/reduction_fusion.hpp"
 #include "patterns/reorder_fusion.hpp"
 #include "patterns/shuffle_fusion.hpp"
 #include "patterns/single_op_pattern.hpp"
@@ -74,6 +75,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PASSES_CALL(sum_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(reorder_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(shuffle_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(reduction_fusion, pass_registry_);
     pass_registry_.sort_passes();
 
     return true;
@@ -247,6 +249,17 @@ bool dnnl_backend::register_kernels() {
 
     // prelu kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::PReLU, float_prelu_fwd)
+
+    // reduction operators
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReduceL1, float_reduction)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReduceL2, float_reduction)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReduceMax, float_reduction)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReduceMean, float_reduction)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReduceMin, float_reduction)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReduceProd, float_reduction)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReduceSum, float_reduction)
+    DNNL_REGISTER_KERNEL(op_kind::dnnl_reduction, float_reduction)
+    DNNL_REGISTER_KERNEL(op_kind::reduction_fusion, float_reduction)
 
     // quantize and dequantize kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::Quantize, quantize_dequantize)

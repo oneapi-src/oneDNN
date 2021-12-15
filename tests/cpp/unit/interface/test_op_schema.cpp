@@ -1815,32 +1815,100 @@ TEST(OpSchema, PReLUOutputShape) {
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
-TEST(OpSchema, ReduceSum) {
-    const op_kind_t op_kind_ = op_kind::ReduceSum;
+TEST(OpSchema, Reduce) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"keep_dims", false}};
+    const size_t expected_attr_size = 2;
+    const std::map<std::string, bool> attrs_data
+            = {{"keep_dims", false}, {"axes", false}};
+    const std::vector<op_kind_t> configs {op_kind::ReduceL1, op_kind::ReduceL2,
+            op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
+            op_kind::ReduceProd, op_kind::ReduceSum};
 
-    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
-            expected_attr_size, attrs_data);
+    for (auto op_kind_ : configs) {
+        verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
 }
 
-TEST(OpSchema, InferReduceSumOutputShape) {
-    const op_kind_t op_kind_ = op_kind::ReduceSum;
-    const op_schema_t *op_schema_
-            = op_schema_registry_t::get_op_schema(op_kind_);
-    op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
+TEST(OpSchema, InferReduceOutputShapeFromInput) {
+    const std::vector<op_kind_t> configs {op_kind::ReduceL1, op_kind::ReduceL2,
+            op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
+            op_kind::ReduceProd, op_kind::ReduceSum};
 
-    logical_tensor_t lt_in
-            = logical_tensor_init(0, {1, 3, 224, 224}, data_type::f32);
-    logical_tensor_t lt_axis_indices = logical_tensor_init(1, data_type::f32);
-    std::vector<logical_tensor_t *> in {&lt_in, &lt_axis_indices};
-    logical_tensor_t lt_out = logical_tensor_init(2, data_type::f32);
-    std::vector<logical_tensor_t *> out {&lt_out};
+    for (auto op_kind_ : configs) {
+        const op_schema_t *op_schema_
+                = op_schema_registry_t::get_op_schema(op_kind_);
+        op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
-    auto ret = op_schema_->shape_infer(&op_, in, out);
-    EXPECT_EQ(ret, status::unsupported);
+        logical_tensor_t lt_in
+                = logical_tensor_init(0, {1, 3, 224, 224}, data_type::f32);
+        logical_tensor_t lt_axis_indices
+                = logical_tensor_init(1, data_type::f32);
+        std::vector<logical_tensor_t *> in {&lt_in, &lt_axis_indices};
+        logical_tensor_t lt_out = logical_tensor_init(2, data_type::f32);
+        std::vector<logical_tensor_t *> out {&lt_out};
+
+        auto ret = op_schema_->shape_infer(&op_, in, out);
+        EXPECT_EQ(ret, status::unsupported);
+    }
+}
+
+TEST(OpSchema, InferReduceOutputShapeFromAttributeWithKeepingDims) {
+    const std::vector<op_kind_t> configs {op_kind::ReduceL1, op_kind::ReduceL2,
+            op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
+            op_kind::ReduceProd, op_kind::ReduceSum};
+    const std::vector<int64_t> axes {2};
+    const std::vector<int64_t> expected_out_shape = {1, 3, 1, 224};
+
+    for (auto op_kind_ : configs) {
+        const op_schema_t *op_schema_
+                = op_schema_registry_t::get_op_schema(op_kind_);
+        op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
+        op_.set_attr("keep_dims", true);
+        op_.set_attr("axes", axes);
+
+        logical_tensor_t lt_in
+                = logical_tensor_init(0, {1, 3, 224, 224}, data_type::f32);
+        logical_tensor_t lt_axis_indices
+                = logical_tensor_init(1, data_type::f32);
+        std::vector<logical_tensor_t *> in {&lt_in, &lt_axis_indices};
+        logical_tensor_t lt_out = logical_tensor_init(2, data_type::f32);
+        std::vector<logical_tensor_t *> out {&lt_out};
+
+        op_schema_->shape_infer(&op_, in, out);
+        const std::vector<int64_t> infered_out_shape
+                = logical_tensor_wrapper_t(lt_out).vdims();
+        EXPECT_EQ(infered_out_shape, expected_out_shape);
+    }
+}
+
+TEST(OpSchema, InferReduceOutputShapeFromAttributeWithoutKeepingDims) {
+    const std::vector<op_kind_t> configs {op_kind::ReduceL1, op_kind::ReduceL2,
+            op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
+            op_kind::ReduceProd, op_kind::ReduceSum};
+    const std::vector<int64_t> axes {0, 1, 2, 3};
+    const std::vector<int64_t> expected_out_shape = {1};
+
+    for (auto op_kind_ : configs) {
+        const op_schema_t *op_schema_
+                = op_schema_registry_t::get_op_schema(op_kind_);
+        op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
+        op_.set_attr("axes", axes);
+
+        logical_tensor_t lt_in
+                = logical_tensor_init(0, {1, 3, 224, 224}, data_type::f32);
+        logical_tensor_t lt_axis_indices
+                = logical_tensor_init(1, data_type::f32);
+        std::vector<logical_tensor_t *> in {&lt_in, &lt_axis_indices};
+        logical_tensor_t lt_out = logical_tensor_init(2, data_type::f32);
+        std::vector<logical_tensor_t *> out {&lt_out};
+
+        op_schema_->shape_infer(&op_, in, out);
+        const std::vector<int64_t> infered_out_shape
+                = logical_tensor_wrapper_t(lt_out).vdims();
+        EXPECT_EQ(infered_out_shape, expected_out_shape);
+    }
 }
 
 TEST(OpSchema, ReLU) {
@@ -2692,17 +2760,26 @@ TEST(OpSchema, PowDefaultAttribute) {
     EXPECT_EQ(*sval, "numpy");
 }
 
-TEST(OpSchema, ReduceSumDefaultAttribute) {
-    op_kind_t tmp_op_kind = kReduceSum;
-    op_t tmp_op {0, tmp_op_kind, std::string("reduce_sum")};
+TEST(OpSchema, ReduceDefaultAttribute) {
+    const std::vector<op_kind_t> configs {kReduceL1, kReduceL2, kReduceMax,
+            kReduceMean, kReduceMin, kReduceProd, kReduceSum};
 
-    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
-    EXPECT_TRUE(opm != nullptr);
-    opm->set_default_attribute(&tmp_op);
+    for (auto tmp_op_kind : configs) {
+        op_t tmp_op {0, tmp_op_kind, std::string("reduce")};
 
-    const bool *bval {nullptr};
-    tmp_op.get_attr<bool>("keep_dims", &bval);
-    EXPECT_FALSE(*bval);
+        const op_schema_t *opm
+                = op_schema_registry_t::get_op_schema(tmp_op_kind);
+        EXPECT_TRUE(opm != nullptr);
+        opm->set_default_attribute(&tmp_op);
+
+        const bool *bval {nullptr};
+        tmp_op.get_attr<bool>("keep_dims", &bval);
+        EXPECT_FALSE(*bval);
+
+        const std::vector<int64_t> *vval {nullptr};
+        tmp_op.get_attr<std::vector<int64_t>>("axes", &vval);
+        EXPECT_TRUE(vval->empty());
+    }
 }
 
 TEST(OpSchema, SigmoidBackpropDefaultAttribute) {

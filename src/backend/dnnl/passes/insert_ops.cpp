@@ -32,6 +32,7 @@ namespace impl {
 namespace dnnl_impl {
 using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
+using value_ptr = std::shared_ptr<impl::value_t>;
 
 // TODO(xxx): extend to support other ops
 // for those ops with data_format/filter_format attributes
@@ -692,6 +693,70 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
+
+    return impl::status::success;
+}
+
+impl::status_t insert_squeeze_and_unsqueeze_for_reduction(
+        std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> to_be_inserted_ops;
+
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_reduction) continue;
+
+        const auto keep_dims = cur_op->get_attr<bool>("keep_dims");
+        if (keep_dims) continue;
+
+        const auto axes = cur_op->get_attr<std::vector<int64_t>>("axes");
+
+        // go through successor OPs until reach the end of subgraph or OP
+        // which is not supported as a reductions post-op
+        op_t *cur_op_ptr = cur_op.get();
+        while (!cur_op_ptr->get_output_value(0)->get_consumers().empty()) {
+            value_ptr connector = cur_op_ptr->get_output_value(0);
+            op_t &post_op = connector->get_consumers()[0].get_op();
+            if (post_op.get_kind() != op_kind::dnnl_binary
+                    && post_op.get_kind() != op_kind::dnnl_eltwise)
+                break;
+
+            size_t src1_offset
+                    = (post_op.get_input_value(0).get() == connector.get()) ? 1
+                                                                            : 0;
+            // insert unsqueeze OP before binary's src1 input
+            if (post_op.get_kind() == op_kind::dnnl_binary) {
+                if (!post_binary_fusible(cur_op.get(), &post_op)) break;
+                op_ptr unsqueeze_op
+                        = std::make_shared<op_t>(op_kind::unsqueeze);
+                unsqueeze_op->set_attr<std::vector<int64_t>>("axes", axes);
+                insert_op_before(unsqueeze_op.get(), &post_op, src1_offset);
+                to_be_inserted_ops.emplace_back(unsqueeze_op);
+            }
+
+            // set fresh value for cur_op_ptr output (which is post-op input
+            // value), so later correct shape will be inferred
+            impl::logical_tensor_t new_lt
+                    = impl::empty_logical_tensor_with_default_id();
+            auto new_val
+                    = std::make_shared<value_t>(*cur_op_ptr, 0, new_lt, true);
+            cur_op_ptr->connect_output(0, new_val);
+            post_op.connect_input(1 - src1_offset, new_val);
+
+            cur_op_ptr = &post_op;
+        }
+
+        op_ptr squeeze_op = std::make_shared<op_t>(op_kind::squeeze);
+        squeeze_op->set_attr<std::vector<int64_t>>("axes", axes);
+        // insert squeeze op after reduction or after its last post-op
+        insert_op_after(squeeze_op.get(), cur_op_ptr, 0);
+        to_be_inserted_ops.emplace_back(squeeze_op);
+
+        // set to true, as squeeze will be handled by separate op
+        cur_op->set_attr("keep_dims", true);
+    }
+
+    for (const auto &op : to_be_inserted_ops)
+        subgraph.emplace_back(op);
 
     return impl::status::success;
 }

@@ -16,6 +16,7 @@
 #include <algorithm>
 #include "dnnl_shape_infer.hpp"
 #include "interface/shape_infer.hpp"
+#include <unordered_set>
 
 namespace dnnl {
 namespace graph {
@@ -244,6 +245,45 @@ status_t infer_squeeze_output_shape(op_t *n,
         }
     }
     set_shape_and_strides(*outputs[0], inferred_output_shape);
+    return status::success;
+}
+
+status_t infer_unsqueeze_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    using ltw = logical_tensor_wrapper_t;
+    if (!ltw(outputs[0]).is_shape_unknown()) return status::success;
+
+    auto axes = n->get_attr<std::vector<int64_t>>("axes");
+    const auto in_dims = ltw(inputs[0]).vdims();
+    const auto out_ndim = static_cast<int64_t>(in_dims.size() + axes.size());
+
+    if (std::any_of(axes.begin(), axes.end(), [&out_ndim](int64_t axis) {
+            return axis < -out_ndim || axis >= out_ndim;
+        }))
+        return status::unsupported;
+
+    // convert negative axis to positive one
+    std::transform(axes.begin(), axes.end(), axes.begin(),
+            [&out_ndim](int64_t axis) -> int64_t {
+                return axis < 0 ? out_ndim + axis : axis;
+            });
+
+    if (std::unordered_set<int64_t>(axes.begin(), axes.end()).size()
+            < axes.size())
+        return status::unsupported;
+
+    std::vector<size_t> indices(out_ndim);
+    std::iota(indices.begin(), indices.end(), 0);
+    dims inferred_output_shape(out_ndim, 1);
+    size_t in_dims_idx = 0;
+    for (const auto i : indices) {
+        if (std::find(axes.begin(), axes.end(), i) == axes.end())
+            inferred_output_shape[i] = in_dims[in_dims_idx++];
+    }
+
+    set_shape_and_strides(*outputs[0], inferred_output_shape);
+
     return status::success;
 }
 

@@ -142,6 +142,10 @@ void insert_op_before(op_t *inserted_op, op_t *base_op, size_t offset) {
 //     |               |
 //  out_val         out_value
 void insert_op_after(op_ptr &inserted_op, op_ptr &base_op, size_t offset) {
+    insert_op_after(inserted_op.get(), base_op.get(), offset);
+}
+
+void insert_op_after(op_t *inserted_op, op_t *base_op, size_t offset) {
     value_ptr out_val = base_op->get_output_value(offset);
     inserted_op->add_output(out_val);
 
@@ -625,8 +629,7 @@ get_post_ops_fusible_map() {
     using namespace dnnl_impl::op_kind;
     static const std::unordered_map<impl::op_kind_t,
             std::unordered_set<impl::op_kind_t>>
-            fusible_map = {
-                    // conv
+            fusible_map = {// conv
                     {Convolution,
                             {dnnl_eltwise, dnnl_binary, Convolution,
                                     dnnl_convolution}},
@@ -639,8 +642,7 @@ get_post_ops_fusible_map() {
                     // matmul
                     {MatMul, {dnnl_eltwise, dnnl_binary}},
                     // pool
-                    {AvgPool, {dnnl_binary}},
-                    {MaxPool, {dnnl_binary}},
+                    {AvgPool, {dnnl_binary}}, {MaxPool, {dnnl_binary}},
                     {dnnl_pool, {dnnl_binary}},
                     // eltwise
                     {dnnl_eltwise, {dnnl_binary}},
@@ -650,9 +652,9 @@ get_post_ops_fusible_map() {
                     {dnnl_batchnorm, {dnnl_eltwise}},
                     {BatchNormInference, {dnnl_eltwise}},
                     // reorder
-                    {Reorder, {dnnl_binary}},
-                    {int8_reorder, {dnnl_binary}},
-            };
+                    {Reorder, {dnnl_binary}}, {int8_reorder, {dnnl_binary}},
+                    // reduction
+                    {dnnl_reduction, {dnnl_eltwise, dnnl_binary}}};
     return fusible_map;
 }
 

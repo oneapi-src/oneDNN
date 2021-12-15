@@ -2751,6 +2751,18 @@ DNNL_GRAPH_OP_SCHEMA(squeeze, 1,
                         false, attribute_kind::is)
                 .set_shape_inference_function(infer_squeeze_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(unsqueeze, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor")
+                .set_output(0, "y", "output tensor")
+                .set_attr("axes",
+                        "which dims to be unsqueezed, negative "
+                        "value means counting dimensions from the back",
+                        false, attribute_kind::is)
+                .set_shape_inference_function(infer_unsqueeze_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
@@ -3013,6 +3025,46 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_shuffle, 1,
                         "dimension into",
                         true, attribute_kind::i)
                 .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_reduction, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "axes",
+                        "(optional) 1D tensor, specifies indices of input "
+                        "data, along which the reduction is performed.")
+                .set_output(0, "output", "output tensor")
+                .set_attr("alg_kind",
+                        "specifies algorithm kind, can be one of "
+                        "l1/l2/max/mean/min/prod/sum",
+                        true, attribute_kind::i)
+                .set_shape_inference_function(infer_reduce_output_shape)
+                .SET_REDUCE_COMMON_ATTRS)
+
+// Represents all currently available reduction related fusions.
+// Base-OP possibilites:
+// [ReduceL1|ReduceL2|ReduceMax|ReduceMean|ReduceMin|ReduceProd|ReduceSum]
+// Post-OP possibilites:
+// [Add|ReLU]
+DNNL_GRAPH_OP_SCHEMA(reduction_fusion, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2, 3}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "axes",
+                        "(optional) 1D tensor, specifies indices of input "
+                        "data, along which the reduction is performed.")
+                .set_input(2, "other", "(optional) src1 tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("alg_kind",
+                        "specifies algorithm kind, can be one of "
+                        "l1/l2/max/mean/min/prod/sum",
+                        true, attribute_kind::i)
+                .set_shape_inference_function(infer_reduce_output_shape)
+                .SET_REDUCE_COMMON_ATTRS)
 
 } // namespace dnnl_impl
 } // namespace impl

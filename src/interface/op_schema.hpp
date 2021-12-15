@@ -350,6 +350,15 @@ op_schema_t get_op_schema();
                     "the format of weight, the options are OIX, XIO", false, \
                     attribute_kind::s, "XIO")
 
+#define SET_REDUCE_COMMON_ATTRS \
+    set_attr("axes", \
+            "specifies indices of input data, along which the reduction is " \
+            "performed.", \
+            false, attribute_kind::is, std::vector<int64_t>()) \
+            .set_attr("keep_dims", \
+                    "if true, holds axes that are used for reduction.", false, \
+                    attribute_kind::b, false)
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

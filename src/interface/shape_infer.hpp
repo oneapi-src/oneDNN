@@ -161,7 +161,7 @@ status_t infer_exponent_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
-status_t infer_reduce_sum_output_shape(op_t *n,
+status_t infer_reduce_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 

@@ -370,6 +370,36 @@ TEST(OpSchema, InferSqueezeOutputShape) {
     }
 }
 
+TEST(OpSchema, InferUnsqueezeOutputShape) {
+    const op_kind_t kind = impl::dnnl_impl::op_kind::unsqueeze;
+    const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);
+    std::vector<std::vector<int64_t>> axes_list {{1}, {1, 2}, {-1}, {-1, -2}};
+    std::vector<std::vector<int64_t>> src_shapes {
+            {3, 4, 5}, {3, 4, 5}, {3, 4, 5}, {3, 4, 5}};
+    std::vector<std::vector<int64_t>> dst_shapes {
+            {3, 1, 4, 5}, {3, 1, 1, 4, 5}, {3, 4, 5, 1}, {3, 4, 5, 1, 1}};
+    for (size_t i = 0; i < axes_list.size(); ++i) {
+        op_t op {kind, "unsqueeze"};
+        op.set_attr<std::vector<int64_t>>("axes", axes_list[i]);
+
+        logical_tensor_t lt_in = logical_tensor_init(
+                0, src_shapes[i], data_type::f32, layout_type::strided);
+        logical_tensor_t lt_out
+                = logical_tensor_init(1, data_type::f32, layout_type::strided);
+
+        std::vector<logical_tensor_t *> in {&lt_in};
+        std::vector<logical_tensor_t *> out {&lt_out};
+
+        status_t ret = op_schema_->shape_infer(&op, in, out);
+        EXPECT_EQ(ret, status::success);
+
+        const std::vector<int64_t> infered_out_shape
+                = logical_tensor_wrapper_t(lt_out).vdims();
+        const std::vector<int64_t> expected_out_shape = dst_shapes[i];
+        EXPECT_EQ(infered_out_shape, expected_out_shape);
+    }
+}
+
 TEST(OpSchema, InferConvBiasAddReluWithNxcFormat) {
     infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias);
     infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_add);
