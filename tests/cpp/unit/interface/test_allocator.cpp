@@ -31,9 +31,13 @@ TEST(Allocator, DefaultCpuAllocator) {
     dnnl::graph::impl::allocator_t::attribute_t attr {
             dnnl::graph::impl::allocator_lifetime::persistent, 4096};
     void *mem_ptr = alloc->allocate(static_cast<size_t>(16));
-    ASSERT_NE(mem_ptr, nullptr);
-    alloc->deallocate(mem_ptr);
-    alloc->release();
+    if (mem_ptr == nullptr) {
+        alloc->release();
+        ASSERT_TRUE(false);
+    } else {
+        alloc->deallocate(mem_ptr);
+        alloc->release();
+    }
 }
 
 TEST(Allocator, CreateWithAttr) {
