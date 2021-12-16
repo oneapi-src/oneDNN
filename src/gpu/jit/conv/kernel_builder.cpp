@@ -7009,8 +7009,8 @@ bool need_src_or_dst_check(
     }
     // Backward.
     int os_min = p - (k - 1) * (1 + d);
-    int os_max = (o - 1) + p;
-    return (os_min < 0) || (os_max >= i * s);
+    int os_max = (i - 1) + p;
+    return (os_min < 0) || (os_max >= o * s);
 }
 
 } // namespace
