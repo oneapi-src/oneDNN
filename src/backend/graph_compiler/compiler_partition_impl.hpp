@@ -21,9 +21,13 @@
 #include <string>
 #include <vector>
 
+#include "compiler/ir/graph/lowering.hpp"
+#include "compiler/jit/cfake/cfake_jit.hpp"
 #include "interface/backend.hpp"
 #include "interface/partition.hpp"
+#include "runtime/memorypool.hpp"
 
+#include "compiler_allocator.hpp"
 #include "compiler_backend.hpp"
 #include "compiler_graph.hpp"
 #include "utils.hpp"
@@ -101,7 +105,30 @@ public:
 
 private:
     bool is_init_ = false;
+    mutable std::vector<std::shared_ptr<impl::op_t>> copied_ops_;
+    mutable std::mutex mtx_;
 };
+
+class compiler_compiled_partition_impl_t : public compiled_partition_impl_t {
+public:
+    compiler_compiled_partition_impl_t(const impl::engine_t &engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs,
+            const std::shared_ptr<sc::jit_function_t> &jit_func,
+            const std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>
+                    &graph_engine)
+        : impl::compiled_partition_impl_t(engine, inputs, outputs, {})
+        , jit_func_(jit_func)
+        , graph_engine_(graph_engine) {}
+    impl::status_t execute(const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override;
+
+private:
+    std::shared_ptr<sc::jit_function_t> jit_func_;
+    std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t> graph_engine_;
+};
+
 } // namespace compiler_impl
 } // namespace impl
 } // namespace graph

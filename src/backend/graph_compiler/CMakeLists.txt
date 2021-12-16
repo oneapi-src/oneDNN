@@ -47,6 +47,11 @@ if(DNNL_GRAPH_CPU_RUNTIME MATCHES "(TBB|SEQ|DPCPP|THREADPOOL)$")
     "Consider changing DNNL_GRAPH_CPU_RUNTIME to OMP or turning off graph compiler backend.")
 endif()
 
+if(NOT DNNL_GRAPH_GPU_RUNTIME MATCHES "NONE")
+    message(FATAL_ERROR "Graph compiler backend does not support GPU runtime. "
+    "Consider changing DNNL_GRAPH_GPU_RUNTIME to NONE or turning off graph compiler backend.")
+endif()
+
 message(STATUS "Graph compiler backend is enabled.")
 if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "OMP")
     set(SC_OMP_ENABLED "ON")
