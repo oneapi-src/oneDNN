@@ -2961,10 +2961,6 @@ int jit_avx512_core_amx_bwd_data_kernel_t::get_wei_tensor(int i) const {
 // - inp is a padded buffer ~ [nb_oc_int][ohp][owp]{32c,64c}
 // - weights is user buffer ~ OIhw16o16i{2o,4o}
 // - output is tiled buffer ~ [NBIH][NBIC][tile_width][16c]
-size_t jit_avx512_core_amx_bwd_data_kernel_t::get_inp_kh_step() const {
-    return (size_t)jcp.typesize_in * (jcp.dilate_h + 1) * jcp.owp
-            * jcp.oc_block_int;
-}
 size_t jit_avx512_core_amx_bwd_data_kernel_t::get_inp_ocb_step() const {
     return (size_t)jcp.typesize_in * jcp.ohp * jcp.owp * jcp.oc_block_int;
 }

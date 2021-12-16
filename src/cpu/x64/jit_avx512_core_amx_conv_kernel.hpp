@@ -548,7 +548,6 @@ private:
     const Xbyak::Zmm &zmm_sum_zp = zmm28;
 
     // AUX: Steps, shifts and offsets
-    size_t get_inp_kh_step() const;
     size_t get_inp_ocb_step() const;
     size_t get_inp_offset(int ihb, int kh, int kw) const;
     size_t get_inp_shift() const;
