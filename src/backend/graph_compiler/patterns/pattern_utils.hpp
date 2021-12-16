@@ -71,6 +71,7 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
 
 static bool check_logical_tensor_validity(const impl::logical_tensor_t &lt) {
     if (lt.layout_type != layout_type::strided) { return false; }
+    if (lt.ndims <= 0) { return false; }
     std::vector<int64_t> size {lt.dims, lt.dims + lt.ndims};
     std::vector<int64_t> strides {
             lt.layout.strides, lt.layout.strides + lt.ndims};

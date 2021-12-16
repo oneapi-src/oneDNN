@@ -22,6 +22,7 @@ set(OBJ_LIB ${LIB_NAME}_backend_compiler_unit_test)
 
 add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_backend_api.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_compile_execute.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern.cpp
     )
 

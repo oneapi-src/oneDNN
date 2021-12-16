@@ -449,6 +449,196 @@ inline void add_MHA_subgraph(impl::graph_t *agraph, bool is_quantized = true,
     }
 }
 
+// this function can add a simple MHA without intermediate tensor shape
+// aiming for testing infer shape
+inline void add_MHA_infer_shape(impl::graph_t *agraph, int batch_size = 128,
+        int seq_len = 384, int num_head = 16, int head_dim = 1024) {
+    size_t logical_tensor_idx = 0;
+    size_t op_idx = 0;
+    int size_per_head = head_dim / num_head;
+    std::vector<impl::dim_t> MIXED_LAYER_INPUT_SHAPE {
+            batch_size, seq_len, head_dim};
+    std::vector<impl::dim_t> EXTENDED_ATTENTION_MASK_SHAPE {
+            batch_size, 1, 1, seq_len};
+    std::vector<impl::dim_t> CONST_SHAPE {1};
+    std::vector<impl::dim_t> OUTPUT_SHAPE {batch_size, seq_len, head_dim};
+
+    impl::logical_tensor_t query_gemm_out_flt, qk_bmm_wei_flt,
+            value_bmm_wei_flt;
+    query_gemm_out_flt = utils::logical_tensor_init(logical_tensor_idx++,
+            MIXED_LAYER_INPUT_SHAPE, impl::data_type::f32);
+    qk_bmm_wei_flt = utils::logical_tensor_init(logical_tensor_idx++,
+            MIXED_LAYER_INPUT_SHAPE, impl::data_type::f32);
+    value_bmm_wei_flt = utils::logical_tensor_init(logical_tensor_idx++,
+            MIXED_LAYER_INPUT_SHAPE, impl::data_type::f32);
+
+    impl::logical_tensor_t attention_mask_flt;
+    attention_mask_flt = utils::logical_tensor_init(logical_tensor_idx++,
+            EXTENDED_ATTENTION_MASK_SHAPE, impl::data_type::f32);
+
+    impl::logical_tensor_t query_reshape_out, query_transpose_out;
+    query_reshape_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+    query_transpose_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t key_reshape_out, key_transpose_out;
+    key_reshape_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+    key_transpose_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t key_transpose_out2;
+    key_transpose_out2 = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t matmul_qk_out;
+    matmul_qk_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t fscore_scale, fscore_div_out;
+    fscore_scale = utils::logical_tensor_init(
+            logical_tensor_idx++, CONST_SHAPE, impl::data_type::f32);
+    fscore_div_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t fscore_add_out, softmax_out;
+    fscore_add_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+    softmax_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t value_reshape_out, value_transpose_out;
+    value_reshape_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+    value_transpose_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t matmul_v_out;
+    matmul_v_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t softmax_out_q, softmax_out_deq;
+    softmax_out_q = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+    softmax_out_deq = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t context_transpose_out, context_reshape_out;
+    context_transpose_out = utils::logical_tensor_init(logical_tensor_idx++,
+            impl::data_type::f32, impl::layout_type::strided);
+    context_reshape_out = utils::logical_tensor_init(
+            logical_tensor_idx++, OUTPUT_SHAPE, impl::data_type::f32);
+
+    // reshape + transpose for query + key
+    impl::op_t query_reshape {
+            op_idx++, impl::op_kind::StaticReshape, "query_reshape"};
+    query_reshape.set_attr("shape",
+            std::vector<int64_t> {
+                    batch_size, seq_len, num_head, size_per_head});
+    query_reshape.set_attr("special_zero", false);
+    impl::op_t query_transpose {
+            op_idx++, impl::op_kind::StaticTranspose, "query_transpose"};
+    query_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    impl::op_t key_reshape {
+            op_idx++, impl::op_kind::StaticReshape, "key_reshape"};
+    key_reshape.set_attr("shape",
+            std::vector<int64_t> {
+                    batch_size, seq_len, num_head, size_per_head});
+    key_reshape.set_attr("special_zero", false);
+    impl::op_t key_transpose {
+            op_idx++, impl::op_kind::StaticTranspose, "key_transpose"};
+    key_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    impl::op_t key_transpose2 {
+            op_idx++, impl::op_kind::StaticTranspose, "key_transpose2"};
+    key_transpose2.set_attr("order", std::vector<int64_t> {0, 1, 3, 2});
+    impl::op_t matmul_qk {op_idx++, impl::op_kind::MatMul, "matmul_qk"};
+
+    impl::op_t fscore_div {op_idx++, impl::op_kind::Divide, "fscore_div"};
+    fscore_div.set_attr("auto_broadcast", std::string("numpy"));
+    impl::op_t fscore_add {op_idx++, impl::op_kind::Add, "fscore_add"};
+    fscore_add.set_attr("auto_broadcast", std::string("numpy"));
+    impl::op_t softmax {op_idx++, impl::op_kind::SoftMax, "softmax"};
+    softmax.set_attr("axis", (int64_t)3);
+
+    // reshape + transpose for value
+    impl::op_t value_reshape {
+            op_idx++, impl::op_kind::StaticReshape, "value_reshape"};
+    value_reshape.set_attr("shape",
+            std::vector<int64_t> {
+                    batch_size, seq_len, num_head, size_per_head});
+    value_reshape.set_attr("special_zero", false);
+    impl::op_t value_transpose {
+            op_idx++, impl::op_kind::StaticTranspose, "value_transpose"};
+    value_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    impl::op_t matmul_v {op_idx++, impl::op_kind::MatMul, "matmul_v"};
+
+    // transpose + reshape before output
+    impl::op_t transpose_output {
+            op_idx++, impl::op_kind::StaticTranspose, "transpose_output"};
+    transpose_output.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    impl::op_t reshape_output {
+            op_idx++, impl::op_kind::StaticReshape, "reshape_output"};
+    reshape_output.set_attr("special_zero", false);
+    reshape_output.set_attr(
+            "shape", std::vector<int64_t> {batch_size, seq_len, head_dim});
+
+    query_reshape.add_input(query_gemm_out_flt);
+    key_reshape.add_input(qk_bmm_wei_flt);
+    value_reshape.add_input(value_bmm_wei_flt);
+
+    query_reshape.add_output(query_reshape_out);
+    query_transpose.add_input(query_reshape_out);
+    query_transpose.add_output(query_transpose_out);
+
+    key_reshape.add_output(key_reshape_out);
+    key_transpose.add_input(key_reshape_out);
+    key_transpose.add_output(key_transpose_out);
+    key_transpose2.add_input(key_transpose_out);
+    key_transpose2.add_output(key_transpose_out2);
+
+    matmul_qk.add_input(query_transpose_out);
+    matmul_qk.add_input(key_transpose_out2);
+    matmul_qk.add_output(matmul_qk_out);
+
+    fscore_div.add_input(matmul_qk_out);
+    fscore_div.add_input(fscore_scale);
+    fscore_div.add_output(fscore_div_out);
+    fscore_add.add_input(fscore_div_out);
+    fscore_add.add_input(attention_mask_flt);
+    fscore_add.add_output(fscore_add_out);
+    softmax.add_input(fscore_add_out);
+    softmax.add_output(softmax_out);
+
+    value_reshape.add_output(value_reshape_out);
+    value_transpose.add_input(value_reshape_out);
+    value_transpose.add_output(value_transpose_out);
+    matmul_v.add_input(softmax_out);
+    matmul_v.add_input(value_transpose_out);
+    matmul_v.add_output(matmul_v_out);
+
+    transpose_output.add_input(matmul_v_out);
+    transpose_output.add_output(context_transpose_out);
+    reshape_output.add_input(context_transpose_out);
+    reshape_output.add_output(context_reshape_out);
+
+    agraph->add_op(&query_reshape);
+    agraph->add_op(&query_transpose);
+    agraph->add_op(&key_reshape);
+    agraph->add_op(&key_transpose);
+    agraph->add_op(&key_transpose2);
+    agraph->add_op(&matmul_qk);
+    agraph->add_op(&fscore_div);
+    agraph->add_op(&fscore_add);
+    agraph->add_op(&softmax);
+
+    agraph->add_op(&value_reshape);
+    agraph->add_op(&value_transpose);
+    agraph->add_op(&matmul_v);
+    agraph->add_op(&transpose_output);
+    agraph->add_op(&reshape_output);
+}
+
 inline void get_int8_MHA_subgraph_varients(impl::graph_t *agraph,
         bool use_div = true,
         const std::vector<quantize_position_t> &quantize_positions

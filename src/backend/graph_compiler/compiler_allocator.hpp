@@ -13,47 +13,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_GRAPH_COMPILER_UTILS_HPP
-#define BACKEND_GRAPH_COMPILER_UTILS_HPP
+
+#ifndef BACKEND_GRAPH_COMPILER_COMPILER_ALLOCATOR_HPP
+#define BACKEND_GRAPH_COMPILER_COMPILER_ALLOCATOR_HPP
 
 #include <memory>
-#include <vector>
+#include <unordered_set>
+
+#include "interface/allocator.hpp"
+#include "interface/engine.hpp"
+
+#include "runtime/context.hpp"
+#include "runtime/parallel.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace compiler_impl {
-namespace utils {
 
-// gcc4.8.5 can 't support enum class as key
-struct enum_hash_t {
-    template <typename T>
-    size_t operator()(const T &t) const {
-        return static_cast<size_t>(t);
-    }
+struct compiler_graph_engine_t : public sc::runtime::engine {
+    impl::allocator_t *allocator_ = nullptr;
+    compiler_graph_engine_t(sc::runtime::engine_vtable_t *vtable)
+        : sc::runtime::engine {vtable} {}
 };
 
-template <class F, class T>
-inline auto func_map(const T &inputs, const F &fn)
-        -> std::vector<decltype(fn(*inputs.begin()))> {
-    std::vector<decltype(fn(*inputs.begin()))> r;
-    r.reserve(inputs.size());
-    for (const auto &input : inputs)
-        r.push_back(fn(input));
-    return r;
-}
+struct compiler_graph_stream_t : public sc::runtime::stream_t {
+    impl::allocator_t *allocator_ = nullptr;
+    impl::engine_t engine_; // used to ensure allocator's existence
+    compiler_graph_stream_t(sc::runtime::stream_vtable_t *vtable)
+        : sc::runtime::stream_t {vtable} {}
+};
 
-inline bool is_output_op(const std::shared_ptr<op_t> &aop) {
-    size_t num_consumers = 0;
-    for (size_t i = 0; i < aop->num_outputs(); ++i) {
-        num_consumers += aop->num_output_consumers(i);
-    }
-    return num_consumers == 0;
-}
-
-} // namespace utils
+extern sc::runtime::engine_vtable_t graph_engine_vtable;
+extern sc::runtime::stream_vtable_t graph_stream_vtable;
 } // namespace compiler_impl
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
+
 #endif
