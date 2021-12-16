@@ -164,6 +164,46 @@ void dnnl_graph_graph::get_ordered_partitions(
         }
         return impl::status::success;
     });
+
+    // Traverse the all partitions to find possible incompatible partition's
+    // outputs
+    auto is_supported = [](const partition_t *p) {
+        return (p != nullptr)
+                && (p->get_assigned_backend()->get_name() != "fake_backend");
+    };
+
+    std::unordered_map<size_t, partition_t *> output_tid_to_partition;
+    for (const auto &p : partitions) {
+        if (!is_supported(p)) continue;
+        for (const auto &out : p->get_outputs()) {
+            output_tid_to_partition[out.id] = p;
+        }
+
+        for (const auto &in : p->get_inputs()) {
+            auto iter = output_tid_to_partition.find(in.id);
+            if (iter != output_tid_to_partition.end()) {
+                /// Mark a partition whether to output strided layout
+                ///
+                /// Considering the below graph:
+                ///
+                ///    Partition_A (backend0)   Partition_B (backend1)
+                ///          |                         |
+                ///       tensor_1                  tensor_2
+                ///             \                     /
+                ///               Partition_C (backend2)
+                ///                       |
+                ///                   tensor_3
+                ///
+                /// After traversing, the tensor_1 and tensor_2 will be marked
+                /// to output strided layout. Regarding tensor_3, since it
+                /// may be used by external framework ops, so its layout is
+                /// decided by users.
+                if (iter->second->get_assigned_backend()
+                        != p->get_assigned_backend())
+                    iter->second->record_tid_with_strided_output(in.id);
+            }
+        }
+    }
 }
 
 status_t dnnl_graph_graph::build_graph() {
