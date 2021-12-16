@@ -71,16 +71,6 @@ conv_dw_fwd_ow_block_x8s8x(const __global uchar *src, const __global char *wei,
     scales.s1 = scales_per_oc[g + 2 * get_sub_group_local_id() + 1];
 #endif
 
-#if WITH_BIAS
-    // change after fix from compiler
-    // float2 B = as_float2(intel_sub_group_block_read_ul((const __global ulong *)&bias[g]));
-    float2 B;
-    int g_off = g + 2 * get_sub_group_local_id();
-    B.s0 = g_off >= G ? 0 : bias[g_off];
-    B.s1 = g_off + 1 >= G ? 0 : bias[g_off + 1];
-    S0 = convert_int16(B.s0101010101010101);
-    S1 = convert_int16(B.s0101010101010101);
-#endif
     for (int kd = 0; kd < KD; kd++) {
         if (kd * (1 + DD) + id < 0 || kd * (1 + DD) + id >= ID) {
             src += IC_BLOCK * MB_BLOCK * IH * IW * (1 + DD);
@@ -601,9 +591,21 @@ conv_dw_fwd_ow_block_x8s8x(const __global uchar *src, const __global char *wei,
         src += IC_BLOCK * MB_BLOCK * IW * (IH * (1 + DD) - KH * (1 + DH));
     }
 
-#if WITH_POST_OP && !SUM_SCALE1 || SCALES_PER_OC || SCALES_COMMON
-    float16 tmp00 = convert_float16(S0) * SCALE;
-    float16 tmp01 = convert_float16(S1) * SCALE;
+#if WITH_BIAS || (WITH_POST_OP && !SUM_SCALE1 || SCALES_PER_OC || SCALES_COMMON)
+    float16 tmp00 = convert_float16(S0);
+    float16 tmp01 = convert_float16(S1);
+#if WITH_BIAS
+    // change after fix from compiler
+    // float2 B = as_float2(intel_sub_group_block_read_ul((const __global ulong *)&bias[g]));
+    float2 B;
+    int g_off = g + 2 * get_sub_group_local_id();
+    B.s0 = g_off >= G ? 0 : bias[g_off];
+    B.s1 = g_off + 1 >= G ? 0 : bias[g_off + 1];
+    tmp00 += convert_float16(B.s0101010101010101);
+    tmp01 += convert_float16(B.s0101010101010101);
+#endif
+    tmp00 *= SCALE;
+    tmp01 *= SCALE;
 #define ACC_DATA_TYPE float
 #define ACC0 tmp00
 #define ACC1 tmp01
