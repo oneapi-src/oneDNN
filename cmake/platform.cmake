@@ -34,6 +34,31 @@ set(CMAKE_CCXX_FLAGS)
 set(CMAKE_CCXX_NOWARN_FLAGS)
 set(CMAKE_CCXX_NOEXCEPT_FLAGS)
 
+add_definitions(-D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS)
+
+if(DNNL_GRAPH_WITH_SYCL)
+    # Clang cannot vectorize some loops with #pragma omp simd and gets
+    # very upset. Tell it that it's okay and that we love it
+    # unconditionally.
+    append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
+    # Suppress self-comparison warning to avoid false positives in macros such
+    # as JIT_IMPL_NAME_HELPER. 
+    append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-tautological-compare")
+    if(WIN32)
+        # XXX: SYCL does not like __thiscall convention coming from TBB,
+        # suppress warnings for now.
+        append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
+        # XXX: compiler always pulls in release C++ runtime by default, until
+        # this is fixed we have to explicitly drop release C++ runtime for
+        # debug build types.
+        string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
+        if(UPPERCASE_CMAKE_BUILD_TYPE MATCHES "(DEBUG|RELWITHMDD)" AND NOT CMAKE_BASE_NAME MATCHES "(icx|icpx)")
+            append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /NODEFAULTLIB:msvcrt")
+            append(CMAKE_SHARED_LINKER_FLAGS "-Xlinker /NODEFAULTLIB:msvcrt")
+        endif()
+    endif()
+endif()
+
 if(MSVC)
     set(USERCONFIG_PLATFORM "x64")
     append(CMAKE_CCXX_FLAGS "/WX")
@@ -84,11 +109,21 @@ if(MSVC)
         # We don't want to optimize jit gemm kernels to reduce compile time
         append(CMAKE_CCXX_FLAGS "-Wno-overriding-t-option")
     endif()
+    if(DNNL_GRAPH_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+        # Default fp-model in icx and dpcpp (unlike clang) may be precise or
+        # fast=1 depending on the version.
+        append(CMAKE_CCXX_FLAGS "/fp:precise")
+    endif()
 elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Werror -Wno-unknown-pragmas")
     if(DNNL_GRAPH_WITH_SYCL)
         # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
         append(CMAKE_CCXX_FLAGS "-w -Wno-deprecated-declarations")
+    endif()
+    if(DNNL_GRAPH_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+        # Default fp-model in icx and dpcpp (unlike clang) may be precise or
+        # fast=1 depending on the version.
+        append(CMAKE_CCXX_FLAGS "-ffp-model=precise -fno-reciprocal-math")
     endif()
     append(CMAKE_CCXX_FLAGS "-fvisibility=internal")
     append(CMAKE_CXX_FLAGS "-fvisibility-inlines-hidden")

@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ endif()
 
 function(build_onednn)
     # Let SYCL to choose the C++ standard it needs.
-    if(NOT DNNL_GRAPH_WITH_SYCL)
+    if(NOT (DNNL_GRAPH_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx"))
         set(CMAKE_CXX_STANDARD 11)
     endif()
     add_subdirectory(third_party/oneDNN)

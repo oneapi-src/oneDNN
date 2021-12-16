@@ -110,7 +110,7 @@ include("cmake/options.cmake")
 include("cmake/SYCL.cmake")
 
 # Let SYCL to choose the C++ standard it needs.
-if(NOT DNNL_GRAPH_WITH_SYCL)
+if(NOT (DNNL_GRAPH_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx"))
     if(DNNL_GRAPH_SUPPORT_CXX17)
         if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5)
             message(FATAL_ERROR "Current compiler version does not support C++17 features. Please undefine DNNL_GRAPH_SUPPORT_CXX17.")

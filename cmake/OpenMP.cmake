@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2021 Intel Corporation
+# Copyright 2017-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ find_package(OpenMP)
 set_openmp_values_for_old_cmake()
 
 # special case for clang-cl (not recognized by cmake up to 3.17)
-if(NOT OpenMP_CXX_FOUND AND MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT DNNL_GRAPH_WITH_SYCL)
+if(NOT OpenMP_CXX_FOUND AND MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "(Clang|IntelLLVM)")
     # clang-cl and icx will fall under this condition
     # CAVEAT: undocumented variable, may be inappropriate
     if(CMAKE_BASE_NAME STREQUAL "icx")

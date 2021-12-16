@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,12 @@ if(NOT DNNL_GRAPH_BUILD_EXAMPLES)
 endif()
 
 enable_testing()
+
+# walkaround for icx cannot init constexpr with dllimport symbols(detail::handle)
+# also, suppose it's unnecessary for users to link the library with such flag
+if (DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED" OR DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SDL")
+    remove_definitions(-DDNNL_GRAPH_DLL)
+endif()
 
 # propagate common compilation flags
 append(CMAKE_C_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")

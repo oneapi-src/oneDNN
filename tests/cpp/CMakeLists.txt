@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #===============================================================================
+
+# XXX: Intel(R) oneAPI DPC++ Compiler doesn't support SEH with -fsycl option
+if(WIN32 AND DNNL_GRAPH_WITH_SYCL)
+    add_definitions(-DGTEST_HAS_SEH=0)
+endif()
 
 set(gtest_hide_internal_symbols ON CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_SOURCE_DIR}/tests/gtest
