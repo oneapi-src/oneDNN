@@ -31,6 +31,99 @@ using namespace dnnl::impl::utils;
 #define wht_blk_off(d, g, ...) \
     (with_groups ? (d).blk_off((g), __VA_ARGS__) : (d).blk_off(__VA_ARGS__))
 
+struct spatial_features_3d {
+
+    spatial_features_3d(const jit_conv_conf_t &jcp)
+        : input_size_(jcp.id)
+        , filter_size_(jcp.kd)
+        , dilate_(jcp.dilate_d + 1)
+        , stride_(jcp.stride_d)
+        , init_pad_(jcp.f_pad)
+        , end_pad_(jcp.back_pad)
+        , is_fast_path_(dilate_ == 1 && stride_ == 1)
+        , compute_extended_features_(!(is_fast_path_ || dilate_ != 1))
+        , filter_(0)
+        , lower_offset_(0)
+        , output_offset_(0)
+        , init_overflow_(0)
+        , end_overflow_(0) {}
+
+    inline int get_init_overflow(const int in) {
+        if (is_fast_path_)
+            return nstl::max(0, filter_size_ - 1 - in - init_pad_);
+        if (dilate_ != 1)
+            return div_up(
+                    nstl::max(0, (filter_size_ - 1) * dilate_ - in - init_pad_),
+                    dilate_);
+        return nstl::max(0, (filter_size_ - 1 - in - init_pad_) / stride_);
+    }
+
+    inline int get_end_overflow(const int in) {
+        if (is_fast_path_)
+            return nstl::max(0, filter_size_ - input_size_ + in - end_pad_);
+        if (dilate_ != 1)
+            return div_up(nstl::max(0,
+                                  (filter_size_ - 1) * dilate_ + 1 - input_size_
+                                          + in - end_pad_),
+                    dilate_);
+        return nstl::max(
+                0, (filter_size_ - input_size_ + in - end_pad_) / stride_);
+    }
+
+    void update_params(const int in) {
+
+        init_overflow_ = get_init_overflow(in);
+        end_overflow_ = get_end_overflow(in);
+
+        // overflow_kd_hi
+        const int overflow_filter_hi_ = compute_extended_features_
+                ? filter_size_ - 1
+                        - nstl::modulo(input_size_ - 1 + end_pad_ - in, stride_)
+                : 0;
+        // overflow_kd_lo
+        const int overflow_filter_lo_
+                = compute_extended_features_ ? (in + init_pad_) % stride_ : 0;
+
+        filter_ = compute_extended_features_
+                ? (overflow_filter_hi_ - overflow_filter_lo_) / stride_ + 1
+                : filter_size_;
+
+        lower_offset_ = compute_extended_features_
+                ? overflow_filter_lo_ + end_overflow_ * stride_
+                : end_overflow_;
+
+        output_offset_ = compute_extended_features_
+                ? (in + init_pad_ - lower_offset_) / stride_
+                : in + init_pad_ - end_overflow_ * dilate_;
+    }
+
+    inline int get_filter_padding() {
+        return filter_ - init_overflow_ - end_overflow_;
+    }
+
+    inline int get_lower_offset() { return lower_offset_; }
+
+    inline int get_output_offset() { return output_offset_; }
+
+private:
+    const int input_size_;
+    const int filter_size_;
+    const int dilate_;
+    const int stride_;
+    const int init_pad_; // f_pad
+    const int end_pad_; // back_pad
+    const bool is_fast_path_; // 'dilate_ == 1 && stride_ == 1'
+    const bool
+            compute_extended_features_; // eq. '(!is_fast_path_) && dilate_ == 1'
+
+    int filter_;
+    int lower_offset_; // d_lo
+    int output_offset_; // d_oj
+
+    int init_overflow_; // d_t_overflow
+    int end_overflow_; // d_b_overflow
+};
+
 inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
         const jit_conv_conf_t &jcp,
         const std::unique_ptr<jit_avx512_core_amx_bwd_data_kernel_t> &kernel,
@@ -53,6 +146,7 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
     const dim_t wei_ic_shift = is_deconv
             ? wht_blk_off(weights_d, 0, jcp.nb_ic_blocking)
             : wht_blk_off(weights_d, 0, 0, jcp.nb_ic_blocking);
+    const size_t wht_d_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
     auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_inp_buffer);
@@ -64,12 +158,13 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
     const int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
     const int ih_chunks = utils::div_up(jcp.ih, jcp.ih_blk_size);
     const int work_amount
-            = jcp.mb * jcp.ngroups * ih_chunks * jcp.nb_iw * ic_chunks;
+            = jcp.mb * jcp.ngroups * jcp.id * ih_chunks * jcp.nb_iw * ic_chunks;
 
     // Initialize the tile configuration in memory, so that each thread can
     // load this configuration from memory via `amx_tile_configure(tcfg)`.
     if (tcfg) kernel->tile_configure(tcfg);
     const bool is_1d = jcp.ndims == 3;
+    const bool is_3d = jcp.ndims == 5;
 
     parallel(0, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
@@ -77,11 +172,13 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
 
         auto p = jit_conv_call_s();
         amx_tile_configure(tcfg);
+        spatial_features_3d sfd(jcp);
 
-        int mb {0}, g {0}, ihc {0}, iwb {0}, icc {0};
-        nd_iterator_init(start, mb, jcp.mb, g, jcp.ngroups, ihc, ih_chunks, iwb,
-                jcp.nb_iw, icc, ic_chunks);
+        int mb {0}, g {0}, id_s {0}, ihc {0}, iwb {0}, icc {0};
+        nd_iterator_init(start, mb, jcp.mb, g, jcp.ngroups, id_s, jcp.id, ihc,
+                ih_chunks, iwb, jcp.nb_iw, icc, ic_chunks);
         int last_copied_mb = -1;
+        int last_copied_id = -1;
         int last_copied_ihc = -1;
         int last_copied_iwb = -1;
         int last_copied_g = -1;
@@ -103,8 +200,13 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
             const int ih_e = nstl::min(jcp.ih, ih_b + jcp.ih_blk_size);
             const int iw = iwb * jcp.iw_block;
             bool is_inp_buffer_relevant = true && last_copied_mb == mb
-                    && last_copied_ihc == ihc && last_copied_iwb == iwb
-                    && last_copied_g == g;
+                    && last_copied_id == id_s && last_copied_ihc == ihc
+                    && last_copied_iwb == iwb && last_copied_g == g;
+
+            sfd.update_params(id_s);
+            p.kd_padding = sfd.get_filter_padding();
+            const int d_lo = sfd.get_lower_offset();
+            const int d_oj = sfd.get_output_offset();
 
             int ih_step = jcp.nb_ih_blocking;
             for (int ih = ih_b; ih < ih_e; ih += ih_step) {
@@ -154,7 +256,9 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
                             delta_w - dow_l_overflow, dow_r_overflow);
                     size_t inp_offset = is_1d
                             ? diff_dst_d.blk_off(mb, ocb, ow_s)
-                            : diff_dst_d.blk_off(mb, ocb, oh_s, ow_s);
+                            : is_3d ? diff_dst_d.blk_off(
+                                      mb, ocb, d_oj, oh_s, ow_s)
+                                    : diff_dst_d.blk_off(mb, ocb, oh_s, ow_s);
                     p.src = diff_dst + diff_dst_dt_size * inp_offset;
                     p.dst = inp_buffer
                             + (size_t)(doh_s - doh_b) * jcp.owp
@@ -165,13 +269,16 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
 
                 size_t diff_src_offset = is_1d
                         ? diff_src_d.blk_off(mb, icb, iw)
-                        : diff_src_d.blk_off(mb, icb, ih, iw);
+                        : is_3d ? diff_src_d.blk_off(mb, icb, id_s, ih, iw)
+                                : diff_src_d.blk_off(mb, icb, ih, iw);
                 p.dst = inp_buffer
                         + (size_t)(ih - ih_b) * jcp.owp * jcp.oc_block_int
                                 * diff_dst_dt_size;
                 p.src = diff_src + diff_src_dt_size * diff_src_offset;
                 p.filt = weights
-                        + wei_dt_size * (g * wei_g_shift + icc * wei_ic_shift);
+                        + wei_dt_size
+                                * (g * wei_g_shift + icc * wei_ic_shift
+                                        + d_lo * wht_d_stride);
                 p.bias = bias_w;
                 p.scales = &oscales[jcp.is_ic_scale * ic];
                 p.acc_s32 = wsp + ithr * jcp.wsp_buffer_size;
@@ -182,12 +289,13 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
                 (*kernel)(&p);
             }
             last_copied_mb = mb;
+            last_copied_id = id_s;
             last_copied_ihc = ihc;
             last_copied_iwb = iwb;
             last_copied_g = g;
             ++start;
-            nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, ihc, ih_chunks, iwb,
-                    jcp.nb_iw, icc, ic_chunks);
+            nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, id_s, jcp.id, ihc,
+                    ih_chunks, iwb, jcp.nb_iw, icc, ic_chunks);
         }
         amx_tile_release();
     });
