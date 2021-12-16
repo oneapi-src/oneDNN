@@ -1099,6 +1099,11 @@ impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg) {
     for (auto &fusion_group : fusion_groups) {
         op_t *reshape0 = fusion_group[0];
         op_t *reshape1 = fusion_group[2];
+        op_t *transpose = fusion_group[1];
+
+        const auto res = shuffle_fusible(reshape0, reshape1, transpose);
+        const bool fusible = res.first;
+        if (!fusible) continue;
 
         op_ptr shuffle = std::make_shared<op_t>(op_kind::dnnl_shuffle);
 
@@ -1108,10 +1113,8 @@ impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg) {
         const auto src_shape = ltw(in_value->get_logical_tensor()).vdims();
         const auto attr_shape
                 = reshape0->get_attr<std::vector<int64_t>>("shape");
-        const auto res = std::mismatch(
-                src_shape.cbegin(), src_shape.cend(), attr_shape.cbegin());
-        const size_t axis = std::distance(src_shape.cbegin(), res.first);
-        const int64_t group = attr_shape[axis];
+        const size_t axis = res.second.first;
+        const int64_t group = res.second.second;
         shuffle->set_attr<int64_t>("axis", static_cast<int64_t>(axis));
         shuffle->set_attr<int64_t>("group", group);
 
