@@ -75,6 +75,10 @@ public:
 
     bool is_supported() const;
 
+    void record_tid_with_strided_output(size_t tid) {
+        tid_require_strided_output_.insert(tid);
+    }
+
     const impl::partition_impl_t *get_pimpl() const { return pimpl_.get(); }
 
     const impl::backend *get_assigned_backend() const {
@@ -135,6 +139,9 @@ public:
 
 private:
     std::shared_ptr<const impl::partition_impl_t> pimpl_;
+
+    // ids of logical tensors required to output strided layout
+    std::unordered_set<size_t> tid_require_strided_output_;
 };
 
 ///

@@ -2339,9 +2339,9 @@ TEST(Execute, MatmulF16F16F16) {
 
     // prepare logical tensor
     impl::logical_tensor_t src
-            = utils::logical_tensor_init(0, {2}, impl::data_type::f16);
+            = utils::logical_tensor_init(0, {1, 2}, impl::data_type::f16);
     impl::logical_tensor_t weight
-            = utils::logical_tensor_init(1, {2}, impl::data_type::f16);
+            = utils::logical_tensor_init(1, {2, 1}, impl::data_type::f16);
     impl::logical_tensor_t dst
             = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f16);
 

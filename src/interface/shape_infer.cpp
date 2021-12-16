@@ -623,8 +623,6 @@ status_t infer_matmul_output_shape(op_t *n,
     auto in1 = logical_tensor_wrapper_t(inputs[1]);
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
 
-    // check if output shape is already known
-    if (!out0.is_shape_unknown()) return status::success;
     // get attr value
     bool transpose_a = false;
     if (n->has_attr("transpose_a")) {
