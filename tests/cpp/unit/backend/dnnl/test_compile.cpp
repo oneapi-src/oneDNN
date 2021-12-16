@@ -11406,7 +11406,8 @@ TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
 }
 
 TEST(Execute, InterpolateForwardNearest) {
-    impl::engine_t &eng = get_engine();
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
 
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
     test::vector<float> dst {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
@@ -11415,6 +11416,9 @@ TEST(Execute, InterpolateForwardNearest) {
 
     impl::op_t op(impl::op_kind::Interpolate);
     op.set_attr<std::string>("mode", "nearest");
+    op.set_attr("sizes", std::vector<int64_t> {3, 3});
+    op.set_attr<std::string>("coordinate_transformation_mode", "half_pixel");
+    op.set_attr<std::string>("data_format", "NCX");
     auto &op_factory = get_dnnl_kernel_registry();
     auto kernel = op_factory.create_kernel(op);
     ASSERT_TRUE(kernel);
@@ -11422,28 +11426,113 @@ TEST(Execute, InterpolateForwardNearest) {
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+            1, impl::data_type::f32, impl::layout_type::strided);
 
-    // compile the relu backward operator
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    op.add_input(src_lt);
+    op.add_output(dst_lt);
 
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g(engine.kind());
+    g.add_op(&op);
+    g.build_graph();
 
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::pass::pass_base_ptr apass = get_pass("interpolate_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    ASSERT_TRUE(part != nullptr);
 
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts}, {dst_ts});
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> lt_ins {&src_lt};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_lt};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t dst_ts(*lt_outs[0], &engine, dst.data());
+    cp.execute(&strm, {src_ts}, {dst_ts});
     strm.wait();
+
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
 
+TEST(Execute, InterpolateAddForwardNearest) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
+    test::vector<float> src1 {
+            0.f, 0.5f, 1.f, 1.5f, 2.0f, 2.5f, 3.0f, 3.5f, 4.f};
+    test::vector<float> dst_add {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+    test::vector<float> ref_dst {
+            -2.f, -1.f, -0.5f, 0.5f, 1.5f, 2.f, 2.f, 3.f, 3.5f};
+
+    impl::op_t interpolate_node(0, impl::op_kind::Interpolate, "interpolate");
+    interpolate_node.set_attr<std::string>("mode", "nearest");
+    interpolate_node.set_attr("sizes", std::vector<int64_t> {3, 3});
+    interpolate_node.set_attr<std::string>(
+            "coordinate_transformation_mode", "half_pixel");
+    interpolate_node.set_attr<std::string>("data_format", "NCX");
+
+    impl::op_t add_node(1, impl::op_kind::Add, "add_node");
+
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
+            2, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t dst_add_lt = utils::logical_tensor_init(
+            3, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::strided);
+
+    interpolate_node.add_input(src_lt);
+    interpolate_node.add_output(dst_lt);
+
+    add_node.add_input(dst_lt);
+    add_node.add_input(src1_lt);
+    add_node.add_output(dst_add_lt);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&interpolate_node);
+    g.add_op(&add_node);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("interpolate_sum_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    ASSERT_TRUE(part != nullptr);
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> lt_ins {&src_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_add_lt};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t src1_ts(src1_lt, &engine, src1.data());
+    impl::tensor_t dst_add_ts(*lt_outs[0], &engine, dst_add.data());
+    cp.execute(&strm, {src_ts, src1_ts}, {dst_add_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < dst_add.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_add[i], ref_dst[i]);
+    }
+}
+
 TEST(Execute, InterpolateForwardLinear) {
-    impl::engine_t &eng = get_engine();
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
 
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
     test::vector<float> dst {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
@@ -11452,28 +11541,43 @@ TEST(Execute, InterpolateForwardLinear) {
 
     impl::op_t op(impl::op_kind::Interpolate);
     op.set_attr<std::string>("mode", "linear");
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(kernel);
+    op.set_attr("sizes", std::vector<int64_t> {3, 3});
+    op.set_attr<std::string>("coordinate_transformation_mode", "half_pixel");
+    op.set_attr<std::string>("data_format", "NXC");
 
     impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
+            = utils::logical_tensor_init(0, {1, 2, 2, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+            1, impl::data_type::f32, impl::layout_type::strided);
 
-    // compile the relu backward operator
-    std::vector<impl::logical_tensor_t> inputs {src_lt};
-    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    op.add_input(src_lt);
+    op.add_output(dst_lt);
 
-    kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::graph_t g(engine.kind());
+    g.add_op(&op);
+    g.build_graph();
 
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t dst_ts(outputs[0], &eng, dst.data());
+    impl::pass::pass_base_ptr apass = get_pass("interpolate_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    ASSERT_TRUE(part != nullptr);
 
-    impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts}, {dst_ts});
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> lt_ins {&src_lt};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_lt};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t dst_ts(*lt_outs[0], &engine, dst.data());
+    cp.execute(&strm, {src_ts}, {dst_ts});
     strm.wait();
+
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -11498,14 +11602,13 @@ TEST(Execute, InterpolateBackwardNearest) {
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(1, {1, 1, 2, 2}, impl::data_type::f32);
     impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-            2, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+            2, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::strided);
 
     // compile the relu backward operator
     std::vector<impl::logical_tensor_t> inputs {src_lt, diff_dst_lt};
     std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
 
     kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
@@ -11538,14 +11641,13 @@ TEST(Execute, InterpolateBackwardLinear) {
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(1, {1, 1, 2, 2}, impl::data_type::f32);
     impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-            2, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+            2, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::strided);
 
     // compile the relu backward operator
     std::vector<impl::logical_tensor_t> inputs {src_lt, diff_dst_lt};
     std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
 
     kernel->compile(&op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());

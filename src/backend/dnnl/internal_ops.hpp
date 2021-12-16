@@ -199,6 +199,7 @@ namespace op_kind {
     X(dnnl_binary, Dnnl_binary) \
     X(dnnl_eltwise, Dnnl_eltwise) \
     X(dnnl_shuffle, Dnnl_shuffle) \
+    X(interpolate_fusion, Interpolate_fusion) \
     X(dnnl_sum, Dnnl_sum) \
     X(dnnl_reduction, Dnnl_reduction) \
     X(reduction_fusion, Reduction_fusion) \

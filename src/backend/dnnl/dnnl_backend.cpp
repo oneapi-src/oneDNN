@@ -27,6 +27,7 @@
 #include "patterns/convtranspose_fusion.hpp"
 #include "patterns/eltwise_fusion.hpp"
 #include "patterns/gelu_fusion.hpp"
+#include "patterns/interpolate_fusion.hpp"
 #include "patterns/matmul_fusion.hpp"
 #include "patterns/pool_fusion.hpp"
 #include "patterns/quantize_fusion.hpp"
@@ -72,6 +73,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PASSES_CALL(pool_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(eltwise_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(quantize_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(interpolate_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(sum_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(reorder_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(shuffle_fusion, pass_registry_);
@@ -237,7 +239,8 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::LayerNorm, layernorm_fwd_t)
 
     //interpolate kernel
-    DNNL_REGISTER_KERNEL(impl::op_kind::Interpolate, resampling_forward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Interpolate, float_resampling_fwd)
+    DNNL_REGISTER_KERNEL(op_kind::interpolate_fusion, float_resampling_fwd)
     DNNL_REGISTER_KERNEL(
             impl::op_kind::InterpolateBackprop, resampling_backward)
 

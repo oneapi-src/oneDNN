@@ -2943,6 +2943,41 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
                 .set_shape_inference_function(
                         infer_dnnl_batchnorm_output_shape))
 
+// This op schema represents all interpolate related fusions.
+// At the moment available are:
+// interpolate + binary add,
+// interpolate + sum,
+// interpolate + relu.
+// Thanks to the unification of the op schema for these patterns,
+// we can reduce the size of the binary.
+DNNL_GRAPH_OP_SCHEMA(interpolate_fusion, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_num_outputs(1)
+                .set_input(
+                        0, "data", "Input tensor with data for interpolation")
+                .set_input(
+                        1, "sizes", "describing output shape for spatial axes")
+                .set_output(0, "output",
+                        "a tensor with selected data from input tensor")
+                .set_attr("mode", "specifies type of interpolation", true,
+                        attribute_kind::s)
+                .set_attr("sizes", "describing output shape for spatial axes",
+                        true, attribute_kind::is)
+                .set_attr("scales", "describing scales for spatial axes", false,
+                        attribute_kind::fs)
+                .set_attr("coordinate_transformation_mode",
+                        "specifies how to transform the coordinate in the "
+                        "resized tensor to the coordinate in the original "
+                        "tensor",
+                        false, attribute_kind::s, "half_pixel")
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                .set_shape_inference_function(infer_interpolate_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(dnnl_sum, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::variadic)
