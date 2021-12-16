@@ -44,7 +44,8 @@ status_t cross_engine_reorder_t::pd_t::init(
         engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
     bool args_ok = src_engine != dst_engine
             && utils::one_of(
-                    engine_kind::gpu, src_engine->kind(), dst_engine->kind());
+                    engine_kind::gpu, src_engine->kind(), dst_engine->kind())
+            && attr_ok() && extra_ok();
 
     if (!args_ok) return status::unimplemented;
 

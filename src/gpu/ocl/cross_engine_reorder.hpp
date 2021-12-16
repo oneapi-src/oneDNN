@@ -41,10 +41,8 @@ namespace ocl {
 // 2. GPU -> CPU copying
 struct cross_engine_reorder_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
-    struct pd_t : public reorder_pd_t {
-        using reorder_pd_t::reorder_pd_t;
-
-        pd_t(const pd_t &rhs) = default;
+    struct pd_t : public gpu_reorder_pd_t {
+        using gpu_reorder_pd_t::gpu_reorder_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:cross_engine::any", cross_engine_reorder_t);
 

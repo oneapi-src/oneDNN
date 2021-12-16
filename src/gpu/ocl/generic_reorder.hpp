@@ -42,7 +42,8 @@ struct generic_reorder_t : public gpu_primitive_t {
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
             bool ok = src_engine == dst_engine
-                    && src_engine->kind() == engine_kind::gpu && attr_ok();
+                    && src_engine->kind() == engine_kind::gpu && attr_ok()
+                    && extra_ok();
             if (!ok) return status::unimplemented;
 
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(

@@ -1021,7 +1021,8 @@ stream_t::~stream_t() {
 float reorder_rescale_factor() {
     float factor = 1.f;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    factor = dnnl::impl::cpu::platform::s8s8_weights_scale_factor();
+    if (is_cpu(get_test_engine()))
+        factor = dnnl::impl::cpu::platform::s8s8_weights_scale_factor();
 #endif
     return factor;
 }

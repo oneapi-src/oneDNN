@@ -40,6 +40,10 @@ protected:
                 || (post_ops.len() == 1
                         && post_ops.entry_[0].kind == primitive_kind::sum);
     }
+
+    bool extra_ok() const {
+        return src_md()->extra.flags == 0 && dst_md()->extra.flags == 0;
+    }
 };
 
 } // namespace gpu
