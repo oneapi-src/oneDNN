@@ -730,31 +730,43 @@ public:
         ir_assert(!src1.is_immediate());
         auto one = ra_.alloc().f();
         auto zero = ra_.alloc().f();
-        auto src0_tmp = ra_.alloc_range(2);
+
         auto tmp = ra_.alloc_range(4);
-        auto alt_mod = ngen::InstructionModifier(mod);
 
-        const int width = mod.getExecSize() >= 8 ? 8 : mod.getExecSize();
-        alt_mod.setExecSize(width);
+        int esize = mod.getExecSize();
+        int grf_size = ngen::GRF::bytes(hw);
+        int div_esize = std::min(esize, grf_size / int(sizeof(float)));
 
-        mov(alt_mod, one, ngen::Immediate(1));
-        mov(alt_mod, zero, ngen::Immediate(0));
-        mov(mod, src0_tmp[0].f(), dst.reg_data());
-        mov(mod, src1.reg_data(), src1.reg_data());
+        int tmp_regs = utils::div_up(esize * int(sizeof(float)), grf_size);
+        auto src0_tmp = ra_.alloc_range(tmp_regs);
+        auto src1_tmp = ra_.alloc_range(tmp_regs);
 
-        const ngen::FlagRegister flag;
+        // Copy to temporary registers to ensure dst, num and denom are
+        // distinct as required for fdiv_ieee.
+        mov(mod, src0_tmp[0].f(), src0.reg_data());
+        mov(mod, src1_tmp[0].f(), src1.reg_data());
+
+        auto div_mod = ngen::InstructionModifier(mod);
+        div_mod.setExecSize(div_esize);
+
+        mov(div_mod, one, ngen::Immediate(1));
+        mov(div_mod, zero, ngen::Immediate(0));
+
+        // Enable mask as fdiv_ieee relies on masked if/endif flow.
         setDefaultNoMask(false);
 
-        for (int i = 0; i < mod.getExecSize(); i += width) {
-            fdiv_ieee(alt_mod, flag, dst.sub_reg_data(i, width).reg_data(),
-                    src0_tmp[i / width].f(),
-                    src1.sub_reg_data(i, width).reg_data(), zero, one, tmp);
+        for (int i = 0; i < mod.getExecSize(); i += div_esize) {
+            fdiv_ieee(div_mod, f0[0], dst.sub_reg_data(i, div_esize).reg_data(),
+                    src0_tmp[i / div_esize].f(), src1_tmp[i / div_esize].f(),
+                    zero, one, tmp);
         }
 
         ra_.safeRelease(one);
         ra_.safeRelease(zero);
         ra_.safeRelease(src0_tmp);
+        ra_.safeRelease(src1_tmp);
         ra_.safeRelease(tmp);
+
         setDefaultNoMask(true);
     }
 
