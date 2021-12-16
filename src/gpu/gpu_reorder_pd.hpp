@@ -25,6 +25,21 @@ namespace gpu {
 
 struct gpu_reorder_pd_t : public reorder_pd_t {
     using reorder_pd_t::reorder_pd_t;
+
+protected:
+    bool attr_ok() const {
+        return attr()->has_default_values(
+                       dnnl_primitive_attr::skip_mask_t::oscale
+                       | dnnl_primitive_attr::skip_mask_t::post_ops)
+                && post_ops_ok();
+    }
+
+    bool post_ops_ok() const {
+        const auto &post_ops = attr()->post_ops_;
+        return post_ops.len() == 0
+                || (post_ops.len() == 1
+                        && post_ops.entry_[0].kind == primitive_kind::sum);
+    }
 };
 
 } // namespace gpu

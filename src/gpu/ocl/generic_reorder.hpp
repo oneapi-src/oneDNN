@@ -41,28 +41,8 @@ struct generic_reorder_t : public gpu_primitive_t {
 
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
-            const auto &post_ops = attr()->post_ops_;
-
-            bool ok = (src_engine == dst_engine)
-                    && (src_engine->kind() == engine_kind::gpu)
-                    && utils::one_of(src_md()->data_type, data_type::u8,
-                            data_type::s8, data_type::f16, data_type::s32,
-                            data_type::f32, data_type::bf16)
-                    && utils::one_of(dst_md()->data_type, data_type::u8,
-                            data_type::s8, data_type::f16, data_type::s32,
-                            data_type::f32, data_type::bf16)
-                    && IMPLICATION(
-                            utils::one_of(data_type::f16, src_md()->data_type,
-                                    dst_md()->data_type),
-                            utils::downcast<compute::compute_engine_t *>(
-                                    src_engine)
-                                    ->mayiuse(compute::device_ext_t::khr_fp16))
-                    && (attr()->has_default_values()
-                            || IMPLICATION(post_ops.len() != 0,
-                                    post_ops.len() == 1
-                                            && post_ops.entry_[0].kind
-                                                    == primitive_kind::sum));
-
+            bool ok = src_engine == dst_engine
+                    && src_engine->kind() == engine_kind::gpu && attr_ok();
             if (!ok) return status::unimplemented;
 
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
@@ -75,9 +55,8 @@ struct generic_reorder_t : public gpu_primitive_t {
                     && IMPLICATION(
                             utils::one_of(data_type::f16, src_md()->data_type,
                                     dst_md()->data_type),
-                            true
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp16)
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
                                                     intel_subgroups_short));
