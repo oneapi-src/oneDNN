@@ -10455,6 +10455,118 @@ TEST(Pass, SingleInterpolatePass) {
     ASSERT_EQ(fgraph.get_num_partitions(), 0);
 }
 
+TEST(Pass, FuseInterpolateRelu) {
+    /* interpolate
+            |
+           relu
+    */
+    graph_t agraph;
+    op_t interpolate {0, Interpolate, "interpolate"};
+    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(
+            "coordinate_transformation_mode", std::string("half_pixel"));
+    op_t relu {1, ReLU, "relu"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(3);
+    interpolate.add_input(lt_vec[0]);
+    interpolate.add_output(lt_vec[1]);
+    relu.add_input(lt_vec[1]);
+    relu.add_output(lt_vec[2]);
+
+    ASSERT_EQ(agraph.add_op(&interpolate), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("interpolate_relu_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            impl::dnnl_impl::op_kind::interpolate_fusion);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2);
+}
+
+TEST(Pass, FuseInterpolateSum) {
+    /*   interpolate
+             \           /
+               \        /
+                  add
+    */
+    graph_t agraph;
+    op_t interpolate {0, Interpolate, "interpolate"};
+    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(
+            "coordinate_transformation_mode", std::string("half_pixel"));
+    op_t add {1, Add, "add"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    interpolate.add_input(lt_vec[0]);
+    interpolate.add_output(lt_vec[1]);
+    add.add_input(lt_vec[1]);
+    add.add_input(lt_vec[2]);
+    add.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&interpolate), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("interpolate_sum_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+}
+
+TEST(Pass, FuseInterpolateMul) {
+    /*   interpolate
+             \           /
+               \        /
+                Multiply
+    */
+    graph_t agraph;
+    op_t interpolate {0, Interpolate, "interpolate"};
+    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(
+            "coordinate_transformation_mode", std::string("half_pixel"));
+    op_t mul {1, Multiply, "mul"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    interpolate.add_input(lt_vec[0]);
+    interpolate.add_output(lt_vec[1]);
+    mul.add_input(lt_vec[1]);
+    mul.add_input(lt_vec[2]);
+    mul.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&interpolate), status::success);
+    ASSERT_EQ(agraph.add_op(&mul), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("interpolate_multiply_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+}
+
 TEST(Pass, Int8MhaFusion) {
     dnnl::graph::impl::graph_t agraph;
     dnnl::graph::tests::unit::utils::construct_int8_MHA(&agraph);

@@ -41,7 +41,8 @@ static bool need_insert_permute(op_kind_t kind) {
             op_kind::conv_depthwise, impl::op_kind::Convolution,
             impl::op_kind::ConvTranspose, op_kind::dnnl_convtranspose,
             impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool,
-            op_kind::dnnl_batchnorm, impl::op_kind::PReLU, op_kind::dnnl_prelu};
+            op_kind::dnnl_batchnorm, impl::op_kind::PReLU, op_kind::dnnl_prelu,
+            impl::op_kind::Interpolate};
     return ops.count(kind) != 0;
 }
 

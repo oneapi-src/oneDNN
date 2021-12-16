@@ -654,7 +654,9 @@ get_post_ops_fusible_map() {
                     // reorder
                     {Reorder, {dnnl_binary}}, {int8_reorder, {dnnl_binary}},
                     // reduction
-                    {dnnl_reduction, {dnnl_eltwise, dnnl_binary}}};
+                    {dnnl_reduction, {dnnl_eltwise, dnnl_binary}},
+                    // resample
+                    {Interpolate, {dnnl_eltwise, dnnl_binary}}};
     return fusible_map;
 }
 

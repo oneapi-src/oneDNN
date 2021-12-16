@@ -22,7 +22,6 @@
 #include <utility>
 #include <vector>
 #include <unordered_map>
-
 #include "dnnl.hpp"
 
 #include <utils/utils.hpp>
@@ -564,6 +563,49 @@ inline dnnl::concat::primitive_desc create_concat_pd(
             dst, static_cast<int>(axis), src_mds, p_engine, prm_attr);
 
     return pd;
+}
+
+inline std::pair<dnnl::resampling_forward::primitive_desc, bool>
+create_resampling_pd(std::shared_ptr<impl::op_t> &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<dnnl::resampling_forward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    // resampling src doesn't support any
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+    dst = to_format_any(dst);
+
+    std::string mode = op->get_attr<std::string>("mode");
+    algorithm algo = algorithm::undef;
+    if (mode == "nearest") {
+        algo = algorithm::resampling_nearest;
+    } else if (mode == "linear" || mode == "bilinear" || mode == "trilinear") {
+        algo = algorithm::resampling_linear;
+    } else {
+        BACKEND_DNNL_ENFORCE(0, "Unsupported resampling mode.");
+    }
+
+    dnnl::resampling_forward::primitive_desc pd;
+    pd = dnnl::resampling_forward::primitive_desc(
+            {prop_kind::forward_inference, algo, src, dst}, prm_attr, p_engine);
+
+    pd_cache.insert({op.get(), pd});
+
+    return {pd, true};
 }
 
 inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
@@ -1447,6 +1489,38 @@ private:
     dnnl::batch_normalization_forward prim_;
     bool is_training_ {false};
     std::vector<float> scales_;
+};
+
+struct resampling_executable_t : public op_executable_t {
+    resampling_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_resampling_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        prim_ = dnnl::resampling_forward(pd_);
+        if (op->has_attr("with_sum"))
+            with_sum_ = op->get_attr<bool>("with_sum");
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        if (with_sum_) {
+            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                dnnl::reorder(psrc_mem, dst_mem)
+                        .execute(stream, const_cast<memory &>(psrc_mem),
+                                const_cast<memory &>(dst_mem));
+            }
+        }
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::resampling_forward::primitive_desc pd_;
+    dnnl::resampling_forward prim_;
+    bool with_sum_ {false};
 };
 
 struct layernorm_executable_t : public op_executable_t {

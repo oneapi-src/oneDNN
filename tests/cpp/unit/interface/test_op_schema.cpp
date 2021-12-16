@@ -3453,7 +3453,7 @@ static auto DequantizeCases = []() {
 
 INSTANTIATE_TEST_SUITE_P(OpSchema, dynamic_dequantize_t, DequantizeCases());
 
-TEST(OpSchema, InterpolateInferShape) {
+TEST(OpSchema, InferInterpolateShape) {
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind::Interpolate);
     op_t op_ {0, kInterpolate, std::string("Interpolate")};
