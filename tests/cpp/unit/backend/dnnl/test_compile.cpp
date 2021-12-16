@@ -7327,7 +7327,7 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
 
         std::vector<int64_t> reshape0_dst_shape = configured_shape;
         reshape0_dst_shape[axis] /= g;
-        reshape0_dst_shape.insert(reshape0_dst_shape.begin() + axis, g);
+        reshape0_dst_shape.insert(reshape0_dst_shape.begin() + axis + 1, g);
 
         std::vector<int64_t> transpose_dst_shape = reshape0_dst_shape;
         std::swap(transpose_dst_shape[axis], transpose_dst_shape[axis + 1]);

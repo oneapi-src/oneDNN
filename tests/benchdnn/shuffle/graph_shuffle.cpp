@@ -34,11 +34,11 @@ shuffle_graph_prb_t::spec_t::spec_t(const ::shuffle::prb_t *prb) {
     // reshape0
     reshape0_src_dims = prb->dims;
     // - dst dims should be same as src dims except at 'channel' axis
-    // - 'channel' value should be replaced with (g, C / g),
+    // - 'channel' value should be replaced with (C / g, g),
     // therefore shape attr will have one more dimension than the src dims.
     reshape0_dst_dims = prb->dims;
     reshape0_dst_dims[axis] /= group;
-    reshape0_dst_dims.insert(reshape0_dst_dims.begin() + axis, group);
+    reshape0_dst_dims.insert(reshape0_dst_dims.begin() + axis + 1, group);
 
     // transpose
     transpose_dst_dims = reshape0_dst_dims;

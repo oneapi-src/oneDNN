@@ -9808,7 +9808,7 @@ TEST(Pass, ShuffleFusion) {
 
         std::vector<int64_t> reshape0_dst_shape = base_shape;
         reshape0_dst_shape[axis] /= g;
-        reshape0_dst_shape.insert(reshape0_dst_shape.begin() + axis, g);
+        reshape0_dst_shape.insert(reshape0_dst_shape.begin() + axis + 1, g);
 
         std::vector<int64_t> transpose_dst_shape = reshape0_dst_shape;
         std::swap(transpose_dst_shape[axis], transpose_dst_shape[axis + 1]);
@@ -9828,14 +9828,10 @@ TEST(Pass, ShuffleFusion) {
         reshape1.set_attr("shape", reshape1_dst_shape);
         reshape1.set_attr("special_zero", false);
 
-        logical_tensor_t reshape0_src
-                = logical_tensor_init(0, reshape0_src_shape, data_type::f32);
-        logical_tensor_t reshape0_dst
-                = logical_tensor_init(1, reshape0_dst_shape, data_type::f32);
-        logical_tensor_t transpose_dst
-                = logical_tensor_init(2, transpose_dst_shape, data_type::f32);
-        logical_tensor_t reshape1_dst
-                = logical_tensor_init(3, reshape1_dst_shape, data_type::f32);
+        logical_tensor_t reshape0_src = logical_tensor_init(0, data_type::f32);
+        logical_tensor_t reshape0_dst = logical_tensor_init(1, data_type::f32);
+        logical_tensor_t transpose_dst = logical_tensor_init(2, data_type::f32);
+        logical_tensor_t reshape1_dst = logical_tensor_init(3, data_type::f32);
 
         reshape0.add_input(reshape0_src);
         reshape0.add_output(reshape0_dst);
@@ -9860,80 +9856,6 @@ TEST(Pass, ShuffleFusion) {
                 dnnl_impl::op_kind::dnnl_shuffle);
     }
 }
-
-struct dnnl_graph_test_shuffle_fail_params {
-    const std::vector<int64_t> reshape0_src_shape;
-    const std::vector<int64_t> reshape0_dst_shape;
-    const std::vector<int64_t> transpose_dst_shape;
-    const std::vector<int64_t> reshape1_dst_shape;
-    const std::vector<int64_t> order;
-};
-
-class FailToFuseShuffleWithWrongAttr
-    : public ::testing::TestWithParam<dnnl_graph_test_shuffle_fail_params> {
-public:
-    void TestShuffle() {
-        const auto params = ::testing::TestWithParam<
-                dnnl_graph_test_shuffle_fail_params>::GetParam();
-
-        op_t reshape0 {0, StaticReshape, "reshape0"};
-        reshape0.set_attr("shape", params.reshape0_dst_shape);
-        reshape0.set_attr("special_zero", false);
-
-        op_t transpose {1, StaticTranspose, "transpose"};
-        transpose.set_attr("order", params.order);
-
-        op_t reshape1 {2, StaticReshape, "reshape1"};
-        reshape1.set_attr("shape", params.reshape1_dst_shape);
-        reshape1.set_attr("special_zero", false);
-
-        logical_tensor_t reshape0_src = logical_tensor_init(
-                0, params.reshape0_src_shape, data_type::f32);
-        logical_tensor_t reshape0_dst = logical_tensor_init(
-                1, params.reshape0_dst_shape, data_type::f32);
-        logical_tensor_t transpose_dst = logical_tensor_init(
-                2, params.transpose_dst_shape, data_type::f32);
-        logical_tensor_t reshape1_dst = logical_tensor_init(
-                3, params.reshape1_dst_shape, data_type::f32);
-
-        reshape0.add_input(reshape0_src);
-        reshape0.add_output(reshape0_dst);
-
-        transpose.add_input(reshape0_dst);
-        transpose.add_output(transpose_dst);
-
-        reshape1.add_input(transpose_dst);
-        reshape1.add_output(reshape1_dst);
-
-        graph_t agraph;
-        ASSERT_EQ(agraph.add_op(&reshape0), status::success);
-        ASSERT_EQ(agraph.add_op(&transpose), status::success);
-        ASSERT_EQ(agraph.add_op(&reshape1), status::success);
-        agraph.build_graph();
-
-        pass::pass_base_ptr apass = get_pass("shuffle_fusion");
-        apass->run(agraph);
-        ASSERT_EQ(agraph.get_num_partitions(), 0);
-    }
-};
-
-TEST_P(FailToFuseShuffleWithWrongAttr, TestShufflePassFail) {
-    TestShuffle();
-}
-
-INSTANTIATE_TEST_SUITE_P(Pass, FailToFuseShuffleWithWrongAttr,
-        ::testing::Values(
-                // wrong reshape 0
-                dnnl_graph_test_shuffle_fail_params {{4, 4, 4, 4}, {4, 4, 4, 4},
-                        {4, 4, 4, 4}, {4, 4, 4, 4}, {0, 1, 2, 3}},
-                // wrong transpose
-                dnnl_graph_test_shuffle_fail_params {{4, 4, 4, 4},
-                        {4, 2, 2, 4, 4}, {4, 2, 4, 2, 4}, {4, 2, 4, 2, 4},
-                        {0, 1, 3, 2, 4}},
-                // wrong reshape 1
-                dnnl_graph_test_shuffle_fail_params {{4, 4, 4, 4},
-                        {4, 2, 2, 4, 4}, {4, 2, 2, 4, 4}, {4, 2, 2, 4, 2, 2},
-                        {0, 2, 1, 3, 4}}));
 
 TEST(PassSystem, FuseTypecaseQuantize) {
     /*
