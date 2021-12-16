@@ -531,8 +531,8 @@ public:
         if (esize != expr.type().elems()) {
             ir_assert(expr.type().is_scalar() || esize == 1)
                     << "Expected broadcast.";
-            // Can't bind scalar to vector, extract scalar and bind.
             if (operand.is_reg_buf_data() && esize != 1) {
+                // Bind scalar expression to the first vector element.
                 op_to_bind = operand.reg_buf_data().format(
                         0, ngen::DataType::invalid, 1);
             }
