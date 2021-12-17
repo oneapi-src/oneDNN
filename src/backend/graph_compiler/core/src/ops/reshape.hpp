@@ -22,15 +22,13 @@
 
 namespace sc {
 namespace ops {
-
-// the dynamic reshape op. The first input is the tensor to reshape. The second
-// is the target shape. We currently only support the case when the second input
-// is constant
-class reshape_op : public sc_op,
-                   public op_traits::auto_copyable_t,
-                   public op_traits::constant_optimizable_t {
+// the static reshape op. The first input is the tensor to reshape. The second
+// is the target tensor. Shape info is included in attributes.
+class static_reshape_op : public sc_op,
+                          public op_traits::auto_copyable_t,
+                          public op_traits::constant_optimizable_t {
 public:
-    reshape_op(const std::vector<graph_tensor_ptr> &ins,
+    static_reshape_op(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     void query_format(context_ptr ctx,
             std::vector<std::vector<sc_data_format_t>> &in_formats,

@@ -38,9 +38,9 @@ struct engine_vtable_t {
 };
 
 struct stream_vtable_t : public engine_vtable_t {
-    using parallel_call_cpu_t = void (*)(
-            void (*)(void *, void *, uint64_t, generic_val *), void *, void *,
-            uint64_t, uint64_t, uint64_t, generic_val *);
+    using parallel_call_cpu_t
+            = void (*)(void (*)(void *, void *, int64_t, generic_val *), void *,
+                    void *, int64_t, int64_t, int64_t, generic_val *);
     parallel_call_cpu_t parallel_call;
 
     constexpr stream_vtable_t(alloc_t persist_alloc, dealloc_t persist_dealloc,
@@ -51,7 +51,7 @@ struct stream_vtable_t : public engine_vtable_t {
         , parallel_call(parallel_call_f) {}
 };
 
-struct engine : public std::enable_shared_from_this<engine> {
+struct engine {
     engine_vtable_t *vtable_;
     engine(engine_vtable_t *vtable) : vtable_(vtable) {}
 };
@@ -60,9 +60,6 @@ struct stream_t : public engine {
     stream_t(stream_vtable_t *vtable) : engine {vtable} {}
     stream_vtable_t *vtable() const {
         return static_cast<stream_vtable_t *>(vtable_);
-    }
-    std::shared_ptr<stream_t> shared_from_this() {
-        return std::static_pointer_cast<stream_t>(engine::shared_from_this());
     }
 };
 

@@ -138,7 +138,7 @@ extern "C" void sc_make_trace(int id, int in_or_out) {
         auto now = std::chrono::time_point_cast<std::chrono::nanoseconds>(t)
                            .time_since_epoch()
                            .count();
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__APPLE__)
         // fix-me: (win32)
         throw std::runtime_error(
                 "syscall(__NR_gettid) is not support on windows.");

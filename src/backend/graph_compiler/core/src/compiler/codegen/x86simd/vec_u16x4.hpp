@@ -26,7 +26,7 @@ public:
         __m128i v128;
         __m64 v;
         uint16_t raw[8];
-#ifdef __AVX512_BF16__
+#ifdef __AVX512BF16__
         __m128bh v16;
 #endif
     } __attribute__((aligned(16)));
@@ -41,13 +41,11 @@ public:
     INLINE vec_u16x4(__m64 const &x) { v = x; }
     INLINE vec_u16x4(__m128i const &x) { v128 = x; }
 
-    // static INLINE vec_u16x4 load(const uint16_t *p) {
-    //     return _mm_loadl_epi64((const __m64 *)p);
-    // }
+    static INLINE vec_u16x4 load(const uint16_t *p) {
+        return *(const __m64 *)p;
+    }
 
-    // static INLINE void store(vec_u16x4 v, uint16_t *p) {
-    //     _mm_storeu_epi64((__m64 *)p, v.v128);
-    // }
+    static INLINE void store(vec_u16x4 v, uint16_t *p) { *(__m64 *)p = v.v; }
 };
 
 // INLINE vec_u16x4 operator+(vec_u16x4 const &a, vec_u16x4 const &b) {

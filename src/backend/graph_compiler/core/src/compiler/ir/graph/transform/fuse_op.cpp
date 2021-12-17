@@ -382,6 +382,26 @@ static sc_op_ptr check_partition_with_base_op(sc_graph_t &g,
         fused_op_in = copy_partition_to_fmgr(g, nullptr, fmgr.get(),
                 *post_fusion_partition, op_name, multi_use, fused_op_out);
     }
+
+    // if the last reorder is vnni format, do not fuse
+    for (auto &outop : fmgr->get_graph().get_output_ops()) {
+        for (auto &lastop : outop->get_inputs()) {
+            if (auto reo_op
+                    = lastop->producer_owner_->dyn_cast<reorder_op_t>()) {
+                auto out_fmt = reo_op->get_output_format();
+                // check VNNI format reorder
+                auto block_size = out_fmt.get_blocks_size();
+                auto blocks = out_fmt.blocks_;
+                if (block_size > 2
+                        && (blocks[block_size - 1] == 2
+                                || blocks[block_size - 1] == 4))
+                    out_failed_ops.emplace_back(
+                            lastop->producer_owner_->shared_from_this());
+            }
+        }
+    }
+    if (!out_failed_ops.empty()) { return nullptr; }
+
     // if reshape is at the begining and end of the fusion pattern, do not fuse
     // it todo: we can discover this earlier
     for (auto &inop : fmgr->get_graph().get_input_ops()) {

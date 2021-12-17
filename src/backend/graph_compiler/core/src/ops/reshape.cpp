@@ -19,44 +19,8 @@
 
 namespace sc {
 namespace ops {
-
-static static_data_t *validate_and_get_static_shape(sc_op *ths) {
-    COMPILE_ASSERT(
-            ths->get_inputs().size() == 2, "dynamic reshape op takes 2 inputs");
-    auto in1 = ths->get_inputs()[1]->producer_owner_;
-    auto &in1_detail = ths->get_inputs()[1]->details_;
-    COMPILE_ASSERT(in1_detail.get_format().is_plain()
-                    || in1_detail.get_format().is_any(),
-            "Expecting plain format for input 2 of " << ths->op_name_);
-    COMPILE_ASSERT(in1_detail.get_blocking_dims().size() == 1
-                    && in1_detail.dtype_ == datatypes::s32,
-            "Expecting 1D and int32 tensor for input 2 of " << ths->op_name_);
-    if (!in1->isa<input_op>() && !in1->isa<constant_op_t>()) { return nullptr; }
-
-    auto ret = in1->attrs_.get_or_else<std::shared_ptr<static_data_t>>(
-            "values", nullptr);
-    COMPILE_ASSERT(ret,
-            "Since dynamic shape is not supported yet, we are expecting the "
-            "constant value data from the inputs as the shape "
-            "info for the dynamic shaped op: "
-                    << ths->op_name_);
-    return ret.get();
-}
-
-reshape_op::reshape_op(const std::vector<graph_tensor_ptr> &ins,
-        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-    : sc_op("reshape_op", ins, outs, attrs) {
-    auto shape_data = validate_and_get_static_shape(this);
-    COMPILE_ASSERT(
-            shape_data, "Reshape requires compile-time constant shape for now");
-    auto dim = get_inputs()[1]->details_.get_blocking_dims()[0];
-    auto input_dims = get_inputs()[0]->details_.get_plain_dims();
-    bool special_zero = attrs.get<bool>("special_zero");
-    int32_t *shape = reinterpret_cast<int32_t *>(shape_data->data_);
-    COMPILE_ASSERT(
-            dim * sizeof(int32_t) == shape_data->size_, "Bad shape data");
-    sc_dims outshape;
-    outshape.reserve(dim);
+static void get_output_shape(sc_dims &outshape, const sc_dims &input_dims,
+        const int32_t *shape, int dim, bool special_zero) {
     // we allow one dim value to be -1, which is automatically calculated to
     // keep the number of elements of the out tensor = in tensor.
     int auto_cal_dim = -1;
@@ -91,6 +55,21 @@ reshape_op::reshape_op(const std::vector<graph_tensor_ptr> &ins,
     } else {
         COMPILE_ASSERT(input_total_shape == total_shape, error_msg);
     }
+}
+
+static_reshape_op::static_reshape_op(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+    : sc_op("static_reshape_op", ins, outs, attrs) {
+    COMPILE_ASSERT(
+            attrs.has_key("shape"), "Static reshape requires shape attributes");
+    auto shape = attrs.get<sc_dims>("shape");
+    std::vector<int32_t> shape_s32(shape.begin(), shape.end());
+    bool special_zero = attrs.get<bool>("special_zero");
+    auto input_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto dim = static_cast<int>(shape.size());
+    sc_dims outshape;
+    outshape.reserve(dim);
+    get_output_shape(outshape, input_dims, shape_s32.data(), dim, special_zero);
     if (info_.outputs_.empty()) {
         info_.outputs_.emplace_back(graph_tensor::make(outshape,
                 sc_data_format_t(), get_inputs()[0]->details_.dtype_));
@@ -106,24 +85,22 @@ reshape_op::reshape_op(const std::vector<graph_tensor_ptr> &ins,
                         << utils::print_vector(details.get_plain_dims()));
     }
 }
-void reshape_op::query_format(context_ptr ctx,
+void static_reshape_op::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &in_formats,
         std::vector<std::vector<sc_data_format_t>> &out_formats) {
     throw std::runtime_error("Not implemented");
 }
-ir_module_ptr reshape_op::get_func(context_ptr ctx) {
+
+// for single op generate
+ir_module_ptr static_reshape_op::get_func(context_ptr ctx) {
     throw std::runtime_error("Not implemented");
 }
-sc_op_ptr reshape_op::constant_optimize(sc_graph_t &graph) {
-    auto shape_data = validate_and_get_static_shape(this);
-    // if input shape is not constant, return
-    if (!shape_data) { return nullptr; }
+sc_op_ptr static_reshape_op::constant_optimize(sc_graph_t &graph) {
     auto new_input = graph.make("tensor_view", {get_inputs()[0]}, {},
             {{"shape", get_outputs()[0]->details_.get_plain_dims()}});
     this->replace_uses_with_and_remove(new_input);
     return new_input;
 }
 } // namespace ops
-
-OP_REGISTER(ops::reshape_op, reshape);
+OP_REGISTER(ops::static_reshape_op, static_reshape);
 } // namespace sc

@@ -74,6 +74,13 @@ outer_loop_generator_t::outer_loop_generator_t(size_t base_inp_idx)
 typedef std::vector<int> (*loop_sort_rule_func)(
         const std::vector<int> &, sc_graph_t &, const tensor &);
 
+static bool axis_can_be_sort(const sc_graph_t &graph) {
+    return std::all_of(
+            graph.ops_.begin(), graph.ops_.end(), [](const sc_op_ptr &op) {
+                return !op->isa<reorder_op_t>() && !op->isa<tensor_view_op_t>();
+            });
+}
+
 /**
  * Move loop axis of reduce axis to inner.
  *
@@ -82,6 +89,7 @@ typedef std::vector<int> (*loop_sort_rule_func)(
  * */
 static std::vector<int> move_reduce_axis_to_inner(
         const std::vector<int> &in_axis, sc_graph_t &graph, const tensor &tsr) {
+    if (!axis_can_be_sort(graph)) { return in_axis; }
     std::vector<int> out_axis(in_axis.begin(), in_axis.end());
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(graph.ops_.size());
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
@@ -90,10 +98,6 @@ static std::vector<int> move_reduce_axis_to_inner(
             std::sort(reduce_axis.begin(), reduce_axis.end());
             auto shape = reduce_node->get_inputs()[0]
                                  ->details_.get_blocking_dims();
-            int parallel_num = 1;
-            for (int i = 0; i < *reduce_axis.begin(); i++) {
-                parallel_num *= shape[i];
-            }
             auto run_threads = runtime_config_t::get().threads_per_instance_;
             /* Due to loop order not only affect outer-loop parallelism,
              * but also inner-loop fusion, which will affect local buffer size(
@@ -126,6 +130,7 @@ static std::vector<int> move_reduce_axis_to_inner(
 static std::vector<int> continuous_access_satisfaction(
         const std::vector<int> &in_axis, sc_graph_t &graph, const tensor &tsr) {
     assert(in_axis.size() == tsr->dims_.size());
+    if (!axis_can_be_sort(graph)) { return in_axis; }
     constexpr int cache_line_size = 64;
     int fill_up_dim = static_cast<int>(tsr->dims_.size()) - 1;
     int dtype_size = utils::get_sizeof_type(tsr->elem_dtype_);

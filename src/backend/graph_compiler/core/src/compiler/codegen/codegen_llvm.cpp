@@ -95,15 +95,21 @@ public:
         , context_(context)
         , builder_(context_)
         , module_(utils::make_unique<Module>("name", context_)) {
-        InitializeNativeTarget();
-        InitializeNativeTargetAsmParser();
-        InitializeNativeTargetAsmPrinter();
-
+        static bool initialized = []() {
+            // make sure LLVM native targets are initialized once and avoid race
+            // condition
+            InitializeNativeTarget();
+            InitializeNativeTargetAsmParser();
+            InitializeNativeTargetAsmPrinter();
+            return true;
+        }();
+        SC_UNUSED(initialized);
         auto tm = get_llvm_target_machine();
         module_->setTargetTriple(tm->getTargetTriple().str());
         module_->setDataLayout(tm->createDataLayout());
         FastMathFlags fmflag;
         fmflag.setFast(true);
+        fmflag.setAllowContract(false);
         builder_.setFastMathFlags(fmflag);
     }
 
@@ -313,6 +319,55 @@ public:
             COMPILE_ASSERT(v->dtype_ == datatypes::generic,
                     "Unexpected outtype " << v);
         };
+        if (v->in_->dtype_.is_etype(sc_data_etype::F32)
+                && v->dtype_.is_etype(sc_data_etype::BF16)) {
+#if SC_LLVM_BACKEND > 10
+            switch (v->in_->dtype_.lanes_) {
+                case 1: {
+                    Value *vec = builder_.CreateVectorSplat(4, in_v);
+                    vec = builder_.CreateIntrinsic(
+                            Intrinsic::x86_avx512bf16_mask_cvtneps2bf16_128, {},
+                            {vec,
+                                    UndefValue::get(
+                                            get_type(sc_data_type_t::bf16(8))),
+                                    /*mask*/
+                                    builder_.CreateVectorSplat(
+                                            4, builder_.getInt1(true))});
+                    current_val_
+                            = builder_.CreateExtractElement(vec, UINT64_C(0));
+                } break;
+                case 4:
+                    current_val_ = builder_.CreateIntrinsic(
+                            Intrinsic::x86_avx512bf16_mask_cvtneps2bf16_128, {},
+                            {in_v,
+                                    UndefValue::get(
+                                            get_type(sc_data_type_t::bf16(8))),
+                                    /*mask*/
+                                    builder_.CreateVectorSplat(
+                                            4, builder_.getInt1(true))});
+                    current_val_ = builder_.CreateShuffleVector(
+                            current_val_, {0, 1, 2, 3});
+                    break;
+                case 8:
+                    current_val_ = builder_.CreateIntrinsic(
+                            Intrinsic::x86_avx512bf16_cvtneps2bf16_256, {},
+                            {in_v});
+                    break;
+                case 16:
+                    current_val_ = builder_.CreateIntrinsic(
+                            Intrinsic::x86_avx512bf16_cvtneps2bf16_512, {},
+                            {in_v});
+                    break;
+                default:
+                    std::stringstream ss;
+                    ss << "Unsupport cast lanes " << v->in_->dtype_.lanes_;
+                    throw std::runtime_error(ss.str());
+            }
+            return;
+#else
+            throw std::runtime_error("LLVM-8 cannot handle bf16");
+#endif
+        }
         switch (cate_in) {
             case CATE_FLOAT: {
                 switch (cate_out) {

@@ -148,7 +148,8 @@ const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
     auto &funcs = ret->get_contents();
     auto sz = funcs.size();
     for (unsigned i = 0; i < sz; i++) {
-        funcs[i] = std::const_pointer_cast<func_base>(pass.dispatch(funcs[i]));
+        auto f = std::const_pointer_cast<func_base>(pass.dispatch(funcs[i]));
+        funcs[i] = std::move(f);
     }
     return ret;
 }

@@ -70,7 +70,6 @@ static void propagate_quantize_info(const sc_op_ptr &quantize_node,
             case 1: prefix = "weight_"; break;
             default: assert(0 && "invalid tensor type!"); break;
         };
-        aware_node.second->attrs_.set(prefix + "dtype", qinfos.dtype_);
         aware_node.second->attrs_.set(prefix + "scales", qinfos.scales_);
         aware_node.second->attrs_.set(
                 prefix + "zero_points", qinfos.zero_points_);
@@ -102,10 +101,6 @@ static void propagate_quantize_info(const sc_op_ptr &quantize_node,
             channel_axis = axes[0] == channel_axis ? axes[1] : axes[0];
             aware_node.second->attrs_.set("channel_axis", channel_axis);
         }
-        has_key_and_set<sc_data_type_t>(
-                quantize_node->attrs_, "data_dtype", aware_node.second);
-        has_key_and_set<sc_data_type_t>(
-                quantize_node->attrs_, "weight_dtype", aware_node.second);
         has_key_and_set<std::vector<float>>(
                 quantize_node->attrs_, "data_scales", aware_node.second);
         has_key_and_set<std::vector<float>>(

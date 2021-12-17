@@ -37,4 +37,11 @@ SC_API void sc_dump_tensor(void *tsr, const char *name, const char *shape,
 SC_API void sc_value_check(void *tsr, const char *name, size_t size);
 };
 
+namespace sc {
+namespace runtime {
+struct engine;
+}
+SC_API void release_runtime_memory(runtime::engine *engine);
+} // namespace sc
+
 #endif

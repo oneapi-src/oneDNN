@@ -22,10 +22,10 @@
 #define RUN_ON_PRODUCTION(F) \
     F(batch_matmul); \
     F(softmax); \
-    F(tensor_view); \
-    F(reshape); \
+    F(static_reshape); \
     F(matmul); \
     F(quantize); \
+    F(exp); \
     F(dynamic_transpose);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;

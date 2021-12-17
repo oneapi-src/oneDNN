@@ -29,6 +29,7 @@
 #include <cpu/x64/brgemm/brgemm_types.hpp>
 #include <runtime/config.hpp>
 #include <runtime/context.hpp>
+#include <runtime/thread_locals.hpp>
 #include <unordered_map>
 #include <util/hash_utils.hpp>
 
@@ -271,20 +272,28 @@ static brg_desc_safe_t g_brg_desc_s;
 thread_local brg_desc_safe_t::thread_local_cache
         brg_desc_safe_t::brg_desc_vec_local_;
 
-struct amx_buffer_t {
-    void *ptr_ = nullptr;
-    std::shared_ptr<sc::runtime::stream_t> stream_;
-    ~amx_buffer_t() {
-        if (ptr_) { stream_->vtable_->persistent_dealloc(stream_.get(), ptr_); }
-    }
-    void reset(sc::runtime::stream_t *stream) {
-        if (!stream) stream = sc::runtime::get_default_stream();
-        stream_ = stream->shared_from_this();
-        ptr_ = stream->vtable_->persistent_alloc(stream, 1024);
-    }
-};
+namespace sc {
+namespace runtime {
 
-static thread_local amx_buffer_t amx_tile_buf;
+amx_buffer_t::~amx_buffer_t() {
+    release();
+}
+void amx_buffer_t::reset(sc::runtime::stream_t *stream) {
+    if (!stream) stream = sc::runtime::get_default_stream();
+    stream_ = stream;
+    ptr_ = stream->vtable_->persistent_alloc(stream, 1024);
+}
+void amx_buffer_t::release() {
+    if (ptr_) {
+        assert(stream_);
+        stream_->vtable_->persistent_dealloc(stream_, ptr_);
+        ptr_ = nullptr;
+        stream_ = nullptr;
+    }
+}
+} // namespace runtime
+} // namespace sc
+
 static thread_local char *cur_palette = nullptr;
 static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
         sc::runtime::stream_t *stream, bool &amx_exclusive) {
@@ -294,6 +303,7 @@ static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
         if (!amx_exclusive || cur_palette != brg_desc->palette_) {
             amx_tile_configure(brg_desc->palette_);
             cur_palette = brg_desc->palette_;
+            auto &amx_tile_buf = sc::runtime::tls_buffer.amx_buffer;
             if (!amx_tile_buf.ptr_) { amx_tile_buf.reset(stream); }
             tmp_amx_tile_buf = amx_tile_buf.ptr_;
         }

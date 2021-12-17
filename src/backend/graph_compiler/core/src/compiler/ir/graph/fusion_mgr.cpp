@@ -454,7 +454,15 @@ void set_buffer_reuse_hint(int64_t &hint_tick, fusion_anchor_data &fdata,
             }
         }
     }
-    if (node->isa<reduce_op_t>() || node->isa<movement_op_t>()) { return; }
+    // skip complex cases, don't do schedule.
+    // todo: refactor based on rule.
+    if (!(node->isa<input_op>()
+                || (node->isa<unary_elementwise_op_t>()
+                        && !node->isa<cast_op_t>())
+                || node->isa<binary_elementwise_op_t>())) {
+        return;
+    }
+
     if (tsr.defined()) {
         // current tsr's first access == last access
         tsr->attr().set(attr_keys::hint_first_access_tick, hint_tick);
@@ -1025,20 +1033,36 @@ void fusion_manager::do_shedule_tensor(
      * use_one_anchor should be turned on in reschedule anchor pass. as the
      * result, this function will never be called.
      * */
-    auto replace_ = [](fusion_data &prev_data, fusion_data &cur_data, int i) {
-        COMPILE_ASSERT(prev_data.tsr_slice_list_.size()
-                        == cur_data.tsr_slice_list_.size(),
-                "It seems that one movement type op generate multi-slice, "
-                "please turn on 'use_one_anchor' flag during reschedule anchor "
-                "pass");
-        auto &prev_tptr = prev_data.tsr_slice_list_[i].tptr_;
-        auto cur_tsr = cur_data.tsr_slice_list_[i].get_real_tensor();
-        // use current tensorptr original tensor and previous tensorptr offset
-        prev_tptr
-                = builder::tensor_ptr(cur_tsr, prev_tptr->base_->idx_, {}, true)
-                          .static_as<tensorptr>();
-        // reset boundary tensor's first access hint
-        reset_buffer_reuse_first_access_hint(cur_tsr);
+    auto replace_ = [](fusion_data &prev_data, fusion_data &cur_data,
+                            const tensor &target_tsr) {
+        if (prev_data.tsr_slice_list_.size()
+                == cur_data.tsr_slice_list_.size()) {
+            for (size_t i = 0; i < cur_data.tsr_slice_list_.size(); i++) {
+                auto tsr_in_cur_anchor
+                        = cur_data.tsr_slice_list_[i].get_real_tensor();
+                // if cur_op and prev_op share the same buffer
+                // in cur anchor, we ned to use the shared
+                // buffer to replace prev op tensor in prev
+                // anchor
+                if (target_tsr.ptr_same(tsr_in_cur_anchor)) {
+                    auto &prev_tptr = prev_data.tsr_slice_list_[i].tptr_;
+                    // use current tensorptr original tensor
+                    // and previous tensorptr offset
+                    prev_tptr = builder::tensor_ptr(
+                            target_tsr, prev_tptr->base_->idx_, {}, true)
+                                        .static_as<tensorptr>();
+                    // reset boundary tensor's first access
+                    // hint
+                    reset_buffer_reuse_first_access_hint(target_tsr);
+                }
+            }
+        } else {
+            COMPILE_ASSERT(0,
+                    "It seems that one movement type op generate multi-slice, "
+                    "please turn on 'use_one_anchor' flag during reschedule "
+                    "anchor "
+                    "pass");
+        }
     };
 
     for (size_t i = 0; i < sorted_ops_.size(); i++) {
@@ -1053,7 +1077,7 @@ void fusion_manager::do_shedule_tensor(
             for (auto &tsr_slice :
                     fdata_list[cur_op_anchor].get(cur_op_ins).tsr_slice_list_) {
                 auto cur_op_tsr = tsr_slice.get_real_tensor();
-                // visitor all previous anchor
+                // visit all previous anchor
                 for (int anchor_id = cur_op_anchor - 1; anchor_id >= 0;
                         anchor_id--) {
                     // check all op before cur op
@@ -1070,53 +1094,21 @@ void fusion_manager::do_shedule_tensor(
                             auto &prev_op_data_in_cur_anchor
                                     = fdata_list[cur_op_anchor].get(
                                             prev_op_ins);
-                            for (size_t i = 0;
-                                    i < prev_op_data_in_cur_anchor
-                                                .tsr_slice_list_.size();
-                                    i++) {
-                                auto &tsr_slice = prev_op_data_in_cur_anchor
-                                                          .tsr_slice_list_[i];
-                                auto prev_op_tsr_in_cur_anchor
-                                        = tsr_slice.get_real_tensor();
-                                // if cur_op and prev_op share the same buffer
-                                // in cur anchor, we ned to use the shared
-                                // buffer to replace prev op tensor in prev
-                                // anchor
-                                if (cur_op_tsr.ptr_same(
-                                            prev_op_tsr_in_cur_anchor)) {
-                                    auto &prev_op_data_in_prev_anchor
-                                            = fdata_list[prev_op_anchor].get(
-                                                    prev_op_ins);
-                                    replace_(prev_op_data_in_prev_anchor,
-                                            prev_op_data_in_cur_anchor, i);
-                                }
-                            }
+                            auto &prev_op_data_in_prev_anchor
+                                    = fdata_list[prev_op_anchor].get(
+                                            prev_op_ins);
+                            replace_(prev_op_data_in_prev_anchor,
+                                    prev_op_data_in_cur_anchor, cur_op_tsr);
                         }
                         for (auto &prev_op_out : prev_op->get_outputs()) {
                             auto &prev_op_data_in_cur_anchor
                                     = fdata_list[cur_op_anchor].get(
                                             prev_op_out);
-                            for (size_t i = 0;
-                                    i < prev_op_data_in_cur_anchor
-                                                .tsr_slice_list_.size();
-                                    i++) {
-                                auto &tsr_slice = prev_op_data_in_cur_anchor
-                                                          .tsr_slice_list_[i];
-                                auto prev_op_tsr_in_cur_anchor
-                                        = tsr_slice.get_real_tensor();
-                                // if cur_op and prev_op share the same buffer
-                                // in cur anchor, we ned to use the shared
-                                // buffer to replace prev op tensor in prev
-                                // anchor
-                                if (cur_op_tsr.ptr_same(
-                                            prev_op_tsr_in_cur_anchor)) {
-                                    auto &prev_op_data_in_prev_anchor
-                                            = fdata_list[prev_op_anchor].get(
-                                                    prev_op_out);
-                                    replace_(prev_op_data_in_prev_anchor,
-                                            prev_op_data_in_cur_anchor, i);
-                                }
-                            }
+                            auto &prev_op_data_in_prev_anchor
+                                    = fdata_list[prev_op_anchor].get(
+                                            prev_op_out);
+                            replace_(prev_op_data_in_prev_anchor,
+                                    prev_op_data_in_cur_anchor, cur_op_tsr);
                         }
                     }
                 }
@@ -1169,6 +1161,22 @@ void fusion_manager::do_reshedule_anchor(
                     use_one_anchor = true;
                     break;
                 }
+                for (auto &user : out->uses_) {
+                    if (user.second->isa<output_op>()
+                            || user.second->isa<constant_op_t>())
+                        continue;
+                    int user_anchor_id
+                            = user.second->dyn_cast<fusible_op_t>()->anchor_id;
+                    if (user_anchor_id > cur_anchor
+                            && fdata_list[user_anchor_id]
+                                            .get(out)
+                                            .original_ranges_list_.size()
+                                    > 1) {
+                        use_one_anchor = true;
+                        break;
+                    }
+                }
+                if (use_one_anchor) break;
             }
         }
     }

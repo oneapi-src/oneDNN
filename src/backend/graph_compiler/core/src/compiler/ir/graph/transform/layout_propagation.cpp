@@ -162,14 +162,31 @@ SC_INTERNAL_API void layout_propagation(
             if (graph.attrs_.get_or_else(
                         sc_graph_t::attr_key_t::is_output_plain, true)) {
                 // if is not plain format, will insert reorder.
+                std::vector<sc_data_format_t> plain_formats(
+                        node->get_inputs().size());
+                for (size_t i = 0; i < node->get_inputs().size(); ++i) {
+                    plain_formats[i] = node->get_inputs()[i]
+                                               ->details_.get_format()
+                                               .to_plain();
+                }
+                const auto &target_formats = node->attrs_.get_or_else(
+                        "target_formats", plain_formats);
+                COMPILE_ASSERT(
+                        target_formats.size() == node->get_inputs().size(),
+                        "Output op's target_formats' size should be equal to "
+                        "number of tensors");
                 for (size_t i = 0; i < node->get_inputs().size(); ++i) {
                     auto in = node->get_inputs()[i];
+                    auto target_format = target_formats[i];
                     COMPILE_ASSERT(!in->details_.get_format().is_any(),
                             "output op's input format should have a concrete "
-                            "format, instead of any_t format");
-                    if (!in->details_.get_format().is_plain()) {
-                        insert_reorder_op(graph, in, i,
-                                in->details_.get_format().to_plain(), node,
+                            "format, instead of any format");
+                    COMPILE_ASSERT(!target_format.is_any()
+                                    && !target_format.is_blocking(),
+                            "output op's target format should be plain or "
+                            "permuted.")
+                    if (in->details_.get_format() != target_format) {
+                        insert_reorder_op(graph, in, i, target_format, node,
                                 is_input_plain);
                     }
                 }

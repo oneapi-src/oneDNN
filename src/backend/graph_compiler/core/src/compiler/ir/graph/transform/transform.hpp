@@ -78,6 +78,8 @@ void horizontal_merge(
 SC_INTERNAL_API void global_reschedule(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
+SC_INTERNAL_API void inplace_transform(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 namespace quantize {
 SC_INTERNAL_API void quantize_info_propagation(
         sc_graph_t &mgr, const context_ptr &ctx = get_default_context());

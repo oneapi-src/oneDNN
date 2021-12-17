@@ -209,9 +209,17 @@ void codegen_c_vis::view(cast_c v) {
     }
 
     if (v->dtype_.lanes_ == 1) {
-        *os << '(';
-        print_cpp_type(*os, v->dtype_) << ')';
-        dispatch(v->in_);
+        if (v->in_->dtype_.is_etype(sc_data_etype::F32)
+                && v->dtype_.is_etype(sc_data_etype::BF16)) {
+            *os << "tobf16(";
+            dispatch(v->in_);
+            *os << ')';
+        } else {
+            *os << '(';
+            print_cpp_type(*os, v->dtype_) << ')';
+            dispatch(v->in_);
+        }
+
     } else {
         COMPILE_ASSERT(v->dtype_.lanes_ == v->in_->dtype_.lanes_,
                 "Vector cast should have same lanes. Got "
@@ -221,12 +229,13 @@ void codegen_c_vis::view(cast_c v) {
             *os << "tobf16(";
             dispatch(v->in_);
             *os << ')';
+        } else {
+            *os << '(';
+            print_type(v->dtype_);
+            *os << ")(";
+            dispatch(v->in_);
+            *os << ')';
         }
-        *os << '(';
-        print_type(v->dtype_);
-        *os << ")(";
-        dispatch(v->in_);
-        *os << ')';
     }
 }
 

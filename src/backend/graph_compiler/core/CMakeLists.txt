@@ -18,6 +18,10 @@
 
 cmake_minimum_required(VERSION 2.8.11)
 
+if(POLICY CMP0025)
+    cmake_policy(SET CMP0025 NEW) # For AppleClang
+endif()
+
 if(POLICY CMP0022)
     cmake_policy(SET CMP0022 NEW)
 endif()
@@ -83,14 +87,22 @@ set(INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/install)
 set(CMAKE_INSTALL_BINDIR "lib" CACHE STRING "library install path")
 set(CMAKE_INSTALL_LIBDIR "bin" CACHE STRING "binary install path")
 
+set(SC_CPP_VER 11)
 
 link_directories(${INSTALL_DIR}/lib)
+
+if(SC_OMP_ENABLED STREQUAL ON)
+    add_definitions("-DSC_OMP_ENABLED=1")
+    find_package(OpenMP REQUIRED)
+endif()
 
 ##############################
 # Enable better debug info...
 ##############################
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -O0 -fno-inline -fno-omit-frame-pointer -gdwarf-4")
+if(NOT MSVC)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -O0 -fno-inline -fno-omit-frame-pointer -gdwarf-4")
+endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL Clang)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-limit-debug-info")
@@ -116,6 +128,15 @@ file(GLOB_RECURSE SC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
     )
 
+if(WIN32 OR APPLE)
+    list(REMOVE_ITEM SC_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/util/fdstream.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/util/fdstream.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/util/subprocess.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/jit/cfake/cfake_jit.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/jit/cfake/cfake_jit.hpp
+    )
+endif()
+
 if( SC_MEMORY_LEAK_CHECK GREATER -1 AND SC_MEMORY_LEAK_CHECK LESS 3 )
     add_definitions("-DSC_MEMORY_LEAK_CHECK=${SC_MEMORY_LEAK_CHECK}")
 else()
@@ -138,6 +159,14 @@ add_library(objlib OBJECT ${SC_SOURCES})
 add_library(${SC_LIB_NAME_STATIC} STATIC $<TARGET_OBJECTS:objlib>)
 add_library(${SC_LIB_NAME} SHARED $<TARGET_OBJECTS:objlib>)
 
+if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
+    if(MSVC)
+        set_property(TARGET objlib PROPERTY COMPILE_FLAGS "/DSC_DLL_EXPORTS")
+    else()
+        set_property(TARGET objlib PROPERTY COMPILE_FLAGS "-DSC_DLL_EXPORTS")
+    endif()
+endif()
+
 include_directories(
     ${PROJECT_BINARY_DIR}/include
 )
@@ -146,10 +175,14 @@ include_directories(
 # Linking LLVM
 ################
 
-target_link_libraries(${SC_LIB_NAME_STATIC} PRIVATE ${SC_LLVM_LIB_NAME})
-target_link_libraries(${SC_LIB_NAME} PRIVATE ${SC_LLVM_LIB_NAME})
+set(SC_LLVM_ABS_LIBPATH ${SC_LLVM_LIB_NAME})
 
-set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/jit/llvm/llvm_jit_resolver.cpp PROPERTIES COMPILE_FLAGS -fno-rtti)
+target_link_libraries(${SC_LIB_NAME_STATIC} PRIVATE ${SC_LLVM_ABS_LIBPATH})
+target_link_libraries(${SC_LIB_NAME} PRIVATE ${SC_LLVM_ABS_LIBPATH})
+
+if(NOT MSVC)
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/jit/llvm/llvm_jit_resolver.cpp PROPERTIES COMPILE_FLAGS -fno-rtti)
+endif()
 
 ##########################
 # Setting compiler flags
@@ -157,17 +190,16 @@ set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/jit/llvm/ll
 
 if(${SC_LLVM_VERSION} GREATER 8)
     set(SC_CPP_VER "14")
-else()
-    set(SC_CPP_VER "11")
 endif()
 
 if(NOT MSVC)
+    message(STATUS "C++ standard is ${SC_CPP_VER}")
     if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-field-initializers")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wmissing-field-initializers")
     endif()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden -ffunction-sections -fdata-sections -Wall -Wno-unused-variable -Wno-unused-function -std=c99 -fopenmp -fPIC -Werror -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -ffunction-sections -fdata-sections -Wall -Wno-unused-variable -Wno-unused-function -std=c++${SC_CPP_VER} -fopenmp -fPIC -Werror -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden -ffunction-sections -fdata-sections -Wall -Wno-unused-variable -Wno-unused-function -std=c99 -fPIC -Werror -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -ffunction-sections -fdata-sections -Wall -Wno-unused-variable -Wno-unused-function -std=c++${SC_CPP_VER} -fPIC -Werror -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
     # Deal with Clang < 6.0's missing-braces issue
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6.0)
@@ -175,11 +207,11 @@ if(NOT MSVC)
         endif()
     endif()
     append(CMAKE_CXX_FLAGS "-fvisibility-inlines-hidden")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--as-needed -Wl,--gc-sections")
-endif()
-
-if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
-    add_definitions(-DSC_DLL -DSC_DLL_EXPORTS)
+    if(NOT APPLE)
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--as-needed")
+    else()
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
+    endif()
 endif()
 
 if(NOT ${KERNEL_PROFILE} STREQUAL "OFF")
@@ -196,8 +228,10 @@ endif()
 
 set(PARENT_NAME dnnl_graph)
 
-target_link_libraries(${SC_LIB_NAME} PUBLIC dl)
-target_link_libraries(${SC_LIB_NAME_STATIC} PUBLIC dl)
+if(UNIX)
+    target_link_libraries(${SC_LIB_NAME} PUBLIC dl)
+    target_link_libraries(${SC_LIB_NAME_STATIC} PUBLIC dl)
+endif()
 
 set(LIB_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${SC_LIB_NAME}")
 set(LIB_EXPORT_NAME "${SC_LIB_NAME}-targets")
@@ -211,7 +245,7 @@ install(EXPORT ${LIB_EXPORT_NAME}
 NAMESPACE ${LIB_NAMESPACE}
 DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 
-if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
+if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED" OR MSVC)
     add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
     file(GLOB_RECURSE DNNL_SOURCES
         ${DNNL_PATH}/src/cpu/x64/brgemm/*.cpp

@@ -226,6 +226,19 @@ public:
     input_op(const std::vector<graph_tensor_ptr> &outs);
 };
 
+/**
+ * The output argument Op
+ * Inputs:
+ *  - One or more tensors
+ * Outputs:
+ *  - None
+ * Attrs:
+ *  - target_formats: std::vector<sc_data_format_t> - default: vector of plain
+ *    format. It will be used only if the graph's `is_output_plain` attr is
+ *    true. target_formats is the format of the output tensor. They should be
+ *    either plain or simply permuted. If the target_formats is set, the
+ *    output tensor will be reordered into the specified format.
+ * */
 class output_op : public fusible_op_t {
 public:
     DECLARE_QUERY_AND_DEFAULT_COMPUTE();
@@ -485,6 +498,30 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     sc_dims get_shapes() const;
     bool try_penetrate(sc_data_format_t &new_output_format) const;
+
+private:
+    sc_dims shapes_;
+};
+
+/**
+ * Creates a copy of an input tensor with a different shape.
+ * Currenly only used in case whole graph has only single reshape op for perf.
+ * Inputs:
+ *  - A single tensor to reshape
+ * Outputs:
+ *  - The reshaped tensor
+ * Attrs:
+ *  - shape: vector<int> - the output blocking shape
+ * */
+class reshape_op_t : public movement_op_t, public op_traits::auto_copyable_t {
+public:
+    DECLARE_QUERY_AND_COMPUTE();
+    reshape_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
+    void query_format(context_ptr ctx,
+            std::vector<std::vector<sc_data_format_t>> &in_formats,
+            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+    ir_module_ptr get_func(context_ptr ctx) override;
 
 private:
     sc_dims shapes_;

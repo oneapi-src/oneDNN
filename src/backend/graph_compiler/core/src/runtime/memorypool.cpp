@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include "context.hpp"
 #include "memorypool.hpp"
+#include "thread_locals.hpp"
 #include <util/utils.hpp>
 
 #ifdef _WIN32
@@ -38,10 +39,6 @@ namespace sc {
 namespace memory_pool {
 using utils::divide_and_ceil;
 static constexpr size_t default_alignment = 64;
-// 8MB
-static constexpr size_t threadlocal_chunk_size = 8 * 1024 * 1024;
-// 64MB
-static constexpr size_t main_chunk_size = 64 * 1024 * 1024;
 
 memory_chunk_t *memory_chunk_t::init(intptr_t pdata, size_t sz) {
     memory_chunk_t *ths = reinterpret_cast<memory_chunk_t *>(
@@ -75,8 +72,7 @@ memory_block_t *memory_block_t::make(runtime::stream_t *stream, size_t sz,
     memory_block_t *blk = reinterpret_cast<memory_block_t *>(ret);
     blk->size_ = sz;
     blk->allocated_ = sizeof(memory_block_t);
-    new (&blk->stream_) decltype(blk->stream_);
-    blk->stream_ = stream->shared_from_this();
+    blk->stream_ = stream;
     static_assert(sizeof(memory_block_t) == offsetof(memory_block_t, buffer_),
             "sizeof(memory_block_t) == offsetof(memory_block_t, buffer_)");
     blk->prev_ = prev;
@@ -97,7 +93,8 @@ void dealloc_by_mmap(runtime::engine *eng, void *b) {
 static void free_memory_block_list(memory_block_t *b) {
     while (b) {
         memory_block_t *next = b->next_;
-        b->stream_->vtable()->temp_dealloc(b->stream_.get(), b);
+        auto stream = b->stream_;
+        stream->vtable()->temp_dealloc(stream, b);
         b = next;
     }
 }
@@ -168,36 +165,36 @@ void filo_memory_pool_t::dealloc(void *ptr) {
         }
     }
 }
-filo_memory_pool_t::~filo_memory_pool_t() {
+
+void filo_memory_pool_t::release() {
     free_memory_block_list(buffers_);
+    buffers_ = nullptr;
+    current_ = nullptr;
+}
+
+filo_memory_pool_t::~filo_memory_pool_t() {
+    release();
 }
 
 } // namespace memory_pool
-using namespace memory_pool;
-
-// if the current thread is a worker thread, use this pool
-thread_local static filo_memory_pool_t thread_memory_pool(
-        threadlocal_chunk_size);
-// if the current thread is the "main" thread, use this pool
-thread_local static filo_memory_pool_t main_memory_pool(main_chunk_size);
 } // namespace sc
 
 using stream_t = sc::runtime::stream_t;
 extern "C" SC_API void *sc_aligned_malloc(
         stream_t *pstream, size_t sz) noexcept {
-    return sc::main_memory_pool.alloc(pstream, sz);
+    return sc::runtime::tls_buffer.main_memory_pool.alloc(pstream, sz);
 }
 
 extern "C" SC_API void sc_aligned_free(stream_t *pstream, void *p) noexcept {
-    sc::main_memory_pool.dealloc(p);
+    sc::runtime::tls_buffer.main_memory_pool.dealloc(p);
 }
 
 extern "C" SC_API void *sc_thread_aligned_malloc(
         stream_t *pstream, size_t sz) noexcept {
-    return sc::thread_memory_pool.alloc(pstream, sz);
+    return sc::runtime::tls_buffer.thread_memory_pool.alloc(pstream, sz);
 }
 
 extern "C" SC_API void sc_thread_aligned_free(
         stream_t *pstream, void *p) noexcept {
-    sc::thread_memory_pool.dealloc(p);
+    sc::runtime::tls_buffer.thread_memory_pool.dealloc(p);
 }

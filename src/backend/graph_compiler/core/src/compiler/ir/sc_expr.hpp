@@ -357,7 +357,7 @@ union union_val {
     float f32;
     union_val() = default;
     union_val(uint64_t val_u64) { u64 = val_u64; }
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__APPLE__)
     union_val(unsigned long val_u64) { u64 = val_u64; } // NOLINT
 #endif
     union_val(int64_t val_s64) { s64 = val_s64; }
@@ -429,7 +429,7 @@ public:
     node_ptr(int32_t v);
     // converter from c++ uint64_t to index `constant` IR
     node_ptr(uint64_t v);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__APPLE__)
     // converter from c++ uint64_t to index `constant` IR
     node_ptr(unsigned long v) : node_ptr(static_cast<uint64_t>(v)) {} // NOLINT
 #endif
@@ -617,7 +617,7 @@ extern ostream &operator<<(ostream &os, const expr_base *e);
 /**
  * The expression node for constants
  *
- * NOTE: To avoid confusion within the Semicompiler code base, it's recommended
+ * NOTE: To avoid confusion within the Graphcompiler code base, it's recommended
  * that all users of this class adhere to the type-mapping convention indicated
  * in the `union_val` documentation.
  */
@@ -628,7 +628,7 @@ public:
     constant_node(int64_t val, sc_data_type_t dtype = datatypes::s32)
         : expr_base(dtype, sc_expr_type::constant)
         , value_(std::vector<union_val>(1, val)) {};
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__APPLE__)
     constant_node(unsigned long val, // NOLINT
             sc_data_type_t dtype = datatypes::index) // NOLINT
         : expr_base(dtype, sc_expr_type::constant)

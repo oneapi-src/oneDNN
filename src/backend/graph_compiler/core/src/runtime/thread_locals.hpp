@@ -14,32 +14,36 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "context.hpp"
-#include <assert.h>
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_THREAD_LOCALS_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_THREAD_LOCALS_HPP
 #include "memorypool.hpp"
-#include "parallel.hpp"
-#include "runtime.hpp"
 
 namespace sc {
-
 namespace runtime {
-static void *global_alloc(runtime::engine *eng, size_t sz) {
-    return sc_global_aligned_alloc(sz, 64);
-}
+struct engine;
+struct stream;
 
-static void global_free(runtime::engine *eng, void *p) {
-    return sc_global_aligned_free(p, 64);
-}
+struct amx_buffer_t {
+    void *ptr_ = nullptr;
+    stream_t *stream_ = nullptr;
+    ~amx_buffer_t();
+    void reset(stream_t *stream);
+    void release();
+};
 
-static stream_vtable_t vtable {global_alloc, global_free,
-        sc::memory_pool::alloc_by_mmap, sc::memory_pool::dealloc_by_mmap,
-        sc_parallel_call_cpu_with_env_impl};
+struct thread_local_buffer {
+    amx_buffer_t amx_buffer;
+    // if the current thread is the "main" thread, use this pool
+    memory_pool::filo_memory_pool_t main_memory_pool {
+            memory_pool::main_chunk_size};
+    // if the current thread is a worker thread, use this pool
+    memory_pool::filo_memory_pool_t thread_memory_pool {
+            memory_pool::threadlocal_chunk_size};
+};
 
-static stream_t default_stream {&vtable};
-
-stream_t *get_default_stream() {
-    return &default_stream;
-}
+extern thread_local thread_local_buffer tls_buffer;
 
 } // namespace runtime
 } // namespace sc
+
+#endif

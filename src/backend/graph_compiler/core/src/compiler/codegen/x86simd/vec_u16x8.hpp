@@ -25,7 +25,7 @@ public:
     union {
         __m128i v;
         uint16_t raw[8];
-#ifdef __AVX512_BF16__
+#ifdef __AVX512BF16__
         __m128bh v16;
 #endif
     } __attribute__((aligned(16)));

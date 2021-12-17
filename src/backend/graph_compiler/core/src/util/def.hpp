@@ -16,8 +16,14 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_DEF_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_DEF_HPP
 
+#ifdef DNNL_GRAPH_DLL
+#ifndef SC_DLL
+#define SC_DLL
+#endif
+#endif
+
 #define SC_UNUSED(x) ((void)(x))
-// the macro marks that a function is the top-level API of semi-compiler
+// the macro marks that a function is the top-level API of graph-compiler
 #ifdef _MSC_VER
 #ifdef SC_DLL
 #ifdef SC_DLL_EXPORTS
@@ -46,7 +52,7 @@
 #define SC_LEAK_CHECK(T)
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 #define SC_CFAKE_JIT_ENABLED 0
 #else
 #define SC_CFAKE_JIT_ENABLED 1

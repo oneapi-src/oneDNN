@@ -47,13 +47,17 @@ std::unique_ptr<jit_engine_t> jit_engine_t::make(const context_ptr &ctx) {
 void jit_engine_t::set_target_machine(jit_kind kind, target_machine_t &tm) {
     switch (kind) {
         case jit_kind::cfake:
-#ifdef _WIN32
+#ifdef SC_CFAKE_JIT_ENABLED
             return;
 #else
             return cfake_jit::set_target_machine(tm);
 #endif
 
-        case jit_kind::llvm: return;
+        case jit_kind::llvm:
+#if SC_LLVM_BACKEND <= 8
+            tm.cpu_flags_.fAVX512BF16 = false;
+#endif
+            return;
         default: assert(0 && "Bad JIT type"); break;
     }
 }
