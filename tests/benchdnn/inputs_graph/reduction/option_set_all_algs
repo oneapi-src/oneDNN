@@ -1,0 +1,8 @@
+
+--p=1 --eps=0.0
+--alg=sum,mul,max,min,mean,norm_lp_power_p_sum
+--batch=option_set_all
+
+--p=2 --eps=0.0
+--alg=norm_lp_sum
+--batch=option_set_all

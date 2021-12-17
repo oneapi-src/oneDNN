@@ -150,6 +150,13 @@ dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept {
         case dnnl_binary_max: return graph_op::Maximum;
         case dnnl_binary_min: return graph_op::Minimum;
         case dnnl_binary_mul: return graph_op::Multiply;
+        case dnnl_reduction_norm_lp_power_p_sum: return graph_op::ReduceL1;
+        case dnnl_reduction_norm_lp_sum: return graph_op::ReduceL2;
+        case dnnl_reduction_max: return graph_op::ReduceMax;
+        case dnnl_reduction_mean: return graph_op::ReduceMean;
+        case dnnl_reduction_min: return graph_op::ReduceMin;
+        case dnnl_reduction_mul: return graph_op::ReduceProd;
+        case dnnl_reduction_sum: return graph_op::ReduceSum;
         // TODO (damianszw): find nicer way to tell about unsupported type
         case dnnl_eltwise_bounded_relu:
         case dnnl_eltwise_clip_v2:
@@ -167,6 +174,8 @@ dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept {
         case dnnl_eltwise_soft_relu:
         case dnnl_eltwise_swish:
         case dnnl_eltwise_tanh_use_dst_for_bwd:
+        case dnnl_reduction_norm_lp_power_p_max:
+        case dnnl_reduction_norm_lp_max:
         default: return graph_op::LastSymbol;
     }
 }

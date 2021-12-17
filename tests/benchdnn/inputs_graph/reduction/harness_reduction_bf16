@@ -1,0 +1,6 @@
+# bf16
+--reset
+
+--sdt=bf16 --ddt=bf16
+--attr-post-ops=,sum,relu,add:bf16:common,add:bf16:per_tensor # ,add:bf16:per_oc
+--batch=option_set_all_algs

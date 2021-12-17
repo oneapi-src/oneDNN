@@ -1,0 +1,23 @@
+# same src and dst tags
+
+--stag=axb --dtag=any   64x2048x7x7:64x2048x1x1
+                        64x1024x14x14:64x1x14x14
+                        64x512x28x28:1x1x28x28
+                        1x1024x14x14:1x1024x1x1
+                        1x512x56x56:1x1x1x1
+                        1x256x56x56:1x1x56x56
+
+--stag=abx --dtag=any   16x1024:1x1024
+                        16x256:1x1
+                        16x128:1x128
+                        1x256x9x9:1x1x9x9
+                        1x256x7x7:1x256x1x1
+                        1x128x150x150:1x1x150x150
+
+# different src and dst tags
+--stag=abx --dtag=axb   64x2048x7x7:64x2048x1x1
+                        64x1024x14x14:64x1x14x14
+                        64x512x28x28:1x1x28x28
+                        1x1024x14x14:1x1024x1x1
+                        1x512x56x56:1x1x1x1
+                        1x256x56x56:1x1x56x56
