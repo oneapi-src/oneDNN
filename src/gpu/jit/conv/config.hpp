@@ -285,10 +285,7 @@ public:
     status_t init_fwd(convolution_pd_t *conv_pd) {
         using namespace ir_utils;
 
-        if (ic < 16
-                && ((is_s32_accumulator() && hw < ngen::HW::XeHPC)
-                        || (!is_dp_fma() && !is_dw)))
-            return status::unimplemented;
+        if (ic < 16 && !is_dw && !is_dp_fma()) return status::unimplemented;
 
         bool is_src_nhwc = is_nhwc("src");
         bool is_dst_nhwc = is_nhwc("dst");
@@ -2047,12 +2044,7 @@ private:
         int data_regs = a_regs + b_regs + acc_regs + g2s_regs;
         int header_regs = a_headers + b_headers + g2s_headers;
         if (reuse_headers) header_regs = 1;
-        int c_msg_arg_regs = !is_fwd
-                ? 0
-                : utils::div_up(acc_bytes,
-                        (c_layout().is_n_blocked(2) ? 4 : 1) * hword_bytes);
-        int estimated_regs
-                = data_regs + reorder_regs + header_regs + c_msg_arg_regs;
+        int estimated_regs = data_regs + reorder_regs + header_regs;
 
         double reg_factor = (is_bwd_w && is_dp_fma()) ? 1 / 0.875 : 1 / 0.95;
         estimated_regs = std::ceil(reg_factor * estimated_regs);
