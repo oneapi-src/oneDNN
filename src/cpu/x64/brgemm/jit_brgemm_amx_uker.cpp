@@ -152,6 +152,22 @@ private:
     size_t *skipped_bd_mask_buffer_ptr = nullptr;
     size_t adj_bd;
 
+    int LDA_size;
+    int LDB_size;
+    int LDC_size;
+    int LDD_size;
+    int ld_block_B_size;
+    int ld_block_C_size;
+    int ld_block_D_size;
+    int ld_block_bias_size;
+    int ld_block_scales_size;
+    int ld_block_zp_size;
+
+    int ldb_tail_B_size;
+    int ldb_tail_C_size;
+    int ldb_tail_D_size;
+    int ldb_tail_zp_size;
+
     // variables of bd loop
     size_t bd_ind;
 
@@ -232,7 +248,6 @@ private:
     int B_offset(int ldb) const noexcept;
     int C_offset(int bd, int ldb) const noexcept;
     int D_offset(int bd, int ldb) const noexcept;
-    int po_offset(int bd, int ldb) const noexcept;
 
     int rdb_A_offset() const noexcept;
     int rdb_B_offset() const noexcept;
@@ -240,21 +255,12 @@ private:
     int ldb_B_offset(int ld_block2, bool is_tail = false) const noexcept;
     int ldb_C_offset(int ld_block2, bool is_tail = false) const noexcept;
     int ldb_D_offset(int ld_block2, bool is_tail = false) const noexcept;
-    int ldb_po_offset(int ld_block2, bool is_tail = false) const noexcept;
-
-    int bdb_A_offset(int bd_block2) const noexcept;
-    int bdb_C_offset(int bd_block2) const noexcept;
-    int bdb_D_offset(int bd_block2) const noexcept;
-    int bdb_po_offset(int bd_block2) const noexcept;
 
     int bias_offset(int ldb) const noexcept;
-    int oc_logical_offset(int ldb, bool is_tail = false) const noexcept;
 
-    int compensations_offset(int ldb, bool is_tail = false) const noexcept;
     int scales_offset(int ldb) const noexcept;
     int zp_comp_a_offset(int ldb, bool is_tail = false) const noexcept;
     int zp_comp_b_offset(int bd) const noexcept;
-    int bdb_zp_comp_b_offset(int bd_block2) const noexcept;
     int zp_c_values_offset(int ldb, bool is_tail = false) const noexcept;
 };
 
@@ -298,100 +304,66 @@ int jit_brgemm_amx_uker_base_t::skipped_bd_mask(int bd_ind) noexcept {
 }
 
 int jit_brgemm_amx_uker_base_t::A_offset(int bd) const noexcept {
-    return brg.typesize_A * (bd * brg.LDA);
+    return bd * LDA_size;
 }
+
 int jit_brgemm_amx_uker_base_t::B_offset(int ldb) const noexcept {
-    return brg.typesize_B * (brg.rd_step * ldb * brg.ld_block);
+    return brg.rd_step * ldb * ld_block_B_size;
 }
+
 int jit_brgemm_amx_uker_base_t::C_offset(int bd, int ldb) const noexcept {
-    return brg.typesize_C * (bd * brg.LDC + ldb * brg.ld_block);
+    return bd * LDC_size + ldb * ld_block_C_size;
 }
+
 int jit_brgemm_amx_uker_base_t::D_offset(int bd, int ldb) const noexcept {
-    return brg.typesize_D * (bd * brg.LDD + ldb * brg.ld_block);
-}
-int jit_brgemm_amx_uker_base_t::po_offset(int bd, int ldb) const noexcept {
-    return bd * brg.LDD + ldb * brg.ld_block;
+    return bd * LDD_size + ldb * ld_block_D_size;
 }
 
 int jit_brgemm_amx_uker_base_t::rdb_A_offset() const noexcept {
     return brg.typesize_A * brg.rd_block;
 }
+
 int jit_brgemm_amx_uker_base_t::rdb_B_offset() const noexcept {
-    return brg.typesize_B * brg.rd_block * brg.LDB;
+    return brg.rd_block * LDB_size;
 }
 
 int jit_brgemm_amx_uker_base_t::ldb_B_offset(int ld_block2, bool is_tail) const
         noexcept {
-    return (is_tail) ? brg.typesize_B * brg.ldb_tail * brg.ld_step
-                     : brg.typesize_B * ld_block2 * brg.ld_block * brg.ld_step;
-}
-int jit_brgemm_amx_uker_base_t::ldb_C_offset(int ld_block2, bool is_tail) const
-        noexcept {
-    return (is_tail) ? brg.typesize_C * brg.ldb_tail
-                     : brg.typesize_C * ld_block2 * brg.ld_block;
-}
-int jit_brgemm_amx_uker_base_t::ldb_D_offset(int ld_block2, bool is_tail) const
-        noexcept {
-    return (is_tail) ? brg.typesize_D * brg.ldb_tail
-                     : brg.typesize_D * ld_block2 * brg.ld_block;
-}
-int jit_brgemm_amx_uker_base_t::ldb_po_offset(int ld_block2, bool is_tail) const
-        noexcept {
-    return (is_tail) ? brg.ldb_tail : ld_block2 * brg.ld_block;
+    return (is_tail) ? ldb_tail_B_size * brg.ld_step
+                     : ld_block2 * ld_block_B_size * brg.ld_step;
 }
 
-int jit_brgemm_amx_uker_base_t::bdb_A_offset(int bd_block2) const noexcept {
-    return brg.typesize_A * bd_block2 * brg.bd_block * brg.LDA;
+int jit_brgemm_amx_uker_base_t::ldb_C_offset(int ld_block2, bool is_tail) const
+        noexcept {
+    return (is_tail) ? ldb_tail_C_size : ld_block2 * ld_block_C_size;
 }
-int jit_brgemm_amx_uker_base_t::bdb_C_offset(int bd_block2) const noexcept {
-    return brg.typesize_C * bd_block2 * brg.bd_block * brg.LDC;
-}
-int jit_brgemm_amx_uker_base_t::bdb_D_offset(int bd_block2) const noexcept {
-    return brg.typesize_D * bd_block2 * brg.bd_block * brg.LDD;
-}
-int jit_brgemm_amx_uker_base_t::bdb_po_offset(int bd_block2) const noexcept {
-    return bd_block2 * brg.bd_block * brg.LDD;
+
+int jit_brgemm_amx_uker_base_t::ldb_D_offset(int ld_block2, bool is_tail) const
+        noexcept {
+    return (is_tail) ? ldb_tail_D_size : ld_block2 * ld_block_D_size;
 }
 
 int jit_brgemm_amx_uker_base_t::bias_offset(int ldb) const noexcept {
-    return brg.typesize_bias * ldb * brg.ld_block;
-}
-
-int jit_brgemm_amx_uker_base_t::oc_logical_offset(int ldb, bool is_tail) const
-        noexcept {
-    return (is_tail) ? brg.ldb_tail : ldb * brg.ld_block;
-}
-
-int jit_brgemm_amx_uker_base_t::compensations_offset(
-        int ldb, bool is_tail) const noexcept {
-    return (is_tail) ? sizeof(int32_t) * brg.ldb_tail
-                     : sizeof(int32_t) * ldb * brg.ld_block;
+    return ldb * ld_block_bias_size;
 }
 
 int jit_brgemm_amx_uker_base_t::scales_offset(int ldb) const noexcept {
-    return brg.is_oc_scale * sizeof(float) * ldb * brg.ld_block;
+    return brg.is_oc_scale * ldb * ld_block_scales_size;
 }
 
 int jit_brgemm_amx_uker_base_t::zp_comp_a_offset(int ldb, bool is_tail) const
         noexcept {
-    return (is_tail) ? sizeof(int32_t) * brg.ldb_tail
-                     : sizeof(int32_t) * ldb * brg.ld_block;
+    return (is_tail) ? ldb_tail_zp_size : ldb * ld_block_zp_size;
 }
 
 int jit_brgemm_amx_uker_base_t::zp_comp_b_offset(int bd) const noexcept {
     return sizeof(int32_t) * bd;
 }
 
-int jit_brgemm_amx_uker_base_t::bdb_zp_comp_b_offset(int bd_block2) const
-        noexcept {
-    return zp_comp_b_offset(bd_block2 * brg.bd_block);
-}
-
 int jit_brgemm_amx_uker_base_t::zp_c_values_offset(int ldb, bool is_tail) const
         noexcept {
     if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
-        return (is_tail) ? sizeof(int32_t) * brg.ldb_tail
-                         : sizeof(int32_t) * ldb * brg.ld_block;
+        return (is_tail) ? ldb_tail_zp_size : ldb * ld_block_zp_size;
     }
 
     return 0;
@@ -721,10 +693,9 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
         int adj_bd_block = adjusted_bd_block(bdb);
 
         for (int ldb = 0; ldb < ils_ld_block2; ldb++) {
-            const int wsp_offset = use_ils
-                    ? brg.typesize_C * (bdb * ils_ld_block2 + ldb)
-                            * brg.bd_block * brg.ld_block
-                    : 0;
+            const int wsp_offset = use_ils ? (bdb * ils_ld_block2 + ldb)
+                            * brg.bd_block * ld_block_C_size
+                                           : 0;
             for (int bd = 0; bd < adj_bd_block; bd++) {
                 const auto bd_ind_bd = bd_ind_bdb + bd;
                 if (store_all
@@ -732,8 +703,7 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
                                 && vec < ils_vec + ils_vecs_per_store)) {
                     if (!brg.brgattr.bd_mask_level
                             || bd_mask_buffer_ptr[bd_ind_bd]) {
-                        size_t buf_offset
-                                = (bd * brg.ld_block) * brg.typesize_C;
+                        size_t buf_offset = bd * ld_block_C_size;
                         auto vreg_acc = ils_is_ld_tail
                                 ? accm(bd) | ld_tail_mask | T_z
                                 : accm(bd);
@@ -770,9 +740,9 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
             || need_to_apply_post_ops || brg.brgattr.bd_mask_level;
 
     if (store_by_vectors)
-        mov(reg_stride_ld_block, brg.ld_block * brg.typesize_C);
+        mov(reg_stride_ld_block, ld_block_C_size);
     else
-        mov(reg_stride_ld_block, brg.LDC * brg.typesize_C);
+        mov(reg_stride_ld_block, LDC_size);
 
     int bd_ind_bdb = bd_ind;
 
@@ -795,8 +765,7 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
         for (int ldb = 0; ldb < ld_block2; ldb++) {
             int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
             const int wsp_offset = use_ils
-                    ? brg.typesize_C * (bdb * ld_block2 + ldb) * brg.bd_block
-                            * brg.ld_block
+                    ? (bdb * ld_block2 + ldb) * brg.bd_block * ld_block_C_size
                     : 0;
             if (store_by_vectors) {
                 tilestored(ptr[reg_buf + reg_stride_ld_block + wsp_offset],
@@ -808,7 +777,7 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
                     if (brg.brgattr.bd_mask_level
                             && !bd_mask_buffer_ptr[bd_ind_bd])
                         continue;
-                    size_t buf_offset = (bd * brg.ld_block) * brg.typesize_C;
+                    size_t buf_offset = bd * ld_block_C_size;
                     auto vreg_acc = is_ld_tail ? accm(bd) | ld_tail_mask | T_z
                                                : accm(bd);
                     vmovups(vreg_acc, ptr[reg_buf + buf_offset + wsp_offset]);
@@ -1100,6 +1069,20 @@ void jit_brgemm_amx_uker_base_t::generate() {
 
     const auto full_mask = size_t {0xffffffffffffffff};
     const auto tail_mask = size_t((1 << brg.ldb_tail) - 1);
+    LDA_size = brg.typesize_A * brg.LDA;
+    LDB_size = brg.typesize_B * brg.LDB;
+    LDC_size = brg.typesize_C * brg.LDC;
+    LDD_size = brg.typesize_D * brg.LDD;
+    ld_block_B_size = brg.typesize_B * brg.ld_block;
+    ld_block_C_size = brg.typesize_C * brg.ld_block;
+    ld_block_D_size = brg.typesize_D * brg.ld_block;
+    ld_block_bias_size = brg.typesize_bias * brg.ld_block;
+    ld_block_scales_size = sizeof(float) * brg.ld_block;
+    ld_block_zp_size = sizeof(int32_t) * brg.ld_block;
+    ldb_tail_B_size = brg.typesize_B * brg.ldb_tail;
+    ldb_tail_C_size = brg.typesize_C * brg.ldb_tail;
+    ldb_tail_D_size = brg.typesize_D * brg.ldb_tail;
+    ldb_tail_zp_size = sizeof(int32_t) * brg.ldb_tail;
 
     need_to_apply_alpha_beta_ = brg.beta != 0.f || brg.alpha != 1.f;
     const bool has_zero_points = !everyone_is(brgemm_broadcast_t::none,
@@ -1115,12 +1098,13 @@ void jit_brgemm_amx_uker_base_t::generate() {
     mov(reg_mask, tail_mask);
     kmovq(ld_tail_mask, reg_mask);
 
-    mov(reg_stride_lda, brg.typesize_A * brg.LDA);
-    mov(reg_stride_ldb, brg.rd_step * brg.typesize_B * brg.LDB);
+    mov(reg_stride_lda, LDA_size);
+    mov(reg_stride_ldb, brg.rd_step * LDB_size);
 
     read_params();
 
     prepare_bd_mask();
+
     Label label_to_ret;
     if (are_post_ops_applicable_) {
         Label label_store_without_post_ops;
