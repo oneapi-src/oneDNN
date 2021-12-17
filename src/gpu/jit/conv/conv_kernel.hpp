@@ -849,8 +849,16 @@ public:
     void eidiv(const ngen::RegData &qot, const ngen::RegData &rem,
             const ngen::RegData &x, uint32_t y) {
         if (ngen::utils::is_zero_or_pow2(y)) {
-            if (!qot.isInvalid()) shr(1, qot, x, ngen::utils::log2(y));
-            if (!rem.isInvalid()) and_(1, rem, x, y - 1);
+            auto _x = get_subregister(x);
+            if (x.getNeg()) {
+                // Negation modifier has bitwise semantics with shr/and so x
+                // needs to be arithmetically negated first.
+                _x = ra_.alloc_sub(x.getType());
+                mov(1, _x, x);
+            }
+            if (!qot.isInvalid()) shr(1, qot, _x, ngen::utils::log2(y));
+            if (!rem.isInvalid()) and_(1, rem, _x, y - 1);
+            if (_x != x) ra_.safeRelease(_x);
             return;
         }
 
