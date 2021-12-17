@@ -103,7 +103,7 @@ public:
         return pos != ops_.end();
     }
 
-private:
+protected:
     bool is_init_ = false;
     mutable std::vector<std::shared_ptr<impl::op_t>> copied_ops_;
     mutable std::mutex mtx_;
@@ -116,10 +116,8 @@ public:
             const std::vector<impl::logical_tensor_t> &outputs,
             const std::shared_ptr<sc::jit_function_t> &jit_func,
             const std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>
-                    &graph_engine)
-        : impl::compiled_partition_impl_t(engine, inputs, outputs, {})
-        , jit_func_(jit_func)
-        , graph_engine_(graph_engine) {}
+                    &graph_engine);
+    virtual ~compiler_compiled_partition_impl_t();
     impl::status_t execute(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override;
@@ -127,6 +125,7 @@ public:
 private:
     std::shared_ptr<sc::jit_function_t> jit_func_;
     std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t> graph_engine_;
+    mutable std::mutex mtx_;
 };
 
 } // namespace compiler_impl

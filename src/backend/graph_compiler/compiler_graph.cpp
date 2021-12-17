@@ -31,7 +31,7 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
         compiler_backend_op {{op_kind::Add, "add"}, {op_kind::MatMul, "matmul"},
                 {op_kind::Quantize, "quantize"},
                 {op_kind::Dequantize, "dequantize"},
-                {op_kind::StaticReshape, "tensor_view"},
+                {op_kind::StaticReshape, "static_reshape"},
                 {op_kind::StaticTranspose, "transpose"},
                 {op_kind::SoftMax, "softmax"}, {op_kind::Divide, "div"},
                 {op_kind::Multiply, "mul"}};
@@ -113,6 +113,7 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
         std::unordered_map<std::string, impl::utils::attribute_value_t> attrs
                 = aop->get_attributes();
         backend_attrs.set("shape", attrs["shape"].get<std::vector<int64_t>>());
+        backend_attrs.set("special_zero", attrs["special_zero"].get<bool>());
         return make(compiler_backend_op.find(aop->get_kind())->second,
                 producer_lt, consumer_lt, backend_attrs);
     } else if (aop->get_kind() == op_kind::StaticTranspose) {
