@@ -23,7 +23,7 @@
 #include "compiler_partition_impl.hpp"
 
 #include "interface/graph.hpp"
-
+#include "runtime/runtime.hpp"
 #include "utils.hpp"
 #include "utils/debug.hpp"
 #include "utils/rw_mutex.hpp"
@@ -36,6 +36,9 @@ namespace compiler_impl {
 static std::unordered_map<impl::allocator_t *,
         std::shared_ptr<compiler_graph_stream_t>>
         global_graph_streams;
+static std::unordered_map<
+        std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>, int>
+        partition_count_map;
 static dnnl::graph::impl::utils::rw_mutex_t stream_rw_mutex_;
 
 impl::status_t compiler_partition_impl_t::infer_shape(
@@ -173,6 +176,13 @@ impl::status_t compiler_partition_impl_t::compile(
                 for (size_t i = 0; i < consumer_lt.size(); ++i) {
                     auto out_ret = sub_graph.make_output({consumer_lt[i]});
                     out_ret->attrs_.set("unique_id", id++);
+                    sc::sc_data_format_t output_format
+                            = out_ret->get_inputs()[0]->details_.get_format();
+                    if (!output_format.is_any()) {
+                        out_ret->attrs_.set("target_formats",
+                                std::vector<sc::sc_data_format_t> {
+                                        output_format});
+                    }
                     outputs_map[cur_op->get_output_values()[i]
                                         ->get_logical_tensor()
                                         .id]
@@ -295,6 +305,31 @@ std::string compiler_partition_impl_t::to_string() const {
     os << "]";
 
     return os.str();
+}
+
+compiler_compiled_partition_impl_t::compiler_compiled_partition_impl_t(
+        const impl::engine_t &engine,
+        const std::vector<impl::logical_tensor_t> &inputs,
+        const std::vector<impl::logical_tensor_t> &outputs,
+        const std::shared_ptr<sc::jit_function_t> &jit_func,
+        const std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>
+                &graph_engine)
+    : impl::compiled_partition_impl_t(engine, inputs, outputs, {})
+    , jit_func_(jit_func)
+    , graph_engine_(graph_engine) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    partition_count_map[graph_engine_]++;
+}
+
+compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {
+    std::lock_guard<std::mutex> lock(mtx_);
+    auto itr = partition_count_map.find(graph_engine_);
+    if (itr != partition_count_map.end()) {
+        itr->second--;
+        if (itr->second == 0) {
+            sc::release_runtime_memory(graph_engine_.get());
+        }
+    }
 }
 
 impl::status_t compiler_compiled_partition_impl_t::execute(

@@ -57,6 +57,32 @@ if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "OMP")
     set(SC_OMP_ENABLED "ON")
 endif()
 
+if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4200")
+    # inherits via dominance
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4250")
+    # conversion from 'size_t' to 'uint16_t'
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4267")
+    # function assumed not to throw an exception but does
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4297")
+    #  format string '%lu' requires an argument of type 'unsigned long'
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4477")
+    # not enough arguments for function-like macro
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4003")
+    # 
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4624")
+    # 'elem_type': unreferenced local variable
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4101")
+    # unary minus operator applied to unsigned type
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4146")
+    # destructor never returns, potential memory leak
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4722")
+    # needs to have dll-interface to be used by clients of struct
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4251")
+endif()
+
+append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
+
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/core)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/core/src/)
 
