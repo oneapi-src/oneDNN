@@ -2476,6 +2476,8 @@ static bool try_reinterpret_to_wider_type(layout_t &src, layout_t &dst,
     auto &s0 = src.blocks()[0];
     auto &d0 = dst.blocks()[0];
     if (s0.dim_idx != d0.dim_idx) return false;
+    if (int(s0.stride) != 1) return false;
+    if (int(d0.stride) != 1) return false;
 
     int old_size = src.type().size();
     int s0_old_size = int(s0.block) * old_size;
@@ -2495,7 +2497,7 @@ static bool try_reinterpret_to_wider_type(layout_t &src, layout_t &dst,
     auto strides_ok = [&](const layout_t &l) {
         for (int i = 1; i < int(l.blocks().size()); i++) {
             auto &b = l.blocks()[i];
-            if (b.block * old_size % new_size != 0) return false;
+            if (int(b.stride) * old_size % new_size != 0) return false;
         }
         return true;
     };

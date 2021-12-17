@@ -207,9 +207,14 @@ layout_t layout_t::reinterpret(
         return layout_t();
     }
 
+    auto &b0 = new_blocks.front();
+    if (dim_t(b0.stride) != 1) {
+        ir_error_not_expected();
+        return layout_t();
+    }
+
     if (new_size < old_size) {
         int factor = (old_size / new_size);
-        auto &b0 = new_blocks.front();
         b0.block *= factor;
         // Recompute strides.
         for (auto &b : new_blocks) {
@@ -218,7 +223,6 @@ layout_t layout_t::reinterpret(
         }
     } else {
         int factor = (new_size / old_size);
-        auto &b0 = new_blocks.front();
         if (b0.block % factor != 0) {
             ir_error_not_expected();
             return layout_t();
