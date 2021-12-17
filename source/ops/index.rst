@@ -28,6 +28,8 @@ subset of the operation set.
    convolution/ConvTranspose_1.rst
    lower_precision/Dequantize_1.rst
    arithmetic/Divide_1.rst
+   lower_precision/DynamicDequantize_1.rst
+   lower_precision/DynamicQuantize_1.rst
    shape/DynamicReshape_1.rst
    movement/DynamicTranspose_1.rst
    activation/Elu_1.rst
