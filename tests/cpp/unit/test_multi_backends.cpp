@@ -100,6 +100,11 @@ TEST(Execute, MixUseMultipleBackends) {
 
     /*----------- partitioning stage ----------------------*/
 #ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core
+                    && eng.kind() == impl::engine_kind::cpu,
+            "Skip compiler backend fp32 mha related cases for systems that do "
+            "not support avx512_core.");
     auto &compiler_backend_ptr
             = compiler_impl::compiler_backend_t::get_singleton();
     pass::pass_base_ptr compiler_bkd_pass
@@ -258,6 +263,11 @@ TEST(Execute, MixUseMultipleBackendsReverseOrder) {
 
     /*----------- partitioning stage ----------------------*/
 #ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core
+                    && eng.kind() == impl::engine_kind::cpu,
+            "Skip compiler backend fp32 mha related cases for systems that do "
+            "not support avx512_core.");
     auto &compiler_backend_ptr
             = compiler_impl::compiler_backend_t::get_singleton();
     pass::pass_base_ptr compiler_bkd_pass
