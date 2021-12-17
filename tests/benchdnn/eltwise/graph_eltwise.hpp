@@ -32,6 +32,11 @@ struct eltwise_graph_prb_t : public graph_prb_t {
 
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
+
+        if (benchdnnext::is_low_precision({spec_.eltwise_dt}))
+            // needs to be set before call of post-op handlers
+            with_quantization_ = true;
+
         for (const auto &po : prb->attr.post_ops.entry) {
             if (po.is_binary_kind()) {
                 has_post_bin_ = true;
@@ -42,6 +47,11 @@ struct eltwise_graph_prb_t : public graph_prb_t {
                 ctor_status = fill_status::UNHANDLED_CONFIG_OPTIONS;
                 if (stop_work(ctor_status)) return;
             }
+        }
+
+        if (with_quantization()) {
+            ctor_status = handle_low_precision_(prb);
+            if (stop_work(ctor_status)) return;
         }
 
         ctor_status = fill_status::DONE;
@@ -57,12 +67,14 @@ private:
         dt eltwise_dt;
         dnnl::graph::op::kind op_kind;
         std::string data_format;
+        std::string raw_data_format;
     };
 
     spec_t spec_;
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_();
+    fill_status_t handle_low_precision_(const ::eltwise::prb_t *prb_);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {

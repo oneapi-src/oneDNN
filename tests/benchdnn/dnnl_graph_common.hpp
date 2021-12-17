@@ -401,6 +401,13 @@ struct low_precision_attr {
                 data_format, data_format);
     };
 
+    // For op with only one data type e.g. eltwise
+    static low_precision_attr lp_attr(
+            const dt &data_type, const std::string &data_format) {
+        return low_precision_attr(data_type, dt::undef, data_type, data_format,
+                data_format, data_format);
+    };
+
     void set_wei_strides(const dims_t &wei_dims) {
         this->wei_strides = wei_dims;
     }
@@ -508,6 +515,7 @@ public:
 
         struct {
             binary_po_handler_t bin_handler;
+            low_precision_handler_t low_precision_handler;
         } eltwise;
 
         struct {

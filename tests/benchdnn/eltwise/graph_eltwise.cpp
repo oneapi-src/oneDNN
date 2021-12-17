@@ -26,6 +26,7 @@ eltwise_graph_prb_t::spec_t::spec_t(const ::eltwise::prb_t *prb) noexcept {
     dims = prb->dims;
     eltwise_dt = convert_dt(prb->dt);
     data_format = convert_tag(prb->tag);
+    raw_data_format = prb->tag;
 
     op_kind = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
 
@@ -51,8 +52,15 @@ fill_status_t eltwise_graph_prb_t::handle_main_op_() {
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string DST {TENSOR_ID + "_DST"};
 
-    tensor_descs_.emplace(SRC, spec_.eltwise_dt, spec_.dims, lt::strided);
-    tensor_descs_.emplace(DST, spec_.eltwise_dt, spec_.dims, lt::strided);
+    dt data_type;
+    if (benchdnnext::is_low_precision({spec_.eltwise_dt})) {
+        data_type = dt::f32;
+    } else {
+        data_type = spec_.eltwise_dt;
+    }
+
+    tensor_descs_.emplace(SRC, data_type, spec_.dims, lt::strided);
+    tensor_descs_.emplace(DST, data_type, spec_.dims, lt::strided);
 
     std::vector<dnnl::graph::logical_tensor> ltensors_in;
     std::vector<dnnl::graph::logical_tensor> ltensors_out;
@@ -84,6 +92,31 @@ fill_status_t eltwise_graph_prb_t::handle_main_op_() {
 fill_status_t eltwise_graph_prb_t::handle_bin_(
         const attr_t::post_ops_t::entry_t &po_entry) {
     return po_handler.eltwise.bin_handler(*this, spec_.data_format, po_entry);
+}
+
+fill_status_t eltwise_graph_prb_t::handle_low_precision_(
+        const ::eltwise::prb_t *prb_) {
+    low_precision_attr lp_attr = low_precision_attr::lp_attr(
+            spec_.eltwise_dt, spec_.eltwise_dt, spec_.raw_data_format);
+
+    fill_status_t ctor_status;
+    ctor_status
+            = po_handler.pool.low_precision_handler.handle_low_precision_src(
+                    *this, lp_attr);
+    if (ctor_status != fill_status::DONE) return ctor_status;
+
+    ctor_status
+            = po_handler.pool.low_precision_handler.handle_low_precision_dst(
+                    *this, lp_attr);
+    if (ctor_status != fill_status::DONE) return ctor_status;
+
+    if (has_post_bin()) {
+        ctor_status = po_handler.pool.low_precision_handler
+                              .handle_low_precision_post_bin(*this, lp_attr,
+                                      prb_->attr.post_ops.entry);
+    }
+
+    return ctor_status;
 }
 
 int doit(const ::eltwise::prb_t *prb, res_t *res) {
