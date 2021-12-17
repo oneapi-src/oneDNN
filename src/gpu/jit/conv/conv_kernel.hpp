@@ -2293,7 +2293,7 @@ private:
             case op_kind_t::_prelu: {
                 int grf_size = ngen::GRF::bytes(hw);
                 int regs = utils::div_up(
-                        mod.getExecSize() * sizeof(float), grf_size);
+                        mod.getExecSize() * int(sizeof(float)), grf_size);
                 auto temp = scope_.alloc_reg_buf_data(regs).format(
                         0, ngen::DataType::f);
                 host_->emul(mod, temp, dst, src1);
