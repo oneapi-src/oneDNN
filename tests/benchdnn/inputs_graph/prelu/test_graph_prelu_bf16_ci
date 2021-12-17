@@ -1,7 +1,7 @@
 --reset
 
 --dir=FWD_D
---sdt=f32:f32
+--sdt=bf16:bf16
 
 --stag=abx:any,axb:any,abx:abx,axb:axb
 --batch=../../inputs/prelu/shapes_ci
