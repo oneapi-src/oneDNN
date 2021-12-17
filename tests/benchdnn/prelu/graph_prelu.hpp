@@ -41,9 +41,14 @@ struct prelu_graph_prb_t : public graph_prb_t {
 private:
     struct spec_t {
         spec_t(const ::prelu::prb_t *prb) noexcept;
-        dims_t data_dims, slope_dims;
-        dt sdt;
-        std::string data_format {"NXC"}, data_tag;
+        dims_t data_dims;
+        dims_t slope_dims;
+
+        dt data_dt;
+        dt slope_dt;
+        std::string data_format {"NCX"};
+        std::string raw_data_tag;
+        std::string raw_slope_tag;
         bool broadcast_to_channel {false};
     };
 
