@@ -158,6 +158,7 @@ struct registry {
     static constexpr any_vtable_t *get_vtable() { return &vtable; }
 };
 
+#if !defined(SC_DLL) || defined(SC_DLL_EXPORTS)
 template <typename T>
 SC_API any_vtable_t registry<T>::vtable(sizeof(T), typeid(T),
         destructor_impl_t<T>::destructor,
@@ -165,6 +166,7 @@ SC_API any_vtable_t registry<T>::vtable(sizeof(T), typeid(T),
         move_constru_impl_t<std::is_move_constructible<T>::value, T>::call,
         copy_assign_impl_t<std::is_copy_assignable<T>::value, T>::call,
         copy_constru_impl_t<std::is_copy_constructible<T>::value, T>::call);
+#endif
 
 template <typename T>
 struct assign_impl;
@@ -346,8 +348,16 @@ public:
     }
 
     template <typename T>
+    static any_detail::any_vtable_t *get_vtable() {
+        return any_detail::registry<typename std::decay<T>::type>::get_vtable();
+    }
+
+    template <typename T>
     T &get() {
-        COMPILE_ASSERT(isa<T>(), "Incorrect type for any_t::get");
+        COMPILE_ASSERT(isa<T>(),
+                "Incorrect type for any_t::get, this = "
+                        << vtable_->typeinfo_.name() << ", expected "
+                        << get_vtable<T>()->typeinfo_.name());
         T *ptr = reinterpret_cast<T *>(get_raw());
         return *ptr;
     }
@@ -360,9 +370,7 @@ public:
     // returns if the `any_t` has an object of type T
     template <typename T>
     bool isa() const {
-        return vtable_
-                == any_detail::registry<
-                        typename std::decay<T>::type>::get_vtable();
+        return vtable_ == get_vtable<T>();
     }
 
     // returns the type_info of the contained object. If is empty, return null

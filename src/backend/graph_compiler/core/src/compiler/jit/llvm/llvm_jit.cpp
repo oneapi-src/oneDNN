@@ -75,6 +75,9 @@ static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
 std::unique_ptr<llvm::TargetMachine> get_llvm_target_machine(
         llvm::CodeGenOpt::Level optlevel);
 
+static void *resolve_llvm_symbol(
+        llvm::ExecutionEngine *engine, const std::string &name);
+
 std::shared_ptr<jit_module> llvm_jit::make_jit_module(
         const_ir_module_ptr module, bool generate_wrapper) {
     auto llvm_ctx = utils::make_unique<llvm::LLVMContext>();
@@ -111,7 +114,7 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     engine->finalizeObject();
     typedef void (*init_func_t)(void *ctx, void *mod);
     auto init_func = reinterpret_cast<init_func_t>(
-            engine->getPointerToNamedFunction("__sc_init__", false));
+            resolve_llvm_symbol(engine, "__sc_init__"));
     if (init_func) { init_func(nullptr, attr_table.data_.data_); }
     return std::make_shared<llvm_jit_module>(
             std::unique_ptr<llvm::ExecutionEngine>(engine), std::move(llvm_ctx),
@@ -126,17 +129,25 @@ llvm_jit_module::llvm_jit_module(std::unique_ptr<llvm::ExecutionEngine> engine,
 
 llvm_jit_module::~llvm_jit_module() = default;
 
+static void *resolve_llvm_symbol(
+        llvm::ExecutionEngine *engine, const std::string &name) {
+#ifdef __APPLE__
+    return engine->getPointerToNamedFunction("_" + name, false);
+#else
+    return engine->getPointerToNamedFunction(name, false);
+#endif
+}
+
 void *llvm_jit_module::get_address_of_symbol(const std::string &name) {
     void *global_var = globals_.get_or_null(name);
     if (global_var) { return global_var; }
 
-    return engine_->getPointerToNamedFunction(name, false);
+    return resolve_llvm_symbol(engine_.get(), name);
 }
 std::shared_ptr<jit_function_t> llvm_jit_module::get_function(
         const std::string &name) {
-    void *fun = engine_->getPointerToNamedFunction(name, false);
-    void *wrapper
-            = engine_->getPointerToNamedFunction(name + "_0wrapper", false);
+    void *fun = resolve_llvm_symbol(engine_.get(), name);
+    void *wrapper = resolve_llvm_symbol(engine_.get(), name + "_0wrapper");
     if (fun || wrapper) {
         if (runtime_config_t::get().execution_verbose_) {
             return std::make_shared<llvm_jit_function>(

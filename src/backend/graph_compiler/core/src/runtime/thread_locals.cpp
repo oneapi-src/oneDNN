@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2020-2021 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,25 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_PARALLEL_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_PARALLEL_HPP
-
-#include <runtime/config.hpp>
+#include "thread_locals.hpp"
+#include "config.hpp"
+#include "parallel.hpp"
 
 namespace sc {
-namespace utils {
-template <typename F>
-void parallel(F f, int64_t begin, int64_t end, int64_t step = 1,
-        int numthreads = runtime_config_t::get().threads_per_instance_) {
-#ifdef SC_OMP_ENABLED
-#pragma omp parallel for num_threads(numthreads)
-#endif
-    for (int64_t i = begin; i < end; i += step) {
-        f(i, end);
-    }
-}
-} // namespace utils
-} // namespace sc
 
-#endif
+SC_API void release_runtime_memory(runtime::engine *engine) {
+    sc_parallel_call_cpu_with_env_impl(
+            [](void *v1, void *v2, int64_t i, generic_val *args) {
+                runtime::tls_buffer.main_memory_pool.release();
+                runtime::tls_buffer.thread_memory_pool.release();
+                runtime::tls_buffer.amx_buffer.release();
+            },
+            nullptr, nullptr, 0, runtime_config_t::get().threads_per_instance_,
+            1, nullptr);
+}
+
+namespace runtime {
+thread_local thread_local_buffer tls_buffer;
+
+} // namespace runtime
+} // namespace sc

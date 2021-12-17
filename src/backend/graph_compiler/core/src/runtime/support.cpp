@@ -38,7 +38,7 @@ extern "C" void print_float(float f) {
 }
 
 extern "C" void print_index(uint64_t f) {
-    printf("%lu\n", f);
+    printf("%llu\n", static_cast<unsigned long long>(f)); // NOLINT
 }
 
 extern "C" void print_int(int f) {
@@ -53,9 +53,11 @@ extern "C" uint64_t boundary_check(
         const char *name, uint64_t idx, uint64_t acc_len, uint64_t tsr_len) {
     if (idx >= tsr_len || idx + acc_len > tsr_len) {
         fprintf(stderr,
-                "Boundary check for tensor %s failed. idx=%lu acc_len=%lu "
-                "tsr_len=%lu\n",
-                name, idx, acc_len, tsr_len);
+                "Boundary check for tensor %s failed. idx=%llu acc_len=%llu "
+                "tsr_len=%llu\n",
+                name, static_cast<unsigned long long>(idx), // NOLINT
+                static_cast<unsigned long long>(acc_len), // NOLINT
+                static_cast<unsigned long long>(tsr_len)); // NOLINT
         abort();
     }
     return idx;

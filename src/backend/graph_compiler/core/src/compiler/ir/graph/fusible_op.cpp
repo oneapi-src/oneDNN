@@ -135,6 +135,13 @@ ir_module_ptr reorder_op_t::get_func(context_ptr ctx) {
     return ret;
 }
 
+ir_module_ptr reshape_op_t::get_func(context_ptr ctx) {
+    top_level_anchor_generator_t gen;
+    attrs_.set(op_attr_key::no_fuse, true);
+    auto ret = fusible_op_get_func(this, gen, ctx, true);
+    return ret;
+}
+
 void fusible_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &in_formats,
         std::vector<std::vector<sc_data_format_t>> &out_formats) {
@@ -994,6 +1001,16 @@ static sc_data_format_t infer_blocking_format(
         if (plain_lt.get_plain_dims()[common_axis[i][plain_in_index] + bs] == 1
                 && blocked_axis.find(common_axis[i][blocking_in_index])
                         != blocked_axis.end()) {
+            // consider padding condition
+            if (get_dims_product(blocking_lt.get_plain_dims())
+                    != get_dims_product(blocking_lt.get_blocking_dims())) {
+                for (auto block :
+                        blocked_axis[common_axis[i][blocking_in_index]]) {
+                    storage_args.push_back(common_axis[i][plain_in_index]);
+                    blocks[pos++] = block;
+                }
+                continue;
+            }
             storage_args.push_back(common_axis[i][plain_in_index]);
             blocks[pos++] = 1;
         } else {
@@ -1814,7 +1831,8 @@ bool tensor_view_op_t::try_penetrate(
             inp_to_out[inp_idx] = out_idx;
             inp_idx++;
             while (inp_idx < input_size
-                    && acc_shape < output_plain_shapes[out_idx]) {
+                    && (acc_shape < output_plain_shapes[out_idx]
+                            || input_plain_shapes[inp_idx] == 1)) {
                 acc_shape *= input_plain_shapes[inp_idx];
                 inp_to_out[inp_idx] = out_idx;
                 inp_idx++;
@@ -1878,13 +1896,6 @@ void tensor_view_op_t::prepare_fusion_data(context_ptr ctx,
     auto &in_detail0 = fdata.get(info_.inputs_[0]);
     in_detail0.use_count_++;
     auto shapes = get_shapes();
-    int total_shape1 = 1, total_shape2 = 1;
-    for (auto &dim : in_detail0.shape_) {
-        total_shape1 *= get_const_as_int(dim.checked_as<constant>());
-    }
-    for (auto &dim : shapes) {
-        total_shape2 *= dim;
-    }
     // TODO(xxx): This maybe not correctly, It seems we need move all shape
     // infer logic to infer_slice_range. As workaround, it will be
     // corrected by allocate tensor stage.
@@ -2022,6 +2033,125 @@ void tensor_view_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs,
         fusion_anchor_data &fdata) {}
+
+reshape_op_t::reshape_op_t(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+    op_name_ = "reshape";
+    COMPILE_ASSERT(ins.size() == 1, "Reshape copy takes 1 input");
+    info_.inputs_ = ins;
+    attrs_ = attrs;
+    auto &shapes = attrs_.get<sc_dims>("shape");
+    int total_shape1 = 1, total_shape2 = 1;
+    for (auto &dim : ins[0]->details_.get_plain_dims()) {
+        total_shape1 *= dim;
+    }
+    for (auto &dim : shapes) {
+        total_shape2 *= dim;
+    }
+    COMPILE_ASSERT(total_shape1 == total_shape2,
+            "Wrong total size of input shapes, can not do reshape plain dims "
+            "from " << utils::print_vector(ins[0]->details_.get_plain_dims())
+                    << " to " << utils::print_vector(shapes));
+    if (outs.empty()) {
+        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
+        info_.outputs_[0]->details_.dtype_ = ins[0]->details_.dtype_;
+        info_.outputs_[0]->details_.set_plain_dims(shapes);
+        shapes_ = shapes;
+    } else {
+        COMPILE_ASSERT(outs.size() == 1, "Wrong op output size.\n");
+        info_.outputs_ = outs;
+        shapes_ = outs[0]->details_.get_plain_dims();
+    }
+}
+void reshape_op_t::pre_slice_ranges(fusion_anchor_data &fdata) {}
+void reshape_op_t::infer_slice_ranges(fusion_anchor_data &fdata) {
+    // fake infer slice
+    std::vector<std::pair<expr, expr>> ranges;
+    auto &shapes = info_.outputs_[0]->details_.get_plain_dims();
+    ranges.reserve(shapes.size());
+    for (size_t i = 0; i < shapes.size(); i++) {
+        ranges.emplace_back(expr(0), expr(dim2unsigned(shapes[i])));
+    }
+    fdata.get(get_outputs()[0]).original_ranges_list_.push_back(ranges);
+}
+void reshape_op_t::prepare_fusion_data(context_ptr ctx,
+        const std::vector<tensor_slice> &src,
+        const std::vector<tensor_slice> &dst, fusion_anchor_data &fdata) {
+    auto &output = info_.outputs_[0];
+    auto &outdetail = fdata.get(output);
+    outdetail.shape_ = dims_to_expr(shapes_);
+}
+void reshape_op_t::query_format(context_ptr ctx,
+        std::vector<std::vector<sc_data_format_t>> &in_formats,
+        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+    out_formats.push_back({sc_data_format_kind_t::get_plain_by_dims(
+            info_.outputs_[0]->details_.get_plain_dims().size())});
+}
+void reshape_op_t::compute_block(context_ptr ctx,
+        const std::vector<tensor_slice *> &dsts,
+        const std::vector<const tensor_slice *> &inputs,
+        fusion_anchor_data &fdata) {
+    auto *src = inputs[0];
+    auto *dst = dsts[0];
+    // accumulate src tensor size
+    std::vector<expr> src_accsize {expr(dim2unsigned(1))};
+    expr src_size = expr(dim2unsigned(1));
+    // accumulate dst tensor size
+    std::vector<expr> dst_accsize {expr(dim2unsigned(1))};
+    expr dst_size = expr(dim2unsigned(1));
+    // outer nested loop vars
+    expr iters = builder::make_var(
+            datatypes::index, std::string("_fuseiter") + std::to_string(idx++));
+    // the indices for the input tensor.
+    std::vector<expr> src_idx(src->nslice_dims());
+    // the indices for the output tensor.
+    std::vector<expr> dst_idx(dst->nslice_dims());
+    uint64_t total_size = 1;
+    for (auto it : shapes_) {
+        total_size *= it;
+    }
+    for (int64_t i = inputs.at(0)->nslice_dims() - 1; i > 0; i--) {
+        src_size = src_size * src->get_shape()[i];
+        src_accsize.emplace_back(src_size);
+    }
+
+    for (auto i = dst->nslice_dims() - 1; i > 0; i--) {
+        dst_size = dst_size * dst->get_shape()[i];
+        dst_accsize.emplace_back(dst_size);
+    }
+    std::reverse(src_accsize.begin(), src_accsize.end());
+    std::reverse(dst_accsize.begin(), dst_accsize.end());
+
+    for (int i = 0; i < (int)src->nslice_dims(); i++) {
+        if (i == 0) {
+            src_idx[i] = iters / src_accsize[i] + src->get_offset()[i];
+        } else {
+            src_idx[i] = iters % src_accsize[i - 1] / src_accsize[i]
+                    + src->get_offset()[i];
+        }
+    }
+    for (int i = 0; i < (int)dst->nslice_dims(); i++) {
+        if (i == 0) {
+            dst_idx[i] = iters / dst_accsize[i] + dst->get_offset()[i];
+        } else {
+            dst_idx[i] = iters % dst_accsize[i - 1] / dst_accsize[i]
+                    + dst->get_offset()[i];
+        }
+    }
+    auto bld = builder::get_current_builder();
+    COMPILE_ASSERT(bld, "No active builder is set");
+
+    expr indexed_target = builder::make_indexing(dst->tptr_, {dst_idx});
+    expr indexed_input = builder::make_indexing(src->tptr_, src_idx);
+    stmt_c cur = builder::make_assign_unattached(indexed_target, indexed_input);
+    auto body = builder::make_stmts_unattached(
+            std::vector<stmt_c> {std::move(cur)});
+    cur = builder::make_for_loop_unattached(iters, expr(0), expr(total_size),
+            expr(1), std::move(body), true, for_type::NORMAL);
+    constant_folder_t folder;
+    cur = folder(cur);
+    bld->emit(cur.remove_const());
+}
 
 split_op_t::split_op_t(graph_tensor_ptr v, int dim, const sc_dims &shapes)
     : dim_(dim), shapes_(shapes) {
@@ -2650,6 +2780,7 @@ void infer_block2stride_reorder(slice_range_list &input_slice_list,
             } else {
                 std::pair<expr, expr> cur_block_num_range
                         = input_slice[i + ndim_begin];
+                slice_range res;
                 for (auto &cur_block_size_range :
                         plain_slice_dict[plain_pos].back()) {
                     auto cur_blocks = in_kind.collect_blocking_index(plain_pos);
@@ -2661,9 +2792,10 @@ void infer_block2stride_reorder(slice_range_list &input_slice_list,
                                     cur_block_num_range.second,
                                     cur_block_size_range.first,
                                     cur_block_size_range.second, cur_block);
-                    plain_slice_dict[plain_pos].emplace_back(
-                            cur_plain_ranges_list);
+                    res.insert(res.end(), cur_plain_ranges_list.begin(),
+                            cur_plain_ranges_list.end());
                 }
+                plain_slice_dict[plain_pos].emplace_back(std::move(res));
             }
         }
 
@@ -3808,6 +3940,7 @@ OP_REGISTER(div_op_t, div)
 OP_REGISTER(min_op_t, min)
 OP_REGISTER(max_op_t, max)
 OP_REGISTER(tensor_view_op_t, tensor_view)
+OP_REGISTER(reshape_op_t, reshape)
 OP_REGISTER(reorder_op_t, reorder)
 OP_REGISTER(constant_op_t, constant)
 OP_REGISTER(reduce_op_t, reduce)

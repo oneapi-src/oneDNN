@@ -87,9 +87,25 @@ std::shared_ptr<sc_graph_t> matmul_op::get_graph() {
                      trans1 = ins->get_outputs()[1];
     transed_matmul(graph, attrs_, false, ins->get_outputs()[0],
             ins->get_outputs()[1], trans0, trans1);
+
+    bool is_bf16 = false;
+    if (inputs[0]->details_.dtype_ == datatypes::bf16
+            || inputs[1]->details_.dtype_ == datatypes::bf16
+            || outputs[0]->details_.dtype_ == datatypes::bf16) {
+        COMPILE_ASSERT(inputs[0]->details_.dtype_ == datatypes::bf16
+                        && inputs[1]->details_.dtype_ == datatypes::bf16
+                        && outputs[0]->details_.dtype_ == datatypes::bf16,
+                "All inputs should have same data type.")
+        is_bf16 = true;
+    }
+
     if (inputs[0]->details_.get_plain_dims().size() > 2) {
-        matmul = graph->make(
-                "batch_matmul", {trans0, trans1}, {outputs[0]}, {});
+        matmul = graph->make("batch_matmul", {trans0, trans1}, {}, {});
+        if (is_bf16) {
+            matmul = graph->make("cast", matmul->get_outputs(), {},
+                    {{"dtype", datatypes::bf16}});
+        }
+
     } else {
         throw std::runtime_error(
                 "Matrix multiplication with 2d dimensions is not supported");
@@ -100,6 +116,10 @@ std::shared_ptr<sc_graph_t> matmul_op::get_graph() {
         // create bias op by using broadcast op
         // considering: {bs0, bs1, .., M, N} and {M,N}, for bias, it shape is
         // equal with N.
+        if (is_bf16) {
+            COMPILE_ASSERT(inputs[2]->details_.dtype_ == datatypes::bf16,
+                    "All inputs should have same data type.")
+        }
         int last_axis = inputs[0]->details_.get_plain_dims().size() - 1;
         auto bias = graph->make("add",
                 {matmul->get_outputs()[0], ins->get_outputs()[2]}, {},

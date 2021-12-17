@@ -121,7 +121,8 @@ static std::string get_isnan_func_name(const intrin_call_c &node) {
 static func_t create_isnan_func(const intrin_call_c &node) {
     auto type = node->dtype_;
     uint32_t elements = type.lanes_;
-    auto ZERO = gen_vec_const(elements, 0.0f);
+    auto ZERO = make_expr<constant_node>(
+            INT64_C(0), sc_data_type_t::s32(elements));
     auto exponent_bits = make_expr<constant_node>(
             INT64_C(0x7F800000), sc_data_type_t::s32(elements));
     auto rm_sign_bits = make_expr<constant_node>(
@@ -129,11 +130,11 @@ static func_t create_isnan_func(const intrin_call_c &node) {
     auto ty_epi_32 = sc_data_type_t::s32(elements);
     builder::ir_builder_t builder;
     _function_(type, the_sc_isnan_func, make_args_by_intrinsic(node)) {
-        _bind_(inval);
-        inval = builder::make_reinterpret(inval, ty_epi_32);
+        _bind_(inval_f32);
+        _var_(inval, ty_epi_32);
+        inval = builder::make_reinterpret(inval_f32, ty_epi_32);
         expr mask = (inval & exponent_bits) == exponent_bits;
-        expr temp = builder::make_select(mask,
-                builder::make_reinterpret((inval & rm_sign_bits), type), ZERO);
+        expr temp = builder::make_select(mask, inval & rm_sign_bits, ZERO);
         expr ret = exponent_bits < temp;
         _return_(ret);
     }

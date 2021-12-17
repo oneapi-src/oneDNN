@@ -104,18 +104,34 @@ INLINE vec_u8x16 sc_saturated_cast(const vec_s32x16 &x) {
     return _mm512_cvtusepi32_epi8(x.v);
 }
 
-#ifdef __AVX512_BF16__
+#ifdef __AVX512BF16__
 INLINE vec_u16x4 tobf16(vec_f32x4 const &x) {
-    vec_u16x4 r = {.v16 = _mm_cvtneps_pbh(x.v)};
+    vec_u16x4 r;
+    r.v16 = _mm_cvtneps_pbh(x.v);
     return r;
 }
 INLINE vec_u16x8 tobf16(vec_f32x8 const &x) {
-    vec_u16x8 r = {.v16 = _mm256_cvtneps_pbh(x.v)};
+    vec_u16x8 r;
+    r.v16 = _mm256_cvtneps_pbh(x.v);
     return r;
 }
 INLINE vec_u16x16 tobf16(vec_f32x16 const &x) {
-    vec_u16x16 r = {.v16 = _mm512_cvtneps_pbh(x.v)};
+    vec_u16x16 r;
+    r.v16 = _mm512_cvtneps_pbh(x.v);
     return r;
+}
+
+INLINE uint16_t tobf16(float const &x) {
+    uint16_t storage_;
+    union caster_t {
+        uint32_t vl;
+        float vf;
+    };
+    caster_t caster;
+    caster.vf = x;
+    uint32_t rounding_bias = ((caster.vl >> 16) & 1) + UINT32_C(0x7FFF);
+    storage_ = static_cast<uint16_t>((caster.vl + rounding_bias) >> 16);
+    return storage_;
 }
 #endif
 #endif

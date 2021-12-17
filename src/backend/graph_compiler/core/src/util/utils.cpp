@@ -129,7 +129,7 @@ uint32_t get_sizeof_etype(sc_data_etype etype) {
     }
 }
 
-size_t get_sizeof_type(sc_data_type_t dtype) {
+uint64_t get_sizeof_type(sc_data_type_t dtype) {
     return get_sizeof_etype(dtype.type_code_) * dtype.lanes_;
 }
 
@@ -144,7 +144,7 @@ size_t get_os_page_size() {
 }
 
 std::string get_error_msg(int errnum) {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
     // fix-me: (win32)
     return "Error message from get_error_msg";
 #else

@@ -31,7 +31,7 @@ static_data_t::static_data_t(const void *indata, size_t size)
 aligned_buffer_t::aligned_buffer_t(size_t size, runtime::engine *engine) {
     data_ = engine->vtable_->persistent_alloc(engine, size);
     size_ = size;
-    engine_ = engine->shared_from_this();
+    engine_ = engine;
 }
 
 aligned_buffer_t::aligned_buffer_t(aligned_buffer_t &&other) {
@@ -40,10 +40,10 @@ aligned_buffer_t::aligned_buffer_t(aligned_buffer_t &&other) {
     engine_ = other.engine_;
     other.data_ = nullptr;
     other.size_ = 0;
-    other.engine_.reset();
+    other.engine_ = nullptr;
 }
 aligned_buffer_t::~aligned_buffer_t() {
-    if (data_) { engine_->vtable_->persistent_dealloc(engine_.get(), data_); }
+    if (data_) { engine_->vtable_->persistent_dealloc(engine_, data_); }
 }
 
 #define SC_CLASS_END2() \

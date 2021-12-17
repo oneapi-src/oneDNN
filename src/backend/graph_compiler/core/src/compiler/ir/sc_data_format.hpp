@@ -199,7 +199,7 @@ constexpr auto NCHW = ABCD, KCRS = ABCD, NKHW = ABCD, MK = AB, KN = AB, NK = BA,
 #undef SC_DEF_FMT
 }; // namespace format_kinds
 
-struct SC_INTERNAL_API sc_data_format_t {
+struct SC_API sc_data_format_t {
     using blocking_t = std::array<int, 4>;
     sc_data_format_t() : format_code_(format_kinds::any), blocks_ {0} {}
     constexpr sc_data_format_t(

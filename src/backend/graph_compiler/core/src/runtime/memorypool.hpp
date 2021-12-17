@@ -30,6 +30,11 @@ struct engine;
 
 namespace memory_pool {
 
+// 8MB
+constexpr size_t threadlocal_chunk_size = 8 * 1024 * 1024;
+// 64MB
+constexpr size_t main_chunk_size = 64 * 1024 * 1024;
+
 // The chunk of memory that is allocated to the user
 struct memory_chunk_t {
     static constexpr uint64_t magic_check_num_ = 0xc0ffeebeef0102ff;
@@ -54,7 +59,7 @@ struct memory_block_t {
     size_t allocated_;
     memory_block_t *prev_;
     memory_block_t *next_;
-    std::shared_ptr<runtime::stream_t> stream_;
+    runtime::stream_t *stream_;
     // here starts the allocatable memory
     char buffer_[0];
 
@@ -81,6 +86,7 @@ struct filo_memory_pool_t {
     void dealloc(void *ptr);
     filo_memory_pool_t(size_t block_size) : block_size_(block_size) {}
     ~filo_memory_pool_t();
+    void release();
 };
 void dealloc_by_mmap(runtime::engine *eng, void *b);
 void *alloc_by_mmap(runtime::engine *eng, size_t sz);

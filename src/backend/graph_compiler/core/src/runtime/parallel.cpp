@@ -21,34 +21,34 @@
 #include <util/utils.hpp>
 
 // todo: handle signed integers
-extern "C" void sc_parallel_call_cpu(void (*pfunc)(uint64_t, sc::generic_val *),
-        uint64_t begin, uint64_t end, uint64_t step, sc::generic_val *args) {
+extern "C" void sc_parallel_call_cpu(void (*pfunc)(int64_t, sc::generic_val *),
+        int64_t begin, int64_t end, int64_t step, sc::generic_val *args) {
     int run_threads = sc::runtime_config_t::get().threads_per_instance_;
 #ifdef SC_OMP_ENABLED
 #pragma omp parallel for num_threads(run_threads)
 #endif
-    for (uint64_t i = begin; i < end; i += step) {
+    for (int64_t i = begin; i < end; i += step) {
         pfunc(i, args);
     }
 }
 
 extern "C" void sc_parallel_call_cpu_with_env_impl(
-        void (*pfunc)(void *, void *, uint64_t, sc::generic_val *),
-        void *rtl_ctx, void *module_env, uint64_t begin, uint64_t end,
-        uint64_t step, sc::generic_val *args) {
+        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
+        void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
+        int64_t step, sc::generic_val *args) {
     int run_threads = sc::runtime_config_t::get().threads_per_instance_;
 #ifdef SC_OMP_ENABLED
 #pragma omp parallel for num_threads(run_threads)
 #endif
-    for (uint64_t i = begin; i < end; i += step) {
+    for (int64_t i = begin; i < end; i += step) {
         pfunc(rtl_ctx, module_env, i, args);
     }
 }
 
 extern "C" void sc_parallel_call_cpu_with_env(
-        void (*pfunc)(void *, void *, uint64_t, sc::generic_val *),
-        void *rtl_ctx, void *module_env, uint64_t begin, uint64_t end,
-        uint64_t step, sc::generic_val *args) {
+        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
+        void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
+        int64_t step, sc::generic_val *args) {
     sc::runtime::stream_t *stream
             = reinterpret_cast<sc::runtime::stream_t *>(rtl_ctx);
     stream->vtable()->parallel_call(

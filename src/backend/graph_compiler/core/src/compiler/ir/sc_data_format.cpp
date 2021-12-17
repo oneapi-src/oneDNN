@@ -420,6 +420,9 @@ SC_CLASS(sc_data_format_kind_t)
 SC_CLASS_END()
 // clang-format on
 
+template struct reflection::type_registry<
+        std::vector<std::vector<sc_data_format_t>>>;
+
 } // namespace sc
 
 namespace std {

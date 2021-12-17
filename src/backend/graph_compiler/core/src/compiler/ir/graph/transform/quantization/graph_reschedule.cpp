@@ -65,9 +65,8 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                     return;
                 }
                 if (may_quantize_node->should_quantized_
-                        && node->attrs_
-                                   .get_or_else("data_dtype", datatypes::bf16)
-                                   .is_etype(sc_data_etype::BF16)) {
+                        && node->get_inputs()[0]->details_.dtype_.is_etype(
+                                sc_data_etype::BF16)) {
                     may_quantize_node->is_quantized_ = true;
                     vis.update_state_for_visited(node);
                     return;

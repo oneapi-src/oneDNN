@@ -236,7 +236,7 @@ uint32_t get_sizeof_etype(sc_data_etype etype);
 /**
  * Gets the size of a type in bytes
  * */
-size_t get_sizeof_type(sc_data_type_t dtype);
+uint64_t get_sizeof_type(sc_data_type_t dtype);
 
 /**
  * A convenience wrapper around the standard 'strerror_r' function.

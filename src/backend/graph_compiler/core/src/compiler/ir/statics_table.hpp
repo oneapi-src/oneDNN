@@ -33,7 +33,7 @@ struct SC_API aligned_buffer_t {
     void *data_;
     // the size of the data in bytes
     size_t size_;
-    std::shared_ptr<runtime::engine> engine_;
+    runtime::engine *engine_;
 
     // creates a buffer with given size in bytes
     aligned_buffer_t(size_t size, runtime::engine *engine);
