@@ -16982,7 +16982,7 @@ INSTANTIATE_TEST_SUITE_P(Execute, Prelu,
                 // no broadcast
                 dnnl_graph_test_prelu_params {{1, 2, 2, 2},
                         {2.0, 2.0, 2.0, 0.0, 0.0, 1.0, 1.0, 1.0},
-                        {-4.0, 0.0, -2.0, -0.5, 0.0, 3.5, 0.0, 1.0}, "NXC",
+                        {-4.0, -3.0, -2.0, 0.0, 0.0, 3.5, -1.0, 1.0}, "NXC",
                         false},
                 // channel-shared broadcast
                 dnnl_graph_test_prelu_params {{1, 1, 1, 1}, {2.0},
@@ -16998,12 +16998,12 @@ INSTANTIATE_TEST_SUITE_P(Execute, Prelu,
                         {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, 0.0, 1.0}, "NCX",
                         true},
                 // channel-wise broadcast, NXC
-                dnnl_graph_test_prelu_params {{1, 2, 1, 1}, {1.0, 0.0},
+                dnnl_graph_test_prelu_params {{1, 1, 1, 2}, {1.0, 0.0},
                         {-2.0, 0.0, -1.0, 0.0, 0.0, 3.5, -1.0, 1.0}, "NXC",
                         true},
                 // 1D weights broadcast, NXC
                 dnnl_graph_test_prelu_params {{2}, {1.0, 2.0},
-                        {-2.0, -1.5, -2.0, -1.0, 0.0, 3.5, -2.0, 1.0}, "NXC",
+                        {-2.0, -3.0, -1.0, -1.0, 0.0, 3.5, -1.0, 1.0}, "NXC",
                         true},
                 // 1d weights, no channel-wise broadcast, NCX
                 dnnl_graph_test_prelu_params {{2}, {1.0, 2.0},
@@ -17011,7 +17011,7 @@ INSTANTIATE_TEST_SUITE_P(Execute, Prelu,
                         false},
                 // 1d weights, channel-wise broadcast, NCX
                 dnnl_graph_test_prelu_params {{2}, {1.0, 2.0},
-                        {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -2.0, 1.0}, "NCX",
+                        {-2.0, -3.0, -1.0, -1.0, 0.0, 3.5, -1.0, 1.0}, "NCX",
                         true}));
 
 TEST(ExecuteSubgraphInt8, Relu) {
