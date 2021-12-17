@@ -27,6 +27,7 @@
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "utils/compare.hpp"
 #include "utils/perf_report.hpp"
 
 namespace resampling {
@@ -154,6 +155,13 @@ inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t ic, int64_t od,
     return (((mb * prb->ic + ic) * prb->od + od) * prb->oh + oh) * prb->ow + ow;
 }
 
+int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
+void check_known_skipped_case(const prb_t *prb, res_t *res);
+int fill_src(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int fill_dst(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
         const std::vector<dnn_mem_t> &binary_po);
 void compute_ref_bwd(
@@ -165,6 +173,7 @@ int compare_dst(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
 int fill_dat(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+void add_additional_check_to_compare(compare::compare_t &cmp);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
