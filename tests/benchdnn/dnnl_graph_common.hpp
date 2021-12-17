@@ -530,6 +530,12 @@ public:
         struct {
             sum_po_handler_t sum_handler;
         } reorder;
+
+        struct {
+            eltwise_po_handler_t eltw_handler;
+            sum_po_handler_t sum_handler;
+            binary_po_handler_t bin_handler;
+        } resampling;
     };
 };
 

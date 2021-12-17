@@ -1,0 +1,15 @@
+--reset
+
+--mb=2
+--alg=nearest,linear
+--tag=abx,axb
+--dir=FWD_D
+
+--sdt=f32 --ddt=f32
+--batch=shapes_ci
+
+--sdt=bf16 --ddt=bf16
+--batch=shapes_ci
+
+--sdt=f16 --ddt=f16
+--batch=shapes_ci
