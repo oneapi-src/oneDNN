@@ -692,8 +692,9 @@ bool prelu_doable(const std::vector<dim_t> &src_dims,
             doable = src_dims[channel_dim_num] == wei_dims[0];
         } else {
             // if no broadcast to channel,
-            // then last src dim should be equal to wei dim
-            doable = src_dims[src_ndims - 1] == wei_dims[0];
+            // then wei dim should be equal to last src dim,
+            // or equal to 1.
+            doable = src_dims[src_ndims - 1] == wei_dims[0] || wei_dims[0] == 1;
         }
     } else {
         for (int i = 1; i <= wei_ndims; ++i) {

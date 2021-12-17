@@ -147,8 +147,12 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
         }
 
         for (size_t i = 0; i < op->num_inputs(); ++i) {
-            // skip for those non-data input and non-post-binary inputs
-            if (i > 0 && i < op->num_inputs() - num_post_binary_ops) continue;
+            // Skip for those non-data input and non-post-binary inputs,
+            // If PReLU data format is NXC, we need to permute both inputs.
+            if (i > 0 && i < op->num_inputs() - num_post_binary_ops
+                    && op->get_kind() != impl::op_kind::PReLU
+                    && op->get_kind() != op_kind::dnnl_prelu)
+                continue;
             op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
             perm_op->set_attr<std::string>("permute_kind", "permute");
             perm_op->set_attr<std::string>("from_format", "NXC");
@@ -663,19 +667,6 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
             int wei_input_id = 1;
             insert_op_before(expand_op, cur_op, wei_input_id);
             to_be_inserted_ops.emplace_back(expand_op);
-
-            if (per_channel_broadcast && data_format == "NCX") {
-                // When performing channel to broadcast and data format
-                // is NCX, after expanding weights, we additionally
-                // have to permute them.
-                auto perm_op = std::make_shared<op_t>(op_kind::permute);
-                perm_op->set_attr<std::string>("permute_kind", "permute");
-                perm_op->set_attr<std::string>("from_format", "NXC");
-                perm_op->set_attr<std::string>("to_format", "NCX");
-                // insert op before weights, which are the second input
-                insert_op_before(perm_op, cur_op, wei_input_id);
-                to_be_inserted_ops.emplace_back(perm_op);
-            }
         }
 
         // replace original op to dnnl specific op
