@@ -18,6 +18,7 @@
 
 #include "utils/parser.hpp"
 
+#include "reduction/graph_reduction.hpp"
 #include "reduction/reduction.hpp"
 
 namespace reduction {
@@ -53,7 +54,14 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        int status = doit(&prb, &res);
+        const int status = [&prb, &res](api_mode_t mode) {
+            if (mode == PRIMITIVE)
+                return doit(&prb, &res);
+            else if (mode == GRAPH)
+                return benchdnnext::reduction::doit(&prb, &res);
+            else
+                return FAIL;
+        }(api_mode);
 
         bool want_perf_report = false;
         parse_result(res, want_perf_report, status, pstr);

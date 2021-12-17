@@ -1,0 +1,12 @@
+# bf16
+--reset
+
+--sdt=bf16 --ddt=bf16
+--attr-post-ops=,sum,relu,add:bf16:common,add:bf16:per_tensor # ,add:bf16:per_oc
+--p=1 --eps=0.0
+--alg=sum,mul,max,min,mean,norm_lp_power_p_sum
+--batch=option_set_ci
+
+--p=2 --eps=0.0
+--alg=norm_lp_sum
+--batch=option_set_ci

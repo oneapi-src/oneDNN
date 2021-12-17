@@ -1,0 +1,12 @@
+# f32
+--reset
+
+--sdt=f32 --ddt=f32
+--attr-post-ops=,sum,relu,add:f32:common,add:f32:per_tensor # ,add:f32:per_oc
+--p=1 --eps=0.0
+--alg=sum,mul,max,min,mean,norm_lp_power_p_sum
+--batch=option_set_ci
+
+--p=2 --eps=0.0
+--alg=norm_lp_sum
+--batch=option_set_ci
