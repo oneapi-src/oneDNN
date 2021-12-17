@@ -310,6 +310,7 @@ public:
                 break;
             default: ir_error_not_expected(); return func_t();
         }
+        if (!math::is_pow2(new_mask_count)) return func_t();
         return send_t::make(hw, access_type, type, data_type, data_elems, slots,
                 alignment, address_model, atomic_op, is_prefetch,
                 new_mask_count);
