@@ -112,7 +112,6 @@ private:
     const reg64_t reg_stride_ldb = abi_not_param1;
     const reg64_t reg_C = r15;
     const reg64_t reg_D = r12;
-
     const reg64_t reg_buf = rax;
     const reg64_t reg_bias = rbx;
     const reg64_t reg_scales = rbx;
@@ -149,6 +148,9 @@ private:
     char *bd_mask_buffer_ptr = nullptr;
     std::vector<size_t> adj_bd_mask_buffer;
     size_t *adj_bd_mask_buffer_ptr = nullptr;
+    std::vector<size_t> skipped_bd_mask_buffer;
+    size_t *skipped_bd_mask_buffer_ptr = nullptr;
+    size_t adj_bd;
 
     // interleave stores
     bool use_ils = false;
@@ -219,6 +221,7 @@ private:
     void generate() override;
 
     void prepare_bd_mask() noexcept;
+    int adjusted_bd_mask(int bd_ind) noexcept;
     int skipped_bd_mask(int bd_ind) noexcept;
 
     int A_offset(int bdb) const noexcept;
@@ -258,24 +261,37 @@ void jit_brgemm_amx_uker_base_t::prepare_bd_mask() noexcept {
     const auto bd_mask_size = brg.bcast_dim;
     adj_bd_mask_buffer.resize(bd_mask_size);
     adj_bd_mask_buffer_ptr = adj_bd_mask_buffer.data();
+    skipped_bd_mask_buffer.resize(bd_mask_size);
+    skipped_bd_mask_buffer_ptr = skipped_bd_mask_buffer.data();
     if (!utils::any_null(bd_mask_buffer_ptr, adj_bd_mask_buffer_ptr)) {
-        size_t acc = 0;
+        adj_bd = 0;
         for (int i = 0; i < bd_mask_size; i++) {
-            adj_bd_mask_buffer_ptr[i] = acc;
-            acc += bd_mask_buffer_ptr[i];
+            adj_bd_mask_buffer_ptr[i] = adj_bd;
+            adj_bd += bd_mask_buffer_ptr[i];
+            skipped_bd_mask_buffer_ptr[i] = i;
+            for (auto ii = i; ii < bd_mask_size; ii++) {
+                if (bd_mask_buffer_ptr[ii]) {
+                    skipped_bd_mask_buffer_ptr[i] = ii;
+                    break;
+                }
+            }
         }
     } else
         assert(!"struct nullptr error");
 }
 
+int jit_brgemm_amx_uker_base_t::adjusted_bd_mask(int bd_ind) noexcept {
+    if (brg.brgattr.bd_mask_level)
+        return adj_bd_mask_buffer_ptr[bd_ind];
+    else
+        return bd_ind;
+}
+
 int jit_brgemm_amx_uker_base_t::skipped_bd_mask(int bd_ind) noexcept {
-    if (brg.brgattr.bd_mask_level != 2) return bd_ind;
-    const auto bd_mask_size = brg.bcast_dim;
-    auto i = bd_ind;
-    for (; i < bd_mask_size; i++) {
-        if (bd_mask_buffer_ptr[i]) return i;
-    }
-    return i;
+    if (brg.brgattr.bd_mask_level != 2)
+        return bd_ind;
+    else
+        return skipped_bd_mask_buffer_ptr[bd_ind];
 }
 
 int jit_brgemm_amx_uker_base_t::A_offset(int bd) const noexcept {
@@ -722,9 +738,7 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
                         vmovups(vreg_acc,
                                 ptr[reg_buf + buf_offset + wsp_offset]);
 
-                        const auto adj_bd_ind_bd = brg.brgattr.bd_mask_level
-                                ? adj_bd_mask_buffer_ptr[bd_ind_bd]
-                                : bd_ind_bd;
+                        const auto adj_bd_ind_bd = adjusted_bd_mask(bd_ind_bd);
                         store_vector(vreg_acc.getIdx(), adj_bd_ind_bd,
                                 ils_ldb_ind + ldb, ils_apply_post_ops,
                                 ils_is_ld_tail);
@@ -798,16 +812,12 @@ int jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2, int ld_block2,
                                                : accm(bd);
                     vmovups(vreg_acc, ptr[reg_buf + buf_offset + wsp_offset]);
 
-                    const auto adj_bd_ind_bd = brg.brgattr.bd_mask_level
-                            ? adj_bd_mask_buffer_ptr[bd_ind_bd]
-                            : bd_ind_bd;
+                    const auto adj_bd_ind_bd = adjusted_bd_mask(bd_ind_bd);
                     store_vector(vreg_acc.getIdx(), adj_bd_ind_bd,
                             ldb_ind + ldb, apply_post_ops, is_ld_tail);
                 }
             } else {
-                const auto adj_bd_ind_bdb = brg.brgattr.bd_mask_level
-                        ? adj_bd_mask_buffer_ptr[bd_ind_bdb]
-                        : bd_ind_bdb;
+                const auto adj_bd_ind_bdb = adjusted_bd_mask(bd_ind_bdb);
                 const auto c_offset = C_offset(adj_bd_ind_bdb, ldb_ind + ldb);
                 tilestored(ptr[reg_C + c_offset + reg_stride_ld_block],
                         Tmm(brg.get_C_tensor(bdb, idx)));
