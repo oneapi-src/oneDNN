@@ -117,7 +117,7 @@ make -j
 - Configure CMake and generate makefiles
 ~~~sh
 export ACL_ROOT_DIR=<path/to/Compute Library>
-cmake .. \
+/cmake .. \
           -DDNNL_AARCH64_USE_ACL=ON \
           <extra build options>
 ~~~
@@ -145,8 +145,12 @@ cmake -G "Visual Studio 16 2019 Win64" -T "Intel C++ Compiler 19.0" ..
 
 - Build the library
 ~~~bat
-cmake --build .
+cmake --build . --config=Release
 ~~~
+
+@note CMake's Microsoft Visual Studio generator does not respect `CMAKE_BUILD_TYPE` option.
+Solution file supports both Debug and Release builds with Debug being the default.
+You can choose specific build type with `--config` option.
 
 @note You can also open `oneDNN.sln` to build the project from the
 Microsoft Visual Studio IDE.
