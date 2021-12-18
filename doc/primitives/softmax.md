@@ -123,7 +123,6 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
 
 ## Example
 
-[**Softmax Primitive Example**](@ref softmax_example_cpp)
-Engine: CPU/GPU 
+[Softmax Primitive Example](@ref softmax_example_cpp)
 
 @copydetails softmax_example_cpp_short

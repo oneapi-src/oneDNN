@@ -124,7 +124,6 @@ N/A
 
 ## Example
 
-[**Shuffle Primitive Example**](@ref shuffle_example_cpp)
-Engine: CPU/GPU 
+[Shuffle Primitive Example](@ref shuffle_example_cpp)
 
 @copydetails shuffle_example_cpp_short

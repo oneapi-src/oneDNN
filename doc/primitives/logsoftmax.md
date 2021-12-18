@@ -135,8 +135,6 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
 
 ## Example
 
-[**Logsoftmax Primitive Example**](@ref logsoftmax_example_cpp)
-Engine: CPU/GPU 
+[Logsoftmax Primitive Example](@ref logsoftmax_example_cpp)
 
 @copydetails logsoftmax_example_cpp_short
- 

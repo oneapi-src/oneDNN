@@ -189,25 +189,21 @@ The following examples are available:
 
 ### Matrix Multiplication Primitive Examples
 
-[**MatMul Primitive Example**](@ref matmul_example_cpp)
-Engine: CPU/GPU
+[MatMul Primitive Example](@ref matmul_example_cpp)
 
 @copydetails matmul_example_cpp_short
 
 
-[**MatMul Tutorial: Comparison with SGEMM**](@ref cpu_sgemm_and_matmul_cpp)
-Engine: CPU
+[MatMul Tutorial: Comparison with SGEMM](@ref cpu_sgemm_and_matmul_cpp) (CPU only)
 
 @copydetails cpu_sgemm_and_matmul_cpp_short
 
 
-[**MatMul Tutorial: INT8 Inference**](@ref inference_int8_matmul_cpp) | 
-Engine: CPU/GPU
+[MatMul Tutorial: INT8 Inference](@ref inference_int8_matmul_cpp)
 
 @copydetails inference_int8_matmul_cpp_short
 
 
-[**MatMul Tutorial: Quantization**](@ref cpu_matmul_quantization_cpp)
-Engine: CPU
+[MatMul Tutorial: Quantization](@ref cpu_matmul_quantization_cpp) (CPU only)
 
 @copydetails cpu_matmul_quantization_cpp_short

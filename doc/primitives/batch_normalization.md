@@ -245,9 +245,8 @@ directly.
 
 2. Use in-place operations whenever possible (see caveats in General Notes).
 
-## Example
+## Examples
 
-[**Batch Normalization Primitive Example**](@ref batch_normalization_example_cpp)
-Engine: CPU/GPU
+[Batch Normalization Primitive Example](@ref batch_normalization_example_cpp)
 
 @copydetails batch_normalization_example_cpp_short

@@ -124,7 +124,6 @@ N/A
 
 ## Example
 
-[**Reorder Primitive Example**](@ref reorder_example_cpp)
-Engine: CPU/GPU 
+[Reorder Primitive Example](@ref reorder_example_cpp)
 
 @copydetails reorder_example_cpp_short

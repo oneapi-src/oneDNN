@@ -103,7 +103,6 @@ meaning associated with any of the dimensions of a tensor.
 
 ## Example
 
-[**Reduction Primitive Example**](@ref reduction_example_cpp)
-Engine: CPU/GPU
+[Reduction Primitive Example](@ref reduction_example_cpp)
 
 @copydetails reduction_example_cpp_short
