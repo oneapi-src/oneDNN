@@ -1769,7 +1769,7 @@ private:
 //     }
 stmt_t update_loops_for_unrolling(const stmt_t &s, const conv_config_t &cfg) {
     auto ret = s;
-    if (cfg.do_loop_unroll) ret = unrolling_updater_t().mutate(s);
+    if (cfg.do_pipeline_unroll) ret = unrolling_updater_t().mutate(s);
     trace_pass("update_loops_for_unrolling", ret);
     return ret;
 }
@@ -6964,10 +6964,10 @@ void kernel_builder_t::build() {
 
     stmt_ = inject_external_var_let(stmt_);
     stmt_ = merge_slm_buffers(stmt_);
-    if (!cfg_.do_loop_unroll && (cfg_.use_a_slm || cfg_.use_b_slm)) {
+    if (!cfg_.do_pipeline_unroll && (cfg_.use_a_slm || cfg_.use_b_slm)) {
         stmt_ = inject_simple_slm_buffering(
                 cfg_.hw, stmt_, cfg_, ir_ctx, cb.ab_slm_size());
-    } else if (!cfg_.do_loop_unroll && cfg_.use_prefetch) {
+    } else if (!cfg_.do_pipeline_unroll && cfg_.use_prefetch) {
         // Simplify to remove loops with only 1 iteration
         stmt_ = simplify_pass(stmt_, init_cset);
         stmt_ = inject_prefetch_pipeline(stmt_, cfg_, ir_ctx);
@@ -6979,9 +6979,9 @@ void kernel_builder_t::build() {
     stmt_ = lift_alloc(stmt_, cfg_);
     stmt_ = eliminate_common_subexprs(stmt_, ir_ctx);
     stmt_ = hoist_exprs(stmt_, ir_ctx);
-    if (cfg_.do_loop_unroll) stmt_ = loop_strength_reduce(stmt_);
+    if (cfg_.do_pipeline_unroll) stmt_ = loop_strength_reduce(stmt_);
     stmt_ = optimize_alloc_let(stmt_);
-    if (cfg_.do_loop_unroll) {
+    if (cfg_.do_pipeline_unroll) {
         stmt_ = update_loops_for_unrolling(stmt_, cfg_);
         stmt_ = inject_unrolling(stmt_, cfg_, ir_ctx, cb.ab_slm_size());
     }

@@ -460,18 +460,19 @@ public:
 
         CHECK(init_zero_points_config(conv_pd));
 
-        if (kd * kh * kw > 9) do_loop_unroll = false;
+        if (kd * kh * kw > 9) do_pipeline_unroll = false;
         if (is_dw) {
             use_preload = false;
-            do_loop_unroll = false;
+            do_pipeline_unroll = false;
         }
         if (is_small_ic()) {
             reuse_headers = true;
-            do_loop_unroll = false;
+            do_pipeline_unroll = false;
         }
 
 #ifdef GEN_CONV_DEBUG
-        do_loop_unroll = getenv_bool("do_loop_unroll", do_loop_unroll);
+        do_pipeline_unroll
+                = getenv_bool("do_pipeline_unroll", do_pipeline_unroll);
         reuse_headers = getenv_bool("reuse_headers", reuse_headers);
         use_preload = getenv_bool("use_preload", use_preload);
 #endif
@@ -578,13 +579,13 @@ public:
         // Do not perform full unrolling when there are too many inner
         // iterations.
         int kernel_limit = is_f32_conv() ? 4 : 9;
-        if (kd * kh * kw > kernel_limit) do_loop_unroll = false;
+        if (kd * kh * kw > kernel_limit) do_pipeline_unroll = false;
 
         // Do not perform full unrolling with non-unit stride unless special
         // stride optimization is enabled. These cases have non-trivial
         // post-increment updates which result in unrolling all reduction loops
         // and exceeding the instruction cache.
-        if (!is_stride1() && !optimize_strided) do_loop_unroll = false;
+        if (!is_stride1() && !optimize_strided) do_pipeline_unroll = false;
 
         // XXX: in case of nhwc or small mb allow reorders on XeHPC
         // since A/B tile loads may be strided
@@ -648,11 +649,13 @@ public:
 
         // Set BWD_W-specific settings.
         do_b_reduction = with_bias;
-        do_loop_unroll = (hw >= ngen::HW::XeHPC && is_dp_fma() && mb_blk > 1);
+        do_pipeline_unroll
+                = (hw >= ngen::HW::XeHPC && is_dp_fma() && mb_blk > 1);
         allow_grf_reorder = is_dp_fma();
         do_atomic_update = true;
 #ifdef GEN_CONV_DEBUG
-        do_loop_unroll = getenv_bool("do_loop_unroll", do_loop_unroll);
+        do_pipeline_unroll
+                = getenv_bool("do_pipeline_unroll", do_pipeline_unroll);
         allow_grf_reorder = getenv_bool("allow_grf_reorder", allow_grf_reorder);
 #endif
 
@@ -862,7 +865,7 @@ public:
         do_b_reduction = false;
         pad_slm = true;
         assign_sbids = is_dp_fma();
-        do_loop_unroll = hw > ngen::HW::XeLP;
+        do_pipeline_unroll = hw > ngen::HW::XeLP;
         reduce_grf_usage = true;
         do_atomic_update = false;
         reuse_headers = hw <= ngen::HW::XeLP;
@@ -876,7 +879,8 @@ public:
         use_preload = getenv_bool("use_preload", use_preload);
         pad_slm = getenv_bool("pad_slm", pad_slm);
         assign_sbids = getenv_bool("assign_sbids", assign_sbids);
-        do_loop_unroll = getenv_bool("do_loop_unroll", do_loop_unroll);
+        do_pipeline_unroll
+                = getenv_bool("do_pipeline_unroll", do_pipeline_unroll);
         reduce_grf_usage = getenv_bool("reduce_grf_usage", reduce_grf_usage);
         allow_grf_reorder = getenv_bool("allow_grf_reorder", allow_grf_reorder);
         reuse_headers = getenv_bool("reuse_headers", reuse_headers);
@@ -1036,7 +1040,7 @@ public:
         oss << "  Pad SLM:                    " << to_string(pad_slm) << std::endl;
         oss << "  Use prefetch:               " << to_string(use_prefetch) << std::endl;
         oss << "  Prefetch buffers:           " << prefetch_bufs << std::endl;
-        oss << "  Do loop unroll:             " << to_string(do_loop_unroll) << std::endl;
+        oss << "  Do pipeline unroll:         " << to_string(do_pipeline_unroll) << std::endl;
         oss << "  Assign SBIDs:               " << to_string(assign_sbids) << std::endl;
         oss << "  Reduce GRF usage:           " << to_string(reduce_grf_usage) << std::endl;
         oss << "  Reuse headers:              " << to_string(reuse_headers) << std::endl;
@@ -1138,7 +1142,7 @@ public:
     int slm_bufs; // Number of SLM buffers to use.
     int gmem_bufs; // Number of GRF buffers to use for GMEM -> SLM copy.
     int prefetch_bufs; // Number of prefetch buffers for A and B.
-    bool do_loop_unroll; // Whether to fully unroll inner loops.
+    bool do_pipeline_unroll; // Whether to fully unroll inner loops for pipelining.
     bool reduce_grf_usage; // Whether to try to reduce GRF usage based on heuristics.
     bool allow_grf_reorder; // Whether to allow GRF reorders to FMA-friendly layouts.
     bool do_atomic_update; // Whether to use atomics during C update.
@@ -1798,7 +1802,7 @@ private:
                         == 0;
         if (use_a_slm || use_b_slm) {
             int pref_slm_bufs = (tg_grid_dim[0] * tg_grid_dim[1] <= 8 ? 2 : 3);
-            if (do_loop_unroll) {
+            if (do_pipeline_unroll) {
                 slm_bufs = pref_slm_bufs;
                 gmem_bufs = (is_dp_fma() ? 2 : 1);
             } else {
@@ -1845,12 +1849,12 @@ private:
     // Overwrites parameters that are implied by other parameters.
     void fixup_inference_consistency() {
         // Can't reuse headers with loop unroll and post-increment offset updates.
-        if (reuse_headers) do_loop_unroll = false;
+        if (reuse_headers) do_pipeline_unroll = false;
         // Without unrolling there is no benefit in keeping per-message headers.
-        if (!do_loop_unroll) reuse_headers = true;
+        if (!do_pipeline_unroll) reuse_headers = true;
 
         // Unrolling with dp4a results in too large kernels.
-        if (fma_kind == fma_kind_t::dp4a) do_loop_unroll = false;
+        if (fma_kind == fma_kind_t::dp4a) do_pipeline_unroll = false;
 
         if (use_preload) {
             // Prefetches are only supported with loop unrolling.
@@ -1918,7 +1922,7 @@ private:
 
         // Last resort settings to reduce GRF usage.
         reuse_headers = true;
-        do_loop_unroll = false;
+        do_pipeline_unroll = false;
 
         return estimate_register_count() <= max_regs;
     }
