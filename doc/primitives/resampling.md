@@ -150,7 +150,6 @@ N/A
 
 ## Example
 
-[**Resampling Primitive Example**](@ref resampling_example_cpp)
-Engine: CPU/GPU 
+[Resampling Primitive Example](@ref resampling_example_cpp)
 
 @copydetails resampling_example_cpp_short

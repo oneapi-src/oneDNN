@@ -90,7 +90,6 @@ The concat primitive does not support any post-ops or attributes.
 
 ## Example
 
-[**Concat Primitive Example**](@ref concat_example_cpp)
-Engine: CPU/GPU 
+[Concat Primitive Example](@ref concat_example_cpp)
  
 @copydetails concat_example_cpp_short

@@ -152,7 +152,6 @@ object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
 
 ## Example
 
-[**Inner Product Primitive Example**](@ref inner_product_example_cpp) 
-Engine: CPU/GPU
+[Inner Product Primitive Example](@ref inner_product_example_cpp) 
 
 @copydetails inner_product_example_cpp_short

@@ -112,13 +112,10 @@ meaning associated with any of tensors dimensions.
 
 ## Examples
 
-[**Binary Primitive Example**](@ref binary_example_cpp)
-Engine: CPU/GPU
+[Binary Primitive Example](@ref binary_example_cpp)
  
 @copydetails binary_example_cpp_short
 
-
-[**Bnorm u8 by Binary Post-Ops Example**](@ref bnorm_u8_via_binary_postops_cpp)
-Engine: CPU/GPU 
+[Bnorm u8 by Binary Post-Ops Example](@ref bnorm_u8_via_binary_postops_cpp) 
 
 @copydetails bnorm_u8_via_binary_postops_cpp_short

@@ -161,7 +161,6 @@ N/A
 
 ## Example
 
-[**Pooling Primitive Example**](@ref pooling_example_cpp)
-Engine: CPU/GPU 
+[Pooling Primitive Example](@ref pooling_example_cpp)
 
 @copydetails pooling_example_cpp_short
