@@ -13,7 +13,7 @@ ReduceMax
 **Short description**: *ReduceMax* operation performs the reduction with finding
 the maximum value on a given input data along dimensions specified by axes.
 
-**OpenVINO description**: This OP is based on `OpenVINO OP
+**OpenVINO description**: This OP is as same as `OpenVINO OP
 <https://docs.openvino.ai/2021.4/openvino_docs_ops_reduction_ReduceMax_1.html>`__
 
 **Attributes**

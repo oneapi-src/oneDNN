@@ -14,7 +14,7 @@ ReduceL2
 the L2 norm (square root of sum of squares) on a given input data along
 dimensions specified by axes input.
 
-**OpenVINO description**: This OP is based on `OpenVINO OP
+**OpenVINO description**: This OP is as same as `OpenVINO OP
 <https://docs.openvino.ai/2021.4/openvino_docs_ops_reduction_ReduceL2_4.html>`__
 
 **Attributes**

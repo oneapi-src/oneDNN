@@ -14,7 +14,7 @@ ReduceL1
 the L1 norm (sum of absolute values) on a given input data along dimensions
 specified by axes.
 
-**OpenVINO description**: This OP is based on `OpenVINO OP
+**OpenVINO description**: This OP is as same as `OpenVINO OP
 <https://docs.openvino.ai/2021.4/openvino_docs_ops_reduction_ReduceL1_4.html>`__
 
 **Attributes**
