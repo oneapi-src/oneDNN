@@ -3505,7 +3505,7 @@ dnnl_status_t DNNL_API dnnl_set_primitive_cache_capacity(int capacity);
 
 /// @} dnnl_api_primitive_cache
 
-/// @addtogroup dnnl_api_mathmode
+/// @addtogroup dnnl_api_mathmode Floating-point Math Mode
 /// @{
 
 /// Returns the floating-point math mode that will be used by default
