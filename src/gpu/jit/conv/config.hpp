@@ -1488,10 +1488,14 @@ private:
         auto &dst_md = *conv_pd->invariant_dst_md();
         auto &bia_md = *conv_pd->invariant_bia_md();
 
-        bool is_src_nhwc = is_nhwc(src_md);
-        bool is_dst_nhwc = is_nhwc(dst_md);
+        // If src/dst is nhwc then set the other one with any to nhwc too.
+        if (is_nhwc(src_md) || is_nhwc(dst_md)) {
+            set_default_format(src_md, "axb");
+            set_default_format(dst_md, "axb");
+        }
 
-        if (is_src_nhwc || is_dst_nhwc) {
+        if (is_pure_nhwc(src_md, user_src_tag)
+                || is_pure_nhwc(dst_md, user_dst_tag)) {
             src_tag = user_src_tag = "axb";
             dst_tag = user_dst_tag = "axb";
         }
@@ -1505,8 +1509,8 @@ private:
         if (with_bias) bia_layout = init_layout(bia_md, "a");
 
         // Validate layouts.
-        is_src_nhwc = is_nhwc(src_layout);
-        is_dst_nhwc = is_nhwc(dst_layout);
+        bool is_src_nhwc = is_nhwc(src_layout);
+        bool is_dst_nhwc = is_nhwc(dst_layout);
         if (is_src_nhwc != is_dst_nhwc) return status::unimplemented;
 
         if (is_src_nhwc) {
@@ -2111,6 +2115,11 @@ private:
         return "a" + ret;
     }
 
+    static void set_default_format(memory_desc_t &md, const std::string &tag) {
+        if (md.format_kind != format_kind::any) return;
+        md = make_layout(md, tag).to_dnnl(md.dims);
+    }
+
     static layout_t init_layout(
             memory_desc_t &user_md, const std::string &optimal_tag) {
         auto optimal = make_layout(user_md, optimal_tag);
@@ -2158,6 +2167,15 @@ private:
     bool is_nhwc(const std::string &tag) const {
         auto &layout = tensor_config.user_layout(tag);
         return is_nhwc(layout);
+    }
+
+    // Returns true if 1) md has nhwc layout and 2) it can't be treated as
+    // blocking layout, and false otherwise.
+    static bool is_pure_nhwc(
+            const memory_desc_t &md, const std::string &blocking_tag) {
+        if (!is_nhwc(md)) return false;
+        if (make_layout(md) == make_layout(md, blocking_tag)) return false;
+        return true;
     }
 };
 
