@@ -103,6 +103,10 @@ cmake .. -G "Visual Studio 16 2019" -DDNNL_GRAPH_BUILD_COMPILER_BACKEND=1
 cmake --build . --config Release
 ~~~
 
+@note CMake's Microsoft Visual Studio generator does not respect `CMAKE_BUILD_TYPE`
+option. Solution file supports both Debug and Release builds with Debug being the
+default. You can choose specific build type with `--config` option.
+
 ## Validate the Build
 
 If the library is built for the host system, you can run unit tests and examples
