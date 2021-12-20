@@ -921,7 +921,7 @@ public:
         return f_common.is_equal(other);
     }
 
-    static void reduce(expr_t &a, expr_t &b) {
+    static expr_t reduce(expr_t &a, expr_t &b) {
         auto fa_expr = factored_expr_t::make(a);
         auto fb_expr = factored_expr_t::make(b);
         auto &fa = fa_expr.as<factored_expr_t>();
@@ -929,6 +929,7 @@ public:
         auto f_common = fa.intersect(&fb);
         a = fa.reduce(f_common).as<factored_expr_t>().expr();
         b = fb.reduce(f_common).as<factored_expr_t>().expr();
+        return f_common;
     }
 
     std::vector<expr_t> factors;
@@ -1096,7 +1097,7 @@ public:
             return mutate_with_add(*binary_op);
 
         // Try to reduce a and b.
-        factored_expr_t::reduce(a, b);
+        auto common_factor = factored_expr_t::reduce(a, b);
 
         if (is_one(b)) {
             if (binary_op->op_kind == op_kind_t::_mod)
@@ -1104,7 +1105,13 @@ public:
             if (binary_op->op_kind == op_kind_t::_div) return std::move(a);
         }
 
-        if (binary_op->op_kind == op_kind_t::_div) return a / b;
+        if (binary_op->op_kind == op_kind_t::_div) {
+            return a / b;
+        } else if (binary_op->op_kind == op_kind_t::_mod) {
+            auto &c = common_factor.as<factored_expr_t>();
+            if (c.is_const() && to_cpp<int64_t>(c.const_factor()) > 1)
+                return make_nary_op(op_kind_t::_mul, {c.const_factor(), a % b});
+        }
 
         return obj;
     }
