@@ -35,9 +35,10 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
 
-#define DNNL_BACKEND_SINGLE_OP_TRANSFORM(name, backend, op, p) \
+#define DNNL_BACKEND_SINGLE_OP_TRANSFORM(name, backend, op, p, ...) \
     DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name) \
             .set_priority(p) \
+            .set_enable(__VA_ARGS__) \
             .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
                     [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
                         pgraph->append_op(impl::op_kind::op); \
@@ -79,8 +80,8 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(elu_pass, dnnl, Elu, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(exp_pass, dnnl, Exp, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(hardtanh_pass, dnnl, HardTanh, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(log_pass, dnnl, Log, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(sum_pass, dnnl, Add, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(mul_pass, dnnl, Multiply, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(sum_pass, dnnl, Add, 8.f, false)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(mul_pass, dnnl, Multiply, 8.f, false)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(max_pass, dnnl, Maximum, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(min_pass, dnnl, Minimum, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(div_pass, dnnl, Divide, 8.f)

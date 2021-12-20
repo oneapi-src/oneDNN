@@ -165,7 +165,7 @@ public:
 
     // set enable status
     // can be used for override default value of enable_
-    pass_base &set_enable(bool enable) {
+    pass_base &set_enable(bool enable = true) {
         enable_ = enable;
         return *this;
     }

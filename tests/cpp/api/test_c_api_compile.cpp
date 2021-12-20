@@ -1375,6 +1375,9 @@ TEST(c_api_test, compile_maxpool_with_strided_output) {
 }
 
 TEST(c_api_test, compile_add) {
+    // skip this case until re-enable single add/mul pattern
+    GTEST_SKIP();
+
     dnnl_graph_graph_t *agraph = NULL;
     dnnl_graph_op_t *add = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;

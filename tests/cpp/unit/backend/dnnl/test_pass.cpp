@@ -1861,7 +1861,12 @@ TEST(Pass, FailToFuseBinarySumWithUnsupportBroadcast) {
         pm.run_passes(agraph, "no_config");
 
         // should not be fused
-        ASSERT_EQ(agraph.get_num_partitions(), 2);
+        if (binary_kind == Multiply) {
+            // single mul and add patterns are disabled for now
+            ASSERT_EQ(agraph.get_num_partitions(), 0);
+        } else {
+            ASSERT_EQ(agraph.get_num_partitions(), 1);
+        }
     }
 }
 
@@ -1900,7 +1905,12 @@ TEST(Pass, FailToFuseBinarySumWithUnknownShape) {
         pm.run_passes(agraph, "no_config");
 
         // should not be fused
-        ASSERT_EQ(agraph.get_num_partitions(), 2);
+        if (binary_kind == Multiply) {
+            // single mul and add patterns are disabled for now
+            ASSERT_EQ(agraph.get_num_partitions(), 0);
+        } else {
+            ASSERT_EQ(agraph.get_num_partitions(), 1);
+        }
     }
 }
 
@@ -4475,6 +4485,9 @@ TEST(Pass, DnnlSingleOpReplacement) {
             BatchNormForwardTraining, Elu, Exp, HardTanh, Log, Multiply,
             Maximum, Minimum, Pow, Sqrt, Square, Tanh, SoftMaxBackprop};
     for (auto akind : single_op_set_supported) {
+        // disable single add and mul pattern for now
+        if (akind == Multiply || akind == Add) continue;
+
         graph_t agraph;
         op_t *op = agraph.create_op(akind);
         ASSERT_EQ(op->get_kind(), akind);
@@ -8313,11 +8326,9 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDivAdd) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
-    ASSERT_EQ(agraph.get_num_partitions(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
             dnnl_impl::op_kind::x8x8float_matmul_div);
-    ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(),
-            impl::op_kind::Add);
 }
 
 TEST(Pass, FuseToX8s8bf16MatmulBias) {
