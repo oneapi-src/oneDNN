@@ -13,6 +13,8 @@ git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph-preview4 -
 Ensure that all software dependencies are in place and have at least the
 minimal supported version.
 
+@note **LLVM 8.0 or later** is required to enable graph compiler.
+
 The oneDNN Graph build system is based on CMake. Use
 
 - `CMAKE_BUILD_TYPE` to select between build type (`Release`, `Debug`,
@@ -40,6 +42,17 @@ cmake ..
 cmake .. -DDNNL_GRAPH_BUILD_EXAMPLES=True -DDNNL_GRAPH_BUILD_TESTS=True
 ~~~
 
+- Compilation with enabled graph compiler
+
+Users can follow the [guidelines
+](https://llvm.org/docs/GettingStarted.html#getting-the-source-code-and-building-llvm)
+to build and install LLVM from source, or download and install the pre-built binary
+from [here](https://apt.llvm.org/) before generating makefile for graph compiler.
+
+~~~sh
+cmake .. -DDNNL_GRAPH_BUILD_COMPILER_BACKEND=True
+~~~~
+
 #### Build and Install the Library
 
 - Build the library:
@@ -63,12 +76,26 @@ mkdir build && cd build
 cmake .. -G "Visual Studio 16 2019"
 ~~~
 
-To build with unittests and examples
+- Build with unittests and examples
 
 ~~~cmd
 mkdir build && cd build
 cmake .. -G "Visual Studio 16 2019" -DDNNL_GRAPH_BUILD_TESTS=1 -DDNNL_GRAPH_BUILD_EXAMPLES=1 -DCTESTCONFIG_PATH=\\PATH\TO\oneDNNGRAPH\build\src\Release
 ~~~
+
+- Build with enabled graph compiler
+
+Users can follow the [guidelines
+](https://llvm.org/docs/GettingStarted.html#getting-the-source-code-and-building-llvm)
+to build and install LLVM from source, or download and install the pre-built binary
+from [here](https://apt.llvm.org/) before generating VS solution for graph compiler.
+It's required to link with **Debug** build verion of LLVM in order to use **Debug**
+version of graph compiler.
+
+~~~cmd
+mkdir build && cd build
+cmake .. -G "Visual Studio 16 2019" -DDNNL_GRAPH_BUILD_COMPILER_BACKEND=1
+~~~~
 
 - Build the Library
 

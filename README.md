@@ -18,7 +18,13 @@ The goal of the preview branch is to:
 
 The current API version aims to work with the framework graph and identify graph
 partitions to offload. The partition will be further compiled and executed as a
-fused operation in the framework graph.
+fused operation in the framework graph. To support aggressive operation fusion
+and achieve the best performance, oneDNN Graph implementation includes a
+low-level graph compiler, also known as oneDNN Graph compiler.
+
+Enabling oneDNN Graph compiler doesn't result in any change to its programming
+model, Graph API users can choose to turn on or off graph compiler during build
+or installation of oneDNN Graph.
 
 ## Documentation
 

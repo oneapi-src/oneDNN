@@ -126,3 +126,31 @@ When the framework executing a fused op, the fused op’s implementation is to
 call `compile()` which compiles its associated partition. Then it queries the
 compiled partition to get the sizes of output tensors, allocates memory for them,
 and calls `execute()` to execute the compiled partition.
+
+## oneDNN Graph Compiler
+
+oneDNN Graph Compiler is an experimental low-level deep learning compiler
+focusing on code generation, which inputs a DNN compute graph and generates
+binary code or instruction level representation (like LLVM and SPIR-V). It
+automates the kernel code generation for matrix multiplication, convolution, and
+other DNN operations with the same level of computing efficiency as hand-tuned
+implementation. It further explores advanced code-gen optimization to achieve
+**better than Ninja** computing efficiency for a subgraph, such as optimizing a
+sequence of matrix multiplication operations.
+
+oneDNN Graph compiler offers unique optimization to achieve the best-generated
+code efficiency. It combines the wisdom of hand-tuned kernel and compiler. The
+hand-tuned heuristics gives oneDNN Graph compiler a foundation to automatically
+synthesize the best-known kernel, and the compiler techniques allow the
+development effort to scale to larger and new fusion patterns.  The fusion
+pattern in the roadmap includes multi-head attention (MHA), multi-layer
+perceptron (MLP), convolution block, supporting typical data types for both
+inference and training.
+
+Together with oneDNN Graph API, oneDNN Graph compiler is designed to complement
+deep learning framework optimization. The high-level graph optimization in the
+framework transforms the DNN compute graph and calls a low-level performance
+library for efficient code generation. Through focusing on code generation for
+graph partition and interoperating with framework operation implementation,
+oneDNN graph compiler provides an acceleration code path on top of framework
+graph execution.
