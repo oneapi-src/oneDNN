@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble(
     assert(preserved_gprs_count == aux_gprs_count());
 
     if (save_state_) {
-        h->push(p_table);
+        if (preserve_p_table_) h->push(p_table);
         for (size_t i = 0; i < preserved_gprs_count; ++i)
             h->push(Reg64(preserved_gpr_idxs[i]));
 
@@ -172,7 +172,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_postamble() {
 
     for (int i = aux_gprs_count() - 1; i >= 0; --i)
         h->pop(Reg64(preserved_gpr_idxs[i]));
-    h->pop(p_table);
+    if (preserve_p_table_) h->pop(p_table);
 }
 
 template <cpu_isa_t isa, typename Wmm>

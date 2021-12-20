@@ -69,6 +69,7 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
 
             eltwise_injector::static_params_t esp;
             esp.preserve_vmm = preserve_vmm;
+            esp.preserve_p_table = false;
 
             postops_injector_ = utils::make_unique<
                     injector::jit_uni_postops_injector_t<avx512_core>>(
@@ -112,7 +113,8 @@ private:
     const reg64_t reg_stride_ldb = abi_not_param1;
     const reg64_t reg_C = r15;
     const reg64_t reg_D = r12;
-    const reg64_t reg_buf = rax;
+
+    const reg64_t reg_buf = r8;
     const reg64_t reg_bias = rbx;
     const reg64_t reg_scales = rbx;
 

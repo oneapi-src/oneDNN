@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
                     jit_uni_eltwise_injector_f32<isa, Vmm>(host_,
                             post_op.eltwise, esp.save_state, esp.p_table,
                             esp.k_mask, esp.is_fwd, esp.use_dst,
-                            esp.preserve_vmm));
+                            esp.preserve_vmm, esp.preserve_p_table));
         } else if (post_op.is_binary()) {
             is_binary = true;
         }
