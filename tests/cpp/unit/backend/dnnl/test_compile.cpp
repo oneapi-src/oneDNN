@@ -3884,6 +3884,9 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
+    SKIP_IF(eng.kind() == impl::engine_kind::gpu,
+            "Skip for GPU - not supported yet.");
+
     // prepare ops
     impl::op_t dequantize(0, impl::op_kind::Dequantize, "dq");
     dequantize.set_attr<std::vector<float>>("scales", {0.1f});
@@ -16406,6 +16409,9 @@ TEST(Execute, ConvResBlock) {
 TEST(Execute, Int8Mha) {
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
+
+    SKIP_IF(eng.kind() == impl::engine_kind::gpu,
+            "Skip for GPU - not supported yet.");
 
     impl::graph_t g(eng.kind());
     utils::construct_int8_MHA(&g);
