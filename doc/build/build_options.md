@@ -20,6 +20,11 @@ All other building options or values that can be found in CMake files are
 intended for development/debug purposes and are subject to change without
 notice. Please avoid using them.
 
+*Note that graph compiler backend only supports **OMP** as its threading runtime
+for CPU engines so far, other threading runtimes shall be supported in future and
+currently will result in fatal error.*
+*Option DNNL_GRAPH_LLVM_CONFIG is only valid when DNNL_GRAPH_BUILD_COMPILER_BACKEND=ON.*
+
 ## Common Options
 
 ### CPU Options

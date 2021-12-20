@@ -76,6 +76,8 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 
 ## Fusion Patterns
 
+### oneDNN Primitive Backend
+
 The preview depends on the oneDNN primitive post-ops feature to support fusion.
 It supports a subset of the pattern capability as listed below.
 
@@ -138,3 +140,48 @@ It supports a subset of the pattern capability as listed below.
 - Multiply + ReLU
 - Multiply + Sigmoid
 - Pow + Multiply + Add + Tanh (GELU)
+
+### Graph Compiler Backend
+
+The preview depends on graph compiler to support additional fusion patterns
+listed as below:
+
+- MHA (Multi-Head Attention)
+
+The topology of MHA pattern is listed as below, which supports FP32/BF16 and
+INT8 precision, `Quantize` and `Dequantize` OP are only applicable to INT8
+precision.
+
+```plaintext
+                    [Key]
+                      |
+        [Query]  (Dequantize)
+            |         |
+      (Dequantize) Reshape
+            |         |
+        Reshape   Transpose
+            |         |
+        Transpose Transpose
+              \     /
+               MatMul  [fscore scale]
+                 \    /
+[Attention Mask] Div|Mul
+              \   /
+                Add        [Value]
+                 |           |
+              Softmax   (Dequantize)
+                 |           |
+              (Quantize)   Reshape
+                 |           |
+             (Dequantize) Transpose
+                    \     /
+                     MatMul
+                        |
+                    Transpose
+                        |
+                  Reshape (optional)
+                        |
+                    (Quantize)
+                        |
+                     [output]
+```
