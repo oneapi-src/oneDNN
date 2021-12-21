@@ -212,12 +212,17 @@ private:
     void read_params();
     void load_accumulators(int bd_block2, int ld_block, bool is_ld_tail);
 
+    void maybe_saturation(bool dt_requires_saturation, Xbyak::Zmm &zmm);
     void apply_alpha_beta_to_vector(
             const int idx, const Address &addr, bool is_ld_tail);
     void apply_post_ops_to_vector(const int idx, const Address &addr,
             const int bd, const int ldb, bool is_ld_tail);
+    void apply_post_ops_to_range(
+            int bd_ind_bdb, int bd_block, int ldb, bool is_ld_tail);
     void store_vector_with_post_ops(const int idx, const Address &addr,
             const int bd, const int ldb, bool is_ld_tail);
+    void process_output_range(int bd_ind_bdb, int bdb, int ldb_ind, int ldb,
+            bool is_ld_tail, bool apply_post_ops);
     void store_vector_without_post_ops(
             const int idx, const Address &addr, bool is_ld_tail);
     void store_vector(const int idx, const int bd, const int ldb,
@@ -264,6 +269,7 @@ private:
     int zp_comp_a_offset(int ldb, bool is_tail = false) const noexcept;
     int zp_comp_b_offset(int bd) const noexcept;
     int zp_c_values_offset(int ldb, bool is_tail = false) const noexcept;
+    int get_input_bd(int bd_ind_bdb, int bd) const;
 };
 
 void jit_brgemm_amx_uker_base_t::prepare_bd_mask() noexcept {
@@ -369,6 +375,14 @@ int jit_brgemm_amx_uker_base_t::zp_c_values_offset(int ldb, bool is_tail) const
     }
 
     return 0;
+}
+
+int jit_brgemm_amx_uker_base_t::get_input_bd(int bd_ind_bdb, int bd) const {
+    const auto bd_ind_bd = bd_ind_bdb + bd;
+    if (brg.brgattr.bd_mask_level && !bd_mask_buffer_ptr[bd_ind_bd])
+        return -1;
+    else
+        return bd_ind_bd;
 }
 
 Xbyak::Zmm jit_brgemm_amx_uker_base_t::zmm_mask(const Xbyak::Zmm zmm_in,
@@ -526,9 +540,107 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_vector(const int idx,
     postops_injector_->compute_vector(zmm.getIdx(), rhs_arg_params);
 }
 
-void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
-        const Address &addr, const int bd, const int ldb, bool is_ld_tail) {
-    auto zmm = Zmm(idx);
+void jit_brgemm_amx_uker_base_t::apply_post_ops_to_range(
+        int bd_ind_bdb, int bd_block, int ldb, bool is_ld_tail) {
+    binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+
+    if (brg.with_binary) {
+        if (handle_binary_po_offset_) {
+            for (int bd = 0; bd < bd_block; bd++) {
+                const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
+                if (bd_ind_bd == -1) continue;
+
+                const auto adj_bd_ind_bd = adjusted_bd_mask(bd_ind_bd);
+
+                const auto d_offset = D_offset(adj_bd_ind_bd, ldb);
+                const auto idx = accm(bd).getIdx();
+
+                rhs_arg_params.vmm_idx_to_out_reg.emplace(idx, reg_D);
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        idx, d_offset);
+                if (is_ld_tail) rhs_arg_params.vmm_tail_idx_.emplace(idx);
+            }
+        }
+    }
+
+    const auto sum_injector = [&] {
+        const float *p_sum_scale = &brg.sum_scale;
+        const int32_t *p_sum_zp = &brg.sum_zp;
+        const bool p_sum_scale_reg_set = *p_sum_scale != 1.f;
+        const bool p_sum_zp_reg_set = *p_sum_zp != 0;
+
+        {
+            const injector_utils::conditional_register_preserve_guard_t
+                    register_guard_sum_scale(
+                            (handle_binary_po_offset_) && p_sum_scale_reg_set,
+                            this, {reg_ptr_sum_scale});
+            const injector_utils::conditional_register_preserve_guard_t
+                    register_guard_sum_zp(
+                            p_sum_zp_reg_set, this, {reg_ptr_sum_zp});
+
+            if (p_sum_scale_reg_set)
+                mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
+
+            const auto &zmm_sum_zp = zmm_tmp_2();
+            if (p_sum_zp_reg_set) {
+                mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
+                vcvtdq2ps(zmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+            }
+
+            const auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
+            const auto zmm_prev_dst = Xbyak::Zmm(0);
+
+            for (int bd = 0; bd < bd_block; bd++) {
+                const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
+                if (bd_ind_bd == -1) continue;
+
+                auto zmm = accm(bd);
+                const auto adj_bd_ind_bd = adjusted_bd_mask(bd_ind_bd);
+
+                const auto d_offset = D_offset(adj_bd_ind_bd, ldb);
+                auto addr = EVEX_compress_addr(reg_D, d_offset);
+
+                cvt2ps(brg.sum_dt, zmm_prev_dst, addr, true, false, k_mask);
+                if (p_sum_zp_reg_set) vsubps(zmm_prev_dst, zmm_sum_zp);
+                if (!p_sum_scale_reg_set)
+                    vaddps(zmm, zmm_prev_dst);
+                else
+                    vfmadd231ps(zmm, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+            }
+        }
+    };
+
+    if (brg.with_sum) {
+        postops_injector_->set_lambda_injector(
+                primitive_kind::sum, sum_injector);
+    }
+
+    postops_injector_->compute_vector_range(32 - bd_block, 32, rhs_arg_params);
+}
+
+void jit_brgemm_amx_uker_base_t::maybe_saturation(
+        bool dt_requires_saturation, Xbyak::Zmm &zmm) {
+    auto zmm_lbound = zmm_tmp_1();
+    auto zmm_ubound = zmm_tmp_2();
+    if (dt_requires_saturation) {
+        init_saturate_f32(
+                zmm_lbound, zmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
+    }
+
+    if (dt_requires_saturation) {
+        saturate_f32(zmm, zmm_lbound, zmm_ubound, brg.dt_d);
+        vcvtps2dq(zmm, zmm);
+    }
+}
+
+void jit_brgemm_amx_uker_base_t::process_output_range(int bd_ind_bdb, int bdb,
+        int ldb_ind, int ldb, bool is_ld_tail, bool apply_post_ops) {
+    int adj_bd_block = adjusted_bd_block(bdb);
+
+    const int wsp_offset = use_ils
+            ? (bdb * ils_ld_block2 + ldb) * brg.bd_block * ld_block_C_size
+            : 0;
+
     auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
 
     // if (brg.is_int8 && alpha_or_beta_applicable && !beta_uses_vadd) ->
@@ -539,15 +651,49 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
     const bool dq2ps_required = brg.is_int8
             && IMPLICATION(alpha_or_beta_applicable, beta_uses_vadd);
 
-    if (dq2ps_required) vcvtdq2ps(zmm, zmm);
+    for (int bd = 0; bd < adj_bd_block; bd++) {
+        auto zmm = accm(bd);
+        const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
+        if (bd_ind_bd == -1) {
+            vpxord(zmm, zmm, zmm);
+            continue;
+        }
+
+        auto vreg_acc = is_ld_tail ? accm(bd) | ld_tail_mask | T_z : accm(bd);
+
+        const auto adj_bd_ind_bd = adjusted_bd_mask(bd_ind_bd);
+
+        size_t buf_offset = bd * ld_block_C_size;
+        vmovups(vreg_acc, ptr[reg_buf + buf_offset + wsp_offset]);
+
+        const auto c_offset = C_offset(adj_bd_ind_bd, ldb_ind + ldb);
+        auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
+
+        if (need_to_apply_alpha_beta_)
+            apply_alpha_beta_to_vector(zmm.getIdx(), ptr_C, is_ld_tail);
+
+        if (!apply_post_ops) continue;
+
+        if (dq2ps_required) vcvtdq2ps(zmm, zmm);
+    }
+
+    if (!apply_post_ops) return;
 
     if (brg.with_bias) {
         mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
 
         auto zmm_bias = zmm_tmp_1();
-        auto ptr_bias = EVEX_compress_addr(reg_bias, bias_offset(ldb));
+        auto ptr_bias
+                = EVEX_compress_addr(reg_bias, bias_offset(ldb_ind + ldb));
         cvt2ps(brg.dt_bias, zmm_bias, ptr_bias, true, false, k_mask);
-        vaddps(zmm, zmm, zmm_bias);
+
+        for (int bd = 0; bd < adj_bd_block; bd++) {
+            const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
+            if (bd_ind_bd == -1) continue;
+
+            auto zmm = accm(bd);
+            vaddps(zmm, zmm, zmm_bias);
+        }
     }
 
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
@@ -560,29 +706,58 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
         cvt2ps(data_type::s32, zmm_zp_comp_a, zp_comp_a_addr, true, false,
                 k_mask);
 
-        vaddps(zmm, zmm, zmm_zp_comp_a);
+        for (int bd = 0; bd < adj_bd_block; bd++) {
+            const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
+            if (bd_ind_bd == -1) continue;
+
+            auto zmm = accm(bd);
+            vaddps(zmm, zmm, zmm_zp_comp_a);
+        }
     }
 
     if (brg.zp_type_b != brgemm_broadcast_t::none) {
         mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
 
         auto zmm_zp_comp_b = zmm_tmp_1();
-        int zp_comp_b_off = zp_comp_b_offset(bd);
-        vcvtdq2ps(zmm_zp_comp_b,
-                EVEX_compress_addr(reg_zp_comp_b, zp_comp_b_off, true));
-        vaddps(zmm, zmm, zmm_zp_comp_b);
+        for (int bd = 0; bd < adj_bd_block; bd++) {
+            const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
+            if (bd_ind_bd == -1) continue;
+
+            auto zmm = accm(bd);
+            const auto adj_bd_ind_bd = adjusted_bd_mask(bd_ind_bd);
+
+            int zp_comp_b_off = zp_comp_b_offset(adj_bd_ind_bd);
+            vcvtdq2ps(zmm_zp_comp_b,
+                    EVEX_compress_addr(reg_zp_comp_b, zp_comp_b_off, true));
+
+            vaddps(zmm, zmm, zmm_zp_comp_b);
+        }
     }
 
     if (brg.with_scales) {
         mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
+        auto scales_ptr
+                = EVEX_compress_addr(reg_scales, scales_offset(ldb_ind + ldb));
+        for (int bd = 0; bd < adj_bd_block; bd++) {
+            const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
+            if (bd_ind_bd == -1) continue;
 
-        const Xbyak::Zmm scaled_zmm = zmm_mask(zmm, true, false, k_mask);
-        auto scales_ptr = EVEX_compress_addr(reg_scales, scales_offset(ldb));
-        vmulps(scaled_zmm, scaled_zmm, scales_ptr);
+            auto zmm = accm(bd);
+            const Xbyak::Zmm scaled_zmm = zmm_mask(zmm, true, false, k_mask);
+            vmulps(scaled_zmm, scaled_zmm, scales_ptr);
+        }
     }
 
-    if (postops_injector_)
-        apply_post_ops_to_vector(idx, addr, bd, ldb, is_ld_tail);
+    if (postops_injector_) {
+        apply_post_ops_to_range(
+                bd_ind_bdb, adj_bd_block, ldb_ind + ldb, is_ld_tail);
+    }
+}
+
+void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
+        const Address &addr, const int bd, const int ldb, bool is_ld_tail) {
+    auto zmm = Zmm(idx);
+    auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
 
     if (brg.zp_type_c != brgemm_broadcast_t::none) {
         mov(reg_zp_c_values, ptr[rsp + reg_zp_c_values_offs_]);
@@ -600,17 +775,8 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
 
     const bool dt_requires_saturation
             = one_of(brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
-    auto zmm_lbound = zmm_tmp_1();
-    auto zmm_ubound = zmm_tmp_2();
-    if (dt_requires_saturation) {
-        init_saturate_f32(
-                zmm_lbound, zmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
-    }
 
-    if (dt_requires_saturation) {
-        saturate_f32(zmm, zmm_lbound, zmm_ubound, brg.dt_d);
-        vcvtps2dq(zmm, zmm);
-    }
+    maybe_saturation(dt_requires_saturation, zmm);
 
     auto ymm = Xbyak::Ymm(idx);
     const Xbyak::Zmm r_zmm = zmm_mask(zmm, true, true, k_mask);
@@ -639,17 +805,9 @@ void jit_brgemm_amx_uker_base_t::store_vector_without_post_ops(
             = brg.beta == 1.f && IMPLICATION(brg.is_int8, brg.alpha == 1.0f);
     const bool dt_requires_saturation = brg.is_int8
             && !IMPLICATION(alpha_or_beta_applicable, beta_uses_vadd);
-    auto zmm_lbound = zmm_tmp_1();
-    auto zmm_ubound = zmm_tmp_2();
 
-    if (dt_requires_saturation)
-        init_saturate_f32(
-                zmm_lbound, zmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
+    maybe_saturation(dt_requires_saturation, zmm);
 
-    if (dt_requires_saturation) {
-        saturate_f32(zmm, zmm_lbound, zmm_ubound, brg.dt_d);
-        vcvtps2dq(zmm, zmm);
-    }
     if (is_ld_tail)
         vmovups(addr | ld_tail_mask | T_z, zmm);
     else
@@ -664,8 +822,6 @@ void jit_brgemm_amx_uker_base_t::store_vector(const int idx, const int bd,
     auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
     auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
 
-    if (need_to_apply_alpha_beta_)
-        apply_alpha_beta_to_vector(idx, ptr_C, is_ld_tail);
     if (apply_post_ops)
         store_vector_with_post_ops(idx, ptr_D, bd, ldb, is_ld_tail);
     else if (are_post_ops_applicable_)
@@ -691,13 +847,15 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
     auto cur_bdb = ils_bdb;
     auto cur_ldb = ils_ldb;
 
+    // if first block
+    if (ils_vec == 0)
+        process_output_range(bd_ind_bdb, cur_bdb, ils_ldb_ind, cur_ldb,
+                ils_is_ld_tail, ils_apply_post_ops);
+
     for (int bdb = 0; bdb < ils_bd_block2; bdb++) {
         int adj_bd_block = adjusted_bd_block(bdb);
 
         for (int ldb = 0; ldb < ils_ld_block2; ldb++) {
-            const int wsp_offset = use_ils ? (bdb * ils_ld_block2 + ldb)
-                            * brg.bd_block * ld_block_C_size
-                                           : 0;
             for (int bd = 0; bd < adj_bd_block; bd++) {
                 const auto bd_ind_bd = bd_ind_bdb + bd;
                 if (store_all
@@ -705,12 +863,13 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
                                 && vec < ils_vec + ils_vecs_per_store)) {
                     if (!brg.brgattr.bd_mask_level
                             || bd_mask_buffer_ptr[bd_ind_bd]) {
-                        size_t buf_offset = bd * ld_block_C_size;
+                        if (bdb != cur_bdb || ldb != cur_ldb)
+                            process_output_range(bd_ind_bdb, bdb, ils_ldb_ind,
+                                    ldb, ils_is_ld_tail, ils_apply_post_ops);
+
                         auto vreg_acc = ils_is_ld_tail
                                 ? accm(bd) | ld_tail_mask | T_z
                                 : accm(bd);
-                        vmovups(vreg_acc,
-                                ptr[reg_buf + buf_offset + wsp_offset]);
 
                         const auto adj_bd_ind_bd = adjusted_bd_mask(bd_ind_bd);
                         store_vector(vreg_acc.getIdx(), adj_bd_ind_bd,
@@ -724,9 +883,9 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
             }
             if (cur_ldb != ils_ldb) { ils_ldb = cur_ldb; }
         }
-        if (cur_bdb != ils_bdb) { ils_bdb = cur_bdb; }
         bd_ind_bdb += brg.bd_block;
         bd_ind_bdb = skipped_bd_mask(bd_ind_bdb);
+        if (cur_bdb != ils_bdb) { ils_bdb = cur_bdb; }
     }
 
     ils_vec += ils_vecs_per_store;
@@ -774,15 +933,15 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
                         Tmm(brg.get_C_tensor(bdb, idx)));
                 if (use_ils) continue;
 
+                process_output_range(bd_ind_bdb, bdb, ldb_ind, ldb, is_ld_tail,
+                        apply_post_ops);
+
                 for (int bd = 0; bd < adj_bd_block; bd++) {
-                    const auto bd_ind_bd = bd_ind_bdb + bd;
-                    if (brg.brgattr.bd_mask_level
-                            && !bd_mask_buffer_ptr[bd_ind_bd])
-                        continue;
-                    size_t buf_offset = bd * ld_block_C_size;
+                    const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
+                    if (bd_ind_bd == -1) continue;
+
                     auto vreg_acc = is_ld_tail ? accm(bd) | ld_tail_mask | T_z
                                                : accm(bd);
-                    vmovups(vreg_acc, ptr[reg_buf + buf_offset + wsp_offset]);
 
                     const auto adj_bd_ind_bd = adjusted_bd_mask(bd_ind_bd);
                     store_vector(vreg_acc.getIdx(), adj_bd_ind_bd,
