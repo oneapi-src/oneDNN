@@ -33,14 +33,11 @@ namespace reorder {
 
 int get_n_scales(const prb_t *prb) {
     const int mask = attr_t::get_default_mask(prb->attr.oscale.policy);
-    assert(IMPLICATION(mask >= (1 << 1), prb->ndims > 1));
-    switch (mask) {
-        case 0: return 1;
-        case (1 << 0): return prb->dims[0];
-        case (1 << 1): return prb->dims[1];
-        case (1 << 1) + (1 << 0): return prb->dims[1] * prb->dims[0];
-        default: assert(!"unsupported mask"); return 1;
+    int n_scales = 1;
+    for (int d = 0; d < prb->ndims; ++d) {
+        if (mask & (1 << d)) n_scales *= prb->dims[d];
     }
+    return n_scales;
 }
 
 // Filling for integers is different due to problematic int -> float conversion.
@@ -198,6 +195,11 @@ int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
 
 int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
         dnn_mem_t &mem_zp_comp_ref, dnn_mem_t &mem_got, res_t *res) {
+    // Note: following check relies on certain assumptions on CPU. These
+    // assumptions may not hold for GPU. In addition, it's prohibit to work
+    // with raw pointers directly for buffer type of memory.
+    if (!is_cpu(get_test_engine())) return FAIL;
+
     const auto padded_nelems = mem_got.nelems(true);
     // Note: internally offset is aligned on 4, otherwise it's UB.
     size_t first_comp_offset = div_up(padded_nelems, 4) * 4;
@@ -219,7 +221,7 @@ int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
                          trim_tag(prb->dtag, comp_ndims)),
                     CRIT);
             const auto &engine = mem_ref.engine();
-            dnn_mem_t comp_m(comp_md, engine, {true, comp_handle});
+            dnn_mem_t comp_m(comp_md, engine, {false, comp_handle});
 
             compare::compare_t cmp;
             cmp.set_zero_trust_percent(100.f); // No sense in zero trust test.
@@ -355,9 +357,12 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 
     if (is_gpu()) {
-        // GPU does not support run-time dims and zero-points
+        // GPU does not support run-time dims/oscale, zero-points.
+        // Reorders w/ compensation are not supported by design: zp_comp is done
+        // in kernels directly, but s8s8 instructions are available in HW.
         if (prb->runtime_dim_mask != 0 || !prb->attr.zero_points.is_def()
-                || prb->attr.oscale.runtime) {
+                || prb->attr.oscale.runtime
+                || prb->is_reorder_with_compensation(FLAG_ANY)) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
