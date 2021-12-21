@@ -217,6 +217,26 @@ public:
 
     status_t init(convolution_pd_t *conv_pd, primitive_attr_t *attr,
             engine_t *engine) {
+        auto compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine);
+
+        // Try large GRF mode first.
+        regs = compute_engine->mayiuse_large_grf_mode() ? 256 : 128;
+        CHECK(init_with_regs(conv_pd, attr, engine));
+
+        // If the kernel fits 128 registers, switch to the normal mode which is
+        // expected to have better performance for such cases.
+        if (regs == 256 && estimated_peak_grf_usage <= 128) {
+            *this = conv_config_t();
+            regs = 128;
+            CHECK(init_with_regs(conv_pd, attr, engine));
+        }
+
+        return status::success;
+    }
+
+    status_t init_with_regs(convolution_pd_t *conv_pd, primitive_attr_t *attr,
+            engine_t *engine) {
         // These functions have implicit dependencies between them. They cannot be
         // reordered with verifying these dependencies are satisfied.
         CHECK(conv_problem_t::init(conv_pd));
@@ -248,6 +268,8 @@ public:
         } else {
             ir_error_not_expected();
         }
+
+        estimated_peak_grf_usage = estimate_register_count();
 
         CHECK(attr->set_default_formats(output_md));
 
@@ -462,10 +484,6 @@ public:
         fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
 
-#ifdef GEN_CONV_DEBUG
-        estimated_peak_grf_usage = estimate_register_count();
-#endif
-
         return status::success;
     }
 
@@ -577,9 +595,6 @@ public:
         fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
 
-#ifdef GEN_CONV_DEBUG
-        estimated_peak_grf_usage = estimate_register_count();
-#endif
         return status::success;
     }
 
@@ -640,75 +655,16 @@ public:
         do_loop_unroll = getenv_bool("do_loop_unroll", do_loop_unroll);
         allow_grf_reorder = getenv_bool("allow_grf_reorder", allow_grf_reorder);
 #endif
-        fixup_inference_consistency();
-
-        // Determine thread group dimensions
-        int oc_thr_dim, ic_thr_dim;
-        for (auto reg_count : {128, 256}) {
-            int m_thr_blk = ic_thr_blk * kw_blk;
-            int n_thr_blk = oc_thr_blk;
-            int k_thr_blk = mb_blk * ow_thr_blk;
-            int ic_dim = utils::div_up(ic, ic_thr_blk);
-            int oc_dim = utils::div_up(oc, oc_thr_blk);
-
-            int optimal_tg_size = get_optimal_tg_size(reg_count);
-            if (oc_dim >= optimal_tg_size) {
-                oc_thr_dim = optimal_tg_size;
-                ic_thr_dim = 1;
-            } else {
-                oc_thr_dim = utils::rnd_up_pow2(oc_dim);
-                ic_thr_dim = optimal_tg_size / oc_thr_dim;
-                if (ic_thr_dim > ic_dim)
-                    ic_thr_dim = utils::rnd_up_pow2(ic_dim);
-            }
-
-            // tg_src =  ic_thr_blk *  ic_thr_dim * mb_blk * sp_block
-            // tg_dst =  oc_thr_blk *  oc_thr_dim * mb_blk * sp_block
-            // tg_load = tg_src + tg_dst
-            // tg_compute = m*k*n*spatial_dim
-
-            // To minimize thread group memory traffic, maximize tg_compute /
-            // tg_load. Since oc is the inner dimension in kernel_grid, prefer
-            // reusing oc_blocking for subsequent thread groups scheduled to the
-            // same subslice.
-            while (oc_thr_dim * oc_thr_blk / 4 >= ic_thr_dim * ic_thr_blk
-                    && ic_dim > ic_thr_dim) {
-                oc_thr_dim /= 2;
-                ic_thr_dim *= 2;
-            }
-            regs = reg_count;
-
-            if (!large_grf_support
-                    || regs >= estimate_register_count(m_thr_blk, oc_thr_dim,
-                               n_thr_blk, ic_thr_dim, k_thr_blk))
-                break;
-        }
-
-        tg_grid_dim[0] = oc_thr_dim;
-        tg_grid_dim[1] = ic_thr_dim;
-        tg_grid_dim[2] = 1;
-
-        tg_grid_dim[0] = utils::rnd_down_pow2(tg_grid_dim[0]);
-        tg_grid_dim[1] = utils::rnd_down_pow2(tg_grid_dim[1]);
-        tg_grid_dim[2] = utils::rnd_down_pow2(tg_grid_dim[2]);
-
-#ifdef GEN_CONV_DEBUG
-        tg_grid_dim[0] = getenv_int("tg0", tg_grid_dim[0]);
-        tg_grid_dim[1] = getenv_int("tg1", tg_grid_dim[1]);
-#endif
-
-        oc_tg_blk = tg_grid_dim[0] * oc_thr_blk;
-        ic_tg_blk = tg_grid_dim[1] * ic_thr_blk;
-        kw_tg_blk = kw_blk;
 
         init_bwd_w_spatial_blocks();
 
         mb_unroll = mb_tg_blk / mb_blk;
         ow_unroll = mb < 16 && is_dp_fma() ? ow_tg_blk / ow_thr_blk : 1;
-
-        m_tg_blk = ic_tg_blk * kw_tg_blk;
-        n_tg_blk = oc_tg_blk;
+        kw_tg_blk = kw_blk;
         k_blk = mb_blk * ow_thr_blk;
+
+        // Determine thread group dimensions
+        init_bwd_w_tg_grid_dim();
 
         int oc_tg_padded = utils::rnd_up(oc, oc_tg_blk);
         int ic_tg_padded = utils::rnd_up(ic, ic_tg_blk);
@@ -747,11 +703,9 @@ public:
                     "bia", bf16_layout.retype(type_t::f32()));
         }
 
+        fixup_inference_consistency();
         if (!try_reduce_grf_usage()) return status::unimplemented;
 
-#ifdef GEN_CONV_DEBUG
-        estimated_peak_grf_usage = estimate_register_count();
-#endif
         // XXX: disable f32 bwd_w due to hang
         if (hw == ngen::HW::XeHP || hw == ngen::HW::XeHPG)
             if (src_data_type == data_type::f32
@@ -821,6 +775,74 @@ public:
         od_tg_blk = getenv_int("od_tg_blk", od_tg_blk);
         oh_tg_blk = getenv_int("oh_tg_blk", oh_tg_blk);
         ow_tg_blk = getenv_int("ow_tg_blk", ow_tg_blk);
+#endif
+    }
+
+    void init_bwd_w_tg_grid_dim() {
+        int ic_dim = utils::div_up(ic, ic_thr_blk);
+        int oc_dim = utils::div_up(oc, oc_thr_blk);
+
+        int optimal_tg_size = get_optimal_tg_size();
+        bool tg_grid_found = false;
+
+        // Prefer larger thread group sizes, move to smaller only if the
+        // required SLM size is too large.
+        for (int tg_size = optimal_tg_size; tg_size != 0; tg_size /= 2) {
+            if (oc_dim >= tg_size) {
+                oc_thr_dim = tg_size;
+                ic_thr_dim = 1;
+            } else {
+                oc_thr_dim = utils::rnd_up_pow2(oc_dim);
+                ic_thr_dim = tg_size / oc_thr_dim;
+                if (ic_thr_dim > ic_dim)
+                    ic_thr_dim = utils::rnd_up_pow2(ic_dim);
+            }
+
+            // tg_src =  ic_thr_blk * ic_thr_dim * mb_blk * sp_block
+            // tg_dst =  oc_thr_blk * oc_thr_dim * mb_blk * sp_block
+            // tg_load = tg_src + tg_dst
+            // tg_compute = m * n * k * spatial_dim
+
+            // To minimize thread group memory traffic, maximize tg_compute /
+            // tg_load. Since oc is the inner dimension in kernel_grid, prefer
+            // reusing oc_blocking for subsequent thread groups scheduled to the
+            // same subslice.
+            while (oc_thr_dim * oc_thr_blk / 4 >= ic_thr_dim * ic_thr_blk
+                    && ic_dim > ic_thr_dim) {
+                oc_thr_dim /= 2;
+                ic_thr_dim *= 2;
+            }
+
+            tg_grid_dim[0] = oc_thr_dim;
+            tg_grid_dim[1] = ic_thr_dim;
+            tg_grid_dim[2] = 1;
+
+            oc_tg_blk = tg_grid_dim[0] * oc_thr_blk;
+            ic_tg_blk = tg_grid_dim[1] * ic_thr_blk;
+
+            m_tg_blk = ic_tg_blk * kw_tg_blk;
+            n_tg_blk = oc_tg_blk;
+
+            if (!prefer_prefetch()) {
+                // Compute upper bound for the required SLM size.
+                int a_slm_size = m_tg_blk * k_blk * a_data_type_size;
+                int b_slm_size = n_tg_blk * k_blk * b_data_type_size;
+                int slm_size = (a_slm_size + b_slm_size) * max_slm_bufs;
+                int max_slm_size = compute::device_info_t::max_slm_size_per_tg(
+                        convert_ngen_arch_to_dnnl(hw), regs > 128);
+                if (slm_size > max_slm_size) continue;
+            }
+            tg_grid_found = true;
+            break;
+        }
+
+        ir_assert(tg_grid_found) << "Can't initialize thread group grid.";
+
+#ifdef GEN_CONV_DEBUG
+        tg_grid_dim[0] = getenv_int("tg0", tg_grid_dim[0]);
+        tg_grid_dim[1] = getenv_int("tg1", tg_grid_dim[1]);
+        oc_tg_blk = tg_grid_dim[0] * oc_thr_blk;
+        ic_tg_blk = tg_grid_dim[1] * ic_thr_blk;
 #endif
     }
 
@@ -1030,6 +1052,11 @@ public:
     data_type_t c_data_type;
     data_type_t acc_data_type;
 
+    int a_data_type_size;
+    int b_data_type_size;
+    int c_data_type_size;
+    int acc_data_type_size;
+
     ngen::HW hw = ngen::HW::Unknown;
     int stepping_id;
     int eu_count;
@@ -1118,6 +1145,8 @@ public:
     bool reuse_headers; // Whether to reuse header messages to reduce GRF usage.
     bool optimize_strided; // Apply special optimization for strided BWD_D convolution.
 
+    static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
+
     // Specific to FWD int8
     struct zero_points_config_t {
         bool do_src_compensation;
@@ -1159,9 +1188,7 @@ public:
     // reduce GRF usage.
     int a_sub_tiles;
     int b_sub_tiles;
-#ifdef GEN_CONV_DEBUG
     int estimated_peak_grf_usage = 0;
-#endif
 
 private:
     int init_fwd_ic_thr_dim(
@@ -1274,6 +1301,9 @@ private:
         } else {
             ir_error_not_expected();
         }
+        a_data_type_size = (int)types::data_type_size(a_data_type);
+        b_data_type_size = (int)types::data_type_size(b_data_type);
+        c_data_type_size = (int)types::data_type_size(c_data_type);
         return status::success;
     }
 
@@ -1281,21 +1311,19 @@ private:
         auto a = a_data_type;
         auto b = b_data_type;
         auto c = c_data_type;
+        acc_data_type = data_type::undef;
         if (utils::one_of(a, data_type::s8, data_type::u8)
                 && utils::one_of(b, data_type::s8, data_type::u8)) {
             acc_data_type = data_type::s32;
-            return status::success;
-        }
-        if (utils::everyone_is(data_type::f16, a, b)
+        } else if (utils::everyone_is(data_type::f16, a, b)
                 || utils::everyone_is(data_type::bf16, a, b)) {
             acc_data_type = data_type::f32;
-            return status::success;
-        }
-        if (utils::everyone_is(data_type::f32, a, b, c)) {
+        } else if (utils::everyone_is(data_type::f32, a, b, c)) {
             acc_data_type = data_type::f32;
-            return status::success;
         }
-        return status::unimplemented;
+        if (acc_data_type == data_type::undef) return status::unimplemented;
+        acc_data_type_size = (int)types::data_type_size(acc_data_type);
+        return status::success;
     }
 
     status_t init_fma_kind() {
@@ -1515,8 +1543,8 @@ private:
 
             // HWord loads require 32 byte alignment. For NHWC layout it means
             // input/output channels must be multiples of 32 bytes.
-            size_t ic_bytes = ic * types::data_type_size(src_data_type);
-            size_t oc_bytes = oc * types::data_type_size(dst_data_type);
+            int ic_bytes = ic * a_data_type_size;
+            int oc_bytes = oc * b_data_type_size;
             if (ic_bytes % 32 != 0 || oc_bytes % 32 != 0)
                 return status::unimplemented;
         }
@@ -1745,17 +1773,27 @@ private:
         return status::success;
     }
 
+    bool prefer_prefetch() const {
+        bool ret = false;
+        if (hw >= ngen::HW::XeHPC) ret = true;
+
+#ifdef GEN_CONV_DEBUG
+        ret = ir_utils::getenv_bool("prefer_prefetch", ret);
+#endif
+        return ret;
+    }
+
     void enable_slm_buffering() {
         using namespace ir_utils;
         // FIXME: Make checks for slm alignment more rigorous.
         use_a_slm = (tg_grid_dim[0] > 1)
                 && (((m_tg_blk * k_blk) / (tg_grid_dim[0] * tg_grid_dim[1]))
-                           * types::data_type_size(a_data_type))
+                           * a_data_type_size)
                                 % 16
                         == 0;
         use_b_slm = (tg_grid_dim[1] > 1)
                 && (((k_blk * n_tg_blk) / (tg_grid_dim[0] * tg_grid_dim[1]))
-                           * types::data_type_size(b_data_type))
+                           * b_data_type_size)
                                 % 16
                         == 0;
         if (use_a_slm || use_b_slm) {
@@ -1808,20 +1846,15 @@ private:
     void fixup_inference_consistency() {
         // Can't reuse headers with loop unroll and post-increment offset updates.
         if (reuse_headers) do_loop_unroll = false;
+        // Without unrolling there is no benefit in keeping per-message headers.
+        if (!do_loop_unroll) reuse_headers = true;
 
         // Unrolling with dp4a results in too large kernels.
         if (fma_kind == fma_kind_t::dp4a) do_loop_unroll = false;
 
-        bool prefer_prefetch = false;
-        if (hw >= ngen::HW::XeHPC) prefer_prefetch = true;
-
-#ifdef GEN_CONV_DEBUG
-        prefer_prefetch
-                = ir_utils::getenv_bool("prefer_prefetch", prefer_prefetch);
-#endif
         if (use_preload) {
             // Prefetches are only supported with loop unrolling.
-            if (prefer_prefetch) {
+            if (prefer_prefetch()) {
                 enable_prefetch();
             } else {
                 enable_slm_buffering();
@@ -1836,23 +1869,25 @@ private:
             if (is_bwd_w && allow_grf_reorder && (!use_a_slm || !use_b_slm))
                 fma_kind = fma_kind_t::dpas;
         }
+
+        ir_assert(slm_bufs <= max_slm_bufs)
+                << "Unsupported number of SLM buffers: " << slm_bufs;
     }
 
     bool try_reduce_grf_usage() {
-        regs = large_grf_support && estimate_register_count() > 128 ? 256 : 128;
         if (!reduce_grf_usage) return true;
 
         // TODO: improve estimate register count, it fails to account for tmp
         // values like mask_registers among other things.
         int max_regs = regs;
-        int regs = estimate_register_count();
-        if (regs <= max_regs) return true;
+        int est_regs = estimate_register_count();
+        if (est_regs <= max_regs) return true;
 
         // Try to disable GRF buffering.
         if (gmem_bufs > 1) {
             gmem_bufs = 1;
-            int regs = estimate_register_count();
-            if (regs <= max_regs) return true;
+            int est_regs = estimate_register_count();
+            if (est_regs <= max_regs) return true;
         }
 
         // Try to use sub-tiles for B.
@@ -1863,22 +1898,22 @@ private:
         if (hw >= ngen::HW::XeHPC && is_bwd_w) max_b_sub_tiles = 2;
         while (b_sub_tiles < max_b_sub_tiles) {
             b_sub_tiles *= 2;
-            int regs = estimate_register_count();
-            if (regs <= max_regs) return true;
+            int est_regs = estimate_register_count();
+            if (est_regs <= max_regs) return true;
         }
 
         // Try to use double SLM buffering.
         if (slm_bufs == 3) {
             slm_bufs = 2;
-            int regs = estimate_register_count();
-            if (regs <= max_regs) return true;
+            int est_regs = estimate_register_count();
+            if (est_regs <= max_regs) return true;
         }
 
         // Try to use single SLM buffering.
         if (slm_bufs == 2) {
             slm_bufs = 1;
-            int regs = estimate_register_count();
-            if (regs <= max_regs) return true;
+            int est_regs = estimate_register_count();
+            if (est_regs <= max_regs) return true;
         }
 
         // Last resort settings to reduce GRF usage.
@@ -1914,16 +1949,12 @@ private:
         // Assume 8 HWords per SLM load/store.
         int slm_msg_bytes = 256;
 
-        int a_size = int(types::data_type_size(a_data_type));
-        int b_size = int(types::data_type_size(b_data_type));
-        int acc_size = int(types::data_type_size(acc_data_type));
-
         // Registers for C += A * B operation.
-        int a_tile_bytes = m_thr_blk * k_thr_blk * a_size;
-        int b_tile_bytes = k_thr_blk * n_thr_blk * b_size;
+        int a_tile_bytes = m_thr_blk * k_thr_blk * a_data_type_size;
+        int b_tile_bytes = k_thr_blk * n_thr_blk * b_data_type_size;
         int a_bytes = utils::div_up(a_tile_bytes, a_sub_tiles);
         int b_bytes = utils::div_up(b_tile_bytes, b_sub_tiles);
-        int acc_bytes = m_thr_blk * n_thr_blk * acc_size;
+        int acc_bytes = m_thr_blk * n_thr_blk * acc_data_type_size;
 
         int a_regs = utils::div_up(a_bytes, reg_bytes);
         int b_regs = utils::div_up(b_bytes, reg_bytes);
@@ -2020,7 +2051,7 @@ private:
         return estimated_regs;
     }
 
-    int get_optimal_tg_size(int regs) const {
+    int get_optimal_tg_size() const {
         const compute::gpu_arch_t arch = convert_ngen_arch_to_dnnl(hw);
         const int max_eus_per_wg = compute::device_info_t::max_eus_per_wg(arch);
         const int threads_per_eu
