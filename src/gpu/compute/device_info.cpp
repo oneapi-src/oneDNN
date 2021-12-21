@@ -104,6 +104,20 @@ int device_info_t::threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode) {
     }
 }
 
+int device_info_t::max_slm_size_per_tg(
+        gpu_arch_t gpu_arch, bool large_grf_mode) {
+    int slm_size = 0; // SLM size per SS or DSS.
+    switch (gpu_arch) {
+        case gpu::compute::gpu_arch_t::gen9: slm_size = (1 << 16); break;
+        case gpu::compute::gpu_arch_t::xe_lp:
+        case gpu::compute::gpu_arch_t::xe_hp:
+        case gpu::compute::gpu_arch_t::xe_hpc:
+        case gpu::compute::gpu_arch_t::xe_hpg: slm_size = (1 << 17); break;
+        default: assert(!"not expected");
+    }
+    return slm_size / threads_per_eu(gpu_arch, large_grf_mode);
+}
+
 status_t device_info_t::init_attributes_common(engine_t *engine) {
     // TODO: Fix for discrete GPUs. The code below is written for
     // integrated GPUs assuming that last-level cache for GPU is shared
