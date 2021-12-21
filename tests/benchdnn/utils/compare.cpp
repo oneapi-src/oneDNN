@@ -115,10 +115,9 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                 const float experimental_tolerated_trh = 8e-6;
                 ok = args.diff <= experimental_tolerated_trh;
             }
-
-            // Update zero stats for mistrust testing.
-            if (from_parallel && args.got == 0) zeros++;
         }
+        // Update zero stats for mistrust testing.
+        if (from_parallel && fabsf(args.got) == 0) zeros++;
 
         if (!ok && all_ok) all_ok = false;
         if (!ok && !from_parallel) n_errors++;
