@@ -3705,6 +3705,203 @@ TEST(PassPriority, TestMatmulSumRelu) {
     ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
 }
 
+TEST(Pass, FuseMatmulDiv) {
+    /*  matmul  wildcard
+          \    /
+            div
+    */
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t wildcard {1, Wildcard, "wildcard"};
+    op_t div {2, Divide, "div"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    wildcard.add_output(lt_vec[3]);
+    div.add_input(lt_vec[2]);
+    div.add_input(lt_vec[3]);
+    div.add_output(lt_vec[4]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    pass::pass_base_ptr apass = get_pass("matmul_div_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::matmul_div);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 3);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
+}
+
+TEST(PassSystem, FuseMatmulDiv) {
+    /*  matmul  wildcard
+          \    /
+            div
+    */
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t wildcard {1, Wildcard, "wildcard"};
+    op_t div {2, Divide, "div"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    wildcard.add_output(lt_vec[3]);
+    div.add_input(lt_vec[2]);
+    div.add_input(lt_vec[3]);
+    div.add_output(lt_vec[4]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::matmul_div);
+}
+
+TEST(Pass, FuseMatmulDivAdd) {
+    /*  matmul  wildcard
+          \    /
+            div wildcard
+             | /
+            add
+    */
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t wildcard {1, Wildcard, "wildcard"};
+    op_t wildcard2 {2, Wildcard, "wildcard2"};
+    op_t div {3, Divide, "div"};
+    op_t add {4, Add, "add"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    wildcard.add_output(lt_vec[3]);
+    div.add_input(lt_vec[2]);
+    div.add_input(lt_vec[3]);
+    div.add_output(lt_vec[4]);
+    wildcard2.add_output(lt_vec[5]);
+    add.add_input(lt_vec[4]);
+    add.add_input(lt_vec[5]);
+    add.add_output(lt_vec[6]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard2), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 5);
+
+    pass::pass_base_ptr apass = get_pass("matmul_div_add_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::matmul_div_add);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 5);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
+}
+
+TEST(PassSystem, FuseMatmulDivAdd) {
+    /*  matmul  wildcard
+          \    /
+            div wildcard
+             | /
+            add
+    */
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t wildcard {1, Wildcard, "wildcard"};
+    op_t wildcard2 {2, Wildcard, "wildcard2"};
+    op_t div {3, Divide, "div"};
+    op_t add {4, Add, "add"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    wildcard.add_output(lt_vec[3]);
+    div.add_input(lt_vec[2]);
+    div.add_input(lt_vec[3]);
+    div.add_output(lt_vec[4]);
+    wildcard2.add_output(lt_vec[5]);
+    add.add_input(lt_vec[4]);
+    add.add_input(lt_vec[5]);
+    add.add_output(lt_vec[6]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard2), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 5);
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::matmul_div_add);
+}
+
+// matmul->div->add should have higher priority than
+// matmul->div
+// matmul->div should have higher priority than
+// matmul
+// deq->matmul->div should have higher priority than
+// matmul->div
+// deq->matmul->div->add should have higher priority than
+// matmul->div->add
+TEST(PassPriority, TestMatmulDivAdd) {
+    /*  matmul
+          \    /
+            div
+             | /
+            add
+    */
+    pass::pass_base_ptr pass1 = get_pass("matmul_div_fusion");
+    pass::pass_base_ptr pass2 = get_pass("matmul_div_add_fusion");
+    pass::pass_base_ptr pass3 = get_pass("matmul_pass");
+    pass::pass_base_ptr pass4 = get_pass("x8x8f32_matmul_div_fusion");
+    pass::pass_base_ptr pass5 = get_pass("x8x8f32_matmul_div_add_fusion");
+    ASSERT_GT(pass1->get_priority(), pass3->get_priority());
+    ASSERT_GT(pass2->get_priority(), pass1->get_priority());
+    ASSERT_GT(pass4->get_priority(), pass1->get_priority());
+    ASSERT_GT(pass5->get_priority(), pass2->get_priority());
+}
+
 TEST(Pass, FuseConvBwdBiasaddBwd) {
     /*  ConvolutionBackpropFilters
               |

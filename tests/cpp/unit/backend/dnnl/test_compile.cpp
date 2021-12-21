@@ -3817,6 +3817,153 @@ TEST(Execute, MatmulBiasAddReluFusion) {
     }
 }
 
+TEST(Execute, MatmulDivFusion) {
+    impl::engine_t &engine = get_engine();
+
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t div_op(1, impl::op_kind::Divide, "div_op");
+
+    test::vector<float> src_data {-2.0, -1.5, 3.0, 0.5};
+    test::vector<float> weight_data {-2.0, -1.5, 1.0, 1.0};
+    test::vector<float> div_src1_data {-1.0};
+    test::vector<float> ref_dst_data {
+            -4.0, -3.0, -3.0, -2.25, -3.0, -3.0, -0.5, -0.5};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {2, 2, 1}, impl::data_type::f32);
+    impl::logical_tensor_t weight
+            = utils::logical_tensor_init(1, {2, 1, 2}, impl::data_type::f32);
+    impl::logical_tensor_t div_src1
+            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {2, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t div_dst
+            = utils::logical_tensor_init(4, {2, 2, 2}, impl::data_type::f32);
+
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+    div_op.add_input(dst);
+    div_op.add_input(div_src1);
+    div_op.add_output(div_dst);
+
+    impl::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&div_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_div_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src, &weight, &div_src1};
+    std::vector<const impl::logical_tensor_t *> outputs {&div_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
+
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t div_src1_ts(div_src1, &engine, div_src1_data.data());
+    impl::tensor_t dst_ts(div_dst, &engine, dst_data.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src_ts, weight_ts, div_src1_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+    }
+}
+
+TEST(Execute, MatmulDivAddFusion) {
+    impl::engine_t &engine = get_engine();
+
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t div_op(1, impl::op_kind::Divide, "div_op");
+    impl::op_t add_op(2, impl::op_kind::Add, "add_op");
+
+    test::vector<float> src_data {-2.0, -1.5, 3.0, 0.5};
+    test::vector<float> weight_data {-2.0, -1.5, 1.0, 1.0};
+    test::vector<float> div_src1_data {-1.0};
+    test::vector<float> add_src1_data {1.0, 2.0};
+    test::vector<float> ref_dst_data {
+            -3.0, -1.0, -2.0, -0.25, -2.0, -1.0, 0.5, 1.5};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {1, 2, 2, 1}, impl::data_type::f32);
+    impl::logical_tensor_t weight
+            = utils::logical_tensor_init(1, {1, 2, 1, 2}, impl::data_type::f32);
+    impl::logical_tensor_t div_src1
+            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {1, 2, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t div_dst
+            = utils::logical_tensor_init(4, {1, 2, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_src1
+            = utils::logical_tensor_init(5, {1, 1, 1, 2}, impl::data_type::f32);
+    impl::logical_tensor_t add_dst
+            = utils::logical_tensor_init(6, {1, 2, 2, 2}, impl::data_type::f32);
+
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+    div_op.add_input(dst);
+    div_op.add_input(div_src1);
+    div_op.add_output(div_dst);
+    add_op.add_input(div_dst);
+    add_op.add_input(add_src1);
+    add_op.add_output(add_dst);
+
+    impl::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&div_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_div_add_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src, &weight, &div_src1, &add_src1};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
+
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t div_src1_ts(div_src1, &engine, div_src1_data.data());
+    impl::tensor_t add_src1_ts(add_src1, &engine, add_src1_data.data());
+    impl::tensor_t dst_ts(add_dst, &engine, dst_data.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src_ts, weight_ts, div_src1_ts, add_src1_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+    }
+}
+
 TEST(Execute, MaxPool) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
