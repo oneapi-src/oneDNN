@@ -9067,8 +9067,8 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
     for_(bool keep_dims : keep_dims_infos)
     for_(bool with_sum : with_sum_infos)
     for (auto &op_info : op_infos) {
-        impl::op_kind_t akind;
-        std::string kind_str;
+        impl::op_kind_t akind {impl::op_kind::Wildcard};
+        std::string kind_str {"Wildcard"};
         std::tie(akind, kind_str) = op_info;
 
         std::vector<int64_t> reduce_dst_shape = base_reduce_dst_shape;
@@ -9180,8 +9180,8 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
 
     for_(bool keep_dims : keep_dims_infos)
     for (auto &op_info : op_infos) {
-        impl::op_kind_t akind;
-        std::string kind_str;
+        impl::op_kind_t akind {impl::op_kind::Wildcard};
+        std::string kind_str {"Wildcard"};
         std::tie(akind, kind_str) = op_info;
 
         std::vector<int64_t> reduce_dst_shape = base_reduce_dst_shape;
