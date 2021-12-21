@@ -211,6 +211,8 @@ public:
         return hw_threads_[large_grf_mode ? 1 : 0];
     }
     static int threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode = false);
+    static int max_slm_size_per_tg(
+            gpu_arch_t gpu_arch, bool large_grf_mode = false);
 
     size_t llc_cache_size() const { return llc_cache_size_; }
 
