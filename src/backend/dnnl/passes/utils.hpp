@@ -21,6 +21,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -304,6 +305,14 @@ bool binary_doable(
 bool prelu_doable(const std::vector<dim_t> &src_dims,
         const std::vector<dim_t> &wei_dims, const std::string &data_format,
         const bool per_channel_broadcast);
+
+// Checks whether chain of Reshape, Transpose, Reshape is fusible
+// to dnnl_shuffle. Returns following pair:
+// (is_fusible, (axis, groups))
+// axis and groups store relevant information only when 'is_fusible = true'.
+std::pair<bool, std::pair<size_t, int64_t>> shuffle_fusible(
+        const impl::op_t *reshape0, impl::op_t *reshape1,
+        impl::op_t *transpose);
 
 // For some shapes, post binary will run into oneDNN's ref path and has poor
 // performance. So, we check the shape in this function and only make

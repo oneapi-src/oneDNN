@@ -20,6 +20,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -575,6 +576,52 @@ static bool post_binary_fusible_impl(const impl::op_t *base_op,
         if (i != c_axis || fused_shape[i] != other_shape[i]) { return false; }
     }
     return true;
+}
+
+std::pair<bool, std::pair<size_t, int64_t>> shuffle_fusible(
+        const impl::op_t *reshape0, impl::op_t *reshape1,
+        impl::op_t *transpose) {
+    using result_t = std::pair<bool, std::pair<size_t, int64_t>>;
+    const result_t dflt_res {false, {0, 0}};
+
+    const logical_tensor_t src_port
+            = reshape0->get_input_value(0)->get_logical_tensor();
+    const logical_tensor_t dst_port
+            = reshape1->get_output_value(0)->get_logical_tensor();
+    const auto src_lt_shape = ltw(src_port).vdims();
+    const auto dst_lt_shape = ltw(dst_port).vdims();
+    const auto attr_shape = reshape0->get_attr<impl::dims>("shape");
+    const auto tp_order = transpose->get_attr<impl::dims>("order");
+
+    if (src_lt_shape != dst_lt_shape) return dflt_res;
+    if (src_lt_shape.size() + 1 != attr_shape.size()) return dflt_res;
+
+    size_t last_unmatched_pos = tp_order.size();
+    size_t matched_pos = 0;
+    for (size_t i = 0; i < tp_order.size(); ++i) {
+        if (tp_order[i] == i)
+            ++matched_pos;
+        else
+            last_unmatched_pos = i;
+    }
+
+    // more or less than two positions were swapped
+    if (matched_pos != tp_order.size() - 2) return dflt_res;
+    // all positions were matched
+    if (last_unmatched_pos == tp_order.size()) return dflt_res;
+    // transposition not on consecutive positions
+    if (last_unmatched_pos != tp_order[last_unmatched_pos - 1]) return dflt_res;
+
+    const size_t g_pos = last_unmatched_pos;
+    const size_t c_over_g_pos = g_pos - 1;
+    const int64_t groups = attr_shape[g_pos];
+    auto mod_attr_shape = attr_shape;
+    mod_attr_shape[c_over_g_pos] *= groups;
+    mod_attr_shape.erase(mod_attr_shape.begin() + g_pos);
+
+    if (src_lt_shape != mod_attr_shape) return dflt_res;
+
+    return {true, {c_over_g_pos, groups}};
 }
 
 bool post_binary_fusible(const impl::op_t *base_op, const impl::op_t *bin_op) {
