@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -209,7 +209,9 @@ namespace op_kind {
     X(chained_relu, Chained_relu) \
     X(dnnl_prelu, Dnnl_prelu) \
     X(reorder_sum, Reorder_sum) \
-    X(int8_reorder, INT8_reorder)
+    X(int8_reorder, INT8_reorder) \
+    X(matmul_div, MatMul_div) \
+    X(matmul_div_add, MatMul_div_add)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

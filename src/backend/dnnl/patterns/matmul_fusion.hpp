@@ -127,6 +127,51 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_gelu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_div_fusion)
+        .set_priority(8.9f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
+
+                    op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *div = apattern->create_op(impl::op_kind::Divide);
+                    div->fill_and_connect_input(0, *matmul, 0);
+                    div->fill_and_connect_input(1, *wildcard, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op
+                            = optimized_pattern->create_op(op_kind::matmul_div);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_div_add_fusion)
+        .set_priority(9.0f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
+
+                    op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *div = apattern->create_op(impl::op_kind::Divide);
+                    div->fill_and_connect_input(0, *matmul, 0);
+                    div->fill_and_connect_input(1, *wildcard, 0);
+                    op_t *wildcard2
+                            = apattern->create_op(impl::op_kind::Wildcard);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    add->fill_and_connect_input(0, *div, 0);
+                    add->fill_and_connect_input(1, *wildcard2, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::matmul_div_add);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_fusion)
         .set_priority(8.8f)
         .set_attr<FCreatePattern>("FCreatePattern",

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -364,6 +364,8 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::x8x8float_matmul_div_add, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::int8_MHA, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::f32_MHA, float_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::matmul_div, float_matmul);
+    DNNL_REGISTER_KERNEL(op_kind::matmul_div_add, float_matmul);
 
     //eltwise+binary ops
     DNNL_REGISTER_KERNEL(op_kind::relu_add, float_eltwise_fwd);

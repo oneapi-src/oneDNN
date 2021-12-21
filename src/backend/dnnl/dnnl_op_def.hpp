@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -901,6 +901,29 @@ DNNL_GRAPH_OP_SCHEMA(matmul_add, 1,
                 .set_input(0, "a", "first input tensor")
                 .set_input(1, "b", "second input tensor")
                 .set_input(2, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
+                .set_shape_inference_function(infer_matmul_output_shape)
+                .SET_MATMUL_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(matmul_div, 1,
+        op_schema_t()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "a", "first input tensor")
+                .set_input(1, "b", "second input tensor")
+                .set_input(2, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
+                .set_shape_inference_function(infer_matmul_output_shape)
+                .SET_MATMUL_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(matmul_div_add, 1,
+        op_schema_t()
+                .set_num_inputs(4)
+                .set_num_outputs(1)
+                .set_input(0, "a", "first input tensor")
+                .set_input(1, "b", "second input tensor")
+                .set_input(2, "other", "the second input tensor of div")
+                .set_input(3, "other", "the second input tensor of add")
                 .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
