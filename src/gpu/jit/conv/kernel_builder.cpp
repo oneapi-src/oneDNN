@@ -4223,8 +4223,8 @@ private:
                 mem_view_.for_each_tile(tensor, [&](std::vector<dim_t> &start) {
                     auto tile = tensor_t(tensor.dims(), start);
                     auto sub_view = mem_view_.create_sub_view(tile);
-                    is_aligned
-                            &= (sub_view.get_alignment() >= s.alignment.size());
+                    is_aligned &= (sub_view.get_alignment(*cset_)
+                            >= s.alignment.size());
                 });
                 if (!is_aligned) continue;
             }
