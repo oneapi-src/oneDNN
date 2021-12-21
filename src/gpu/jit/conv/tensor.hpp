@@ -1318,7 +1318,6 @@ public:
         oss << ir_utils::make_seq_print_helper(vdims_, "x");
         if (!has_zero_vstart()) oss << " vstart: [" << vstart_ << "]";
         oss << " tlayout: " << tlayout_;
-        oss << " alignment: " << get_alignment();
         return oss.str();
     }
 
@@ -1350,10 +1349,10 @@ public:
         return offset(vargs, ignore_offset) * type().size();
     }
 
-    int get_alignment() const {
+    int get_alignment(const constraint_set_t &cset) const {
         // Alignment must be a power of 2.
         const int base_alignment = 128;
-        int64_t f = get_max_const_factor(this->offset_in_bytes());
+        int64_t f = get_max_const_factor(this->offset_in_bytes(), cset);
         int alignment = f ? ir_utils::max_pow2_divisor(f) : base_alignment;
         return std::min(base_alignment, alignment);
     }

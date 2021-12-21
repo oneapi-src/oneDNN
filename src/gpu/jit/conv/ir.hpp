@@ -847,7 +847,7 @@ private:
 
 // Determine the maximum constant factor of an expression, returns 0 in the
 // special case that the expression evaluates to 0.
-int64_t get_max_const_factor(const expr_t &e);
+int64_t get_max_const_factor(const expr_t &e, const constraint_set_t &cset);
 
 // Simplifies expression using rewriting rules.
 expr_t simplify_rewrite(const expr_t &e);

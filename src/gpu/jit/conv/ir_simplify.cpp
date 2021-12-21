@@ -1577,9 +1577,14 @@ stmt_t simplify_stmt(const stmt_t &s, const constraint_set_t &cset) {
     return simplifier.mutate(s);
 }
 
-int64_t get_max_const_factor(const expr_t &e) {
-    ir_assert(e.type().is_int());
-    auto o = factored_expr_t::make(nary_op_canonicalize(simplify(e)));
+int64_t get_max_const_factor(const expr_t &_e, const constraint_set_t &cset) {
+    ir_assert(_e.type().is_int());
+    auto e = _e;
+    // Some complex expressions need more than one simplify() call.
+    int max_tries = 3;
+    for (int i = 0; i < max_tries; i++)
+        e = simplify(e, cset);
+    auto o = factored_expr_t::make(nary_op_canonicalize(e));
     auto &expr = o.as<factored_expr_t>();
     return to_cpp<int64_t>(expr.const_factor());
 }
