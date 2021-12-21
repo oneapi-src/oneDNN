@@ -3631,7 +3631,6 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     using namespace data_type;
     const bool is_deconv = cd.prop_kind != prop_kind::backward_data;
-    if (is_3d && is_deconv) return status::unimplemented;
 
     const bool is_bf16 = everyone_is(true, diff_dst_d.data_type() == bf16,
             weights_d.data_type() == bf16,
@@ -3781,10 +3780,12 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
                     gOIdhw16o16i2o);
         else if (is_bf16_deconvolution)
             wei_tag = pick(with_groups + 2 * (ndims - 3), OIw16i16o2i,
-                    gOIw16i16o2i, OIhw16i16o2i, gOIhw16i16o2i);
+                    gOIw16i16o2i, OIhw16i16o2i, gOIhw16i16o2i, OIdhw16i16o2i,
+                    gOIdhw16i16o2i);
         else if (is_int8_deconvolution)
             wei_tag = pick(with_groups + 2 * (ndims - 3), OIw16i16o4i,
-                    gOIw16i16o4i, OIhw16i16o4i, gOIhw16i16o4i);
+                    gOIw16i16o4i, OIhw16i16o4i, gOIhw16i16o4i, OIdhw16i16o4i,
+                    gOIdhw16i16o4i);
         else {
             assert(!"unsupported combination");
             return false;

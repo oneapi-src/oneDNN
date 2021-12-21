@@ -96,11 +96,10 @@ struct jit_avx512_core_amx_deconvolution_fwd_t : public primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
         const auto &_pd = pd();
-        if (_pd->ndims() > 4)
+        if (_pd->jcp_.is_depthwise) {
+            assert(!"_pd->jcp_.is_depthwise not implemented");
             return status::unimplemented;
-        else if (_pd->jcp_.is_depthwise)
-            return status::unimplemented;
-        else
+        } else
             execute_forward(ctx);
         return status::success;
     }
