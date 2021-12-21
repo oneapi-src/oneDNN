@@ -1831,6 +1831,37 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8f32_matmul_div_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8f32_matmul_div_add_fusion)
+        .set_priority(10.5f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(impl::op_kind::Dequantize);
+                    op_t *wildcard
+                            = apattern->create_op(impl::op_kind::Wildcard);
+
+                    op_t *matmul = apattern->create_op(impl::op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *div = apattern->create_op(impl::op_kind::Divide);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    div->fill_and_connect_input(0, *matmul, 0);
+                    div->fill_and_connect_input(1, *wildcard, 0);
+                    op_t *wildcard2
+                            = apattern->create_op(impl::op_kind::Wildcard);
+                    op_t *add = apattern->create_op(impl::op_kind::Add);
+                    add->fill_and_connect_input(0, *div, 0);
+                    add->fill_and_connect_input(1, *wildcard2, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8x8float_matmul_div_add);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_bias_add_fusion)
         .set_priority(10.4f)
         .set_attr<FCreatePattern>("FCreatePattern",
