@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15001,6 +15001,137 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
     impl::tensor_t dst_f32_case2_ts(div_f32, &engine, case2_out_data.data());
     cp.execute(
             &strm, {src_u8_ts, weight_u8_ts, div_src1_ts}, {dst_f32_case2_ts});
+    strm.wait();
+}
+
+TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    if (engine.kind() == impl::engine_kind::gpu) return;
+    std::string qtype = "per_tensor";
+    // prepare fp32 data
+    std::vector<int64_t> src_shape = {1, 4, 16, 8};
+    std::vector<int64_t> weight_shape = {1, 4, 8, 16};
+    std::vector<int64_t> dst_shape = {1, 4, 16, 16};
+    std::vector<int64_t> post_add_shape = {1, 1, 1, 16};
+
+    test::vector<uint8_t> src_data(product(src_shape));
+    test::vector<uint8_t> weight_data(product(weight_shape));
+    test::vector<uint8_t> add_src1_data(product(post_add_shape));
+
+    // random generate src, weight data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
+    std::generate(add_src1_data.begin(), add_src1_data.end(),
+            [&]() { return u8_distribution(generator); });
+    test::vector<float> div_src1_data {0.5f};
+    float scale_src = 1 / 255.f; // map to 0~255
+    int64_t zp_src = 110;
+
+    size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
+    std::vector<float> scale_wei(scales_wei_sizes, 1 / 255.f);
+    std::vector<int64_t> zp_wei(scales_wei_sizes, 114);
+
+    // -------------------------case 1----------------------------------
+    impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
+    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
+    dqdata_op.set_attr<int64_t>("axis", 0);
+
+    impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>("qtype", qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
+    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
+    dqweight_op.set_attr<int64_t>("axis", 1);
+
+    impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
+    matmul_op.set_attr<bool>("transpose_a", false);
+    matmul_op.set_attr<bool>("transpose_b", false);
+
+    impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
+    binary_op.set_attr<string>("auto_broadcast", "numpy");
+
+    impl::op_t binary_op2(6, impl::op_kind::Add, "binary_add");
+    binary_op2.set_attr<string>("auto_broadcast", "numpy");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_u8
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+    impl::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(2, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight_u8
+            = utils::logical_tensor_init(4, weight_shape, impl::data_type::u8);
+    impl::logical_tensor_t weight_f32_dq
+            = utils::logical_tensor_init(5, weight_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst_f32
+            = utils::logical_tensor_init(7, dst_shape, impl::data_type::f32);
+    impl::logical_tensor_t div_src1
+            = utils::logical_tensor_init(8, {1}, impl::data_type::f32);
+    impl::logical_tensor_t div_f32
+            = utils::logical_tensor_init(9, dst_shape, impl::data_type::f32);
+    impl::logical_tensor_t add_src1 = utils::logical_tensor_init(
+            10, post_add_shape, impl::data_type::f32);
+    impl::logical_tensor_t add_f32
+            = utils::logical_tensor_init(11, dst_shape, impl::data_type::f32);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    dqweight_op.add_input(weight_u8);
+    dqweight_op.add_output(weight_f32_dq);
+
+    matmul_op.add_input(src_f32_dq);
+    matmul_op.add_input(weight_f32_dq);
+    matmul_op.add_output(dst_f32);
+
+    binary_op.add_input(dst_f32);
+    binary_op.add_input(div_src1);
+    binary_op.add_output(div_f32);
+
+    binary_op2.add_input(div_f32);
+    binary_op2.add_input(add_src1);
+    binary_op2.add_output(add_f32);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&dqdata_op);
+    g.add_op(&dqweight_op);
+    g.add_op(&matmul_op);
+    g.add_op(&binary_op);
+    g.add_op(&binary_op2);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("x8x8f32_matmul_div_add_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {
+            &src_u8, &weight_u8, &div_src1, &add_src1};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&add_f32};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+    impl::tensor_t weight_u8_ts(weight_u8, &engine, weight_data.data());
+    impl::tensor_t div_src1_ts(div_src1, &engine, div_src1_data.data());
+    impl::tensor_t add_src1_ts(add_src1, &engine, add_src1_data.data());
+    test::vector<float> case2_out_data(product(dst_shape));
+    impl::tensor_t dst_f32_case2_ts(add_f32, &engine, case2_out_data.data());
+    cp.execute(&strm, {src_u8_ts, weight_u8_ts, div_src1_ts, add_src1_ts},
+            {dst_f32_case2_ts});
     strm.wait();
 }
 
