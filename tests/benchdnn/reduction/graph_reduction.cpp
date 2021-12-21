@@ -30,10 +30,6 @@ reduction_graph_prb_t::spec_t::spec_t(const ::reduction::prb_t *prb) {
     src_dims = prb->vdims[0];
     dst_dims = prb->vdims[1];
 
-    // oneDNN require src dims and dst dims to have
-    // the same number of dimensions
-    if (src_dims.size() != dst_dims.size()) return;
-
     const int reduction_dim_size = 1;
     for (auto d = 0; d < prb->ndims; ++d) {
         const bool is_reduction_dim = dst_dims[d] == reduction_dim_size
