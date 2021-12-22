@@ -33,7 +33,14 @@ namespace mha {
 using namespace benchdnnext;
 using graph_dt = dnnl::graph::logical_tensor::data_type;
 
-enum config_datatypes { CFG_F32 = 0, CFG_S8, CFG_U8, CFG_BF16, CFG_DT_MAX };
+enum config_datatypes {
+    CFG_F32 = 0,
+    CFG_S8,
+    CFG_U8,
+    CFG_BF16,
+    CFG_DT_MAX,
+    CFG_DT_UNSUPPORTED = -1
+};
 
 typedef struct dt_conf_t {
     graph_dt dt;

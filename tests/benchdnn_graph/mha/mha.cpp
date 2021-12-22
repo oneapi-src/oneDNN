@@ -24,7 +24,7 @@ int dt2cfg(graph_dt dt) {
         case graph_dt::s8: return CFG_S8;
         case graph_dt::u8: return CFG_U8;
         case graph_dt::bf16: return CFG_BF16;
-        default: assert(!"unsupported datatype"); return CFG_DT_MAX;
+        default: assert(!"unsupported datatype"); return CFG_DT_UNSUPPORTED;
     }
 }
 
@@ -117,13 +117,13 @@ inline int fill_data(
         if (idx_start == 0) {
             float val = 0;
             while (val == 0)
-                val = (float)gen(msr);
+                val = static_cast<float>(gen(msr));
             mem_fp.set_elem(0, val * c_f_scale);
             idx_start += 1;
         }
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            auto val = (float)gen(msr) * c_f_scale;
+            auto val = static_cast<float>(gen(msr)) * c_f_scale;
             mem_fp.set_elem(idx, val);
         }
     });
@@ -135,7 +135,7 @@ inline int fill_data(
 fill_status_t mha_graph_prb_t::build_mha_subgraph(
         const mha_graph_spec_t &spec) {
     using op = dnnl::graph::op;
-
+    int QKV_IN_SIZE = 12;
     int bs = spec.dims[0];
     int seq_len = spec.dims[1];
     int embed_sz = spec.dims[2];
@@ -157,9 +157,9 @@ fill_status_t mha_graph_prb_t::build_mha_subgraph(
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
 
-    std::string str[12];
+    std::string str[QKV_IN_SIZE];
     std::vector<dnnl::graph::op> ops;
-    ops.reserve(11);
+    ops.reserve(QKV_IN_SIZE);
     //Q(i=0), K(i=1), V(i=2)
     for (int i = 0; i < 3; i++) {
         str[i * 4] = TENSOR_ID + "_INT8_" + std::to_string(i * 4);
@@ -253,7 +253,7 @@ fill_status_t mha_graph_prb_t::build_mha_subgraph(
     tensor_descs_.emplace(QKSOFTMAX, spec.mha_dt, qk_matmul_shape, spec.tag);
     op qk_softmax_op(new_op_id, op::kind::SoftMax, {tensor_descs_[QKADD]},
             {tensor_descs_[QKSOFTMAX]}, "SCORE_softmax");
-    qk_softmax_op.set_attr("axis", (int64_t)3);
+    qk_softmax_op.set_attr("axis", static_cast<int64_t>(3));
     ops_.emplace_back(qk_softmax_op);
     std::string intensor = QKSOFTMAX;
     //For INT8 quantize and dequantize the softmax output.
@@ -389,11 +389,8 @@ int doit(const mha_graph_spec_t *spec, res_t *res) {
     fill_data(spec->mha_dt, v_dt, v_fp, res);
 
     float scale = sqrt(spec->dims[2] / spec->head);
-    std::vector<int> attention_mask_filter;
     //number of elements = bs * seq_len
-    for (int i = 0; i < spec->dims[0] * spec->dims[1]; i++) {
-        attention_mask_filter.push_back(1);
-    }
+    std::vector<int> attention_mask_filter(spec->dims[0] * spec->dims[1], 1);
 
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
