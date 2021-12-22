@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,13 +24,11 @@ set(Threadpool_cmake_included true)
 include("cmake/Threading.cmake")
 
 if("${DNNL_CPU_THREADING_RUNTIME}" STREQUAL "THREADPOOL")
-
     if("${_DNNL_TEST_THREADPOOL_IMPL}" STREQUAL "TBB")
         find_package_tbb(REQUIRED)
         if(TBB_FOUND)
             list(APPEND EXTRA_STATIC_LIBS TBB::tbb)
             message(STATUS "Threadpool testing: TBB (${_tbb_root})")
-            set(_DNNL_TEST_THREADPOOL_IMPL "TBB")
         endif()
     endif()
 
@@ -48,4 +46,3 @@ if("${DNNL_CPU_THREADING_RUNTIME}" STREQUAL "THREADPOOL")
 
     add_definitions(-DDNNL_TEST_THREADPOOL_USE_${_DNNL_TEST_THREADPOOL_IMPL})
 endif()
-

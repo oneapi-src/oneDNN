@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,3 +78,4 @@ dnnl_compat_var(_DNNL_USE_MKL _ONEDNN_USE_MKL "CACHE BOOL")
 foreach (var ${COMPAT_CACHE_STRING_VARS})
     dnnl_compat_var("DNNL_${var}" "ONEDNN_${var}" "CACHE STRING")
 endforeach()
+dnnl_compat_var(_DNNL_TEST_THREADPOOL_IMPL _ONEDNN_TEST_THREADPOOL_IMPL "CACHE STRING")
