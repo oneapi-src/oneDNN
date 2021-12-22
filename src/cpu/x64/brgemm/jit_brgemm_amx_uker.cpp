@@ -201,6 +201,15 @@ private:
     const Xbyak::Zmm &zmm_tmp_2() const noexcept { return this->zmm1; }
     const Xbyak::Zmm &zmm_tmp_3() const noexcept { return this->zmm2; }
 
+    const Xbyak::Zmm zmm_bias = zmm3;
+    const Xbyak::Zmm zmm_zp_comp_a = zmm4;
+    const Xbyak::Zmm zmm_scales = zmm5;
+    const Xbyak::Zmm zmm_zp_c = zmm6;
+    const Xbyak::Zmm zmm_lbound = zmm7;
+    const Xbyak::Zmm zmm_ubound = zmm8;
+
+    bool dt_requires_saturation;
+
     Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) const;
     Xbyak::Ymm ymm_mask(const Xbyak::Ymm ymm_in, bool mask_flag, bool store,
@@ -213,7 +222,7 @@ private:
     void read_params();
     void load_accumulators(int bd_block2, int ld_block, bool is_ld_tail);
 
-    void maybe_saturation(bool dt_requires_saturation, Xbyak::Zmm &zmm);
+    void maybe_saturation(Xbyak::Zmm &zmm);
     void apply_alpha_beta_to_vector(
             const int idx, const Address &addr, bool is_ld_tail);
     void apply_post_ops_to_vector(const int idx, const Address &addr,
@@ -222,6 +231,8 @@ private:
             int ldb, bool is_ld_tail);
     void store_vector_with_post_ops(const int idx, const Address &addr,
             const int bd, const int ldb, bool is_ld_tail);
+    void prepare_post_ops_registers(
+            int ldb, bool is_ld_tail, bool apply_post_ops);
     void process_output_range(int bd_start, int bd_finish, int bd_ind_bdb,
             int bdb, int ldb_ind, int ldb, bool is_ld_tail,
             bool apply_post_ops);
@@ -621,18 +632,51 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_range(
             32 - bd_finish, 32 - bd_start, rhs_arg_params);
 }
 
-void jit_brgemm_amx_uker_base_t::maybe_saturation(
-        bool dt_requires_saturation, Xbyak::Zmm &zmm) {
-    auto zmm_lbound = zmm_tmp_1();
-    auto zmm_ubound = zmm_tmp_2();
-    if (dt_requires_saturation) {
-        init_saturate_f32(
-                zmm_lbound, zmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
+void jit_brgemm_amx_uker_base_t::maybe_saturation(Xbyak::Zmm &zmm) {
+    if (!dt_requires_saturation) return;
+    saturate_f32(zmm, zmm_lbound, zmm_ubound, brg.dt_d);
+    vcvtps2dq(zmm, zmm);
+}
+
+void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
+        int ldb, bool is_ld_tail, bool apply_post_ops) {
+    if (!apply_post_ops) return;
+    auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
+    if (brg.with_bias) {
+        mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
+
+        auto ptr_bias = EVEX_compress_addr(reg_bias, bias_offset(ldb));
+        cvt2ps(brg.dt_bias, zmm_bias, ptr_bias, true, false, k_mask);
     }
 
-    if (dt_requires_saturation) {
-        saturate_f32(zmm, zmm_lbound, zmm_ubound, brg.dt_d);
-        vcvtps2dq(zmm, zmm);
+    if (brg.zp_type_a != brgemm_broadcast_t::none) {
+        mov(reg_aux_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
+
+        int zp_comp_a_off = zp_comp_a_offset(
+                0); //!!!??? maybe zp_comp_a_offset(ldb, is_ld_tail ) ?
+        auto zp_comp_a_addr
+                = EVEX_compress_addr(reg_aux_zp_comp_a, zp_comp_a_off);
+        cvt2ps(data_type::s32, zmm_zp_comp_a, zp_comp_a_addr, true, false,
+                k_mask);
+    }
+
+    if (brg.with_scales) {
+        mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
+        auto scales_ptr = EVEX_compress_addr(reg_scales, scales_offset(ldb));
+        vmovups(zmm_scales, scales_ptr);
+    }
+
+    if (brg.zp_type_c != brgemm_broadcast_t::none) {
+        mov(reg_zp_c_values, ptr[rsp + reg_zp_c_values_offs_]);
+        if (brg.zp_type_c == brgemm_broadcast_t::per_tensor) {
+            vcvtdq2ps(zmm_zp_c, EVEX_compress_addr(reg_zp_c_values, 0, true));
+        }
+        if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
+            int zp_c_off = zp_c_values_offset(
+                    0); //!!!??? maybe zp_c_values_offset(ldb, is_ld_tail) ?
+            auto zp_c_addr = EVEX_compress_addr(reg_zp_c_values, zp_c_off);
+            cvt2ps(data_type::s32, zmm_zp_c, zp_c_addr, true, false, k_mask);
+        }
     }
 }
 
@@ -654,6 +698,7 @@ void jit_brgemm_amx_uker_base_t::process_output_range(int bd_start,
     const bool dq2ps_required = brg.is_int8
             && IMPLICATION(alpha_or_beta_applicable, beta_uses_vadd);
 
+    bool some_bd_mask = false;
     for (int bd = bd_start; bd < bd_finish; bd++) {
         auto zmm = accm(bd);
         const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
@@ -663,7 +708,7 @@ void jit_brgemm_amx_uker_base_t::process_output_range(int bd_start,
         }
 
         auto vreg_acc = is_ld_tail ? accm(bd) | ld_tail_mask | T_z : accm(bd);
-
+        some_bd_mask = true;
         const auto adj_bd_ind_bd = adjusted_bd_mask(bd_ind_bd);
 
         size_t buf_offset = bd * ld_block_C_size;
@@ -680,16 +725,9 @@ void jit_brgemm_amx_uker_base_t::process_output_range(int bd_start,
         if (dq2ps_required) vcvtdq2ps(zmm, zmm);
     }
 
-    if (!apply_post_ops) return;
+    if (!apply_post_ops || !some_bd_mask) return;
 
     if (brg.with_bias) {
-        mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
-
-        auto zmm_bias = zmm_tmp_1();
-        auto ptr_bias
-                = EVEX_compress_addr(reg_bias, bias_offset(ldb_ind + ldb));
-        cvt2ps(brg.dt_bias, zmm_bias, ptr_bias, true, false, k_mask);
-
         for (int bd = bd_start; bd < bd_finish; bd++) {
             const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
             if (bd_ind_bd == -1) continue;
@@ -700,15 +738,6 @@ void jit_brgemm_amx_uker_base_t::process_output_range(int bd_start,
     }
 
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
-        mov(reg_aux_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
-
-        auto zmm_zp_comp_a = zmm_tmp_1();
-        int zp_comp_a_off = zp_comp_a_offset(0);
-        auto zp_comp_a_addr
-                = EVEX_compress_addr(reg_aux_zp_comp_a, zp_comp_a_off);
-        cvt2ps(data_type::s32, zmm_zp_comp_a, zp_comp_a_addr, true, false,
-                k_mask);
-
         for (int bd = bd_start; bd < bd_finish; bd++) {
             const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
             if (bd_ind_bd == -1) continue;
@@ -738,16 +767,13 @@ void jit_brgemm_amx_uker_base_t::process_output_range(int bd_start,
     }
 
     if (brg.with_scales) {
-        mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
-        auto scales_ptr
-                = EVEX_compress_addr(reg_scales, scales_offset(ldb_ind + ldb));
         for (int bd = bd_start; bd < bd_finish; bd++) {
             const auto bd_ind_bd = get_input_bd(bd_ind_bdb, bd);
             if (bd_ind_bd == -1) continue;
 
             auto zmm = accm(bd);
             const Xbyak::Zmm scaled_zmm = zmm_mask(zmm, true, false, k_mask);
-            vmulps(scaled_zmm, scaled_zmm, scales_ptr);
+            vmulps(scaled_zmm, scaled_zmm, zmm_scales);
         }
     }
 
@@ -762,24 +788,9 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
     auto zmm = Zmm(idx);
     auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
 
-    if (brg.zp_type_c != brgemm_broadcast_t::none) {
-        mov(reg_zp_c_values, ptr[rsp + reg_zp_c_values_offs_]);
-        auto zmm_zp_c = zmm_tmp_1();
-        if (brg.zp_type_c == brgemm_broadcast_t::per_tensor) {
-            vcvtdq2ps(zmm_zp_c, EVEX_compress_addr(reg_zp_c_values, 0, true));
-        }
-        if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
-            int zp_c_off = zp_c_values_offset(0);
-            auto zp_c_addr = EVEX_compress_addr(reg_zp_c_values, zp_c_off);
-            cvt2ps(data_type::s32, zmm_zp_c, zp_c_addr, true, false, k_mask);
-        }
-        vaddps(zmm, zmm, zmm_zp_c);
-    }
+    if (brg.zp_type_c != brgemm_broadcast_t::none) vaddps(zmm, zmm, zmm_zp_c);
 
-    const bool dt_requires_saturation
-            = one_of(brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
-
-    maybe_saturation(dt_requires_saturation, zmm);
+    maybe_saturation(zmm);
 
     auto ymm = Xbyak::Ymm(idx);
     const Xbyak::Zmm r_zmm = zmm_mask(zmm, true, true, k_mask);
@@ -801,15 +812,8 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
 void jit_brgemm_amx_uker_base_t::store_vector_without_post_ops(
         const int idx, const Address &addr, bool is_ld_tail) {
     auto zmm = Zmm(idx);
-    // if (brg.is_int8 && alpha_or_beta_applicable && !beta_uses_vadd) ->
-    // accumulated values are converted to ps in apply_alpha_beta()
-    const bool alpha_or_beta_applicable = brg.alpha != 1.0f || brg.beta != 0.f;
-    const bool beta_uses_vadd
-            = brg.beta == 1.f && IMPLICATION(brg.is_int8, brg.alpha == 1.0f);
-    const bool dt_requires_saturation = brg.is_int8
-            && !IMPLICATION(alpha_or_beta_applicable, beta_uses_vadd);
 
-    maybe_saturation(dt_requires_saturation, zmm);
+    maybe_saturation(zmm);
 
     if (is_ld_tail)
         vmovups(addr | ld_tail_mask | T_z, zmm);
@@ -854,6 +858,8 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
 
     // if first block
     if (ils_vec == 0) {
+        prepare_post_ops_registers(
+                ils_ldb_ind + cur_ldb, ils_is_ld_tail, ils_apply_post_ops);
         ils_bd_start = 0;
         auto bd_finish = nstl::min(ils_bd_step, adjusted_bd_block(cur_bdb));
         process_output_range(0, bd_finish, bd_ind_bdb, cur_bdb, ils_ldb_ind,
@@ -871,6 +877,9 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
                                 && vec < ils_vec + ils_vecs_per_store)) {
                     if (!brg.brgattr.bd_mask_level
                             || bd_mask_buffer_ptr[bd_ind_bd]) {
+                        if (ldb != cur_ldb)
+                            prepare_post_ops_registers(ils_ldb_ind + ldb,
+                                    ils_is_ld_tail, ils_apply_post_ops);
                         if (bdb != cur_bdb || ldb != cur_ldb
                                 || rnd_dn(bd, ils_bd_step) != ils_bd_start) {
                             ils_bd_start = rnd_dn(bd, ils_bd_step);
@@ -946,6 +955,9 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
                 tilestored(ptr[reg_buf + reg_stride_ld_block + wsp_offset],
                         Tmm(brg.get_C_tensor(bdb, idx)));
                 if (use_ils) continue;
+
+                prepare_post_ops_registers(
+                        ldb_ind + ldb, is_ld_tail, apply_post_ops);
 
                 process_output_range(0, adjusted_bd_block(bdb), bd_ind_bdb, bdb,
                         ldb_ind, ldb, is_ld_tail, apply_post_ops);
@@ -1188,6 +1200,24 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
 void jit_brgemm_amx_uker_base_t::bdb_loop(bool apply_post_ops) {
     ils_buffer_ready = false;
     ils_apply_post_ops = apply_post_ops;
+    if (apply_post_ops)
+        dt_requires_saturation = one_of(
+                brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
+    else {
+        // if (brg.is_int8 && alpha_or_beta_applicable && !beta_uses_vadd) ->
+        // accumulated values are converted to ps in apply_alpha_beta()
+        const bool alpha_or_beta_applicable
+                = brg.alpha != 1.0f || brg.beta != 0.f;
+        const bool beta_uses_vadd = brg.beta == 1.f
+                && IMPLICATION(brg.is_int8, brg.alpha == 1.0f);
+        dt_requires_saturation = brg.is_int8
+                && !IMPLICATION(alpha_or_beta_applicable, beta_uses_vadd);
+    }
+    if (dt_requires_saturation) {
+        init_saturate_f32(
+                zmm_lbound, zmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
+    }
+
     auto do_ldb_loop = [=](int bd_block2, bool apply_post_ops) {
         size_t c_offset = 0;
         size_t d_offset = 0;
