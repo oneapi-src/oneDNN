@@ -194,5 +194,5 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
 **Types**:
 
 * **T**: f32, f16, bf16.
-* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
-  data type. For example, if *T* is f32, all these tensors are f32 tensor.
+* **Note**: Inputs and outputs have the same data type denoted by *T*. For
+  example, if input is f32 tensor, then all other tensors have f32 data type.

@@ -69,5 +69,6 @@ axes.
 
 * **T1**: f32, f16, bf16.
 * **T2**: s32.
-* **Note**: Tensors denoted with same data type symbol(such as *T*) have same
-  data type. For example, if *T* is f32, all these tensors are f32 tensor.
+* **Note**: The input tensor and the result tensor have the same data type
+  denoted by *T1*. For example, if input is f32 tensor, then result tensor has
+  f32 data type.
