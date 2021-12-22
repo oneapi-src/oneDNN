@@ -61,7 +61,7 @@ runtime. Otherwise, use DynamicReshape.
 **Outputs**:
 
 * **1**: Output tensor with the same content as ``data`` but with shape defined
-by attribute ``shape``.
+  by attribute ``shape``.
 
   * **Type**: T
 

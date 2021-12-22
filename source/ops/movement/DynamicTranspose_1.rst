@@ -2,9 +2,9 @@
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
----------
+----------------
 DynamicTranspose
----------
+----------------
 
 **Versioned name**: *DynamicTranspose-1*
 

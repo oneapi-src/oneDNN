@@ -1,6 +1,7 @@
 .. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
+
 ---------------
 StaticTranspose
 ---------------
@@ -24,6 +25,7 @@ where:
 
 .. math::
    i(j) \ in\ range\ 0...(input.shape[j]-1)
+
 The input shape is [input.shape(0), input.shape(1), ......, input.shape(N-1)],
 the output shape is [input.shape(order[0]), input.shape(order[1]), ...,
 input.shape(order[N-1])]. Output tensor may have a different memory layout with
