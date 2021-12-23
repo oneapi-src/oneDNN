@@ -4,7 +4,6 @@ Advanced Topics
 .. toctree::
    :maxdepth: 1
 
-   dev_guide_transition_to_v1
    dev_guide_transition_to_dnnl
    dev_guide_understanding_memory_formats
    dev_guide_int8_computations
