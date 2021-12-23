@@ -211,7 +211,7 @@ inline memory make_memory(const memory::desc &memory_desc,
 ///
 /// @param memory_desc Memory descriptor.
 /// @param aengine Engine to use.
-/// @param abuffer An OpenCL buffer to use.
+/// @param mem_object An OpenCL buffer to use.
 ///
 /// @returns Created memory object.
 inline memory make_memory(const memory::desc &memory_desc,

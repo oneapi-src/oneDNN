@@ -4010,6 +4010,8 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
         return static_cast<dnnl::primitive::kind>(kind);
     }
 
+    /// Returns the cache blob ID of the primitive descriptor.
+    /// @returns The cache blob ID of the primitive descriptor.
     std::vector<uint8_t> get_cache_blob_id() const {
         dnnl_dim_t count;
         const uint8_t *c_id;
@@ -7356,7 +7358,7 @@ struct batch_normalization_forward : public primitive {
     ///     a cache blob.
     /// @param pd Primitive descriptor for a batch normalization forward
     ///     propagation primitive.
-    // @param cache_blob Cache blob.
+    /// @param cache_blob Cache blob.
     batch_normalization_forward(
             const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
         : primitive(pd, cache_blob) {}
@@ -11630,6 +11632,7 @@ struct prelu_backward : public primitive {
     /// Constructs a prelu backward propagation primitive from a cache blob.
     /// @param pd Primitive descriptor for a prelu backward propagation
     ///     primitive.
+    /// @param cache_blob Cache blob.
     prelu_backward(
             const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
         : primitive(pd, cache_blob) {}
@@ -11782,7 +11785,10 @@ inline const version_t *version() {
     return dnnl_version();
 }
 
-/// @copydoc dnnl_get_default_fpmath_mode()
+/// Returns the floating-point math mode that will be used by default
+/// for all subsequently created primitives.
+///
+/// @returns Output FP math mode.
 inline fpmath_mode get_default_fpmath_mode() {
     dnnl_fpmath_mode_t mode;
     error::wrap_c_api(dnnl_get_default_fpmath_mode(&mode),

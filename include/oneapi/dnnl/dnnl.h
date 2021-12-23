@@ -231,7 +231,7 @@ dnnl_status_t DNNL_API dnnl_primitive_create(dnnl_primitive_t *primitive,
 /// @param primitive Output primitive.
 /// @param primitive_desc Primitive descriptor used to create the primitive.
 /// @param size Size of the cache blob in bytes.
-/// @param blob Cache blob of size @p size.
+/// @param cache_blob Cache blob of size @p size.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_create_from_cache_blob(
@@ -966,12 +966,15 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_binary(
 ///    Prelu weights tensor is passed in runtime execution phase. Prelu
 ///    weights tensor data type is implicitly assumed as f32 using plain
 ///    layout (a, ab, acb, acdb, acdeb)
-
+///
+/// @param post_ops Post-ops.
 /// @param mask Defines the correspondence between the output tensor
 ///     dimensions and the prelu weights tensor. The set i-th bit indicates
 ///     that a dedicated weights value is used for each index along that
 ///     dimension. Set the mask to 0 to use a common weights value
 ///     for the whole output tensor.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
 dnnl_status_t DNNL_API dnnl_post_ops_append_prelu(
         dnnl_post_ops_t post_ops, int mask);
 
@@ -980,6 +983,8 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_prelu(
 /// @param post_ops Post-ops.
 /// @param index Index of the preu post-op.
 /// @param mask Mask of the prelu post-op.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
 dnnl_status_t DNNL_API dnnl_post_ops_get_params_prelu(
         const_dnnl_post_ops_t post_ops, int index, int *mask);
 

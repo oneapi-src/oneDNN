@@ -318,6 +318,7 @@ is the sequence number of the prelu in post-operations chain;
 For example:
     * for a 2D CNN activations tensor the order is always (n, c)
     * for a 4D CNN activations tensor the order is always (n, c, h, w)
+
 ## Examples of Chained Post-ops
 
 Different post-ops can be chained together by appending one after another.
