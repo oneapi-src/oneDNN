@@ -72,6 +72,12 @@
 --bia_dt=bf16
 2x4:4x3:2x3
 
+# runtime_zero_point_wrong_values
+--reset
+--cfg=u8s8f32 
+--attr-zero-points=wei:common:2*+src:common:1* 
+1x2x4:1x4x12:1x2x12
+
 # runtime oscale test
 --reset
 --attr-oscale=common:2*

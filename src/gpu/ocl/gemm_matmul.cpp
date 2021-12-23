@@ -48,8 +48,12 @@ status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
     gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
     gemm_args.bias = &CTX_IN_STORAGE(DNNL_ARG_BIAS);
 
-    gemm_args.a_zero_point = a0;
-    gemm_args.b_zero_point = b0;
+    // Note: we have to swap `a` and `b` zero-point arguments because,
+    // - gemm primitive is created with row major desc,
+    // - parameters to gemm are passed as row major
+    // - but gemm implementation assumes column major
+    gemm_args.a_zero_point = b0;
+    gemm_args.b_zero_point = a0;
     gemm_args.c_zero_point = c0;
     gemm_args.output_scales = scales;
     gemm_args.exec_args = ctx.args();
