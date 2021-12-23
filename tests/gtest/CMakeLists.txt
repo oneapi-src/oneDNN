@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,12 @@
 
 # Do not modify this file
 
+# XXX: DPCPP issues a warning when WINAPI is used:
+# warning: '__stdcall' calling convention is not supported for this target
+if(WIN32 AND DNNL_GRAPH_WITH_SYCL)
+    append(CMAKE_CXX_FLAGS "-Wno-ignored-attributes")
+endif()
+
 set(TARGET_NAME ${LIB_NAME}_gtest)
 set(MAIN_SRC "src/gtest-all.cc")
 source_group("" FILES ${MAIN_SRC})
@@ -31,6 +37,8 @@ add_library(${TARGET_NAME} STATIC ${MAIN_SRC})
 # In that case FindThreads module may skip adding any flags for pthread library
 # because they are not needed for C compiler but this may led to issues with
 # C++ compiler which is not checked.
-if(UNIX OR MINGW)
+if((UNIX AND NOT QNXNTO) OR MINGW)
     target_link_libraries(${TARGET_NAME} pthread)
+elseif(QNXNTO)
+    target_link_libraries(${TARGET_NAME} regex)
 endif()
