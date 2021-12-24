@@ -256,7 +256,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_mha_pattern)
                              |
                          Transpose
                              |
-                          Reshape
+                          Reshape (optional)
                              |
                           Quantize
                              |
@@ -320,8 +320,21 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
                     auto transpose_output = pgraph->append_op(
                             impl::op_kind::StaticTranspose,
                             {in_edge(0, matmul_v, 0)}, "transpose_output");
+
+                    auto optional_reshape_subgraph
+                            = std::make_shared<pb_graph_t>(
+                                    "optional_reshape_subgraph");
+                    auto optional_reshape
+                            = optional_reshape_subgraph->append_op(
+                                    impl::op_kind::StaticReshape,
+                                    "optional_reshape");
+                    optional_reshape_subgraph->create_input_port(
+                            0, optional_reshape, 0);
+                    optional_reshape_subgraph->create_output_port(
+                            0, optional_reshape, 0);
+
                     auto reshape_output
-                            = pgraph->append_op(impl::op_kind::StaticReshape,
+                            = pgraph->append_optional(optional_reshape_subgraph,
                                     {in_edge(0, transpose_output, 0)},
                                     "reshape_output");
                     pgraph->append_op(impl::op_kind::Quantize,
