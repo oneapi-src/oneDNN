@@ -319,6 +319,7 @@ compiler_compiled_partition_impl_t::compiler_compiled_partition_impl_t(
     , graph_engine_(graph_engine) {
     std::lock_guard<std::mutex> lock(mtx_);
     partition_count_map[graph_engine_]++;
+    graph_engine_->allocator_->retain();
 }
 
 compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {
@@ -330,6 +331,8 @@ compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {
             sc::release_runtime_memory(graph_engine_.get());
         }
     }
+    jit_func_ = nullptr;
+    graph_engine_->allocator_->release();
 }
 
 impl::status_t compiler_compiled_partition_impl_t::execute(
