@@ -300,6 +300,12 @@ uint64_t init_extensions(const ::sycl::device &dev) {
         if (s_ext && dev.has_extension(s_ext)) { extensions |= i_ext; }
     }
 #else
+
+// The compiler marks `int64_base_atomics` and `int64_extended_atomics`
+// as deprecated but hasn't implemented the `aspect::atomic64` replacement yet.
+// TODO: Replace the deprecated aspects once the replacement is implemented.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     for (uint64_t i_ext = 1; i_ext < (uint64_t)device_ext_t::last;
             i_ext <<= 1) {
         bool is_ext_supported = false;
@@ -313,10 +319,13 @@ uint64_t init_extensions(const ::sycl::device &dev) {
             case device_ext_t::khr_global_int32_base_atomics:
             case device_ext_t::khr_local_int32_base_atomics:
             case device_ext_t::khr_int64_base_atomics:
+                is_ext_supported = dev.has(::sycl::aspect::int64_base_atomics);
+                break;
             case device_ext_t::khr_global_int32_extended_atomics:
             case device_ext_t::khr_local_int32_extended_atomics:
             case device_ext_t::khr_int64_extended_atomics:
-                is_ext_supported = dev.has(::sycl::aspect::atomic64);
+                is_ext_supported
+                        = dev.has(::sycl::aspect::int64_extended_atomics);
                 break;
             // SYCL 2020 assumes that subroups are always supported.
             case device_ext_t::intel_subgroups:
@@ -332,6 +341,8 @@ uint64_t init_extensions(const ::sycl::device &dev) {
         }
         if (is_ext_supported) extensions |= i_ext;
     }
+#pragma clang diagnostic pop
+
 #endif
     return extensions;
 }
