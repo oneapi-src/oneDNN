@@ -239,11 +239,17 @@ TEST_P(sycl_engine_test, SubDevice) {
             param.expected_status != dnnl_success, param.expected_status);
 }
 
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
-TEST_P(sycl_engine_test, gpu_only) {
-    device dev(cpu_selector {});
-    context ctx(dev);
-    EXPECT_ANY_THROW(sycl_interop::make_engine(dev, ctx));
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+TEST_P(sycl_engine_test, non_sycl_cpu_runtime) {
+    try {
+        device dev(cpu_selector {});
+        context ctx(dev);
+        EXPECT_ANY_THROW(sycl_interop::make_engine(dev, ctx));
+    } catch (::sycl::exception &e) {
+        SKIP_IF(true,
+                "Skip this test as CPU device couldn't be created, probably "
+                "due to a missing CPU OpenCL or TBB");
+    }
 }
 #endif
 
