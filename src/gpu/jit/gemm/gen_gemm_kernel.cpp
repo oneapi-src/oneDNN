@@ -163,14 +163,6 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
                     / std::max<int>({problem_.Ta.size(), problem_.Tb.size(),
                             problem_.Tc.size()}));
 
-    strategy_.remHandling[LoopM] = problem_.A.padded
-            ? RemainderHandling::General
-            : RemainderHandling::Split;
-    strategy_.remHandling[LoopN] = problem_.B.padded
-            ? RemainderHandling::General
-            : RemainderHandling::Split;
-    strategy_.remHandling[LoopK] = RemainderHandling::General;
-
     char asA, asB, asC, accessA, accessB, accessC, eat;
     char accessAPrefetch = 's', accessBPrefetch = 's', accessCPrefetch = 's';
 
@@ -379,6 +371,14 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
             }
         }
     }
+
+    strategy_.remHandling[LoopM] = problem_.A.padded
+            ? RemainderHandling::General
+            : RemainderHandling::Split;
+    strategy_.remHandling[LoopN] = problem_.B.padded
+            ? RemainderHandling::General
+            : RemainderHandling::Split;
+    strategy_.remHandling[LoopK] = RemainderHandling::General;
 
     if (is_block_2d(strategy_.A.accessType)
             && (!strategy_.prefetchA
