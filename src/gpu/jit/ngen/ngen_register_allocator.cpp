@@ -209,7 +209,7 @@ void RegisterAllocator::setRegisterCount(int rcount)
 int RegisterAllocator::countAllocedRegisters() const {
 
    int register_count = 0;
-   int group_size = sizeof(this->free_whole[0]);
+   int group_size = 8 * sizeof(this->free_whole[0]);
    int register_groups = this->reg_count / group_size;
    for (int group = 0; group < register_groups; group++) {
        for (int subgroup = 0; subgroup < group_size; subgroup++) {
