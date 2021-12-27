@@ -39,6 +39,7 @@ struct thread_local_buffer {
     // if the current thread is a worker thread, use this pool
     memory_pool::filo_memory_pool_t thread_memory_pool {
             memory_pool::threadlocal_chunk_size};
+    ~thread_local_buffer();
 };
 
 extern thread_local thread_local_buffer tls_buffer;

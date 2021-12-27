@@ -25,16 +25,16 @@
 
 namespace sc {
 
-expr relu_op_t::compute_element(expr in) {
+expr relu_op_t::compute_element(expr in, int mask_count, float mask_value) {
     return builder::make_max(
             in, make_expr<constant_node>((int64_t)0, in->dtype_));
 }
 
-expr round_op_t::compute_element(expr in) {
+expr round_op_t::compute_element(expr in, int mask_count, float mask_value) {
     return builder::make_round(in);
 }
 
-expr sigmoid_op_t::compute_element(expr in) {
+expr sigmoid_op_t::compute_element(expr in, int mask_count, float mask_value) {
     auto bld = builder::get_current_builder();
     // constants
     auto lanes = in->dtype_.lanes_;
@@ -64,11 +64,11 @@ expr sigmoid_op_t::compute_element(expr in) {
     return builder::make_div(f_one, f_one + f_exp_neg_x);
 }
 
-expr exp_op_t::compute_element(expr in) {
-    return builder::make_exp(in);
+expr exp_op_t::compute_element(expr in, int mask_count, float mask_value) {
+    return builder::make_exp(in, mask_count);
 }
 
-expr tanh_op_t::compute_element(expr in) {
+expr tanh_op_t::compute_element(expr in, int mask_count, float mask_value) {
     auto lanes = in->dtype_.lanes_;
 #define DECL_VEC_CONSTANT(name, dtype, value) \
     expr name = make_expr<constant_node>(value, sc_data_type_t::dtype(lanes));
@@ -130,7 +130,7 @@ expr tanh_op_t::compute_element(expr in) {
 #undef DECL_VAR
 }
 
-expr erf_op_t::compute_element(expr in) {
+expr erf_op_t::compute_element(expr in, int mask_count, float mask_value) {
     auto lanes = in->dtype_.lanes_;
 
     auto bld = builder::get_current_builder();
@@ -191,7 +191,8 @@ expr erf_op_t::compute_element(expr in) {
             sc_data_type_t::f32(lanes));
 }
 
-expr squared_root_op_t::compute_element(expr in) {
+expr squared_root_op_t::compute_element(
+        expr in, int mask_count, float mask_value) {
     if (reciprocal_) { return builder::make_rsqrt(in); }
     return builder::make_sqrt(in);
 }
@@ -214,14 +215,14 @@ cast_op_t::cast_op_t(
     info_.tensor_share_info_.clear();
 }
 
-expr cast_op_t::compute_element(expr in) {
+expr cast_op_t::compute_element(expr in, int mask_count, float mask_value) {
     sc_data_type_t vectorize_out_dtype = dtype_;
     vectorize_out_dtype.lanes_ = in->dtype_.lanes_;
     return saturated_ ? builder::make_saturated_cast(in, vectorize_out_dtype)
                       : builder::make_cast(vectorize_out_dtype, in);
 }
 
-expr clamp_op_t::compute_element(expr in) {
+expr clamp_op_t::compute_element(expr in, int mask_count, float mask_value) {
     auto dtype = in->dtype_;
     COMPILE_ASSERT(dtype.type_code_ == sc_data_etype::F32,
             "clamp_op_t currently only supports fp32");

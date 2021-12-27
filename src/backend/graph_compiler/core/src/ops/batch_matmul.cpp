@@ -66,6 +66,8 @@ batch_matmul_op_t::batch_matmul_op_t(const std::vector<graph_tensor_ptr> &ins,
                         == expected_out_shape,
                 "Bad out dims");
     }
+    // record padded_K of input A for BMM
+    attrs_["temp.padded_A_K"] = std::make_shared<VConst>();
 }
 
 body_generator_ptr batch_matmul_op_t::create_generator() {
@@ -142,6 +144,11 @@ void batch_matmul_op_t::query_format(context_ptr ctx,
         out_formats.push_back(
                 {sc_data_format_t(format_kinds::ACBDcd, {M_block, N_block})});
     }
+    // To calculate padded K of input A
+    auto pad_K_num = utils::divide_and_ceil(
+            info_.inputs_[0]->details_.get_plain_dims().back(), K_block);
+    attrs_["temp.padded_A_K"].get<std::shared_ptr<VConst>>()->var_
+            = pad_K_num * K_block;
 }
 
 sc_op_ptr batch_matmul_op_t::do_compensations(
@@ -328,13 +335,17 @@ sc_op_ptr batch_matmul_op_t::get_constant_compensation(sc_graph_t &mgr) {
             info_.inputs_[0]->details_.get_plain_dims().size() - 1);
 
     int K = static_cast<int>(K_orig);
+    COMPILE_ASSERT(attrs_.has_key("temp.padded_A_K"),
+            "No related VConst set, which maybe cause correctness error")
     auto constant_node = mgr.make("constant", {}, {},
             {{"values",
                      std::make_shared<static_data_t>(std::vector<int> {
                              data_zero_points[0] * weight_zero_points[0] * K})},
                     {"dtype", datatypes::s32}, {"plain_dims", sc_dims {1}},
-                    {"format", sc_data_format_t()}});
-
+                    {"format", sc_data_format_t()},
+                    {"temp.val/var",
+                            data_zero_points[0] * weight_zero_points[0]},
+                    {"temp.var", attrs_["temp.padded_A_K"]}});
     return constant_node;
 }
 

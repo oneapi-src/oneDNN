@@ -373,9 +373,10 @@ expr make_ceil(const expr_c &v);
 /**
  * Makes an exp node
  * @param v the input value
+ * @param mask the mask count
  * @return the created node
  * */
-expr make_exp(const expr_c &v);
+expr make_exp(const expr_c &v, int mask = -1);
 
 /**
  * Makes an sqrt node

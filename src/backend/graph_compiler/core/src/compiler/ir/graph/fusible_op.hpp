@@ -287,6 +287,20 @@ public:
     bool compare_contents(const sc_op *other) const override;
     size_t hash_contents() const override;
 
+    // if necessary, reset const_values according possible `var` from attrs
+    void reset_const_values() {
+        if (attrs_.has_key("temp.var") && attrs_.has_key("temp.val/var")) {
+            int K = static_cast<int>(
+                    attrs_.get<std::shared_ptr<VConst>>("temp.var")->var_);
+            int base_val = attrs_.get<int>("temp.val/var");
+            // update private member
+            const_values_ = std::make_shared<static_data_t>(
+                    std::vector<int> {base_val * K});
+            // update attr
+            attrs_.set("values", const_values_);
+        }
+    }
+
 private:
     std::shared_ptr<static_data_t> const_values_;
 };
@@ -448,7 +462,7 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     vectorized_info_t &get_vx_info() { return vx_info_; }
 
-    virtual expr compute_element(expr in) = 0;
+    virtual expr compute_element(expr in, int mask_count, float mask_value) = 0;
 
 private:
     vectorized_info_t vx_info_;

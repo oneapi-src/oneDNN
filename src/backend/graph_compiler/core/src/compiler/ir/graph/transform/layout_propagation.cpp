@@ -205,5 +205,15 @@ SC_INTERNAL_API void layout_propagation(
             }
         }
     });
+
+    // it should be refactor to one standalone pass to finally fix constant
+    // value
+    auto vis2 = op_visitor_t::bfs();
+    vis2.visit_graph(graph, [&](const sc_op_ptr &node) {
+        if (node->isa<constant_op_t>() && node->attrs_.has_key("temp.var")) {
+            auto const_op = node->dyn_cast<constant_op_t>();
+            const_op->reset_const_values();
+        }
+    });
 }
 } // namespace sc
