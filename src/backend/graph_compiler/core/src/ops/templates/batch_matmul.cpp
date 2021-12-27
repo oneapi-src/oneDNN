@@ -165,8 +165,8 @@ std::shared_ptr<void> gen_batch_matmul_t::get_default_config(
     } else {
       cfg.N_block = pad32_N >= pad64_N ? 64 : 32;
     }
+    if (N < 32) { cfg.N_block = 16; }
   }
-
   cfg.num_tile_k = 1;
   validate_cfg(cfg, is_amx, get_in_dtypes(0));
   return ret;

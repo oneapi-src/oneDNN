@@ -46,6 +46,8 @@ static std::vector<expr> make_args_by_intrinsic(const intrin_call_c &node) {
 static std::string get_exp_func_name(const intrin_call_c &node) {
     std::stringstream ss;
     ss << "_should_inline_exp_" << node->dtype_;
+    auto mask = node->intrin_attrs_->get_or_else("mask_count", -1);
+    if (mask >= 0) { ss << "_" << mask; }
     return ss.str();
 }
 
@@ -147,6 +149,17 @@ static func_t create_isnan_func(const intrin_call_c &node) {
 static func_t create_exp_func(const intrin_call_c &node) {
     auto type = node->dtype_;
     uint32_t elements = type.lanes_;
+    int mask = node->intrin_attrs_->get_or_else("mask_count", -1);
+    expr mask_vec;
+    if (mask > 0) {
+        std::vector<union_val> mask_const(elements, 1.f);
+        for (uint32_t i = mask; i < elements; i++) {
+            mask_const[i] = 0.f;
+        }
+        mask_vec = make_expr<constant_node>(
+                mask_const, sc_data_type_t::f32(elements));
+    }
+
     auto ZERO = gen_vec_const(elements, 0.0f);
     auto ln2 = gen_vec_const(elements, 0.693147181f);
     auto one_over_ln2 = gen_vec_const(elements, 1.442695041f);
@@ -157,53 +170,64 @@ static func_t create_exp_func(const intrin_call_c &node) {
 
     builder::ir_builder_t builder;
     _function_(type, the_exp_func, make_args_by_intrinsic(node)) {
-        assert(node->args_.size() == 1);
-        // to avoid underflow
-        _bind_(inval);
-        expr l_min_mask = inval >= gen_vec_const(elements, -87.33f);
-        // to avoid overflow
+        if (mask == 0) {
+            _return_(ZERO);
+        } else {
+            assert(node->args_.size() == 1);
+            // to avoid underflow
+            _bind_(inval);
+            expr l_min_mask = inval >= gen_vec_const(elements, -87.33f);
+            // to avoid overflow
 
-        _var_(a_, type);
-        a_ = builder::make_min(inval, gen_vec_const(elements, 88.60f));
-        // TODO(xxx): currenly clip the input if the value is larger than
-        // the upper limit to prevent overflow
+            _var_(a_, type);
+            a_ = builder::make_min(inval, gen_vec_const(elements, 88.60f));
+            // TODO(xxx): currenly clip the input if the value is larger than
+            // the upper limit to prevent overflow
 
-        // e^x = 2^k_int * e^r
-        _var_(k_float, type);
-        k_float = builder::make_floor(
-                a_ * one_over_ln2); // k_float = floor(x / ln2)
-        _var_(k_int, ty_epi_32);
-        k_int = builder::make_cast(ty_epi_32, k_float); // k_int = int(k_float)
+            // e^x = 2^k_int * e^r
+            _var_(k_float, type);
+            k_float = builder::make_floor(
+                    a_ * one_over_ln2); // k_float = floor(x / ln2)
+            _var_(k_int, ty_epi_32);
+            k_int = builder::make_cast(
+                    ty_epi_32, k_float); // k_int = int(k_float)
 
-        _var_(r, type);
-        r = a_ - k_float * ln2; // r = x - k_float * ln2
+            _var_(r, type);
+            r = a_ - k_float * ln2; // r = x - k_float * ln2
 
-        expr table[7];
-        table[6] = gen_vec_const(elements, 0.142857143f);
-        table[5] = gen_vec_const(elements, 0.166666667f);
-        table[4] = gen_vec_const(elements, 0.2f);
-        table[3] = gen_vec_const(elements, 0.25f);
-        table[2] = gen_vec_const(elements, 0.333333333f);
-        table[1] = gen_vec_const(elements, 0.5f);
-        table[0] = ONE_f;
-        // Calculate e^r (Tn)
+            expr table[7];
+            table[6] = gen_vec_const(elements, 0.142857143f);
+            table[5] = gen_vec_const(elements, 0.166666667f);
+            table[4] = gen_vec_const(elements, 0.2f);
+            table[3] = gen_vec_const(elements, 0.25f);
+            table[2] = gen_vec_const(elements, 0.333333333f);
+            table[1] = gen_vec_const(elements, 0.5f);
+            table[0] = ONE_f;
+            // Calculate e^r (Tn)
 
-        _var_(Tn, type);
-        Tn = ONE_f;
-        for (auto loop = 6; loop > 0; loop--) {
-            // Tn = Tn * (r / i) + 1
-            Tn = builder::make_fmadd(Tn, r * table[loop - 1], ONE_f);
+            _var_(Tn, type);
+            Tn = ONE_f;
+            for (auto loop = 6; loop > 0; loop--) {
+                // Tn = Tn * (r / i) + 1
+                Tn = builder::make_fmadd(Tn, r * table[loop - 1], ONE_f);
+            }
+
+            // 2^k_int, shift to exponent bits position
+            auto const_23 = make_expr<constant_node>(
+                    INT64_C(23), sc_data_type_t::s32(elements));
+            auto p = k_int << const_23;
+
+            _var_(tmp_s32, ty_epi_32);
+            tmp_s32 = p + builder::make_reinterpret(Tn, ty_epi_32);
+            _var_(result, type);
+            result = builder::make_select(
+                    l_min_mask, builder::make_reinterpret(tmp_s32, type), ZERO);
+            if (mask > 0 && mask < static_cast<int>(elements)) {
+                _return_(builder::make_select(mask_vec > ZERO, result, ZERO));
+            } else {
+                _return_(result);
+            }
         }
-
-        // 2^k_int, shift to exponent bits position
-        auto const_23 = make_expr<constant_node>(
-                INT64_C(23), sc_data_type_t::s32(elements));
-        auto p = k_int << const_23;
-
-        _var_(result, ty_epi_32);
-        result = p + builder::make_reinterpret(Tn, ty_epi_32);
-        _return_(builder::make_select(
-                l_min_mask, builder::make_reinterpret(result, type), ZERO));
     }
     std::string fixed_name = get_exp_func_name(node);
     the_exp_func->name_ = fixed_name;

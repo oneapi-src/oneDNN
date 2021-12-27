@@ -21,11 +21,13 @@
 #include <vector>
 #include <compiler/ir/graph/fusible_op.hpp>
 
+#define DECLARE_COMPUTE_ELEMENT() \
+    expr compute_element(expr in, int mask_count, float mask_value) override;
+
 namespace sc {
 class relu_op_t : public unary_elementwise_op_t {
 public:
-    expr compute_element(expr in) override;
-
+    DECLARE_COMPUTE_ELEMENT();
     relu_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : unary_elementwise_op_t("relu", ins, outs, attrs) {}
@@ -36,7 +38,7 @@ public:
 
 class round_op_t : public unary_elementwise_op_t {
 public:
-    expr compute_element(expr in) override;
+    DECLARE_COMPUTE_ELEMENT();
 
     round_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
@@ -49,7 +51,7 @@ public:
 
 class sigmoid_op_t : public unary_elementwise_op_t {
 public:
-    expr compute_element(expr in) override;
+    DECLARE_COMPUTE_ELEMENT();
 
     sigmoid_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
@@ -60,7 +62,7 @@ public:
 
 class exp_op_t : public unary_elementwise_op_t {
 public:
-    expr compute_element(expr in) override;
+    DECLARE_COMPUTE_ELEMENT();
     exp_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : unary_elementwise_op_t("exp", ins, outs, attrs) {}
@@ -70,7 +72,7 @@ public:
 
 class tanh_op_t : public unary_elementwise_op_t {
 public:
-    expr compute_element(expr in) override;
+    DECLARE_COMPUTE_ELEMENT();
     tanh_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : unary_elementwise_op_t("tanh", ins, outs, attrs) {}
@@ -80,7 +82,7 @@ public:
 
 class erf_op_t : public unary_elementwise_op_t {
 public:
-    expr compute_element(expr in) override;
+    DECLARE_COMPUTE_ELEMENT();
     erf_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : unary_elementwise_op_t("erf", ins, outs, attrs) {}
@@ -91,7 +93,7 @@ public:
 // squared_root: sqrt(x)
 class squared_root_op_t : public unary_elementwise_op_t {
 public:
-    expr compute_element(expr in) override;
+    DECLARE_COMPUTE_ELEMENT();
 
     squared_root_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
@@ -109,7 +111,7 @@ private:
 
 class cast_op_t : public unary_elementwise_op_t {
 public:
-    expr compute_element(expr in) override;
+    DECLARE_COMPUTE_ELEMENT();
 
     cast_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
@@ -123,7 +125,7 @@ private:
 
 class clamp_op_t : public unary_elementwise_op_t {
 public:
-    expr compute_element(expr in) override;
+    DECLARE_COMPUTE_ELEMENT();
 
     clamp_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)

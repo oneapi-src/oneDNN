@@ -298,9 +298,10 @@ expr make_ceil(const expr_c &v) {
             std::vector<expr> {v.remove_const()}, any_map_t());
 }
 
-expr make_exp(const expr_c &v) {
+expr make_exp(const expr_c &v, int mask_count) {
     return make_expr<intrin_call_node>(intrin_type::exp,
-            std::vector<expr> {v.remove_const()}, any_map_t());
+            std::vector<expr> {v.remove_const()},
+            any_map_t({{"mask_count", mask_count}}));
 }
 
 expr make_sqrt(const expr_c &v) {

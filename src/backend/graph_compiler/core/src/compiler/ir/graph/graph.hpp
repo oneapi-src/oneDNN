@@ -49,6 +49,17 @@ struct fusion_anchor_data;
 struct tensor_slice;
 struct fusion_data;
 
+/** VConst struct record possible varible in constant value, e.g.
+ *
+ *   const int a = k * b;
+ *
+ *  where `k` maybe variable related on other factor such as blocking dims.
+ * */
+struct VConst {
+    // variable value
+    int64_t var_;
+};
+
 // a weak pointer which always asserts the object exists
 struct sc_op_weak_ptr_t : public std::weak_ptr<sc_op> {
     using parent = std::weak_ptr<sc_op>;

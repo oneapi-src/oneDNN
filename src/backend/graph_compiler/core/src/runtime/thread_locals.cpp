@@ -20,18 +20,26 @@
 
 namespace sc {
 
+thread_local static bool tls_alive = true;
 SC_API void release_runtime_memory(runtime::engine *engine) {
     sc_parallel_call_cpu_with_env_impl(
             [](void *v1, void *v2, int64_t i, generic_val *args) {
-                runtime::tls_buffer.main_memory_pool.release();
-                runtime::tls_buffer.thread_memory_pool.release();
-                runtime::tls_buffer.amx_buffer.release();
+                if (tls_alive) {
+                    runtime::tls_buffer.main_memory_pool.release();
+                    runtime::tls_buffer.thread_memory_pool.release();
+                    runtime::tls_buffer.amx_buffer.release();
+                }
             },
             nullptr, nullptr, 0, runtime_config_t::get().threads_per_instance_,
             1, nullptr);
 }
 
 namespace runtime {
+
+thread_local_buffer::~thread_local_buffer() {
+    tls_alive = false;
+}
+
 thread_local thread_local_buffer tls_buffer;
 
 } // namespace runtime
