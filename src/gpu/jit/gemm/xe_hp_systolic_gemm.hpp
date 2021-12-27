@@ -84,8 +84,9 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         }
 
         int bias_cmask() const {
-            unsigned char to_cmask[4] = {0, 2, 1, 3};
-            return with_bias() ? to_cmask[(desc()->bias_mask() >> 1) & 3] : -1;
+            unsigned char to_cmask[8] = {0, 4, 2, 6, 1, 5, 3, 7};
+            assert(unsigned(desc()->bias_mask()) < 8);
+            return with_bias() ? to_cmask[desc()->bias_mask() & 7] : -1;
         }
 
         bool packed_a() const { return packed_a_; }
