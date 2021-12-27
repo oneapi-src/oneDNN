@@ -2,7 +2,7 @@
 
 @warning This tutorial is deprecated due to the programming model changes and
 will be removed soon, please refer to
-[sycl_simple_pattern.cpp](../../examples/cpp/src/sycl_simple_pattern.cpp) for
+[sycl_simple_pattern.cpp](../../tests/demo/src/sycl_simple_pattern.cpp) for
 latest version.
 
 This is an example to demonstrate how to build a simple graph and run on CPU/GPU
@@ -20,7 +20,7 @@ model. For example, users need to know how many inputs/outputs of a self-defined
 pattern or partition.
 
 The full example code can be found at
-[sycl_get_started.cpp](../../examples/cpp/src/sycl_get_started.cpp).
+[sycl_get_started.cpp](../../examples/cpp/sycl_get_started.cpp).
 
 ## Public headers
 
@@ -100,7 +100,7 @@ op relu0(2, op::kind::ReLU, {conv0_bias_add_dst_desc}, {relu0_dst_desc}, "relu0"
 ~~~
 
 The creations of rest operators is as similar as above, please find the [example
-code](../../examples/cpp/src/sycl_get_started.cpp#L141) for details.
+code](../../examples/cpp/sycl_get_started.cpp) for details.
 
 After all those operators are created, users can add these ops into the graph.
 
@@ -114,7 +114,7 @@ g.add_op(conv1_bias_add);
 ~~~
 
 Then by calling
-[`get_partitions()`](../../include/oneapi/dnnl/dnnl_graph.hpp#L1287), users can
+[`get_partitions()`](../../include/oneapi/dnnl/dnnl_graph.hpp#L1284), users can
 get several partitions. In this example, there should be two partitions:
 `conv0+relu0` and `conv1+relu1`.
 
@@ -205,7 +205,7 @@ auto relu1_dst_data = (float *)malloc_shared(static_cast<size_t>(product(dst1_di
 ~~~
 
 Before the execution, users also need to bind the logical tensor and memory
-buffer to [dnnl::graph::tensor](../../include/oneapi/dnnl/dnnl_graph.hpp#L542).
+buffer to [dnnl::graph::tensor](../../include/oneapi/dnnl/dnnl_graph.hpp#L581).
 
 ~~~cpp
 tensor conv0_src(conv0_src_desc_plain, eng, conv0_src_data);

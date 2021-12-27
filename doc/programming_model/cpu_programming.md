@@ -20,7 +20,7 @@ example code can be found at
 ### Create tensor mapping
 
 In order to provide a running context, a new class named
-[tensor_map](../../tests/demo/include/common/execution_context.hpp#L36) is
+[tensor_map](../../tests/demo/include/common/execution_context.hpp#L53) is
 being introduced in this example. A tensor map will be responsible for holding
 all the tensors that will be used in the users' program. it contains the mapping
 from an unique logical tensor id to the corresponding tensor.
@@ -74,7 +74,7 @@ logical_tensor conv_bias_lt {id_mgr["conv_bias"], data_type::f32, bias_dims, lay
 logical_tensor conv_dst_lt {id_mgr["dst_dims"], data_type::f32, dst_dims, layout_type::strided};
 ~~~
 
-Here [`id_mgr`](../../tests/demo/include/common/utils.hpp#135) is a utility
+Here [`id_mgr`](../../tests/demo/include/common/utils.hpp#L135) is a utility
 class to generate unique id according to the given name. It requires the 1:1
 mapping between id and the given name.
 
@@ -134,7 +134,7 @@ g.add_op(end_1);
 ~~~
 
 Then by calling
-[`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1273), users can get
+[`get_partitions()`](../../include/oneapi/dnnl/dnnl_graph.hpp#L1284), users can get
 several partitions in topological order.
 
 ~~~cpp
@@ -168,7 +168,7 @@ flag is True, that partition is supported by oneDNN Graph backend. Otherwise,
 that partition is not supported by oneDNN Graph backend and users need to handle
 the computation by themselves.
 
-- [`is_supported()`](../../include/oneapi/dnnl/dnnl_graph.hpp#L1138)
+- [`is_supported()`](../../include/oneapi/dnnl/dnnl_graph.hpp#L1149)
 
 ~~~cpp
 // create the vector to store all compiled partitions
