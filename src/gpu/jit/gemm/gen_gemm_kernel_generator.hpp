@@ -51,6 +51,8 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+struct RegisterBlock;
+
 class Type {
 public:
     enum _Type : uint32_t {
@@ -191,6 +193,9 @@ struct GRFMultirange {
         return result;
     }
 
+    GRFMultirange subrange(
+            ngen::HW hw, Type T, const RegisterBlock &block) const;
+
     bool contiguous(int start, int count) const {
         for (auto &r : ranges) {
             if (start < r.getLen()) return (start + count) <= r.getLen();
@@ -224,6 +229,7 @@ struct GRFMultirange {
     }
 
     bool empty() const { return ranges.empty(); }
+    void clear() { ranges.clear(); }
 };
 
 // A pair of Subregisters in opposite banks.
@@ -539,6 +545,7 @@ struct RegisterBlock {
     int offsetReg() const;
 
     void simplify(Type T);
+    void compact(Type T);
 };
 
 struct VirtualFlagAllocator {
@@ -725,7 +732,6 @@ struct GEMMProblem : public CommonProblem {
     Scalar<double> alpha_real, alpha_imag; // Alpha value, if fixed.
     Scalar<double> beta_real, beta_imag; // Beta value, if fixed.
     MatrixAddressing A, B, C, CO; // Addressing information for matrices.
-    bool kPositive = false; // Can we assume k > 0?
     bool backward = false; // If true, k loop is backwards.
     bool checkBeta0 = true; // If true, check for beta = 0 and handle specially.
     LoopType fusedLoop = LoopM; // Direction of fusing if threads fused.
@@ -979,7 +985,7 @@ struct GEMMState : public CommonState {
     ngen::Subregister persistentGroupID; // ud
     ngen::Subregister batchID[2]; // ud
     ngen::Subregister offsetA, offsetB, offsetC[2];
-    ngen::Subregister offsetAp, offsetBp;
+    ngen::Subregister offsetAp, offsetBp, offsetCp;
     ngen::Subregister offsetCO;
     ngen::Subregister saveOffsetA, saveOffsetB, saveOffsetC[2];
     ngen::Subregister saveOffsetCO;
@@ -987,7 +993,7 @@ struct GEMMState : public CommonState {
             effCO; // Offsets to base of A/B/C/CO chunks for loading/storing.
     ngen::Subregister effAi, effBi;
     ngen::Subregister effAo, effBo;
-    ngen::Subregister effAp, effBp;
+    ngen::Subregister effAp, effBp, effCp;
     ngen::Subregister effAs, effBs;
     std::vector<ngen::GRFRange> A_addrs, B_addrs, C_addrs[2];
     std::vector<ngen::GRFRange> Ai_addrs, Bi_addrs;
@@ -1217,6 +1223,8 @@ public:
 
     static CommonDriverInfo driverInfo(
             const GEMMProblem &problem, const GEMMStrategy &strategy);
+    static CommonDriverInfo driverInfo(const GEMMSuperkernelProblem &problem,
+            const GEMMStrategy &strategy);
     static CommonDriverInfo driverInfo(
             const CopyProblem &problem, const CopyStrategy &strategy);
 
@@ -1976,6 +1984,10 @@ protected:
     bool gemmPrepMaskedAB(const GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state);
 
+    void gemmCalcKLoopBarrierCount(ngen::Subregister &count,
+            const ngen::Subregister &k, int peelK, const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state,
+            bool relative = true);
     bool gemmKLoop(int ka_repack, int kb_repack, bool lateKLoopCheck,
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     bool gemmKLoopDispatch(int ka_repack, int kb_repack, bool lateKLoopCheck,
