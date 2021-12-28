@@ -58,7 +58,6 @@ private:
     reg64_t reg_kh = r15;
     reg64_t iter_kh = rax;
     reg64_t reg_oi = rbx;
-    reg64_t aux_reg_ch_blocks = rdx;
 
     reg64_t reg_tmp = reg_ch_blocks;
 

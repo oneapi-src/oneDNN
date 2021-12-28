@@ -403,7 +403,8 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
     const bool masked_ch_block_tail = jcp.oc % jcp.ch_block != 0;
     const bool ch_loop = ur_ch_blocks > jcp.nb_ch_blocking;
 
-    mov(aux_reg_ch_blocks, reg_ch_blocks);
+    push(reg_ch_blocks);
+
     if (ch_loop) {
         Label ch_loop_label, ch_tail_label, skip_ch_tail_label;
         const int nb_ch = jcp.oc / jcp.ch_block;
@@ -418,7 +419,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
 
         if (nb_ch >= jcp.nb_ch_blocking) {
             if (nb_ch_blocking_tail) {
-                cmp(aux_reg_ch_blocks, ch_step);
+                cmp(reg_ch_blocks, ch_step);
                 jl(ch_tail_label, T_NEAR);
             }
 
@@ -429,15 +430,15 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
                 add(reg_input, inp_ch_stride);
                 add(reg_output, out_ch_stride);
                 if (jcp.with_bias) add(reg_bias, bias_stride);
-                sub(aux_reg_ch_blocks, ch_step);
-                cmp(aux_reg_ch_blocks, ch_step);
+                sub(reg_ch_blocks, ch_step);
+                cmp(reg_ch_blocks, ch_step);
                 jge(ch_loop_label, T_NEAR);
             }
         }
         if (nb_ch_blocking_tail) {
             // ch work range [1, jcp.nb_ch_blocking * ch_block)
             L(ch_tail_label);
-            cmp(aux_reg_ch_blocks, 0);
+            cmp(reg_ch_blocks, 0);
             jle(skip_ch_tail_label, T_NEAR);
             compute(nb_ch_blocking_tail, masked_ch_block_tail);
             L(skip_ch_tail_label);
@@ -450,6 +451,8 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
     } else {
         compute(ur_ch_blocks, masked_ch_block_tail);
     }
+
+    pop(reg_ch_blocks);
 }
 
 void jit_avx512_dw_conv_fwd_kernel_bf16::loop_ow(int ur_ch_blocks) {
