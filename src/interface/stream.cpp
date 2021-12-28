@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
 
 status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
         stream_t **created_stream, const engine_t *engine, void *threadpool) {
-#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
     if (utils::any_null(created_stream, engine, threadpool)) {
         return status::invalid_argument;
     }
@@ -105,7 +105,7 @@ status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
 
 status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_get_threadpool(
         stream_t *astream, void **threadpool) {
-#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
     if (utils::any_null(astream, threadpool)) return status::invalid_argument;
     dnnl::graph::threadpool_interop::threadpool_iface *tp;
     auto status = astream->get_threadpool(&tp);

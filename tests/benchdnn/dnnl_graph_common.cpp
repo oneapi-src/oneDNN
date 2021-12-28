@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -407,7 +407,7 @@ int measure_perf(timer::timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
     if (is_bench_mode(PERF)) {
-#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
         dnnl::graph::stream stream
                 = dnnl::graph::threadpool_interop::make_stream(
                         ::benchdnnext::get_test_engine(),

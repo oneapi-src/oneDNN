@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -187,6 +187,23 @@ enable_testing()
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+
+# Add pre-processor definition for CPU runtime.
+message(STATUS "Compiling oneDNN Graph with CPU runtime ${DNNL_GRAPH_CPU_RUNTIME} support")
+
+if (DNNL_GRAPH_CPU_RUNTIME STREQUAL "SEQ")
+    add_definitions(-DDNNL_GRAPH_CPU_RUNTIME=1)
+elseif (DNNL_GRAPH_CPU_RUNTIME STREQUAL "OMP")
+    if (OpenMP_CXX_FOUND)
+        add_definitions(-DDNNL_GRAPH_CPU_RUNTIME=2)
+    else()
+        add_definitions(-DDNNL_GRAPH_CPU_RUNTIME=1)
+    endif()
+elseif (DNNL_GRAPH_CPU_RUNTIME STREQUAL "THREADPOOl")
+    add_definitions(-DDNNL_GRAPH_CPU_RUNTIME=8)
+elseif (DNNL_GRAPH_CPU_RUNTIME STREQUAL "DPCPP")
+    add_definitions(-DDNNL_GRAPH_CPU_RUNTIME=512)
+endif()
 
 add_subdirectory(src)
 add_subdirectory(tests)

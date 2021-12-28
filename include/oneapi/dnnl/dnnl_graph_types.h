@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -359,6 +359,24 @@ typedef struct {
     int patch; ///< Patch version
     const char *hash; ///< Git hash of the sources (may be absent)
 } dnnl_graph_version_t;
+
+/// No runtime (disabled)
+#define DNNL_GRAPH_RUNTIME_NONE 0u
+
+/// Sequential runtime (CPU only)
+#define DNNL_GRAPH_RUNTIME_SEQ 1u
+
+/// OpenMP runtime (CPU only)
+#define DNNL_GRAPH_RUNTIME_OMP 2u
+
+/// Threadpool runtime (CPU only)
+#define DNNL_GRAPH_RUNTIME_THREADPOOL 8u
+
+/// SYCL runtime
+#define DNNL_GRAPH_RUNTIME_SYCL 512u
+
+/// DPC++ runtime
+#define DNNL_GRAPH_RUNTIME_DPCPP DNNL_GRAPH_RUNTIME_SYCL
 
 /// @} dnnl_graph_api_service
 

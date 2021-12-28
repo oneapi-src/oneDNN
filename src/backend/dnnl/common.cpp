@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ const size_t DNNL_CPU_MEMALIGNMENT = 4096;
 const size_t DNNL_SYCL_MEMALIGNMENT = 16;
 #endif
 
-#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
 #include "dnnl_threadpool.hpp"
 #endif
 
@@ -144,7 +144,7 @@ dnnl::stream make_dnnl_stream(
 #ifdef DNNL_GRAPH_CPU_SYCL
         return dnnl::sycl_interop::make_stream(
                 p_engine, const_cast<cl::sycl::queue &>(g_stream.get_queue()));
-#elif DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#elif DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
         dnnl::graph::threadpool_interop::threadpool_iface *tp = nullptr;
         g_stream.get_threadpool(&tp);
         return dnnl::threadpool_interop::make_stream(p_engine,

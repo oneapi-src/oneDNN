@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ impl::stream_t &get_stream() {
         static cl::sycl::queue q {get_context(), get_device(),
                 cl::sycl::property::queue::in_order {}};
         static impl::stream_t strm {&get_engine(), q};
-#elif DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#elif DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
         static impl::stream_t strm {
                 &get_engine(), dnnl::graph::testing::get_threadpool()};
 #else
