@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -122,9 +122,6 @@ set(DNNL_GRAPH_TEST_SET "CI" CACHE STRING
 if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "DPCPP")
     set(DNNL_GRAPH_CPU_SYCL true)
     add_definitions(-DDNNL_GRAPH_CPU_SYCL)
-elseif(DNNL_GRAPH_CPU_RUNTIME STREQUAL "THREADPOOL")
-    message(STATUS "Compiling with RUNTIME THREADPOOL support")
-    add_definitions(-DDNNL_GRAPH_WITH_RUNTIME_THREADPOOL)
 endif()
 
 if(DNNL_GRAPH_GPU_RUNTIME STREQUAL "DPCPP")

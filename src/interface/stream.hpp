@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #include <CL/sycl.hpp>
 #endif
 
-#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
 #include "oneapi/dnnl/dnnl_graph_threadpool_iface.hpp"
 #endif
 struct dnnl_graph_thread_pool {
@@ -56,7 +56,7 @@ public:
     }
 #endif // DNNL_GRAPH_WITH_SYCL
 
-#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
     dnnl_graph_stream(const dnnl::graph::impl::engine_t *engine,
             dnnl::graph::threadpool_interop::threadpool_iface *threadpool,
             const dnnl::graph::impl::stream_attr_t *attr = nullptr)
@@ -97,7 +97,7 @@ private:
 #if DNNL_GRAPH_WITH_SYCL
     cl::sycl::queue queue_;
 #endif
-#if DNNL_GRAPH_WITH_RUNTIME_THREADPOOL
+#if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
     dnnl::graph::threadpool_interop::threadpool_iface *threadpool_ = nullptr;
 #endif
 };
