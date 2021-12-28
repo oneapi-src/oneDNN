@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ namespace compute {
 enum class gpu_arch_t {
     unknown,
     gen9,
+    gen11,
     xe_lp,
     xe_hp,
     xe_hpg,
@@ -46,6 +47,7 @@ static inline gpu_arch_t str2gpu_arch(const char *str) {
     if (!strcmp(STRINGIFY(_case), str)) return gpu_arch_t::_case
 
     CASE(gen9);
+    CASE(gen11);
     CASE(xe_lp);
     CASE(xe_hp);
     CASE(xe_hpg);

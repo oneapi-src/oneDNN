@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ static bool is_impl_optimal(conv_conf_t &conf, const convolution_desc_t &cd,
 
     switch (arch) {
         case compute::gpu_arch_t::gen9:
+        case compute::gpu_arch_t::gen11:
             score = blocks * utilization;
             if (score >= 128 && utilization >= 0.50) return true;
             return false;
@@ -86,14 +87,17 @@ static void fwd_compute_block_sizes(
     conf.wino_r = r;
     conf.tile_size = m + r - 1;
 
-    conf.vect_size = (arch == compute::gpu_arch_t::gen9)
+    const bool is_pre_gen12 = utils::one_of(
+            arch, compute::gpu_arch_t::gen9, compute::gpu_arch_t::gen11);
+
+    conf.vect_size = is_pre_gen12
             ? static_cast<int>(16 / types::data_type_size(conf.src_data_type))
             : 8;
     conf.oc_block = 16;
     conf.ic_block = nstl::min(conf.ic, 16);
     if (conf.src_data_type == data_type::f16)
         conf.wino_ic_block = 32;
-    else if (arch != compute::gpu_arch_t::gen9 && conf.ow * conf.oh <= 256)
+    else if (is_pre_gen12 && conf.ow * conf.oh <= 256)
         conf.wino_ic_block = 32;
     else
         conf.wino_ic_block = 16;

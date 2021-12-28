@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -356,9 +356,10 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
             return reorder_kernel_t::local16x16;
         }
         // W/A for assumed compiler bug: avoid using intel_sub_group_shuffle
-        // with SIMD16 on Gen11. Since Gen11 can't be distinguished using
-        // gpu_arch_t, just don't use this kernel at all.
-        if (true) { return reorder_kernel_t::transpose8x8; }
+        // with SIMD16 on Gen11.
+        if (dev_info->gpu_arch() == compute::gpu_arch_t::gen11) {
+            return reorder_kernel_t::transpose8x8;
+        }
         return reorder_kernel_t::transpose16x16;
     }
     if (matches_one_NxN_layout(src_mdw, dst_mdw, 8, conf.scale_mask)) {

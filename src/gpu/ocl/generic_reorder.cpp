@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -762,19 +762,12 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     if (conf.nelems == 0) { return status::success; }
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
-    auto arch = compute_engine->device_info()->gpu_arch();
-    switch (arch) {
-        // Theoretically, bursts should be at least big enough to span whole
-        // cache line and bigger bursts should give better perf as long as
-        // local mem capacity is not exceeded. However, all tests show that
-        // burst size 64 gives best performance regardless of cache line size.
-        case compute::gpu_arch_t::xe_lp:
-        case compute::gpu_arch_t::gen9:
-        default:
-            memlimit_bytes = 2048;
-            optimal_burst_bytes = 64;
-            break;
-    }
+    // Theoretically, bursts should be at least big enough to span whole
+    // cache line and bigger bursts should give better perf as long as
+    // local mem capacity is not exceeded. However, all tests show that
+    // burst size 64 gives best performance regardless of cache line size.
+    memlimit_bytes = 2048;
+    optimal_burst_bytes = 64;
 
     dim_t blocks[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
     int vect_size = 1;

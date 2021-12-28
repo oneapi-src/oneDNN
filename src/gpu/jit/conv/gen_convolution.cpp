@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ using namespace compute;
 static size_t icache_size(ngen::HW arch) {
     switch (arch) {
         case gpu_gen9: return 48 * 1024;
+        case gpu_gen11: return 48 * 1024;
         case gpu_xe_lp: return 48 * 1024;
         case gpu_xe_hp: return 48 * 1024;
         case gpu_xe_hpg: return 96 * 1024;
@@ -78,6 +79,7 @@ compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
         break;
     switch (arch) {
         REG_GEN9_ISA(CASE(gpu_gen9));
+        REG_GEN11_ISA(CASE(gpu_gen11));
         REG_XELP_ISA(CASE(gpu_xe_lp));
         REG_XEHP_ISA(CASE(gpu_xe_hp));
         REG_XEHPG_ISA(CASE(gpu_xe_hpg));
@@ -89,14 +91,15 @@ compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
 #ifdef GEN_CONV_DEBUG
     auto compute_engine = utils::downcast<compute_engine_t *>(engine);
     auto device_info = compute_engine->device_info();
-    gpu_gen_t actual_arch;
+    gpu_gen_t actual_arch = ngen::HW::Unknown;
     switch (device_info->gpu_arch()) {
         case gpu_arch_t::gen9: actual_arch = gpu_gen9; break;
+        case gpu_arch_t::gen11: actual_arch = gpu_gen11; break;
         case gpu_arch_t::xe_lp: actual_arch = gpu_xe_lp; break;
         case gpu_arch_t::xe_hp: actual_arch = gpu_xe_hp; break;
         case gpu_arch_t::xe_hpg: actual_arch = gpu_xe_hpg; break;
         case gpu_arch_t::xe_hpc: actual_arch = gpu_xe_hpc; break;
-        default: actual_arch = ngen::HW::Unknown; break;
+        case gpu_arch_t::unknown: actual_arch = ngen::HW::Unknown; break;
     }
     ir_assert(actual_arch == arch)
             << "Cannot emulate executing gpu_arch environment";

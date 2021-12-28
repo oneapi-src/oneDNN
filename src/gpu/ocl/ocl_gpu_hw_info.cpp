@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #include "gpu/ocl/ocl_gpu_hw_info.hpp"
 #include "gpu/jit/jit_generator.hpp"
+#include "gpu/jit/ngen_type_bridge.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -29,14 +30,8 @@ void init_gpu_hw_info(cl_device_id device, cl_context context,
     HW hw = HW::Unknown;
     jit::jit_generator<HW::Unknown>::detectHWInfo(
             context, device, hw, stepping_id);
-    switch (hw) {
-        case HW::Gen9: gpu_arch = compute::gpu_arch_t::gen9; break;
-        case HW::XeLP: gpu_arch = compute::gpu_arch_t::xe_lp; break;
-        case HW::XeHP: gpu_arch = compute::gpu_arch_t::xe_hp; break;
-        case HW::XeHPG: gpu_arch = compute::gpu_arch_t::xe_hpg; break;
-        case HW::XeHPC: gpu_arch = compute::gpu_arch_t::xe_hpc; break;
-        default: gpu_arch = compute::gpu_arch_t::unknown; break;
-    }
+
+    gpu_arch = jit::convert_ngen_arch_to_dnnl(hw);
 }
 
 } // namespace ocl

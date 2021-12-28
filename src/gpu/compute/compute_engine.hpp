@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,6 +95,9 @@ public:
 
     bool is_gen9() const {
         return device_info_->gpu_arch() == gpu_arch_t::gen9;
+    }
+    bool is_gen11() const {
+        return device_info_->gpu_arch() == gpu_arch_t::gen11;
     }
     bool is_xe_lp() const {
         return device_info_->gpu_arch() == gpu_arch_t::xe_lp;

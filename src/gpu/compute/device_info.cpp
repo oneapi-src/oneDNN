@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,6 +36,8 @@ uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
 
     uint64_t extensions = 0;
     switch (gpu_arch) {
+        case gpu_arch_t::gen9:
+        case gpu_arch_t::gen11: break;
         case gpu_arch_t::xe_hp:
         case gpu_arch_t::xe_hpg:
         case gpu_arch_t::xe_hpc:
@@ -51,7 +53,7 @@ uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
             extensions |= (uint64_t)device_ext_t::intel_subgroup_local_block_io;
             extensions |= (uint64_t)device_ext_t::intel_dot_accumulate;
             break;
-        default: break;
+        case gpu_arch_t::unknown: break;
     }
     return extensions;
 }
@@ -85,35 +87,40 @@ bool device_info_t::mayiuse_sub_group(int size) const {
 int device_info_t::max_eus_per_wg(gpu_arch_t gpu_arch) {
     switch (gpu_arch) {
         case gpu::compute::gpu_arch_t::gen9:
+        case gpu::compute::gpu_arch_t::gen11:
         case gpu::compute::gpu_arch_t::xe_hpc: return 8;
         case gpu::compute::gpu_arch_t::xe_lp:
         case gpu::compute::gpu_arch_t::xe_hp:
         case gpu::compute::gpu_arch_t::xe_hpg: return 16;
-        default: return 8;
+        case gpu::compute::gpu_arch_t::unknown: return 8;
     }
+    return 8;
 }
 
 int device_info_t::threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode) {
     switch (gpu_arch) {
         case gpu::compute::gpu_arch_t::gen9:
+        case gpu::compute::gpu_arch_t::gen11:
         case gpu::compute::gpu_arch_t::xe_lp: return 7;
         case gpu::compute::gpu_arch_t::xe_hp:
         case gpu::compute::gpu_arch_t::xe_hpg:
         case gpu::compute::gpu_arch_t::xe_hpc: return large_grf_mode ? 4 : 8;
-        default: return 7;
+        case gpu::compute::gpu_arch_t::unknown: return 7;
     }
+    return 7;
 }
 
 int device_info_t::max_slm_size_per_tg(
         gpu_arch_t gpu_arch, bool large_grf_mode) {
     int slm_size = 0; // SLM size per SS or DSS.
     switch (gpu_arch) {
-        case gpu::compute::gpu_arch_t::gen9: slm_size = (1 << 16); break;
+        case gpu::compute::gpu_arch_t::gen9:
+        case gpu::compute::gpu_arch_t::gen11: slm_size = (1 << 16); break;
         case gpu::compute::gpu_arch_t::xe_lp:
         case gpu::compute::gpu_arch_t::xe_hp:
         case gpu::compute::gpu_arch_t::xe_hpc:
         case gpu::compute::gpu_arch_t::xe_hpg: slm_size = (1 << 17); break;
-        default: assert(!"not expected");
+        case gpu::compute::gpu_arch_t::unknown: assert(!"not expected");
     }
     return slm_size / threads_per_eu(gpu_arch, large_grf_mode);
 }
