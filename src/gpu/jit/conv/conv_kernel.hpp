@@ -3472,18 +3472,20 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     }
 
     int grf_size = ngen::GRF::bytes(hw);
-    int src_stride_bytes = src_stride * ngen::getBytes(src_type);
-    int dst_stride_bytes = dst_stride * ngen::getBytes(dst_type);
+    int src_type_size = ngen::getBytes(src_type);
+    int dst_type_size = ngen::getBytes(dst_type);
+    int src_stride_bytes = src_stride * src_type_size;
+    int dst_stride_bytes = dst_stride * dst_type_size;
     bool dst_b = ngen_is_b(dst_type);
     bool dst_bf = (dst_type == ngen::DataType::bf);
-    bool dst_d = ngen_is_dw(dst_type) || (dst_type == ngen::DataType::f);
+    bool dst_d = ngen_is_dw(dst_type);
     bool dst_f = (dst_type == ngen::DataType::f);
     bool dst_hf = (dst_type == ngen::DataType::hf);
     bool dst_xf = dst_bf || dst_f || dst_hf;
     bool src_b = ngen_is_b(src_type);
     bool src_hf = (src_type == ngen::DataType::hf);
     bool src_bf = (src_type == ngen::DataType::bf);
-    bool src_d = ngen_is_dw(src_type) || (src_type == ngen::DataType::f);
+    bool src_d = ngen_is_dw(src_type);
     bool src_f = (src_type == ngen::DataType::f);
     bool src_xf = src_bf || src_f || src_hf;
     bool f_to_xf = (src_f && (dst_bf || dst_hf));
@@ -3517,12 +3519,27 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         return;
     }
 
+    // d -> bf/hf:
+    // - Use d -> f -> bf/hf conversion with temporary
+    if (src_d && (dst_bf || dst_hf)) {
+        auto tmp = scope.alloc_reg_buf_data(
+                                utils::div_up(
+                                        int(width * sizeof(float)), grf_size))
+                           .format(0, ngen::DataType::f);
+        emit_reorder_1d_tile(hw, host, scope, width, src, src_stride, tmp, 1);
+        emit_reorder_1d_tile(hw, host, scope, width, tmp, 1, dst, dst_stride);
+        return;
+    }
+
     // f32/f16/s32 -> s8/u8 and s8/u8 -> f32/s32
     // - Use saturation
     // - s8/u8 must be DW-strided: use temporary
-    if ((src_d && dst_b) || (src_hf && dst_b) || (src_b && dst_d)) {
-        if (dst_d) ir_assert(dst_stride_bytes == 4);
-        if (src_d) ir_assert(src_stride_bytes == 4);
+    bool d_or_f_to_b = (src_d || src_f) && dst_b;
+    bool b_to_d_or_f = (dst_d || dst_f) && src_b;
+    bool hf_to_b = src_hf && dst_b;
+    if (d_or_f_to_b || b_to_d_or_f || hf_to_b) {
+        if (dst_d || dst_f) ir_assert(dst_stride_bytes == 4);
+        if (src_d || src_f) ir_assert(src_stride_bytes == 4);
         if (src_hf) ir_assert(src_stride_bytes == 2);
         if (dst_b) ir_assert(utils::one_of(dst_stride_bytes, 1, 4));
         if (src_b) ir_assert(utils::one_of(src_stride_bytes, 1, 4));
@@ -3536,7 +3553,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
-            if (src_d || src_hf) {
+            if (src_d || src_f || src_hf) {
                 // d -> b.
                 if (dst_stride_bytes == 1) {
                     auto t = tmp.subregister(0, dst_type)(4);
