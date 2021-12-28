@@ -135,7 +135,7 @@ inline int fill_data(
 fill_status_t mha_graph_prb_t::build_mha_subgraph(
         const mha_graph_spec_t &spec) {
     using op = dnnl::graph::op;
-    int QKV_IN_SIZE = 12;
+    const int QKV_IN_SIZE = 12;
     int bs = spec.dims[0];
     int seq_len = spec.dims[1];
     int embed_sz = spec.dims[2];
