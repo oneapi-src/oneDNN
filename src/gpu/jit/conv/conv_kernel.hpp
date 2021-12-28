@@ -3568,7 +3568,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 if (esize == 1) {
                     // Direct x8 -> x32 scalar cast is not always
                     // supported. Use intermediate cast to s16.
-                    auto t = tmp.subregister(0, ngen::DataType::uw)(1);
+                    auto t = tmp.subregister(0, ngen::DataType::w)(1);
                     host->emov(esize, t, s);
                     host->emov(esize, d, t);
                 } else if (src_stride_bytes == 1) {
