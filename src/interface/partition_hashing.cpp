@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 
 #include "partition.hpp"
 #include "partition_hashing.hpp"
+#include "thread.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -30,6 +31,7 @@ key_t::key_t(size_t partition_id, engine_kind_t engine_kind,
         const std::vector<const logical_tensor_t *> &outs)
     : partition_id_(partition_id)
     , ops_(get_raw_ptrs(ops))
+    , nthread_(dnnl_graph_get_max_threads())
     , engine_kind_(engine_kind)
     , thread_id_(std::this_thread::get_id()) {
     ins_.reserve(ins.size());
@@ -60,7 +62,7 @@ bool key_t::operator==(const key_t &rhs) const {
 
     bool ret = true && lhs_num_ops == rhs_num_ops && lhs_num_ins == rhs_num_ins
             && lhs_num_outs == rhs_num_outs
-            && partition_id_ == rhs.partition_id_
+            && partition_id_ == rhs.partition_id_ && nthread_ == rhs.nthread_
             && engine_kind_ == rhs.engine_kind_;
     if (!ret) return false;
 
