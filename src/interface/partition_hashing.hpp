@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,6 +64,7 @@ struct key_t {
     mutable std::vector<op_t *> ops_;
     mutable std::unordered_set<logical_tensor_t> ins_;
     mutable std::unordered_set<logical_tensor_t> outs_;
+    int nthread_;
     engine_kind_t engine_kind_;
 
 private:
@@ -142,8 +143,9 @@ struct hash<dnnl::graph::impl::partition_hashing::key_t> {
         using namespace dnnl::graph::impl::partition_hashing;
         using namespace dnnl::graph::impl::utils;
         size_t seed = 0;
-        // Compute hash for partition_id_, engine_kind_
+        // Compute hash for partition_id_, nthread_, engine_kind_
         seed = hash_combine(seed, key.partition_id_);
+        seed = hash_combine(seed, key.nthread_);
         seed = hash_combine(seed, static_cast<size_t>(key.engine_kind_));
 
         // Combine hash for op_kinds & attributes with the computed hash
