@@ -5153,14 +5153,18 @@ public:
             const constraint_set_t &cset, const gemm_schedule_t &gemm_schedule,
             const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
             const view_t &c_mem_view, const layout_t &c_reg_layout,
-            const expr_t &c_mem_buf, const expr_t &c_reg_buf)
+            const expr_t &c_mem_buf, const expr_t &c_reg_buf, int tile_size,
+            int preload_max_size, int post_op_blk)
         : cfg_(cfg)
         , ir_ctx_(ir_ctx)
         , cset_(cset)
         , post_op_ctx_(post_op_ctx)
         , c_mem_view_(c_mem_view)
         , c_mem_buf_(c_mem_buf)
-        , tg_grid_(gemm_schedule.tg_grid()) {
+        , tg_grid_(gemm_schedule.tg_grid())
+        , tile_size_(tile_size)
+        , preload_max_size_(preload_max_size)
+        , post_op_blk_(post_op_blk) {
 
         int tensor_idx = 0;
         for (auto &po_tensor_info : post_op_ctx_.post_op_tensor_infos()) {
@@ -5183,7 +5187,7 @@ public:
 
         // Estimate buffer sizes required to load the full tensor, do not do
         // preload if it requires too much GRF memory.
-        int available_size = pre_load_max_size_;
+        int available_size = preload_max_size_;
         for (auto &t : post_op_tensors_) {
             if (!t.needs_load()) continue;
             int required_size = t.estimate_grf_consumption();
@@ -5262,7 +5266,7 @@ private:
     void build(const layout_t &c_reg_layout, const expr_t &c_reg_buf) {
         auto tmp_type = (post_op_builders_.empty() ? c_mem_view_.type()
                                                    : type_t::f32());
-        int tmp_buf_elems = tmp_buf_size_ / tmp_type.size();
+        int tmp_buf_elems = tile_size_ / tmp_type.size();
         auto base_tile = c_mem_view_.split_into_max_tile(
                 tmp_buf_elems, /*is_dense=*/false);
 
@@ -5432,10 +5436,9 @@ private:
         for (int i = 0; i < nstages; i++) {
             if (with_post_ops && i == c_f32_stage_idx) {
                 // Emit post-ops in blocks to reduce GRF consumption.
-                const int po_blk = 8;
-                for (int j = 0; j < npost_ops; j += po_blk) {
+                for (int j = 0; j < npost_ops; j += post_op_blk_) {
                     int k_beg = j;
-                    int k_end = std::min(npost_ops, j + po_blk);
+                    int k_end = std::min(npost_ops, j + post_op_blk_);
                     auto blk_stmt = build_post_op_block_stmt(
                             tile, sub_po_tensors, k_beg, k_end);
                     tile_stmt = tile_stmt.append(blk_stmt);
@@ -5532,8 +5535,9 @@ private:
     // Tile size in bytes. The tile data type is:
     // - the destination data type without post-ops
     // - f32 with post-ops
-    static const int tmp_buf_size_ = 512;
-    static const int pre_load_max_size_ = 512;
+    int tile_size_;
+    int preload_max_size_;
+    int post_op_blk_;
 
     std::vector<post_op_builder_t> post_op_builders_;
     std::vector<post_op_tensor_t> post_op_tensors_;
@@ -5543,6 +5547,44 @@ private:
 
     stmt_t stmt_;
 };
+
+epilogue_builder_t create_epilogue_builder(const conv_config_t &cfg,
+        ir_context_t &ir_ctx, const constraint_set_t &cset,
+        const gemm_schedule_t &gemm_schedule,
+        const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
+        const view_t &c_mem_view, const layout_t &c_reg_layout,
+        const expr_t &c_mem_buf, const expr_t &c_reg_buf) {
+    // Tile size in bytes. All post-ops are applied to a single tile, then to
+    // the next tile, etc.
+    int tile_size = 512;
+    // Max size of post-op tensor buffers to preload and reuse for all tiles.
+    int preload_max_size = 512;
+    // Block size to apply post-ops within tile. A post-op may have associated
+    // loads/conversions, larger block size helps to have more latency hiding
+    // across multiple post-ops.
+    int post_op_blk = 8;
+
+    int bufs = 0;
+    for (auto &t : post_op_ctx.post_op_tensor_infos()) {
+        if (t.is_input() && t.buf().type().is_ptr()) bufs++;
+    }
+
+    // Reduce GRF usage when there are too many post-op buffers to load.
+    if (bufs > 8) {
+        tile_size = 128;
+    } else if (bufs > 4) {
+        tile_size = 256;
+    }
+
+    ir_trace() << "Creating epilogue with parameters"
+               << ": tile_size = " << tile_size
+               << ", preload_max_size = " << preload_max_size
+               << ", post_op_blk = " << post_op_blk << std::endl;
+    epilogue_builder_t builder(cfg, ir_ctx, cset, gemm_schedule, post_op_ctx,
+            thr_tile, c_mem_view, c_reg_layout, c_mem_buf, c_reg_buf, tile_size,
+            preload_max_size, post_op_blk);
+    return builder;
+}
 
 class multiply_builder_t {
 public:
@@ -6547,9 +6589,9 @@ public:
         }
 
         auto c_thr_mem_view = gemm_schedule_.c_view().create_sub_view(thr_tile);
-        epilogue_builder_t c_m2g(cfg_, ir_ctx_, cset_, gemm_schedule_,
-                post_op_ctx_, thr_tile, c_thr_mem_view, c_thr_reg_layout,
-                cp_buf_, c_buf);
+        auto c_m2g = create_epilogue_builder(cfg_, ir_ctx_, cset_,
+                gemm_schedule_, post_op_ctx_, thr_tile, c_thr_mem_view,
+                c_thr_reg_layout, cp_buf_, c_buf);
         ir_trace() << "C GRF to GMEM store:\n" << c_m2g.stmt() << std::endl;
 
         c_zero_out_stmt_ = stmt_group_t::make(stmt_label_t::c_zero_out(),
