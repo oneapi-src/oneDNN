@@ -175,7 +175,7 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::generate() {
     }
 
     auto icb_loop_body = [&](bool is_ic_tail) {
-        Xbyak::Label kh_label, no_kh_label, icb_label;
+        Xbyak::Label kh_label, no_kh_label;
         Xbyak::Label kh_tover_label, kh_bover_label;
         Xbyak::Label no_kh_tover_label, no_kh_bover_label;
 
