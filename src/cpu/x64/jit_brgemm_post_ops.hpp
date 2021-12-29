@@ -292,7 +292,7 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                     k_tail_mask, use_exact_tail_scalar_bcast};
             const binary_injector::static_params_t bsp {this->param1, rhs_sp};
 
-            static constexpr bool save_state = true;
+            const bool save_state = (brg.alpha != 0) && jcp.with_eltwise;
             const auto &reserved_eltwise_gpr = rax;
             const auto reserved_eltwise_maskr = Xbyak::Opmask(1);
 
