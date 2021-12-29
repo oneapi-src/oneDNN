@@ -644,6 +644,8 @@ public:
                 emov(mod, dst.reg_data(), src0.reg_buf_data().reg_data());
             } else if (src0.is_immediate()) {
                 emov(mod, dst.reg_data(), src0.immediate());
+            } else if (dst.type() == ngen::DataType::uw) {
+                emov(mod, dst.reg_data(), src0.flag_register());
             } else {
                 emov(mod | src0.flag_register_mod(), dst.reg_data(), 1);
                 emov(mod | ~src0.flag_register_mod(), dst.reg_data(), 0);
@@ -651,10 +653,12 @@ public:
         } else {
             // dst is a flag register.
             ir_assert(!dst.is_negated());
+            auto _mod = mod;
+            _mod.setExecSize(1);
             if (src0.is_reg_data()) {
-                emov(mod, dst.flag_register(), src0.reg_data());
+                emov(_mod, dst.flag_register(), src0.reg_data());
             } else {
-                emov(mod, dst.flag_register(), src0.immediate());
+                emov(_mod, dst.flag_register(), src0.immediate());
             }
         }
     }
@@ -2080,7 +2084,7 @@ public:
 
         ir_assert(from_type != to_type) << "Equal types are not expected.";
 
-        if (is_const(obj.expr)) {
+        if (is_const(obj.expr) && !to_type.is_bool()) {
             bind(obj, to_ngen(obj.expr, to_type));
             return;
         }

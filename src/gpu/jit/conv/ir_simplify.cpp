@@ -2061,6 +2061,16 @@ expr_t const_fold_non_recursive(const expr_t &e) {
         return iif->false_expr;
     }
 
+    auto *cast = e.as_ptr<cast_t>();
+    if (cast && !cast->saturate) {
+        if (cast->expr.is<bool_imm_t>())
+            return to_expr(to_cpp<bool>(cast->expr), cast->type);
+        if (cast->expr.is<int_imm_t>())
+            return to_expr(to_cpp<int64_t>(cast->expr), cast->type);
+        if (cast->expr.is<float_imm_t>())
+            return to_expr(to_cpp<float>(cast->expr), cast->type);
+    }
+
     return e;
 }
 

@@ -949,13 +949,26 @@ private:
     bool_imm_t(bool value) : expr_impl_t(type_t::_bool()), value(value) {}
 };
 
-// Cast between data types.
+// Cast between data types. In general conversion follows the C++ casting
+// rules. Several modes/scenarios are supported:
+// - Cast with saturation: cast(T, e) = max(T_min, min(T_max, e))
+//   By default saturation is disabled and any underflow/overflow is unhandled.
+// - Bitwise cast from bool vector to u16 (boolxN -> u16, 2 <= N <= 16):
+//   In this case the lower N bits of the resulting value are initialized based
+//   on the boolean elements. The upper (16 - N) bits are uninitialized.
 class cast_t : public expr_impl_t {
 public:
     IR_DECL_EXPR_TYPE_ID(cast_t)
 
     static expr_t make(
             const type_t &type, const expr_t &expr, bool saturate = false) {
+        if (expr.type() == type) return expr;
+        if (!saturate) {
+            auto *expr_cast = expr.as_ptr<cast_t>();
+            if (expr_cast && !expr_cast->saturate
+                    && type == expr_cast->expr.type())
+                return expr_cast->expr;
+        }
         return expr_t(new cast_t(type, expr, saturate));
     }
 
@@ -971,6 +984,12 @@ public:
         return ir_utils::get_hash(type, expr, saturate);
     }
 
+    bool is_bool_vec_u16() const {
+        if (is_bool_vec(expr.type()) && is_u16_scalar(type)) return true;
+        if (is_bool_vec(type) && is_u16_scalar(expr.type())) return true;
+        return false;
+    }
+
     IR_DECLARE_TRAVERSERS()
 
     expr_t expr;
@@ -979,8 +998,18 @@ public:
 private:
     cast_t(const type_t &type, const expr_t &expr, bool saturate)
         : expr_impl_t(type), expr(expr), saturate(saturate) {
-        ir_assert(type.elems() == expr.type().elems())
-                << "Number of elements must match.";
+        if (!is_bool_vec_u16()) {
+            ir_assert(type.elems() == expr.type().elems())
+                    << "Number of elements must match.";
+        }
+    }
+
+    static bool is_bool_vec(const type_t &type) {
+        return type.is_bool() && type.elems() > 1;
+    }
+
+    static bool is_u16_scalar(const type_t &type) {
+        return type.is_u16() && type.is_scalar();
     }
 };
 

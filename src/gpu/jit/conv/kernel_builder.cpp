@@ -1336,6 +1336,114 @@ stmt_t hoist_exprs(const stmt_t &s, ir_context_t &ir_ctx) {
     return ret;
 }
 
+class hoist_send_masks_mutator_t : public ir_mutator_t {
+public:
+    hoist_send_masks_mutator_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
+
+    object_t _mutate(const for_t &obj) override {
+        auto _new_obj = ir_mutator_t::_mutate(obj);
+        auto &new_obj = _new_obj.as<for_t>();
+        auto body = new_obj.body;
+
+        if (!maybe_inject_let(obj.var, body)) return _new_obj;
+
+        return for_t::make(
+                new_obj.var, new_obj.init, new_obj.bound, body, new_obj.unroll);
+    }
+
+    object_t _mutate(const let_t &obj) override {
+        auto _new_obj = ir_mutator_t::_mutate(obj);
+        auto &new_obj = _new_obj.as<let_t>();
+        auto body = new_obj.body;
+
+        if (!maybe_inject_let(obj.var, body)) return _new_obj;
+
+        return let_t::make(new_obj.var, new_obj.value, body);
+    }
+
+    object_t _mutate(const func_call_t &obj) override {
+        if (!is_func_call<send_t>(obj)) return ir_mutator_t::_mutate(obj);
+
+        auto &mask = send_t::arg_mask(obj);
+        if (mask.is_empty()) return ir_mutator_t::_mutate(obj);
+
+        auto new_args = obj.args;
+        auto hoisted_mask = hoist_mask(mask);
+        if (hoisted_mask.is_same(mask)) return ir_mutator_t::_mutate(obj);
+
+        ir_assert(hoisted_mask.type().is_u16()) << hoisted_mask;
+
+        send_t::arg_mask(new_args) = cast(hoisted_mask, mask.type());
+        return func_call_t::make(obj.func, new_args, obj.attr);
+    }
+
+    stmt_t inject_let_stmts(const stmt_t &_s) {
+        stmt_t s = _s;
+        for (auto &kv : hoisted_masks_) {
+            auto &hoisted_var = kv.second;
+            if (hoisted_var.is_empty()) continue; // Already injected.
+            s = let_t::make(hoisted_var, cast(kv.first, hoisted_var.type()), s);
+            hoisted_var = expr_t();
+        }
+        return s;
+    }
+
+private:
+    expr_t hoist_mask(const expr_t &e) {
+        ir_assert(e.type().is_bool()) << e;
+
+        if (e.type().elems() > 16) return e;
+        if (is_shuffle_const(e)) return e;
+
+        auto it = hoisted_masks_.find(e);
+        if (it != hoisted_masks_.end()) return it->second;
+
+        auto var = ir_ctx_.create_tmp_var(type_t::u16());
+        hoisted_masks_.emplace(e, var);
+        for (auto &v : find_objects<var_t>(e)) {
+            var_to_mask_[v].push_back(e);
+        }
+        return var;
+    }
+
+    bool maybe_inject_let(const expr_t &var, stmt_t &body) {
+        auto it = var_to_mask_.find(var);
+        if (it == var_to_mask_.end()) return false;
+
+        for (auto &mask : it->second) {
+            auto &hoisted_var = hoisted_masks_.at(mask);
+            if (hoisted_var.is_empty()) continue; // Already injected.
+            body = let_t::make(
+                    hoisted_var, cast(mask, hoisted_var.type()), body);
+            hoisted_var = expr_t();
+        }
+        return true;
+    }
+
+    object_eq_map_t<expr_t, expr_t> hoisted_masks_;
+    object_map_t<expr_t, std::vector<expr_t>> var_to_mask_;
+
+    ir_context_t &ir_ctx_;
+};
+
+// Moves boolean mask computation from send calls to the top to reduce GRF
+// consumption and to reuse masks between calls. A vector boolean mask is
+// stored as u16 type and converted to bool type right before the call.
+// Transformation is limited to the statement group with the given statement
+// label.
+stmt_t hoist_send_masks(
+        const stmt_t &s, const stmt_label_t &label, ir_context_t &ir_ctx) {
+    auto stmt_group = find_stmt_group(s, label).value();
+
+    hoist_send_masks_mutator_t mutator(ir_ctx);
+    auto new_stmt_group = mutator.mutate(stmt_group);
+    new_stmt_group = mutator.inject_let_stmts(new_stmt_group);
+
+    auto ret = substitute(s, stmt_group, new_stmt_group);
+    trace_pass("hoist_send_masks", ret);
+    return ret;
+}
+
 class loop_strength_reducer_t : public ir_mutator_t {
 public:
     loop_strength_reducer_t() {
@@ -3513,6 +3621,11 @@ public:
             const object_map_t<expr_t, std::vector<expr_t>> &vec_vars)
         : elems_(elems), idx_(idx), vec_vars_(vec_vars) {}
 
+    object_t _mutate(const cast_t &obj) override {
+        if (obj.is_bool_vec_u16()) return obj;
+        return ir_mutator_t::_mutate(obj);
+    }
+
     object_t _mutate(const var_t &obj) override {
         if (obj.type.is_scalar()) return obj;
 
@@ -3577,8 +3690,8 @@ public:
     object_t _mutate(const let_t &obj) override {
         bool ok = true;
         if (!obj.var.type().is_int()) ok = false;
-        if (bound_finder_.has_var(obj.var)) ok = false;
-        if (obj.value.is_empty()) ok = false;
+        if (ok && obj.value.is_empty()) ok = false;
+        if (ok && bound_finder_.has_var(obj.var)) ok = false;
 
         if (ok) {
             if (contains_load(obj.value)) {
@@ -6977,6 +7090,7 @@ void kernel_builder_t::build() {
     stmt_ = inject_send(stmt_, ir_ctx, init_cset);
     stmt_ = split_wide_stores(cfg_.hw, stmt_);
     stmt_ = lift_alloc(stmt_, cfg_);
+    stmt_ = hoist_send_masks(stmt_, stmt_label_t::c_store(), ir_ctx);
     stmt_ = eliminate_common_subexprs(stmt_, ir_ctx);
     stmt_ = hoist_exprs(stmt_, ir_ctx);
     if (cfg_.do_pipeline_unroll) stmt_ = loop_strength_reduce(stmt_);

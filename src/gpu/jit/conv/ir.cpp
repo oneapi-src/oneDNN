@@ -394,7 +394,6 @@ expr_t abs(const expr_t &e) {
 }
 
 expr_t cast(const expr_t &e, const type_t &type, bool saturate) {
-    if (e.type() == type) return e;
     return const_fold(cast_t::make(type, e, saturate));
 }
 
@@ -679,7 +678,8 @@ int64_t bound_finder_base_t::find_bound_impl(
     auto *cast = e.as_ptr<cast_t>();
     if (cast) {
         // Saturate if needed, otherwise assume the same bounds.
-        if (!cast->saturate) return find_bound_impl(cast->expr, is_low);
+        if (!cast->is_bool_vec_u16() && !cast->saturate)
+            return find_bound_impl(cast->expr, is_low);
 
         if (is_low) {
             auto type_lo = cast->type.min<int64_t>();
@@ -692,6 +692,8 @@ int64_t bound_finder_base_t::find_bound_impl(
         auto hi = find_high_bound(cast->expr);
         return std::min(type_hi, hi);
     }
+
+    if (e.type().is_bool()) return is_low ? 0 : 1;
 
     return def_bound;
 }
