@@ -616,6 +616,8 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
             // FIXME(xxx) add other attrs
             mul_op1->set_attr<std::vector<float>>("scales", inv_scales);
             mul_op1->set_attr<int64_t>("axis", 0);
+            mul_op1->set_attr<std::string>(
+                    "qtype", mul_op->get_attr<std::string>("qtype"));
 
             auto bias_val = conv_op->get_input_value(2);
             bias_val->remove_consumer(*conv_op, 2);
@@ -872,6 +874,8 @@ impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
                 inv_scales[i] = 1.f / fused_scales[i];
             bias_mul_op->set_attr<std::vector<float>>("scales", inv_scales);
             bias_mul_op->set_attr<int64_t>("axis", 0);
+            bias_mul_op->set_attr<std::string>(
+                    "qtype", mul_scales_op->get_attr<std::string>("qtype"));
 
             auto bias_value = matmul_op->get_input_value(2);
             bias_value->remove_consumer(*matmul_op, 2);
@@ -1561,6 +1565,14 @@ impl::status_t fuse_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
                     && cur_op->get_kind() != op_kind::add_zps)
                 || visited.count(cur_op.get()) != 0)
             continue;
+
+        // This pass only handle static quantization
+        bool dync_quantization
+                = (cur_op->has_attr("with_runtime_scales")
+                          && cur_op->get_attr<bool>("with_runtime_scales"))
+                || (cur_op->has_attr("with_runtime_zps")
+                        && cur_op->get_attr<bool>("with_runtime_zps"));
+        if (dync_quantization) continue;
 
         auto out_val = cur_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
@@ -2472,6 +2484,383 @@ impl::status_t reduction_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         replace_op(cur_op, new_op);
         to_be_inserted_ops.emplace_back(new_op);
         to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
+}
+
+impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+
+    std::vector<op_ptr> q_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() == impl::op_kind::DynamicQuantize) {
+            q_ops.emplace_back(cur_op);
+        }
+    }
+
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+    for (auto &cur_op : q_ops) {
+        const auto &qtype = cur_op->get_attr<std::string>("qtype");
+        const auto &axis = cur_op->get_attr<int64_t>("axis");
+
+        auto &in_vals = cur_op->get_input_values();
+        auto &out_vals = cur_op->get_output_values();
+        assertm((in_vals.size() == 3 || in_vals.size() == 2)
+                        && out_vals.size() == 1,
+                "dynamic quantize must have 2 or 3 inputs and 1 output");
+
+        // DynamicQuantize has optional zps
+        bool has_zps = in_vals.size() == 3;
+
+        value_ptr src = in_vals[0], scales = in_vals[1], dst = out_vals[0], zps;
+        if (has_zps) zps = in_vals[2];
+
+        // int8 = f32 / scales + zps
+        op_ptr mul_scales = std::make_shared<op_t>(op_kind::mul_scales);
+
+        mul_scales->connect_input(1, scales);
+        scales->remove_consumer(*cur_op, 1);
+        mul_scales->set_attr<int64_t>("axis", axis);
+        mul_scales->set_attr<std::string>("qtype", qtype);
+        mul_scales->set_attr<bool>("with_runtime_scales", true);
+
+        // connect mul_scales to subgraph
+        mul_scales->connect_input(0, src);
+        src->remove_consumer(*cur_op, 0);
+        mul_scales->add_output(dst);
+        to_be_inserted_ops.emplace_back(mul_scales);
+
+        // op used to inverse the scales
+        auto inv_scales_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
+        // y = alpha*x^beta
+        inv_scales_op->set_attr<int64_t>(
+                "alg_kind", static_cast<int64_t>(impl::op_kind::Pow));
+        inv_scales_op->set_attr<float>("alpha", 1.0f);
+        inv_scales_op->set_attr<float>("beta", -1.0f);
+        insert_op_before(inv_scales_op, mul_scales, 1);
+        to_be_inserted_ops.emplace_back(inv_scales_op);
+
+        if (has_zps) {
+            op_ptr add_zps = std::make_shared<op_t>(op_kind::add_zps);
+            add_zps->connect_input(1, zps);
+            zps->remove_consumer(*cur_op, 2);
+            add_zps->set_attr<int64_t>("axis", axis);
+            add_zps->set_attr<std::string>("qtype", qtype);
+            add_zps->set_attr<bool>("with_runtime_zps", true);
+
+            // connect add_zps to subgraph
+            insert_op_after(add_zps.get(), mul_scales.get(), 0, 0);
+            to_be_inserted_ops.emplace_back(add_zps);
+        }
+
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
+}
+
+impl::status_t split_dynamic_dequant(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+
+    std::vector<op_ptr> dq_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() == impl::op_kind::DynamicDequantize) {
+            dq_ops.emplace_back(cur_op);
+        }
+    }
+
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+    for (auto &cur_op : dq_ops) {
+        const auto &qtype = cur_op->get_attr<std::string>("qtype");
+        const auto &axis = cur_op->get_attr<int64_t>("axis");
+
+        auto &in_vals = cur_op->get_input_values();
+        auto &out_vals = cur_op->get_output_values();
+        assertm((in_vals.size() == 3 || in_vals.size() == 2)
+                        && out_vals.size() == 1,
+                "dynamic dequantize must have 2 or 3 inputs and 1 output");
+
+        // DynamicDequantize has optional zps
+        bool has_zps = in_vals.size() == 3;
+
+        value_ptr src = in_vals[0], scales = in_vals[1], dst = out_vals[0], zps;
+        if (has_zps) zps = in_vals[2];
+
+        // f32 = scales * (int8 - zps)
+        // connect scales to mul_scales op
+        op_ptr mul_scales = std::make_shared<op_t>(op_kind::mul_scales);
+        mul_scales->connect_input(1, scales);
+        scales->remove_consumer(*cur_op, 1);
+        mul_scales->set_attr<int64_t>("axis", axis);
+        mul_scales->set_attr<std::string>("qtype", qtype);
+        mul_scales->set_attr<bool>("with_runtime_scales", true);
+
+        // connect mul_scales op to subgraph
+        mul_scales->connect_input(0, src);
+        src->remove_consumer(*cur_op, 0);
+        mul_scales->add_output(dst);
+        to_be_inserted_ops.emplace_back(mul_scales);
+
+        if (has_zps) {
+            op_ptr sub_zps = std::make_shared<op_t>(op_kind::sub_zps);
+            sub_zps->connect_input(1, zps);
+            zps->remove_consumer(*cur_op, 2);
+            sub_zps->set_attr<int64_t>("axis", axis);
+            sub_zps->set_attr<std::string>("qtype", qtype);
+            sub_zps->set_attr<bool>("with_runtime_zps", true);
+
+            // connect sub_zps op to subgraph
+            insert_op_before(sub_zps.get(), mul_scales.get(), 0, 0);
+            to_be_inserted_ops.emplace_back(sub_zps);
+        }
+
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
+}
+
+impl::status_t fuse_dynamic_mul_scales_add_zps(
+        std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<std::pair<op_ptr, op_ptr>> fuse_groups;
+    std::set<op_t *> visited;
+    for (const auto &cur_op : subgraph) {
+        if ((cur_op->get_kind() != op_kind::mul_scales)
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        // This pass only handle dynamic quantization
+        if (!cur_op->get_attr<bool>("with_runtime_scales")) continue;
+
+        auto out_val = cur_op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+        if (consumers.empty()) continue;
+
+        auto &consumer_op = consumers[0].get_op();
+        if (consumer_op.get_kind() != op_kind::add_zps) continue;
+
+        if (!consumer_op.get_attr<bool>("with_runtime_zps")) continue;
+
+        fuse_groups.emplace_back(std::pair<op_ptr, op_ptr> {
+                cur_op, (&consumer_op)->shared_from_this()});
+        visited.insert(cur_op.get());
+        visited.insert(&consumer_op);
+    }
+
+    if (fuse_groups.empty()) return impl::status::success;
+
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+    for (auto &fuse_ops : fuse_groups) {
+        op_ptr &mul_scales = fuse_ops.first; // mul_scales
+        op_ptr &add_zps = fuse_ops.second; // add_zps
+
+        const int64_t axis = mul_scales->get_attr<int64_t>("axis");
+        const std::string &qtype = mul_scales->get_attr<std::string>("qtype");
+
+        op_ptr fused_op = std::make_shared<op_t>(impl::op_kind::Reorder);
+        fused_op->set_attr<bool>("change_layout", false);
+        fused_op->set_attr<int64_t>("axis", axis);
+        fused_op->set_attr<std::string>("qtype", qtype);
+
+        // src must be the 0-th input
+        auto src = mul_scales->get_input_value(0);
+        src->remove_consumer(*mul_scales, 0);
+        fused_op->connect_input(0, src);
+
+        // fuse scales as output scales
+        auto scales = mul_scales->get_input_value(1);
+        scales->remove_consumer(*mul_scales, 1);
+        fused_op->connect_input(1, scales);
+        fused_op->set_attr<bool>("with_runtime_scales", true);
+
+        // fuse dst zps
+        auto zps = add_zps->get_input_value(1);
+        zps->remove_consumer(*add_zps, 1);
+        fused_op->connect_input(2, zps);
+        fused_op->set_attr<bool>("with_runtime_dst_zps", true);
+
+        auto dst = add_zps->get_output_value(0);
+        fused_op->add_output(dst);
+        dst->set_producer(*fused_op);
+
+        to_be_inserted_ops.emplace_back(fused_op);
+        to_be_removed_ops.emplace_back(mul_scales);
+        to_be_removed_ops.emplace_back(add_zps);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
+}
+
+impl::status_t fuse_dynamic_sub_zps_mul_scales(
+        std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<std::pair<op_ptr, op_ptr>> fuse_groups;
+    std::set<op_t *> visited;
+    for (const auto &cur_op : subgraph) {
+        if ((cur_op->get_kind() != op_kind::sub_zps)
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        // This pass only handle dynamic quantization
+        if (!cur_op->get_attr<bool>("with_runtime_zps")) continue;
+
+        auto out_val = cur_op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+        if (consumers.empty()) continue;
+
+        auto &consumer_op = consumers[0].get_op();
+        if (consumer_op.get_kind() != op_kind::mul_scales) continue;
+        if (!consumer_op.get_attr<bool>("with_runtime_scales")) continue;
+
+        fuse_groups.emplace_back(std::pair<op_ptr, op_ptr> {
+                cur_op, (&consumer_op)->shared_from_this()});
+        visited.insert(cur_op.get());
+        visited.insert(&consumer_op);
+    }
+
+    if (fuse_groups.empty()) return impl::status::success;
+
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+    for (auto &fuse_ops : fuse_groups) {
+        op_ptr &op1 = fuse_ops.first; // sub_zps
+        op_ptr &op2 = fuse_ops.second; // mul_scales
+
+        const int64_t axis = op1->get_attr<int64_t>("axis");
+        const std::string &qtype = op1->get_attr<std::string>("qtype");
+
+        op_ptr fused_op = std::make_shared<op_t>(impl::op_kind::Reorder);
+        fused_op->set_attr<bool>("change_layout", false);
+        fused_op->set_attr<int64_t>("axis", axis);
+        fused_op->set_attr<std::string>("qtype", qtype);
+
+        // src must be the 0-th input
+        auto src = op1->get_input_value(0);
+        src->remove_consumer(*op1, 0);
+        fused_op->connect_input(0, src);
+
+        // fuse src zps
+        auto zps = op1->get_input_value(1);
+        zps->remove_consumer(*op1, 1);
+        fused_op->connect_input(1, zps);
+        fused_op->set_attr<bool>("with_runtime_src_zps", true);
+
+        // fuse scales as output scales
+        auto scales = op2->get_input_value(1);
+        scales->remove_consumer(*op2, 1);
+        fused_op->connect_input(2, scales);
+        fused_op->set_attr<bool>("with_runtime_scales", true);
+
+        auto dst = op2->get_output_value(0);
+        fused_op->add_output(dst);
+        dst->set_producer(*fused_op);
+
+        to_be_inserted_ops.emplace_back(fused_op);
+        to_be_removed_ops.emplace_back(op1);
+        to_be_removed_ops.emplace_back(op2);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
+}
+
+impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    auto &subgraph = sg->get_mutable_ops();
+
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::Reorder) continue;
+
+        size_t index = 1; // the start index of optional runtime scales and zps
+
+        // check runtime src_zps and add typecast if necessary
+        if (cur_op->has_attr("with_runtime_src_zps")
+                && cur_op->get_attr<bool>("with_runtime_src_zps")) {
+            auto src_zps = cur_op->get_input_value(index);
+            if (src_zps->get_logical_tensor().data_type
+                    != impl::data_type::s32) {
+                auto tc_op = std::make_shared<op_t>(impl::op_kind::TypeCast);
+                insert_op_before(tc_op, cur_op, index);
+                to_be_inserted_ops.emplace_back(tc_op);
+                tc_op->get_output_value(0)->set_data_type(impl::data_type::s32);
+                index++;
+            }
+        }
+        // optionally skip the runtime scales
+        if (cur_op->has_attr("with_runtime_scales")
+                && cur_op->get_attr<bool>("with_runtime_scales")) {
+            index++;
+        }
+
+        // check runtime src_zps and add typecast if necessary
+        if (cur_op->has_attr("with_runtime_dst_zps")
+                && cur_op->get_attr<bool>("with_runtime_dst_zps")) {
+            auto dst_zps = cur_op->get_input_value(index);
+            if (dst_zps->get_logical_tensor().data_type
+                    != impl::data_type::s32) {
+                auto tc_op = std::make_shared<op_t>(impl::op_kind::TypeCast);
+                insert_op_before(tc_op, cur_op, index);
+                to_be_inserted_ops.emplace_back(tc_op);
+                tc_op->get_output_value(0)->set_data_type(impl::data_type::s32);
+                index++;
+            }
+        }
     }
 
     for (const auto &op : to_be_inserted_ops) {

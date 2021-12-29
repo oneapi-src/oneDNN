@@ -135,6 +135,21 @@ void insert_op_before(op_t *inserted_op, op_t *base_op, size_t offset) {
     base_op->connect_input(offset, new_val);
 }
 
+void insert_op_before(op_t *inserted_op, op_t *base_op, size_t base_offset,
+        size_t inserted_offset) {
+    value_ptr in_val = base_op->get_input_value(base_offset);
+    in_val->remove_consumer(*base_op, base_offset);
+    inserted_op->connect_input(inserted_offset, in_val);
+
+    impl::logical_tensor_t new_lt
+            = impl::empty_logical_tensor_with_default_id();
+    auto new_val = std::make_shared<value_t>(*inserted_op, 0, new_lt, true);
+    inserted_op->add_output(new_val);
+
+    new_val->add_consumer(*base_op, base_offset);
+    base_op->connect_input(base_offset, new_val);
+}
+
 //   base_op         base_op
 //     |               |
 //     |             new_val
@@ -157,6 +172,20 @@ void insert_op_after(op_t *inserted_op, op_t *base_op, size_t offset) {
 
     new_val->add_consumer(*inserted_op, inserted_op->num_inputs());
     inserted_op->add_input(new_val);
+}
+
+void insert_op_after(op_t *inserted_op, op_t *base_op, size_t output_offset,
+        size_t input_offset) {
+    value_ptr out_val = base_op->get_output_value(output_offset);
+    inserted_op->add_output(out_val);
+
+    impl::logical_tensor_t new_lt
+            = impl::empty_logical_tensor_with_default_id();
+    auto new_val = std::make_shared<value_t>(*base_op, 0, new_lt, true);
+    base_op->connect_output(output_offset, new_val);
+
+    new_val->add_consumer(*inserted_op, input_offset);
+    inserted_op->connect_input(input_offset, new_val);
 }
 
 status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,

@@ -102,6 +102,10 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(dequant_pass, dnnl, Dequantize, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(quant_pass, dnnl, Quantize, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(dequant_pass, dnnl, Dequantize, 8.f)
 
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(dync_quant_pass, dnnl, DynamicQuantize, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(
+        dync_dequant_pass, dnnl, DynamicDequantize, 8.f)
+
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, dnnl, Reorder, 8.f)
 
 #undef DNNL_BACKEND_SINGLE_OP_TRANSFORM

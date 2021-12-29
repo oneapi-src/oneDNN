@@ -471,6 +471,65 @@ void memory_planner_t::bind_memory_for_layernorm(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
+void memory_planner_t::prepare_args_for_reorder_op(op_t *op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+    exec_args args;
+
+    memory mem;
+    size_t index = 0;
+
+    // src
+    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
+    args.insert({DNNL_ARG_FROM, mem});
+
+    // we always insert the input belonging to input fusion before the input
+    // belonging to output fusion. So, src_zps must be before scales if it
+    // exists
+    if (op->has_attr("with_runtime_src_zps")
+            && op->get_attr<bool>("with_runtime_src_zps")) {
+        auto src_zps = op->get_input_value(index++);
+        assertm(src_zps->get_logical_tensor().data_type == impl::data_type::s32,
+                "oneDNN runtime zps must be s32 type");
+        exec_args_set_.find_value_mem_map(src_zps.get(), mem);
+        args.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, mem});
+    }
+
+    if (op->has_attr("with_runtime_scales")
+            && op->get_attr<bool>("with_runtime_scales")) {
+        exec_args_set_.find_value_mem_map(
+                op->get_input_value(index++).get(), mem);
+        args.insert({DNNL_ARG_ATTR_OUTPUT_SCALES, mem});
+    }
+
+    if (op->has_attr("with_runtime_dst_zps")
+            && op->get_attr<bool>("with_runtime_dst_zps")) {
+        auto dst_zps = op->get_input_value(index++);
+        assertm(dst_zps->get_logical_tensor().data_type == impl::data_type::s32,
+                "oneDNN runtime zps must be s32 type");
+        exec_args_set_.find_value_mem_map(dst_zps.get(), mem);
+        args.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, mem});
+    }
+
+    dnnl::primitive_attr prm_attr = op->has_attr("primitive_attr_key")
+            ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
+            : dnnl::primitive_attr();
+    dnnl::post_ops pops = prm_attr.get_post_ops();
+    for (int i = 0; i < pops.len(); i++) {
+        if (pops.kind(i) == dnnl::primitive::kind::sum) {
+            exec_args_set_.find_value_mem_map(
+                    op->get_input_value(index++).get(), mem);
+            args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
+        } else {
+            assertm(false, "oneDNN reorder only support sum post-ops");
+        }
+    }
+
+    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
+    args.insert({DNNL_ARG_TO, mem});
+
+    exec_args_set_.add_exec_args(args);
+}
+
 // Assign partition's input edges to user given external inputs buffer. Those
 // external inputs buffers may be used by other partition (which is under the
 // control of user), so we can't reuse them.
@@ -739,16 +798,12 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_eltwise
                         || op->get_kind() == op_kind::dnnl_reduction
-                        || op->get_kind() == impl::op_kind::Reorder
-                        || op->get_kind() == impl::op_kind::TypeCast
                         || op->get_kind() == op_kind::dnnl_shuffle
-                        || op->get_kind() == op_kind::mul_scales
                         || op->get_kind() == op_kind::permute
                         || op->get_kind() == op_kind::to_group
                         || op->get_kind() == op_kind::expand
                         || op->get_kind() == op_kind::squeeze
                         || op->get_kind() == op_kind::unsqueeze
-                        || op->get_kind() == op_kind::dnnl_u8_to_s8
                         || op->get_kind() == impl::op_kind::Interpolate
                         || op->get_kind() == impl::op_kind::StaticReshape
                         || op->get_kind() == impl::op_kind::StaticTranspose) {
@@ -770,6 +825,11 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     prepare_args_for_binary(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_constant) {
                     prepare_args_for_niso_op(op, p_engine, prm_attr_mgr);
+                } else if (op->get_kind() == impl::op_kind::Reorder
+                        || op->get_kind() == op_kind::mul_scales
+                        || op->get_kind() == op_kind::dnnl_u8_to_s8
+                        || op->get_kind() == impl::op_kind::TypeCast) {
+                    prepare_args_for_reorder_op(op, p_engine, prm_attr_mgr);
                 } else {
                     assertm(false, "memory planning: unsupported op");
                     return impl::status::compile_fail;

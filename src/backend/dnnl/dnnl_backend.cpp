@@ -265,8 +265,8 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::reduction_fusion, float_reduction)
 
     // quantize and dequantize kernel
-    DNNL_REGISTER_KERNEL(impl::op_kind::Quantize, quantize_dequantize)
-    DNNL_REGISTER_KERNEL(impl::op_kind::Dequantize, quantize_dequantize)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Quantize, quantize_dequantize_t)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Dequantize, quantize_dequantize_t)
 
     // quantized conv
     DNNL_REGISTER_KERNEL(op_kind::int8_conv, quantized_conv)
@@ -386,6 +386,11 @@ bool dnnl_backend::register_kernels() {
 
     // shuffle fusion
     DNNL_REGISTER_KERNEL(op_kind::dnnl_shuffle, shuffle_fwd_t);
+
+    // dynamic quantize and dequantize
+    DNNL_REGISTER_KERNEL(impl::op_kind::DynamicQuantize, quantize_dequantize_t)
+    DNNL_REGISTER_KERNEL(
+            impl::op_kind::DynamicDequantize, quantize_dequantize_t)
 
 #undef DNNL_REGISTER_KERNEL
 #undef DNNL_GRAPH_ATTR_UNUSED

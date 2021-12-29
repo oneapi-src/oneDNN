@@ -431,6 +431,11 @@ public:
                 impl::op_kind::ReduceMin, impl::op_kind::ReduceProd,
                 impl::op_kind::ReduceSum, op_kind::dnnl_reduction,
                 op_kind::reduction_fusion,
+                // quantize and dequantize
+                impl::op_kind::Quantize, impl::op_kind::Dequantize,
+                // dynamic quantize and dequantize
+                impl::op_kind::DynamicQuantize,
+                impl::op_kind::DynamicDequantize,
                 // single partition multi primitives
                 op_kind::conv_simple_resblock, op_kind::int8_MHA,
                 op_kind::f32_MHA, op_kind::chained_relu};

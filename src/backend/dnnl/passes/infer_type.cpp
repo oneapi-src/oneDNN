@@ -86,6 +86,7 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
                     || op->get_kind() == op_kind::unsqueeze
                     || op->get_kind() == impl::op_kind::StaticReshape
                     || op->get_kind() == op_kind::dnnl_binary
+                    || op->get_kind() == op_kind::dnnl_eltwise
                     || op->get_kind() == impl::op_kind::SoftMax
                     || op->get_kind() == impl::op_kind::LogSoftmax
                     || op->get_kind() == impl::op_kind::StaticTranspose) {

@@ -18,6 +18,7 @@
 #define BACKEND_DNNL_KERNELS_QUANTIZE_HPP
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -28,120 +29,112 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-struct quantize_dequantize : public dnnl::reorder, public kernel_base_t {
-    using super = dnnl::reorder;
-
+struct quantize_dequantize_t : public kernel_base_t {
 private:
-    dnnl::memory::desc cvt_src_desc_ {};
-    dnnl::memory::desc cvt_dst_desc_ {};
-
-    primitive_desc pd_;
-    dnnl::reorder prim_;
     dnnl::engine p_engine_;
-
-    static std::vector<float> inverse_scales(const std::vector<float> &scales) {
-        std::vector<float> inv_scales;
-        inv_scales.reserve(scales.size());
-        for (auto &s : scales) {
-            inv_scales.emplace_back(1.f / s);
-        }
-        return inv_scales;
-    };
-
-    static std::vector<int32_t> cast_zps(const std::vector<int64_t> &zps) {
-        std::vector<int32_t> int32_zps;
-        int32_zps.reserve(zps.size());
-        for (auto &zp : zps) {
-            int32_zps.emplace_back(static_cast<int32_t>(zp));
-        }
-        return int32_zps;
-    }
+    impl::allocator_t *g_alloc_;
+    std::shared_ptr<subgraph_t> subgraph_;
+    memory_planner_t memory_planner_;
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
-    impl::status_t compile_impl(const op_t *op, const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        using ltw = impl::logical_tensor_wrapper_t;
-        p_engine_ = make_dnnl_engine(*g_engine);
-        memory::desc src = make_dnnl_memory_desc(inputs[0]);
-        memory::desc dst;
-
-        // the dst layout of reorder primitive can't be any.
-        // so, if user set any, we will use the src layout
-        if (ltw(outputs[0]).is_any()) {
-            dst = src;
-            dst.data.data_type = static_cast<dnnl_data_type_t>(
-                    ltw(outputs[0]).data_type());
-        } else {
-            dst = make_dnnl_memory_desc(outputs[0]);
-        }
-
-        cvt_src_desc_ = src;
-        cvt_dst_desc_ = dst;
-
-        std::string qtype = op->get_attr<std::string>("qtype");
-        int64_t axis = op->get_attr<int64_t>("axis");
-        const auto &scales = op->get_attr<std::vector<float>>("scales");
-        const auto &zps = op->get_attr<std::vector<int64_t>>("zps");
-
-        if ((qtype == "per_tensor" && scales.size() != 1)
-                || (qtype == "per_channel" && src.dims()[axis] != scales.size())
-                || (zps.size() != scales.size()))
-            return status::invalid_argument;
-
-        int mask = 0;
-        if (qtype == "per_channel") { mask = 1 << axis; }
-
-        primitive_attr attr;
-        if (op->get_kind() == impl::op_kind::Quantize) {
-            assertm(std::all_of(scales.begin(), scales.end(),
-                            [](float i) { return i != 0.f; }),
-                    "scales can't be zero");
-            // inverse the scales, since dnnl multiply the scales to dst
-            attr.set_output_scales(mask, inverse_scales(scales));
-        } else {
-            attr.set_output_scales(mask, scales);
-        }
-
-        // If zps are all zero, we don't need to set this attr
-        auto pos = std::find_if(zps.begin(), zps.end(),
-                [](const int64_t &zp) -> bool { return zp != 0; });
-
-        if (pos != zps.end()) {
-            if (qtype == "per_channel") {
-                // TODO(qun) reorder doesn't support per_channel zps attr
-                // now, we need convert these attrs to tensors and pass them
-                // in primitive runtime
-                return status::invalid_argument;
-            }
-
-            if (op->get_kind() == impl::op_kind::Quantize) {
-                attr.set_zero_points(DNNL_ARG_TO, mask, cast_zps(zps));
-            } else {
-                attr.set_zero_points(DNNL_ARG_FROM, mask, cast_zps(zps));
-            }
-        }
-
-        pd_ = primitive_desc(p_engine_, src, p_engine_, dst, attr);
-        prim_ = super(pd_);
-        dnnl::memory::desc opt_dst_desc(pd_.dst_desc());
-        auto *ori_dst_lt = const_cast<impl::logical_tensor_t *>(&outputs[0]);
-        fill_layout_info(ori_dst_lt, opt_dst_desc);
-
-        return status::success;
+    ~quantize_dequantize_t() override {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
 
-    impl::status_t execute_impl(const op_t *op, const impl::stream_t *g_stream,
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+            const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
+
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
+
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
+        BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_quant);
+        BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_dequant);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_scales_add_zps);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, reorder_canonicalization);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
+
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
+
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
+        }
+
+        resource_ctor_ = [this]() {
+            return this->memory_planner_.get_exec_args_set().clone();
+        };
+
+        return impl::status::success;
+    }
+
+    impl::status_t execute_impl(const dnnl_partition_impl_t *part,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(op);
+        UNUSED(part);
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-        memory src = make_dnnl_memory(
-                cvt_src_desc_, p_engine_, inputs[0].get_data_handle());
-        memory dst = make_dnnl_memory(
-                cvt_dst_desc_, p_engine_, outputs[0].get_data_handle());
-        prim_.execute(p_stream, src, dst);
-        return status::success;
+
+        // each thread's own local resource
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
+
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
+        }
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
+        }
+
+        temporary_scratchpad_t scratchpad(
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
+
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
+        }
+
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+        }
+
+        return impl::status::success;
     }
 };
 

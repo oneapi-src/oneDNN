@@ -132,6 +132,7 @@ namespace op_kind {
     X(mul_scales, Mul_scales) \
     X(dnnl_constant, Dnnl_constant) \
     X(add_zps, Add_zps) \
+    X(sub_zps, Sub_zps) \
     X(permute, Permute) \
     X(to_group, To_group) \
     X(expand, Expand) \

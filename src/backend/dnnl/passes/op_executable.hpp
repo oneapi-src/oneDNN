@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 #include <unordered_map>
+
 #include "dnnl.hpp"
 
 #include <utils/utils.hpp>
@@ -1132,36 +1133,52 @@ struct reorder_executable_t : public op_executable_t {
         } else {
             int64_t attr_key = prm_attr_mgr.init_attr();
             op->set_attr<int64_t>("primitive_attr_key", attr_key);
-            dnnl::primitive_attr &initial_attr
-                    = prm_attr_mgr.get_attr(attr_key);
+            prm_attr = prm_attr_mgr.get_attr(attr_key);
+        }
 
-            int mask = 0;
-            if (op->has_attr("axis") && op->has_attr("scales")) {
-                int64_t axis = op->get_attr<int64_t>("axis");
-                auto scales = op->get_attr<std::vector<float>>("scales");
-                mask = scales.size() == 1 ? 0 : 1 << axis;
-                initial_attr.set_output_scales(mask, scales);
-            }
+        // generate mask
+        int mask = 0;
+        if (op->has_attr("axis") && op->has_attr("qtype")) {
+            int64_t axis = op->get_attr<int64_t>("axis");
+            std::string qtype = op->get_attr<std::string>("qtype");
+            mask = qtype == "per_tensor" ? 0 : 1 << axis;
+        }
 
-            if (op->has_attr("src_zps")) {
-                auto zps = op->get_attr<std::vector<int64_t>>("src_zps");
-                std::vector<int32_t> neg_zps = dnnl_impl::utils::fmap(zps,
-                        [](int64_t zp) { return static_cast<int32_t>(-zp); });
-                initial_attr.set_zero_points(DNNL_ARG_FROM, mask, neg_zps);
-            }
+        if (op->has_attr("with_runtime_src_zps")
+                && op->get_attr<bool>("with_runtime_src_zps")) {
+            // runtime src zps
+            prm_attr.set_zero_points(
+                    DNNL_ARG_FROM, mask, {DNNL_RUNTIME_S32_VAL});
+        } else if (op->has_attr("src_zps")) {
+            auto zps = op->get_attr<std::vector<int64_t>>("src_zps");
+            std::vector<int32_t> neg_zps = dnnl_impl::utils::fmap(
+                    zps, [](int64_t zp) { return static_cast<int32_t>(-zp); });
+            prm_attr.set_zero_points(DNNL_ARG_FROM, mask, neg_zps);
+        }
 
-            if (op->has_attr("dst_zps")) {
-                auto zps = op->get_attr<std::vector<int64_t>>("dst_zps");
-                std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(zps,
-                        [](int64_t zp) { return static_cast<int32_t>(zp); });
-                initial_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
-            }
+        if (op->has_attr("with_runtime_scales")
+                && op->get_attr<bool>("with_runtime_scales")) {
+            // runtime scales
+            prm_attr.set_output_scales(mask, {DNNL_RUNTIME_F32_VAL});
+        } else if (op->has_attr("scales")) {
+            auto scales = op->get_attr<std::vector<float>>("scales");
+            prm_attr.set_output_scales(mask, scales);
+        }
 
-            if (op->get_kind() == op_kind::dnnl_u8_to_s8) {
-                initial_attr.set_zero_points(DNNL_ARG_TO, mask, {-128});
-            }
+        if (op->has_attr("with_runtime_dst_zps")
+                && op->get_attr<bool>("with_runtime_dst_zps")) {
+            // runtime dst zps
+            prm_attr.set_zero_points(DNNL_ARG_TO, mask, {DNNL_RUNTIME_S32_VAL});
+        } else if (op->has_attr("dst_zps")) {
+            auto zps = op->get_attr<std::vector<int64_t>>("dst_zps");
+            std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(
+                    zps, [](int64_t zp) { return static_cast<int32_t>(zp); });
+            prm_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
+        }
 
-            prm_attr = initial_attr;
+        if (op->get_kind() == op_kind::dnnl_u8_to_s8) {
+            const int32_t u8_to_s8_shift = -128;
+            prm_attr.set_zero_points(DNNL_ARG_TO, mask, {u8_to_s8_shift});
         }
 
         pd_ = dnnl::reorder::primitive_desc(

@@ -206,10 +206,16 @@ void insert_op_before(std::shared_ptr<impl::op_t> &inserted_op,
 
 void insert_op_before(op_t *inserted_op, op_t *base_op, size_t offset);
 
+void insert_op_before(op_t *inserted_op, op_t *base_op, size_t base_offset,
+        size_t inserted_offset);
+
 void insert_op_after(std::shared_ptr<impl::op_t> &inserted_op,
         std::shared_ptr<impl::op_t> &base_op, size_t offset);
 
 void insert_op_after(op_t *inserted_op, op_t *base_op, size_t offset);
+
+void insert_op_after(op_t *inserted_op, op_t *base_op, size_t output_offset,
+        size_t input_offset);
 
 void fuse_op_to_successor(
         op_t *op, std::vector<std::shared_ptr<op_t>> &subgraph);
@@ -261,7 +267,8 @@ inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
                     {impl::op_kind::Sqrt, dnnl::algorithm::eltwise_sqrt},
                     {impl::op_kind::Square, dnnl::algorithm::eltwise_square},
                     {op_kind::dnnl_swish, dnnl::algorithm::eltwise_swish},
-                    {impl::op_kind::Tanh, dnnl::algorithm::eltwise_tanh}};
+                    {impl::op_kind::Tanh, dnnl::algorithm::eltwise_tanh},
+                    {impl::op_kind::Pow, dnnl::algorithm::eltwise_pow}};
     return eltwise_alg_map;
 }
 
@@ -283,7 +290,8 @@ inline bool is_eltwise_kind(op_kind_t kind) {
             impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
             impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::ReLU,
             impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
-            impl::op_kind::Square, op_kind::dnnl_swish, impl::op_kind::Tanh};
+            impl::op_kind::Square, op_kind::dnnl_swish, impl::op_kind::Tanh,
+            impl::op_kind::Pow};
     return eltwise_kinds.find(kind) != eltwise_kinds.end();
 }
 

@@ -139,6 +139,16 @@ impl::status_t eltwise_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t reduction_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
+impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t split_dynamic_dequant(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t fuse_dynamic_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t fuse_dynamic_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

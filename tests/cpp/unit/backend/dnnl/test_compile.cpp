@@ -8628,19 +8628,38 @@ TEST(Execute, QuantizePerTensor) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(1, {1, 2, 2}, impl::data_type::u8);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto op = op_factory.create_kernel(quantize);
+    quantize.add_input(src_lt);
+    quantize.add_output(dst_lt);
 
-    op->compile(&quantize, &engine, {src_lt}, {dst_lt});
+    impl::graph_t g(engine.kind());
+    g.add_op(&quantize);
+    g.build_graph();
 
-    impl::stream_t &stream = get_stream();
+    impl::pass::pass_base_ptr apass = get_pass("quant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
     impl::tensor_t src_ts(src_lt, &engine, src.data());
     impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
-    op->execute(&quantize, &stream, {src_ts}, {dst_ts});
-    stream.wait();
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_EQ(dst[i], ref_dst[i]);
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
 
@@ -8666,19 +8685,38 @@ TEST(Execute, QuantizePerTensorAnyLayout) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             1, {1, 2, 2}, impl::data_type::u8, impl::layout_type::any);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto op = op_factory.create_kernel(quantize);
+    quantize.add_input(src_lt);
+    quantize.add_output(dst_lt);
 
-    op->compile(&quantize, &engine, {src_lt}, {dst_lt});
+    impl::graph_t g(engine.kind());
+    g.add_op(&quantize);
+    g.build_graph();
 
-    impl::stream_t &stream = get_stream();
+    impl::pass::pass_base_ptr apass = get_pass("quant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+
     impl::tensor_t src_ts(src_lt, &engine, src.data());
     impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
-    op->execute(&quantize, &stream, {src_ts}, {dst_ts});
-    stream.wait();
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_EQ(dst[i], ref_dst[i]);
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
 
@@ -8704,19 +8742,38 @@ TEST(Execute, QuantizePerChannelSymmetric) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(1, {1, 2, 2}, impl::data_type::s8);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto op = op_factory.create_kernel(quantize);
+    quantize.add_input(src_lt);
+    quantize.add_output(dst_lt);
 
-    op->compile(&quantize, &engine, {src_lt}, {dst_lt});
+    impl::graph_t g(engine.kind());
+    g.add_op(&quantize);
+    g.build_graph();
 
-    impl::stream_t &stream = get_stream();
+    impl::pass::pass_base_ptr apass = get_pass("quant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
     impl::tensor_t src_ts(src_lt, &engine, src.data());
     impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
-    op->execute(&quantize, &stream, {src_ts}, {dst_ts});
-    stream.wait();
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_EQ(dst[i], ref_dst[i]);
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
 
@@ -8801,19 +8858,38 @@ TEST(Execute, DequantizePerTensor) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(1, {1, 2, 2}, impl::data_type::f32);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto op = op_factory.create_kernel(dequantize);
+    dequantize.add_input(src_lt);
+    dequantize.add_output(dst_lt);
 
-    op->compile(&dequantize, &engine, {src_lt}, {dst_lt});
+    impl::graph_t g(engine.kind());
+    g.add_op(&dequantize);
+    g.build_graph();
 
-    impl::stream_t &stream = get_stream();
+    impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
     impl::tensor_t src_ts(src_lt, &engine, src.data());
     impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
-    op->execute(&dequantize, &stream, {src_ts}, {dst_ts});
-    stream.wait();
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_EQ(dst[i], ref_dst[i]);
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
 
@@ -8839,19 +8915,38 @@ TEST(Execute, DequantizePerTensorAnyLayout) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             1, {1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto op = op_factory.create_kernel(dequantize);
+    dequantize.add_input(src_lt);
+    dequantize.add_output(dst_lt);
 
-    op->compile(&dequantize, &engine, {src_lt}, {dst_lt});
+    impl::graph_t g(engine.kind());
+    g.add_op(&dequantize);
+    g.build_graph();
 
-    impl::stream_t &stream = get_stream();
+    impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+
     impl::tensor_t src_ts(src_lt, &engine, src.data());
     impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
-    op->execute(&dequantize, &stream, {src_ts}, {dst_ts});
-    stream.wait();
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_EQ(dst[i], ref_dst[i]);
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
 
@@ -8877,19 +8972,38 @@ TEST(Execute, DequantizePerChannelSymmetric) {
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(1, {1, 2, 2}, impl::data_type::f32);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto op = op_factory.create_kernel(dequantize);
+    dequantize.add_input(src_lt);
+    dequantize.add_output(dst_lt);
 
-    op->compile(&dequantize, &engine, {src_lt}, {dst_lt});
+    impl::graph_t g(engine.kind());
+    g.add_op(&dequantize);
+    g.build_graph();
 
-    impl::stream_t &stream = get_stream();
+    impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
     impl::tensor_t src_ts(src_lt, &engine, src.data());
     impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
 
-    op->execute(&dequantize, &stream, {src_ts}, {dst_ts});
-    stream.wait();
-    for (size_t i = 0; i < src.size(); ++i) {
-        ASSERT_EQ(dst[i], ref_dst[i]);
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
 
@@ -17552,5 +17666,423 @@ TEST(ExecuteSubgraphInt8, ReluAdd) {
         else
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
                     /*atol*/ 1.f));
+    }
+}
+
+TEST(Execute, DynamicQuantizeS32ZpsPerTensor) {
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+
+    SKIP_IF(eng.kind() == impl::engine_kind::gpu,
+            "Skip dynamic quantize test for GPU device.");
+
+    impl::op_t dync_quantize(impl::op_kind::DynamicQuantize);
+    dync_quantize.set_attr<std::string>("qtype", "per_tensor");
+    dync_quantize.set_attr<int64_t>("axis", 0);
+
+    test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
+    test::vector<float> scales {0.1f};
+    test::vector<int32_t> zps {10};
+    test::vector<uint8_t> dst(src.size(), 0);
+    // int8 = f32 / scales + zero_points
+    test::vector<uint8_t> ref_dst {0, 10, 20, 30};
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t scales_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t zps_lt
+            = utils::logical_tensor_init(2, {1}, impl::data_type::s32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 2, 2}, impl::data_type::u8);
+
+    dync_quantize.add_input(src_lt);
+    dync_quantize.add_input(scales_lt);
+    dync_quantize.add_input(zps_lt);
+    dync_quantize.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&dync_quantize);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &scales_lt, &zps_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t scales_ts(scales_lt, &eng, scales.data());
+    impl::tensor_t zps_ts(zps_lt, &eng, zps.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts, scales_ts, zps_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(Execute, DynamicQuantizeS32ZpsPerChannel) {
+    // oneDNN reorder primitive didn't support per channel asymmetric quantize
+    // regression?
+    GTEST_SKIP();
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+
+    SKIP_IF(eng.kind() == impl::engine_kind::gpu,
+            "Skip dynamic quantize test for GPU device.");
+
+    impl::op_t dync_quantize(impl::op_kind::DynamicQuantize);
+    dync_quantize.set_attr<std::string>("qtype", "per_channel");
+    dync_quantize.set_attr<int64_t>("axis", 1);
+
+    test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
+    test::vector<float> scales {0.1f, 0.2f};
+    test::vector<int32_t> zps {10, 20};
+    test::vector<uint8_t> dst(src.size(), 0);
+    // int8 = f32 / scales + zero_points
+    test::vector<uint8_t> ref_dst {0, 10, 25, 30};
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t scales_lt
+            = utils::logical_tensor_init(1, {2}, impl::data_type::f32);
+    impl::logical_tensor_t zps_lt
+            = utils::logical_tensor_init(2, {2}, impl::data_type::s32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 2, 2}, impl::data_type::u8);
+
+    dync_quantize.add_input(src_lt);
+    dync_quantize.add_input(scales_lt);
+    dync_quantize.add_input(zps_lt);
+    dync_quantize.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&dync_quantize);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &scales_lt, &zps_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t scales_ts(scales_lt, &eng, scales.data());
+    impl::tensor_t zps_ts(zps_lt, &eng, zps.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts, scales_ts, zps_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(Execute, DynamicQuantizeS8ZpsPerTensor) {
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+
+    SKIP_IF(eng.kind() == impl::engine_kind::gpu,
+            "Skip dynamic quantize test for GPU device.");
+
+    impl::op_t dync_quantize(impl::op_kind::DynamicQuantize);
+    dync_quantize.set_attr<std::string>("qtype", "per_tensor");
+    dync_quantize.set_attr<int64_t>("axis", 0);
+
+    test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
+    test::vector<float> scales {0.1f};
+    test::vector<int8_t> zps {10};
+    test::vector<uint8_t> dst(src.size(), 0);
+    // int8 = f32 / scales + zero_points
+    test::vector<uint8_t> ref_dst {0, 10, 20, 30};
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t scales_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t zps_lt
+            = utils::logical_tensor_init(2, {1}, impl::data_type::s8);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 2, 2}, impl::data_type::u8);
+
+    dync_quantize.add_input(src_lt);
+    dync_quantize.add_input(scales_lt);
+    dync_quantize.add_input(zps_lt);
+    dync_quantize.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&dync_quantize);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &scales_lt, &zps_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t scales_ts(scales_lt, &eng, scales.data());
+    impl::tensor_t zps_ts(zps_lt, &eng, zps.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts, scales_ts, zps_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(Execute, DynamicQuantizeNoZpsPerTensor) {
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+
+    SKIP_IF(eng.kind() == impl::engine_kind::gpu,
+            "Skip dynamic quantize test for GPU device.");
+
+    impl::op_t dync_quantize(impl::op_kind::DynamicQuantize);
+    dync_quantize.set_attr<std::string>("qtype", "per_tensor");
+    dync_quantize.set_attr<int64_t>("axis", 0);
+
+    test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
+    test::vector<float> scales {0.1f};
+    test::vector<int8_t> dst(src.size(), 0);
+    // int8 = f32 / scales + zero_points
+    test::vector<int8_t> ref_dst {-10, 0, 10, 20};
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t scales_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 2, 2}, impl::data_type::s8);
+
+    dync_quantize.add_input(src_lt);
+    dync_quantize.add_input(scales_lt);
+    dync_quantize.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&dync_quantize);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &scales_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t scales_ts(scales_lt, &eng, scales.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts, scales_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(Execute, DynamicDequantizeS32ZpsPerTensor) {
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+
+    SKIP_IF(eng.kind() == impl::engine_kind::gpu,
+            "Skip dynamic quantize test for GPU device.");
+
+    impl::op_t dync_dequantize(impl::op_kind::DynamicDequantize);
+    dync_dequantize.set_attr<std::string>("qtype", "per_tensor");
+    dync_dequantize.set_attr<int64_t>("axis", 0);
+
+    test::vector<uint8_t> src {0, 10, 20, 30};
+    test::vector<float> scales {0.1f};
+    test::vector<int32_t> zps {10};
+    test::vector<float> dst(src.size(), 0);
+    // f32 = scales * (int8 - zero_points)
+    test::vector<float> ref_dst {-1.0, 0.0, 1.0, 2.0};
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::u8);
+    impl::logical_tensor_t scales_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t zps_lt
+            = utils::logical_tensor_init(2, {1}, impl::data_type::s32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 2, 2}, impl::data_type::f32);
+
+    dync_dequantize.add_input(src_lt);
+    dync_dequantize.add_input(scales_lt);
+    dync_dequantize.add_input(zps_lt);
+    dync_dequantize.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&dync_dequantize);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &scales_lt, &zps_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t scales_ts(scales_lt, &eng, scales.data());
+    impl::tensor_t zps_ts(zps_lt, &eng, zps.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts, scales_ts, zps_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(Execute, DynamicDequantizeNoZpsPerTensor) {
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+
+    SKIP_IF(eng.kind() == impl::engine_kind::gpu,
+            "Skip dynamic quantize test for GPU device.");
+
+    impl::op_t dync_dequantize(impl::op_kind::DynamicDequantize);
+    dync_dequantize.set_attr<std::string>("qtype", "per_tensor");
+    dync_dequantize.set_attr<int64_t>("axis", 0);
+
+    test::vector<uint8_t> src {0, 10, 20, 30};
+    test::vector<float> scales {0.1f};
+    test::vector<float> dst(src.size(), 0);
+    // f32 = scales * (int8 - zero_points)
+    test::vector<float> ref_dst {0, 1.0, 2.0, 3.0};
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::u8);
+    impl::logical_tensor_t scales_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 2, 2}, impl::data_type::f32);
+
+    dync_dequantize.add_input(src_lt);
+    dync_dequantize.add_input(scales_lt);
+    dync_dequantize.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&dync_dequantize);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &scales_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t scales_ts(scales_lt, &eng, scales.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts, scales_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }

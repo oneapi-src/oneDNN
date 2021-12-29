@@ -2684,15 +2684,21 @@ DNNL_GRAPH_OP_SCHEMA(x8s8f32_quant_wei_matmul_bias_add, 1,
 
 DNNL_GRAPH_OP_SCHEMA(mul_scales, 1,
         op_schema_t()
-                .set_num_inputs(1)
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor")
+                .set_input(1, "scales", "scales tensor")
                 .set_output(0, "y", "output tensor")
                 .set_attr("qtype", "quantization type", false,
                         attribute_kind::s, "per_tensor")
                 .set_attr("axis", "quantization type", false, attribute_kind::i,
                         int64_t(1))
-                .set_attr("scales", "input scale", true, attribute_kind::fs)
+                .set_attr("scales", "input scale", false, attribute_kind::fs,
+                        std::vector<float>())
+                .set_attr("with_runtime_scales",
+                        "indicate whether the op has runtime scales input",
+                        false, attribute_kind::b, false)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_constant, 1,
@@ -2708,15 +2714,40 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_constant, 1,
 
 DNNL_GRAPH_OP_SCHEMA(add_zps, 1,
         op_schema_t()
-                .set_num_inputs(1)
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor")
+                .set_input(1, "zps", "zps tensor")
                 .set_output(0, "y", "output tensor")
                 .set_attr("qtype", "quantization type", false,
                         attribute_kind::s, "per_tensor")
                 .set_attr("axis", "quantization type", false, attribute_kind::i,
                         int64_t(1))
-                .set_attr("zps", "input zero_point", true, attribute_kind::is)
+                .set_attr("zps", "input zero_point", false, attribute_kind::is,
+                        std::vector<int64_t>())
+                .set_attr("with_runtime_zps",
+                        "indicate whether the op has runtime zps input", false,
+                        attribute_kind::b, false)
+                .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(sub_zps, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor")
+                .set_input(1, "zps", "zps tensor")
+                .set_output(0, "y", "output tensor")
+                .set_attr("qtype", "quantization type", false,
+                        attribute_kind::s, "per_tensor")
+                .set_attr("axis", "quantization type", false, attribute_kind::i,
+                        int64_t(1))
+                .set_attr("zps", "input zero_point", false, attribute_kind::is,
+                        std::vector<int64_t>())
+                .set_attr("with_runtime_zps",
+                        "indicate whether the op has runtime zps input", false,
+                        attribute_kind::b, false)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(permute, 1,
