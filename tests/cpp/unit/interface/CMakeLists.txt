@@ -20,7 +20,6 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_logger.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp

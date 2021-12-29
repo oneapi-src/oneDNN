@@ -65,11 +65,6 @@ else()
     add_library(${LIB_NAME} SHARED ${HEADERS_ONEAPI} ${SOURCES} ${LIB_DEPS})
 endif()
 
-if (NOT DNNL_GRAPH_LOGGER)
-    message(STATUS "DNNL Graph logger is disabled")
-    target_compile_definitions(${LIB_NAME} PRIVATE DNNL_GRAPH_DISABLE_LOGGER)
-endif()
-
 if(NOT DNNL_GRAPH_VERBOSE)
     message(STATUS "DNNL Graph verbose mode is disabled")
     target_compile_definitions(${LIB_NAME} PRIVATE DNNL_GRAPH_DISABLE_VERBOSE)

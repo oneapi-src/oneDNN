@@ -139,18 +139,6 @@ typedef enum {
     dnnl_graph_result_error_unknown = 0x7fffffff
 } dnnl_graph_result_t;
 
-/// Verbosity level of debug messages
-typedef enum {
-    /// Logging disabled
-    dnnl_graph_log_level_disabled,
-    /// Logging for error
-    dnnl_graph_log_level_error,
-    /// Logging for info/error
-    dnnl_graph_log_level_info,
-    /// Logging for all informations (Maximum verbosity)
-    dnnl_graph_log_level_debug,
-} dnnl_graph_log_level_t;
-
 /// @} dnnl_graph_api_utils
 
 /// @addtogroup dnnl_graph_api_engine

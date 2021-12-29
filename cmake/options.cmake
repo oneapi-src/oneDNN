@@ -33,9 +33,6 @@ option(DNNL_GRAPH_VERBOSE
     "allows oneDNN Graph library be verbose whenever DNNL_GRAPH_VERBOSE
     environment variable set to 1, 2 or 3" ON)
 
-option(DNNL_GRAPH_LOGGER
-    "allows oneDNN Graph library to output logging information" OFF)
-
 option(DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE
     "enables compiled partition cache." ON) # enabled by default
 
