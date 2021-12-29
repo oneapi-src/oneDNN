@@ -222,6 +222,11 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     if (pd()->with_c_zero_points())
         pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
 
+    if (swapab) {
+        uint8_t swap_table[4] = {0, 2, 1, 3};
+        cmask = (cmask & ~3) | swap_table[cmask & 3];
+    }
+
     status_t status;
 
     auto block_m = nocopy_info_.blocking[0];
