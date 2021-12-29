@@ -368,50 +368,66 @@ T to_cpp(ngen::HW hw, const ngen_operand_t &op) {
 // is destructed.
 class ngen_register_scope_t {
 public:
-    ngen_register_scope_t(reg_allocator_t &ra) : ra_(&ra) {}
+    ngen_register_scope_t(reg_allocator_t &ra) : ra_(ra) {}
 
     ngen_register_scope_t(const ngen_register_scope_t &) = delete;
 
     ngen_register_scope_t(ngen_register_scope_t &&other)
         : ra_(other.ra_)
         , grf_ranges_(std::move(other.grf_ranges_))
-        , subregisters_(std::move(other.subregisters_)) {
-        other.ra_ = nullptr;
+        , subregisters_(std::move(other.subregisters_)) {}
+
+    reg_allocator_t &register_allocator() { return ra_; }
+
+    ngen::HW hw() const { return ra_.hardware(); }
+
+    ~ngen_register_scope_t() { clear(); }
+
+    void clear() {
+        for (auto &r : grf_ranges_)
+            ra_.safeRelease(r);
+        for (auto &s : subregisters_)
+            ra_.safeRelease(s);
+        for (auto &f : flags_)
+            ra_.safeRelease(f);
+        grf_ranges_.clear();
+        subregisters_.clear();
+        flags_.clear();
     }
 
-    reg_allocator_t &register_allocator() { return *ra_; }
-
-    ngen::HW hw() const { return ra_->hardware(); }
-
-    ~ngen_register_scope_t() {
+    ngen::GRFRange find_grf_range(int base, int byte_offset) const {
+        if (byte_offset != 0) return ngen::GRFRange();
         for (auto &r : grf_ranges_)
-            ra_->safeRelease(r);
+            if (r.getBase() == base) return r;
+        return ngen::GRFRange();
+    }
 
+    ngen::Subregister find_sub(int base, int byte_offset) const {
         for (auto &s : subregisters_)
-            ra_->safeRelease(s);
-        for (auto &f : flags_)
-            ra_->safeRelease(f);
+            if (s.getBase() == base && s.getByteOffset() == byte_offset)
+                return s;
+        return ngen::Subregister();
     }
 
     ngen::GRFRange try_alloc_range(
             int regs, ngen::Bundle base_bundle = ngen::Bundle()) {
-        auto ret = ra_->try_alloc_range(regs, base_bundle);
+        auto ret = ra_.try_alloc_range(regs, base_bundle);
         if (!ret.isInvalid()) grf_ranges_.push_back(ret);
         return ret;
     }
 
     ngen::GRFRange alloc_range(
             int regs, ngen::Bundle base_bundle = ngen::Bundle()) {
-        auto ret = ra_->alloc_range(regs, base_bundle);
+        auto ret = ra_.alloc_range(regs, base_bundle);
         grf_ranges_.push_back(ret);
         return ret;
     }
 
     reg_buf_t alloc_reg_buf(
             int regs, ngen::Bundle base_bundle = ngen::Bundle()) {
-        auto range = ra_->alloc_range(regs, base_bundle);
+        auto range = ra_.alloc_range(regs, base_bundle);
         grf_ranges_.push_back(range);
-        return reg_buf_t(ra_->hardware(), range);
+        return reg_buf_t(ra_.hardware(), range);
     }
 
     reg_buf_data_t alloc_reg_buf_data(
@@ -437,31 +453,41 @@ public:
     }
 
     ngen::GRF alloc(ngen::Bundle bundle = ngen::Bundle()) {
-        auto range = ra_->alloc_range(1, bundle);
+        auto range = ra_.alloc_range(1, bundle);
         grf_ranges_.push_back(range);
         return range[0];
     }
 
     ngen::Subregister alloc_sub(
             ngen::DataType type, ngen::Bundle bundle = ngen::Bundle()) {
-        auto ret = ra_->alloc_sub(type, bundle);
+        auto ret = ra_.alloc_sub(type, bundle);
         subregisters_.push_back(ret);
         return ret;
     }
 
     ngen::FlagRegister alloc_flag() {
-        auto ret = ra_->alloc_flag();
+        auto ret = ra_.alloc_flag();
         flags_.push_back(ret);
         return ret;
     }
 
+    void claim(const ngen::GRFRange &range) {
+        ra_.claim(range);
+        grf_ranges_.push_back(range);
+    }
+
+    void claim(const ngen::Subregister &sub) {
+        ra_.claim(sub);
+        subregisters_.push_back(sub);
+    }
+
     template <typename T>
     void safeRelease(T &t) {
-        ra_->safeRelease(t);
+        ra_.safeRelease(t);
     }
 
 private:
-    reg_allocator_t *ra_;
+    reg_allocator_t &ra_;
 
     std::vector<ngen::GRFRange> grf_ranges_;
     std::vector<ngen::Subregister> subregisters_;
@@ -4106,6 +4132,34 @@ public:
             auto value_op = eval(obj.value, scope);
             expr_binding_.bind(obj.var, value_op);
         }
+
+        auto var_op = expr_binding_.get(obj.var);
+
+        // At this point the scope contains allocations for temporary
+        // expressions. We need to 1) query and later re-claim the allocation
+        // for the let variable in a new scope and 2) release the current scope
+        // allocations to reduce GRF consumption.
+        ngen::GRFRange var_grf_range;
+        ngen::Subregister var_sub;
+
+        if (var_op.is_reg_data()) {
+            auto var_rd = var_op.reg_data();
+            var_grf_range = scope.find_grf_range(
+                    var_rd.getBase(), var_rd.getByteOffset());
+            var_sub = scope.find_sub(var_rd.getBase(), var_rd.getByteOffset());
+        }
+
+        // Release the current scope allocations.
+        scope.clear();
+
+        // Claim the let variable allocation.
+        auto var_scope = register_scope();
+        if (!var_grf_range.isInvalid()) {
+            var_scope.claim(var_grf_range);
+        } else if (!var_sub.isInvalid()) {
+            var_scope.claim(var_sub);
+        }
+
         visit(obj.body);
         expr_binding_.unbind(obj.var);
     }
