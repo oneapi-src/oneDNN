@@ -1322,7 +1322,6 @@ inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_ELTWISE", attr_info.with_eltwise);
     kernel_ctx.define_int("ELTWISE_IDX", attr_info.eltwise_idx);
     kernel_ctx.define_int("ELTWISE_ALG", attr_info.eltwise_alg);
-    kernel_ctx.define_int("ELTWISE_ALPHA0", attr_info.eltwise_alpha == 0.0f);
 
     kernel_ctx.define_int("WITH_SUM", attr_info.with_sum);
     kernel_ctx.define_int("SUM_IDX", attr_info.sum_idx);

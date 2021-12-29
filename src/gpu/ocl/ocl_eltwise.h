@@ -35,12 +35,8 @@
 #endif
 #endif
 
-#ifndef ELTWISE_ALPHA0
-#define ELTWISE_ALPHA0 0
-#endif
-
 float relu_fwd(float s, float alpha) {
-    return s > 0 ? s : (ELTWISE_ALPHA0 ? 0 : s * alpha);
+    return s > 0 ? s : ((alpha == 0) ? 0 : s * alpha);
 }
 float relu_bwd(float dd, float s, float alpha) {
     return s > 0 ? dd : dd * alpha;
