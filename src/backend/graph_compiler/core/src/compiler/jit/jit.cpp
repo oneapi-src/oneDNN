@@ -47,7 +47,7 @@ std::unique_ptr<jit_engine_t> jit_engine_t::make(const context_ptr &ctx) {
 void jit_engine_t::set_target_machine(jit_kind kind, target_machine_t &tm) {
     switch (kind) {
         case jit_kind::cfake:
-#ifdef SC_CFAKE_JIT_ENABLED
+#if SC_CFAKE_JIT_ENABLED == 0
             return;
 #else
             return cfake_jit::set_target_machine(tm);
