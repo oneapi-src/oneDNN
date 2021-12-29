@@ -30,6 +30,17 @@ using namespace ir_utils;
 
 namespace {
 
+struct mem_usage_guard_t {
+    mem_usage_guard_t(int *mem_usage, int size) : ptr(mem_usage), size(size) {
+        *ptr += size;
+    }
+
+    ~mem_usage_guard_t() { *ptr -= size; }
+
+    int *ptr;
+    int size;
+};
+
 // Helper class to print IR objects.
 class ir_printer_t : public ir_visitor_t {
 public:
@@ -45,9 +56,11 @@ public:
     }
 
     void _visit(const alloc_t &obj) override {
+        auto guard
+                = mem_usage_guard(obj.kind == alloc_kind_t::grf ? obj.size : 0);
         print_indent();
         out_ << "alloc " << obj.buf.as<var_t>().name << "[" << obj.size
-             << "]\n";
+             << "] (mem_usage: " << mem_usage_ << ")\n";
         visit(obj.body);
     }
 
@@ -127,6 +140,7 @@ public:
     }
 
     void _visit(const let_t &obj) override {
+        auto guard = mem_usage_guard(obj.var.type().size());
         print_indent();
         out_ << obj.var << "." << obj.var.type() << " = " << obj.value << "\n";
         visit(obj.body);
@@ -207,6 +221,10 @@ public:
     void _visit(const var_t &obj) override { out_ << obj.name; }
 
 private:
+    mem_usage_guard_t mem_usage_guard(int size) {
+        return mem_usage_guard_t(&mem_usage_, size);
+    }
+
     static std::string strip_parens(const std::string &s) {
         if (s.size() < 2 || s[0] != '(' || s[s.size() - 1] != ')') return s;
         auto ret = s;
@@ -226,6 +244,10 @@ private:
     int indent_ = 0;
 
     std::string prefix_ = "  ";
+
+    // Size required for all enclosed let/alloc statements. The value is
+    // updated during traversal.
+    int mem_usage_ = 0;
 };
 
 class substitute_mutator_t : public ir_mutator_t {
