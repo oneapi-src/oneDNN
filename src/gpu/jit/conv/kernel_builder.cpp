@@ -874,6 +874,14 @@ private:
             return;
         }
 
+        if (std::is_same<T, shuffle_t>::value) {
+            auto &shuffle = reinterpret_cast<const shuffle_t &>(obj);
+            if (shuffle.is_broadcast()) {
+                ir_visitor_t::_visit(obj);
+                return;
+            }
+        }
+
         if (propagate_path_) {
             if (ctx_.has(obj))
                 ctx_.add_usage(obj, root_path_, /*do_increment=*/false);
