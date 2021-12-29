@@ -555,6 +555,45 @@ stmt_t replace_stmt_body(const stmt_t &stmt, const stmt_t &new_body) {
     return new_body;
 }
 
+class grf_usage_visitor_t : public ir_visitor_t {
+public:
+    grf_usage_visitor_t(int grf_size, bool skip_let)
+        : grf_size_(grf_size), skip_let_(skip_let) {}
+
+    void _visit(const alloc_t &obj) override {
+        int size = (obj.kind == alloc_kind_t::grf ? obj.size : 0);
+        size = utils::rnd_up(size, grf_size_);
+        auto guard = grf_usage_guard(size);
+        ir_visitor_t::_visit(obj);
+    }
+
+    void _visit(const let_t &obj) override {
+        int size = (skip_let_ ? 0 : obj.var.type().size());
+        auto guard = grf_usage_guard(size);
+        ir_visitor_t::_visit(obj);
+    }
+
+    int peak_grf_usage() const { return peak_grf_usage_; }
+
+private:
+    mem_usage_guard_t grf_usage_guard(int size) {
+        auto ret = mem_usage_guard_t(&grf_usage_, size);
+        peak_grf_usage_ = std::max(peak_grf_usage_, grf_usage_);
+        return ret;
+    }
+
+    int grf_size_ = 0;
+    bool skip_let_ = false;
+    int grf_usage_ = 0;
+    int peak_grf_usage_ = 0;
+};
+
+int get_peak_grf_usage(const stmt_t &stmt, int grf_size, bool skip_let) {
+    grf_usage_visitor_t visitor(grf_size, skip_let);
+    visitor.visit(stmt);
+    return utils::div_up(visitor.peak_grf_usage(), grf_size);
+}
+
 bool relation_t::implies(const relation_t &other) const {
     ir_assert(var().is_same(other.var()));
 

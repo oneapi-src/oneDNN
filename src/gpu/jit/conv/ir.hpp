@@ -586,6 +586,8 @@ stmt_t get_stmt_body(const stmt_t &stmt);
 
 stmt_t replace_stmt_body(const stmt_t &stmt, const stmt_t &new_body);
 
+int get_peak_grf_usage(const stmt_t &stmt, int grf_size, bool skip_let = false);
+
 // Describes the linear transformation F(x) for variable x: F(x) = (a * x + b),
 // where a and b are integer constants.
 struct linear_transform_t {
