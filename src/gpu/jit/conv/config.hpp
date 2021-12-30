@@ -337,36 +337,25 @@ public:
             ic_blk = (is_small_ic() ? ic : 16);
         } else if (is_dp_fma()) {
             g_tg_blk = 1;
-            mb_thr_blk = is_small_ic() ? mb < 16 ? mb < 2 ? 1 : 2 : 4
-                                       : (mb < 16 ? 1 : mb == 16 ? 16 : 32);
-            mb_thr_dim = (is_small_ic())
-                    ? (mb < 16 ? utils::rnd_up_pow2(
-                               utils::div_up(mb, mb_thr_blk))
-                               : 4)
-                    : 1;
             oc_thr_blk = 32;
             if (hw >= ngen::HW::XeHPC && !is_small_ic()) oc_thr_blk = 64;
             oc_thr_dim = init_thr_dim(oc, oc_thr_blk, /*max_thr_dim=*/4);
             if (is_small_ic()) {
-                ow_thr_blk = std::min(
-                        utils::rnd_up_pow2(ow), hw >= ngen::HW::XeHPC ? 8 : 4);
-            } else {
-                ow_thr_blk = (mb < 16 ? 16 : 1);
-                if (ow < ow_thr_blk) ow_thr_blk = 8;
-            }
-            ow_thr_dim = is_small_ic()
-                    ? std::min(4, utils::div_up(ow, 4))
-                    : std::min(4, utils::div_up(ow, ow_thr_blk));
-            if (is_small_ic()) {
+                mb_thr_blk = mb < 16 ? (mb < 2 ? 1 : 2) : 4;
+                mb_thr_dim = (mb < 16 ? utils::rnd_up_pow2(
+                                      utils::div_up(mb, mb_thr_blk))
+                                      : 4);
+                int ic_inner_blk = is_s32_accumulator() ? 4 : 2;
                 int goal_blk = is_s32_accumulator() ? 32 : 16;
                 kw_blk = std::min(8, utils::rnd_up_pow2(kw));
                 ic_blk = goal_blk / kw_blk;
-                if (goal_blk / (utils::rnd_up_pow2(ic) * kw_blk) > 1
-                        && kh > 1) {
-                    kh_blk = std::min(
-                            8, goal_blk / (utils::rnd_up_pow2(ic) * kw_blk));
+                if (ic_blk > ic_inner_blk) {
+                    ow_thr_blk = 1;
+                } else {
+                    ow_thr_blk = std::min(utils::rnd_up_pow2(ow),
+                            hw >= ngen::HW::XeHPC ? 8 : 4);
                 }
-                ic_blk = goal_blk / (kw_blk * kh_blk);
+                ow_thr_dim = std::min(4, utils::div_up(ow, 4));
                 // Fall back conditions, likely due to wasted computation
                 // from m_blk and k_blk.
                 // ocl:xe_hp implementation is currently better
@@ -374,6 +363,11 @@ public:
                 // ocl:xe_hp_1x1 implementation is currently better
                 if (kd == 1 && kh == 1 && kw == 1) return status::unimplemented;
             } else {
+                mb_thr_blk = (mb < 16 ? 1 : mb == 16 ? 16 : 32);
+                mb_thr_dim = 1;
+                ow_thr_blk = (mb < 16 ? 16 : 1);
+                if (ow < ow_thr_blk) ow_thr_blk = 8;
+                ow_thr_dim = std::min(4, utils::div_up(ow, ow_thr_blk));
                 kw_blk = 1;
                 ic_blk = (is_s32_accumulator() ? 32 : 16);
             }
