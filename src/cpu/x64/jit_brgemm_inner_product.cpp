@@ -523,6 +523,10 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             get_brg_kernel_index( // TODO: Can be calculated on initialization stage
                     jbgp, false, is_os_tail, is_ic_tail, is_oc_tail);
 
+    const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+    const int work_amount = jbgp.nb_ic * os_chunks;
+    const int num_threads = (work_amount == 1 ? 1 : jbgp.nthr);
+
     const auto get_weights_ptr = [&](int icb, int ocb) {
         int fwd_ic_block = (is_amx) ? 2 * jbgp.simd_w : jbgp.simd_w;
         int fwd_oc_block = 0;
@@ -671,8 +675,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                             jbgp.oc_block);
             }
 
-            if (jbgp.use_buffer && jbgp.nthr_oc_b <= 1 && is_last_oc_chunk
-                    && !is_oc_tail) {
+            if (jbgp.use_buffer && (jbgp.nthr_oc_b <= 1 || num_threads == 1)
+                    && is_last_oc_chunk && !is_oc_tail) {
                 void *scratch
                         = is_amx ? static_cast<void *>(wsp_tile) : nullptr;
                 const brgemm_post_ops_data_t empty_po_data {};
@@ -728,9 +732,6 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         }
     };
 
-    const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
-    const int work_amount = jbgp.nb_ic * os_chunks;
-    const int num_threads = (work_amount == 1 ? 1 : jbgp.nthr);
     if (jbgp.ip_bwd_d_global_b_transpose && jbgp.use_buffer_b) {
         assert(IMPLICATION(
                 jbgp.ip_bwd_d_global_b_transpose, jbgp.nthr_oc_b == 1));
