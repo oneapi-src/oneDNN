@@ -495,10 +495,7 @@ public:
         CHECK(init_zero_points_config(conv_pd));
 
         if (kd * kh * kw > 9) do_pipeline_unroll = false;
-        if (is_dw) {
-            use_preload = false;
-            do_pipeline_unroll = false;
-        }
+        if (is_dw) use_preload = false;
         if (is_small_ic()) {
             reuse_headers = true;
             do_pipeline_unroll = false;
@@ -1963,11 +1960,13 @@ private:
     void fixup_inference_consistency() {
         // Can't reuse headers with loop unroll and post-increment offset updates.
         if (reuse_headers) do_pipeline_unroll = false;
+
+        // Unrolling with mad or dp4a results in too large kernels.
+        if (utils::one_of(fma_kind, fma_kind_t::mad, fma_kind_t::dp4a))
+            do_pipeline_unroll = false;
+
         // Without unrolling there is no benefit in keeping per-message headers.
         if (!do_pipeline_unroll) reuse_headers = true;
-
-        // Unrolling with dp4a results in too large kernels.
-        if (fma_kind == fma_kind_t::dp4a) do_pipeline_unroll = false;
 
         if (use_preload) {
             // Prefetches are only supported with loop unrolling.
