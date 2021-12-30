@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -100,29 +100,7 @@ private:
     }
 };
 
-#ifndef SC_PRODUTION
-/**
- * The instance norm op
- * Inputs:
- *  - in[0] - the data input
- *  - in[1] - (Only avaliable when use_affine = True) gamma. @see use_affine
- *  - in[2] - (Only avaliable when use_affine = True) beta. @see use_affine
- * Outputs:
- *  - The result tensor
- * Attrs:
- *  - epsilon: float
- *  - rd_axis: vector<int> - reduction axes
- *  - use_affine: bool. If true, output = output * gamma + beta
- * */
-class instancenorm_op : public normalize_common_t {
-public:
-    instancenorm_op(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : normalize_common_t(normalize_kind::instancenorm, ins, outs, attrs) {}
-};
-
 } // namespace ops
 } // namespace sc
 
-#endif
 #endif

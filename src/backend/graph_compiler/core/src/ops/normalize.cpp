@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -229,5 +229,5 @@ void normalize_common_t::query_format(context_ptr ctx,
 } // namespace ops
 
 OP_REGISTER(ops::layernorm_op_t, layernorm)
-OP_REGISTER(ops::instancenorm_op, instancenorm)
+
 } // namespace sc
