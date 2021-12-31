@@ -382,7 +382,8 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
     Label kh_loop;
     L(kh_loop);
     {
-        if (jcp.kw >= 5 && pad_l == 0 && pad_r == 0) {
+        if ((jcp.ic % jcp.ic_block == 0) && jcp.kw >= 5 && pad_l == 0
+                && pad_r == 0) {
             oh_step_nopad(ur_w, pad_l, pad_r, oc_blocks);
             add(aux_reg_input,
                     get_input_offset(0, filter_h_to_input(1))
