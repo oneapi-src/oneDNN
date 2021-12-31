@@ -309,29 +309,60 @@ public:
             bool do_kw_buf = (kw > 1 && mb_thr_blk == 1 && iw_load_blk <= 32);
             kw_blk = (do_kw_buf ? kw : 1);
         } else if (fma_kind == fma_kind_t::mad) {
-            const int max_tg_size = 16;
+            const int target_tg_size = get_optimal_tg_size();
+            // b_blk
             g_tg_blk = 1;
-            mb_thr_blk = (mb < 16 ? mb < 2 ? 1 : 2 : 8);
-            mb_thr_dim = (mb_thr_blk > 7) ? (32 / mb_thr_blk) : 1;
-#ifdef GEN_CONV_DEBUG
-            mb_thr_blk = getenv_int("mb_thr_blk", mb_thr_blk);
-#endif
-            oc_thr_blk = 16;
-            oc_thr_dim = init_thr_dim(oc, oc_thr_blk, /*max_thr_dim=*/4);
 
-            if (mb_thr_dim > 1) {
-                ow_thr_blk = 1;
-                ow_thr_dim = 1;
+            // n_blk
+            // Must be a multiple of simd_size as this is the dimension simd
+            // instructions are applied to.
+            int target_n_blk = 1;
+            while (4 * target_n_blk * target_n_blk < target_tg_size)
+                target_n_blk *= 2;
+
+            oc_thr_blk = simd_size;
+            oc_thr_dim = init_thr_dim(
+                    oc, oc_thr_blk, /*max_thr_dim=*/target_n_blk);
+
+            // m_blk
+            // Prefer blocking on ow for data locality when src format is not
+            // blocked by mb
+            const int target_m_blk = 16;
+            const int target_m_dim = target_tg_size / oc_thr_dim;
+            int src_mb_blk = get_src_mb_blk();
+            if (src_mb_blk > 1) {
+                auto m_blk = greedy_blk(target_m_blk, {mb, ow}, {src_mb_blk});
+                mb_thr_blk = utils::rnd_up_pow2(m_blk[0]);
+                ow_thr_blk = utils::rnd_up_pow2(m_blk[1]);
+
+                auto m_dim = greedy_tg_dim(
+                        target_m_dim, {mb, ow}, {mb_thr_blk, ow_thr_blk});
+                mb_thr_dim = m_dim[0];
+                ow_thr_dim = m_dim[1];
+                greedy_redistribute_factor(target_m_dim, 2,
+                        {{ow_thr_blk, ow_thr_dim}, {mb_thr_blk, mb_thr_dim}});
             } else {
-                const int pref_ow_thr_dim
-                        = max_tg_size / (oc_thr_dim * mb_thr_dim);
-                const int pref_ow_block = (mb_thr_blk < 8) ? 8 : kw > 1 ? 4 : 1;
-                ow_thr_blk = ow < pref_ow_block * pref_ow_thr_dim
-                        ? utils::rnd_down_pow2(
-                                utils::div_up(ow, pref_ow_thr_dim))
-                        : pref_ow_block;
-                ow_thr_dim = std::min(ow, pref_ow_thr_dim);
+                auto m_blk = greedy_blk(target_m_blk, {ow, mb});
+                mb_thr_blk = utils::rnd_up_pow2(m_blk[1]);
+                ow_thr_blk = utils::rnd_up_pow2(m_blk[0]);
+
+                auto m_dim = greedy_tg_dim(
+                        target_m_dim, {ow, mb}, {ow_thr_blk, mb_thr_blk});
+                mb_thr_dim = m_dim[1];
+                ow_thr_dim = m_dim[0];
+                greedy_redistribute_factor(target_m_dim, 2,
+                        {{mb_thr_blk, mb_thr_dim}, {ow_thr_blk, ow_thr_dim}});
             }
+            mb_thr_dim = init_thr_dim(mb, mb_thr_blk, mb_thr_dim);
+            ow_thr_dim = init_thr_dim(ow, ow_thr_blk, ow_thr_dim);
+
+            // k_blk
+            // There are effectively no restrictions on k_blk as this blocking is
+            // effectively treated as scalar in the multiplication.
+            const int target_k_blk = 16;
+            auto k_blk = greedy_blk(target_k_blk, {ic, kw}, {get_src_ic_blk()});
+            ic_blk = k_blk[0];
+            kw_blk = k_blk[1];
             ic_thr_dim = 1;
             kw_blk = 1;
             ic_blk = (is_small_ic() ? ic : 16);
@@ -1216,6 +1247,70 @@ private:
         return ret_ic_thr_dim;
     }
 
+    static std::vector<int> greedy_blk(int target, std::vector<int> dims,
+            std::vector<int> blk_divisor = {}) {
+        // Currently assumes target is a power of 2 for divisibility conditions
+        ir_assert(math::is_pow2(target));
+
+        std::vector<int> blks(dims.size(), 1);
+        for (size_t i = 0; i < dims.size() && target > 1; i++) {
+            // Adjust dim to match block divisibility restrictions
+            auto dim = dims[i];
+            auto target_rnd = target;
+            if (i < blk_divisor.size()) {
+                dim = utils::rnd_up(dim, blk_divisor[i]);
+                target_rnd = utils::rnd_up(target, blk_divisor[i]);
+            }
+
+            auto blk = [&]() {
+                // Prefer blocking on the complete dimension
+                if (dim >= 2 * target) {
+                    return target_rnd;
+                } else {
+                    return dim;
+                }
+            }();
+
+            blks[i] = blk;
+            target /= utils::rnd_up_pow2(blk);
+        }
+        return blks;
+    }
+
+    static std::vector<int> greedy_tg_dim(
+            int target, std::vector<int> dims, std::vector<int> blocks) {
+        std::vector<int> thr_dims(dims.size(), 1);
+        for (size_t i = 0; i < dims.size() && target > 1; i++) {
+            // Assume block size of 1 if no blocks value is present
+            // dim must be a power of 2 as tg sizes are powers of 2
+            auto dim = utils::rnd_up_pow2((i >= blocks.size())
+                            ? dims[i]
+                            : utils::div_up(dims[i], blocks[i]));
+            dim = std::min(dim, target);
+            thr_dims[i] = dim;
+            target /= dim;
+        }
+        return thr_dims;
+    }
+
+    // Redistibute factor from pair.first to pair.second until target is reached
+    static void greedy_redistribute_factor(int target, int factor,
+            std::vector<std::pair<int &, int &>> blk_tgs) {
+        int current = 1;
+        for (auto &pair : blk_tgs) {
+            current *= pair.second;
+        }
+        for (auto &pair : blk_tgs) {
+            int &thr_blk = pair.first;
+            int &thr_dim = pair.second;
+            while (current < target && pair.first % factor == 0) {
+                thr_blk /= factor;
+                thr_dim *= factor;
+                current *= factor;
+            }
+        }
+    }
+
     static int init_thr_dim(
             int x, int x_thr_blk, int max_thr_dim, double target_eff = 0.9) {
         int x_thr_dim = std::min(max_thr_dim, utils::div_up(x, x_thr_blk));
@@ -2079,6 +2174,19 @@ private:
         if (is_bwd_d) return tensor_config.compute_layout("src");
         return tensor_config.compute_layout("wei");
     }
+
+    int get_blk(const layout_t &layout, int idx) {
+        bool is_first = true;
+        for (auto pair : layout.enumerated_blocks()) {
+            if (!is_first && layout.is_outermost(pair)) break;
+            if (pair.second.dim_idx == idx) return pair.second.block;
+            is_first = false;
+        }
+        return 1;
+    };
+
+    int get_src_ic_blk() { return get_blk(a_layout(), 1); }
+    int get_src_mb_blk() { return get_blk(a_layout(), 0); };
 
     int src_arg_key() const {
         if (is_fwd) return DNNL_ARG_SRC;
