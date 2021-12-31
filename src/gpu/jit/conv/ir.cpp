@@ -630,7 +630,7 @@ int64_t bound_finder_base_t::find_bound_impl(
     if (unary) {
         ir_assert(unary->op_kind == op_kind_t::_minus) << e;
         auto a = find_bound_impl(unary->a, !is_low);
-        if (!is_good_bound(a)) return 0;
+        if (!is_good_bound(a)) return def_bound;
         return -a;
     }
 
