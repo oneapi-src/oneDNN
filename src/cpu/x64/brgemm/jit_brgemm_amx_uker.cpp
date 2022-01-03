@@ -583,14 +583,6 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_range(
         const bool p_sum_zp_reg_set = *p_sum_zp != 0;
 
         {
-            const injector_utils::conditional_register_preserve_guard_t
-                    register_guard_sum_scale(
-                            (handle_binary_po_offset_) && p_sum_scale_reg_set,
-                            this, {reg_ptr_sum_scale});
-            const injector_utils::conditional_register_preserve_guard_t
-                    register_guard_sum_zp(
-                            p_sum_zp_reg_set, this, {reg_ptr_sum_zp});
-
             if (p_sum_scale_reg_set)
                 mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
 
