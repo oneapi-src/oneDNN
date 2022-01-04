@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,7 +104,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
                             {in_edge(0, matmul_qk, 0)}, "fscore_scale");
                     auto fscore_add = pgraph->append_op(impl::op_kind::Add,
                             {in_edge(0, fscore_scale, 0)}, "fscore_add");
-                    fscore_add->set_commutative_pair({0, 1});
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             {in_edge(0, fscore_add, 0)}, "softmax");
                     auto value_reshape = pgraph->append_op(
@@ -193,7 +192,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mha_pattern)
                             {in_edge(0, matmul_qk, 0)}, "fscore_scale");
                     auto fscore_add = pgraph->append_op(impl::op_kind::Add,
                             {in_edge(0, fscore_scale, 0)}, "fscore_add");
-                    fscore_add->set_commutative_pair({0, 1});
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             {in_edge(0, fscore_add, 0)}, "softmax");
                     auto value_reshape = pgraph->append_op(
@@ -296,7 +294,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
                             {in_edge(0, matmul_qk, 0)}, "fscore_scale");
                     auto fscore_add = pgraph->append_op(impl::op_kind::Add,
                             {in_edge(0, fscore_scale, 0)}, "fscore_add");
-                    fscore_add->set_commutative_pair({0, 1});
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             {in_edge(0, fscore_add, 0)}, "softmax");
                     auto quantize_softmax = pgraph->append_op(
@@ -417,7 +414,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, matmul_qk, 0)}, "fscore_scale");
                     auto fscore_add = pgraph->append_op(impl::op_kind::Add,
                             {in_edge(0, fscore_scale, 0)}, "fscore_add");
-                    fscore_add->set_commutative_pair({0, 1});
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             {in_edge(0, fscore_add, 0)}, "softmax");
                     auto quantize_softmax = pgraph->append_op(

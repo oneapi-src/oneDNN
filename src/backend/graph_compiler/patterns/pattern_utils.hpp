@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,15 +35,13 @@ namespace graph {
 namespace impl {
 namespace compiler_impl {
 
-using pattern_pair = impl::utils::pm::pattern_pair;
-
 class pattern_utils_t {
 public:
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
-            shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
-            std::vector<std::vector<pattern_pair>> &matched_pairs_list);
+            std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
+            std::vector<std::vector<op_t *>> &fusion_ops);
     inline void set_partitions(dnnl::graph::impl::graph_t &backend_graph,
-            std::vector<std::vector<pattern_pair>> &matched_pairs_list);
+            std::vector<std::vector<op_t *>> &fusion_ops);
 
     pattern_utils_t() = default;
     pattern_utils_t(const pattern_utils_t &) = delete;
@@ -53,18 +51,14 @@ public:
 
 inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
         std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
-        std::vector<std::vector<pattern_pair>> &matched_pairs_list) {
+        std::vector<std::vector<op_t *>> &fusion_ops) {
     // dfs_visit graph, do pattern matching
     topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
-        impl::utils::pm::match_t matcher;
-        if (!impl::utils::pm::match_pattern(cur_op, pgraph, matcher)) {
+        std::vector<op_t *> candidate_fusion;
+        if (!impl::utils::pm::match_pattern(cur_op, pgraph, candidate_fusion)) {
             return status::success;
         }
-        matched_pairs_list.emplace_back(matcher.op_pb_op_pairs);
-
-        for (auto &aop : matcher.op_pb_op_pairs) {
-            aop.first->set_attr<bool>("matched_pattern", true);
-        }
+        fusion_ops.emplace_back(candidate_fusion);
         return status::success;
     });
 }
@@ -105,24 +99,22 @@ static bool check_inputs_outputs_validity(
 
 inline void pattern_utils_t::set_partitions(
         dnnl::graph::impl::graph_t &backend_graph,
-        std::vector<std::vector<pattern_pair>> &matched_pairs_list) {
-    std::vector<pattern_pair> fusion_ops_set;
+        std::vector<std::vector<op_t *>> &fusion_ops) {
+    std::vector<op_t *> fusion_ops_set;
     std::unordered_set<op_t *> visit;
 
-    for (auto &pairs : matched_pairs_list) {
+    for (auto &pairs : fusion_ops) {
         fusion_ops_set.clear();
         visit.clear();
         auto pimpl = std::make_shared<compiler_partition_impl_t>(
                 backend_graph.get_engine_kind());
 
         for (size_t i = 0; i < pairs.size(); ++i) {
-            visit.insert(pairs[i].first);
+            visit.insert(pairs[i]);
             fusion_ops_set.push_back(pairs[i]);
         }
 
-        for (auto &op_map : fusion_ops_set) {
-            op_t *cur_op = op_map.first;
-
+        for (auto &cur_op : fusion_ops_set) {
             for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
                 auto in_value = cur_op->get_input_value(j);
                 if (!in_value->has_producer()
@@ -154,9 +146,9 @@ inline void pattern_utils_t::set_partitions(
 
         // transfer the matched op's ownership from graph to partition
         for (size_t i = 0; i < pairs.size(); ++i) {
-            pimpl->add_op(pairs[i].first->shared_from_this());
+            pimpl->add_op(pairs[i]->shared_from_this());
             // claim the op belong to the partition
-            pairs[i].first->set_partition(pimpl.get());
+            pairs[i]->set_partition(pimpl.get());
         }
         backend_graph.add_partition(pimpl);
     }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,13 +56,11 @@ public:
         pattern_utils_t pu;
         for (auto &pfunc : pfuncs) {
             std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph
-                    = make_shared<impl::utils::pm::pb_graph_t>("pgraph");
+                    = std::make_shared<impl::utils::pm::pb_graph_t>("pgraph");
             pfunc(pgraph);
 
             // match the given pattern in the graph
-            std::vector<
-                    std::vector<std::pair<op_t *, impl::utils::pm::pb_op *>>>
-                    matched_pairs_list;
+            std::vector<std::vector<op_t *>> matched_pairs_list;
             pu.match(agraph, pgraph, matched_pairs_list);
             if (!matched_pairs_list.empty()) {
                 // temporary solution here for showing which pattern matched
