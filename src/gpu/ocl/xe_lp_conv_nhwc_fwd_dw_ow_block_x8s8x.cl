@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -353,11 +353,11 @@ conv_nhwc_fwd_dw_ow_block_x8s8x(const __global uchar *src,
                 if (iw < IW) {
                     for (int i = IW - iw; i < READ_BLOCK; i++) {
                         if (i < 16) {
-                            AA[i] = 0;
+                            ((ushort *)&AA)[i] = 0;
                         }
 #if SW == 2
                         else {
-                            AAA[i - 16] = 0;
+                            ((ushort *)&AAA)[i - 16] = 0;
                         }
 #endif
                     }
