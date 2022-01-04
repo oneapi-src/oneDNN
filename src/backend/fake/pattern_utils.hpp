@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ namespace fake_impl {
 class pattern_utils_t {
 public:
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
-            shared_ptr<utils::pm::pb_graph_t> pgraph,
+            std::shared_ptr<utils::pm::pb_graph_t> pgraph,
             std::vector<op_t *> &matched_op_list);
     inline void fuse(dnnl::graph::impl::graph_t &backend_graph,
             std::vector<op_t *> &matched_op_list);
@@ -58,14 +58,12 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
     std::unordered_set<op_t *> selected;
     // dfs_visit graph, do pattern matching
     topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
-        utils::pm::match_t matcher;
-        if (!utils::pm::match_pattern(cur_op, pgraph, matcher)) {
+        std::vector<op_t *> candidate_fusion;
+        if (!utils::pm::match_pattern(cur_op, pgraph, candidate_fusion)) {
             return status::success;
         }
 
-        op_t *matched_op = matcher.op_pb_op_pairs[0].first;
-        matched_op_list.emplace_back(matched_op);
-        matched_op->set_attr<bool>("matched_pattern", true);
+        matched_op_list.emplace_back(candidate_fusion[0]);
         return status::success;
     });
 }

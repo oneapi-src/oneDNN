@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ public:
                 = get_attr<impl::pass::FCreateV2Pattern>("FCreateV2Pattern")[0];
         pattern_utils_t pu;
         std::shared_ptr<utils::pm::pb_graph_t> pgraph
-                = make_shared<utils::pm::pb_graph_t>("pgraph");
+                = std::make_shared<utils::pm::pb_graph_t>("pgraph");
         pfunc(pgraph);
 
         // for each pattern. match it
