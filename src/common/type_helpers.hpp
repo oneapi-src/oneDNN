@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -258,7 +258,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
         if ((src_dt == u8 || src_dt == s8) && wei_dt == s8) return s32;
     } else if (prop_kind == backward_data) {
         if (one_of(src_dt, f32, s32, s8, u8) && wei_dt == s8
-                && one_of(dst_dt, s8, u8))
+                && one_of(dst_dt, s8, u8, s32))
             return s32;
     }
 
