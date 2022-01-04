@@ -15270,7 +15270,7 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
     matmul_op.set_attr<bool>("transpose_b", false);
 
     impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-    binary_op.set_attr<string>("auto_broadcast", "numpy");
+    binary_op.set_attr<std::string>("auto_broadcast", "numpy");
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -15388,10 +15388,10 @@ TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
     matmul_op.set_attr<bool>("transpose_b", false);
 
     impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-    binary_op.set_attr<string>("auto_broadcast", "numpy");
+    binary_op.set_attr<std::string>("auto_broadcast", "numpy");
 
     impl::op_t binary_op2(6, impl::op_kind::Add, "binary_add");
-    binary_op2.set_attr<string>("auto_broadcast", "numpy");
+    binary_op2.set_attr<std::string>("auto_broadcast", "numpy");
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -15654,7 +15654,7 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
             matmul_op.set_attr<bool>("transpose_b", false);
 
             impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-            binary_op.set_attr<string>("auto_broadcast", "numpy");
+            binary_op.set_attr<std::string>("auto_broadcast", "numpy");
 
             // prepare logical tensor
             impl::logical_tensor_t src
@@ -15797,7 +15797,7 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
             matmul_op.set_attr<bool>("transpose_b", false);
 
             impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-            binary_op.set_attr<string>("auto_broadcast", "numpy");
+            binary_op.set_attr<std::string>("auto_broadcast", "numpy");
 
             // prepare logical tensor
             impl::logical_tensor_t src = utils::logical_tensor_init(
@@ -15946,10 +15946,10 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
             matmul_op.set_attr<bool>("transpose_b", false);
 
             impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-            binary_op.set_attr<string>("auto_broadcast", "numpy");
+            binary_op.set_attr<std::string>("auto_broadcast", "numpy");
 
             impl::op_t binary_add_op(6, impl::op_kind::Add, "binary_add");
-            binary_add_op.set_attr<string>("auto_broadcast", "numpy");
+            binary_add_op.set_attr<std::string>("auto_broadcast", "numpy");
 
             // prepare logical tensor
             impl::logical_tensor_t src
@@ -16802,7 +16802,7 @@ TEST(Execute, ConvResBlock) {
     conv2.add_input(conv2_wei);
     conv2.add_output(add_src0);
     add.add_input(add_src0);
-    add.add_input(conv1_src);
+    add.add_input(conv0_src);
     add.add_output(relu2_src);
     relu2.add_input(relu2_src);
     relu2.add_output(relu2_dst);
@@ -16831,7 +16831,7 @@ TEST(Execute, ConvResBlock) {
     impl::compiled_partition_t cp(p);
 
     std::vector<const impl::logical_tensor_t *> inputs {
-            &conv0_src, &conv0_wei, &conv1_wei, &conv2_wei};
+            &conv0_src, &conv0_wei, &conv1_wei, &conv2_wei, &conv0_src};
     std::vector<const impl::logical_tensor_t *> outputs {&relu2_dst};
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
