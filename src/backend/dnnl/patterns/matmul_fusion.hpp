@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2525,7 +2525,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_MHA_fusion)
                     auto fscore_add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, fscore_scale, 0)},
                             "fscore_add");
-                    fscore_add->set_commutative_pair({0, 1});
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             in_edges_t {in_edge(0, fscore_add, 0)}, "softmax");
                     auto quantize_softmax
@@ -2599,7 +2598,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_MHA_fusion)
                     auto fscore_add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, fscore_scale, 0)},
                             "fscore_add");
-                    fscore_add->set_commutative_pair({0, 1});
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             in_edges_t {in_edge(0, fscore_add, 0)}, "softmax");
 
@@ -2690,7 +2688,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_bf16_MHA_fusion)
                     auto fscore_add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, fscore_scale, 0)},
                             "fscore_add");
-                    fscore_add->set_commutative_pair({0, 1});
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             in_edges_t {in_edge(0, fscore_add, 0)}, "softmax");
                     auto bf16_to_f32_softmax

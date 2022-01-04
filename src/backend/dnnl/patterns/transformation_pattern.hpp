@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -100,15 +100,14 @@ public:
             pattern_utils_t pu;
             for (auto &pfunc : pfuncs) {
                 std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph
-                        = make_shared<impl::utils::pm::pb_graph_t>("pgraph");
+                        = std::make_shared<impl::utils::pm::pb_graph_t>(
+                                "pgraph");
                 pfunc(pgraph);
 
                 // for each pattern. match it
-                std::vector<std::vector<
-                        std::pair<op_t *, impl::utils::pm::pb_op *>>>
-                        matched_pairs_list;
-                pu.match(agraph, pgraph, matched_pairs_list);
-                if (!matched_pairs_list.empty()) {
+                std::vector<std::vector<op_t *>> fusion_ops;
+                pu.match(agraph, pgraph, fusion_ops);
+                if (!fusion_ops.empty()) {
                     // temporary solution here for showing which pattern matched
                     if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
                         printf("dnnl_graph_verbose,info,pattern,hit,%s\n",
@@ -118,7 +117,7 @@ public:
 
                     // Only fuse not rewrite. Will remove the fuse once dnnl
                     // backend support subgraph mode
-                    pu.fuse(agraph, matched_pairs_list, fused_op);
+                    pu.fuse(agraph, fusion_ops, fused_op);
                 }
             }
         }
@@ -144,6 +143,8 @@ public:
 
 #define DNNL_BACKEND_REGISTER_PASSES_CALL(passes_class_, pass_registry_) \
     pass::register_##passes_class_(pass_registry_);
+
+#define MAX_REPETITION 33
 
 } // namespace pass
 } // namespace dnnl_impl

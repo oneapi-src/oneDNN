@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,7 +75,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, chained_relu_fusion)
                     chained_relu->create_input_port(0, relu, 0);
                     chained_relu->create_output_port(0, relu, 0);
 
-                    pgraph->append_repetition(chained_relu, {{0, 0}}, 1, 33);
+                    pgraph->append_repetition(
+                            chained_relu, {0, 0}, 1, MAX_REPETITION);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

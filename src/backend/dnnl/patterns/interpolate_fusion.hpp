@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,9 +74,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_multiply_fusion)
                             = pgraph->append_op(impl::op_kind::Interpolate);
                     interpolate->INTERPOLATE_ATTR_CHECK();
 
-                    pm::pb_op *mul = pgraph->append_op(impl::op_kind::Multiply,
+                    pgraph->append_op(impl::op_kind::Multiply,
                             in_edges_t {in_edge(0, interpolate, 0)});
-                    mul->set_commutative_pair({0, 1});
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -94,9 +93,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_sum_fusion)
                             = pgraph->append_op(impl::op_kind::Interpolate);
                     interpolate->INTERPOLATE_ATTR_CHECK();
 
-                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                    pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, interpolate, 0)});
-                    add->set_commutative_pair({0, 1});
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -138,7 +138,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
@@ -162,7 +161,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu6_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)}, "p-add");
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pm::pb_op *relu6
@@ -189,7 +187,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_elu_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::Elu,
@@ -213,7 +210,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
                 })
         .set_attr<FCreateV2FusedOp>(
@@ -238,7 +234,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_relu_fusion)
 
                     pm::pb_op *add = pgraph->append_op(
                             impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
@@ -265,7 +260,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, bias, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pm::pb_op *relu6
@@ -282,7 +276,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pm::pb_op *relu6
@@ -316,7 +309,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
 
                     pm::pb_op *add = pgraph->append_op(
                             impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
@@ -334,7 +326,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
 
                     pm::pb_op *add = pgraph->append_op(
                             impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
@@ -362,7 +353,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_fusion)
 
                     pm::pb_op *add = pgraph->append_op(
                             impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
                 })
         .set_attr<FCreateV2FusedOp>(
@@ -390,7 +380,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
 
                     pm::pb_op *add = pgraph->append_op(
                             impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -405,7 +394,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
 
                     pm::pb_op *add = pgraph->append_op(
                             impl::op_kind::Add, in_edges_t {in_edge(0, bn, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
                 })
         .set_attr<FCreateV2FusedOp>(
@@ -491,7 +479,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, bias, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::Elu,
@@ -505,7 +492,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::Elu,
@@ -532,7 +518,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, bias, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
@@ -546,7 +531,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
@@ -654,17 +638,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_fusion)
         .set_priority(10.6f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *quant_weight
-                            = pgraph->append_op(impl::op_kind::Quantize);
+                    pm::pb_op *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "pdequant_data");
+                    pm::pb_op *quant_weight = pgraph->append_op(
+                            impl::op_kind::Quantize, "pquant_weight");
                     pm::pb_op *dequant_weight
                             = pgraph->append_op(impl::op_kind::Dequantize,
-                                    in_edges_t {in_edge(0, quant_weight, 0)});
+                                    in_edges_t {in_edge(0, quant_weight, 0)},
+                                    "pdequant+weight");
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
-                                            in_edge(1, dequant_weight, 0)});
+                                            in_edge(1, dequant_weight, 0)},
+                                    "pconv");
                     conv->SET_NUM_INPUTS_CHECK(2);
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -806,7 +792,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_fusion)
                             in_edges_t {in_edge(0, bias, 0),
                                     in_edge(1, dequant_other, 0)},
                             "padd");
-                    add->set_commutative_pair({0, 1});
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, add, 0)}, "pquant");
                 })
@@ -828,7 +813,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_fusion)
                             in_edges_t {in_edge(0, conv, 0),
                                     in_edge(1, dequant_other, 0)},
                             "padd");
-                    add->set_commutative_pair({0, 1});
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, add, 0)}, "pquant");
                 })
@@ -920,7 +904,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
                             in_edges_t {in_edge(0, bias, 0),
                                     in_edge(1, dequant_other, 0)},
                             "padd");
-                    add->set_commutative_pair({0, 1});
 
                     pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)}, "prelu");
@@ -950,7 +933,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
                             in_edges_t {in_edge(0, conv, 0),
                                     in_edge(1, dequant_other, 0)},
                             "padd");
-                    add->set_commutative_pair({0, 1});
 
                     pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)}, "prelu");
@@ -990,7 +972,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
                                     in_edge(1, dequant_other, 0)});
-                    add->set_commutative_pair({0, 1});
                     pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)});
                     pgraph->append_op(impl::op_kind::Quantize,
@@ -1019,7 +1000,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, bias, 0),
                                     in_edge(1, dequant_other, 0)});
-                    add->set_commutative_pair({0, 1});
                     pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)});
                     pgraph->append_op(impl::op_kind::Quantize,
@@ -1160,7 +1140,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_add_relu_fusion)
                             in_edges_t {in_edge(0, conv, 0),
                                     in_edge(1, dequant_other, 0)},
                             "padd");
-                    add->set_commutative_pair({0, 1});
                     pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)}, "prelu");
                     pgraph->append_op(impl::op_kind::Quantize,
@@ -1198,7 +1177,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
                                     in_edge(1, dequant_other, 0)});
-                    add->set_commutative_pair({0, 1});
                     pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)});
                     pgraph->append_op(impl::op_kind::Quantize,
@@ -1398,7 +1376,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             in_edges_t {in_edge(0, bias, 0),
                                     in_edge(1, dequant_other, 0)},
                             "padd");
-                    add->set_commutative_pair({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)}, "prelu");
@@ -1427,7 +1404,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             in_edges_t {in_edge(0, conv, 0),
                                     in_edge(1, dequant_other, 0)},
                             "padd");
-                    add->set_commutative_pair({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)}, "prelu");
@@ -1466,7 +1442,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_add_relu_fusion)
                             in_edges_t {in_edge(0, conv, 0),
                                     in_edge(1, dequant_other, 0)},
                             "padd");
-                    add->set_commutative_pair({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)}, "prelu");
@@ -1670,7 +1645,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
                                     in_edge(1, dequant_other, 0)});
-                    add->set_commutative_pair({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)});
@@ -1701,7 +1675,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, bias, 0),
                                     in_edge(1, dequant_other, 0)});
-                    add->set_commutative_pair({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)});
@@ -1740,7 +1713,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
                                     in_edge(1, dequant_other, 0)});
-                    add->set_commutative_pair({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)});
@@ -1766,7 +1738,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, bias, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -1777,7 +1748,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
                 })
         .set_attr<FCreateV2FusedOp>(
@@ -1865,10 +1835,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
                             = pgraph->append_op(impl::op_kind::Sigmoid,
                                     in_edges_t {in_edge(0, bias, 0)});
 
-                    pm::pb_op *mul = pgraph->append_op(impl::op_kind::Multiply,
+                    pgraph->append_op(impl::op_kind::Multiply,
                             in_edges_t {in_edge(0, bias, 0),
                                     in_edge(1, sigmoid, 0)});
-                    mul->set_commutative_pair({0, 1});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1880,11 +1849,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
                             = pgraph->append_op(impl::op_kind::Sigmoid,
                                     in_edges_t {in_edge(0, conv, 0)}, "p-sig");
 
-                    pm::pb_op *mul = pgraph->append_op(impl::op_kind::Multiply,
+                    pgraph->append_op(impl::op_kind::Multiply,
                             in_edges_t {in_edge(0, conv, 0),
                                     in_edge(1, sigmoid, 0)},
                             "p-mul");
-                    mul->set_commutative_pair({0, 1});
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -2228,7 +2196,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_simple_resblock_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv2, 0)});
-                    add->set_commutative_pair({0, 1});
                     add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
@@ -2297,7 +2264,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv2, 0),
                                     in_edge(1, dequant_other, 0)});
-                    add->set_commutative_pair({0, 1});
                     pm::pb_op *relu2 = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)});
                     pgraph->append_op(impl::op_kind::Quantize,
@@ -2371,13 +2337,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_related_fusion)
                     auto pograph_1 = std::make_shared<pb_graph_t>();
                     auto addormul = pograph_1->append_alternation(
                             {impl::op_kind::Add, impl::op_kind::Multiply});
-                    addormul->set_commutative_pair({0, 1});
                     pograph_1->create_input_port(0, addormul, 0);
                     pograph_1->create_input_port(1, addormul, 1);
                     pograph_1->create_output_port(0, addormul, 0);
 
-                    auto rep1 = pgraph->append_repetition(pograph_1, {{0, 0}},
-                            0, 33, in_edges_t {in_edge(0, biasadd, 0)});
+                    auto rep1 = pgraph->append_repetition(pograph_1, {0, 0}, 0,
+                            MAX_REPETITION,
+                            in_edges_t {in_edge(0, biasadd, 0)});
 
                     auto pograph_2 = std::make_shared<pb_graph_t>();
                     auto eltwise = pograph_2->append_alternation(
@@ -2386,8 +2352,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_related_fusion)
                     pograph_2->create_input_port(0, eltwise, 0);
                     pograph_2->create_output_port(0, eltwise, 0);
 
-                    auto rep2 = pgraph->append_repetition(pograph_2, {{0, 0}},
-                            0, 33, in_edges_t {in_edge(0, rep1, 0)});
+                    auto rep2 = pgraph->append_repetition(pograph_2, {0, 0}, 0,
+                            MAX_REPETITION, in_edges_t {in_edge(0, rep1, 0)});
 
                     auto pograph_3 = std::make_shared<pb_graph_t>();
                     auto addormul2 = pograph_3->append_alternation(
@@ -2395,8 +2361,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_related_fusion)
                     pograph_3->create_input_port(0, addormul2, 0);
                     pograph_3->create_output_port(0, addormul2, 0);
 
-                    pgraph->append_repetition(pograph_3, {{0, 0}}, 0, 33,
-                            in_edges_t {in_edge(0, rep2, 0)});
+                    pgraph->append_repetition(pograph_3, {0, 0}, 0,
+                            MAX_REPETITION, in_edges_t {in_edge(0, rep2, 0)});
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -2407,13 +2373,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_related_fusion)
                     auto pograph_1 = std::make_shared<pb_graph_t>();
                     auto addormul = pograph_1->append_alternation(
                             {impl::op_kind::Add, impl::op_kind::Multiply});
-                    addormul->set_commutative_pair({0, 1});
                     pograph_1->create_input_port(0, addormul, 0);
                     pograph_1->create_input_port(1, addormul, 1);
                     pograph_1->create_output_port(0, addormul, 0);
 
-                    auto rep1 = pgraph->append_repetition(pograph_1, {{0, 0}},
-                            0, 33, in_edges_t {in_edge(0, conv, 0)});
+                    auto rep1 = pgraph->append_repetition(pograph_1, {0, 0}, 0,
+                            MAX_REPETITION, in_edges_t {in_edge(0, conv, 0)});
 
                     auto pograph_2 = std::make_shared<pb_graph_t>();
                     auto eltwise = pograph_2->append_alternation(
@@ -2422,8 +2387,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_related_fusion)
                     pograph_2->create_input_port(0, eltwise, 0);
                     pograph_2->create_output_port(0, eltwise, 0);
 
-                    auto rep2 = pgraph->append_repetition(pograph_2, {{0, 0}},
-                            0, 33, in_edges_t {in_edge(0, rep1, 0)});
+                    auto rep2 = pgraph->append_repetition(pograph_2, {0, 0}, 0,
+                            MAX_REPETITION, in_edges_t {in_edge(0, rep1, 0)});
 
                     auto pograph_3 = std::make_shared<pb_graph_t>();
                     auto addormul2 = pograph_3->append_alternation(
@@ -2431,8 +2396,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_related_fusion)
                     pograph_3->create_input_port(0, addormul2, 0);
                     pograph_3->create_output_port(0, addormul2, 0);
 
-                    pgraph->append_repetition(pograph_3, {{0, 0}}, 0, 33,
-                            in_edges_t {in_edge(0, rep2, 0)});
+                    pgraph->append_repetition(pograph_3, {0, 0}, 0,
+                            MAX_REPETITION, in_edges_t {in_edge(0, rep2, 0)});
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

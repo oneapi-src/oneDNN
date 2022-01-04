@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,7 +63,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reorder_sum_fusion)
                                            "auto_broadcast")
                                 == "none";
                     });
-                    add->set_commutative_pair({0, 1});
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -114,7 +113,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_sum_fusion)
                                            "auto_broadcast")
                                 == "none";
                     });
-                    add->set_commutative_pair({0, 1});
                     pgraph->append_op(impl::op_kind::Quantize,
                             {in_edge(0, add, 0)}, "pquant");
                 })

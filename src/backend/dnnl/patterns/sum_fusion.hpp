@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,13 +70,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, sum_fusion)
                                            "auto_broadcast")
                                 == "none";
                     });
-                    add->set_commutative_pair({0, 1});
                     addgraph->create_input_port(0, add, 0);
                     addgraph->create_input_port(1, add, 1);
                     addgraph->create_output_port(0, add, 0);
 
-                    pgraph->append_repetition(addgraph, {{0, 0}}, 1, 33,
-                            {in_edge(0, add_base, 0)});
+                    pgraph->append_repetition(addgraph, {0, 0}, 1,
+                            MAX_REPETITION, {in_edge(0, add_base, 0)});
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

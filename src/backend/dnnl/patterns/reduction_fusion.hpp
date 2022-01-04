@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,6 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(reduction_fusion)
         }); \
         pm::pb_op *add = pgraph->append_op( \
                 impl::op_kind::Add, in_edges_t {in_edge(0, reduction, 0)}); \
-        add->set_commutative_pair({0, 1}); \
         add->allow_internal_inputs({0, 1}); \
     }
 
