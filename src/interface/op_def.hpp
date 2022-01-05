@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -181,7 +181,7 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
 DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({4, 5, 6}))
+                .set_num_inputs(std::set<size_t>({4, 5}))
                 .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({1, 2, 3}))
                 .set_input(0, "input", "input tensor", "T1")
@@ -189,13 +189,11 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
                         "T1")
                 .set_input(
                         2, "gamma", "gamma scaling for normalized value", "T2")
-                .set_input(3, "beta",
-                        "beta added to the scaled normalized value", "T2")
-                .set_input(4, "mean",
+                .set_input(3, "mean",
                         "if is_training is true, pass batch mean, otherwise "
                         "running mean",
                         "T2")
-                .set_input(5, "variance",
+                .set_input(4, "variance",
                         "if is_training is true, pass batch variance, "
                         "otherwise running variance",
                         "T2")
@@ -215,10 +213,6 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
                         " the number to be added to the variance to avoid "
                         "division by zero",
                         true, attribute_kind::f)
-                .set_attr("is_training",
-                        "used to indicate whether the operation is for "
-                        "training",
-                        false, attribute_kind::b, true)
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",

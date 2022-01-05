@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,8 +17,11 @@
 #ifndef TEST_API_COMMON_HPP
 #define TEST_API_COMMON_HPP
 
+#include <cmath>
 #include <cstdint>
+#include <functional>
 #include <map>
+#include <random>
 #include <string>
 #include <utility>
 #include <vector>
@@ -158,6 +161,13 @@ inline int get_compiled_partition_cache_size() {
     auto status = dnnl::graph::impl::get_compiled_partition_cache_size(&result);
     if (status != dnnl::graph::impl::status::success) return -1;
     return result;
+}
+
+inline dnnl_graph_dim_t product(const std::vector<int64_t> &dims) {
+    return dims.empty()
+            ? 0
+            : std::accumulate(dims.begin(), dims.end(), (dnnl_graph_dim_t)1,
+                    std::multiplies<dnnl_graph_dim_t>());
 }
 
 #endif

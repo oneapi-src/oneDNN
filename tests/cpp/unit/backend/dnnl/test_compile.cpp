@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -404,37 +404,33 @@ void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
         impl::dim_t iw, impl::tensor_t *src, impl::tensor_t *dst,
         impl::tensor_t *scale, impl::tensor_t *shift,
         impl::tensor_t *mean = nullptr, impl::tensor_t *variance = nullptr,
-        float epsilon = 0.001f,
+        impl::tensor_t *running_mean = nullptr,
+        impl::tensor_t *running_variance = nullptr,
+        impl::tensor_t *batch_mean = nullptr,
+        impl::tensor_t *batch_variance = nullptr, float epsilon = 0.001f,
+        float momentum = 0.1f,
         std::function<float(const float)> activation = nullptr,
         bool channel_last = false, bool is_training = false) {
     if (!activation) activation = [](const float v) { return v; };
-
-    float *mean_ptr = nullptr;
-    float *variance_ptr = nullptr;
 
     size_t mb_ = static_cast<size_t>(mb);
     size_t ic_ = static_cast<size_t>(ic);
     size_t ih_ = static_cast<size_t>(ih);
     size_t iw_ = static_cast<size_t>(iw);
 
-    std::unique_ptr<float[]> mean_data;
-    std::unique_ptr<float[]> variance_data;
-    if (!mean) {
-        mean_data.reset(new float[static_cast<size_t>(ic)]);
-        mean_ptr = mean_data.get();
-    } else {
-        mean_ptr = mean->get_data_handle<float>();
-    }
-    if (!variance) {
-        variance_data.reset(new float[static_cast<size_t>(ic)]);
-        variance_ptr = variance_data.get();
-    } else {
-        variance_ptr = variance->get_data_handle<float>();
-    }
-
     float *src_ptr = src->get_data_handle<float>();
+    float *dst_ptr = dst->get_data_handle<float>();
 
     if (is_training) {
+        float *mean_ptr = batch_mean->get_data_handle<float>();
+        float *variance_ptr = batch_variance->get_data_handle<float>();
+        float *scale_ptr = scale->get_data_handle<float>();
+        float *shift_ptr = shift->get_data_handle<float>();
+        float *est_mean_ptr = mean->get_data_handle<float>();
+        float *est_variance_ptr = variance->get_data_handle<float>();
+        float *running_mean_ptr = running_mean->get_data_handle<float>();
+        float *running_variance_ptr
+                = running_variance->get_data_handle<float>();
         // derives ref mean
         for (size_t channel = 0; channel < ic_; ++channel) {
             mean_ptr[channel] = 0.f;
@@ -470,24 +466,62 @@ void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
             }
             variance_ptr[channel] /= static_cast<float>(mb * ih * iw);
         }
-    }
-
-    float *dst_ptr = dst->get_data_handle<float>();
-    float *scale_ptr = scale->get_data_handle<float>();
-    float *shift_ptr = shift->get_data_handle<float>();
-    for (size_t batch = 0; batch < mb_; ++batch) {
-        for (size_t channel = 0; channel < ic_; ++channel) {
-            for (size_t h = 0; h < ih_; ++h) {
-                for (size_t w = 0; w < iw_; ++w) {
-                    size_t idx = channel_last
-                            ? channel + w * ic_ + h * iw_ * ic_
-                                    + batch * ih_ * iw_ * ic_
-                            : w + h * iw_ + channel * ih_ * iw_
-                                    + batch * ic_ * ih_ * iw_;
-                    dst_ptr[idx] = activation(scale_ptr[channel]
-                                    * (src_ptr[idx] - mean_ptr[channel])
-                                    / sqrtf(variance_ptr[channel] + epsilon)
-                            + shift_ptr[channel]);
+        for (size_t batch = 0; batch < mb_; ++batch) {
+            for (size_t channel = 0; channel < ic_; ++channel) {
+                for (size_t h = 0; h < ih_; ++h) {
+                    for (size_t w = 0; w < iw_; ++w) {
+                        size_t idx = channel_last
+                                ? channel + w * ic_ + h * iw_ * ic_
+                                        + batch * ih_ * iw_ * ic_
+                                : w + h * iw_ + channel * ih_ * iw_
+                                        + batch * ic_ * ih_ * iw_;
+                        dst_ptr[idx] = activation(scale_ptr[channel]
+                                        * (src_ptr[idx] - mean_ptr[channel])
+                                        / sqrtf(variance_ptr[channel] + epsilon)
+                                + shift_ptr[channel]);
+                    }
+                }
+            }
+        }
+        for (int k = 0; k < ic_; k++) {
+            running_mean_ptr[k]
+                    = momentum * est_mean_ptr[k] + (1 - momentum) * mean_ptr[k];
+            running_variance_ptr[k] = momentum * est_variance_ptr[k]
+                    + (1 - momentum) * variance_ptr[k];
+        }
+    } else {
+        float *mean_ptr = nullptr;
+        float *variance_ptr = nullptr;
+        float *scale_ptr = scale->get_data_handle<float>();
+        float *shift_ptr = shift->get_data_handle<float>();
+        std::unique_ptr<float[]> mean_data;
+        std::unique_ptr<float[]> variance_data;
+        if (!mean) {
+            mean_data.reset(new float[static_cast<size_t>(ic)]);
+            mean_ptr = mean_data.get();
+        } else {
+            mean_ptr = mean->get_data_handle<float>();
+        }
+        if (!variance) {
+            variance_data.reset(new float[static_cast<size_t>(ic)]);
+            variance_ptr = variance_data.get();
+        } else {
+            variance_ptr = variance->get_data_handle<float>();
+        }
+        for (size_t batch = 0; batch < mb_; ++batch) {
+            for (size_t channel = 0; channel < ic_; ++channel) {
+                for (size_t h = 0; h < ih_; ++h) {
+                    for (size_t w = 0; w < iw_; ++w) {
+                        size_t idx = channel_last
+                                ? channel + w * ic_ + h * iw_ * ic_
+                                        + batch * ih_ * iw_ * ic_
+                                : w + h * iw_ + channel * ih_ * iw_
+                                        + batch * ic_ * ih_ * iw_;
+                        dst_ptr[idx] = activation(scale_ptr[channel]
+                                        * (src_ptr[idx] - mean_ptr[channel])
+                                        / sqrtf(variance_ptr[channel] + epsilon)
+                                + shift_ptr[channel]);
+                    }
                 }
             }
         }
@@ -523,7 +557,8 @@ public:
 
         bool is_training
                 = params.op_kind == impl::op_kind::BatchNormForwardTraining;
-        if (is_training) batchnorm_op.set_attr("momentum", 0.1f);
+        const float momentum = 0.1f;
+        if (is_training) batchnorm_op.set_attr("momentum", momentum);
 
         impl::engine_t &engine = get_engine();
 
@@ -634,6 +669,13 @@ public:
         test::vector<float> batch_variance_data(static_cast<size_t>(IC));
         test::vector<float> dst_data(src_data.size(), 0.0);
         test::vector<float> ref_dst_data(src_data.size(), 0.0);
+        test::vector<float> ref_running_mean_data(
+                running_mean_data.size(), 0.0);
+        test::vector<float> ref_running_variance_data(
+                running_variance_data.size(), 0.0);
+        test::vector<float> ref_batch_mean_data(batch_mean_data.size(), 0.0);
+        test::vector<float> ref_batch_variance_data(
+                batch_variance_data.size(), 0.0);
         // Initialize src.
         std::generate(src_data.begin(), src_data.end(), []() {
             static int i = 0;
@@ -694,6 +736,14 @@ public:
         impl::tensor_t ref_dst_ts = params.with_relu
                 ? impl::tensor_t(relu_dst, &engine, ref_dst_data.data())
                 : impl::tensor_t(dst, &engine, ref_dst_data.data());
+        impl::tensor_t ref_running_mean_ts(
+                running_mean, &engine, ref_running_mean_data.data());
+        impl::tensor_t ref_running_variance_ts(
+                running_variance, &engine, ref_running_variance_data.data());
+        impl::tensor_t ref_batch_mean_ts(
+                batch_mean, &engine, ref_batch_mean_data.data());
+        impl::tensor_t ref_batch_variance_ts(
+                batch_variance, &engine, ref_batch_variance_data.data());
 
         impl::stream_t &strm = get_stream();
 
@@ -714,11 +764,29 @@ public:
         if (params.with_relu) {
             activation = [](const float v) { return v < 0.f ? 0.f : v; };
         }
-        ref_batchnorm_fwd(N, IC, IH, IW, &src_ts, &ref_dst_ts, &scale_ts,
-                &shift_ts, &mean_ts, &variance_ts, params.epsilon, activation,
-                params.data_format == "NXC",
-                params.op_kind == impl::op_kind::BatchNormForwardTraining);
-
+        if (!is_training) {
+            ref_batchnorm_fwd(N, IC, IH, IW, &src_ts, &ref_dst_ts, &scale_ts,
+                    &shift_ts, &mean_ts, &variance_ts, nullptr, nullptr,
+                    nullptr, nullptr, params.epsilon, momentum, activation,
+                    params.data_format == "NXC",
+                    params.op_kind == impl::op_kind::BatchNormForwardTraining);
+        } else {
+            ref_batchnorm_fwd(N, IC, IH, IW, &src_ts, &ref_dst_ts, &scale_ts,
+                    &shift_ts, &mean_ts, &variance_ts, &ref_running_mean_ts,
+                    &ref_running_variance_ts, &ref_batch_mean_ts,
+                    &ref_batch_variance_ts, params.epsilon, momentum,
+                    activation, params.data_format == "NXC",
+                    params.op_kind == impl::op_kind::BatchNormForwardTraining);
+            for (size_t i = 0; i < IC; ++i) {
+                ASSERT_NEAR(
+                        running_mean_data[i], ref_running_mean_data[i], 1.e-6f);
+                ASSERT_NEAR(running_variance_data[i],
+                        ref_running_variance_data[i], 1.e-6f);
+                ASSERT_NEAR(batch_mean_data[i], ref_batch_mean_data[i], 1.e-6f);
+                ASSERT_NEAR(batch_variance_data[i], ref_batch_variance_data[i],
+                        1.e-6f);
+            }
+        }
         for (size_t i = 0; i < dst_data.size(); ++i) {
             ASSERT_NEAR(dst_data[i], ref_dst_data[i], 1.e-6f);
         }
@@ -793,10 +861,10 @@ TEST(Compile, BatchNormBackpropFp32) {
             7, shift_dims, impl::data_type::f32, impl::layout_type::strided);
 
     // Allocate buffers.
-    test::vector<float> src_data {1.0, 2.0, 3.0, 4.0};
-    test::vector<float> scale_data {2.0, 0.0, 0.0, 0.0};
-    test::vector<float> mean_data {2.5, 0.0, 0.0, 0.0};
-    test::vector<float> varience_data {1.25, 0.0, 0.0, 0.0};
+    test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
+    test::vector<float> scale_data {2.0f};
+    test::vector<float> mean_data {2.5f};
+    test::vector<float> varience_data {1.25f};
     test::vector<float> diff_dst_data {0.1f, 0.1f, 0.2f, 0.2f};
     test::vector<float> diff_src_data(src_data.size(), 0.0);
     test::vector<float> diff_scale_data(scale_data.size(), 0.0);
@@ -804,9 +872,9 @@ TEST(Compile, BatchNormBackpropFp32) {
 
     // expected results
     test::vector<float> ref_diff_src_data {
-            0.17888544f, 0.17888544f, 0.35777088f, 0.35777088f};
-    test::vector<float> ref_diff_scale_data {0.178885f, 0.0, 0.0, 0.0};
-    test::vector<float> ref_diff_shift_data {0.6f, 0.0, 0.0, 0.0};
+            0.01788854f, -0.05366563f, 0.05366563f, -0.01788854f};
+    test::vector<float> ref_diff_scale_data {0.17888544f};
+    test::vector<float> ref_diff_shift_data {0.6f};
 
     auto &op_factory = get_dnnl_kernel_registry();
     auto bn_kernel = op_factory.create_kernel(bn_op);

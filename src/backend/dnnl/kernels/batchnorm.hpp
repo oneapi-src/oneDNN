@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -192,7 +192,6 @@ private:
     primitive_desc pd_;
     float epsilon_;
 
-    dnnl_tensor_t diff_scale_shift_;
     dnnl_tensor_t original_diff_src_;
 
     dnnl::engine p_engine_;
@@ -208,27 +207,16 @@ public:
         std::string data_format = op->get_attr<std::string>("data_format");
 
         impl::logical_tensor_t src_lt = inputs.at(batch_normalization::kSrc);
-        impl::logical_tensor_t diff_src_lt
-                = outputs.at(batch_normalization_bwd::kDiff_src);
-        // "NXC"
-        if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper_t(&src_lt)
-                             .reorder_data_dims_strides();
-        }
-        // prepare the inputs and outputs tensors' descs
+
         desc src {src_lt};
-
-        const bool use_stats = inputs.size() > batch_normalization::kMean;
-
-        auto flags = normalization_flag::use_scale_shift;
-        if (use_stats) flags |= normalization_flag::use_global_stats;
-
-        // workaround: use src once issue intel/mkl-dnn#588 is
-        // resolved
         src = src.is_4c_blocked() ? src.to_default_format() : src;
 
+        if (data_format == "NXC") { src = permute_NXC2NCX(src); }
+
+        auto flags
+                = normalization_flag::use_scale | normalization_flag::use_shift;
+
         p_engine_ = make_dnnl_engine(*g_engine);
-        impl::allocator_t *alc = g_engine->get_allocator();
 
         auto forward_hints = dnnl::batch_normalization_forward::primitive_desc(
                 {prop_kind::forward_training, src, epsilon_, flags}, p_engine_);
@@ -237,10 +225,14 @@ public:
                                      src, epsilon_, flags},
                 p_engine_, forward_hints);
 
-        diff_scale_shift_
-                = dnnl_tensor_t(pd_.diff_weights_desc(), p_engine_, alc);
-        const dnnl_tensor_t::desc_t optimal_diff_src_desc {pd_.diff_src_desc()};
-        fill_layout_info(&diff_src_lt, optimal_diff_src_desc);
+        dnnl_tensor_t::desc_t optimal_diff_src_desc {pd_.diff_src_desc()};
+        impl::logical_tensor_t *diff_src_lt
+                = const_cast<impl::logical_tensor_t *>(
+                        &outputs.at(batch_normalization_bwd::kDiff_src));
+        if (data_format == "NXC") {
+            optimal_diff_src_desc = permute_NCX2NXC(optimal_diff_src_desc);
+        }
+        fill_layout_info(diff_src_lt, optimal_diff_src_desc);
         return impl::status::success;
     }
 
@@ -260,33 +252,55 @@ public:
         auto &diff_src_lt = const_cast<impl::logical_tensor_t &>(
                 outputs.at(batch_normalization_bwd::kDiff_src)
                         .get_logical_tensor());
-        // "NXC"
+        auto &w_lt = const_cast<impl::logical_tensor_t &>(
+                inputs.at(batch_normalization_bwd::kScale)
+                        .get_logical_tensor());
+        auto &m_lt = const_cast<impl::logical_tensor_t &>(
+                inputs.at(batch_normalization_bwd::kMean).get_logical_tensor());
+        auto &v_lt = const_cast<impl::logical_tensor_t &>(
+                inputs.at(batch_normalization_bwd::kVariance)
+                        .get_logical_tensor());
+        auto &diff_w_lt = const_cast<impl::logical_tensor_t &>(
+                outputs.at(batch_normalization_bwd::kDiff_scale)
+                        .get_logical_tensor());
+        auto &diff_b_lt = const_cast<impl::logical_tensor_t &>(
+                outputs.at(batch_normalization_bwd::kDiff_shift)
+                        .get_logical_tensor());
+
+        auto src_desc = make_dnnl_memory_desc(src_lt);
+        auto diff_dst_desc = make_dnnl_memory_desc(diff_dst_lt);
+        auto diff_src_desc = make_dnnl_memory_desc(diff_src_lt);
+        auto w_desc = make_dnnl_memory_desc(w_lt);
+        auto m_desc = make_dnnl_memory_desc(m_lt);
+        auto v_desc = make_dnnl_memory_desc(v_lt);
+        auto diff_w_desc = make_dnnl_memory_desc(diff_w_lt);
+        auto diff_b_desc = make_dnnl_memory_desc(diff_b_lt);
+
         if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper_t(src_lt)
-                             .reorder_data_dims_strides();
-            diff_dst_lt = impl::logical_tensor_wrapper_t(diff_dst_lt)
-                                  .reorder_data_dims_strides();
-            diff_src_lt = impl::logical_tensor_wrapper_t(diff_src_lt)
-                                  .reorder_data_dims_strides();
+            src_desc = permute_NXC2NCX(src_desc);
+            diff_dst_desc = permute_NXC2NCX(diff_dst_desc);
+            diff_src_desc = permute_NXC2NCX(diff_src_desc);
         }
-        dnnl_tensor_t x {src_lt, p_engine_, alc,
+
+        dnnl_tensor_t x {src_desc, p_engine_, alc,
                 inputs.at(batch_normalization_bwd::kSrc).get_data_handle()};
-        dnnl_tensor_t w {
-                inputs.at(batch_normalization_bwd::kScale), p_engine_, alc};
-        dnnl_tensor_t m {
-                inputs.at(batch_normalization_bwd::kMean), p_engine_, alc};
-        dnnl_tensor_t v {
-                inputs.at(batch_normalization_bwd::kVariance), p_engine_, alc};
-        dnnl_tensor_t diff_dst {diff_dst_lt, p_engine_, alc,
+        dnnl_tensor_t w {w_desc, p_engine_, alc,
+                inputs.at(batch_normalization_bwd::kScale).get_data_handle()};
+        dnnl_tensor_t m {m_desc, p_engine_, alc,
+                inputs.at(batch_normalization_bwd::kMean).get_data_handle()};
+        dnnl_tensor_t v {v_desc, p_engine_, alc,
+                inputs.at(batch_normalization_bwd::kVariance)
+                        .get_data_handle()};
+        dnnl_tensor_t diff_dst {diff_dst_desc, p_engine_, alc,
                 inputs.at(batch_normalization_bwd::kDiff_dst)
                         .get_data_handle()};
-        dnnl_tensor_t diff_scale {
-                outputs.at(batch_normalization_bwd::kDiff_scale), p_engine_,
-                alc};
-        dnnl_tensor_t diff_shift {
-                outputs.at(batch_normalization_bwd::kDiff_shift), p_engine_,
-                alc};
-        dnnl_tensor_t diff_src {diff_src_lt, p_engine_, alc,
+        dnnl_tensor_t diff_scale {diff_w_desc, p_engine_, alc,
+                outputs.at(batch_normalization_bwd::kDiff_scale)
+                        .get_data_handle()};
+        dnnl_tensor_t diff_shift {diff_b_desc, p_engine_, alc,
+                outputs.at(batch_normalization_bwd::kDiff_shift)
+                        .get_data_handle()};
+        dnnl_tensor_t diff_src {diff_src_desc, p_engine_, alc,
                 outputs.at(batch_normalization_bwd::kDiff_src)
                         .get_data_handle()};
         compute(x, m, v, diff_dst, w, diff_src, diff_scale, diff_shift,
@@ -295,9 +309,10 @@ public:
     }
 
 private:
-    void compute_impl(dnnl_tensor_t &src, dnnl_tensor_t &mean,
+    void compute(dnnl_tensor_t &src, dnnl_tensor_t &mean,
             dnnl_tensor_t &variance, dnnl_tensor_t &diff_dst,
             const dnnl_tensor_t &scale, dnnl_tensor_t &diff_src,
+            dnnl_tensor_t &diff_scale, dnnl_tensor_t &diff_shift,
             const dnnl::engine &p_engine, impl::allocator_t *alc,
             const dnnl::stream &p_stream) {
         UNUSED(alc);
@@ -308,64 +323,19 @@ private:
         diff_dst.reinit_if_possible(p_stream, pd_.diff_dst_desc());
         src.reinit_if_possible(p_stream, pd_.src_desc());
         diff_src.reinit_if_possible(p_stream, pd_.diff_src_desc());
-        diff_scale_shift_.reinit_if_possible(p_stream, pd_.diff_weights_desc());
-
         mean.reinit_if_possible(p_stream, pd_.mean_desc());
         variance.reinit_if_possible(p_stream, pd_.variance_desc());
         super(pd_).execute(p_stream,
                 {{DNNL_ARG_SRC, src}, {DNNL_ARG_DIFF_DST, diff_dst},
-                        {DNNL_ARG_SCALE_SHIFT, scale}, // only need scale
+                        {DNNL_ARG_SCALE, scale},
+                        {DNNL_ARG_SHIFT, scale}, // only need scale
                         {DNNL_ARG_MEAN, mean}, {DNNL_ARG_VARIANCE, variance},
                         {DNNL_ARG_DIFF_SRC, diff_src},
-                        {DNNL_ARG_DIFF_SCALE_SHIFT, diff_scale_shift_}});
+                        {DNNL_ARG_DIFF_SCALE, diff_scale},
+                        {DNNL_ARG_DIFF_SHIFT, diff_shift}});
 
         if (diff_src.get_desc() != original_diff_src_.get_desc()) {
             diff_src.reorder_to(p_stream, original_diff_src_);
-        }
-    }
-
-    void compute(dnnl_tensor_t &src, dnnl_tensor_t &mean,
-            dnnl_tensor_t &variance, dnnl_tensor_t &diff_dst,
-            const dnnl_tensor_t &scale, dnnl_tensor_t &diff_src,
-            dnnl_tensor_t &diff_scale, dnnl_tensor_t &diff_shift,
-            const dnnl::engine &p_engine, impl::allocator_t *alc,
-            const dnnl::stream &p_stream) {
-        compute_impl(src, mean, variance, diff_dst, scale, diff_src, p_engine,
-                alc, p_stream);
-        diff_scale.reinit_if_possible(p_stream, scale.get_desc());
-        diff_shift.reinit_if_possible(p_stream, scale.get_desc());
-        auto *diff_scale_shift_buf
-                = static_cast<char *>(diff_scale_shift_.get_data_handle());
-        if (p_engine_.get_kind() == dnnl::engine::kind::cpu) {
-#if DNNL_GRAPH_CPU_SYCL
-            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-            q.memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
-                    diff_scale.get_size());
-            q.memcpy(diff_shift.get_data_handle(),
-                    diff_scale_shift_buf + diff_scale.get_size(),
-                    diff_shift.get_size());
-#else
-            std::memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
-                    diff_scale.get_size());
-            std::memcpy(diff_shift.get_data_handle(),
-                    diff_scale_shift_buf + diff_scale.get_size(),
-                    diff_shift.get_size());
-#endif
-        } else {
-#if DNNL_GRAPH_GPU_SYCL
-            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
-            q.memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
-                    diff_scale.get_size());
-            q.memcpy(diff_shift.get_data_handle(),
-                    diff_scale_shift_buf + diff_scale.get_size(),
-                    diff_shift.get_size());
-#else
-            std::memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
-                    diff_scale.get_size());
-            std::memcpy(diff_shift.get_data_handle(),
-                    diff_scale_shift_buf + diff_scale.get_size(),
-                    diff_shift.get_size());
-#endif
         }
     }
 };

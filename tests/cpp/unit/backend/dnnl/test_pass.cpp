@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2103,7 +2103,7 @@ TEST(Pass, FuseBnBwdReluBwd) {
     op_t op2 {1, BatchNormTrainingBackprop, "op2"};
     op2.set_attr("epsilon", 0.001f);
 
-    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(11);
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(10);
     op1.add_input(lt_vec[0]);
     op1.add_input(lt_vec[1]);
     op1.add_output(lt_vec[2]);
@@ -2113,10 +2113,9 @@ TEST(Pass, FuseBnBwdReluBwd) {
     op2.add_input(lt_vec[4]);
     op2.add_input(lt_vec[5]);
     op2.add_input(lt_vec[6]);
-    op2.add_input(lt_vec[7]);
+    op2.add_output(lt_vec[7]);
     op2.add_output(lt_vec[8]);
     op2.add_output(lt_vec[9]);
-    op2.add_output(lt_vec[10]);
 
     ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.add_op(&op2), status::success);
@@ -2130,19 +2129,18 @@ TEST(Pass, FuseBnBwdReluBwd) {
     auto fused_op = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::bn_bwd_relu_bwd);
 
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 7);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 6);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 3);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 4);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[4].id, 5);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[5].id, 6);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[6].id, 7);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 3);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[1].id, 9);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[2].id, 10);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[1].id, 8);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[2].id, 9);
 }
 
 TEST(PassPriority, TestBnBwdReluBwd) {

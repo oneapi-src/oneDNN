@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -853,11 +853,11 @@ TEST(OpSchema, InferBatchNormForwardTrainingOutputShape) {
 
 TEST(OpSchema, BatchNormTrainingBackprop) {
     const op_kind_t op_kind_ = op_kind::BatchNormTrainingBackprop;
-    const size_t expected_in_size = 6;
+    const size_t expected_in_size = 5;
     const size_t expected_out_size = 3;
-    const size_t expected_attr_size = 3;
-    const std::map<std::string, bool> attrs_data = {
-            {"epsilon", true}, {"is_training", false}, {"data_format", false}};
+    const size_t expected_attr_size = 2;
+    const std::map<std::string, bool> attrs_data
+            = {{"epsilon", true}, {"data_format", false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2413,10 +2413,6 @@ TEST(OpSchema, BatchNormTrainingBackpropDefaultAttribute) {
     const std::string *sval {nullptr};
     tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
-
-    const bool *bval {nullptr};
-    tmp_op.get_attr<bool>("is_training", &bval);
-    EXPECT_TRUE(*bval);
 }
 
 TEST(OpSchema, BiasaddDefaultAttribute) {
