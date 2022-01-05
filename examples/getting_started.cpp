@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -182,7 +182,8 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// To initialize the @ref dnnl::memory::desc, we need to pass:
     ///   1. The tensor's dimensions, **the semantic order** of which is
     ///      defined by **the primitive** that will use this memory
-    ///      (descriptor). Which leads to the following:
+    ///      (descriptor).
+    ///
     ///      @warning
     ///         Memory descriptors and objects are not aware of any meaning of
     ///         the data they describe or contain.
@@ -255,6 +256,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// as required by CNN primitives. To define the physical memory format,
     /// the strides are passed as the third parameter. Note that the order of
     /// the strides corresponds to the order of the tensor's dimensions.
+    ///
     /// @warning
     ///     Using the wrong order might lead to incorrect results or even a
     ///     crash.

@@ -54,6 +54,7 @@ oneDNN supports two modes for handling scratchpads:
       memory is  shared across primitives. This mode minimizes the
       amount of memory needed for scratchpads at the application level. The global
       scratchpad is freed when all the primitives referencing it are destroyed.
+
       @warning
       In this mode, primitives can be created and executed in parallel but must
       be executed in the same thread they were created in. Executing primitives
@@ -65,6 +66,7 @@ oneDNN supports two modes for handling scratchpads:
       private scratchpad memory. The scratchpad memory is freed when its
       primitive is destroyed. This mode can lead to larger memory footprint when
       compared to ONEDNN_ENABLE_CONCURRENT_EXEC=OFF.
+
       @warning
       In this mode, primitives can be created in one thread and executed in
       another. Also, different primitives can be run concurrently.
