@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,11 +26,11 @@ union generic_val;
 
 namespace runtime {
 
-struct engine;
+struct engine_t;
 
 struct engine_vtable_t {
-    using alloc_t = void *(*)(engine *, size_t);
-    using dealloc_t = void (*)(engine *, void *);
+    using alloc_t = void *(*)(engine_t *, size_t);
+    using dealloc_t = void (*)(engine_t *, void *);
     alloc_t persistent_alloc;
     dealloc_t persistent_dealloc;
     alloc_t temp_alloc;
@@ -51,13 +51,13 @@ struct stream_vtable_t : public engine_vtable_t {
         , parallel_call(parallel_call_f) {}
 };
 
-struct engine {
+struct engine_t {
     engine_vtable_t *vtable_;
-    engine(engine_vtable_t *vtable) : vtable_(vtable) {}
+    engine_t(engine_vtable_t *vtable) : vtable_(vtable) {}
 };
 
-struct stream_t : public engine {
-    stream_t(stream_vtable_t *vtable) : engine {vtable} {}
+struct stream_t : public engine_t {
+    stream_t(stream_vtable_t *vtable) : engine_t {vtable} {}
     stream_vtable_t *vtable() const {
         return static_cast<stream_vtable_t *>(vtable_);
     }

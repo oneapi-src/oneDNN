@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ intptr_t memory_block_t::calc_alloc_ptr() {
     return divide_and_ceil(start_addr, default_alignment) * default_alignment;
 }
 
-void *alloc_by_mmap(runtime::engine *eng, size_t sz) {
+void *alloc_by_mmap(runtime::engine_t *eng, size_t sz) {
 #ifdef _MSC_VER
     auto ret = VirtualAlloc(
             nullptr, sz, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -80,7 +80,7 @@ memory_block_t *memory_block_t::make(runtime::stream_t *stream, size_t sz,
     return blk;
 }
 
-void dealloc_by_mmap(runtime::engine *eng, void *b) {
+void dealloc_by_mmap(runtime::engine_t *eng, void *b) {
 #ifdef _MSC_VER
     auto ret = VirtualFree(b, 0, MEM_RELEASE);
     SC_UNUSED(ret);
@@ -182,19 +182,19 @@ filo_memory_pool_t::~filo_memory_pool_t() {
 using stream_t = sc::runtime::stream_t;
 extern "C" SC_API void *sc_aligned_malloc(
         stream_t *pstream, size_t sz) noexcept {
-    return sc::runtime::tls_buffer.main_memory_pool.alloc(pstream, sz);
+    return sc::runtime::get_tls(pstream).main_memory_pool_.alloc(pstream, sz);
 }
 
 extern "C" SC_API void sc_aligned_free(stream_t *pstream, void *p) noexcept {
-    sc::runtime::tls_buffer.main_memory_pool.dealloc(p);
+    sc::runtime::get_tls(pstream).main_memory_pool_.dealloc(p);
 }
 
 extern "C" SC_API void *sc_thread_aligned_malloc(
         stream_t *pstream, size_t sz) noexcept {
-    return sc::runtime::tls_buffer.thread_memory_pool.alloc(pstream, sz);
+    return sc::runtime::get_tls(pstream).thread_memory_pool_.alloc(pstream, sz);
 }
 
 extern "C" SC_API void sc_thread_aligned_free(
         stream_t *pstream, void *p) noexcept {
-    sc::runtime::tls_buffer.thread_memory_pool.dealloc(p);
+    sc::runtime::get_tls(pstream).thread_memory_pool_.dealloc(p);
 }

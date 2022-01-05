@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@
 namespace sc {
 
 namespace runtime {
-static void *global_alloc(runtime::engine *eng, size_t sz) {
+static void *global_alloc(runtime::engine_t *eng, size_t sz) {
     return sc_global_aligned_alloc(sz, 64);
 }
 
-static void global_free(runtime::engine *eng, void *p) {
+static void global_free(runtime::engine_t *eng, void *p) {
     return sc_global_aligned_free(p, 64);
 }
 

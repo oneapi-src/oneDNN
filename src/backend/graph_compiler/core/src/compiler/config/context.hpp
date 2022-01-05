@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 
 namespace sc {
 namespace runtime {
-struct engine;
+struct engine_t;
 }
 
 struct scflags_t {
@@ -50,11 +50,11 @@ struct scflags_t {
 };
 
 struct context_t {
-    sc::runtime::engine *engine_;
+    sc::runtime::engine_t *engine_;
     scflags_t flags_;
     target_machine_t machine_;
     context_t(const scflags_t &flags, target_machine_t &&machine,
-            runtime::engine *engine = nullptr);
+            runtime::engine_t *engine = nullptr);
     context_t(const context_t &) = default;
     uint32_t get_max_vector_lanes(sc_data_etype etype) const;
 };

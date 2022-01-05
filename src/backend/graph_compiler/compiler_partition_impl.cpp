@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -205,7 +205,7 @@ impl::status_t compiler_partition_impl_t::compile(
         auto graph_engine = std::make_shared<compiler_graph_engine_t>(
                 &graph_engine_vtable);
         graph_engine->allocator_ = aengine->get_allocator();
-        ctx->engine_ = static_cast<sc::runtime::engine *>(graph_engine.get());
+        ctx->engine_ = static_cast<sc::runtime::engine_t *>(graph_engine.get());
 
         sc::graph_driver(backend_graph_obj, 28, 10, ctx);
 
@@ -327,9 +327,7 @@ compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {
     auto itr = partition_count_map.find(graph_engine_);
     if (itr != partition_count_map.end()) {
         itr->second--;
-        if (itr->second == 0) {
-            sc::release_runtime_memory(graph_engine_.get());
-        }
+        if (itr->second == 0) { sc::release_runtime_memory(nullptr); }
     }
     jit_func_ = nullptr;
     graph_engine_->allocator_->release();

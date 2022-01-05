@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 namespace sc {
 namespace runtime {
 struct stream_t;
-struct engine;
+struct engine_t;
 } // namespace runtime
 
 namespace memory_pool {
@@ -88,8 +88,8 @@ struct filo_memory_pool_t {
     ~filo_memory_pool_t();
     void release();
 };
-void dealloc_by_mmap(runtime::engine *eng, void *b);
-void *alloc_by_mmap(runtime::engine *eng, size_t sz);
+void dealloc_by_mmap(runtime::engine_t *eng, void *b);
+void *alloc_by_mmap(runtime::engine_t *eng, size_t sz);
 } // namespace memory_pool
 } // namespace sc
 

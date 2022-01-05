@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,10 +31,10 @@ namespace graph {
 namespace impl {
 namespace compiler_impl {
 
-struct compiler_graph_engine_t : public sc::runtime::engine {
+struct compiler_graph_engine_t : public sc::runtime::engine_t {
     impl::allocator_t *allocator_ = nullptr;
     compiler_graph_engine_t(sc::runtime::engine_vtable_t *vtable)
-        : sc::runtime::engine {vtable} {}
+        : sc::runtime::engine_t {vtable} {}
 };
 
 struct compiler_graph_stream_t : public sc::runtime::stream_t {

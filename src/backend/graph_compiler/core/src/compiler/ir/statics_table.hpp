@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 namespace sc {
 
 namespace runtime {
-struct engine;
+struct engine_t;
 }
 
 // Manages the ownership of the internal data buffer
@@ -33,10 +33,10 @@ struct SC_API aligned_buffer_t {
     void *data_;
     // the size of the data in bytes
     size_t size_;
-    runtime::engine *engine_;
+    runtime::engine_t *engine_;
 
     // creates a buffer with given size in bytes
-    aligned_buffer_t(size_t size, runtime::engine *engine);
+    aligned_buffer_t(size_t size, runtime::engine_t *engine);
 
     aligned_buffer_t(aligned_buffer_t &&other);
     aligned_buffer_t() : data_(nullptr), size_(0), engine_(nullptr) {}

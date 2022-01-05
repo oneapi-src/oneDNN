@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -303,7 +303,7 @@ static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
         if (!amx_exclusive || cur_palette != brg_desc->palette_) {
             amx_tile_configure(brg_desc->palette_);
             cur_palette = brg_desc->palette_;
-            auto &amx_tile_buf = sc::runtime::tls_buffer.amx_buffer;
+            auto &amx_tile_buf = sc::runtime::get_tls(stream).amx_buffer_;
             if (!amx_tile_buf.ptr_) { amx_tile_buf.reset(stream); }
             tmp_amx_tile_buf = amx_tile_buf.ptr_;
         }

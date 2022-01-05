@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -209,7 +209,7 @@ uint32_t context_t::get_max_vector_lanes(sc_data_etype etype) const {
 }
 
 context_t::context_t(const scflags_t &flags, target_machine_t &&machine,
-        runtime::engine *engine)
+        runtime::engine_t *engine)
     : engine_(engine ? engine : runtime::get_default_stream())
     , flags_(flags)
     , machine_(std::move(machine)) {}

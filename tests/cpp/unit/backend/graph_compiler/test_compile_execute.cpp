@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -355,9 +355,14 @@ TEST(GCGraphTest, Fp32MHACompileExecutionMultiThreading) {
     }
 }
 
+namespace sc {
+void release_runtime_memory(runtime::engine_t *engine);
+}
+
 // test allocator release before compiled partition destruction
 TEST(GCGraphTest, AllocatorEarlyRelease) {
     REQUIRE_AVX512();
+    sc::release_runtime_memory(nullptr);
     impl::graph_t agraph;
     add_MHA_subgraph(&agraph, false);
     agraph.build_graph();

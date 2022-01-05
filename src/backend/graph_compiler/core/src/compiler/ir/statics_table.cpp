@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ static_data_t::static_data_t(const void *indata, size_t size)
     memcpy(data_, indata, size);
 }
 
-aligned_buffer_t::aligned_buffer_t(size_t size, runtime::engine *engine) {
+aligned_buffer_t::aligned_buffer_t(size_t size, runtime::engine_t *engine) {
     data_ = engine->vtable_->persistent_alloc(engine, size);
     size_ = size;
     engine_ = engine;
