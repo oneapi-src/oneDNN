@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -374,6 +374,9 @@ private:
             primitive_attr_mgr_t &prm_attr_mgr);
 
     void bind_memory_for_batchnorm(op_t *op, const dnnl::engine &p_engine,
+            primitive_attr_mgr_t &prm_attr_mgr);
+
+    void bind_memory_for_batchnorm_bwd(op_t *op, const dnnl::engine &p_engine,
             primitive_attr_mgr_t &prm_attr_mgr);
 
     void bind_memory_for_layernorm(op_t *op, const dnnl::engine &p_engine,

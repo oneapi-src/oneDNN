@@ -2036,6 +2036,70 @@ impl::status_t batchnorm_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> to_be_removed_ops, to_be_inserted_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != impl::op_kind::BatchNormTrainingBackprop)
+            continue;
+
+        // insert permute
+        bool need_permute = cur_op->has_attr("data_format")
+                ? (cur_op->get_attr<std::string>("data_format") == "NXC")
+                : false;
+
+        if (need_permute) {
+            // input0 permute
+            op_ptr in_perm_op_0
+                    = std::make_shared<impl::op_t>(op_kind::permute);
+            in_perm_op_0->set_attr<std::string>("permute_kind", "permute");
+            in_perm_op_0->set_attr<std::string>("from_format", "NXC");
+            in_perm_op_0->set_attr<std::string>("to_format", "NCX");
+            insert_op_before(in_perm_op_0, cur_op, 0);
+            to_be_inserted_ops.emplace_back(in_perm_op_0);
+
+            // input1 permute
+            op_ptr in_perm_op_1
+                    = std::make_shared<impl::op_t>(op_kind::permute);
+            in_perm_op_1->set_attr<std::string>("permute_kind", "permute");
+            in_perm_op_1->set_attr<std::string>("from_format", "NXC");
+            in_perm_op_1->set_attr<std::string>("to_format", "NCX");
+            insert_op_before(in_perm_op_1, cur_op, 1);
+            to_be_inserted_ops.emplace_back(in_perm_op_1);
+
+            // output permute
+            op_ptr out_perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            out_perm_op->set_attr<std::string>("permute_kind", "permute");
+            out_perm_op->set_attr<std::string>("from_format", "NCX");
+            out_perm_op->set_attr<std::string>("to_format", "NXC");
+            insert_op_after(out_perm_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(out_perm_op);
+
+            cur_op->set_attr<std::string>("data_format", "NCX");
+        }
+
+        // create new dnnl_batchnorm_bwd
+        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_batchnorm_bwd);
+
+        // replace original oneDNN Graph ops with dnnl_batchnorm_bwd
+        replace_op(cur_op, new_op);
+        to_be_inserted_ops.emplace_back(new_op);
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
+}
+
 impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     op_ptr sum_op = std::make_shared<op_t>(op_kind::dnnl_sum);

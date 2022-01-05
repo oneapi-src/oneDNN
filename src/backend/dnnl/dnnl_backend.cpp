@@ -128,8 +128,8 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::bn_relu, batchnorm_fwd_t)
     DNNL_REGISTER_KERNEL(
             impl::op_kind::BatchNormForwardTraining, batchnorm_fwd_t)
-    DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormTrainingBackprop,
-            batch_normalization_backward)
+    DNNL_REGISTER_KERNEL(
+            impl::op_kind::BatchNormTrainingBackprop, batchnorm_bwd_t)
 
     // binary operators
     DNNL_REGISTER_KERNEL(impl::op_kind::Add, binary_t)

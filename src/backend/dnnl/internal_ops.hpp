@@ -213,7 +213,8 @@ namespace op_kind {
     X(reorder_sum, Reorder_sum) \
     X(int8_reorder, INT8_reorder) \
     X(matmul_div, MatMul_div) \
-    X(matmul_div_add, MatMul_div_add)
+    X(matmul_div_add, MatMul_div_add) \
+    X(dnnl_batchnorm_bwd, Dnnl_batchnorm_bwd)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

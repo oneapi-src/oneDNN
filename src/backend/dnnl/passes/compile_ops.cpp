@@ -97,6 +97,9 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm) {
             exec = std::make_shared<batchnorm_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm_bwd) {
+            exec = std::make_shared<batchnorm_bwd_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::LayerNorm) {
             exec = std::make_shared<layernorm_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);

@@ -880,26 +880,47 @@ TEST(Compile, BatchNormBackpropFp32) {
     auto bn_kernel = op_factory.create_kernel(bn_op);
     ASSERT_TRUE(bn_kernel);
 
-    std::vector<impl::logical_tensor_t> inputs {
-            src, diff_dst, scale, mean, varience};
-    std::vector<impl::logical_tensor_t> outputs {
-            diff_src, diff_scale, diff_shift};
+    bn_op.add_input(src);
+    bn_op.add_input(diff_dst);
+    bn_op.add_input(scale);
+    bn_op.add_input(mean);
+    bn_op.add_input(varience);
+    bn_op.add_output(diff_src);
+    bn_op.add_output(diff_scale);
+    bn_op.add_output(diff_shift);
 
-    // compile the bn operator
-    bn_kernel->compile(&bn_op, &engine, inputs, outputs);
+    impl::graph_t g(engine.kind());
+    g.add_op(&bn_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("bn_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src, &diff_dst, &scale, &mean, &varience};
+    std::vector<const impl::logical_tensor_t *> outputs {
+            &diff_src, &diff_scale, &diff_shift};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
 
     impl::tensor_t src_ts(src, &engine, src_data.data());
     impl::tensor_t scale_ts(scale, &engine, scale_data.data());
     impl::tensor_t mean_ts(mean, &engine, mean_data.data());
-    impl::tensor_t varience_ts(varience, &engine, varience_data.data());
+    impl::tensor_t variance_ts(varience, &engine, varience_data.data());
     impl::tensor_t diff_dst_ts(diff_dst, &engine, diff_dst_data.data());
     impl::tensor_t diff_src_ts(diff_src, &engine, diff_src_data.data());
     impl::tensor_t diff_scale_ts(diff_scale, &engine, diff_scale_data.data());
     impl::tensor_t diff_shift_ts(diff_shift, &engine, diff_shift_data.data());
 
     impl::stream_t &strm = get_stream();
-    bn_kernel->execute(&bn_op, &strm,
-            {src_ts, diff_dst_ts, scale_ts, mean_ts, varience_ts},
+    cp.execute(&strm, {src_ts, diff_dst_ts, scale_ts, mean_ts, variance_ts},
             {diff_src_ts, diff_scale_ts, diff_shift_ts});
     strm.wait();
     for (size_t i = 0; i < diff_src_data.size(); ++i) {

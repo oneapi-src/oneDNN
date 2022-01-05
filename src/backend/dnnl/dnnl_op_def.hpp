@@ -3088,6 +3088,40 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
                 .set_shape_inference_function(
                         infer_dnnl_batchnorm_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm_bwd, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({4, 5}))
+                .set_outputs_option(op_schema_t::param_num_option::optional)
+                .set_num_outputs(std::set<size_t>({1, 2, 3}))
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "output_delta", "the gradient w.r.t. the output")
+                .set_input(2, "gamma", "gamma scaling for normalized value")
+                .set_input(3, "mean",
+                        "if is_training is true, pass batch mean, otherwise "
+                        "running mean")
+                .set_input(4, "variance",
+                        "if is_training is true, pass batch variance, "
+                        "otherwise running variance")
+                .set_output(0, "input_delta",
+                        "the gradient w.r.t the output of the batch "
+                        "normalization")
+                .set_output(1, "gamma_delta",
+                        "the gradient w.r.t the gamma of the batch "
+                        "normalization")
+                .set_output(2, "beta_delta",
+                        "the gradient w.r.t the beta of the batch "
+                        "normalization")
+                .set_attr("epsilon",
+                        " the number to be added to the variance to avoid "
+                        "division by zero",
+                        true, attribute_kind::f)
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                .set_shape_inference_function(infer_bn_bwd_output_shape))
+
 // This op schema represents all interpolate related fusions.
 // At the moment available are:
 // interpolate + binary add,

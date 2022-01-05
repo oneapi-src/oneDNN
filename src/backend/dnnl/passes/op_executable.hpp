@@ -351,6 +351,52 @@ create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
     return {pd, true};
 }
 
+inline std::pair<dnnl::batch_normalization_backward::primitive_desc, bool>
+create_batchnorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<
+                        dnnl::batch_normalization_backward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    float epsilon = op->get_attr<float>("epsilon");
+
+    auto flags = normalization_flag::use_scale | normalization_flag::use_shift;
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+
+    // workaround: for issue intel/mkl-dnn#588
+    const auto &blk = src.data.format_desc.blocking;
+    if (blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
+            && blk.inner_blks[0] == 4) {
+        // to default format
+        src = to_default_format(src);
+    }
+
+    auto forward_hints = dnnl::batch_normalization_forward::primitive_desc(
+            {prop_kind::forward_training, src, epsilon, flags}, p_engine);
+
+    dnnl::batch_normalization_backward::primitive_desc pd(
+            {prop_kind::backward, forward_hints.dst_desc(), src, epsilon,
+                    flags},
+            p_engine, forward_hints);
+
+    pd_cache.insert({op.get(), pd});
+    return {pd, true};
+}
+
 inline std::pair<dnnl::layer_normalization_forward::primitive_desc, bool>
 create_layernorm_pd(std::shared_ptr<impl::op_t> &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
@@ -1506,6 +1552,27 @@ private:
     dnnl::batch_normalization_forward prim_;
     bool is_training_ {false};
     std::vector<float> scales_;
+};
+
+struct batchnorm_bwd_executable_t : public op_executable_t {
+    batchnorm_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_batchnorm_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache)
+                      .first;
+        prim_ = dnnl::batch_normalization_backward(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::batch_normalization_backward::primitive_desc pd_;
+    dnnl::batch_normalization_backward prim_;
 };
 
 struct resampling_executable_t : public op_executable_t {
