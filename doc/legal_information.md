@@ -3,7 +3,7 @@ Legal Information {#legal_information}
 
 # Trademark Information
 
-Intel, the Intel logo, Arc, Intel Atom, Intel Core, Intel Xeon Phi, Iris,
+Intel, the Intel logo, Arc, Intel Atom, Intel Core, Iris,
 OpenVINO, the OpenVINO logo, Pentium, VTune, and Xeon are trademarks
 of Intel Corporation or its subsidiaries.
 
