@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -196,8 +196,7 @@ struct rtus_driver_t : public jit_generator {
                     case sse41: res = Xmm(idx); break;
                     case avx2: res = Ymm(idx); break;
                     case avx512_common:
-                    case avx512_core:
-                    case avx512_mic: res = Zmm(idx); break;
+                    case avx512_core: res = Zmm(idx); break;
                     default: assert(!"Not supported isa"); res = Xmm(idx);
                 }
                 return res;
@@ -220,7 +219,6 @@ struct rtus_driver_t : public jit_generator {
                     break;
                 case avx512_common:
                 case avx512_core:
-                case avx512_mic:
                     switch (typesize) {
                         case 4: res = Zmm(idx); break;
                         case 2: res = Ymm(idx); break;
@@ -495,8 +493,7 @@ struct rtus_driver_t : public jit_generator {
 
     void generate() override {
         using namespace Xbyak;
-        assert(utils::one_of(
-                isa, sse41, avx2, avx512_common, avx512_core, avx512_mic));
+        assert(utils::one_of(isa, sse41, avx2, avx512_common, avx512_core));
 
         preamble();
 #define READ_PARAM(what) \
