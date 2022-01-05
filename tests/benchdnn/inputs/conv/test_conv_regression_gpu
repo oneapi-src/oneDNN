@@ -17,3 +17,5 @@ mb32ic256ih14oc256oh14kh3ph1
 --dir=BWD_WB
 mb32ic128ih1oc129oh1kh1ph0
 mb32ic32ih1oc129oh1kh1ph0
+
+--reset --dir=FWD_I --cfg=u8s8u8 mb32ic3ih60oc64oh30kh3sh2ph0
