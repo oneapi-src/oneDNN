@@ -7226,6 +7226,10 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     int src_g_inner_blk = ir_utils::max_pow2_divisor(src_g);
     src_g_inner_blk = std::min(src_g_inner_blk, cfg_.g_thr_blk);
 
+    int src_ic = int(src_layout.dim(2));
+    int src_ic_inner_blk = ir_utils::max_pow2_divisor(src_ic);
+    src_ic_inner_blk = std::min(src_ic_inner_blk, cfg_.ic_blk);
+
     int wei_g = int(wei_layout.dim(0));
     int wei_g_inner_blk = ir_utils::max_pow2_divisor(wei_g);
     wei_g_inner_blk = std::min(wei_g_inner_blk, cfg_.g_thr_blk);
@@ -7253,7 +7257,6 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
 
     bool check_src_mb = (src_mb % cfg_.mb_tg_blk != 0);
     bool check_dst_mb = (dst_mb % cfg_.mb_tg_blk != 0);
-    int src_ic = int(src_layout.dim(2));
     bool check_src_ic = (src_ic % cfg_.ic_blk != 0);
     auto &x = view_t::placeholder_var();
     if (check_id) id_mask = (x >= 0) & (x < cfg_.id);
@@ -7274,7 +7277,8 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     if (check_kh) kh_mask = (x < cfg_.kh);
     if (check_src_mb) src_mb_mask = (x < src_mb);
     if (check_dst_mb) dst_mb_mask = (x < dst_mb);
-    if (check_src_ic) src_ic_mask = (x < cfg_.ic);
+    if (check_src_ic)
+        src_ic_mask = (x / src_ic_inner_blk < src_ic / src_ic_inner_blk);
 
     // Source.
     src_view = view_t({mb, g, ic, od, oh, ow, kd, kh, kw}, 6);
