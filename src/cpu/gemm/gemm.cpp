@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -187,7 +187,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     if (status == dnnl_success) return status;
 
 #if DNNL_X64
-    if (mayiuse(sse41) && !mayiuse(avx512_mic))
+    if (mayiuse(sse41))
         return gemm_driver(transa, transb, offsetc, M, N, K, alpha, A, LDA, ao,
                 B, LDB, bo, beta, C, LDC, co, false);
 #endif

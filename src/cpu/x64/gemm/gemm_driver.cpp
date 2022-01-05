@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1573,12 +1573,9 @@ static inline void adjust_thread_count(dim_t m, dim_t n, dim_t k, int *nthrs) {
 
     const bool is_f32 = data_traits<T>::data_type == data_type::f32;
 
-    const bool is_avx512_mic = mayiuse(avx512_mic);
     const bool is_avx512 = mayiuse(avx512_core);
     const bool is_avx = mayiuse(avx);
     const bool is_only_avx2 = mayiuse(avx2) && !is_avx512;
-
-    if (is_avx512_mic) return;
 
     // Some sgemm cases still benefit from using all threads.
     const bool use_all_threads = is_f32 && n > 50
@@ -1979,7 +1976,7 @@ dnnl_status_t gemm_driver(const char *transA, const char *transB,
 
     // gemm_driver supports 8-bit integer Intel AVX512, Intel AVX2, Intel AVX,
     // Intel SSE4.1 and Intel DL Boost.
-    assert(IMPLICATION(is_int8, mayiuse(sse41) && !mayiuse(avx512_mic)));
+    assert(IMPLICATION(is_int8, mayiuse(sse41)));
 
     // gemm_driver supports sgemm for Intel AVX512, Intel AVX2, Intel AVX,
     // and Intel SSE4.1

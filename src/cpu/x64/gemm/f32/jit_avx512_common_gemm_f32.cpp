@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,12 +73,6 @@ struct xbyak_gemm_t : public jit_generator {
 
     void generate() override ATTRIBUTE_OPTIMIZE {
         using namespace Xbyak;
-
-        enum {
-            ver_avx512_core,
-            ver_avx512_mic
-        } ver = mayiuse(avx512_core) ? ver_avx512_core : ver_avx512_mic;
-
         bool isBeta0 = (beta == 0.0);
         bool isBetaN = (!isBeta0 && beta != 1.0);
 
@@ -142,7 +136,7 @@ struct xbyak_gemm_t : public jit_generator {
         auto VBIAS2 = zmm2;
         auto VBIAS3 = zmm3;
 
-        auto PREFETCHSIZEA = ver == ver_avx512_core ? 48 : 80;
+        auto PREFETCHSIZEA = 48;
         auto PREFETCHSIZEB = 16;
 
         Zmm regs[] = {zmm8, zmm9, zmm10, zmm11, zmm12, zmm13, zmm14, zmm15,
@@ -516,150 +510,44 @@ struct xbyak_gemm_t : public jit_generator {
         // Loop with unroll_n - 2 FMAs; called by innerkernel
         auto fmaloop = [&](int unroll_m, int unroll_n, int iteration) {
             for (int i = 2; i < unroll_n; i++) {
-                if (ver == ver_avx512_core) {
-                    if (!isTransB) {
-                        switch (i) {
-                            case 2:
-                                vbroadcastss(zmm3,
-                                        ptr[BO1 + LDB * 2
-                                                + (iteration - OFFSET) * SIZE]);
-                                break;
-                            case 3:
-                                vbroadcastss(zmm3,
-                                        ptr[BO1 + LDB3
-                                                + (iteration - OFFSET) * SIZE]);
-                                break;
-                            case 4:
-                                vbroadcastss(zmm3,
-                                        ptr[BO2 + (iteration - OFFSET) * SIZE]);
-                                break;
-                            case 5:
-                                vbroadcastss(zmm3,
-                                        ptr[BO2 + LDB * 1
-                                                + (iteration - OFFSET) * SIZE]);
-                                break;
-                            case 6:
-                                vbroadcastss(zmm3,
-                                        ptr[BO2 + LDB * 2
-                                                + (iteration - OFFSET) * SIZE]);
-                                break;
-                            case 7:
-                                vbroadcastss(zmm3,
-                                        ptr[BO2 + LDB3
-                                                + (iteration - OFFSET) * SIZE]);
-                                break;
-                        }
-                    } else {
-                        vbroadcastss(zmm3, ptr[BO1 + (i - OFFSET) * SIZE]);
+                if (!isTransB) {
+                    switch (i) {
+                        case 2:
+                            vbroadcastss(zmm3,
+                                    ptr[BO1 + LDB * 2
+                                            + (iteration - OFFSET) * SIZE]);
+                            break;
+                        case 3:
+                            vbroadcastss(zmm3,
+                                    ptr[BO1 + LDB3
+                                            + (iteration - OFFSET) * SIZE]);
+                            break;
+                        case 4:
+                            vbroadcastss(zmm3,
+                                    ptr[BO2 + (iteration - OFFSET) * SIZE]);
+                            break;
+                        case 5:
+                            vbroadcastss(zmm3,
+                                    ptr[BO2 + LDB * 1
+                                            + (iteration - OFFSET) * SIZE]);
+                            break;
+                        case 6:
+                            vbroadcastss(zmm3,
+                                    ptr[BO2 + LDB * 2
+                                            + (iteration - OFFSET) * SIZE]);
+                            break;
+                        case 7:
+                            vbroadcastss(zmm3,
+                                    ptr[BO2 + LDB3
+                                            + (iteration - OFFSET) * SIZE]);
+                            break;
                     }
-                    vfmadd231ps(regs[i], zmm3, zmm0);
-                    if (unroll_m >= 32) vfmadd231ps(regs[i + 8], zmm3, zmm1);
-                    if (unroll_m >= 48) vfmadd231ps(regs[i + 16], zmm3, zmm2);
                 } else {
-                    if (!isTransB) {
-                        switch (i) {
-                            case 2:
-                                vfmadd231ps(regs[i], zmm0,
-                                        zword_b[BO1 + LDB * 2
-                                                + (iteration - OFFSET) * SIZE]);
-                                if (unroll_m >= 32)
-                                    vfmadd231ps(regs[i + 8], zmm1,
-                                            zword_b[BO1 + LDB * 2
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                if (unroll_m >= 48)
-                                    vfmadd231ps(regs[i + 16], zmm2,
-                                            zword_b[BO1 + LDB * 2
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                break;
-                            case 3:
-                                vfmadd231ps(regs[i], zmm0,
-                                        zword_b[BO1 + LDB3
-                                                + (iteration - OFFSET) * SIZE]);
-                                if (unroll_m >= 32)
-                                    vfmadd231ps(regs[i + 8], zmm1,
-                                            zword_b[BO1 + LDB3
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                if (unroll_m >= 48)
-                                    vfmadd231ps(regs[i + 16], zmm2,
-                                            zword_b[BO1 + LDB3
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                break;
-                            case 4:
-                                vfmadd231ps(regs[i], zmm0,
-                                        zword_b[BO2
-                                                + (iteration - OFFSET) * SIZE]);
-                                if (unroll_m >= 32)
-                                    vfmadd231ps(regs[i + 8], zmm1,
-                                            zword_b[BO2
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                if (unroll_m >= 48)
-                                    vfmadd231ps(regs[i + 16], zmm2,
-                                            zword_b[BO2
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                break;
-                            case 5:
-                                vfmadd231ps(regs[i], zmm0,
-                                        zword_b[BO2 + LDB * 1
-                                                + (iteration - OFFSET) * SIZE]);
-                                if (unroll_m >= 32)
-                                    vfmadd231ps(regs[i + 8], zmm1,
-                                            zword_b[BO2 + LDB * 1
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                if (unroll_m >= 48)
-                                    vfmadd231ps(regs[i + 16], zmm2,
-                                            zword_b[BO2 + LDB * 1
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                break;
-                            case 6:
-                                vfmadd231ps(regs[i], zmm0,
-                                        zword_b[BO2 + LDB * 2
-                                                + (iteration - OFFSET) * SIZE]);
-                                if (unroll_m >= 32)
-                                    vfmadd231ps(regs[i + 8], zmm1,
-                                            zword_b[BO2 + LDB * 2
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                if (unroll_m >= 48)
-                                    vfmadd231ps(regs[i + 16], zmm2,
-                                            zword_b[BO2 + LDB * 2
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                break;
-                            case 7:
-                                vfmadd231ps(regs[i], zmm0,
-                                        zword_b[BO2 + LDB3
-                                                + (iteration - OFFSET) * SIZE]);
-                                if (unroll_m >= 32)
-                                    vfmadd231ps(regs[i + 8], zmm1,
-                                            zword_b[BO2 + LDB3
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                if (unroll_m >= 48)
-                                    vfmadd231ps(regs[i + 16], zmm2,
-                                            zword_b[BO2 + LDB3
-                                                    + (iteration - OFFSET)
-                                                            * SIZE]);
-                                break;
-                        }
-                    } else {
-                        vfmadd231ps(regs[i], zmm0,
-                                zword_b[BO1 + (i - OFFSET) * SIZE]);
-                        if (unroll_m >= 32)
-                            vfmadd231ps(regs[i + 8], zmm1,
-                                    zword_b[BO1 + (i - OFFSET) * SIZE]);
-                        if (unroll_m >= 48)
-                            vfmadd231ps(regs[i + 16], zmm2,
-                                    zword_b[BO1 + (i - OFFSET) * SIZE]);
-                    }
+                    vbroadcastss(zmm3, ptr[BO1 + (i - OFFSET) * SIZE]);
                 }
+                vfmadd231ps(regs[i], zmm3, zmm0);
+                if (unroll_m >= 32) vfmadd231ps(regs[i + 8], zmm3, zmm1);
+                if (unroll_m >= 48) vfmadd231ps(regs[i + 16], zmm3, zmm2);
             }
         };
 
@@ -760,36 +648,14 @@ struct xbyak_gemm_t : public jit_generator {
                     add(AO1, LDA);
                 }
 
-                if (ver == ver_avx512_core) {
-                    if (!isTransB) {
-                        vbroadcastss(zmm3, ptr[BO1 + (i - OFFSET) * SIZE]);
-                    } else {
-                        vbroadcastss(zmm3, ptr[BO1 + (0 - OFFSET) * SIZE]);
-                    }
-                    vfmadd231ps(regs[0], zmm3, zmm0);
-                    if (unroll_m >= 32) vfmadd231ps(regs[0 + 8], zmm3, zmm1);
-                    if (unroll_m >= 48) vfmadd231ps(regs[0 + 16], zmm3, zmm2);
+                if (!isTransB) {
+                    vbroadcastss(zmm3, ptr[BO1 + (i - OFFSET) * SIZE]);
                 } else {
-                    if (!isTransB) {
-                        vfmadd231ps(regs[0], zmm0,
-                                zword_b[BO1 + (i - OFFSET) * SIZE]);
-                        if (unroll_m >= 32)
-                            vfmadd231ps(regs[0 + 8], zmm1,
-                                    zword_b[BO1 + (i - OFFSET) * SIZE]);
-                        if (unroll_m >= 48)
-                            vfmadd231ps(regs[0 + 16], zmm2,
-                                    zword_b[BO1 + (i - OFFSET) * SIZE]);
-                    } else {
-                        vfmadd231ps(regs[0], zmm0,
-                                zword_b[BO1 + (0 - OFFSET) * SIZE]);
-                        if (unroll_m >= 32)
-                            vfmadd231ps(regs[0 + 8], zmm1,
-                                    zword_b[BO1 + (0 - OFFSET) * SIZE]);
-                        if (unroll_m >= 48)
-                            vfmadd231ps(regs[0 + 16], zmm2,
-                                    zword_b[BO1 + (0 - OFFSET) * SIZE]);
-                    }
+                    vbroadcastss(zmm3, ptr[BO1 + (0 - OFFSET) * SIZE]);
                 }
+                vfmadd231ps(regs[0], zmm3, zmm0);
+                if (unroll_m >= 32) vfmadd231ps(regs[0 + 8], zmm3, zmm1);
+                if (unroll_m >= 48) vfmadd231ps(regs[0 + 16], zmm3, zmm2);
 
                 if (unroll_n >= i + 1) {
                     if (!isTransB) {
@@ -831,42 +697,15 @@ struct xbyak_gemm_t : public jit_generator {
                 }
 
                 if (unroll_n >= 2) {
-                    if (ver == ver_avx512_core) {
-                        if (!isTransB) {
-                            vbroadcastss(zmm3,
-                                    ptr[BO1 + LDB * 1 + (i - OFFSET) * SIZE]);
-                        } else {
-                            vbroadcastss(zmm3, ptr[BO1 + (1 - OFFSET) * SIZE]);
-                        }
-                        vfmadd231ps(regs[1], zmm3, zmm0);
-                        if (unroll_m >= 32)
-                            vfmadd231ps(regs[1 + 8], zmm3, zmm1);
-                        if (unroll_m >= 48)
-                            vfmadd231ps(regs[1 + 16], zmm3, zmm2);
+                    if (!isTransB) {
+                        vbroadcastss(
+                                zmm3, ptr[BO1 + LDB * 1 + (i - OFFSET) * SIZE]);
                     } else {
-                        if (!isTransB) {
-                            vfmadd231ps(regs[1], zmm0,
-                                    zword_b[BO1 + LDB * 1
-                                            + (i - OFFSET) * SIZE]);
-                            if (unroll_m >= 32)
-                                vfmadd231ps(regs[1 + 8], zmm1,
-                                        zword_b[BO1 + LDB * 1
-                                                + (i - OFFSET) * SIZE]);
-                            if (unroll_m >= 48)
-                                vfmadd231ps(regs[1 + 16], zmm2,
-                                        zword_b[BO1 + LDB * 1
-                                                + (i - OFFSET) * SIZE]);
-                        } else {
-                            vfmadd231ps(regs[1], zmm0,
-                                    zword_b[BO1 + (1 - OFFSET) * SIZE]);
-                            if (unroll_m >= 32)
-                                vfmadd231ps(regs[1 + 8], zmm1,
-                                        zword_b[BO1 + (1 - OFFSET) * SIZE]);
-                            if (unroll_m >= 48)
-                                vfmadd231ps(regs[1 + 16], zmm2,
-                                        zword_b[BO1 + (1 - OFFSET) * SIZE]);
-                        }
+                        vbroadcastss(zmm3, ptr[BO1 + (1 - OFFSET) * SIZE]);
                     }
+                    vfmadd231ps(regs[1], zmm3, zmm0);
+                    if (unroll_m >= 32) vfmadd231ps(regs[1 + 8], zmm3, zmm1);
+                    if (unroll_m >= 48) vfmadd231ps(regs[1 + 16], zmm3, zmm2);
                 }
 
                 if (isCopy) {
@@ -912,43 +751,24 @@ struct xbyak_gemm_t : public jit_generator {
                 fmaloop(unroll_m, unroll_n, i);
 
                 if (i == 1) {
-                    if (doCPrefetch) {
-                        if (ver == ver_avx512_core)
-                            prefetchw(ptr[CO2 + 0 * 16 * SIZE]);
-                        else
-                            prefetcht0(ptr[CO2 + 0 * 16 * SIZE]);
-                    }
+                    if (doCPrefetch) { prefetchw(ptr[CO2 + 0 * 16 * SIZE]); }
                 }
                 if (i == 3) {
                     if (doCPrefetch && unroll_m >= 32) {
-                        if (ver == ver_avx512_core)
-                            prefetchw(ptr[CO2 + 1 * 16 * SIZE]);
-                        else
-                            prefetcht0(ptr[CO2 + 1 * 16 * SIZE]);
+                        prefetchw(ptr[CO2 + 1 * 16 * SIZE]);
                     }
-                    if (!isTransA) {
-                        if (ver == ver_avx512_core)
-                            prefetcht0(ptr[AA + 16 * 0 * SIZE]);
-                        else
-                            prefetcht2(ptr[AA + 16 * 0 * SIZE]);
-                    }
+                    if (!isTransA) { prefetcht0(ptr[AA + 16 * 0 * SIZE]); }
                 }
                 if (i == 5) {
                     if (doCPrefetch) {
                         if (unroll_m >= 48) {
-                            if (ver == ver_avx512_core)
-                                prefetchw(ptr[CO2 + 2 * 16 * SIZE]);
-                            else
-                                prefetcht0(ptr[CO2 + 2 * 16 * SIZE]);
+                            prefetchw(ptr[CO2 + 2 * 16 * SIZE]);
                         }
                         add(CO2, LDC);
                     }
                     if (!isTransA) {
                         if (unroll_m >= 32) {
-                            if (ver == ver_avx512_core)
-                                prefetcht0(ptr[AA + 16 * 1 * SIZE]);
-                            else
-                                prefetcht2(ptr[AA + 16 * 1 * SIZE]);
+                            prefetcht0(ptr[AA + 16 * 1 * SIZE]);
                         }
                     }
                 }
@@ -964,12 +784,7 @@ struct xbyak_gemm_t : public jit_generator {
                 if (unroll_n >= 4) sub(BO2, -8 * SIZE);
             }
             if (!isTransA) {
-                if (unroll_m >= 48) {
-                    if (ver == ver_avx512_core)
-                        prefetcht0(ptr[AA + 16 * 2 * SIZE]);
-                    else
-                        prefetcht2(ptr[AA + 16 * 2 * SIZE]);
-                }
+                if (unroll_m >= 48) { prefetcht0(ptr[AA + 16 * 2 * SIZE]); }
                 lea(AA, ptr[AA + LDA]);
             }
 
@@ -1027,7 +842,7 @@ struct xbyak_gemm_t : public jit_generator {
             if (isCopy) {
                 lea(LDA4, ptr[rsp + 128 + OFFSET * SIZE]);
             } else {
-                auto step = ver == ver_avx512_core ? 2 : 4;
+                auto step = 2;
                 lea(LDA4, ptr[LDA * step + (16 - 1 - OFFSET) * SIZE]);
             }
 
@@ -1685,7 +1500,7 @@ struct xbyak_gemm_t : public jit_generator {
         // needed
         mov(rax, LDA);
         or_(rax, A);
-        and_(rax, ver == ver_avx512_core ? 0x07 : 0x3f);
+        and_(rax, 0x07);
         mov(FLAG, rax);
 
         for (int i = 8; i < 16; i++) {
