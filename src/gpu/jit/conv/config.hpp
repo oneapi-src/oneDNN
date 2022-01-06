@@ -341,7 +341,7 @@ public:
             if (hw >= ngen::HW::XeHPC && !is_small_ic()) oc_thr_blk = 64;
             oc_thr_dim = init_thr_dim(oc, oc_thr_blk, /*max_thr_dim=*/4);
             if (is_small_ic()) {
-                mb_thr_blk = mb < 16 ? (mb < 2 ? 1 : 2) : 4;
+                mb_thr_blk = mb < 16 ? (mb < 2 ? 1 : 2) : 8;
                 mb_thr_dim = (mb < 16 ? utils::rnd_up_pow2(
                                       utils::div_up(mb, mb_thr_blk))
                                       : 4);
