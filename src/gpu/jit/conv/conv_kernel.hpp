@@ -720,7 +720,7 @@ public:
             auto &src1_imm = src1.immediate();
             int32_t src1_value = to_cpp<int32_t>(src1_imm);
             ir_assert(0 < src1_value && src1_value <= INT32_MAX) << src1_value;
-            eidiv(dst.reg_data(), ngen::Subregister(), src0.reg_data(),
+            eidiv(mod, dst.reg_data(), ngen::Subregister(), src0.reg_data(),
                     src1_value);
         }
     }
@@ -776,7 +776,8 @@ public:
         auto &src1_imm = src1.immediate();
         int32_t src1_value = to_cpp<int32_t>(src1_imm);
         ir_assert(0 < src1_value && src1_value <= INT32_MAX) << src1_value;
-        eidiv(ngen::Subregister(), dst.reg_data(), src0.reg_data(), src1_value);
+        eidiv(mod, ngen::Subregister(), dst.reg_data(), src0.reg_data(),
+                src1_value);
     }
 
     void eshl(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
@@ -846,8 +847,9 @@ public:
     // Computes:
     //     qot = x / y
     //     rem = x % y
-    void eidiv(const ngen::RegData &qot, const ngen::RegData &rem,
-            const ngen::RegData &x, uint32_t y) {
+    void eidiv(const ngen::InstructionModifier &mod, const ngen::RegData &qot,
+            const ngen::RegData &rem, const ngen::RegData &x, uint32_t y) {
+        ir_assert(x.getHS() == 0);
         if (ngen::utils::is_zero_or_pow2(y)) {
             auto _x = get_subregister(x);
             if (x.getNeg()) {
@@ -856,8 +858,8 @@ public:
                 _x = ra_.alloc_sub(x.getType());
                 mov(1, _x, x);
             }
-            if (!qot.isInvalid()) shr(1, qot, _x, ngen::utils::log2(y));
-            if (!rem.isInvalid()) and_(1, rem, _x, y - 1);
+            if (!qot.isInvalid()) shr(mod, qot, _x, ngen::utils::log2(y));
+            if (!rem.isInvalid()) and_(mod, rem, _x, y - 1);
             if (_x != x) ra_.safeRelease(_x);
             return;
         }
@@ -873,18 +875,18 @@ public:
         mul(1, acc0.ud(0), _x, m & 0xFFFF);
         mach(1, _qot, _x, m);
         shr<uint32_t>(1, _qot, _qot, p - 32);
-        if (!qot.isInvalid()) mov(1, qot, _qot);
+        if (!qot.isInvalid()) mov(mod, qot, _qot);
 
         if (!rem.isInvalid()) {
             // rem = x - qot * y
             bool y_is_16_bit = (y <= static_cast<uint32_t>(
                                         std::numeric_limits<int16_t>::max()));
             if (hw >= ngen::HW::XeLP && y_is_16_bit) {
-                mad(1, rem, x, _qot, -int16_t(y));
+                mad(mod, rem, x, _qot, -int16_t(y));
             } else {
                 auto tmp = ra_.alloc_sub<uint64_t>();
                 mul(1, tmp, _qot, y);
-                add(1, rem, x, -tmp.ud(0));
+                add(mod, rem, x, -tmp.ud(0));
                 ra_.safeRelease(tmp);
             }
         }
