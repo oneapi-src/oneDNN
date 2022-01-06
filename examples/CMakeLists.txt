@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2021 Intel Corporation
+# Copyright 2016-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,10 +35,6 @@ include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/examples)
 
 append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_EXAMPLE_CXX_FLAGS}")
 append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_CXX_NOWARN_FLAGS}")
-
-if(UNIX)
-    find_library(LIBM m REQUIRED)
-endif()
 
 file(GLOB_RECURSE sources *.cpp *.c)
 file(GLOB_RECURSE headers *.hpp *.h)
@@ -86,6 +82,7 @@ foreach(src ${sources})
     if(${example_name} MATCHES "(cross-engine|cpu|gpu)-")
         if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE" OR ${example_name} MATCHES "gpu-")
             # Example name contains cross-engine, cpu or gpu
+            find_libm(LIBM)
             if(NOT ${example_name} MATCHES ".*opencl" OR DNNL_GPU_RUNTIME STREQUAL "OCL")
                 register_exe(${example_name} ${src} "test" ${LIBM})
             endif()
@@ -107,6 +104,7 @@ foreach(src ${sources})
             add_dnnl_test("gpu-${example_name}" "${example_name}" gpu)
             maybe_configure_windows_test("gpu-${example_name}" TEST)
         endif()
+        find_libm(LIBM)
         register_exe(${example_name} ${src} "" ${LIBM})
     endif()
 endforeach()
