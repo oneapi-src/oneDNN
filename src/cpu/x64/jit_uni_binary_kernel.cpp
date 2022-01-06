@@ -84,7 +84,7 @@ template <cpu_isa_t isa, typename Vmm>
 jit_uni_binary_kernel_t<isa, Vmm>::jit_uni_binary_kernel_t(
         const binary_pd_t *pd, const jit_binary_conf_t conf, bool tail_kernel)
     : binary_kernel_t(vreg_traits<Vmm>::vlen, pd, conf, jit_name(), tail_kernel)
-    , offt_src0_(vlen_ / (conf_.is_bf16 ? 2 : 1))
+    , offt_src0_(vlen_ / ((conf_.is_bf16 || conf_.is_f16) ? 2 : 1))
     , offt_src1_(conf_.use_stride_src1 ? offt_src0_ : 0)
     , io_(this, isa, {conf_.src0_type, conf_.src1_type, conf_.dst_type},
               {false},
@@ -576,6 +576,9 @@ void jit_uni_binary_kernel_t<isa, Vmm>::generate() {
 
 #undef PARAM_OFF
 
+template struct jit_uni_binary_kernel_t<avx512_core_fp16, Zmm>;
+template struct jit_uni_binary_kernel_t<avx512_core_fp16, Ymm>;
+template struct jit_uni_binary_kernel_t<avx512_core_fp16, Xmm>;
 template struct jit_uni_binary_kernel_t<avx512_core_bf16, Zmm>;
 template struct jit_uni_binary_kernel_t<avx512_core_bf16, Ymm>;
 template struct jit_uni_binary_kernel_t<avx512_core_bf16, Xmm>;

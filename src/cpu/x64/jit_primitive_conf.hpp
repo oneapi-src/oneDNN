@@ -985,6 +985,7 @@ struct jit_binary_conf_t {
     bool postops_per_oc_broadcast_exists = false;
     bool is_i8 = false;
     bool is_bf16 = false;
+    bool is_f16 = false;
     bool is_src_different_layouts = false;
     dim_t outer_dims = 1;
     int src1_stride = 1;

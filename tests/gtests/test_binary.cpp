@@ -224,6 +224,9 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
     if (!unsupported_data_type(memory::data_type::bf16))
         test_dts.emplace_back(memory::data_type::bf16);
 
+    if (!unsupported_data_type(memory::data_type::f16))
+        test_dts.emplace_back(memory::data_type::f16);
+
     for (auto dt : test_dts) {
         const auto &binary_tensor_dims = std::get<0>(GetParam());
         const auto format_tag = std::get<2>(GetParam());

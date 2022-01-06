@@ -70,10 +70,11 @@ static dim_t get_outer_dims_product(
 using namespace data_type;
 
 static bool data_type_supported(const data_type_t dtype) {
-    return utils::one_of(dtype, f32, bf16, s8, u8);
+    return utils::one_of(dtype, f32, bf16, f16, s8, u8);
 }
 
 static cpu_isa_t get_supported_isa() {
+    if (mayiuse(avx512_core_fp16)) return avx512_core_fp16;
     if (mayiuse(avx512_core_bf16)) return avx512_core_bf16;
     if (mayiuse(avx512_core)) return avx512_core;
     if (mayiuse(avx2)) return avx2;
@@ -113,6 +114,9 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
             && data_type_supported(conf_.src1_type)
             && data_format_supported(src0_md_, conf_.isa)
             && IMPLICATION(conf_.src0_type == bf16, mayiuse(avx512_core))
+            && IMPLICATION(utils::one_of(f16, conf_.src0_type, conf_.src1_type,
+                                   conf_.dst_type),
+                    mayiuse(avx512_core_fp16))
             && set_default_params() == status::success && !has_zero_dim_memory()
             && IMPLICATION(!conf_.is_i8, src0_md_ == dst_md_) && is_applicable()
             && attr()->has_default_values(sm::post_ops | sm::scales_runtime)
@@ -140,6 +144,7 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
                     po, src0_md_, get_supported_postops_bcast_strategies());
     conf_.is_bf16 = conf_.dst_type == bf16;
+    conf_.is_f16 = conf_.dst_type == f16;
     conf_.op_type = get_op_type(src0_md_);
     assert(conf_.op_type != op_t::none);
     conf_.do_scale_src0 = !attr()->scales_.get(DNNL_ARG_SRC_0).defined()
@@ -441,6 +446,7 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
     };
     const auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
     const bool is_avx512_core = mayiuse(avx512_core);
+    const bool is_avx512_core_fp16 = mayiuse(avx512_core_fp16);
     const bool is_i8 = utils::one_of(dst_d.data_type(), s8, u8);
 
     const auto supported_strategies = get_supported_postops_bcast_strategies();
@@ -451,8 +457,10 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
         } else if (is_binary(i)) {
             const auto &post_ops_mem = p.entry_[i].binary.src1_desc;
             const bool is_src1_bf16 = post_ops_mem.data_type == data_type::bf16;
-            if (is_i8 && is_src1_bf16) return false;
+            const bool is_src1_f16 = post_ops_mem.data_type == data_type::f16;
+            if (is_i8 && (is_src1_bf16 || is_src1_f16)) return false;
             if (!IMPLICATION(is_src1_bf16, is_avx512_core)) return false;
+            if (!IMPLICATION(is_src1_f16, is_avx512_core_fp16)) return false;
             if (get_rhs_arg_broadcasting_strategy(
                         post_ops_mem, dst_d, supported_strategies)
                     == broadcasting_strategy_t::no_broadcast) {
@@ -520,6 +528,22 @@ binary_kernel_t *create_binary_kernel(
     const auto blk_size = src0_d.blocking_desc().inner_blks[0];
     const auto is_plain_layout = src0_d.is_plain();
     switch (conf.isa) {
+        case avx512_core_fp16: {
+            if (blk_size == 16 || is_plain_layout) {
+                using kernel_t
+                        = jit_uni_binary_kernel_t<avx512_core_fp16, Xbyak::Zmm>;
+                return new kernel_t(pd, conf, tail_kernel);
+            } else if (blk_size == 8) {
+                using kernel_t
+                        = jit_uni_binary_kernel_t<avx512_core_fp16, Xbyak::Ymm>;
+                return new kernel_t(pd, conf, tail_kernel);
+            } else if (blk_size == 4) {
+                using kernel_t
+                        = jit_uni_binary_kernel_t<avx512_core_fp16, Xbyak::Xmm>;
+                return new kernel_t(pd, conf, tail_kernel);
+            }
+            break;
+        }
         case avx512_core_bf16: {
             if (blk_size == 16 || is_plain_layout) {
                 if (conf.is_i8) {
@@ -617,7 +641,7 @@ status_t jit_uni_binary_t::init(engine_t *engine) {
     CHECK(safe_ptr_assign(
             kernel_, create_binary_kernel(pd(), false /*tail_kernel*/)));
 
-    if (utils::one_of(pd()->dst_md(0)->data_type, f32, bf16)) {
+    if (utils::one_of(pd()->dst_md(0)->data_type, f32, bf16, f16)) {
         const memory_desc_wrapper src0_d(pd_->src_md(0));
         const auto &simd_w = kernel_->simd_w();
         const auto oc = src0_d.ndims() >= 2 ? src0_d.dims()[1] : 1;
