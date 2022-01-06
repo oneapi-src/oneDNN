@@ -102,8 +102,7 @@ optional arguments `SCALE` parsed as a real number, which scales the output
 before appending the result, `ZERO_POINT` parsed as a integer, which shifts the
 output before using the scale and `DATA_TYPE` argument which defines sum data
 type parameter. If invalid or `undef` value of `DATA_TYPE` is specified, an
-error will be returned. Only single `SUM` operation can be applied to the
-output tensor.
+error will be returned.
 
 `ELTWISE` post operation kind applies one of supported element-wise algorithms
 to the operation result and then stores it. It supports optional arguments
