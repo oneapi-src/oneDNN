@@ -2041,7 +2041,9 @@ private:
         if (reuse_headers) header_regs = 1;
         int estimated_regs = data_regs + reorder_regs + header_regs;
 
-        double reg_factor = (is_bwd_w && is_dp_fma()) ? 1 / 0.875 : 1 / 0.95;
+        double reg_factor = (is_small_ic() || (is_bwd_w && is_dp_fma()))
+                ? 1 / 0.875
+                : 1 / 0.95;
         estimated_regs = std::ceil(reg_factor * estimated_regs);
         return estimated_regs;
     }
