@@ -25,15 +25,6 @@ normalization.
   * **Default value**: None
   * **Required**: *yes*
 
-* *is_training*
-
-  * **Description**: *is_training* is used to indicate the operation is for
-    training.
-  * **Range of values**: true or false
-  * **Type**: ``bool``
-  * **Default value**: true
-  * **Required**: *no*
-
 * *data_format*
 
   * **Description**: *data_format* denotes the data format of the input,
@@ -58,18 +49,13 @@ normalization.
 
   * **Type**: T2
 
-* **4**: ``beta`` - beta added to the scaled normalized value. A 1D tensor with
-  the same span as input's channel axis. **Optional.**
+* **4**: ``mean`` - batch mean. A 1D tensor with the same span
+  as input's channel axis. **Required.**
 
   * **Type**: T2
 
-* **5**: ``mean`` - if is_training is true, pass batch mean, otherwise running
-  mean. **Required.**
-
-  * **Type**: T2
-
-* **6**: ``variance`` - if is_training is true, pass batch variance, otherwise
-  running variance. **Required.**
+* **5**: ``variance`` - batch variance. A 1D tensor with the same span
+  as input's channel axis. **Required.**
 
   * **Type**: T2
 
