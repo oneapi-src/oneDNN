@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,7 +46,6 @@ private:
     using reg64_t = const Xbyak::Reg64;
     enum {
         typesize = sizeof(float),
-        unroll_4fma = 4,
         ker_reg_base_idx = 28,
     };
 
@@ -55,24 +54,16 @@ private:
     reg64_t reg_ker = r9;
     reg64_t reg_out = r10;
 
-    reg64_t reg_inp_prf = r11;
-    reg64_t reg_ker_prf = r12;
-    reg64_t reg_out_prf = r13;
     reg64_t reg_owb = r12;
 
     reg64_t aux_reg_inp = r14;
     reg64_t aux_reg_ker = r15;
-
-    reg64_t aux_reg_inp_prf = rsi;
-    reg64_t aux_reg_ker_prf = rdx;
 
     reg64_t reg_channel = rsi;
     reg64_t reg_bias = rdx;
 
     reg64_t aux_reg_ker_d = r9;
     reg64_t aux_reg_inp_d = rbx;
-    reg64_t aux_reg_inp_d_prf = r13;
-    reg64_t aux_reg_ker_d_prf = abi_not_param1;
     reg64_t reg_ki = r10;
 
     reg64_t reg_kj = rax;
@@ -126,8 +117,6 @@ private:
     inline void store_output(int ur_w);
     inline void compute_loop_fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_fma_core(int ur_w, int pad_l, int pad_r);
-    inline void compute_loop_4fma(int ur_w, int pad_l, int pad_r);
-    inline void compute_loop_4fma_1st(int ur_w, int pad_l, int pad_r);
     inline void compute_loop(int ur_w, int pad_l, int pad_r);
 
     void generate() override;

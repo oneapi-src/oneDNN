@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,18 +43,18 @@ using jit_conv_ker_t = void (*)(jit_conv_call_s *);
 inline void jit_conv_ker_pipeline(const jit_conv_ker_t ker, jit_conv_call_s &p,
         const void *src, const void *dst, const void *filt, const void *bias,
         int channel, int kh_padding, int reduce_work, int load_work) {
-    PIPELINE(src);
-    PIPELINE(dst);
-    PIPELINE(filt);
-    PIPELINE(bias);
-    PIPELINE(channel);
+    p.src = src;
+    p.dst = dst;
+    p.filt = filt;
+    p.bias = bias;
+    p.channel = channel;
     // non-positive value of kh_padding is allowed, in this case kernel must
     // skip computation part and initialize output by zeroes
-    PIPELINE(kh_padding);
-    PIPELINE(reduce_work);
-    PIPELINE(load_work);
+    p.kh_padding = kh_padding;
+    p.reduce_work = reduce_work;
+    p.load_work = load_work;
 
-    if (p.src) ker(&p);
+    ker(&p);
 }
 // The special case for the driver with iw-parallelization (BWD)
 inline void jit_conv_ker_pipeline_iw_thr(const jit_conv_ker_t ker,
@@ -71,19 +71,19 @@ inline void jit_conv_3d_ker_pipeline(const jit_conv_ker_t ker,
         jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
         const void *bias, int channel, int kh_padding, int kd_padding,
         int reduce_work, int load_work) {
-    PIPELINE(src);
-    PIPELINE(dst);
-    PIPELINE(filt);
-    PIPELINE(bias);
-    PIPELINE(channel);
+    p.src = src;
+    p.dst = dst;
+    p.filt = filt;
+    p.bias = bias;
+    p.channel = channel;
     // non-positive value of both kd_padding and kh_padding is allowed, in this
     // case kernel must skip computation part and initialize output by zeroes
-    PIPELINE(kh_padding);
-    PIPELINE(kd_padding);
-    PIPELINE(reduce_work);
-    PIPELINE(load_work);
+    p.kh_padding = kh_padding;
+    p.kd_padding = kd_padding;
+    p.reduce_work = reduce_work;
+    p.load_work = load_work;
 
-    if (p.src) ker(&p);
+    ker(&p);
 }
 // The special case for the driver with ow-parallelization (FWD)
 inline void jit_conv_ker_pipeline_ow_thr(jit_conv_ker_t ker, jit_conv_call_s &p,
@@ -91,11 +91,11 @@ inline void jit_conv_ker_pipeline_ow_thr(jit_conv_ker_t ker, jit_conv_call_s &p,
         int channel, int kh_padding, int owb, int reduce_work, int load_work,
         const void *post_ops_binary_rhs_arg_vec, int oc_l_off,
         const void *dst_orig, int flags) {
-    PIPELINE(owb);
-    PIPELINE(flags);
+    p.owb = owb;
+    p.flags = flags;
 
-    PIPELINE(oc_l_off);
-    PIPELINE(dst_orig);
+    p.oc_l_off = oc_l_off;
+    p.dst_orig = dst_orig;
     p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
 
     jit_conv_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding,
@@ -107,8 +107,8 @@ inline void jit_conv_3d_ker_pipeline_ow_thr(const jit_conv_ker_t ker,
         jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
         const void *bias, int channel, int kh_padding, int kd_padding, int owb,
         int reduce_work, int load_work, int flags) {
-    PIPELINE(owb);
-    PIPELINE(flags);
+    p.owb = owb;
+    p.flags = flags;
 
     jit_conv_3d_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding,
             kd_padding, reduce_work, load_work);
@@ -322,14 +322,6 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                 }
             }
         }
-
-        // This call is required only to finalize pipeline with paramaters set
-        // on the last iteration of loop above. Only valid pointers make sense
-        // here as call parameters to avoid execution of prefetch instructions
-        // with nullptr, other parameters are not used in real jit call here
-        jit_conv_ker_pipeline_ow_thr(jit_ker, par_conv, src, dst, weights, bias,
-                0, 0, 0, 0, 0, post_ops_binary_rhs_arg_vec.data(), 0, nullptr,
-                0);
     });
 }
 
@@ -489,14 +481,6 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                     assert(!"unsupported loop order");
             }
         }
-
-        // This call is required only to finalize pipeline with paramaters set
-        // on the last iteration of loop above. Only valid pointers make sense
-        // here as call parameters to avoid execution of prefetch instructions
-        // with nullptr, other parameters are not used in real jit call here
-        jit_conv_ker_pipeline_ow_thr(jit_ker, par_conv, src, dst, weights, bias,
-                0, 0, 0, 0, 0, post_ops_binary_rhs_arg_vec.data(), 0, nullptr,
-                0);
     });
 }
 
@@ -662,14 +646,6 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                     assert(!"unsupported loop order");
             }
         }
-
-        // This call is required only to finalize pipeline with paramaters set
-        // on the last iteration of loop above. Only valid pointers make sense
-        // here as call parameters to avoid execution of prefetch instructions
-        // with nullptr, other parameters are not used in real jit call here
-        jit_conv_3d_ker_pipeline_ow_thr(jit_ker, par_conv, src, dst, weights,
-                bias, 0, 0, 0, 0, 0, 0, post_ops_binary_rhs_arg_vec.data(), 0,
-                nullptr, 0);
     });
 }
 
