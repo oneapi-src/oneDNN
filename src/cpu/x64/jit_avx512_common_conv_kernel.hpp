@@ -238,20 +238,12 @@ private:
     reg64_t reg_ker = r9;
     reg64_t reg_src = r10;
 
-    reg64_t reg_dst_prf = r11;
-    reg64_t reg_ker_prf = r12;
-    reg64_t reg_src_prf = r13;
     reg64_t reg_iwb = r14;
 
     reg64_t aux_reg_dst = r14;
     reg64_t aux_reg_ker = r15;
 
-    reg64_t aux_reg_dst_prf = rsi;
-    reg64_t aux_reg_ker_prf = rdx;
-
-    reg64_t aux_reg_dst_d_prf = r13;
     reg64_t aux_reg_dst_d = rbx;
-    reg64_t aux_reg_ker_d_prf = abi_not_param1;
     reg64_t aux_reg_ker_d = r9;
     reg64_t reg_ki = r10;
 
@@ -288,7 +280,6 @@ private:
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
-    inline void compute_loop_4fma(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_fma(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_fma_core(
             int ur_w, int l_overflow, int r_overflow, int k_offset);

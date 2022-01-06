@@ -61,7 +61,7 @@ inline void jit_conv_ker_pipeline_iw_thr(const jit_conv_ker_t ker,
         jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
         const void *bias, int channel, int kh_padding, int iwb, int reduce_work,
         int load_work) {
-    PIPELINE(iwb);
+    p.iwb = iwb;
 
     jit_conv_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding,
             reduce_work, load_work);
@@ -757,13 +757,6 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                 }
             }
         }
-
-        // This call is required only to finalize pipeline with paramaters set
-        // on the last iteration of loop above. Only valid pointers make sense
-        // here as call parameters to avoid execution of prefetch instructions
-        // with nullptr, other parameters are not used in real jit call here
-        jit_conv_ker_pipeline_iw_thr(jit_ker, par_conv, diff_src, diff_dst,
-                weights, nullptr, 0, 0, 0, 0, 0);
     });
 }
 
@@ -925,13 +918,6 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                     assert(!"unsupported loop order");
             }
         }
-
-        // This call is required only to finalize pipeline with paramaters set
-        // on the last iteration of loop above. Only valid pointers make sense
-        // here as call parameters to avoid execution of prefetch instructions
-        // with nullptr, other parameters are not used in real jit call here
-        jit_conv_ker_pipeline_iw_thr(jit_ker, par_conv, diff_src, diff_dst,
-                weights, nullptr, 0, 0, 0, 0, 0);
     });
 }
 
@@ -1139,13 +1125,6 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                     assert(!"unsupported loop order");
             }
         }
-
-        // This call is required only to finalize pipeline with paramaters set
-        // on the last iteration of loop above. Only valid pointers make sense
-        // here as call parameters to avoid execution of prefetch instructions
-        // with nullptr, other parameters are not used in real jit call here
-        jit_conv_3d_ker_pipeline(jit_ker, par_conv, diff_src, diff_dst, weights,
-                nullptr, 0, 1, 1, 0, 0);
     });
 }
 
