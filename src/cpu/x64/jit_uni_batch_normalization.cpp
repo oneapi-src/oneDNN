@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -155,8 +155,6 @@ struct jit_bnorm_t : public jit_generator {
     Vmm vmask = Vmm(0);
     Vmm vzero; // is_fwd() ? vdiff_beta : vbeta
 
-    size_t t0_pf_offt;
-    size_t t1_pf_offt;
     size_t spat_size;
     size_t chan_data_offt;
     size_t spat_step;
@@ -201,14 +199,6 @@ struct jit_bnorm_t : public jit_generator {
                 = is_nspc_ ? chan_data_offt / (1 + is_bf16_) : vlen_spat_data_;
         mb_offt = spat_step * spat_size;
         ws_mb_offt = (spat_step / (is_bf16_ ? 16 : 32)) * spat_size;
-
-        if (isa == avx512_mic) {
-            t0_pf_offt = 4096;
-            t1_pf_offt = 0;
-        } else {
-            t0_pf_offt = 0;
-            t1_pf_offt = 0;
-        }
     }
 
     void load_common_params() {
@@ -566,10 +556,6 @@ struct jit_bnorm_t : public jit_generator {
                         uni_vmovups_spat_data(
                                 v1, vmmword[reg_src + reg_soff + offt]);
                         uni_vaddps(v0, v0, v1);
-                        mic_prefetcht0(
-                                ptr[reg_src + reg_soff + offt + t0_pf_offt]);
-                        mic_prefetcht1(
-                                ptr[reg_src + reg_soff + offt + t1_pf_offt]);
                     },
                     [=](size_t base_reg) {
                         Vmm b = Vmm(0);
@@ -827,11 +813,6 @@ struct jit_bnorm_t : public jit_generator {
                             vsubps(vtmp1, vmean, vtmp0);
                         }
                         uni_vfmadd231ps(v, vtmp1, vtmp1);
-
-                        mic_prefetcht0(
-                                ptr[reg_src + reg_soff + offt + t0_pf_offt]);
-                        mic_prefetcht1(
-                                ptr[reg_src + reg_soff + offt + t1_pf_offt]);
                     },
                     [=](size_t base_reg) {
                         Vmm b = Vmm(0);
@@ -1043,8 +1024,6 @@ struct jit_bnorm_t : public jit_generator {
                 const Vmm v = Vmm(base_reg);
                 const size_t offt = i * vlen_spat_data_;
                 uni_vmovups_spat_data(v, vmmword[reg_src + reg_soff + offt]);
-                mic_prefetcht0(ptr[reg_src + reg_soff + offt + t0_pf_offt]);
-                mic_prefetcht1(ptr[reg_src + reg_soff + offt + t1_pf_offt]);
                 uni_vsubps(v, v, vmean);
                 if (bdesc_->use_scaleshift()
                         || (bdesc_->use_scale() && bdesc_->use_shift())) {
@@ -1245,14 +1224,6 @@ struct jit_bnorm_t : public jit_generator {
                             vfnmadd231ps(o0, t3, t2);
                         }
                         uni_vaddps(o1, o1, t2);
-                        mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
-                                + t0_pf_offt]);
-                        mic_prefetcht0(
-                                ptr[reg_src + reg_soff + offt + t0_pf_offt]);
-                        mic_prefetcht1(ptr[reg_diff_dst + reg_soff + offt
-                                + t1_pf_offt]);
-                        mic_prefetcht1(
-                                ptr[reg_src + reg_soff + offt + t1_pf_offt]);
                     },
                     [=](size_t base_reg) {
                         Vmm b0 = Vmm(0);
@@ -1429,12 +1400,6 @@ struct jit_bnorm_t : public jit_generator {
                     uni_vmovups_spat_data(
                             vmmword[reg_diff_src + reg_soff + offt], v);
                 }
-                mic_prefetcht0(
-                        ptr[reg_diff_dst + reg_soff + offt + t0_pf_offt]);
-                mic_prefetcht0(ptr[reg_src + reg_soff + offt + t0_pf_offt]);
-                mic_prefetcht1(
-                        ptr[reg_diff_dst + reg_soff + offt + t1_pf_offt]);
-                mic_prefetcht1(ptr[reg_src + reg_soff + offt + t1_pf_offt]);
             };
 
             const auto compute = [=](bool stream_store_allowed) {
@@ -1766,8 +1731,7 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     jit_bnorm_t(const batch_normalization_pd_t *bdesc) : bdesc_(bdesc) {
-        static_assert(isa == sse41 || isa == avx2 || isa == avx512_common
-                        || isa == avx512_mic,
+        static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
                 "unsupported isa");
 
         const int simd_w = isa == sse41
