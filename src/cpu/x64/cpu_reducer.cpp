@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -263,7 +263,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type> {
     }
 
     void generate() override {
-        assert(isa == avx2 || isa == avx512_common || isa == avx512_mic);
+        assert(isa == avx2 || isa == avx512_common);
 
         this->preamble();
 
