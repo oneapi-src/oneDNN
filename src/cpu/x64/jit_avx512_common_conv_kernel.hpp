@@ -450,17 +450,11 @@ private:
     inline void compute_ic_block_step_fma_expl(int ur_w, int pad_l, int pad_r,
             int ic_block_step, int input_offset, int kernel_offset,
             int output_offset, bool input_wraparound);
-    inline void compute_ic_block_step_4fma(int ur_w, int pad_l, int pad_r,
-            int ic_block_step, int input_offset, int kernel_offset,
-            int output_offset, bool input_wraparound);
     inline void compute_oh_step_common(int ic_block_step, int max_ur_w);
     inline void compute_oh_step_disp();
     inline void compute_oh_loop_common();
     inline void compute_oh_loop_partial();
     inline void compute_od_loop_partial();
-
-    inline bool compute_full_spat_loop();
-    inline bool flat_4ops_compute();
 
     inline void compute_loop();
     inline bool is_src_layout_nxc() {
@@ -477,14 +471,10 @@ private:
         const bool is_nxc_layout = is_src_layout_nxc();
         const size_t w_shift_st = (jcp.is_hw_transp ? jcp.iw : 1)
                 * (jcp.is_1stconv ? 1 : jcp.ic_block);
-        ptrdiff_t w_shift = is_nxc_layout
-                ? jcp.ngroups * jcp.ic
-                : jcp.ver == ver_4fma ? 1 : w_shift_st;
-        ptrdiff_t ic_shift = jcp.ver == ver_4fma
-                ? jcp.tr_iw
-                : (jcp.is_1stconv && !is_nxc_layout
-                                ? (ptrdiff_t)jcp.ih * jcp.iw * jcp.id
-                                : 1);
+        ptrdiff_t w_shift = is_nxc_layout ? jcp.ngroups * jcp.ic : w_shift_st;
+        ptrdiff_t ic_shift = jcp.is_1stconv && !is_nxc_layout
+                ? (ptrdiff_t)jcp.ih * jcp.iw * jcp.id
+                : 1;
 
         ptrdiff_t local_input_offset = i_iw * w_shift + i_ic * ic_shift;
         return input_offset + typesize * local_input_offset;

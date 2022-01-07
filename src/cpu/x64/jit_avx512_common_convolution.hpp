@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -265,7 +265,6 @@ private:
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
 
     std::unique_ptr<jit_avx512_common_conv_bwd_weights_kernel_f32> kernel_;
-    std::unique_ptr<jit_trans_src_t> trans_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<diff_weights_type>> acc_ker_;
     std::unique_ptr<cpu_reducer_t<diff_weights_type>> reducer_bias_;
 };
