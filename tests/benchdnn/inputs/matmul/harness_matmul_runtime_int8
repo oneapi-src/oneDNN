@@ -35,9 +35,11 @@
 --batch=shapes_2d
 
 # zero point doesn't belong to the data type (e.g. -1 is not u8)
---cfg=u8s8f32
+--cfg=u8s8s8
 --runtime_dims_masks=0
 --bia_dt=undef
 --attr-oscale=common:1
---attr-zero-points=src:per_dim_1:-1*+wei:common:1+dst:common:2
+--attr-zero-points=src:common:-5, \
+                   src:common:-2*+wei:common:128+dst:common:-129
+--attr-post-ops=
 --batch=shapes_2d

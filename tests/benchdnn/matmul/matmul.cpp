@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -203,8 +203,8 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
         if (idx_start == 0) {
             float val = 0;
             while (val == 0)
-                val = (float)gen(msr);
-            mem_fp.set_elem(0, val * c_f_scale);
+                val = (float)gen(msr) * c_f_scale;
+            mem_fp.set_elem(0, val);
             idx_start += 1;
         }
 
@@ -215,7 +215,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
     });
 
     // work-around mistrusted when A > 0 && B < 0  && C.dt = u8 (or relu)
-    if (kind == WEI && nelems == 1 && prb->cfg[SRC].dt == dnnl_u8) {
+    if (kind == WEI && nelems == 1 && prb->cfg[DST].dt == dnnl_u8) {
         if (c.f_max >= 1) mem_fp.set_elem(0, c_f_scale);
     }
 
