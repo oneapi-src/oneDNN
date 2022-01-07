@@ -288,3 +288,10 @@ g2ic32id5oc6od3kd3pd0noc%simd_width_!=0_with_im2col
 --reset
 --dir=BWD_W
 mb1_ic16oc16_id4od2kd2sd4dd0pd1_ih4oh2kh2sh4dh0ph1_iw6ow7kw2sw1dw0pw1
+
+# AMX 3D check diff_src '0' fill in gaps due to dilate or stride
+--skip-impl=ref,x64:gemm
+--dir=BWD_D
+--cfg=bf16bf16bf16
+mb1_ic32oc32_id6ih1iw17_od2oh1ow17_kd3kh1kw1_pd0ph0pw0_dd1dh0dw0_n"3d_conv_dilate_fill_gap"
+mb1_ic32oc32_id5ih1iw17_od2oh1ow17kd3kh1kw1_sd4sh1sw1_pd1ph0pw0_n"3d_conv_stride_fill_gap"

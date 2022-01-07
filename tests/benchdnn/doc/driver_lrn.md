@@ -56,7 +56,7 @@ Run a named problem with single precision src/dst, iterating by:
                mb256ic96_ih55n"alexnet:norm1"
 ```
 
-More examples with different driver options can be found at inputs/lrn/test_***.
+More examples with different driver options can be found at inputs/lrn/test_\*.
 Examples with different problem descriptors can be found at
-inputs/lrn/shapes_***. Examples with different benchdnn common options can be
+inputs/lrn/shapes_\*. Examples with different benchdnn common options can be
 found at driver_conv.md.

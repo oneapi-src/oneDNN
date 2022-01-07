@@ -3,7 +3,7 @@
 **Benchdnn** drivers support a set of options available for every driver.
 The following common options are supported:
 
-* `-allow-enum-tags-only=BOOL` -- Instructs the driver to validate format tags
+* `--allow-enum-tags-only=BOOL` -- Instructs the driver to validate format tags
   against the documented tags from `dnnl_format_tag_t` enumeration only.  When
   BOOL is `true` (the default), the only allowed format tags are the ones from
   `dnnl_format_tag_t` enumeration.
@@ -27,7 +27,7 @@ The following common options are supported:
   minimal reproducer line omitting options and problem descriptor entries with
   default values.
 
-* `-cpu-isa-hints=HINTS` -- Specifies the ISA specific hints to the CPU engine.
+* `--cpu-isa-hints=HINTS` -- Specifies the ISA specific hints to the CPU engine.
   `HINTS` values can be `none` (the default), `no_hints` or `prefer_ymm`. `none`
   value respects the `DNNL_CPU_ISA_HINTS` environment variable setting, while
   others will override it with chosen value. The settings other than `none` take

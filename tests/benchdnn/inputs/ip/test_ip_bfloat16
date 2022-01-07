@@ -32,3 +32,7 @@ mb2ic1462oc412
 mb2ic368oc623
 mb2ic1462oc412
 mb2ic65oc65
+
+# regression
+--reset
+--dir=BWD_D --cfg=bf16bf16bf16 --stag=ab --wtag=AB16b32a2b --dtag=ab mb1ic7oc1024 

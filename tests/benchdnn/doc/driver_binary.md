@@ -79,5 +79,5 @@ Run a specific binary primitive problem:
 ```
 
 More examples with different driver options can be found at
-inputs/binary/test_***. Examples with different benchdnn common options can be
+inputs/binary/test_\*. Examples with different benchdnn common options can be
 found at driver_conv.md.

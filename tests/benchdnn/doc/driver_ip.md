@@ -52,7 +52,7 @@ output scale of `0.5`, and applying tanh as a post op:
                mb112ic2048_ih1iw1_oc1000_n"resnet:ip1"
 ```
 
-More examples with different driver options can be found at inputs/ip/test_***.
+More examples with different driver options can be found at inputs/ip/test_\*.
 Examples with different problem descriptors can be found at
-inputs/ip/shapes_***. Examples with different benchdnn common options can be
+inputs/ip/shapes_\*. Examples with different benchdnn common options can be
 found at driver_conv.md.

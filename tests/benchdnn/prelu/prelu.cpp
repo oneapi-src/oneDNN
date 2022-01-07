@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ int fill_data(data_kind_t kind, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
         // repeating patterns. We could use discard(idx_start) too but
         // we avoid it for two reasons:
         //   a. it has a complexity in O(idx_start).
-        //   b. igen and fgen below might require more than 1 sample
+        //   b. igen below might require more than 1 sample
         //   per idx, so the we cannot deterministically compute the
         //   number of states we need to discard
         // Note 2: We also advance the state to avoid having only
@@ -56,18 +56,24 @@ int fill_data(data_kind_t kind, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
         // src/dst and diff_dst. The +1 is to avoid 0 again.
         std::minstd_rand msr((idx_start + 1) * (kind + 1));
         msr.discard(1);
-        std::uniform_int_distribution<> igen_02(0, 2), igen_05(0, 5);
-        std::uniform_real_distribution<> fgen(-1.f, 1.f);
+        std::uniform_int_distribution<> igen_02(0, 2), igen_05(0, 5),
+                igen_06(0, 6);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            float value;
-            if (is_integral_dt(mem_dt.dt()))
+            float value = 0;
+            if (is_integral_dt(mem_dt.dt())) {
                 value = igen_05(msr);
-            else
-                value = kind == SRC
-                        ? igen_02(msr)
-                        : kind == WEI ? fgen(msr) : igen_02(msr) / 16.f;
-            // TODO: amount of negative values should depend on number of points
-            // to reduce as summation becomes inaccurate.
+            } else {
+                // TODO: amount of negative values should depend on number of points
+                // to reduce as summation becomes inaccurate.
+                switch (kind) {
+                    case SRC: value = igen_02(msr); break;
+                    case WEI:
+                        value = (64 >> igen_06(msr)) / 8.f; // pow2 [0.125f, 8f]
+                        break;
+                    case DST: value = igen_02(msr) / 16.f; break;
+                    default: assert(!"unexpected"); break;
+                }
+            }
             float sign = mem_dt.dt() == dnnl_u8
                     ? 1.f
                     : flip_coin(idx, 0.1f) ? -1.f : 1.f;

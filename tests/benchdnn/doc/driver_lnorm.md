@@ -57,6 +57,6 @@ Run a named problem with single precision src/dst, iterating by:
 ```
 
 More examples with different driver options can be found at
-inputs/lnorm/test_***. Examples with different problem descriptors can be found
-at inputs/lnorm/shapes_***. Examples with different benchdnn common options can
+inputs/lnorm/test_\*. Examples with different problem descriptors can be found
+at inputs/lnorm/shapes_\*. Examples with different benchdnn common options can
 be found at driver_conv.md.

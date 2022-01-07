@@ -103,4 +103,4 @@ or
 ```
 
 More examples with different driver options can be found at
-inputs/matmul/test_***.
+inputs/matmul/test_\*.

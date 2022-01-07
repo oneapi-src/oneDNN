@@ -76,6 +76,6 @@ plain physical memory layout with dense channels, and all three flags specified:
 ```
 
 More examples with different driver options can be found at
-inputs/bnorm/test_***. Examples with different problem descriptors can be found
-at inputs/bnorm/shapes_***. Examples with different benchdnn common options can
+inputs/bnorm/test_\*. Examples with different problem descriptors can be found
+at inputs/bnorm/shapes_\*. Examples with different benchdnn common options can
 be found at driver_conv.md.

@@ -72,5 +72,5 @@ memory layout, default data type, in-place memory mode, and axis size of 64:
 ```
 
 More examples with different driver options can be found at
-inputs/softmax/test_***. Examples with different benchdnn common options can be
+inputs/softmax/test_\*. Examples with different benchdnn common options can be
 found at driver_conv.md.
