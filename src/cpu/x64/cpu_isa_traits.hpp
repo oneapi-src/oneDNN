@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,8 +58,6 @@ enum cpu_isa_bit_t : unsigned {
     avx_bit = 1u << 1,
     avx2_bit = 1u << 2,
     avx512_common_bit = 1u << 3,
-    avx512_mic_bit = 1u << 4,
-    avx512_mic_4ops_bit = 1u << 5,
     avx512_core_bit = 1u << 6,
     avx512_core_vnni_bit = 1u << 7,
     avx512_core_bf16_bit = 1u << 8,
@@ -110,8 +108,6 @@ enum cpu_isa_t : unsigned {
     avx_vnni = avx_vnni_bit | avx_bit,
     avx2_vnni = avx_vnni | avx2,
     avx512_common = avx512_common_bit | avx2,
-    avx512_mic = avx512_mic_bit | avx512_common,
-    avx512_mic_4ops = avx512_mic_4ops_bit | avx512_mic,
     avx512_core = avx512_core_bit | avx512_common,
     avx512_core_vnni = avx512_core_vnni_bit | avx512_core,
     avx512_core_bf16 = avx512_core_bf16_bit | avx512_core_vnni,
@@ -242,19 +238,6 @@ struct cpu_isa_traits<avx512_core> : public cpu_isa_traits<avx512_common> {
 };
 
 template <>
-struct cpu_isa_traits<avx512_mic> : public cpu_isa_traits<avx512_common> {
-    static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx512_mic;
-    static constexpr const char *user_option_env = "avx512_mic";
-};
-
-template <>
-struct cpu_isa_traits<avx512_mic_4ops> : public cpu_isa_traits<avx512_mic> {
-    static constexpr dnnl_cpu_isa_t user_option_val
-            = dnnl_cpu_isa_avx512_mic_4ops;
-    static constexpr const char *user_option_env = "avx512_mic_4ops";
-};
-
-template <>
 struct cpu_isa_traits<avx512_core_vnni> : public cpu_isa_traits<avx512_core> {
     static constexpr dnnl_cpu_isa_t user_option_val
             = dnnl_cpu_isa_avx512_core_vnni;
@@ -314,12 +297,6 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
             return cpu().has(Cpu::tAVX512F) && cpu().has(Cpu::tAVX512BW)
                     && cpu().has(Cpu::tAVX512VL) && cpu().has(Cpu::tAVX512DQ)
                     && cpu().has(Cpu::tAVX512_VNNI);
-        case avx512_mic:
-            return cpu().has(Cpu::tAVX512F) && cpu().has(Cpu::tAVX512CD)
-                    && cpu().has(Cpu::tAVX512ER) && cpu().has(Cpu::tAVX512PF);
-        case avx512_mic_4ops:
-            return mayiuse(avx512_mic, soft) && cpu().has(Cpu::tAVX512_4FMAPS)
-                    && cpu().has(Cpu::tAVX512_4VNNIW);
         case avx512_core_bf16:
             return mayiuse(avx512_core_vnni, soft)
                     && cpu().has(Cpu::tAVX512_BF16);
@@ -362,14 +339,12 @@ static inline bool isa_has_bf16(cpu_isa_t isa) {
     ((isa) == avx2 ? prefix STRINGIFY(avx2) : \
     ((isa) == avx2_vnni ? prefix STRINGIFY(avx2_vnni) : \
     ((isa) == avx512_common ? prefix STRINGIFY(avx512_common) : \
-    ((isa) == avx512_mic ? prefix STRINGIFY(avx512_mic) : \
-    ((isa) == avx512_mic_4ops ? prefix STRINGIFY(avx512_mic_4ops) : \
     ((isa) == avx512_core ? prefix STRINGIFY(avx512_core) : \
     ((isa) == avx512_core_vnni ? prefix STRINGIFY(avx512_core_vnni) : \
     ((isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \
     ((isa) == avx512_core_bf16_amx_int8 ? prefix STRINGIFY(avx512_core_amx_int8) : \
     ((isa) == avx512_core_bf16_amx_bf16 ? prefix STRINGIFY(avx512_core_amx_bf16) : \
-    prefix suffix_if_any)))))))))))))
+    prefix suffix_if_any)))))))))))
 /* clang-format on */
 
 inline size_t data_type_vnni_granularity(data_type_t data_type) {

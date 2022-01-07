@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,8 +44,6 @@ cpu_isa_t init_max_cpu_isa() {
         ELSEIF_HANDLE_CASE(avx);
         ELSEIF_HANDLE_CASE(avx2);
         ELSEIF_HANDLE_CASE(avx2_vnni);
-        ELSEIF_HANDLE_CASE(avx512_mic);
-        ELSEIF_HANDLE_CASE(avx512_mic_4ops);
         ELSEIF_HANDLE_CASE(avx512_core);
         ELSEIF_HANDLE_CASE(avx512_core_vnni);
         ELSEIF_HANDLE_CASE(avx512_core_bf16);
@@ -98,8 +96,6 @@ struct isa_info_t {
             case avx512_core_bf16: return dnnl_cpu_isa_avx512_core_bf16;
             case avx512_core_vnni: return dnnl_cpu_isa_avx512_core_vnni;
             case avx512_core: return dnnl_cpu_isa_avx512_core;
-            case avx512_mic_4ops: return dnnl_cpu_isa_avx512_mic_4ops;
-            case avx512_mic: return dnnl_cpu_isa_avx512_mic;
             case avx2_vnni: return dnnl_cpu_isa_avx2_vnni;
             case avx2: return dnnl_cpu_isa_avx2;
             case avx: return dnnl_cpu_isa_avx;
@@ -128,12 +124,6 @@ struct isa_info_t {
             case avx512_core:
                 return "Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ "
                        "extensions";
-            case avx512_mic_4ops:
-                return "Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW "
-                       "extensions";
-            case avx512_mic:
-                return "Intel AVX-512 with AVX512CD, AVX512ER, and AVX512PF "
-                       "extensions";
             case avx512_common: return "Intel AVX-512";
             case avx2_vnni: return "Intel AVX2 with Intel DL Boost";
             case avx2: return "Intel AVX2";
@@ -158,8 +148,6 @@ static isa_info_t get_isa_info_t(void) {
     HANDLE_CASE(avx512_core_bf16);
     HANDLE_CASE(avx512_core_vnni);
     HANDLE_CASE(avx512_core);
-    HANDLE_CASE(avx512_mic_4ops);
-    HANDLE_CASE(avx512_mic);
     HANDLE_CASE(avx512_common);
     HANDLE_CASE(avx2_vnni);
     HANDLE_CASE(avx2);
@@ -211,8 +199,6 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
         HANDLE_CASE(avx);
         HANDLE_CASE(avx2);
         HANDLE_CASE(avx2_vnni);
-        HANDLE_CASE(avx512_mic);
-        HANDLE_CASE(avx512_mic_4ops);
         HANDLE_CASE(avx512_core);
         HANDLE_CASE(avx512_core_vnni);
         HANDLE_CASE(avx512_core_bf16);
