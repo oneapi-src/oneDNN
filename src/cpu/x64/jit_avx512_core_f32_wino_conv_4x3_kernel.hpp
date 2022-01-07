@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,12 +22,16 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
-#include "cpu/x64/jit_avx512_common_conv_winograd_kernel_f32.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
+
+//alpha determines the output tile_size
+constexpr int alpha = 6;
+constexpr int tile_size = 4;
+//simd length used for vectorization
+constexpr int simd_w = 16;
 
 struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel : public jit_generator {
     _jit_avx512_core_f32_wino_conv_4x3_data_kernel(

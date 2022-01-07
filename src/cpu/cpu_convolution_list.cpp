@@ -37,7 +37,6 @@
 #include "cpu/x64/jit_avx2_convolution.hpp"
 #include "cpu/x64/jit_avx512_common_1x1_convolution.hpp"
 #include "cpu/x64/jit_avx512_common_convolution.hpp"
-#include "cpu/x64/jit_avx512_common_convolution_winograd.hpp"
 #include "cpu/x64/jit_avx512_core_amx_1x1_convolution.hpp"
 #include "cpu/x64/jit_avx512_core_amx_convolution.hpp"
 #include "cpu/x64/jit_avx512_core_bf16_1x1_convolution.hpp"
@@ -89,7 +88,6 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map RE
         CPU_INSTANCE_AVX512(jit_avx512_common_1x1_convolution_fwd_f32_t)
         CPU_INSTANCE_AVX512(jit_avx512_core_f32_wino_conv_2x3_fwd_t)
         CPU_INSTANCE_AVX512(jit_avx512_core_f32_wino_conv_4x3_fwd_t)
-        CPU_INSTANCE_AVX512(jit_avx512_common_convolution_winograd_fwd_t)
         CPU_INSTANCE_AVX512(jit_avx512_common_convolution_fwd_t<f32>)
         CPU_INSTANCE_AVX2(jit_avx2_dw_convolution_fwd_t)
         CPU_INSTANCE_AVX2(jit_avx2_1x1_convolution_fwd_t)
@@ -147,7 +145,6 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map RE
         CPU_INSTANCE_AVX512(jit_avx512_common_dw_convolution_bwd_data_t)
         CPU_INSTANCE_AVX512(jit_avx512_common_1x1_convolution_bwd_data_f32_t)
         CPU_INSTANCE_AVX512(jit_avx512_core_f32_wino_conv_4x3_bwd_data_t)
-        CPU_INSTANCE_AVX512(jit_avx512_common_convolution_winograd_bwd_data_t)
         CPU_INSTANCE_AVX512(jit_avx512_common_convolution_bwd_data_t<f32>)
         CPU_INSTANCE_AVX2(jit_avx2_dw_convolution_bwd_data_t)
         CPU_INSTANCE_AVX2(jit_avx2_1x1_convolution_bwd_data_t)
@@ -186,7 +183,6 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map RE
         CPU_INSTANCE_AVX512(jit_avx512_common_dw_convolution_bwd_weights_t)
         CPU_INSTANCE_AVX512(jit_avx512_common_1x1_convolution_bwd_weights_t)
         CPU_INSTANCE_AVX512(jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t)
-        CPU_INSTANCE_AVX512(jit_avx512_common_convolution_winograd_bwd_weights_t)
         CPU_INSTANCE_AVX512(jit_avx512_common_convolution_bwd_weights_t<f32>)
         CPU_INSTANCE_AVX2(jit_avx2_dw_convolution_bwd_weights_t)
         CPU_INSTANCE_AVX2(jit_avx2_1x1_convolution_bwd_weights_t)
