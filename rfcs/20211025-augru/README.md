@@ -45,12 +45,12 @@ part of time of overall model execution, so adding it to the library will bring
 performance speed-up to the models which use AUGRU.
 
 There are at least 2 options on how we can add AUGRU support into oneDNN:
- - a. Keeping API as is, but limiting AUGRU configuration from user side;
- - b. Introducing `rnn_desc_v2_t` with all necessary fields for AUGRU, providing
- more flexibility to the users.
+ - a. Keeping API as is, reuse `weights_peephole_desc` for `attention_desc`;
+ - b. Introducing `rnn_desc_v2_t` with all necessary fields for AUGRU;
+ - c. Introducing `rnn_desc_v2_t` reusing the same md for multiple purposes to save space.
 
-__Option b is a preferred option, because option a might introduce unnecessary
-overheads on users side for non-f32 data types.__
+__Option a is a preferred option, because it requires minimal amount of changes,
+but doesnt't have any limitations.__
 
 Attention score memory is a 2D memory with dimensions [N, T]. oneDNN AUGRU
 needs to support a broadcast across the last dimension to avoid unnecessary
@@ -64,13 +64,13 @@ extended to 3D memory with dimensions [N, T, 1] before it is passed to AUGRU.
 #define DNNL_ARG_SRC_3 4
 /// A special mnemonic for RNN input recurrent cell attention vector. An alias for
 /// #DNNL_ARG_SRC_3.
-#define DNNL_ARG_SRC_LAYER_ATTENTION DNNL_ARG_SRC_3
+#define DNNL_ARG_AUGRU_ATTENTION DNNL_ARG_SRC_3
 
 /// Diff Source argument #3.
 #define DNNL_ARG_DIFF_SRC_3 132
 /// A special mnemonic for gradient (diff) of RNN input recurrent cell attention
 /// vector. An alias for #DNNL_ARG_DIFF_SRC_3.
-#define DNNL_ARG_DIFF_SRC_LAYER_ATTENTION DNNL_ARG_DIFF_SRC_3
+#define DNNL_ARG_DIFF_AUGRU_ATTENTION DNNL_ARG_DIFF_SRC_3
 
 
 typedef enum {
@@ -87,16 +87,13 @@ typedef enum {
 
 Attention memory descriptor can be built from existing `rnn_desc_t` fields (memory
 descriptors, cell kind, direction, propagation kind, etc.). Taking into account
-this fact and to avoid breaking changes an attention memory descriptor will not
-be part of `dnnl_rnn_desc_t`. Instead a user should use query API to get
-attention shapes.
-
+this fact and to avoid breaking changes an attention memory descriptor will
+reuse `weights_peephole_desc`.
  * Pros:
-   - RNN primitive descriptor can request the best layout for an attention memory
-   - RNN primitive descriptor can request the data type compatible with RNN cell
+   - Minimal API changes
  * Cons:
-   - User has to reorder/quantize their attention data to align with the one
-   requested by RNN
+   - Introduces an ambiguity in `rnn_desc_t`, because `weights_peephole_desc` is
+     used as a placeholder for `attention_desc`, which is an internal knowledge
 
 ### 2.a.2. New types
 
@@ -128,6 +125,7 @@ N/A
 /// @param src_layer_desc Memory descriptor for the input vector.
 /// @param src_iter_desc Memory descriptor for the input recurrent hidden
 ///     state vector.
+/// @param attention_desc Memory descriptor for the attention vector.
 /// @param weights_layer_desc Memory descriptor for the weights applied to the
 ///     layer input.
 /// @param weights_iter_desc Memory descriptor for the weights applied to the
@@ -143,6 +141,7 @@ dnnl_status_t DNNL_API dnnl_augru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *attention_desc,
         const dnnl_memory_desc_t *weights_layer_desc,
         const dnnl_memory_desc_t *weights_iter_desc,
         const dnnl_memory_desc_t *bias_desc,
@@ -171,6 +170,7 @@ dnnl_status_t DNNL_API dnnl_augru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @param src_layer_desc Memory descriptor for the input vector.
 /// @param src_iter_desc Memory descriptor for the input recurrent hidden
 ///     state vector.
+/// @param attention_desc Memory descriptor for the attention vector.
 /// @param weights_layer_desc Memory descriptor for the weights applied to the
 ///     layer input.
 /// @param weights_iter_desc Memory descriptor for the weights applied to the
@@ -182,6 +182,7 @@ dnnl_status_t DNNL_API dnnl_augru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @param diff_src_layer_desc Memory descriptor for the diff of input vector.
 /// @param diff_src_iter_desc Memory descriptor for the diff of input recurrent
 ///     hidden state vector.
+/// @param diff_attention_desc Memory descriptor for the diff of attention vector.
 /// @param diff_weights_layer_desc Memory descriptor for the diff of weights
 ///     applied to the layer input.
 /// @param diff_weights_iter_desc Memory descriptor for the diff of weights
@@ -198,6 +199,7 @@ dnnl_status_t DNNL_API dnnl_augru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *attention_desc,
         const dnnl_memory_desc_t *weights_layer_desc,
         const dnnl_memory_desc_t *weights_iter_desc,
         const dnnl_memory_desc_t *bias_desc,
@@ -205,6 +207,7 @@ dnnl_status_t DNNL_API dnnl_augru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *dst_iter_desc,
         const dnnl_memory_desc_t *diff_src_layer_desc,
         const dnnl_memory_desc_t *diff_src_iter_desc,
+        const dnnl_memory_desc_t *diff_attention_desc,
         const dnnl_memory_desc_t *diff_weights_layer_desc,
         const dnnl_memory_desc_t *diff_weights_iter_desc,
         const dnnl_memory_desc_t *diff_bias_desc,
@@ -230,6 +233,7 @@ dnnl_status_t DNNL_API dnnl_augru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @param src_layer_desc Memory descriptor for the input vector.
 /// @param src_iter_desc Memory descriptor for the input recurrent hidden
 ///     state vector.
+/// @param attention_desc Memory descriptor for the attention vector.
 /// @param weights_layer_desc Memory descriptor for the weights applied to the
 ///     layer input.
 /// @param weights_iter_desc Memory descriptor for the weights applied to the
@@ -246,6 +250,7 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_forward_desc_init(
         dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *attention_desc,
         const dnnl_memory_desc_t *weights_layer_desc,
         const dnnl_memory_desc_t *weights_iter_desc,
         const dnnl_memory_desc_t *bias_desc,
@@ -274,6 +279,7 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_forward_desc_init(
 /// @param src_layer_desc Memory descriptor for the input vector.
 /// @param src_iter_desc Memory descriptor for the input recurrent hidden
 ///     state vector.
+/// @param attention_desc Memory descriptor for the attention vector.
 /// @param weights_layer_desc Memory descriptor for the weights applied to the
 ///     layer input.
 /// @param weights_iter_desc Memory descriptor for the weights applied to the
@@ -285,6 +291,7 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_forward_desc_init(
 /// @param diff_src_layer_desc Memory descriptor for the diff of input vector.
 /// @param diff_src_iter_desc Memory descriptor for the diff of input recurrent
 ///     hidden state vector.
+/// @param diff_attention_desc Memory descriptor for the diff of attention vector.
 /// @param diff_weights_layer_desc Memory descriptor for the diff of weights
 ///     applied to the layer input.
 /// @param diff_weights_iter_desc Memory descriptor for the diff of weights
@@ -302,6 +309,7 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_backward_desc_init(
         dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *attention_desc,
         const dnnl_memory_desc_t *weights_layer_desc,
         const dnnl_memory_desc_t *weights_iter_desc,
         const dnnl_memory_desc_t *bias_desc,
@@ -309,6 +317,7 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_backward_desc_init(
         const dnnl_memory_desc_t *dst_iter_desc,
         const dnnl_memory_desc_t *diff_src_layer_desc,
         const dnnl_memory_desc_t *diff_src_iter_desc,
+        const dnnl_memory_desc_t *diff_attention_desc,
         const dnnl_memory_desc_t *diff_weights_layer_desc,
         const dnnl_memory_desc_t *diff_weights_iter_desc,
         const dnnl_memory_desc_t *diff_bias_desc,
@@ -354,6 +363,7 @@ struct augru_forward : public primitive {
         /// @param src_layer_desc Memory descriptor for the input vector.
         /// @param src_iter_desc Memory descriptor for the input recurrent
         ///     hidden state vector.
+        /// @param attention_desc Memory descriptor for the attention vector.
         /// @param weights_layer_desc Memory descriptor for the weights
         ///     applied to the layer input.
         /// @param weights_iter_desc Memory descriptor for the weights applied
@@ -366,6 +376,7 @@ struct augru_forward : public primitive {
         desc(prop_kind aprop_kind, rnn_direction direction,
                 const memory::desc &src_layer_desc,
                 const memory::desc &src_iter_desc,
+                const memory::desc &attention_desc,
                 const memory::desc &weights_layer_desc,
                 const memory::desc &weights_iter_desc,
                 const memory::desc &bias_desc,
@@ -376,10 +387,10 @@ struct augru_forward : public primitive {
                     dnnl_augru_forward_desc_init(&data,
                             dnnl::convert_to_c(aprop_kind),
                             dnnl::convert_to_c(direction), &src_layer_desc.data,
-                            &src_iter_desc.data, &weights_layer_desc.data,
-                            &weights_iter_desc.data, &bias_desc.data,
-                            &dst_layer_desc.data, &dst_iter_desc.data,
-                            dnnl::convert_to_c(flags)),
+                            &attention_desc.data, &src_iter_desc.data,
+                            &weights_layer_desc.data, &weights_iter_desc.data,
+                            &bias_desc.data, &dst_layer_desc.data,
+                            &dst_iter_desc.data, dnnl::convert_to_c(flags)),
                     "could not create a descriptor for a AUGRU forward "
                     "propagation primitive");
         }
@@ -435,13 +446,13 @@ struct augru_forward : public primitive {
             return rnn_base::src_layer_desc();
         }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_attention_desc()const
-        memory::desc src_layer_attention_desc() const {
-            return rnn_base::src_layer_attention_desc();
-        }
-
         /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
         memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        memory::desc attention_desc() const {
+            return rnn_base::attention_desc();
+        }
 
         /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc()const
         memory::desc weights_layer_desc() const {
@@ -507,6 +518,7 @@ struct augru_backward : public primitive {
         /// @param src_layer_desc Memory descriptor for the input vector.
         /// @param src_iter_desc Memory descriptor for the input recurrent
         ///     hidden state vector.
+        /// @param attention_desc Memory descriptor for the attention vector.
         /// @param weights_layer_desc Memory descriptor for the weights
         ///     applied to the layer input.
         /// @param weights_iter_desc Memory descriptor for the weights applied
@@ -519,6 +531,8 @@ struct augru_backward : public primitive {
         ///     vector.
         /// @param diff_src_iter_desc Memory descriptor for the diff of input
         ///     recurrent hidden state vector.
+        /// @param diff_attention_desc Memory descriptor for the diff of
+        ///     attention vector.
         /// @param diff_weights_layer_desc Memory descriptor for the diff of
         ///     weights applied to the layer input.
         /// @param diff_weights_iter_desc Memory descriptor for the diff of
@@ -532,6 +546,7 @@ struct augru_backward : public primitive {
         desc(prop_kind aprop_kind, rnn_direction direction,
                 const memory::desc &src_layer_desc,
                 const memory::desc &src_iter_desc,
+                const memory::desc &attention_desc,
                 const memory::desc &weights_layer_desc,
                 const memory::desc &weights_iter_desc,
                 const memory::desc &bias_desc,
@@ -539,6 +554,7 @@ struct augru_backward : public primitive {
                 const memory::desc &dst_iter_desc,
                 const memory::desc &diff_src_layer_desc,
                 const memory::desc &diff_src_iter_desc,
+                const memory::desc &diff_attention_desc,
                 const memory::desc &diff_weights_layer_desc,
                 const memory::desc &diff_weights_iter_desc,
                 const memory::desc &diff_bias_desc,
@@ -549,10 +565,11 @@ struct augru_backward : public primitive {
                     dnnl_augru_backward_desc_init(&data,
                             dnnl::convert_to_c(aprop_kind),
                             dnnl::convert_to_c(direction), &src_layer_desc.data,
-                            &src_iter_desc.data, &weights_layer_desc.data,
-                            &weights_iter_desc.data, &bias_desc.data,
-                            &dst_layer_desc.data, &dst_iter_desc.data,
-                            &diff_src_layer_desc.data, &diff_src_iter_desc.data,
+                            &src_iter_desc.data, &attention_desc.data,
+                            &weights_layer_desc.data, &weights_iter_desc.data,
+                            &bias_desc.data, &dst_layer_desc.data,
+                            &dst_iter_desc.data, &diff_src_layer_desc.data,
+                            &diff_src_iter_desc.data, &diff_attention_desc.data,
                             &diff_weights_layer_desc.data,
                             &diff_weights_iter_desc.data, &diff_bias_desc.data,
                             &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
@@ -620,13 +637,13 @@ struct augru_backward : public primitive {
             return rnn_base::src_layer_desc();
         }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_attention_desc()const
-        memory::desc src_layer_attention_desc() const {
-            return rnn_base::src_layer_attention_desc();
-        }
-
         /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
         memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        memory::desc attention_desc() const {
+            return rnn_base::attention_desc();
+        }
 
         /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc()const
         memory::desc weights_layer_desc() const {
@@ -659,14 +676,14 @@ struct augru_backward : public primitive {
             return rnn_base::diff_src_layer_desc();
         }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_layer_attention_desc()const
-        memory::desc diff_src_layer_attention_desc() const {
-            return rnn_base::diff_src_layer_attention_desc();
-        }
-
         /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_iter_desc()const
         memory::desc diff_src_iter_desc() const {
             return rnn_base::diff_src_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_attention_desc()const
+        memory::desc diff_attention_desc() const {
+            return rnn_base::diff_attention_desc();
         }
 
         /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_layer_desc()const
@@ -734,6 +751,7 @@ struct lbr_augru_forward : public primitive {
         /// @param src_layer_desc Memory descriptor for the input vector.
         /// @param src_iter_desc Memory descriptor for the input recurrent
         ///     hidden state vector.
+        /// @param attention_desc Memory descriptor for the attention vector.
         /// @param weights_layer_desc Memory descriptor for the weights
         ///     applied to the layer input.
         /// @param weights_iter_desc Memory descriptor for the weights applied
@@ -746,6 +764,7 @@ struct lbr_augru_forward : public primitive {
         desc(prop_kind aprop_kind, rnn_direction direction,
                 const memory::desc &src_layer_desc,
                 const memory::desc &src_iter_desc,
+                const memory::desc &attention_desc,
                 const memory::desc &weights_layer_desc,
                 const memory::desc &weights_iter_desc,
                 const memory::desc &bias_desc,
@@ -756,10 +775,10 @@ struct lbr_augru_forward : public primitive {
                     dnnl_lbr_augru_forward_desc_init(&data,
                             dnnl::convert_to_c(aprop_kind),
                             dnnl::convert_to_c(direction), &src_layer_desc.data,
-                            &src_iter_desc.data, &weights_layer_desc.data,
-                            &weights_iter_desc.data, &bias_desc.data,
-                            &dst_layer_desc.data, &dst_iter_desc.data,
-                            dnnl::convert_to_c(flags)),
+                            &src_iter_desc.data, &attention_desc.data,
+                            &weights_layer_desc.data, &weights_iter_desc.data,
+                            &bias_desc.data, &dst_layer_desc.data,
+                            &dst_iter_desc.data, dnnl::convert_to_c(flags)),
                     "could not create a descriptor for an LBR AUGRU forward "
                     "propagation primitive");
         }
@@ -817,13 +836,13 @@ struct lbr_augru_forward : public primitive {
             return rnn_base::src_layer_desc();
         }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_attention_desc()const
-        memory::desc src_layer_attention_desc() const {
-            return rnn_base::src_layer_attention_desc();
-        }
-
         /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
         memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        memory::desc attention_desc() const {
+             return rnn_base::attention_desc();
+        }
 
         /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc()const
         memory::desc weights_layer_desc() const {
@@ -890,6 +909,7 @@ struct lbr_augru_backward : public primitive {
         /// @param src_layer_desc Memory descriptor for the input vector.
         /// @param src_iter_desc Memory descriptor for the input recurrent
         ///     hidden state vector.
+        /// @param attention_desc Memory descriptor for the attention vector.
         /// @param weights_layer_desc Memory descriptor for the weights
         ///     applied to the layer input.
         /// @param weights_iter_desc Memory descriptor for the weights applied
@@ -902,6 +922,8 @@ struct lbr_augru_backward : public primitive {
         ///     vector.
         /// @param diff_src_iter_desc Memory descriptor for the diff of input
         ///     recurrent hidden state vector.
+        /// @param diff_attention_desc Memory descriptor for the diff of
+        ///     attention vector.
         /// @param diff_weights_layer_desc Memory descriptor for the diff of
         ///     weights applied to the layer input.
         /// @param diff_weights_iter_desc Memory descriptor for the diff of
@@ -915,6 +937,7 @@ struct lbr_augru_backward : public primitive {
         desc(prop_kind aprop_kind, rnn_direction direction,
                 const memory::desc &src_layer_desc,
                 const memory::desc &src_iter_desc,
+                const memory::desc &attention_desc,
                 const memory::desc &weights_layer_desc,
                 const memory::desc &weights_iter_desc,
                 const memory::desc &bias_desc,
@@ -922,6 +945,7 @@ struct lbr_augru_backward : public primitive {
                 const memory::desc &dst_iter_desc,
                 const memory::desc &diff_src_layer_desc,
                 const memory::desc &diff_src_iter_desc,
+                const memory::desc &diff_attention_desc,
                 const memory::desc &diff_weights_layer_desc,
                 const memory::desc &diff_weights_iter_desc,
                 const memory::desc &diff_bias_desc,
@@ -932,10 +956,11 @@ struct lbr_augru_backward : public primitive {
                     dnnl_lbr_augru_backward_desc_init(&data,
                             dnnl::convert_to_c(aprop_kind),
                             dnnl::convert_to_c(direction), &src_layer_desc.data,
-                            &src_iter_desc.data, &weights_layer_desc.data,
-                            &weights_iter_desc.data, &bias_desc.data,
-                            &dst_layer_desc.data, &dst_iter_desc.data,
-                            &diff_src_layer_desc.data, &diff_src_iter_desc.data,
+                            &src_iter_desc.data, &attention_desc.data,
+                            &weights_layer_desc.data, &weights_iter_desc.data,
+                            &bias_desc.data, &dst_layer_desc.data,
+                            &dst_iter_desc.data, &diff_src_layer_desc.data,
+                            &diff_src_iter_desc.data, &diff_attention_desc.data,
                             &diff_weights_layer_desc.data,
                             &diff_weights_iter_desc.data, &diff_bias_desc.data,
                             &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
@@ -1005,13 +1030,13 @@ struct lbr_augru_backward : public primitive {
             return rnn_base::src_layer_desc();
         }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_attention_desc()const
-        memory::desc src_layer_attention_desc() const {
-            return rnn_base::src_layer_attention_desc();
-        }
-
         /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
         memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        memory::desc attention_desc() const {
+            return rnn_base::attention_desc();
+        }
 
         /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc()const
         memory::desc weights_layer_desc() const {
@@ -1047,6 +1072,11 @@ struct lbr_augru_backward : public primitive {
         /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_iter_desc()const
         memory::desc diff_src_iter_desc() const {
             return rnn_base::diff_src_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_attention_desc()const
+        memory::desc diff_attention_desc() const {
+            return rnn_base::diff_attention_desc();
         }
 
         /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_layer_desc()const
@@ -1094,9 +1124,10 @@ An attention argument requires an additional memory descriptor in `rnn_desc_t`.
 As a result new `rnn_desc_v2_t` should be introduced.
 
  * Pros:
-   - Flexibility. User can specify data type and format_tag for attention scores
+   - No ambiguity, separate memory desc for attention
  * Cons:
    - `rnn_desc_v2_t`
+   - An additional md increases size of the structure, which is already huge
 
 ## 2.b.2 New types
 
@@ -1182,11 +1213,6 @@ typedef struct {
 
 } dnnl_rnn_desc_v2_t;
 ```
-
-> Note
->
-> To reduce size of `dnnl_rnn_desc_v2_t` data/diff attention md can be
-> combined into a union with data/diff peephole md.
 
 ## 2.b.3 C API
 
@@ -1414,10 +1440,108 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_backward_desc_init(
         const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags);
 ```
 
-### 2.a.4. C++ API
+### 2.b.4. C++ API
 
 Skipped for simplicity
 
+## 2.c.1 API Changes
+
+An attention argument requires an additional memory descriptor in `rnn_desc_t`.
+As a result new `rnn_desc_v2_t` should be introduced.
+
+ * Pros:
+   - No ambiguity, a separate memory desc for attention
+ * Cons:
+   - `rnn_desc_v2_t`
+
+## 2.c.2 New types
+
+```c
+/// A descriptor for an RNN operation.
+typedef struct {
+    /// The kind of primitive. Used for self-identifying the primitive
+    /// descriptor. Must be #dnnl_rnn.
+    dnnl_primitive_kind_t primitive_kind;
+    /// The kind of propagation. Possible values: #dnnl_forward_training,
+    /// #dnnl_forward_inference, and #dnnl_backward.
+    dnnl_prop_kind_t prop_kind;
+    /// RNN cell kind. Must be one of #dnnl_vanilla_rnn,
+    /// #dnnl_vanilla_lstm, #dnnl_vanilla_gru, or #dnnl_lbr_gru.
+    dnnl_alg_kind_t cell_kind;
+    /// The direction of RNN primitive execution.
+    dnnl_rnn_direction_t direction;
+    /// Source layer memory descriptor.
+    dnnl_memory_desc_t src_layer_desc;
+    union {
+        dnnl_memory_desc_t attention_desc;
+        dnnl_memory_desc_t weights_peephole_desc;
+    } rnn_extension_memory_desc;
+    /// Source iteration memory descriptor for hidden state.
+    dnnl_memory_desc_t src_iter_desc;
+    /// Source iteration memory descriptor for cell state.
+    dnnl_memory_desc_t src_iter_c_desc;
+    /// Weights layer memory descriptor.
+    dnnl_memory_desc_t weights_layer_desc;
+    /// Weights iteration memory descriptor.
+    dnnl_memory_desc_t weights_iter_desc;
+    /// Bias memory descriptor.
+    dnnl_memory_desc_t bias_desc;
+    /// Destination layer memory descriptor.
+    dnnl_memory_desc_t dst_layer_desc;
+    /// Destination iter memory descriptor for hidden state.
+    dnnl_memory_desc_t dst_iter_desc;
+    /// Destination iter memory descriptor for cell state.
+    dnnl_memory_desc_t dst_iter_c_desc;
+    /// Weights projection memory descriptor.
+    /// This memory descriptor is equal to zero memory descriptor in case of
+    /// non-projection LSTMs and other non-LSTM RNNs.
+    dnnl_memory_desc_t weights_projection_desc;
+
+    /// Source gradient layer memory descriptor.
+    dnnl_memory_desc_t diff_src_layer_desc;
+    /// Source gradient iter memory descriptor for hidden state.
+    dnnl_memory_desc_t diff_src_iter_desc;
+    /// Source gradient iter memory descriptor for cell state.
+    dnnl_memory_desc_t diff_src_iter_c_desc;
+    union {
+        dnnl_memory_desc_t attention_desc;
+        dnnl_memory_desc_t weights_peephole_desc;
+    } rnn_extension_diff_memory_desc;
+    /// Weights gradient layer memory descriptor.
+    dnnl_memory_desc_t diff_weights_layer_desc;
+    /// Weights gradient iter memory descriptor.
+    dnnl_memory_desc_t diff_weights_iter_desc;
+    /// Bias gradient memory descriptor.
+    dnnl_memory_desc_t diff_bias_desc;
+    /// Destination gradient layer memory descriptor.
+    dnnl_memory_desc_t diff_dst_layer_desc;
+    /// Destination gradient iteration memory descriptor for hidden state.
+    dnnl_memory_desc_t diff_dst_iter_desc;
+    /// Destination gradient iteration memory descriptor for cell state.
+    dnnl_memory_desc_t diff_dst_iter_c_desc;
+    /// Weights gradient projection memory descriptor.
+    /// This memory descriptor is equal to zero memory descriptor in case of
+    /// non-projection LSTMs and other non-LSTM RNNs.
+    dnnl_memory_desc_t diff_weights_projection_desc;
+
+    /// RNN cell flags
+    unsigned int flags;
+    /// Activation function used for vanilla_rnn cell kind.
+    /// Must be either #dnnl_eltwise_relu or #dnnl_eltwise_tanh.
+    dnnl_alg_kind_t activation_kind;
+    float alpha;
+    float beta;
+
+} dnnl_rnn_desc_v2_t;
+```
+
+### 2.c.3. C API
+
+Skipped for simplicity
+
+### 2.c.4. C++ API
+
+Skipped for simplicity
 
 ## 3. Limitations
 
