@@ -30,13 +30,7 @@ namespace cpu {
 namespace x64 {
 
 /* convolution */
-enum conv_version_t {
-    ver_unused,
-    ver_fma,
-    ver_avx512_core,
-    ver_4fma,
-    ver_vnni
-};
+enum conv_version_t { ver_unused, ver_fma, ver_avx512_core, ver_vnni };
 enum conv_loop_order_t {
     loop_cgn,
     loop_gnc,
@@ -145,7 +139,7 @@ struct jit_conv_conf_t {
     int nonblk_group_off;
     /* fma avx512_core */
     conv_kernel_kind_t kernel_kind;
-    /* 4fma */
+
     int tr_iw, tr_ih;
     int tr_kw, tr_kh;
     int tr_src_num_guard_elems;
@@ -155,9 +149,6 @@ struct jit_conv_conf_t {
     size_t tr_diff_dst_buf_size, tr_diff_dst_buf_count;
     int nthr_mb_work;
 
-    /* 1st conv: 4fma */
-    int tr_ld;
-    int kh_step;
     /* 4vnni */
     int typesize_in;
     int typesize_out;
@@ -378,8 +369,6 @@ struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
     int jtiles;
     int ntiles;
     int ic_simd_block = 16;
-    int tile_4fma_padding;
-    int tile_4fma;
     int oc_simd_block = 16;
     int oc_reg_block;
     int ic_reg_block;
@@ -393,7 +382,6 @@ struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
     int nb_reg;
 
     int dimK;
-    int dimK_4fma;
     int dimK_reg_block;
     int dimK_block;
     int dimK_nb_block;
@@ -597,9 +585,8 @@ struct jit_1x1_conv_conf_t {
     int typesize_out;
     int typesize_bia;
     int typesize_acc;
-    /* 4fma */
+
     bool transpose_src;
-    int tr_is;
     int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
     int is_oc_scale;
     data_type_t bia_dt;
