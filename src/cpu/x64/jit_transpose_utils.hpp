@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,11 +32,6 @@ struct jit_trans_src_t {
         const void *src_prf;
         const void *tr_src_prf;
         int ch_work;
-
-        /* 1st conv 4fma: backward by weights */
-        int nthr_oc_b; /* number of threads process given src image */
-        int tr_src_ih_start, tr_src_ih_end; /* thread's transposition bounds */
-        simple_barrier::ctx_t *tr_src_bctx; /* transposition synchronization */
     };
 
     virtual void operator()(ctx_t *ctx) = 0;
@@ -63,11 +58,6 @@ struct jit_trans_dst_t {
         const void *src_prf;
         const void *tr_src_prf;
         int ch_work;
-
-        /* 1st conv 4fma: backward by weights */
-        int nthr_oc_b; /* number of threads process given src image */
-        int tr_src_ih_start, tr_src_ih_end; /* thread's transposition bounds */
-        simple_barrier::ctx_t *tr_src_bctx; /* transposition synchronization */
     };
 
     jit_trans_dst_t(const jit_conv_conf_t *conf) : conf_(conf) {}
