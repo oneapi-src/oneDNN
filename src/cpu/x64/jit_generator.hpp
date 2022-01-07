@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -202,20 +202,8 @@ public:
         return rsp + saved_regs_size + first_params_and_return_addr_size;
     }
 
-    void mic_prefetcht0(Xbyak::Address a) {
-        if (is_valid_isa(avx512_mic)) prefetcht0(a);
-    }
-
-    void mic_prefetcht1(Xbyak::Address a) {
-        if (is_valid_isa(avx512_mic)) prefetcht1(a);
-    }
-
-    void mic_prefetcht2(Xbyak::Address a) {
-        if (is_valid_isa(avx512_mic)) prefetcht2(a);
-    }
-
     void uni_vzeroupper() {
-        if (mayiuse(avx) && !mayiuse(avx512_mic)) vzeroupper();
+        if (mayiuse(avx)) vzeroupper();
     }
 
     void postamble() {
@@ -1463,7 +1451,6 @@ public:
         //
         // Pros compared to mul/imul:
         // - does not require using known registers
-        // - not microcoded on Intel(R) Xeon Phi(TM) processors
         // Still, there are probably a lot of cases when mul/imul is faster on
         // Intel(R) Core(TM) processors. Not intended for critical path.
 
