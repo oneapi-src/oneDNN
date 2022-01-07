@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -178,12 +178,17 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
 
-    char gemm_off_a = static_cast<char>(src_zero_point);
+    int8_t gemm_off_a_int8 = static_cast<int8_t>(src_zero_point);
+    uint8_t gemm_off_a_uint8 = static_cast<uint8_t>(src_zero_point);
     int8_t gemm_off_b = static_cast<int8_t>(weights_zero_point);
-    bool post_process_src_and_weights_zero_points_outside_of_gemm = false;
-    if (gemm_off_a != src_zero_point || gemm_off_b != weights_zero_point) {
-        post_process_src_and_weights_zero_points_outside_of_gemm = true;
-        gemm_off_a = gemm_off_b = 0;
+    const bool ok = IMPLICATION(src_d.data_type() == data_type::s8,
+                            gemm_off_a_int8 == src_zero_point)
+            && IMPLICATION(src_d.data_type() == data_type::u8,
+                    gemm_off_a_uint8 == src_zero_point)
+            && gemm_off_b == weights_zero_point;
+    const bool post_process_src_and_weights_zero_points_outside_of_gemm = !ok;
+    if (post_process_src_and_weights_zero_points_outside_of_gemm) {
+        gemm_off_a_int8 = gemm_off_a_uint8 = gemm_off_b = 0;
     }
     const float dst_zero_point_f32 = static_cast<float>(dst_zero_point);
 
@@ -338,19 +343,17 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                     case data_type::s8: {
                         const int8_t *curr_src_
                                 = reinterpret_cast<const int8_t *>(curr_src);
-                        int8_t gemm_off_a_ = static_cast<int8_t>(gemm_off_a);
                         st_thr = gemm_s8x8s32(&transB, &transA, "F", &gemm_N,
                                 &gemm_M, &K, &alpha, curr_weights, &ldb,
-                                &gemm_off_b, curr_src_, &lda, &gemm_off_a_,
+                                &gemm_off_b, curr_src_, &lda, &gemm_off_a_int8,
                                 &beta, curr_acc, &acc_ldc, &gemm_off_c);
                     } break;
                     case data_type::u8: {
                         const uint8_t *curr_src_
                                 = reinterpret_cast<const uint8_t *>(curr_src);
-                        uint8_t gemm_off_a_ = static_cast<uint8_t>(gemm_off_a);
                         st_thr = gemm_s8x8s32(&transB, &transA, "F", &gemm_N,
                                 &gemm_M, &K, &alpha, curr_weights, &ldb,
-                                &gemm_off_b, curr_src_, &lda, &gemm_off_a_,
+                                &gemm_off_b, curr_src_, &lda, &gemm_off_a_uint8,
                                 &beta, curr_acc, &acc_ldc, &gemm_off_c);
                     } break;
                     default: assert(!"unsupported data type"); break;
@@ -408,17 +411,15 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         switch (src_d.data_type()) {
             case data_type::s8: {
                 const int8_t *src_ = reinterpret_cast<const int8_t *>(src);
-                int8_t gemm_off_a_ = static_cast<int8_t>(gemm_off_a);
                 st = gemm_s8x8s32(&transB, &transA, "F", &N, &M, &K, &alpha,
-                        weights, &ldb, &gemm_off_b, src_, &lda, &gemm_off_a_,
-                        &beta, acc, &acc_ldc, &gemm_off_c);
+                        weights, &ldb, &gemm_off_b, src_, &lda,
+                        &gemm_off_a_int8, &beta, acc, &acc_ldc, &gemm_off_c);
             } break;
             case data_type::u8: {
                 const uint8_t *src_ = reinterpret_cast<const uint8_t *>(src);
-                uint8_t gemm_off_a_ = static_cast<uint8_t>(gemm_off_a);
                 st = gemm_s8x8s32(&transB, &transA, "F", &N, &M, &K, &alpha,
-                        weights, &ldb, &gemm_off_b, src_, &lda, &gemm_off_a_,
-                        &beta, acc, &acc_ldc, &gemm_off_c);
+                        weights, &ldb, &gemm_off_b, src_, &lda,
+                        &gemm_off_a_uint8, &beta, acc, &acc_ldc, &gemm_off_c);
             } break;
             default: assert(!"unsupported data type"); break;
         }
