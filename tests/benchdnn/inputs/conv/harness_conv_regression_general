@@ -295,3 +295,7 @@ mb1_ic16oc16_id4od2kd2sd4dd0pd1_ih4oh2kh2sh4dh0ph1_iw6ow7kw2sw1dw0pw1
 --cfg=bf16bf16bf16
 mb1_ic32oc32_id6ih1iw17_od2oh1ow17_kd3kh1kw1_pd0ph0pw0_dd1dh0dw0_n"3d_conv_dilate_fill_gap"
 mb1_ic32oc32_id5ih1iw17_od2oh1ow17kd3kh1kw1_sd4sh1sw1_pd1ph0pw0_n"3d_conv_stride_fill_gap"
+
+# signed integer overflow in pointer offset calculations
+--reset --skip-impl=ref,x64:gemm
+g64mb1ic64ih4480iw2976oc64oh4480ow2976kh3kw3ph1pw1_n"dw_offset_overflow"
