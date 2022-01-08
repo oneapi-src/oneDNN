@@ -169,6 +169,28 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
             const int limit = jcp.ow > 7 ? 7 : 4;
             jcp.ur_w = nstl::min(jcp.ur_w, limit);
         }
+    } else {
+        const size_t max_ch_off
+                = static_cast<size_t>(jcp.nb_ch_blocking - 1) * jcp.ch_block;
+        constexpr size_t max_ex_off = 8; // extra offset from repeats (sse41)
+
+        // check that input offsets fit into s32
+        const size_t max_ic_off = max_ch_off * jcp.ih * jcp.iw;
+        const size_t max_iw_idx
+                = static_cast<size_t>(jcp.ur_w - 1) * jcp.stride_w
+                + (ext_kw - 1);
+        const size_t max_iw_off = max_iw_idx * jcp.ch_block;
+        const size_t max_input_offset
+                = (max_ic_off + max_iw_off + max_ex_off) * jcp.typesize_in;
+        if (max_input_offset > INT_MAX) return status::unimplemented;
+
+        // check that output offsets fit into s32
+        const size_t max_oc_off = max_ch_off * jcp.oh * jcp.ow;
+        const size_t max_ow_off
+                = static_cast<size_t>(jcp.ur_w - 1) * jcp.ch_block;
+        const size_t max_output_offset
+                = (max_oc_off + max_ow_off + max_ex_off) * jcp.typesize_out;
+        if (max_output_offset > INT_MAX) return status::unimplemented;
     }
 
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
