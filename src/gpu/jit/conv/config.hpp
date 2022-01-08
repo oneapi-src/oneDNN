@@ -909,6 +909,7 @@ public:
         reuse_headers = hw <= ngen::HW::XeLP;
         optimize_strided = false;
         fuse_spatial = false;
+        hoist_masks_from_compute_loop = false;
         a_sub_tiles = 1;
         b_sub_tiles = 1;
 
@@ -1192,6 +1193,7 @@ public:
     bool reuse_headers; // Whether to reuse header messages to reduce GRF usage.
     bool optimize_strided; // Apply special optimization for strided BWD_D convolution.
     bool fuse_spatial; // Apply blocking to fused spatial (otherwise only `w` is blocked).
+    bool hoist_masks_from_compute_loop; // Whether to move send mask initialization out of compute loop.
 
     static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
 

@@ -1346,31 +1346,18 @@ stmt_t hoist_exprs(const stmt_t &s, ir_context_t &ir_ctx) {
 
 class hoist_send_masks_mutator_t : public ir_mutator_t {
 public:
-    hoist_send_masks_mutator_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
+    hoist_send_masks_mutator_t(
+            ir_context_t &ir_ctx, const stmt_label_t &label, bool split_by_and)
+        : ir_ctx_(ir_ctx), label_(label), split_by_and_(split_by_and) {}
 
     object_t _mutate(const for_t &obj) override {
-        auto _new_obj = ir_mutator_t::_mutate(obj);
-        auto &new_obj = _new_obj.as<for_t>();
-        auto body = new_obj.body;
-
-        if (!maybe_inject_let(obj.var, body)) return _new_obj;
-
-        return for_t::make(
-                new_obj.var, new_obj.init, new_obj.bound, body, new_obj.unroll);
-    }
-
-    object_t _mutate(const let_t &obj) override {
-        auto _new_obj = ir_mutator_t::_mutate(obj);
-        auto &new_obj = _new_obj.as<let_t>();
-        auto body = new_obj.body;
-
-        if (!maybe_inject_let(obj.var, body)) return _new_obj;
-
-        return let_t::make(new_obj.var, new_obj.value, body);
+        loop_deps_.insert(obj.var);
+        return ir_mutator_t::_mutate(obj);
     }
 
     object_t _mutate(const func_call_t &obj) override {
-        if (!is_func_call<send_t>(obj)) return ir_mutator_t::_mutate(obj);
+        if (!in_stmt_group || !is_func_call<send_t>(obj))
+            return ir_mutator_t::_mutate(obj);
 
         auto &mask = send_t::arg_mask(obj);
         if (mask.is_empty()) return ir_mutator_t::_mutate(obj);
@@ -1385,70 +1372,165 @@ public:
         return func_call_t::make(obj.func, new_args, obj.attr);
     }
 
-    stmt_t inject_let_stmts(const stmt_t &_s) {
-        stmt_t s = _s;
-        for (auto &kv : hoisted_masks_) {
-            auto &hoisted_var = kv.second;
-            if (hoisted_var.is_empty()) continue; // Already injected.
-            s = let_t::make(hoisted_var, cast(kv.first, hoisted_var.type()), s);
-            hoisted_var = expr_t();
+    object_t _mutate(const let_t &obj) override {
+        auto value_vars = find_objects<var_t>(obj.value);
+        for (auto &v : value_vars) {
+            if (is_loop_dependency(v)) {
+                loop_deps_.insert(obj.var);
+                break;
+            }
         }
-        return s;
+
+        if (in_stmt_group) {
+            ir_assert(!obj.value.is_empty());
+            let_values_.emplace(obj.var, expand(obj.value, value_vars));
+        }
+
+        return ir_mutator_t::_mutate(obj);
+    }
+
+    object_t _mutate(const stmt_group_t &obj) override {
+        bool is_stmt_group = (obj.label == label_);
+        if (is_stmt_group) in_stmt_group = true;
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        if (is_stmt_group) {
+            in_stmt_group = false;
+            return create_mask_stmt(new_obj);
+        }
+        return new_obj;
     }
 
 private:
+    bool is_loop_dependency(const expr_t &v) const {
+        ir_assert(is_var(v)) << v;
+        return loop_deps_.count(v) != 0;
+    }
+
     expr_t hoist_mask(const expr_t &e) {
         ir_assert(e.type().is_bool()) << e;
 
         if (e.type().elems() > 16) return e;
         if (is_shuffle_const(e)) return e;
 
-        auto it = hoisted_masks_.find(e);
+        auto vars = find_objects<var_t>(e);
+        for (auto &v : vars) {
+            if (is_loop_dependency(v)) return e;
+        }
+
+        auto e_expanded = expand(e, vars);
+
+        auto it = hoisted_masks_.find(e_expanded);
         if (it != hoisted_masks_.end()) return it->second;
 
         auto var = ir_ctx_.create_tmp_var(type_t::u16());
-        hoisted_masks_.emplace(e, var);
-        for (auto &v : find_objects<var_t>(e)) {
-            var_to_mask_[v].push_back(e);
-        }
+        hoisted_masks_.emplace(e_expanded, var);
+
         return var;
     }
 
-    bool maybe_inject_let(const expr_t &var, stmt_t &body) {
-        auto it = var_to_mask_.find(var);
-        if (it == var_to_mask_.end()) return false;
-
-        for (auto &mask : it->second) {
-            auto &hoisted_var = hoisted_masks_.at(mask);
-            if (hoisted_var.is_empty()) continue; // Already injected.
-            body = let_t::make(
-                    hoisted_var, cast(mask, hoisted_var.type()), body);
-            hoisted_var = expr_t();
+    expr_t expand(const expr_t &_e, const std::vector<object_t> &e_vars) const {
+        auto e = _e;
+        for (auto &v : e_vars) {
+            auto it = let_values_.find(v);
+            if (it == let_values_.end()) continue;
+            e = substitute(e, v, it->second);
         }
-        return true;
+        return e;
     }
 
+    stmt_t create_mask_stmt(const stmt_t &body) {
+        stmt_t s = body;
+
+        object_eq_map_t<expr_t, expr_t> and_ops;
+        for (auto &kv : hoisted_masks_) {
+            if (split_by_and_) {
+                auto e = split_by_and_ops(kv.first, and_ops);
+                s = let_t::make(kv.second, e, s);
+            } else {
+                s = let_t::make(kv.second, cast(kv.first, kv.second.type()), s);
+            }
+        }
+
+        if (split_by_and_) {
+            for (auto &kv : and_ops) {
+                s = let_t::make(kv.second, cast(kv.first, kv.second.type()), s);
+            }
+        }
+
+        return s;
+    }
+
+    expr_t split_by_and_ops(
+            const expr_t &e, object_eq_map_t<expr_t, expr_t> &ops) {
+        auto *binary_op = e.as_ptr<binary_op_t>();
+        if (!binary_op || binary_op->op_kind != op_kind_t::_and) {
+            auto it = ops.find(e);
+            if (it != ops.end()) return it->second;
+
+            auto var = ir_ctx_.create_tmp_var(type_t::u16());
+            ops.emplace(e, var);
+            return var;
+        }
+
+        auto a = split_by_and_ops(binary_op->a, ops);
+        auto b = split_by_and_ops(binary_op->b, ops);
+        return binary_op_t::make(op_kind_t::_and, a, b);
+    }
+
+    bool in_stmt_group = false;
+    object_set_t<expr_t> loop_deps_;
     object_eq_map_t<expr_t, expr_t> hoisted_masks_;
-    object_map_t<expr_t, std::vector<expr_t>> var_to_mask_;
+    object_map_t<expr_t, expr_t> let_values_;
 
     ir_context_t &ir_ctx_;
+    stmt_label_t label_;
+    bool split_by_and_;
 };
 
-// Moves boolean mask computation from send calls to the top to reduce GRF
-// consumption and to reuse masks between calls. A vector boolean mask is
-// stored as u16 type and converted to bool type right before the call.
-// Transformation is limited to the statement group with the given statement
-// label.
-stmt_t hoist_send_masks(
-        const stmt_t &s, const stmt_label_t &label, ir_context_t &ir_ctx) {
-    auto stmt_group = find_stmt_group(s, label).value();
+// Moves boolean mask computation from send calls to the top of the statement
+// group corresponding to `label`. This is done to reduce GRF consumption and
+// to reuse masks between calls. A vector boolean mask is stored as u16 type
+// and converted to bool type right before the call. Transformation is limited
+// to the statement group corresponding to `label`.
+// If `split_by_and` is true then any ((A & B) & C) mask is split into A, B, C
+// sub-masks which are initialized independently. This allows reusing those
+// sub-masks for other masks.
+stmt_t hoist_send_masks(const stmt_t &s, ir_context_t &ir_ctx,
+        const stmt_label_t &label, bool split_by_and) {
+    hoist_send_masks_mutator_t mutator(ir_ctx, label, split_by_and);
 
-    hoist_send_masks_mutator_t mutator(ir_ctx);
-    auto new_stmt_group = mutator.mutate(stmt_group);
-    new_stmt_group = mutator.inject_let_stmts(new_stmt_group);
-
-    auto ret = substitute(s, stmt_group, new_stmt_group);
+    auto ret = mutator.mutate(s);
     trace_pass("hoist_send_masks", ret);
+    return ret;
+}
+
+class spurious_send_mask_cast_remover_t : public ir_mutator_t {
+public:
+    object_t _mutate(const cast_t &obj) override {
+        if (in_send_ && obj.is_bool_vec_u16() && obj.expr.type().is_bool())
+            return mutate(obj.expr);
+        return ir_mutator_t::_mutate(obj);
+    }
+
+    object_t _mutate(const func_call_t &obj) override {
+        if (!is_func_call<send_t>(obj)) return obj;
+
+        in_send_ = true;
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        in_send_ = false;
+        return new_obj;
+    }
+
+private:
+    bool in_send_ = false;
+};
+
+// Removes redundant u16 casts inside send masks which may appear after
+// previous mask hoisting.
+stmt_t remove_spurious_send_mask_cast(const stmt_t &s) {
+    spurious_send_mask_cast_remover_t mutator;
+    auto ret = mutator.mutate(s);
+    trace_pass("remove_spurious_send_mask_cast", ret);
     return ret;
 }
 
@@ -3220,7 +3302,9 @@ public:
             body = funcs::barrier().append(body);
         }
 
+        body = stmt_group_t::make(stmt_label_t::compute_loop(), body);
         auto ret = substitute(root_, step_.compute_loop(), body, 1);
+
         if (params_.use_slm) {
             alloc_updater_t alloc_updater;
 
@@ -7139,7 +7223,7 @@ void kernel_builder_t::build() {
     stmt_ = inject_send(stmt_, ir_ctx, init_cset);
     stmt_ = split_wide_stores(cfg_.hw, stmt_);
     stmt_ = lift_alloc(stmt_, cfg_);
-    stmt_ = hoist_send_masks(stmt_, stmt_label_t::c_store(), ir_ctx);
+    stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::c_store(), false);
     stmt_ = eliminate_common_subexprs(stmt_, ir_ctx);
     stmt_ = hoist_exprs(stmt_, ir_ctx);
     if (cfg_.do_pipeline_unroll) stmt_ = loop_strength_reduce(stmt_);
@@ -7148,10 +7232,17 @@ void kernel_builder_t::build() {
         stmt_ = update_loops_for_unrolling(stmt_, cfg_);
         stmt_ = inject_unrolling(stmt_, cfg_, ir_ctx, cb.ab_slm_size());
     }
+    if (cfg_.hoist_masks_from_compute_loop) {
+        stmt_ = hoist_send_masks(
+                stmt_, ir_ctx, stmt_label_t::compute_loop(), true);
+    }
     stmt_ = fixup_if_conditions(stmt_, cfg_);
     stmt_ = unroll_loops(stmt_, ir_ctx);
     stmt_ = simplify_pass(stmt_, init_cset);
     stmt_ = optimize_alloc_let(stmt_);
+    if (cfg_.hoist_masks_from_compute_loop) {
+        stmt_ = remove_spurious_send_mask_cast(stmt_);
+    }
     stmt_ = fix_int32_overflow(stmt_, init_cset);
     stmt_ = optimize_peephole(stmt_);
     stmt_ = optimize_barrier(stmt_);
