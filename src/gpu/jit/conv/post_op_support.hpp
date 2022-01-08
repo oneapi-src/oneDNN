@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -547,21 +547,23 @@ private:
 
     // rhs tensor layout is defined by md memory descriptor.
     view_t create_view(const memory_desc_t &md /*, uint32_t &rhs_mask*/) const {
-        bool add_groups
-                = (cp_ndims() == 6); // Add groups to match ngcdhw layout.
+        ir_assert(cp_ndims() >= 3);
+        // Add groups to match ngcdhw layout.
+        bool add_groups = (cp_view_.vvars()[1].as<var_t>().name == "g");
         layout_t layout(md, /*do_normalize=*/false);
         std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
         std::vector<dim_t> padded_dims(
                 md.padded_dims, md.padded_dims + md.ndims);
         maybe_reshape_dims(cfg_->ndims, layout, dims, padded_dims);
         layout = normalize_conv_layout(layout, /*with_groups=*/false, cfg_->g,
-                cfg_->is_dw, cfg_->reduced_dim, add_groups,
+                cfg_->is_dw, cfg_->reduced_dim, cfg_->fuse_spatial, add_groups,
                 /*is_wei=*/false);
         dims = normalize_conv_dims(dims, /*with_groups=*/false, cfg_->g,
-                cfg_->is_dw, cfg_->reduced_dim, add_groups, /*is_wei=*/false);
+                cfg_->is_dw, cfg_->reduced_dim, cfg_->fuse_spatial, add_groups,
+                /*is_wei=*/false);
         padded_dims = normalize_conv_dims(padded_dims,
                 /*with_groups=*/false, cfg_->g, cfg_->is_dw, cfg_->reduced_dim,
-                add_groups, /*is_wei=*/false);
+                cfg_->fuse_spatial, add_groups, /*is_wei=*/false);
         ir_assert(layout.ndims() == cp_ndims()) << "Incompatible dimensions.";
         uint32_t bound_check_mask = 0;
         for (int i = 0; i < cp_ndims(); i++) {
@@ -587,17 +589,19 @@ private:
     }
 
     uint32_t normalize_mask(uint32_t orig_mask) const {
-        bool add_groups
-                = (cp_ndims() == 6); // Add groups to match ngcdhw layout.
-        int orig_ndims
-                = 2 + cfg_->ndims; // number of dimensions before normalization.
+        ir_assert(cp_ndims() >= 3);
+        // Add groups to match ngcdhw layout.
+        bool add_groups = (cp_view_.vvars()[1].as<var_t>().name == "g");
+        // Number of dimensions before normalization.
+        int orig_ndims = 2 + cfg_->ndims;
         std::vector<dim_t> dummy_dims(orig_ndims, 1);
         dim_t mask_set_value = 2;
         for (int i = 0; i < orig_ndims; i++) {
             if ((orig_mask & (1 << i)) != 0) dummy_dims[i] = mask_set_value;
         }
         auto cvt_dims = normalize_conv_dims(dummy_dims, /*with_groups=*/false,
-                cfg_->g, cfg_->is_dw, cfg_->reduced_dim, /*add_groups=*/false,
+                cfg_->g, cfg_->is_dw, cfg_->reduced_dim, cfg_->fuse_spatial,
+                /*add_groups=*/false,
                 /*is_wei=*/false);
         // Split channels into groups and channels to match ngcdhw layout.
         if (add_groups) cvt_dims.insert(cvt_dims.begin() + 1, cvt_dims[1]);

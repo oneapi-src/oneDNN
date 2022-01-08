@@ -4636,11 +4636,10 @@ private:
             std::vector<dim_t> &args, const view_t &view,
             const layout_t &layout) const {
         if (idx == layout.ndims()) {
-            expr_t mask = bool_imm_t::make(true);
-            for (int i = 0; i < layout.ndims(); i++) {
-                if (!full_mem_view_.is_masked_vdim(i)) continue;
-                mask &= (view.vstart(i) + args[i] < full_mem_view_.vdims()[i]);
-            }
+            std::vector<expr_t> vargs;
+            for (int i = 0; i < layout.ndims(); i++)
+                vargs.push_back(view.vstart(i) + args[i]);
+            expr_t mask = full_mem_view_.vmask(vargs, /*check_bounds=*/true);
             auto off = layout.offset(args, /*ignore_offset=*/true);
             mask_tensor.set_mask(off, mask);
             return;
@@ -7190,19 +7189,45 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     auto wei_layout = orig_wei_layout;
     auto dst_layout = orig_dst_layout;
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, cfg_.with_groups,
-            cfg_.g, cfg_.is_dw, cfg_.reduced_dim, /*add_groups=*/true);
+            cfg_.g, cfg_.is_dw, cfg_.reduced_dim, /*fuse_spatial=*/false,
+            /*add_groups=*/true);
 
     // Initialize views.
     auto mb = var_t::make(type_t::s32(), "mb");
     auto ic = var_t::make(type_t::s32(), "ic");
     auto oc = var_t::make(type_t::s32(), "oc");
-    auto od = var_t::make(type_t::s32(), "od");
-    auto oh = var_t::make(type_t::s32(), "oh");
-    auto ow = var_t::make(type_t::s32(), "ow");
     auto kd = var_t::make(type_t::s32(), "kd");
     auto kh = var_t::make(type_t::s32(), "kh");
     auto kw = var_t::make(type_t::s32(), "kw");
     auto g = var_t::make(type_t::s32(), "g");
+
+    expr_t ow, oh, od, osp;
+    bool check_od = false;
+    bool check_oh = false;
+    bool check_ow = false;
+    if (cfg_.fuse_spatial) {
+        osp = var_t::make(type_t::s32(), "osp");
+        ow = osp;
+        oh = osp / cfg_.ow;
+        od = osp / (cfg_.oh * cfg_.ow);
+
+        bool is_1d = (cfg_.oh == 1 && cfg_.od == 1);
+        bool is_2d = (cfg_.oh != 1 && cfg_.od == 1);
+        bool is_3d = !is_1d && !is_2d;
+
+        bool check_osp = (cfg_.osp % cfg_.osp_tg_blk != 0);
+        check_ow = is_1d && check_osp;
+        check_oh = is_2d && check_osp;
+        check_od = is_3d && check_osp;
+
+        if (!is_1d) ow %= cfg_.ow;
+        if (!is_2d) oh %= cfg_.oh;
+    } else {
+        od = var_t::make(type_t::s32(), "od");
+        oh = var_t::make(type_t::s32(), "oh");
+        ow = var_t::make(type_t::s32(), "ow");
+        check_ow = (cfg_.ow % cfg_.osp_tg_blk != 0);
+    }
 
     // Initialize masks.
     expr_t id_mask, ih_mask, iw_mask;
@@ -7212,14 +7237,15 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     expr_t src_g_mask, wei_g_mask, dst_g_mask, src_ic_mask;
     expr_t kw_mask, kh_mask;
 
-    bool check_ow = (cfg_.ow % cfg_.ow_tg_blk != 0);
     bool check_iw = check_ow
             || need_src_or_dst_check(cfg_.is_fwd, cfg_.ow, cfg_.iw, cfg_.kw,
                     cfg_.pw, cfg_.sw, cfg_.dw);
-    bool check_ih = need_src_or_dst_check(
-            cfg_.is_fwd, cfg_.oh, cfg_.ih, cfg_.kh, cfg_.ph, cfg_.sh, cfg_.dh);
-    bool check_id = need_src_or_dst_check(
-            cfg_.is_fwd, cfg_.od, cfg_.id, cfg_.kd, cfg_.pd, cfg_.sd, cfg_.dd);
+    bool check_ih = check_oh
+            || need_src_or_dst_check(cfg_.is_fwd, cfg_.oh, cfg_.ih, cfg_.kh,
+                    cfg_.ph, cfg_.sh, cfg_.dh);
+    bool check_id = check_od
+            || need_src_or_dst_check(cfg_.is_fwd, cfg_.od, cfg_.id, cfg_.kd,
+                    cfg_.pd, cfg_.sd, cfg_.dd);
     bool check_kw = (cfg_.kw % cfg_.kw_blk != 0);
     bool check_kh = (cfg_.kh % cfg_.kh_blk != 0);
     int src_g = int(src_layout.dim(1));
@@ -7262,6 +7288,8 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     if (check_id) id_mask = (x >= 0) & (x < cfg_.id);
     if (check_ih) ih_mask = (x >= 0) & (x < cfg_.ih);
     if (check_iw) iw_mask = (x >= 0) & (x < cfg_.iw);
+    if (check_od) od_mask = (x >= 0) & (x < cfg_.od);
+    if (check_oh) oh_mask = (x >= 0) & (x < cfg_.oh);
     if (check_ow) ow_mask = (x >= 0) & (x < cfg_.ow);
     if (check_src_g)
         src_g_mask = (x / src_g_inner_blk < src_g / src_g_inner_blk);
@@ -7281,13 +7309,21 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
         src_ic_mask = (x / src_ic_inner_blk < src_ic / src_ic_inner_blk);
 
     // Source.
-    src_view = view_t({mb, g, ic, od, oh, ow, kd, kh, kw}, 6);
+    if (cfg_.fuse_spatial) {
+        src_view = view_t({mb, g, ic, osp, kd, kh, kw}, 6);
+    } else {
+        src_view = view_t({mb, g, ic, od, oh, ow, kd, kh, kw}, 6);
+    }
     src_view.set_vdim(mb, cfg_.mb);
     src_view.set_vdim(g, cfg_.g);
     src_view.set_vdim(ic, cfg_.ic);
-    src_view.set_vdim(od, cfg_.od);
-    src_view.set_vdim(oh, cfg_.oh);
-    src_view.set_vdim(ow, cfg_.ow);
+    if (cfg_.fuse_spatial) {
+        src_view.set_vdim(osp, cfg_.osp);
+    } else {
+        src_view.set_vdim(od, cfg_.od);
+        src_view.set_vdim(oh, cfg_.oh);
+        src_view.set_vdim(ow, cfg_.ow);
+    }
     src_view.set_vdim(kd, cfg_.kd);
     src_view.set_vdim(kh, cfg_.kh);
     src_view.set_vdim(kw, cfg_.kw);
@@ -7316,13 +7352,21 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     wei_view.set_tlayout(wei_layout);
 
     // Destination.
-    dst_view = view_t({mb, g, oc, od, oh, ow}, 6);
+    if (cfg_.fuse_spatial) {
+        dst_view = view_t({mb, g, oc, osp}, 6);
+    } else {
+        dst_view = view_t({mb, g, oc, od, oh, ow}, 6);
+    }
     dst_view.set_vdim(mb, cfg_.mb);
     dst_view.set_vdim(g, cfg_.g);
     dst_view.set_vdim(oc, cfg_.oc);
-    dst_view.set_vdim(od, cfg_.od);
-    dst_view.set_vdim(oh, cfg_.oh);
-    dst_view.set_vdim(ow, cfg_.ow);
+    if (cfg_.fuse_spatial) {
+        dst_view.set_vdim(osp, cfg_.osp);
+    } else {
+        dst_view.set_vdim(od, cfg_.od);
+        dst_view.set_vdim(oh, cfg_.oh);
+        dst_view.set_vdim(ow, cfg_.ow);
+    }
     dst_view.set_tdim(0, mb, dst_mb_mask);
     dst_view.set_tdim(1, g, dst_g_mask);
     dst_view.set_tdim(2, oc, dst_oc_mask);
@@ -7336,14 +7380,18 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     gemm_schedule.set_b_view(wei_view);
     gemm_schedule.set_c_view(dst_view);
     gemm_schedule.set_b_vars({g});
-    gemm_schedule.set_m_vars({mb, od, oh, ow});
+    if (cfg_.fuse_spatial) {
+        gemm_schedule.set_m_vars({mb, osp});
+    } else {
+        gemm_schedule.set_m_vars({mb, od, oh, ow});
+    }
     gemm_schedule.set_n_vars({oc});
     gemm_schedule.set_k_vars({ic, kd, kh, kw});
 
     expr_t g_tg_blk_idx, g_inner;
     expr_t oc_tg_blk_idx, oc_thr_blk_idx, oc_inner;
     expr_t mb_tg_blk_idx, mb_thr_blk_idx, mb_inner;
-    expr_t ow_tg_blk_idx, ow_thr_blk_idx, ow_inner;
+    expr_t osp_tg_blk_idx, osp_thr_blk_idx, osp_inner;
     expr_t kw_outer, kw_inner;
     expr_t kh_outer, kh_inner;
     expr_t ic_thr_blk_idx, ic_outer, ic_inner;
@@ -7353,33 +7401,36 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
             oc_thr_blk_idx, oc_inner);
     gemm_schedule.split(mb, cfg_.mb_tg_blk, cfg_.mb_thr_blk, mb_tg_blk_idx,
             mb_thr_blk_idx, mb_inner);
-    gemm_schedule.split(ow, cfg_.ow_tg_blk, cfg_.ow_thr_blk, ow_tg_blk_idx,
-            ow_thr_blk_idx, ow_inner);
+    gemm_schedule.split(!osp.is_empty() ? osp : ow, cfg_.osp_tg_blk,
+            cfg_.osp_thr_blk, osp_tg_blk_idx, osp_thr_blk_idx, osp_inner);
     gemm_schedule.split(ic, cfg_.ic_blk * cfg_.ic_thr_dim, cfg_.ic_blk,
             ic_outer, ic_thr_blk_idx, ic_inner);
     gemm_schedule.split(kw, cfg_.kw_blk, kw_outer, kw_inner);
     gemm_schedule.split(kh, cfg_.kh_blk, kh_outer, kh_inner);
 
-    auto g_odhw_idx = gemm_schedule.fuse({g_tg_blk_idx, od, oh, ow_tg_blk_idx});
-    auto mb_ow_thr_blk_idx = gemm_schedule.fuse(mb_thr_blk_idx, ow_thr_blk_idx);
+    auto g_osp_idx = cfg_.fuse_spatial
+            ? gemm_schedule.fuse({g_tg_blk_idx, osp_tg_blk_idx})
+            : gemm_schedule.fuse({g_tg_blk_idx, od, oh, osp_tg_blk_idx});
+    auto mb_osp_thr_blk_idx
+            = gemm_schedule.fuse(mb_thr_blk_idx, osp_thr_blk_idx);
 
     gemm_schedule.bind(oc_tg_blk_idx, kernel_grid_.idx(0));
-    gemm_schedule.bind(g_odhw_idx, kernel_grid_.idx(1));
+    gemm_schedule.bind(g_osp_idx, kernel_grid_.idx(1));
     gemm_schedule.bind(mb_tg_blk_idx, kernel_grid_.idx(2));
     gemm_schedule.bind(oc_thr_blk_idx, tg_grid_.idx(0));
-    gemm_schedule.bind(mb_ow_thr_blk_idx, tg_grid_.idx(1));
+    gemm_schedule.bind(mb_osp_thr_blk_idx, tg_grid_.idx(1));
     gemm_schedule.bind(ic_thr_blk_idx, tg_grid_.idx(2));
 
     gemm_schedule.tensorize(g_inner);
     gemm_schedule.tensorize(oc_inner);
     gemm_schedule.tensorize(mb_inner);
-    gemm_schedule.tensorize(ow_inner);
+    gemm_schedule.tensorize(osp_inner);
     gemm_schedule.tensorize(kw_inner);
     gemm_schedule.tensorize(kh_inner);
     gemm_schedule.tensorize(ic_inner);
 
     gemm_schedule.reorder({ic_outer, kd, kh_outer, kw_outer, oc_thr_blk_idx,
-            mb_ow_thr_blk_idx, ic_thr_blk_idx});
+            mb_osp_thr_blk_idx, ic_thr_blk_idx});
 
     src_buf = kernel_info_.find_arg("src");
     wei_buf = kernel_info_.find_arg("wei");
@@ -7397,7 +7448,8 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     auto wei_layout = orig_wei_layout;
     auto dst_layout = orig_dst_layout;
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, cfg_.with_groups,
-            cfg_.g, cfg_.is_dw, cfg_.reduced_dim, /*add_groups=*/false);
+            cfg_.g, cfg_.is_dw, cfg_.reduced_dim, /*fuse_spatial=*/false,
+            /*add_groups=*/false);
 
     // Initialize views.
     auto mb = var_t::make(type_t::s32(), "mb");
@@ -7598,7 +7650,8 @@ void kernel_builder_t::init_bwd_w(gemm_schedule_t &gemm_schedule,
     auto wei_layout = orig_wei_layout;
     auto dst_layout = orig_dst_layout;
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, cfg_.with_groups,
-            cfg_.g, cfg_.is_dw, cfg_.reduced_dim, /*add_groups=*/false);
+            cfg_.g, cfg_.is_dw, cfg_.reduced_dim, /*fuse_spatial=*/false,
+            /*add_groups=*/false);
 
     // Initialize thread group views.
     auto mb = var_t::make(type_t::s32(), "mb");

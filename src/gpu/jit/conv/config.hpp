@@ -98,6 +98,7 @@ public:
         try_reduce_to_1d();
 
         is_dw = with_groups && (g > 1) && (oc == 1) && (ic == 1);
+        osp = od * oh * ow;
 
         return status::success;
     }
@@ -202,7 +203,7 @@ public:
     int g; // Groups.
     int ic, oc; // Input and output channels.
     int id, ih, iw; // Input spatial sizes.
-    int od, oh, ow; // Output spatial sizes.
+    int od, oh, ow, osp; // Output spatial sizes.
     int kd, kh, kw; // Kernel sizes.
     int sd, sh, sw; // Strides.
     int pd, ph, pw; // Padding in the beginning.
@@ -298,14 +299,14 @@ public:
                     = (mb < 16 || is_src_nhwc ? 1
                                               : hw <= ngen::HW::XeLP ? 8 : 16);
             mb_thr_dim = (mb_thr_blk == 1 ? 1 : 2);
-            ow_thr_blk = (mb_thr_blk == 1 ? 8 : 1);
-            ow_thr_dim = 1;
+            osp_thr_blk = (mb_thr_blk == 1 ? 8 : 1);
+            osp_thr_dim = 1;
             oc_thr_blk = 1;
             oc_thr_dim = 1;
             ic_thr_dim = 1;
             ic_blk = 1;
 
-            int iw_load_blk = (ow_thr_blk - 1) * sw + (kw - 1) + 1;
+            int iw_load_blk = (osp_thr_blk - 1) * sw + (kw - 1) + 1;
             bool do_kw_buf = (kw > 1 && mb_thr_blk == 1 && iw_load_blk <= 32);
             kw_blk = (do_kw_buf ? kw : 1);
         } else if (fma_kind == fma_kind_t::mad) {
@@ -333,28 +334,28 @@ public:
             if (src_mb_blk > 1) {
                 auto m_blk = greedy_blk(target_m_blk, {mb, ow}, {src_mb_blk});
                 mb_thr_blk = utils::rnd_up_pow2(m_blk[0]);
-                ow_thr_blk = utils::rnd_up_pow2(m_blk[1]);
+                osp_thr_blk = utils::rnd_up_pow2(m_blk[1]);
 
                 auto m_dim = greedy_tg_dim(
-                        target_m_dim, {mb, ow}, {mb_thr_blk, ow_thr_blk});
+                        target_m_dim, {mb, ow}, {mb_thr_blk, osp_thr_blk});
                 mb_thr_dim = m_dim[0];
-                ow_thr_dim = m_dim[1];
+                osp_thr_dim = m_dim[1];
                 greedy_redistribute_factor(target_m_dim, 2,
-                        {{ow_thr_blk, ow_thr_dim}, {mb_thr_blk, mb_thr_dim}});
+                        {{osp_thr_blk, osp_thr_dim}, {mb_thr_blk, mb_thr_dim}});
             } else {
                 auto m_blk = greedy_blk(target_m_blk, {ow, mb});
                 mb_thr_blk = utils::rnd_up_pow2(m_blk[1]);
-                ow_thr_blk = utils::rnd_up_pow2(m_blk[0]);
+                osp_thr_blk = utils::rnd_up_pow2(m_blk[0]);
 
                 auto m_dim = greedy_tg_dim(
-                        target_m_dim, {ow, mb}, {ow_thr_blk, mb_thr_blk});
+                        target_m_dim, {ow, mb}, {osp_thr_blk, mb_thr_blk});
                 mb_thr_dim = m_dim[1];
-                ow_thr_dim = m_dim[0];
+                osp_thr_dim = m_dim[0];
                 greedy_redistribute_factor(target_m_dim, 2,
-                        {{mb_thr_blk, mb_thr_dim}, {ow_thr_blk, ow_thr_dim}});
+                        {{mb_thr_blk, mb_thr_dim}, {osp_thr_blk, osp_thr_dim}});
             }
             mb_thr_dim = init_thr_dim(mb, mb_thr_blk, mb_thr_dim);
-            ow_thr_dim = init_thr_dim(ow, ow_thr_blk, ow_thr_dim);
+            osp_thr_dim = init_thr_dim(ow, osp_thr_blk, osp_thr_dim);
 
             // k_blk
             // There are effectively no restrictions on k_blk as this blocking is
@@ -378,13 +379,13 @@ public:
                                       : 4);
                 kw_blk = 8;
                 ic_blk = is_s32_accumulator() ? 4 : 2;
-                ow_thr_blk = std::min(
+                osp_thr_blk = std::min(
                         utils::rnd_up_pow2(ow), hw >= ngen::HW::XeHPC ? 8 : 4);
-                ow_thr_dim = std::min(4, utils::div_up(ow, 4));
+                osp_thr_dim = std::min(4, utils::div_up(ow, 4));
 
-                int max_ow_thr_dim
+                int max_osp_thr_dim
                         = get_optimal_tg_size() / (oc_thr_dim * mb_thr_dim);
-                ow_thr_dim = std::min(ow_thr_dim, max_ow_thr_dim);
+                osp_thr_dim = std::min(osp_thr_dim, max_osp_thr_dim);
 
                 // Fall back conditions, likely due to wasted computation
                 // from m_blk and k_blk.
@@ -392,22 +393,35 @@ public:
                 if (ic > 4) return status::unimplemented;
             } else {
                 mb_thr_blk = (mb < 16 ? 1 : mb == 16 ? 16 : 32);
+                // Enable spatial fusion only for large batches.
+                // Spatial fusion may be suboptimal for small batch due to:
+                // - Using smaller messages (load blocks are not fully dense
+                //   anymore)
+                // - Extra division arithmetic to work with fused indices
+                if (mb_thr_blk > 1) {
+                    fuse_spatial = true;
+                    // Both nhwc layouts and mask hoisting require extra GRF
+                    // memory so avoid enabling both.
+                    if (!is_src_nhwc && !is_dst_nhwc)
+                        hoist_masks_from_compute_loop = true;
+                }
                 mb_thr_dim = 1;
-                ow_thr_blk = (mb < 16 ? 16 : 1);
-                if (ow < ow_thr_blk) ow_thr_blk = 8;
-                ow_thr_dim = std::min(4, utils::div_up(ow, ow_thr_blk));
+                osp_thr_blk = (mb < 16 ? 16 : 1);
+                if (osp < osp_thr_blk) osp_thr_blk = 8;
+                osp_thr_dim = std::min(4, utils::div_up(osp, osp_thr_blk));
                 kw_blk = 1;
                 ic_blk = (is_s32_accumulator() ? 32 : 16);
             }
 
             ic_thr_dim = init_fwd_ic_thr_dim(
-                    mb_thr_blk, oc_thr_blk, ow_thr_blk, ic_blk);
+                    mb_thr_blk, oc_thr_blk, osp_thr_blk, ic_blk);
 
             // Disable M/N thread group blocking when K thread group blocking
             // is enabled. For some reason combining them results in lower
             // performance.
             if (ic_thr_dim > 1) {
-                ow_thr_dim = 1;
+                osp_thr_dim = 1;
+                osp_thr_dim = 1;
                 oc_thr_dim = 1;
             }
         } else {
@@ -418,19 +432,19 @@ public:
         int ic_padded = utils::rnd_up(ic, ic_blk);
         ic_thr_blk = ir_utils::safe_divide(ic_padded, ic_thr_dim);
 
-        ow_thr_dim = utils::rnd_down_pow2(ow_thr_dim);
+        osp_thr_dim = utils::rnd_down_pow2(osp_thr_dim);
 
 #ifdef GEN_CONV_DEBUG
         mb_thr_blk = getenv_int("mb_thr_blk", mb_thr_blk);
         mb_thr_dim = getenv_int("mb_thr_dim", mb_thr_dim);
         oc_thr_blk = getenv_int("oc_thr_blk", oc_thr_blk);
         oc_thr_dim = getenv_int("oc_thr_dim", oc_thr_dim);
-        ow_thr_blk = getenv_int("ow_thr_blk", ow_thr_blk);
-        ow_thr_dim = getenv_int("ow_thr_dim", ow_thr_dim);
+        osp_thr_blk = getenv_int("osp_thr_blk", osp_thr_blk);
+        osp_thr_dim = getenv_int("osp_thr_dim", osp_thr_dim);
 #endif
 
         tg_grid_dim[0] = oc_thr_dim;
-        tg_grid_dim[1] = mb_thr_dim * ow_thr_dim;
+        tg_grid_dim[1] = mb_thr_dim * osp_thr_dim;
         tg_grid_dim[2] = ic_thr_dim;
 
         tg_grid_dim[0] = utils::rnd_down_pow2(tg_grid_dim[0]);
@@ -444,38 +458,40 @@ public:
 
         mb_tg_blk = mb_thr_dim * mb_thr_blk;
         oc_tg_blk = oc_thr_dim * oc_thr_blk;
-        ow_tg_blk = ow_thr_dim * ow_thr_blk;
+        osp_tg_blk = osp_thr_dim * osp_thr_blk;
 
 #ifdef GEN_CONV_DEBUG
         mb_tg_blk = getenv_int("mb_tg_blk", mb_tg_blk);
         oc_tg_blk = getenv_int("oc_tg_blk", oc_tg_blk);
-        ow_tg_blk = getenv_int("ow_tg_blk", ow_tg_blk);
+        osp_tg_blk = getenv_int("osp_tg_blk", osp_tg_blk);
 #endif
 
         if (is_src_nhwc) {
             update_nhwc_blocks(tg_grid_dim[1], mb_tg_blk, mb_thr_dim,
-                    mb_thr_blk, ow_tg_blk, ow_thr_dim, ow_thr_blk);
+                    mb_thr_blk, osp_tg_blk, osp_thr_dim, osp_thr_blk);
         }
 
         // TODO: Update estimate_register_count.
         b_blk = g_tg_blk;
-        m_tg_blk = mb_tg_blk * ow_tg_blk;
+        m_tg_blk = mb_tg_blk * osp_tg_blk;
         n_tg_blk = oc_tg_blk;
         k_blk = ic_blk * kw_blk;
 
         int g_tg_padded = utils::rnd_up(g, g_tg_blk);
         int mb_tg_padded = utils::rnd_up(mb, mb_tg_blk);
         int oc_tg_padded = utils::rnd_up(oc, oc_tg_blk);
-        int ow_tg_padded = utils::rnd_up(ow, ow_tg_blk);
+        int osp_tg_padded = fuse_spatial
+                ? utils::rnd_up(osp, osp_tg_blk)
+                : od * oh * utils::rnd_up(ow, osp_tg_blk);
 
         g_tg_dim = g_tg_padded / g_tg_blk;
         mb_tg_dim = mb_tg_padded / mb_tg_blk;
         oc_tg_dim = oc_tg_padded / oc_tg_blk;
 
-        ow_tg_dim = ow_tg_padded / ow_tg_blk;
+        osp_tg_dim = osp_tg_padded / osp_tg_blk;
 
         kernel_grid_dim[0] = oc_tg_dim;
-        kernel_grid_dim[1] = g_tg_dim * od * oh * ow_tg_dim;
+        kernel_grid_dim[1] = g_tg_dim * osp_tg_dim;
         kernel_grid_dim[2] = mb_tg_dim;
 
         allow_grf_reorder = is_small_ic() || is_dw;
@@ -892,6 +908,7 @@ public:
         do_atomic_update = false;
         reuse_headers = hw <= ngen::HW::XeLP;
         optimize_strided = false;
+        fuse_spatial = false;
         a_sub_tiles = 1;
         b_sub_tiles = 1;
 
@@ -1107,6 +1124,7 @@ public:
     int od_tg_dim;
     int oh_tg_dim;
     int ow_tg_dim;
+    int osp_tg_dim;
 
     // Block sizes per thread group.
     int g_tg_blk;
@@ -1118,6 +1136,7 @@ public:
     int od_tg_blk;
     int oh_tg_blk;
     int ow_tg_blk;
+    int osp_tg_blk;
 
     // Number of thread blocks across problem dimensions.
     int ic_thr_dim;
@@ -1125,6 +1144,7 @@ public:
     int mb_thr_dim;
     int oc_thr_dim;
     int ow_thr_dim;
+    int osp_thr_dim;
 
     // Block sizes per thread.
     int g_thr_blk;
@@ -1133,6 +1153,7 @@ public:
     int mb_thr_blk;
     int oc_thr_blk;
     int ow_thr_blk;
+    int osp_thr_blk;
 
     // Block sizes per iteration.
     int ic_blk;
@@ -1170,6 +1191,7 @@ public:
     bool do_atomic_update; // Whether to use atomics during C update.
     bool reuse_headers; // Whether to reuse header messages to reduce GRF usage.
     bool optimize_strided; // Apply special optimization for strided BWD_D convolution.
+    bool fuse_spatial; // Apply blocking to fused spatial (otherwise only `w` is blocked).
 
     static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
 
