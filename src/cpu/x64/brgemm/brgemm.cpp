@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -727,6 +727,8 @@ status_t brgemm_kernel_create(
         return (*brg_kernel)->create_kernel();
     } else if (brg.is_amx && brg.type == brgemm_addr && brg.brgattr.max_bs >= 1
             && brg.brgattr.use_uker) {
+        if (brg.brgattr.generate_skip_accumulation)
+            return status::unimplemented;
         CHECK(safe_ptr_assign<brgemm_kernel_t>(
                 *brg_kernel, new brgemm_amx_uker_t(brg)));
         return (*brg_kernel)->create_kernel();
