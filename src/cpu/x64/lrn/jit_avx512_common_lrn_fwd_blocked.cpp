@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,44 +121,6 @@ void jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>::compute_loop(
         int loop_size_param) {
     // loop_size - param for IRB_LOOP macro
     int loop_size = loop_size_param;
-
-    const int prf0_offt = 1 * loop_size;
-    const int prf2_offt = 8 * loop_size;
-
-    if (version_ != across_version::First
-            && version_ != across_version::Single) {
-        IRB_LOOP(this->mic_prefetcht0(
-                ptr[this->src_ + (irb + prf0_offt - HW_) * this->vlen_]));
-        IRB_LOOP(this->mic_prefetcht2(
-                ptr[this->src_ + (irb + prf2_offt - HW_) * this->vlen_]));
-    }
-    IRB_LOOP(this->mic_prefetcht0(this->EVEX_compress_addr(
-            this->src_, (irb + prf0_offt) * this->vlen_)));
-    IRB_LOOP(this->mic_prefetcht2(this->EVEX_compress_addr(
-            this->src_, (irb + prf2_offt) * this->vlen_)));
-    if (version_ != across_version::Last
-            && version_ != across_version::Single) {
-        IRB_LOOP(this->mic_prefetcht0(
-                ptr[this->src_ + (irb + prf0_offt + HW_) * this->vlen_]));
-        IRB_LOOP(this->mic_prefetcht2(
-                ptr[this->src_ + (irb + prf2_offt + HW_) * this->vlen_]));
-    }
-    if (this->pk_ != prop_kind::forward_inference) {
-        IRB_LOOP(this->mic_prefetcht0(this->EVEX_compress_addr(
-                this->ws0_, (irb + prf0_offt) * this->vlen_)));
-        IRB_LOOP(this->mic_prefetcht2(this->EVEX_compress_addr(
-                this->ws0_, (irb + prf2_offt) * this->vlen_)));
-    }
-    IRB_LOOP(this->mic_prefetcht0(this->EVEX_compress_addr(
-            this->dst_, (irb + prf0_offt) * this->vlen_)));
-    IRB_LOOP(this->mic_prefetcht2(this->EVEX_compress_addr(
-            this->dst_, (irb + prf2_offt) * this->vlen_)));
-    if (this->pk_ != prop_kind::forward_inference) {
-        IRB_LOOP(this->mic_prefetcht0(this->EVEX_compress_addr(
-                this->ws1_, (irb + prf0_offt) * this->vlen_)));
-        IRB_LOOP(this->mic_prefetcht2(this->EVEX_compress_addr(
-                this->ws1_, (irb + prf2_offt) * this->vlen_)));
-    }
 
     if (loop_size == 0) return;
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::generate() {
 
         this->L(lrn_loop);
         {
-            compute_loop(this->reg_block_, 1, 1);
+            compute_loop(this->reg_block_);
 
             this->add(this->src_, this->reg_block_ * this->vlen_);
             this->add(this->diffsrc_, this->reg_block_ * this->vlen_);
@@ -104,7 +104,7 @@ void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::generate() {
         }
     }
 
-    compute_loop(LSREST, 1, this->use_h_parallelism_ ? 0 : 1);
+    compute_loop(LSREST);
 
     this->add(this->rsp, this->reg_block_ * buffer_block_);
     this->postamble();
@@ -112,61 +112,9 @@ void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::generate() {
 
 template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::compute_loop(
-        int loop_size_param, int prefetchL1, int prefetchL2) {
+        int loop_size_param) {
     // loop_size - this->param_ for IRB_LOOP macro
     int loop_size = loop_size_param;
-    const int prf0_offt = 1 * this->reg_block_;
-    const int prf2_offt = 8 * this->reg_block_;
-
-    // ---- prefetching -------------------------------------------
-    if (version_ != across_version::First
-            && version_ != across_version::Single) {
-        if (prefetchL1)
-            IRB_LOOP(this->mic_prefetcht0(ptr[this->workspace1_
-                    + (irb + prf0_offt - 2 * HW_) * this->vlen_]));
-        if (prefetchL1)
-            IRB_LOOP(this->mic_prefetcht0(ptr[this->diffdst_
-                    + (irb + prf0_offt - HW_) * this->vlen_]));
-    }
-
-    if (prefetchL1)
-        IRB_LOOP(this->mic_prefetcht0(
-                ptr[this->src_ + (irb + prf0_offt) * this->vlen_]));
-    if (prefetchL2)
-        IRB_LOOP(this->mic_prefetcht2(
-                ptr[this->src_ + (irb + prf2_offt) * this->vlen_]));
-
-    if (prefetchL1)
-        IRB_LOOP(this->mic_prefetcht0(
-                ptr[this->workspace1_ + (irb + prf0_offt) * this->vlen_]));
-
-    if (prefetchL1)
-        IRB_LOOP(this->mic_prefetcht0(
-                ptr[this->diffdst_ + (irb + prf0_offt) * this->vlen_]));
-
-    if (version_ != across_version::Last
-            && version_ != across_version::Single) {
-        if (prefetchL1)
-            IRB_LOOP(this->mic_prefetcht0(ptr[this->workspace1_
-                    + (irb + prf0_offt + 2 * HW_) * this->vlen_]));
-        if (prefetchL2)
-            IRB_LOOP(this->mic_prefetcht2(ptr[this->workspace1_
-                    + (irb + prf2_offt + 2 * HW_) * this->vlen_]));
-
-        if (prefetchL1)
-            IRB_LOOP(this->mic_prefetcht0(ptr[this->diffdst_
-                    + (irb + prf0_offt + HW_) * this->vlen_]));
-        if (prefetchL2)
-            IRB_LOOP(this->mic_prefetcht2(ptr[this->diffdst_
-                    + (irb + prf2_offt + HW_) * this->vlen_]));
-    }
-    if (prefetchL1)
-        IRB_LOOP(this->mic_prefetcht0(
-                ptr[this->workspace0_ + (irb + prf0_offt) * this->vlen_]));
-    if (prefetchL2)
-        IRB_LOOP(this->mic_prefetcht2(
-                ptr[this->workspace0_ + (irb + prf2_offt) * this->vlen_]));
-    // -----------------------------------------------------------
 
     if (loop_size_param == 0) return;
 
