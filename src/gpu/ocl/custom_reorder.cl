@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -349,16 +349,14 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
     const int d01_block = d0_block * d1_block;
 
     __local SRC_DATA_T loc_buf[SG_PER_WG][d01_block][SUB_GROUP_SIZE];
-    const int d0_inner_block = min(d0_block, SRC_D0);
-    const int d1_inner_block = min(d1_block, SRC_D1);
-    for (int d0_inner = 0; d0_inner < d0_inner_block; d0_inner++) {
-        for (int d1_inner = 0; d1_inner < d1_inner_block; d1_inner++) {
+    for (int d0_inner = 0; d0_inner < d0_block; d0_inner++) {
+        for (int d1_inner = 0; d1_inner < d1_block; d1_inner++) {
 
-            if (SRC_D0 % d0_inner_block != 0 && d0 + d0_inner >= SRC_D0) {
+            if (SRC_D0 % d0_block != 0 && d0 + d0_inner >= SRC_D0) {
                 loc_buf[sg][d0_inner * d1_block + d1_inner][sglid] = 0;
                 continue;
             }
-            if (SRC_D1 % d1_inner_block != 0 && d1 + d1_inner >= SRC_D1) {
+            if (SRC_D1 % d1_block != 0 && d1 + d1_inner >= SRC_D1) {
                 loc_buf[sg][d0_inner * d1_block + d1_inner][sglid] = 0;
                 continue;
             }
