@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,8 +54,7 @@ protected:
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
         static const auto isa = get_effective_cpu_isa();
         static const bool has_avx512_common
-                = dnnl::is_superset(isa, cpu_isa::avx512_mic)
-                || dnnl::is_superset(isa, cpu_isa::avx512_core);
+                = dnnl::is_superset(isa, cpu_isa::avx512_core);
         input_f32.wino_supported = is_gpu || (is_cpu && has_avx512_common);
         input_f16.wino_supported = is_gpu;
         input_int8.wino_supported

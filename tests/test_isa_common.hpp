@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,8 +47,6 @@ inline impl::cpu::x64::cpu_isa_t cvt_to_internal_cpu_isa(cpu_isa input_isa) {
         HANDLE_ISA(sse41);
         HANDLE_ISA(avx);
         HANDLE_ISA(avx2);
-        HANDLE_ISA(avx512_mic);
-        HANDLE_ISA(avx512_mic_4ops);
         HANDLE_ISA(avx512_core);
         HANDLE_ISA(avx512_core_vnni);
         HANDLE_ISA(avx512_core_bf16);
@@ -83,7 +81,6 @@ inline std::set<impl::cpu::x64::cpu_isa_t> masked_internal_cpu_isa(
             amx_int8, amx_tile};
 
     switch (internal_isa) {
-        case avx512_mic: return {avx512_mic, avx512_common}; break;
         case avx512_core: return {avx512_core, avx512_common}; break;
         case avx512_core_amx: return amx_isa_list; break;
         default: return {internal_isa}; break;
@@ -110,8 +107,7 @@ hints_masked_internal_cpu_isa(cpu_isa_hints hints) {
 
 inline const std::set<cpu_isa> &cpu_isa_all() {
     static const std::set<cpu_isa> isa_all {cpu_isa::sse41, cpu_isa::avx,
-            cpu_isa::avx2, cpu_isa::avx2_vnni, cpu_isa::avx512_mic,
-            cpu_isa::avx512_mic_4ops, cpu_isa::avx512_core,
+            cpu_isa::avx2, cpu_isa::avx2_vnni, cpu_isa::avx512_core,
             cpu_isa::avx512_core_vnni, cpu_isa::avx512_core_bf16,
             cpu_isa::avx512_core_amx, cpu_isa::all};
 
@@ -128,12 +124,6 @@ inline const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
             {cpu_isa::avx2_vnni,
                     {cpu_isa::avx2_vnni, cpu_isa::avx2, cpu_isa::avx,
                             cpu_isa::sse41}},
-            {cpu_isa::avx512_mic,
-                    {cpu_isa::avx512_mic, cpu_isa::avx2, cpu_isa::avx,
-                            cpu_isa::sse41}},
-            {cpu_isa::avx512_mic_4ops,
-                    {cpu_isa::avx512_mic_4ops, cpu_isa::avx512_mic,
-                            cpu_isa::avx2, cpu_isa::avx, cpu_isa::sse41}},
             {cpu_isa::avx512_core,
                     {cpu_isa::avx512_core, cpu_isa::avx2, cpu_isa::avx,
                             cpu_isa::sse41}},
@@ -152,7 +142,6 @@ inline const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
                     {cpu_isa::all, cpu_isa::avx512_core_amx,
                             cpu_isa::avx512_core_bf16,
                             cpu_isa::avx512_core_vnni, cpu_isa::avx512_core,
-                            cpu_isa::avx512_mic_4ops, cpu_isa::avx512_mic,
                             cpu_isa::avx2_vnni, cpu_isa::avx2, cpu_isa::avx,
                             cpu_isa::sse41}}};
 
