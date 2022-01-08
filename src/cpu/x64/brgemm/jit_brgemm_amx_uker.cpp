@@ -193,7 +193,7 @@ private:
     }
 
     Xbyak::Zmm accm(int bd) {
-        assert(bd < 30);
+        assert(bd < 16);
         return Xbyak::Zmm(31 - bd);
     }
 
@@ -201,12 +201,12 @@ private:
     const Xbyak::Zmm &zmm_tmp_2() const noexcept { return this->zmm1; }
     const Xbyak::Zmm &zmm_tmp_3() const noexcept { return this->zmm2; }
 
-    const Xbyak::Zmm zmm_bias = zmm3;
-    const Xbyak::Zmm zmm_zp_comp_a = zmm4;
-    const Xbyak::Zmm zmm_scales = zmm5;
-    const Xbyak::Zmm zmm_zp_c = zmm6;
-    const Xbyak::Zmm zmm_lbound = zmm7;
-    const Xbyak::Zmm zmm_ubound = zmm8;
+    const Xbyak::Zmm zmm_bias = zmm10;
+    const Xbyak::Zmm zmm_zp_comp_a = zmm11;
+    const Xbyak::Zmm zmm_scales = zmm12;
+    const Xbyak::Zmm zmm_zp_c = zmm13;
+    const Xbyak::Zmm zmm_lbound = zmm14;
+    const Xbyak::Zmm zmm_ubound = zmm15;
 
     bool dt_requires_saturation;
 
