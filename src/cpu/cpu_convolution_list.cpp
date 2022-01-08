@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 * Copyright 2020-2021 Arm Ltd. and affiliates
 * Copyright 2020-2021 FUJITSU LIMITED
 *
@@ -223,6 +223,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map RE
     {{forward, s8, s8, f32}, {
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_AMX(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_AMX(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_AMX(jit_avx512_core_amx_1x1_convolution_fwd_t)
         CPU_INSTANCE_AMX(jit_avx512_core_amx_convolution_fwd_t)
         CPU_INSTANCE_AVX512(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t)
@@ -247,6 +248,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map RE
     {{forward, s8, s8, s32}, {
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_AMX(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_AMX(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_AMX(jit_avx512_core_amx_1x1_convolution_fwd_t)
         CPU_INSTANCE_AMX(jit_avx512_core_amx_convolution_fwd_t)
         CPU_INSTANCE_AVX512(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t)
@@ -264,6 +266,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map RE
     {{forward, s8, s8, s8}, {
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_AMX(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_AMX(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_AMX(jit_avx512_core_amx_1x1_convolution_fwd_t)
         CPU_INSTANCE_AMX(jit_avx512_core_amx_convolution_fwd_t)
         CPU_INSTANCE_AVX512(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t)
@@ -282,6 +285,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> impl_list_map RE
     {{forward, s8, s8, u8}, {
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_AMX(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_AMX(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE_AMX(jit_avx512_core_amx_1x1_convolution_fwd_t)
         CPU_INSTANCE_AMX(jit_avx512_core_amx_convolution_fwd_t)
         CPU_INSTANCE_AVX512(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t)
