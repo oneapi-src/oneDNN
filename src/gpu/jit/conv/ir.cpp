@@ -696,6 +696,13 @@ int64_t bound_finder_base_t::find_bound_impl(
                 if (!is_good_bound(max_mod)) return def_bound;
                 return max_mod - 1;
             }
+            case op_kind_t::_and: {
+                if (e.type().is_u16()) {
+                    return is_low ? e.type().min<int64_t>()
+                                  : e.type().max<int64_t>();
+                }
+                break;
+            }
             default: break;
         }
     }

@@ -1622,7 +1622,7 @@ DECL_OP_TRAITS(op_kind_t::_ge, >=)
 DECL_OP_TRAITS(op_kind_t::_lt, <)
 DECL_OP_TRAITS(op_kind_t::_le, <=)
 
-DECL_OP_TRAITS(op_kind_t::_and, &&)
+DECL_OP_TRAITS(op_kind_t::_and, &)
 
 template <>
 struct op_traits_t<op_kind_t::_min> {

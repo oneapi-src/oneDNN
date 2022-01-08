@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -212,7 +212,8 @@ type_t common_type(const expr_t &a, const expr_t &b) {
     return common_type(a.type(), b.type());
 }
 
-type_t binary_op_type(op_kind_t op_kind, const type_t &a, const type_t &b) {
+type_t binary_op_type(op_kind_t op_kind, const type_t &a, const type_t &b,
+        const expr_t &a_expr = expr_t(), const expr_t &b_expr = expr_t()) {
     if (a.is_undef() || b.is_undef()) return type_t::undef();
     ir_assert(a.elems() == b.elems())
             << "Types must have the same number of components.";
@@ -222,11 +223,17 @@ type_t binary_op_type(op_kind_t op_kind, const type_t &a, const type_t &b) {
                 << "a must be unsigned for shift left/right.";
         return type_t::u32(a.elems());
     }
+    if (op_kind == op_kind_t::_and) {
+        if (a == b) return a;
+        if (is_const(a_expr)) return b;
+        if (is_const(b_expr)) return a;
+        return (a.size() >= b.size()) ? a : b;
+    }
     return common_type(a, b);
 }
 
 type_t binary_op_type(op_kind_t op_kind, const expr_t &a, const expr_t &b) {
-    return binary_op_type(op_kind, a.type(), b.type());
+    return binary_op_type(op_kind, a.type(), b.type(), a, b);
 }
 
 type_t ternary_op_type(

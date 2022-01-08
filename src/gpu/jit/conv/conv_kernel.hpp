@@ -855,6 +855,15 @@ public:
         }
     }
 
+    void eand(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
+            const ngen_operand_t &src0, const ngen_operand_t &src1) {
+        if (src1.is_reg_data()) {
+            and_(mod, dst.reg_data(), src0.reg_data(), src1.reg_data());
+        } else {
+            and_(mod, dst.reg_data(), src0.reg_data(), src1.immediate());
+        }
+    }
+
     // Adapted version of magicgu function from Hacker's Delight 10-15.
     static void eidiv_magicgu(uint32_t d, uint32_t &m, uint32_t &p) {
         uint32_t s32_max = std::numeric_limits<int32_t>::max();
@@ -2032,11 +2041,14 @@ public:
 
         switch (obj.op_kind) {
             case op_kind_t::_and: {
-                eval(obj.a, dst_op);
-                eval(obj.b,
-                        ngen_operand_t(
-                                dst_op, mod | dst_op.flag_register_mod()));
-                break;
+                if (obj.type.is_bool()) {
+                    eval(obj.a, dst_op);
+                    eval(obj.b,
+                            ngen_operand_t(
+                                    dst_op, mod | dst_op.flag_register_mod()));
+                    break;
+                }
+                // else fall through to the default label.
             }
             default: {
                 // Some cases require pre-allocated register regions with
@@ -2342,6 +2354,7 @@ private:
                 host_->ecmp(cmp_mod, src0, src1);
                 break;
             }
+            case op_kind_t::_and: host_->eand(mod, dst, src0, src1); break;
             case op_kind_t::_prelu: {
                 int grf_size = ngen::GRF::bytes(hw);
                 int esize = mod.getExecSize();
