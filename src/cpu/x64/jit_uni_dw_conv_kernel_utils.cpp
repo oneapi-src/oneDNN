@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -125,6 +125,17 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
 
+    int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    jcp.r_pad = calculate_end_padding(
+            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw);
+    jcp.b_pad = calculate_end_padding(
+            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
+    bool kernel_outside_src = false || ext_kw <= jcp.l_pad
+            || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad
+            || ext_kh <= jcp.b_pad;
+    if (kernel_outside_src) return status::unimplemented;
+
     jcp.typesize_out = types::data_type_size(dst_d.data_type());
     jcp.typesize_in = types::data_type_size(src_d.data_type());
 
@@ -162,16 +173,6 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
 
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
-    int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
-    int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
-    jcp.r_pad = calculate_end_padding(
-            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw);
-    jcp.b_pad = calculate_end_padding(
-            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
-    bool kernel_outside_src = false || ext_kw <= jcp.l_pad
-            || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad
-            || ext_kh <= jcp.b_pad;
-    if (kernel_outside_src) return status::unimplemented;
     int r_pad_no_tail = nstl::max(0,
             calculate_end_padding(jcp.l_pad, jcp.ow - jcp.ur_w_tail, jcp.iw,
                     jcp.stride_w, ext_kw));
