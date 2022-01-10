@@ -259,7 +259,6 @@ private:
     void generate() override;
 
     void prepare_bd_mask() noexcept;
-    int adjusted_bd_mask(int inp_bd) noexcept;
     int skipped_bd_mask(int inp_bd) noexcept;
 
     size_t A_offset(int bdb) const noexcept;
@@ -307,13 +306,6 @@ void jit_brgemm_amx_uker_base_t::prepare_bd_mask() noexcept {
         }
     } else
         assert(!"struct nullptr error");
-}
-
-int jit_brgemm_amx_uker_base_t::adjusted_bd_mask(int inp_bd) noexcept {
-    if (brg.brgattr.bd_mask_level)
-        return adj_bd_mask_buffer_ptr[inp_bd];
-    else
-        return inp_bd;
 }
 
 int jit_brgemm_amx_uker_base_t::skipped_bd_mask(int inp_bd) noexcept {
@@ -393,8 +385,12 @@ int jit_brgemm_amx_uker_base_t::get_out_bd(int bd_inp_bdb, int bd) const {
     const auto bd_out_bd = bd_inp_bdb + bd;
     if (brg.brgattr.bd_mask_level && !bd_mask_buffer_ptr[bd_out_bd])
         return -1;
-    else
-        return bd_out_bd;
+    else {
+        if (brg.brgattr.bd_mask_level)
+            return adj_bd_mask_buffer_ptr[bd_out_bd];
+        else
+            return bd_out_bd;
+    }
 }
 
 Xbyak::Zmm jit_brgemm_amx_uker_base_t::zmm_mask(const Xbyak::Zmm zmm_in,
@@ -562,9 +558,7 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_range(
                 const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
                 if (bd_out_bd == -1) continue;
 
-                const auto adj_bd_ind_bd = adjusted_bd_mask(bd_out_bd);
-
-                const auto d_offset = D_offset(adj_bd_ind_bd, ldb);
+                const auto d_offset = D_offset(bd_out_bd, ldb);
                 const auto idx = accm(bd).getIdx();
 
                 rhs_arg_params.vmm_idx_to_out_reg.emplace(idx, reg_D);
@@ -599,9 +593,7 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_range(
                 if (bd_out_bd == -1) continue;
 
                 auto zmm = accm(bd);
-                const auto adj_bd_ind_bd = adjusted_bd_mask(bd_out_bd);
-
-                const auto d_offset = D_offset(adj_bd_ind_bd, ldb);
+                const auto d_offset = D_offset(bd_out_bd, ldb);
                 auto addr = EVEX_compress_addr(reg_D, d_offset);
 
                 cvt2ps(brg.sum_dt, zmm_prev_dst, addr, true, false, k_mask);
@@ -698,12 +690,11 @@ void jit_brgemm_amx_uker_base_t::process_output_range(int bd_start,
 
         auto vreg_acc = is_ld_tail ? accm(bd) | ld_tail_mask | T_z : accm(bd);
         some_bd_mask = true;
-        const auto adj_bd_ind_bd = adjusted_bd_mask(bd_out_bd);
 
         size_t buf_offset = bd * ld_block_C_size;
         vmovups(vreg_acc, ptr[reg_buf + buf_offset + wsp_offset]);
 
-        const auto c_offset = C_offset(adj_bd_ind_bd, ldb_ind + ldb);
+        const auto c_offset = C_offset(bd_out_bd, ldb_ind + ldb);
         auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
 
         if (need_to_apply_alpha_beta_)
@@ -745,9 +736,8 @@ void jit_brgemm_amx_uker_base_t::process_output_range(int bd_start,
             if (bd_out_bd == -1) continue;
 
             auto zmm = accm(bd);
-            const auto adj_bd_ind_bd = adjusted_bd_mask(bd_out_bd);
 
-            int zp_comp_b_off = zp_comp_b_offset(adj_bd_ind_bd);
+            int zp_comp_b_off = zp_comp_b_offset(bd_out_bd);
             vcvtdq2ps(zmm_zp_comp_b,
                     EVEX_compress_addr(reg_zp_comp_b, zp_comp_b_off, true));
 
@@ -860,12 +850,11 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
 
         for (int ldb = 0; ldb < ils_ld_block2; ldb++) {
             for (int bd = 0; bd < adj_bd_block; bd++) {
-                const auto bd_inp_bd = bd_inp_bdb + bd;
                 if (store_all
                         || (ils_vec <= vec
                                 && vec < ils_vec + ils_vecs_per_store)) {
-                    if (!brg.brgattr.bd_mask_level
-                            || bd_mask_buffer_ptr[bd_inp_bd]) {
+                    const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
+                    if (bd_out_bd != -1) {
                         if (ldb != cur_ldb)
                             prepare_post_ops_registers(ils_ldb_ind + ldb,
                                     ils_is_ld_tail, ils_apply_post_ops);
@@ -883,8 +872,7 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
                                 ? accm(bd) | ld_tail_mask | T_z
                                 : accm(bd);
 
-                        const auto adj_bd_ind_bd = adjusted_bd_mask(bd_inp_bd);
-                        store_vector(vreg_acc.getIdx(), adj_bd_ind_bd,
+                        store_vector(vreg_acc.getIdx(), bd_out_bd,
                                 ils_ldb_ind + ldb, ils_apply_post_ops,
                                 ils_is_ld_tail);
                     }
@@ -948,8 +936,8 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
                 prepare_post_ops_registers(
                         ldb_ind + ldb, is_ld_tail, apply_post_ops);
 
-                process_output_range(0, adjusted_bd_block(bdb), bd_inp_bdb, bdb,
-                        ldb_ind, ldb, is_ld_tail, apply_post_ops);
+                process_output_range(0, adj_bd_block, bd_inp_bdb, bdb, ldb_ind,
+                        ldb, is_ld_tail, apply_post_ops);
 
                 for (int bd = 0; bd < adj_bd_block; bd++) {
                     const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
@@ -957,14 +945,12 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
 
                     auto vreg_acc = is_ld_tail ? accm(bd) | ld_tail_mask | T_z
                                                : accm(bd);
-
-                    const auto adj_bd_ind_bd = adjusted_bd_mask(bd_out_bd);
-                    store_vector(vreg_acc.getIdx(), adj_bd_ind_bd,
-                            ldb_ind + ldb, apply_post_ops, is_ld_tail);
+                    store_vector(vreg_acc.getIdx(), bd_out_bd, ldb_ind + ldb,
+                            apply_post_ops, is_ld_tail);
                 }
             } else {
-                const auto adj_bd_ind_bdb = adjusted_bd_mask(bd_inp_bdb);
-                const auto c_offset = C_offset(adj_bd_ind_bdb, ldb_ind + ldb);
+                const auto bd_out_bdb = get_out_bd(bd_inp_bdb, 0);
+                const auto c_offset = C_offset(bd_out_bdb, ldb_ind + ldb);
                 tilestored(ptr[reg_C + c_offset + reg_stride_ld_block],
                         Tmm(brg.get_C_tensor(bdb, idx)));
             }
