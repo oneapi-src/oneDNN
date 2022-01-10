@@ -246,7 +246,7 @@ private:
             bool is_ld_tail, size_t c_offset, size_t d_offset, int ldb_ind,
             bool apply_post_ops);
 
-    void set_A_B_matrices(const size_t batch_offset);
+    void set_A_B_matrices(int bs);
 
     void gemm_microkernel_amx(
             int bd_block2, int ld_block2, bool is_rd_tail, bool is_ld_tail);
@@ -974,7 +974,8 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
     }
 }
 
-void jit_brgemm_amx_uker_base_t::set_A_B_matrices(size_t batch_offset) {
+void jit_brgemm_amx_uker_base_t::set_A_B_matrices(int bs) {
+    auto batch_offset = (size_t)bs * sizeof(brgemm_batch_element_t);
     if (brg.layout == brgemm_row_major) {
         mov(reg_aux_A,
                 EVEX_compress_addr(reg_addr_batch,
@@ -1115,7 +1116,7 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
 
         if (brg.alpha != 0.f) {
             for (int bs = 0; bs < brg.brgattr.max_bs; bs++) {
-                set_A_B_matrices(bs * sizeof(brgemm_batch_element_t));
+                set_A_B_matrices(bs);
                 gemm_microkernel_amx(bd_block2, ld_block2, false, is_ld_tail);
 
                 if (brg.rdb_tail != 0) {
