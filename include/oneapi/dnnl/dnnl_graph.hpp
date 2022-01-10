@@ -817,6 +817,7 @@ public:
         Square = kSquare,
         StaticReshape = kStaticReshape,
         StaticTranspose = kStaticTranspose,
+        Subtract = kSubtract,
         Tanh = kTanh,
         TanhBackprop = kTanhBackprop,
         TypeCast = kTypeCast,
