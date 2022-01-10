@@ -144,6 +144,7 @@ private:
     bool with_binary_channel_bcast_ = false;
     bool with_binary_per_mb_w_bcast_ = false;
     bool with_binary_no_bcast_ = false;
+    bool prepare_post_ops_registers_once_ = false;
 
     size_t b_offset_ = 0;
 
@@ -856,8 +857,9 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
 
     // if first block
     if (ils_vec == 0) {
-        prepare_post_ops_registers(
-                ils_ldb_ind, ils_ld_block2, ils_is_ld_tail, ils_apply_post_ops);
+        if (!prepare_post_ops_registers_once_)
+            prepare_post_ops_registers(ils_ldb_ind, ils_ld_block2,
+                    ils_is_ld_tail, ils_apply_post_ops);
         prepare_post_ops_registers_ldb(
                 ils_ldb_ind, ils_is_ld_tail, ils_apply_post_ops);
         ils_bd_start = 0;
@@ -941,7 +943,7 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
     ils_buffer_ready = true;
     ils_store_ops = ld_block2 * bd_block2 * brg.bd_block;
 
-    if (store_by_vectors && !use_ils)
+    if (store_by_vectors && !use_ils && !prepare_post_ops_registers_once_)
         prepare_post_ops_registers(
                 ldb_ind, ld_block2, is_ld_tail, apply_post_ops);
 
@@ -1147,6 +1149,26 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
 void jit_brgemm_amx_uker_base_t::bdb_loop(bool apply_post_ops) {
     ils_buffer_ready = false;
     ils_apply_post_ops = apply_post_ops;
+
+    // for many primitives which use brgemm the brg.ldb2 is equal or less than 1
+    // so we can read post ops data only once per brgemm call
+    if (brg.ldb2 > 1) {
+        prepare_post_ops_registers_once_ = false;
+    } else if (brg.ldb2 == 1) {
+        if (brg.ldb2_tail == 0 && brg.ldb_tail == 0) {
+            prepare_post_ops_registers_once_ = true;
+            prepare_post_ops_registers(0, brg.ld_block2, false, apply_post_ops);
+        }
+    } else if (brg.ldb2_tail > 0) {
+        if (brg.ldb_tail == 0) {
+            prepare_post_ops_registers_once_ = true;
+            prepare_post_ops_registers(0, brg.ldb2_tail, false, apply_post_ops);
+        }
+    } else {
+        prepare_post_ops_registers_once_ = true;
+        prepare_post_ops_registers(0, 1, true, apply_post_ops);
+    }
+
     if (apply_post_ops)
         dt_requires_saturation = one_of(
                 brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
