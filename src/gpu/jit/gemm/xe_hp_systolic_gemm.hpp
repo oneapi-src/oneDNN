@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,15 +94,21 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         bool packed_c() const { return packed_c_; }
 
         dim_t lda_packed() const {
-            return packed_a() ? desc()->b_desc.padded_dims[with_batch() ? 1 : 0]
+            return packed_a() ? desc()->b_desc.format_desc.blocking
+                                        .strides[with_batch() ? 2 : 1]
+                            / unroll_m()
                               : 0;
         }
         dim_t ldb_packed() const {
-            return packed_b() ? desc()->a_desc.padded_dims[with_batch() ? 2 : 1]
+            return packed_b() ? desc()->a_desc.format_desc.blocking
+                                        .strides[with_batch() ? 1 : 0]
+                            / unroll_n()
                               : 0;
         }
         dim_t ldc_packed() const {
-            return packed_c() ? desc()->c_desc.padded_dims[with_batch() ? 2 : 1]
+            return packed_c() ? desc()->c_desc.format_desc.blocking
+                                        .strides[with_batch() ? 1 : 0]
+                            / unroll_n()
                               : 0;
         }
 

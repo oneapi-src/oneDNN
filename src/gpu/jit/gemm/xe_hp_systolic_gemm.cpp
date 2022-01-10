@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -315,10 +315,15 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     if (a_any) {
         CHECK(memory_desc_init_by_tag(
                 desc_.b_desc, b_zp_ ? unpacked_tag : a_packed_tag));
-        auto &ld = desc_.b_desc.padded_dims[batch ? 1 : 0];
+        auto ld = desc_.b_desc.padded_dims[batch ? 1 : 0];
         ld = nice_ld(ld, int(sz));
-        desc_.b_desc.format_desc.blocking.strides[batch ? 2 : 1]
-                = unroll_m_ * ld;
+        auto &ostride
+                = desc_.b_desc.format_desc.blocking.strides[batch ? 2 : 1];
+        if (batch) {
+            auto &bstride = desc_.b_desc.format_desc.blocking.strides[0];
+            bstride = (bstride / ostride) * unroll_m_ * ld;
+        }
+        ostride = unroll_m_ * ld;
         packed_a_ = true;
     } else if (a_mdw.matches_one_of_tag(a_packed_tag, ab, ba, abc, acb)
             == undef)
@@ -328,24 +333,41 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
         CHECK(memory_desc_init_by_tag(
                 desc_.a_desc, a_zp_ ? unpacked_tag : b_packed_tag));
         if (unroll_n_ > 16) { // Bug in zero-padding when unroll_n_ == 16
-            auto &ld = desc_.a_desc.padded_dims[batch ? 2 : 1];
+            auto ld = desc_.a_desc.padded_dims[batch ? 2 : 1];
             ld = nice_ld(ld, int(sz));
-            desc_.a_desc.format_desc.blocking.strides[batch ? 1 : 0]
-                    = unroll_n_ * ld;
+            auto &ostride
+                    = desc_.a_desc.format_desc.blocking.strides[batch ? 1 : 0];
+            if (batch) {
+                auto &bstride = desc_.a_desc.format_desc.blocking.strides[0];
+                bstride = (bstride / ostride) * unroll_n_ * ld;
+            }
+            ostride = unroll_n_ * ld;
         }
         packed_b_ = true;
     } else if (b_mdw.matches_one_of_tag(b_packed_tag, ab, ba, abc, acb)
             == undef)
         return false;
 
-    if (c_any)
+    if (c_any) {
         CHECK(memory_desc_init_by_tag(desc_.c_desc, c_packed_tag));
-    else if (c_mdw.matches_one_of_tag(c_packed_tag, ab, abc) == undef)
+        if (unroll_n_ > 16) { // Bug in zero-padding when unroll_n_ == 16
+            auto ld = desc_.c_desc.padded_dims[batch ? 2 : 1];
+            ld = nice_ld(ld, int(sz));
+            auto &ostride
+                    = desc_.c_desc.format_desc.blocking.strides[batch ? 1 : 0];
+            if (batch) {
+                auto &bstride = desc_.c_desc.format_desc.blocking.strides[0];
+                bstride = (bstride / ostride) * unroll_n_ * ld;
+            }
+            ostride = unroll_n_ * ld;
+        }
+        packed_c_ = true;
+    } else if (c_mdw.matches_one_of_tag(c_packed_tag, ab, abc) == undef)
         return false;
 
     packed_a_ = packed_a_ || a_mdw.matches_tag(a_packed_tag);
     packed_b_ = packed_b_ || b_mdw.matches_tag(b_packed_tag);
-    packed_c_ = c_mdw.matches_tag(b_packed_tag);
+    packed_c_ = packed_c_ || c_mdw.matches_tag(b_packed_tag);
 
     // No 16x16 copy kernels currently.
     if ((!packed_a_ && unroll_m_ == 16) || (!packed_b_ && unroll_n_ == 16))
