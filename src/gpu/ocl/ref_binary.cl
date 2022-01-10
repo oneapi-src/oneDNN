@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,8 +53,8 @@ float binary_op(float src0, float src1) {
 #if IS_TENSOR_OP && IS_DENSE && IS_SAME_MD && !WITH_BINARY_POST_OP
 KERNEL_ATTR
 __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
-        __global DST_DATA_T *dst POST_OP_ARGS, float src0_scale,
-        float src1_scale) {
+        __global DST_DATA_T *dst POST_OP_ARGS, __global float *src0_scale,
+        __global float *src1_scale) {
     int off = GWS_GET_IDX();
 
     float tmp_src0 = CONVERT_FLOAT_T(src0[off]);
@@ -62,10 +62,10 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     float d = 0;
 
 #if WITH_SRC0_SCALE
-    tmp_src0 = tmp_src0 * src0_scale;
+    tmp_src0 = tmp_src0 * (*src0_scale);
 #endif
 #if WITH_SRC1_SCALE
-    tmp_src1 = tmp_src1 * src1_scale;
+    tmp_src1 = tmp_src1 * (*src1_scale);
 #endif
 
     d = binary_op(tmp_src0, tmp_src1);
@@ -82,8 +82,8 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
 #else
 KERNEL_ATTR
 __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
-        __global DST_DATA_T *dst POST_OP_ARGS, float src0_scale,
-        float src1_scale) {
+        __global DST_DATA_T *dst POST_OP_ARGS, __global float *src0_scale,
+        __global float *src1_scale) {
 
     // since gws = no. of total elems in A, id will be the logical offset
     int dims0[6] = {0};
@@ -137,10 +137,10 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
             float d = 0;
 
 #if WITH_SRC0_SCALE
-            tmp_src0 = tmp_src0 * src0_scale;
+            tmp_src0 = tmp_src0 * (*src0_scale);
 #endif
 #if WITH_SRC1_SCALE
-            tmp_src1 = tmp_src1 * src1_scale;
+            tmp_src1 = tmp_src1 * (*src1_scale);
 #endif
             d = binary_op(tmp_src0, tmp_src1);
 
@@ -174,10 +174,10 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
             float d = 0;
 
 #if WITH_SRC0_SCALE
-            tmp_src0 = tmp_src0 * src0_scale;
+            tmp_src0 = tmp_src0 * (*src0_scale);
 #endif
 #if WITH_SRC1_SCALE
-            tmp_src1 = tmp_src1 * src1_scale;
+            tmp_src1 = tmp_src1 * (*src1_scale);
 #endif
             d = binary_op(tmp_src0, tmp_src1);
 
