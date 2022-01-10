@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,16 @@ struct content_hash_t {};
 template <>
 struct content_hash_t<constant_c> {
     std::size_t operator()(const constant_c &k) const;
+};
+
+template <>
+struct content_hash_t<expr> {
+    std::size_t operator()(const expr &k) const;
+};
+
+template <>
+struct content_hash_t<expr_c> {
+    std::size_t operator()(const expr_c &k) const;
 };
 
 template <typename T>

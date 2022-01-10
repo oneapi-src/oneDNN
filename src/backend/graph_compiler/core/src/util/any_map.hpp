@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -442,7 +442,7 @@ public:
     any_map_t(std::initializer_list<std::pair<const std::string, any_t>> init)
         : impl_(init) {}
 
-    size_t size() { return impl_.size(); };
+    size_t size() const { return impl_.size(); };
 
     const std::unordered_map<std::string, any_t> &as_map() const {
         return impl_;

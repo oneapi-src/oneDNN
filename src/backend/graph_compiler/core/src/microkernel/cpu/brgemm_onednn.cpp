@@ -21,6 +21,7 @@
 #include <mutex>
 #include <stdio.h>
 #include <stdlib.h>
+#include "brgemm_common.hpp"
 #include "microkernel.hpp"
 #include <compiler/codegen/x86simd/vec_u32x4.hpp>
 #include <compiler/ir/sc_data_type.hpp>
@@ -32,6 +33,8 @@
 #include <runtime/thread_locals.hpp>
 #include <unordered_map>
 #include <util/hash_utils.hpp>
+#include <util/os.hpp>
+#include <util/utils.hpp>
 
 #ifdef SC_KERNEL_PROFILE
 #include <atomic>
@@ -41,6 +44,7 @@ extern std::atomic<uint64_t> mkernel_exec;
 #endif
 
 using namespace dnnl::impl::cpu::x64;
+using namespace sc::brgemm;
 typedef sc::sc_data_etype sc_dtype;
 
 static dnnl_data_type_t convert_dnnl_dtype(int dtype) {
@@ -71,6 +75,119 @@ static size_t get_dtype_sizeof(int dtype) {
     }
 }
 
+static brgemm_attr_t get_dnnl_brgemm_attrs(const attrs_setting_t &attrs) {
+    brgemm_attr_t dnnl_attrs;
+    for (int i = 0; i < attrs.num_; i++) {
+        std::pair<attr_key, int64_t> it = attrs.map_[i];
+        switch (it.first) {
+            case attr_key::max_bs:
+                dnnl_attrs.max_bs = static_cast<int>(it.second);
+                break;
+            case attr_key::max_top_vpad:
+                dnnl_attrs.max_top_vpad = static_cast<int>(it.second);
+                break;
+            case attr_key::max_bottom_vpad:
+                dnnl_attrs.max_bottom_vpad = static_cast<int>(it.second);
+                break;
+            case attr_key::hint_expected_A_size:
+                dnnl_attrs.hint_expected_A_size = it.second;
+                break;
+            case attr_key::hint_expected_B_size:
+                dnnl_attrs.hint_expected_B_size = it.second;
+                break;
+            case attr_key::hint_expected_C_size:
+                dnnl_attrs.hint_expected_C_size = it.second;
+                break;
+            case attr_key::hint_innermost_loop:
+                dnnl_attrs.hint_innermost_loop
+                        = static_cast<brgemm_kernel_innermost_loop_t>(
+                                it.second);
+                break;
+            case attr_key::hint_loop_order:
+                dnnl_attrs.hint_loop_order
+                        = static_cast<brgemm_kernel_loop_order_t>(it.second);
+                break;
+            case attr_key::hint_prefetching:
+                dnnl_attrs.hint_prefetching
+                        = static_cast<brgemm_kernel_prefetching_t>(it.second);
+                break;
+            case attr_key::wary_tail_read:
+                dnnl_attrs.wary_tail_read = static_cast<bool>(it.second);
+                break;
+            case attr_key::generate_skip_accumulation:
+                dnnl_attrs.generate_skip_accumulation
+                        = static_cast<bool>(it.second);
+                break;
+            case attr_key::bd_mask_level:
+                dnnl_attrs.bd_mask_level = static_cast<int>(it.second);
+                break;
+            case attr_key::use_uker:
+                dnnl_attrs.use_uker = static_cast<bool>(it.second);
+                break;
+            case attr_key::use_interleave_stores:
+                dnnl_attrs.use_interleave_stores = static_cast<bool>(it.second);
+                break;
+            case attr_key::nkeys: break;
+        }
+    }
+    return dnnl_attrs;
+}
+
+static dnnl_memory_desc_t get_dst_default_md(int M, int N, int dtype) {
+    dnnl_memory_desc_t md;
+    memset(&md, 0, sizeof(md));
+    md.ndims = 2;
+    md.dims[0] = static_cast<dnnl_dim_t>(M);
+    md.dims[1] = static_cast<dnnl_dim_t>(N);
+    md.padded_dims[0] = md.dims[0];
+    md.padded_dims[1] = md.dims[1];
+    md.format_kind = dnnl_format_kind_t::dnnl_blocked;
+    md.data_type = convert_dnnl_dtype(dtype);
+    md.format_desc.blocking.strides[0] = md.dims[1];
+    md.format_desc.blocking.strides[1] = 1;
+    return md;
+}
+
+static dnnl::impl::post_ops_t get_dnnl_postops_setting(
+        const postops_setting_t &ops, dnnl_primitive_attr &pattr,
+        dnnl_data_type_t &bias_dt, dnnl_data_type_t &out_dt) {
+    dnnl::impl::post_ops_t dnnl_postops;
+    dnnl_status_t status = dnnl_status_t::dnnl_success;
+    for (int i = 0; i < ops.num_; i++) {
+        auto &op = ops.ops_[i];
+        auto &alg = op.empty_op_.alg_;
+        if (alg == alg_kind_t::bias_add) {
+            bias_dt = convert_dnnl_dtype(static_cast<int>(op.bias_op_.dtype_));
+        } else if (alg == alg_kind_t::out_scales) {
+            status = pattr.output_scales_.set(op.scale_op_.scale_);
+        } else if (alg == alg_kind_t::a_zp) {
+            status = pattr.zero_points_.set(DNNL_ARG_SRC, op.zp_op_.zp_);
+        } else if (alg == alg_kind_t::b_zp) {
+            status = pattr.zero_points_.set(DNNL_ARG_WEIGHTS, op.zp_op_.zp_);
+        } else if (alg == alg_kind_t::c_zp) {
+            status = pattr.zero_points_.set(DNNL_ARG_DST, op.zp_op_.zp_);
+        } else if (alg == alg_kind_t::out_dtype) {
+            out_dt = convert_dnnl_dtype(static_cast<int>(op.out_op_.dtype_));
+        } else if (alg >= alg_kind_t::eltwise_begin
+                && alg <= alg_kind_t::eltwise_end) {
+            status = dnnl_postops.append_eltwise(op.elt_op_.scale_,
+                    static_cast<dnnl_alg_kind_t>(alg), op.elt_op_.alpha_,
+                    op.elt_op_.beta_);
+        } else if (alg >= alg_kind_t::binary_begin
+                && alg <= alg_kind_t::binary_end) {
+            dnnl_memory_desc_t bin_md = get_dst_default_md(op.bin_op_.shape_[0],
+                    op.bin_op_.shape_[1], static_cast<int>(op.bin_op_.dtype_));
+            status = dnnl_postops.append_binary(
+                    static_cast<dnnl_alg_kind_t>(alg), &bin_md);
+        } else {
+            throw std::runtime_error("invalid alg kind!");
+        }
+        assert(status == dnnl_status_t::dnnl_success);
+        SC_UNUSED(status);
+    }
+    return dnnl_postops;
+}
+
 struct alignas(64) brg_arg_t {
     float alpha;
     float beta;
@@ -85,13 +202,18 @@ struct alignas(64) brg_arg_t {
     brgemm_batch_kind_t brg_type;
     int dtypeA;
     int dtypeB;
-    int pad1 = 0;
-    int pad2 = 0;
-    int pad3 = 0;
+    int has_bd_mask;
+    int64_t brg_attrs[attrs_setting_t::max_attrs_num] = {0};
+    int64_t brg_postops[postops_setting_t::max_postops_num
+            * postops_setting_t::op_size / sizeof(int64_t)]
+            = {0};
+    int64_t pad = 0;
+    char bd_mask[];
 
     brg_arg_t(float alpha, float beta, int LDA, int LDB, int LDC, int M, int N,
             int K, int stride_a, int stride_b, brgemm_batch_kind_t brg_type,
-            int dtypeA, int dtypeB)
+            int dtypeA, int dtypeB, const attrs_setting_t *attrs_setting,
+            const postops_setting_t *postops_setting, char *bd_mask_ptr)
         : alpha(alpha)
         , beta(beta)
         , LDA(LDA)
@@ -104,41 +226,61 @@ struct alignas(64) brg_arg_t {
         , stride_b(stride_b)
         , brg_type(brg_type)
         , dtypeA(dtypeA)
-        , dtypeB(dtypeB) {}
-
-#define LOAD(name, ptr) \
-    vec_u32x4 name##1 \
-            = vec_u32x4::load(reinterpret_cast<const uint32_t *>(ptr)); \
-    vec_u32x4 name##2 \
-            = vec_u32x4::load(reinterpret_cast<const uint32_t *>(ptr) + 4); \
-    vec_u32x4 name##3 = vec_u32x4::load( \
-            reinterpret_cast<const uint32_t *>(ptr) + 4 * 2); \
-    vec_u32x4 name##4 = vec_u32x4::load( \
-            reinterpret_cast<const uint32_t *>(ptr) + 4 * 3);
+        , dtypeB(dtypeB)
+        , has_bd_mask(0) {
+        if (attrs_setting != nullptr) {
+            for (int i = 0; i < attrs_setting->num_; i++) {
+                const std::pair<attr_key, int64_t> &it = attrs_setting->map_[i];
+                brg_attrs[it.first] = it.second;
+            }
+        }
+        if (postops_setting != nullptr) {
+            assert(postops_setting->num_ <= postops_setting_t::max_postops_num);
+            memset(brg_postops, 0,
+                    postops_setting_t::max_postops_num
+                            * sizeof(postops_setting_t));
+            memcpy(brg_postops, postops_setting->ops_,
+                    postops_setting->num_ * sizeof(postops_setting_t));
+        }
+        if (bd_mask_ptr != nullptr) {
+            has_bd_mask = 1;
+            memcpy(bd_mask, bd_mask_ptr, M * sizeof(char));
+        }
+    }
 
     bool operator==(const brg_arg_t &v) const {
-        return alpha == v.alpha && beta == v.beta && LDA == v.LDA
-                && LDB == v.LDB && LDC == v.LDC && M == v.M && N == v.N
-                && K == v.K && stride_a == v.stride_a && stride_b == v.stride_b
-                && brg_type == v.brg_type && dtypeA == v.dtypeA
-                && dtypeB == v.dtypeB;
+        if (memcmp(this, &v, sizeof(brg_arg_t))) { return false; }
+        if (has_bd_mask && memcmp(bd_mask, v.bd_mask, M * sizeof(char))) {
+            return false;
+        }
+        return true;
     }
 
     size_t get_hash() const {
-        static_assert(sizeof(brg_arg_t) == 16 * 4,
-                "expecting 64-byte size for brg_arg");
-        LOAD(v, this);
-
-        v1 = v1 ^ (_mm_srli_si128(v2.v, 3));
-        v1 = v2 ^ (_mm_srli_si128(v1.v, 2));
-        v3 = v3 ^ (_mm_srli_si128(v4.v, 3));
-        v3 = v4 ^ (_mm_srli_si128(v3.v, 2));
-
-        v1 = v1 ^ v3;
+        static_assert(sizeof(brg_arg_t) == 64 * 5,
+                "expecting (64 * 5)-byte size for brg_arg");
+        vec_u32x4 v = vec_u32x4(0);
+        for (int i = 0; i < static_cast<int>(sizeof(brg_arg_t)) / 16; i += 2) {
+            vec_u32x4 v0 = vec_u32x4::load(
+                    reinterpret_cast<const uint32_t *>(this) + 4 * i);
+            vec_u32x4 v1 = vec_u32x4::load(
+                    reinterpret_cast<const uint32_t *>(this) + 4 * (i + 1));
+            v0 = v0 ^ (_mm_srli_si128(v1.v, 3));
+            v0 = v1 ^ (_mm_srli_si128(v0.v, 2));
+            v = v ^ v0;
+        }
         size_t ret = 0;
         for (int i = 0; i < 2; i++) {
-            ret ^= reinterpret_cast<uint64_t *>(v1.raw)[i];
+            ret ^= reinterpret_cast<uint64_t *>(v.raw)[i];
         }
+        size_t bd_ret = 0;
+        if (has_bd_mask) {
+            // todo: optimize bd mask hash against byte-by-byte.
+            for (int i = 0; i < M; i++) {
+                hash_combine(bd_ret, bd_mask[i]);
+            }
+        }
+        ret = ret ^ bd_ret;
         return ret;
     }
 };
@@ -173,28 +315,53 @@ struct brgemm_kernel_info {
 };
 
 struct brg_desc_safe_t {
-    brgemm_kernel_info *get(const brg_arg_t &arg) {
-        auto found_kernel = brg_desc_vec_local_.find(&arg);
+    ~brg_desc_safe_t() { // NOLINT
+        for (auto &kv : brg_desc_vec_) {
+            kv.first->~brg_arg_t();
+            aligned_free((void *)kv.first);
+        }
+    }
+
+    brgemm_kernel_info *get(const brg_arg_t *arg) {
+        auto found_kernel = brg_desc_vec_local_.find(arg);
         if (found_kernel != brg_desc_vec_local_.end()) {
             return found_kernel->second;
         }
         return nullptr;
     }
 
-    brgemm_kernel_info *getInstance(const brg_arg_t &arg) {
-        brgemm_kernel_info *found_kernel = get(arg);
+    brgemm_kernel_info *getInstance(float alpha, float beta, int LDA, int LDB,
+            int LDC, int M, int N, int K, int stride_a, int stride_b,
+            brgemm_batch_kind_t brg_type, int dtypeA, int dtypeB,
+            const void *attrs_setting, char *bd_mask,
+            const void *postops_setting) {
+        size_t arg_sz = sizeof(brg_arg_t) + (bd_mask == nullptr ? 0 : M);
+        brg_arg_t *arg_ptr = (brg_arg_t *)(alloca(arg_sz));
+        new (arg_ptr) brg_arg_t {alpha, beta, LDA, LDB, LDC, M, N, K, stride_a,
+                stride_b, brg_type, dtypeA, dtypeB,
+                reinterpret_cast<const attrs_setting_t *>(attrs_setting),
+                reinterpret_cast<const postops_setting_t *>(postops_setting),
+                bd_mask};
+        brgemm_kernel_info *found_kernel = get(arg_ptr);
         // check if the brg_arg is in thread local cache (lock free)
         if (found_kernel) { return found_kernel; }
         // if the brg_arg is not found in thread local cache
         std::lock_guard<std::mutex> guard(lock_);
-        auto itr = brg_desc_vec_.find(arg);
+        auto itr = brg_desc_vec_.find(arg_ptr);
         if (itr != brg_desc_vec_.end()) {
             // double check if it is global kernel cache. If so, update the
             // thread local cache and return
             brg_desc_vec_local_.insert(
-                    std::make_pair(&itr->first, &itr->second));
+                    std::make_pair(itr->first, &itr->second));
             return &itr->second;
         }
+        arg_ptr = (brg_arg_t *)(aligned_alloc(64, arg_sz));
+        new (arg_ptr) brg_arg_t {alpha, beta, LDA, LDB, LDC, M, N, K, stride_a,
+                stride_b, brg_type, dtypeA, dtypeB,
+                reinterpret_cast<const attrs_setting_t *>(attrs_setting),
+                reinterpret_cast<const postops_setting_t *>(postops_setting),
+                bd_mask};
+        brg_arg_t &arg = *arg_ptr;
         // If we go here, the kernel is not yet created.
         brgemm_t desc;
         brgemm_strides_t stride_info = {arg.stride_a, arg.stride_b};
@@ -231,13 +398,13 @@ struct brg_desc_safe_t {
 
         // create an entry in kernel cache
         auto new_itr = brg_desc_vec_.insert(
-                std::make_pair(arg, brgemm_kernel_info()));
+                std::make_pair(arg_ptr, brgemm_kernel_info()));
         // check that the insertion happens
         assert(new_itr.second);
         found_kernel = &new_itr.first->second;
         // insert the kernel to thread local cache
         brg_desc_vec_local_.insert(
-                std::make_pair(&new_itr.first->first, found_kernel));
+                std::make_pair(new_itr.first->first, found_kernel));
 
         found_kernel->is_amx_ = false;
         status = brgemm_init_tiles(desc, found_kernel->palette_);
@@ -245,21 +412,49 @@ struct brg_desc_safe_t {
             amx_tile_configure(found_kernel->palette_);
             found_kernel->is_amx_ = true;
         }
-        // TODO(xxx): Add those attributes into our brgemm interface.
-        // brgemm_attr_t brgattr;
-        // brgattr.max_top_vpad = 0;
-        // brgattr.max_bottom_vpad = 0;
-        // brgemm_desc_set_attr(&desc, brgattr);
-        status = brgemm_kernel_create(&found_kernel->brg_kernel_, desc);
+        // set brgemm attrs
+        if (attrs_setting != nullptr || bd_mask != nullptr) {
+            brgemm_attr_t dnnl_brg_attrs = get_dnnl_brgemm_attrs(
+                    *reinterpret_cast<const attrs_setting_t *>(attrs_setting));
+            dnnl_brg_attrs.bd_mask = bd_mask;
+            brgemm_desc_set_attr(&desc, dnnl_brg_attrs);
+        }
+        // set brgemm post ops.
+        if (postops_setting != nullptr) {
+            dnnl_primitive_attr dnnl_pattr;
+            dnnl_data_type_t dnnl_bias_dtype
+                    = dnnl_data_type_t::dnnl_data_type_undef;
+            dnnl_data_type_t dnnl_out_dtype
+                    = dnnl_data_type_t::dnnl_data_type_undef;
+            dnnl::impl::post_ops_t dnnl_postops_setting
+                    = get_dnnl_postops_setting(
+                            *reinterpret_cast<const postops_setting_t *>(
+                                    postops_setting),
+                            dnnl_pattr, dnnl_bias_dtype, dnnl_out_dtype);
+            assert(dnnl_out_dtype != dnnl_data_type_t::dnnl_data_type_undef);
+            status = dnnl_pattr.set_post_ops(dnnl_postops_setting);
+            assert(status == dnnl::impl::status::success);
+            // currently we output f32 for all input types.
+            dnnl_memory_desc_t dnnl_dst_md = get_dst_default_md(
+                    arg.M, arg.N, static_cast<int>(sc_dtype::F32));
+            dnnl_dst_md.data_type = dnnl_out_dtype;
+            brgemm_desc_set_postops(
+                    &desc, &dnnl_pattr, &dnnl_dst_md, arg.N, dnnl_bias_dtype);
+            // use local vars' lifetime
+            status = brgemm_kernel_create(&found_kernel->brg_kernel_, desc);
+        } else {
+            status = brgemm_kernel_create(&found_kernel->brg_kernel_, desc);
+        }
         assert(status == dnnl::impl::status::success);
-
         return found_kernel;
     }
 
     std::mutex lock_;
     // the table of brgemm argument => brgemm kernel map. It is shared by
     // threads of the same process
-    std::unordered_map<brg_arg_t, brgemm_kernel_info> brg_desc_vec_;
+    std::unordered_map<const brg_arg_t *, brgemm_kernel_info,
+            brg_arg_ptr_hash_t, brg_arg_ptr_eq_to_t>
+            brg_desc_vec_;
 
     using thread_local_cache = std::unordered_map<const brg_arg_t *,
             brgemm_kernel_info *, brg_arg_ptr_hash_t, brg_arg_ptr_eq_to_t>;
@@ -281,7 +476,9 @@ amx_buffer_t::~amx_buffer_t() {
 void amx_buffer_t::reset(sc::runtime::stream_t *stream) {
     if (!stream) stream = sc::runtime::get_default_stream();
     stream_ = stream;
-    ptr_ = stream->vtable_->persistent_alloc(stream, 1024);
+    // Based on jit_brgemm_conv_utils.cpp:2121
+    const size_t amx_buf_size = 2 * utils::get_os_page_size();
+    ptr_ = stream->vtable_->persistent_alloc(stream, amx_buf_size);
 }
 void amx_buffer_t::release() {
     if (ptr_) {
@@ -313,12 +510,13 @@ static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
 
 extern "C" {
 SC_API void *dnnl_brgemm_func(int M, int N, int K, int LDA, int LDB, int LDC,
-        int stride_a, int stride_b, float beta, int dtypeA, int dtypeB) {
+        int stride_a, int stride_b, float beta, int dtypeA, int dtypeB,
+        const void *brg_attrs, char *bd_mask, const void *postops_setting) {
     float alpha = 1.0;
-    return g_brg_desc_s.getInstance({alpha, beta, LDA, LDB, LDC, M, N, K,
+    return g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N, K,
             static_cast<int>(stride_a * get_dtype_sizeof(dtypeA)),
             static_cast<int>(stride_b * get_dtype_sizeof(dtypeB)), brgemm_strd,
-            dtypeA, dtypeB});
+            dtypeA, dtypeB, brg_attrs, bd_mask, postops_setting);
 }
 
 SC_API void dnnl_brgemm_call(brgemm_kernel_info *brg_desc, const void *A,
@@ -330,12 +528,25 @@ SC_API void dnnl_brgemm_call(brgemm_kernel_info *brg_desc, const void *A,
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
 }
 
+SC_API void dnnl_brgemm_call_postops(brgemm_kernel_info *brg_desc,
+        const void *A, const void *B, void *C, int num,
+        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
+    bool amx_exclusive = false;
+    void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
+    brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
+            (void **)B, nullptr, (void *)c_buf, (void *)C,
+            *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
+            tmp_amx_tile_buf);
+    if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
+}
+
 SC_API void *dnnl_brgemm_list_func(int M, int N, int K, int LDA, int LDB,
-        int LDC, float beta, int dtypeA, int dtypeB) {
+        int LDC, float beta, int dtypeA, int dtypeB, const void *brg_attrs,
+        char *bd_mask, const void *postops_setting) {
     float alpha = 1.0;
     if (M <= 0) { return nullptr; }
-    return g_brg_desc_s.getInstance({alpha, beta, LDA, LDB, LDC, M, N, K, 0, 0,
-            brgemm_addr, dtypeA, dtypeB});
+    return g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N, K, 0, 0,
+            brgemm_addr, dtypeA, dtypeB, brg_attrs, bd_mask, postops_setting);
 }
 
 SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
@@ -376,6 +587,46 @@ SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
 }
 
+SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
+        const void **A_list, const void **B_list, void *C, int num,
+        int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
+        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
+    const int batch_num = num * len;
+#ifdef _MSC_VER
+    brgemm_batch_element_t *batch
+            = (brgemm_batch_element_t *)_malloca(batch_num);
+#else
+#if CLANGVERSION <= 3
+    std::unique_ptr<brgemm_batch_element_t[]> batch_v(
+            new brgemm_batch_element_t[batch_num]);
+    brgemm_batch_element_t *batch = batch_v.get();
+#else
+    brgemm_batch_element_t batch[batch_num]; // NOLINT
+#endif
+#endif
+
+    int sizeofA = get_dtype_sizeof(dtypeA);
+    int sizeofB = get_dtype_sizeof(dtypeB);
+    for (int i = 0; i < len; ++i) {
+        for (int j = 0; j < num; ++j) {
+            batch[i * num + j].ptr.A
+                    = (((char **)A_list)[i] + (j * stride_a * sizeofA));
+            batch[i * num + j].ptr.B
+                    = (((char **)B_list)[i] + (j * stride_b * sizeofB));
+        }
+    }
+    bool amx_exclusive = false;
+    void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
+    brgemm_kernel_execute_postops(brg_desc->brg_kernel_, batch_num, batch,
+            (void *)c_buf, (void *)C,
+            *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
+            tmp_amx_tile_buf);
+#ifdef _MSC_VER
+    _freea(batch);
+#endif
+    if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
+}
+
 #define BRGEMM_DTYPE_INIT(dtype) \
     if (LDC == N) { \
         memset(C, (dtype)value, M *N *get_dtype_sizeof(dtypeC)); \
@@ -399,22 +650,31 @@ SC_API int dnnl_brgemm_init(
 
 SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
         int num, int M, int N, int K, int LDA, int LDB, int LDC, int stride_a,
-        int stride_b, int dtypeA, int dtypeB, sc::runtime::stream_t *stream) {
+        int stride_b, int dtypeA, int dtypeB, const void *brg_attrs,
+        char *bd_mask, const void *postops_setting, const void *postops_data,
+        void *c_buf, sc::runtime::stream_t *stream) {
 #ifdef SC_KERNEL_PROFILE
     auto start = std::chrono::high_resolution_clock::now();
 #endif
     float alpha = 1.0, beta = 0.0;
-    auto brg_desc = g_brg_desc_s.getInstance({alpha, beta, LDA, LDB, LDC, M, N,
+    auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
             K, static_cast<int>(stride_a * get_dtype_sizeof(dtypeA)),
             static_cast<int>(stride_b * get_dtype_sizeof(dtypeB)), brgemm_strd,
-            dtypeA, dtypeB});
+            dtypeA, dtypeB, brg_attrs, bd_mask, postops_setting);
 #ifdef SC_KERNEL_PROFILE
     auto init_stop = std::chrono::high_resolution_clock::now();
 #endif
     bool amx_exclusive = false;
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
-    brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A, (void **)B,
-            nullptr, (void *)C, tmp_amx_tile_buf);
+    if (postops_setting == nullptr) {
+        brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
+                (void **)B, nullptr, (void *)C, tmp_amx_tile_buf);
+    } else {
+        brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
+                (void **)B, nullptr, (void *)c_buf, (void *)C,
+                *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
+                tmp_amx_tile_buf);
+    }
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
 
 #ifdef SC_KERNEL_PROFILE
@@ -433,22 +693,31 @@ SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
 
 SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
         int M, int N, int K, int LDA, int LDB, int LDC, int stride_a,
-        int stride_b, int dtypeA, int dtypeB, sc::runtime::stream_t *stream) {
+        int stride_b, int dtypeA, int dtypeB, const void *brg_attrs,
+        char *bd_mask, const void *postops_setting, const void *postops_data,
+        void *c_buf, sc::runtime::stream_t *stream) {
 #ifdef SC_KERNEL_PROFILE
     auto start = std::chrono::high_resolution_clock::now();
 #endif
     float alpha = 1.0, beta = 1.0;
-    auto brg_desc = g_brg_desc_s.getInstance({alpha, beta, LDA, LDB, LDC, M, N,
+    auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
             K, static_cast<int>(stride_a * get_dtype_sizeof(dtypeA)),
             static_cast<int>(stride_b * get_dtype_sizeof(dtypeB)), brgemm_strd,
-            dtypeA, dtypeB});
+            dtypeA, dtypeB, brg_attrs, bd_mask, postops_setting);
 #ifdef SC_KERNEL_PROFILE
     auto init_stop = std::chrono::high_resolution_clock::now();
 #endif
     bool amx_exclusive = false;
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
-    brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A, (void **)B,
-            nullptr, (void *)C, tmp_amx_tile_buf);
+    if (postops_setting == nullptr) {
+        brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
+                (void **)B, nullptr, (void *)C, tmp_amx_tile_buf);
+    } else {
+        brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
+                (void **)B, nullptr, (void *)c_buf, (void *)C,
+                *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
+                tmp_amx_tile_buf);
+    }
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
 
 #ifdef SC_KERNEL_PROFILE
@@ -468,7 +737,8 @@ SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
 SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
         void *C, int num, int M, int N, int K, int LDA, int LDB, int LDC,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
-        sc::runtime::stream_t *stream) {
+        const void *brg_attrs, char *bd_mask, const void *postops_setting,
+        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
 #ifdef SC_KERNEL_PROFILE
     auto start = std::chrono::high_resolution_clock::now();
 #endif
@@ -496,15 +766,23 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
                     = (((char **)B_list)[i] + (j * stride_b * sizeofB));
         }
     }
-    auto brg_desc = g_brg_desc_s.getInstance({alpha, beta, LDA, LDB, LDC, M, N,
-            K, 0, 0, brgemm_addr, dtypeA, dtypeB});
+    auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
+            K, 0, 0, brgemm_addr, dtypeA, dtypeB, brg_attrs, bd_mask,
+            postops_setting);
 #ifdef SC_KERNEL_PROFILE
     auto init_stop = std::chrono::high_resolution_clock::now();
 #endif
     bool amx_exclusive = false;
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
-    brgemm_kernel_execute(brg_desc->brg_kernel_, batch_num, batch, (void *)C,
-            tmp_amx_tile_buf);
+    if (postops_setting == nullptr) {
+        brgemm_kernel_execute(brg_desc->brg_kernel_, batch_num, batch,
+                (void *)C, tmp_amx_tile_buf);
+    } else {
+        brgemm_kernel_execute_postops(brg_desc->brg_kernel_, batch_num, batch,
+                (void *)c_buf, (void *)C,
+                *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
+                tmp_amx_tile_buf);
+    }
 #ifdef _MSC_VER
     _freea(batch);
 #endif
@@ -522,5 +800,19 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
                     .count());
 #endif
     return 0;
+}
+SC_API void dnnl_brgemm_postops_data_init(void *dnnl_data, void *bias,
+        void *scales, void *const &binary_post_ops_rhs, size_t oc_logical_off,
+        size_t dst_row_logical_off, void *data_C_ptr_,
+        size_t first_mb_matrix_addr_off, void *a_zp_compensations,
+        void *b_zp_compensations, void *c_zp_values, bool skip_accumulation) {
+    brgemm_post_ops_data_t *postop_data
+            = reinterpret_cast<brgemm_post_ops_data_t *>(dnnl_data);
+    new (postop_data)
+            brgemm_post_ops_data_t {bias, reinterpret_cast<float *>(scales),
+                    &binary_post_ops_rhs, oc_logical_off, dst_row_logical_off,
+                    reinterpret_cast<char *>(data_C_ptr_),
+                    first_mb_matrix_addr_off, a_zp_compensations,
+                    b_zp_compensations, c_zp_values, skip_accumulation};
 }
 }

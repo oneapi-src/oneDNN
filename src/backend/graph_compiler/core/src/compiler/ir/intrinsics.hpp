@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@
 #include <ostream>
 #include <string>
 #include "sc_expr.hpp"
+#include <microkernel/cpu/brgemm_common.hpp>
+#include <util/any_map.hpp>
 namespace sc {
 class ir_visitor_t;
 struct intrinsic_handler_t {
@@ -44,28 +46,55 @@ constexpr int LDC = 9;
 constexpr int STRIDE_A = 10;
 constexpr int STRIDE_B = 11;
 constexpr int LEN = 12;
-constexpr int NUM_ARGS_CPU = STRIDE_B + 1;
-constexpr int NUM_ARGS_LIST = LEN + 1;
+// extra +1 for c_buf
+constexpr int NUM_ARGS_CPU
+        = STRIDE_B + brgemm::postops_data_init_func_nargs + 2;
+// extra +1 for c_buf
+constexpr int NUM_ARGS_LIST = LEN + brgemm::postops_data_init_func_nargs + 2;
 
 struct cpu_t {
     // use init_update or update
     bool init_;
 };
+
+namespace extra_args_offset {
+constexpr int dtypeA = 0;
+constexpr int dtypeB = 1;
+constexpr int brg_attrs = 2;
+constexpr int bd_mask = 3;
+constexpr int postops_setting = 4;
+constexpr int cache_nargs = postops_setting + 1;
+constexpr int postops_data = 5;
+constexpr int c_buf = 6;
+constexpr int nargs = c_buf + 1;
+} // namespace extra_args_offset
+
 struct extra_args_t {
     bool is_cpu_;
     sc_data_type_t dtype_A_ = datatypes::undef; // element dtype of mat A
     sc_data_type_t dtype_B_ = datatypes::undef; // element dtype of mat B
     sc_data_type_t dtype_C_ = datatypes::undef; // element dtype of mat C
+    sc_brgemm_attrs_t brg_attrs_; // brgemm attrs
+    sc_brgemm_bd_mask_t bd_mask_; // bd mask
+    sc_brgemm_postops_setting_t postops_setting_; // post ops setting
+
     union {
         cpu_t cpu_;
     };
     extra_args_t(const cpu_t &g, sc_data_type_t dtypeA,
             sc_data_type_t dtypeB = datatypes::undef,
-            sc_data_type_t dtypeC = datatypes::undef)
+            sc_data_type_t dtypeC = datatypes::undef,
+            const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
+            const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+            const sc_brgemm_postops_setting_t &brg_postops
+            = sc_brgemm_postops_setting_t())
         : is_cpu_(true)
         , dtype_A_(dtypeA)
         , dtype_B_(dtypeB == datatypes::undef ? dtypeA : dtypeB)
         , dtype_C_(dtypeC == datatypes::undef ? dtypeA : dtypeC)
+        , brg_attrs_(brg_attrs)
+        , bd_mask_(bd_mask)
+        , postops_setting_(brg_postops)
         , cpu_(g) {}
 };
 

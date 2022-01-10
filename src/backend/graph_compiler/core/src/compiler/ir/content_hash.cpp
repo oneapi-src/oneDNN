@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,12 @@ namespace sc {
 
 std::size_t content_hash_t<constant_c>::operator()(const constant_c &k) const {
     std::size_t ret = static_cast<uint64_t>(k->dtype_);
+    if (k->dtype_.is_pointer()) {
+        for (auto &v : k->value_) {
+            ret = ret * 23 + v.s64;
+        }
+        return ret;
+    }
     switch (get_type_category(k->dtype_)) {
         case CATE_FLOAT:
             for (auto &v : k->value_) {
@@ -32,6 +38,22 @@ std::size_t content_hash_t<constant_c>::operator()(const constant_c &k) const {
             }
             break;
         default: break;
+    }
+    return ret;
+}
+
+std::size_t content_hash_t<expr>::operator()(const expr &k) const {
+    return content_hash_t<expr_c>()(k);
+}
+
+std::size_t content_hash_t<expr_c>::operator()(const expr_c &k) const {
+    std::size_t ret;
+    switch (k->node_type_) {
+        case sc_expr_type::constant:
+            ret = content_hash_t<constant_c>()(k.static_as<constant>());
+            break;
+        case sc_expr_type::tensor: ret = std::hash<expr_c>()(k); break;
+        default: throw std::runtime_error("Unsupported node type!"); break;
     }
     return ret;
 }

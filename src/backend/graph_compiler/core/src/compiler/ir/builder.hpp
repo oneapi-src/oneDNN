@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -171,6 +171,7 @@ public:
             const expr_c &blocks, const expr_c &M, const expr_c &N,
             const expr_c &K, const expr_c &lda, const expr_c &ldb,
             const expr_c &ldc, const expr_c &a_stride, const expr_c &b_stride,
+            const std::vector<expr> &postops_data, const expr_c &c_buf,
             const brgemm_args::extra_args_t &extras);
 
     /**
@@ -180,7 +181,8 @@ public:
             const expr_c &blocks, const expr_c &M, const expr_c &N,
             const expr_c &K, const expr_c &lda, const expr_c &ldb,
             const expr_c &ldc, const expr_c &a_stride, const expr_c &b_stride,
-            const expr_c &len, const brgemm_args::extra_args_t &extras);
+            const expr_c &len, const std::vector<expr> &postops_data,
+            const expr_c &c_buf, const brgemm_args::extra_args_t &extras);
 
     /**
      * Makes a string simulated by tensor node in the current location

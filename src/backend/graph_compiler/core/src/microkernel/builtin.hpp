@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,15 @@
 #include <functional>
 #include <string>
 #include <utility>
+#include <vector>
 #include <compiler/config/context.hpp>
 #include <compiler/ir/sc_function.hpp>
+#include <microkernel/cpu/brgemm_common.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
+expr get_ir_null();
+expr get_ir_zero_index();
 namespace builtin {
 /**
  * Generates a call node to print_index, and wrap the call node with
@@ -83,6 +87,10 @@ expr boundary_check(expr name, expr idx, expr access_len, expr boundary_len);
  * */
 expr make_trace(expr func_name, expr in_or_out);
 
+// Create a initialized postops data vector. Its length matches the number of
+// dnnl postop data init func args
+std::vector<expr> create_initialed_postops_data();
+
 /**
  * Generates a call node to dnnl_brgemm_init_f32, and wrap the call node
  * with evaluate node. Also declares the dnnl_brgemm_init_f32 function in
@@ -115,11 +123,24 @@ void dnnl_brgemm_init(
  * @param stride_b s32
  * @param dtypeA sc_data_type_t
  * @param dtypeB sc_data_type_t
+ * @param brg_attrs any_map
+ * @param bd_mask bd_mask
+ * @param brg_postops_setting postops_setting
+ * @param brg_postops_data postops_data
+ * @param brg_c_buf c_buf
  * */
 void brgemm_init_update(const expr &A, const expr &B, const expr &C,
         const expr &num, const expr &M, const expr &N, const expr &K,
         const expr &LDA, const expr &LDB, const expr &LDC, const expr &stride_a,
-        const expr &stride_b, sc_data_type_t dtypeA, sc_data_type_t dtypeB);
+        const expr &stride_b, const sc_data_type_t &dtypeA,
+        const sc_data_type_t &dtypeB,
+        const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
+        const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+        const sc_brgemm_postops_setting_t &brg_postops_setting
+        = sc_brgemm_postops_setting_t(),
+        const std::vector<expr> &brg_postops_data
+        = create_initialed_postops_data(),
+        const expr &brg_c_buf = get_ir_null());
 
 /**
  * Generates a generate call node to brgemm_init_f32.
@@ -151,11 +172,24 @@ void brgemm_init(
  * @param stride_b s32
  * @param dtypeA sc_data_type_t
  * @param dtypeB sc_data_type_t
+ * @param brg_attrs any_map
+ * @param bd_mask bd_mask
+ * @param brg_postops_setting postops_setting
+ * @param brg_postops_data postops_data
+ * @param brg_c_buf c_buf
  * */
 void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
         const expr &M, const expr &N, const expr &K, const expr &LDA,
         const expr &LDB, const expr &LDC, const expr &stride_a,
-        const expr &stride_b, sc_data_type_t dtypeA, sc_data_type_t dtypeB);
+        const expr &stride_b, const sc_data_type_t &dtypeA,
+        const sc_data_type_t &dtypeB,
+        const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
+        const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+        const sc_brgemm_postops_setting_t &brg_postops_setting
+        = sc_brgemm_postops_setting_t(),
+        const std::vector<expr> &brg_postops_data
+        = create_initialed_postops_data(),
+        const expr &brg_c_buf = get_ir_null());
 
 /**
  * Generates a generate call node to brgemm_list_update_f32.
@@ -176,12 +210,24 @@ void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
  * inferred via stride_a and strid_b)
  * @param dtypeA sc_data_type_t
  * @param dtypeB sc_data_type_t
+ * @param brg_attrs any_map
+ * @param bd_mask bd_mask
+ * @param brg_postops_setting postops_setting
+ * @param brg_postops_data postops_data
+ * @param brg_c_buf c_buf
  * */
 void brgemm_list_update(const expr &A, const expr &B, const expr &C,
         const expr &num, const expr &M, const expr &N, const expr &K,
         const expr &lda, const expr &ldb, const expr &ldc, const expr &stride_a,
-        const expr &stride_b, const expr &len, sc_data_type_t dtypeA,
-        sc_data_type_t dtypeB);
+        const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,
+        const sc_data_type_t &dtypeB,
+        const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
+        const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+        const sc_brgemm_postops_setting_t &brg_postops_setting
+        = sc_brgemm_postops_setting_t(),
+        const std::vector<expr> &brg_postops_data
+        = create_initialed_postops_data(),
+        const expr &brg_c_buf = get_ir_null());
 
 /**
  * Generates a generate call node to mem_zero.
@@ -194,6 +240,14 @@ void brgemm_list_update(const expr &A, const expr &B, const expr &C,
  * */
 void mem_zero(expr C, const expr &size, sc_data_type_t dtype);
 
+/**
+ * Generates a call node to convert multiple buffers(like scales, bias) to one
+ * dnnl postop data type struct.
+ *
+ * @return the created func.
+ * */
+func_t get_brgemm_postops_data_init_func();
+
 enum class brgemm_mode {
     // offset doesn't used for now.
     // offset,
@@ -203,7 +257,7 @@ enum class brgemm_mode {
 
 // returns <kernerl creator, caller> pair
 std::pair<func_t, func_t> get_brgemm_creator_and_call_func(
-        brgemm_mode mode, scflags_t::brgemm_t backend);
+        brgemm_mode mode, scflags_t::brgemm_t backend, bool has_postop);
 
 // returns <update, init_update> pair
 std::pair<func_t, func_t> get_brgemm_update_funcs(

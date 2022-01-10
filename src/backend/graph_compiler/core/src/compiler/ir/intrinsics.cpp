@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -267,6 +267,18 @@ sc_data_type_t arg_types[NUM_ARGS_CPU] = {
         datatypes::s32, // LDC
         datatypes::s32, // stride_a
         datatypes::s32, // stride_b
+        datatypes::pointer, // bias
+        datatypes::pointer, // scales
+        datatypes::pointer, // binary_post_ops_rhs
+        datatypes::index, // oc_logical_off
+        datatypes::index, // dst_row_logical_off
+        datatypes::pointer, // data_C_ptr
+        datatypes::index, // first_mb_matrix_addr_off
+        datatypes::pointer, // a_zp_compensations
+        datatypes::pointer, // b_zp_compensations
+        datatypes::pointer, // c_zp_values
+        datatypes::boolean, // skip_accumulation
+        datatypes::pointer // c_buf
 };
 
 sc_data_type_t list_arg_types[NUM_ARGS_LIST] = {
@@ -283,6 +295,18 @@ sc_data_type_t list_arg_types[NUM_ARGS_LIST] = {
         datatypes::s32, // stride_a
         datatypes::s32, // stride_b
         datatypes::s32, // len
+        datatypes::pointer, // bias
+        datatypes::pointer, // scales
+        datatypes::pointer, // binary_post_ops_rhs
+        datatypes::index, // oc_logical_off
+        datatypes::index, // dst_row_logical_off
+        datatypes::pointer, // data_C_ptr
+        datatypes::index, // first_mb_matrix_addr_off
+        datatypes::pointer, // a_zp_compensations
+        datatypes::pointer, // b_zp_compensations
+        datatypes::pointer, // c_zp_values
+        datatypes::boolean, // skip_accumulation
+        datatypes::pointer // c_buf
 };
 } // namespace brgemm_args
 

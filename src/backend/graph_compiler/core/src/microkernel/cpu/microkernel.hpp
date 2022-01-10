@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,28 +28,48 @@ struct stream_t;
 extern "C" {
 SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
         int num, int M, int N, int K, int LDA, int LDB, int LDC, int stride_a,
-        int stride_b, int dtypeA, int dtypeB, sc::runtime::stream_t *stream);
+        int stride_b, int dtypeA, int dtypeB, const void *brg_attrs,
+        char *bd_mask, const void *postops_setting, const void *postops_data,
+        void *c_buf, sc::runtime::stream_t *stream);
 SC_API int dnnl_brgemm_init(
         void *C, int M, int N, int LDC, int dtypeC, float value = 0.f);
 SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
         int M, int N, int K, int LDA, int LDB, int LDC, int stride_a,
-        int stride_b, int dtypeA, int dtypeB, sc::runtime::stream_t *stream);
+        int stride_b, int dtypeA, int dtypeB, const void *brg_attrs,
+        char *bd_mask, const void *postops_setting, const void *postops_data,
+        void *c_buf, sc::runtime::stream_t *stream);
 SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
         void *C, int num, int M, int N, int K, int LDA, int LDB, int LDC,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
-        sc::runtime::stream_t *stream);
+        const void *brg_attrs, char *bd_mask, const void *postops_setting,
+        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream);
 SC_API void *dnnl_brgemm_list_func(int M, int N, int K, int LDA, int LDB,
-        int LDC, float beta, int dtypeA, int dtypeB);
+        int LDC, float beta, int dtypeA, int dtypeB, const void *brg_attrs,
+        char *bd_mask, const void *postops_setting);
 
 struct brgemm_kernel_info;
 SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
         const void **A_list, const void **B_list, void *C, int len, int num,
         int stride_a, int stride_b, int dtypeA, int dtypeB,
         sc::runtime::stream_t *stream);
+SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
+        const void **A_list, const void **B_list, void *C, int len, int num,
+        int stride_a, int stride_b, int dtypeA, int dtypeB,
+        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream);
 SC_API void *dnnl_brgemm_func(int M, int N, int K, int LDA, int LDB, int LDC,
-        int stride_a, int stride_b, float beta, int dtypeA, int dtypeB);
+        int stride_a, int stride_b, float beta, int dtypeA, int dtypeB,
+        const void *brg_attrs, char *bd_mask, const void *postops_setting);
 SC_API void dnnl_brgemm_call(brgemm_kernel_info *brg_desc, const void *A,
         const void *B, void *C, int num, sc::runtime::stream_t *stream);
+SC_API void dnnl_brgemm_call_postops(brgemm_kernel_info *brg_desc,
+        const void *A, const void *B, void *C, int num,
+        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream);
+SC_API void dnnl_brgemm_postops_data_init(void *dnnl_data = nullptr,
+        void *bias = nullptr, void *scales = nullptr,
+        void *const &binary_post_ops_rhs = nullptr, size_t oc_logical_off = 0UL,
+        size_t dst_row_logical_off = 0, void *data_C_ptr_ = nullptr,
+        size_t first_mb_matrix_addr_off = 0, void *a_zp_compensations = nullptr,
+        void *b_zp_compensations = nullptr, void *c_zp_values = nullptr,
+        bool skip_accumulation = false);
 }
-
 #endif
