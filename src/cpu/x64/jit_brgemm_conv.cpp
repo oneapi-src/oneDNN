@@ -533,7 +533,10 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
     int N_end = (jcp.N_tail == jcp.N) ? 1 : 2;
     int K_begin = 0;
     int K_end = (jcp.K_tail == jcp.K) ? 1 : 2;
-    int i_init_begin = div_up(jcp.nb_ic, jcp.nb_ic_blocking) == 1 ? 1 : 0;
+    int i_init_begin = (div_up(jcp.nb_ic, jcp.nb_ic_blocking) == 1
+                               && KD_BLOCK == KD && KH_BLOCK == KH)
+            ? 1
+            : 0;
     int i_init_end = 2;
 
     for (int bs = 0; bs <= jcp.max_batch; bs++) {
@@ -549,13 +552,15 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
         }
     }
 
-    for_(int i_N = N_begin; i_N < N_end; i_N++)
-    for (int i_M = M_begin; i_M < M_end; i_M++) {
-        // init init and po_kernels for cases then we never call brgemm kernels
-        // e.g. for d/h padded areas
-        // TODO: do this only if d/h padding > kd/kh
-        auto M = (i_M) ? jcp.M_tail : jcp.M;
-        add_po_kernels(i_N, M, M, need_postwork);
+    if (jcp.exec_type != exec_trans) {
+        for_(int i_N = N_begin; i_N < N_end; i_N++)
+        for (int i_M = M_begin; i_M < M_end; i_M++) {
+            // init "init" and "po" kernels for cases then we never call brgemm kernels
+            // e.g. for d/h padded areas
+            // TODO: do this only if d/h padding > kd/kh
+            auto M = (i_M) ? jcp.M_tail : jcp.M;
+            add_po_kernels(i_N, M, M, need_postwork);
+        }
     }
 
     if (jcp.exec_type == exec_base) {
