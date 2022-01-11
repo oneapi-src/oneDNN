@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,12 +28,19 @@ using namespace dnnl::graph::impl;
 status_t DNNL_GRAPH_API dnnl_graph_allocator_create(
         allocator_t **created_allocator, cpu_allocate_f cpu_malloc,
         cpu_deallocate_f cpu_free) {
+#if DNNL_GRAPH_CPU_SYCL
+    UNUSED(created_allocator);
+    UNUSED(cpu_malloc);
+    UNUSED(cpu_free);
+    return status::invalid_argument;
+#else
     if (utils::any_null(cpu_malloc, cpu_free)) {
         *created_allocator = allocator_t::create();
     } else {
         *created_allocator = allocator_t::create(cpu_malloc, cpu_free);
     }
     return status::success;
+#endif
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(

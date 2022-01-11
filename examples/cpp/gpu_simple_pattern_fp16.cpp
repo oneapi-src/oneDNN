@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -160,8 +160,9 @@ int main(int argc, char **argv) {
     tensor relu0_dst_ts {relu0_dst_desc_q, eng, relu0_dst_data};
 
     /// execute the first compiled partition
-    cp0.execute(strm, {conv0_src_ts, conv0_weight_ts, conv0_bias_ts},
-            {relu0_dst_ts});
+    std::vector<tensor> out_ts0 = {relu0_dst_ts};
+    sycl_interop::execute(
+            cp0, strm, {conv0_src_ts, conv0_weight_ts, conv0_bias_ts}, out_ts0);
 
     /// compile the second partition
     auto cp1 = partitions[1].compile(
@@ -187,8 +188,9 @@ int main(int argc, char **argv) {
 
     /// execute the second compiled partition, the first input tensor is the
     /// output of cp0.
-    cp0.execute(strm, {relu0_dst_ts, conv1_weight_ts, conv1_bias_ts},
-            {relu1_dst_ts});
+    std::vector<tensor> out_ts1 = {relu1_dst_ts};
+    sycl_interop::execute(
+            cp1, strm, {relu0_dst_ts, conv1_weight_ts, conv1_bias_ts}, out_ts1);
 
     strm.wait();
 

@@ -64,8 +64,15 @@ status_t DNNL_GRAPH_API dnnl_graph_stream_attr_destroy(
 
 status_t DNNL_GRAPH_API dnnl_graph_stream_create(
         stream_t **created_stream, const engine_t *engine) {
+    if (engine->kind() == engine_kind::gpu) { return status::invalid_argument; }
+#if DNNL_GRAPH_CPU_SYCL
+    UNUSED(created_stream);
+    UNUSED(engine);
+    return status::invalid_argument;
+#else
     *created_stream = new stream_t {engine};
     return status::success;
+#endif
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
@@ -75,6 +82,20 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
         return status::invalid_argument;
     }
     auto &sycl_queue = *static_cast<const cl::sycl::queue *>(queue);
+
+    bool is_gpu_engine = engine->kind() == engine_kind::gpu;
+    bool is_gpu_queue = sycl_queue.get_device().is_gpu();
+    if (is_gpu_engine != is_gpu_queue) { return status::invalid_argument; }
+    if (is_gpu_engine) {
+#ifndef DNNL_GRAPH_GPU_SYCL
+        return status::invalid_argument;
+#endif
+    } else {
+#ifndef DNNL_GRAPH_CPU_SYCL
+        return status::invalid_argument;
+#endif
+    }
+
     *created_stream = new stream_t {engine, sycl_queue};
     return status::success;
 #else

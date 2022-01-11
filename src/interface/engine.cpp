@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,8 +29,16 @@ using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_engine_create(
         engine_t **created_engine, engine_kind_t kind, int32_t device_id) {
+    if (kind == engine_kind::gpu) { return status::invalid_argument; }
+#if DNNL_GRAPH_CPU_SYCL
+    UNUSED(created_engine);
+    UNUSED(kind);
+    UNUSED(device_id);
+    return status::invalid_argument;
+#else
     *created_engine = new engine_t {kind, device_id};
     return status::success;
+#endif
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
@@ -44,12 +52,21 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
     auto &sycl_ctx = *static_cast<const cl::sycl::context *>(ctx);
 
     engine_kind_t kind;
-    if (sycl_dev.is_gpu())
+    if (sycl_dev.is_gpu()) {
+#ifdef DNNL_GRAPH_GPU_SYCL
         kind = engine_kind::gpu;
-    else if (sycl_dev.is_cpu() || sycl_dev.is_host())
-        kind = engine_kind::cpu;
-    else
+#else
         return status::invalid_argument;
+#endif
+    } else if (sycl_dev.is_cpu() || sycl_dev.is_host()) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        kind = engine_kind::cpu;
+#else
+        return status::invalid_argument;
+#endif
+    } else {
+        return status::invalid_argument;
+    }
 
     *created_engine = new engine_t {kind, sycl_dev, sycl_ctx};
 

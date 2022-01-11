@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -136,16 +136,4 @@ TEST(tensor_test, create_with_logical_tensor_s8) {
     tensor t {lt, eng, nullptr};
 
     ASSERT_EQ(t.get_element_num(), -1);
-}
-
-TEST(tensor_test, gpu_engine) {
-    using namespace dnnl::graph;
-    engine eng {engine::kind::gpu, 1};
-
-    logical_tensor lt {0, logical_tensor::data_type::f32,
-            logical_tensor::layout_type::any};
-    tensor t {lt, eng, nullptr};
-
-    ASSERT_EQ(t.get_engine().get_kind(), engine::kind::gpu);
-    ASSERT_EQ(t.get_engine().get_device_id(), 1);
 }

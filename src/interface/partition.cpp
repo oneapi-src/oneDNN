@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -283,6 +283,14 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         const compiled_partition_t *compiled_partition, const stream_t *stream,
         const uint64_t num_inputs, const tensor_t **inputs,
         const uint64_t num_outputs, const tensor_t **outputs) {
+    if (stream->get_engine()->kind() == engine_kind::gpu) {
+        return status::invalid_argument;
+    } else {
+#if DNNL_GRAPH_CPU_SYCL
+        return status::invalid_argument;
+#endif
+    }
+
     if (utils::any_null(stream, compiled_partition, inputs, outputs))
         return status::invalid_argument;
 
@@ -334,6 +342,15 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
 #if DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(stream, compiled_partition, inputs, outputs))
         return status::invalid_argument;
+    if (stream->get_engine()->kind() == engine_kind::gpu) {
+#ifndef DNNL_GRAPH_GPU_SYCL
+        return status::invalid_argument;
+#endif
+    } else {
+#ifndef DNNL_GRAPH_CPU_SYCL
+        return status::invalid_argument;
+#endif
+    }
 
     std::vector<tensor_t> ins, outs;
     ins.reserve(num_inputs);
