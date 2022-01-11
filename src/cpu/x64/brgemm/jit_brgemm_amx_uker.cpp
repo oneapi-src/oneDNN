@@ -683,10 +683,7 @@ void jit_brgemm_amx_uker_base_t::process_output_range(int bd_start,
     for (int bd = bd_start; bd < bd_finish; bd++) {
         auto zmm = accm(bd);
         const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
-        if (bd_out_bd == -1) {
-            vpxord(zmm, zmm, zmm);
-            continue;
-        }
+        if (bd_out_bd == -1) continue;
 
         auto vreg_acc = is_ld_tail ? accm(bd) | ld_tail_mask | T_z : accm(bd);
         some_bd_mask = true;
