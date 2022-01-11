@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1295,4 +1295,44 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
     // reorder, matmul
     ASSERT_EQ(subgraph->get_ops().size(), 2);
+}
+
+TEST(SubgraphPass, FuseTypecastToQuantize) {
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    graph_t agraph;
+
+    std::vector<int64_t> src_shape = {1, 8, 16};
+    impl::op_t typecast(0, impl::op_kind::TypeCast, "typecast");
+    impl::op_t quantize(1, impl::op_kind::Quantize, "quantize");
+    quantize.set_attr<std::vector<float>>("scales", {0.1f});
+    quantize.set_attr<std::vector<int64_t>>("zps", {10});
+    quantize.set_attr<std::string>("qtype", "per_tensor");
+    quantize.set_attr<int64_t>("axis", 0);
+
+    impl::logical_tensor_t src_bf16
+            = logical_tensor_init(0, src_shape, impl::data_type::bf16);
+    impl::logical_tensor_t src_f32
+            = logical_tensor_init(1, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst_int8
+            = logical_tensor_init(2, src_shape, impl::data_type::u8);
+
+    typecast.add_input(src_bf16);
+    typecast.add_output(src_f32);
+
+    quantize.add_input(src_f32);
+    quantize.add_output(dst_int8);
+
+    ASSERT_EQ(agraph.add_op(&typecast), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&quantize), impl::status::success);
+    agraph.build_graph();
+    pass::pass_base_ptr apass = get_pass("typecast_quantize_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            agraph.get_partitions()[0]->get_ops(), p_eng);
+    // tc, quant
+    ASSERT_EQ(subgraph->get_ops().size(), 2);
+    dnnl_impl::fuse_typecast_to_quantize(subgraph);
+    ASSERT_EQ(subgraph->get_ops().size(), 1);
 }

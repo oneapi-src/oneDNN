@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ public:
         });
         pass_pipeline_t pipeline(vis);
 
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_quantize);
         BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
         BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_quant);
         BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_dequant);
