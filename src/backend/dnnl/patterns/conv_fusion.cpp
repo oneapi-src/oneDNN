@@ -31,20 +31,6 @@ using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 namespace {
-template <size_t N>
-bool check_input_num(op_t *op) {
-    return op->num_inputs() == N;
-}
-
-bool check_input_all_s8(op_t *op) {
-    for (size_t i = 0; i < op->num_inputs(); ++i) {
-        logical_tensor_t iport = op->get_input_value(i)->get_logical_tensor();
-        if (iport.data_type != impl::data_type::s8) return false;
-    }
-
-    return true;
-}
-
 template <bool GROUPED>
 bool check_grouped(op_t *op) {
     if (GROUPED) {
@@ -1281,7 +1267,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_fusion)
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1309,7 +1295,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_fusion)
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1327,7 +1313,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_fusion)
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1358,7 +1344,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_relu_fusion)
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1389,7 +1375,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_relu_fusion)
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1410,7 +1396,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_relu_fusion)
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1444,7 +1430,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *dequant_other = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_other");
@@ -1476,7 +1462,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *dequant_other = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_other");
@@ -1515,7 +1501,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_add_relu_fusion)
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *dequant_other = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_other");
@@ -1556,7 +1542,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_quant_wei_conv_fusion)
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1586,7 +1572,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1605,7 +1591,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1638,7 +1624,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1671,7 +1657,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1693,7 +1679,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -1728,7 +1714,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
                     pm::pb_op *dequant_other
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -1756,7 +1742,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
                     pm::pb_op *dequant_other
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -1798,7 +1784,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
                     dequant_weight->append_decision_function(
-                            check_input_all_s8);
+                            check_input_dtype<impl::data_type::s8>);
                     pm::pb_op *dequant_other
                             = pgraph->append_op(impl::op_kind::Dequantize);
 

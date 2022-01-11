@@ -24,6 +24,33 @@ namespace impl {
 namespace dnnl_impl {
 namespace pass {
 
+template <size_t N>
+bool check_input_num(op_t *op) {
+    return op->num_inputs() == N;
+}
+
+template <impl::data_type_t DTYPE>
+bool check_input_dtype(op_t *op) {
+    for (size_t i = 0; i < op->num_inputs(); ++i) {
+        const logical_tensor_t &iport
+                = op->get_input_value(i)->get_logical_tensor();
+        if (iport.data_type != DTYPE) return false;
+    }
+
+    return true;
+}
+
+template <impl::data_type_t DTYPE>
+bool check_output_dtype(op_t *op) {
+    for (size_t i = 0; i < op->num_outputs(); ++i) {
+        const logical_tensor_t &oport
+                = op->get_output_value(i)->get_logical_tensor();
+        if (oport.data_type != DTYPE) return false;
+    }
+
+    return true;
+}
+
 DNNL_BACKEND_REGISTER_PASSES_DECLARE(conv_fusion)
 DNNL_BACKEND_REGISTER_PASSES_DECLARE(matmul_fusion)
 DNNL_BACKEND_REGISTER_PASSES_DECLARE(binary_fusion)
