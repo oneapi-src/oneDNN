@@ -533,13 +533,15 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
     int N_end = (jcp.N_tail == jcp.N) ? 1 : 2;
     int K_begin = 0;
     int K_end = (jcp.K_tail == jcp.K) ? 1 : 2;
+    int i_init_begin = div_up(jcp.nb_ic, jcp.nb_ic_blocking) == 1 ? 1 : 0;
+    int i_init_end = 2;
 
     for (int bs = 0; bs <= jcp.max_batch; bs++) {
         if (_pd->batchsizes[bs] == -1) continue;
 
         for_(int i_N = N_begin; i_N < N_end; i_N++)
         for_(int i_M = M_begin; i_M < M_end; i_M++)
-        for_(int i_init = 0; i_init < 2; i_init++)
+        for_(int i_init = i_init_begin; i_init < i_init_end; i_init++)
         for (int i_K = K_begin; i_K < K_end; i_K++) {
             auto M = (i_M) ? jcp.M_tail : jcp.M;
             if (M <= 0) continue;
