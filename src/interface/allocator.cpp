@@ -28,7 +28,7 @@ using namespace dnnl::graph::impl;
 status_t DNNL_GRAPH_API dnnl_graph_allocator_create(
         allocator_t **created_allocator, cpu_allocate_f cpu_malloc,
         cpu_deallocate_f cpu_free) {
-#if DNNL_GRAPH_CPU_SYCL
+#ifdef DNNL_GRAPH_CPU_SYCL
     UNUSED(created_allocator);
     UNUSED(cpu_malloc);
     UNUSED(cpu_free);
@@ -46,7 +46,7 @@ status_t DNNL_GRAPH_API dnnl_graph_allocator_create(
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(
         allocator_t **created_allocator, sycl_allocate_f sycl_malloc,
         sycl_deallocate_f sycl_free) {
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(sycl_malloc, sycl_free)) {
         *created_allocator = allocator_t::create();
     } else {

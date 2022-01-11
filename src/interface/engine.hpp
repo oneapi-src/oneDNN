@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 #include "allocator.hpp"
 #include "c_types_map.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
@@ -38,7 +38,7 @@ public:
     dnnl_graph_engine()
         : dnnl_graph_engine(dnnl::graph::impl::engine_kind::cpu, 0) {}
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     dnnl_graph_engine(dnnl::graph::impl::engine_kind_t kind,
             const cl::sycl::device &dev, const cl::sycl::context &ctx)
         : kind_(kind), dev_(dev), ctx_(ctx) {
@@ -63,7 +63,7 @@ public:
         return allocator_.get();
     };
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     const cl::sycl::device &sycl_device() const { return dev_; }
 
     const cl::sycl::context &sycl_context() const { return ctx_; }
@@ -71,7 +71,7 @@ public:
 
     bool match(const dnnl::graph::impl::engine_t &eng) const {
         bool ok = true && (kind() == eng.kind());
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
         ok = ok && (eng.sycl_device() == dev_) && (eng.sycl_context() == ctx_);
 #endif
         return ok;
@@ -89,7 +89,7 @@ private:
     dnnl::graph::impl::engine_kind_t kind_ {};
     int device_id_ {};
     std::shared_ptr<dnnl::graph::impl::allocator_t> allocator_ {nullptr};
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     cl::sycl::device dev_;
     cl::sycl::context ctx_;
 #endif

@@ -19,7 +19,7 @@
 
 #include "c_types_map.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
@@ -46,7 +46,7 @@ public:
         UNUSED(attr);
     }
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     // Create an stream from SYCL queue.
     dnnl_graph_stream(const dnnl::graph::impl::engine_t *engine,
             const cl::sycl::queue &queue,
@@ -81,12 +81,12 @@ public:
         return engine_;
     }
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     const cl::sycl::queue &get_queue() const noexcept { return queue_; }
 #endif
 
     dnnl::graph::impl::status_t wait() {
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
         queue_.wait();
 #endif
         return dnnl::graph::impl::status::success;
@@ -94,7 +94,7 @@ public:
 
 private:
     const dnnl::graph::impl::engine_t *engine_;
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     cl::sycl::queue queue_;
 #endif
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL

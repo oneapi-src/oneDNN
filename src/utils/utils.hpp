@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@
 
 #include "interface/c_types_map.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
@@ -174,7 +174,7 @@ public:
     }
 };
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 /// Default allocator for SYCL device
 /// now only support the allocation of persistent memory, that means
 /// we need to manually free the buffer allocated by this allocator.

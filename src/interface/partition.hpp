@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -180,7 +180,7 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) const;
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     impl::status_t execute_sycl(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs,

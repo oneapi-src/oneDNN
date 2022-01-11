@@ -30,7 +30,7 @@
 #include "interface/partition.hpp"
 #include "interface/partition_cache.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
@@ -286,7 +286,7 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
     if (stream->get_engine()->kind() == engine_kind::gpu) {
         return status::invalid_argument;
     } else {
-#if DNNL_GRAPH_CPU_SYCL
+#ifdef DNNL_GRAPH_CPU_SYCL
         return status::invalid_argument;
 #endif
     }
@@ -339,7 +339,7 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
         const uint64_t num_inputs, const tensor_t **inputs,
         const uint64_t num_outputs, const tensor_t **outputs,
         const uint64_t num_deps, void *deps, void *sycl_event) {
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(stream, compiled_partition, inputs, outputs))
         return status::invalid_argument;
     if (stream->get_engine()->kind() == engine_kind::gpu) {
@@ -636,7 +636,7 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
     return pimpl_->execute(astream, processed_inputs, processed_outputs);
 }
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,

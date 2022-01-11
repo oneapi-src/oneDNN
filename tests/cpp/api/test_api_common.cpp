@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 #include "test_api_common.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 
@@ -35,7 +35,7 @@ void sycl_free(void *ptr, const void *ctx) {
 void api_test_dnnl_graph_engine_create(
         dnnl_graph_engine_t **engine, dnnl_graph_engine_kind_t engine_kind) {
     if (engine_kind == dnnl_graph_cpu) {
-#if DNNL_GRAPH_CPU_SYCL
+#ifdef DNNL_GRAPH_CPU_SYCL
         static cl::sycl::device dev {cl::sycl::cpu_selector {}};
         static cl::sycl::context ctx {dev};
         if (!allocator_handle) {
@@ -59,7 +59,7 @@ void api_test_dnnl_graph_engine_create(
 #endif
         *engine = engine_handle.engine;
     } else {
-#if DNNL_GRAPH_GPU_SYCL
+#ifdef DNNL_GRAPH_GPU_SYCL
         static cl::sycl::device dev {cl::sycl::gpu_selector {}};
         static cl::sycl::context ctx {dev};
         if (!allocator_handle) {
@@ -88,7 +88,7 @@ void api_test_dnnl_graph_graph_create(
 dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
         dnnl::graph::engine::kind engine_kind) {
     if (engine_kind == dnnl::graph::engine::kind::cpu) {
-#if DNNL_GRAPH_CPU_SYCL
+#ifdef DNNL_GRAPH_CPU_SYCL
         static cl::sycl::device dev {cl::sycl::cpu_selector {}};
         static cl::sycl::context ctx {dev};
         static dnnl::graph::allocator alloc
@@ -103,7 +103,7 @@ dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
         return eng;
     }
 
-#if DNNL_GRAPH_GPU_SYCL
+#ifdef DNNL_GRAPH_GPU_SYCL
     static cl::sycl::device dev {cl::sycl::gpu_selector {}};
     static cl::sycl::context ctx {dev};
     static dnnl::graph::allocator alloc

@@ -20,7 +20,7 @@
 
 #include "unit_test_common.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 cl::sycl::device &get_device() {
     static cl::sycl::device dev
             = get_test_engine_kind() == impl::engine_kind::cpu
@@ -47,7 +47,7 @@ void sycl_free(void *ptr, const void *ctx) {
 
 impl::engine_t &get_engine() {
     if (get_test_engine_kind() == impl::engine_kind::cpu) {
-#if DNNL_GRAPH_CPU_SYCL
+#ifdef DNNL_GRAPH_CPU_SYCL
         static auto sycl_allocator = std::shared_ptr<impl::allocator_t>(
                 impl::allocator_t::create(sycl_alloc, sycl_free),
                 [](impl::allocator_t *alloc) { alloc->release(); });
@@ -59,7 +59,7 @@ impl::engine_t &get_engine() {
 #endif
         return eng;
     } else {
-#if DNNL_GRAPH_GPU_SYCL
+#ifdef DNNL_GRAPH_GPU_SYCL
         static auto sycl_allocator = std::shared_ptr<impl::allocator_t>(
                 impl::allocator_t::create(sycl_alloc, sycl_free),
                 [](impl::allocator_t *alloc) { alloc->release(); });
@@ -76,7 +76,7 @@ impl::engine_t &get_engine() {
 
 impl::stream_t &get_stream() {
     if (get_test_engine_kind() == impl::engine_kind::cpu) {
-#if DNNL_GRAPH_CPU_SYCL
+#ifdef DNNL_GRAPH_CPU_SYCL
         static cl::sycl::queue q {get_context(), get_device(),
                 cl::sycl::property::queue::in_order {}};
         static impl::stream_t strm {&get_engine(), q};
@@ -88,7 +88,7 @@ impl::stream_t &get_stream() {
 #endif
         return strm;
     } else {
-#if DNNL_GRAPH_GPU_SYCL
+#ifdef DNNL_GRAPH_GPU_SYCL
         static cl::sycl::queue q {get_context(), get_device(),
                 cl::sycl::property::queue::in_order {}};
         static impl::stream_t strm {&get_engine(), q};

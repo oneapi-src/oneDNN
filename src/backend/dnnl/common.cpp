@@ -32,7 +32,7 @@
 const size_t DNNL_CPU_MEMALIGNMENT = 4096;
 #endif
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include "dnnl_sycl.hpp"
 const size_t DNNL_SYCL_MEMALIGNMENT = 16;
 #endif

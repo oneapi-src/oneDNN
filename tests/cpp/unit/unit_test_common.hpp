@@ -23,7 +23,7 @@
 #include "interface/engine.hpp"
 #include "interface/stream.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
@@ -32,7 +32,7 @@
 #endif
 namespace impl = dnnl::graph::impl;
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 cl::sycl::device &get_device();
 cl::sycl::context &get_context();
 void *sycl_alloc(size_t n, const void *dev, const void *ctx);
@@ -49,7 +49,7 @@ void set_test_engine_kind(impl::engine_kind_t kind);
 
 namespace test {
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 constexpr size_t usm_alignment = 16;
 #endif
 
@@ -60,7 +60,7 @@ public:
 
     T *allocate(size_t num_elements) {
         if (get_test_engine_kind() == impl::engine_kind::cpu) {
-#if DNNL_GRAPH_CPU_SYCL
+#ifdef DNNL_GRAPH_CPU_SYCL
             return reinterpret_cast<T *>(cl::sycl::aligned_alloc(usm_alignment,
                     num_elements * sizeof(T), get_device(), get_context(),
                     cl::sycl::usm::alloc::shared));
@@ -68,7 +68,7 @@ public:
             return reinterpret_cast<T *>(malloc(num_elements * sizeof(T)));
 #endif
         } else if (get_test_engine_kind() == impl::engine_kind::gpu) {
-#if DNNL_GRAPH_GPU_SYCL
+#ifdef DNNL_GRAPH_GPU_SYCL
             return reinterpret_cast<T *>(cl::sycl::aligned_alloc(usm_alignment,
                     num_elements * sizeof(T), get_device(), get_context(),
                     cl::sycl::usm::alloc::shared));
@@ -84,13 +84,13 @@ public:
         if (!ptr) return;
 
         if (get_test_engine_kind() == impl::engine_kind::cpu) {
-#if DNNL_GRAPH_CPU_SYCL
+#ifdef DNNL_GRAPH_CPU_SYCL
             cl::sycl::free(ptr, get_context());
 #else
             free(ptr);
 #endif
         } else if (get_test_engine_kind() == impl::engine_kind::gpu) {
-#if DNNL_GRAPH_GPU_SYCL
+#ifdef DNNL_GRAPH_GPU_SYCL
             cl::sycl::free(ptr, get_context());
 #endif
         } else {
@@ -114,7 +114,7 @@ bool operator!=(const TestAllocator<T> &, const TestAllocator<U> &) {
 }
 
 template <typename T>
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 using vector = std::vector<T, TestAllocator<T>>;
 #else
 using vector = std::vector<T>;

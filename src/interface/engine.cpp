@@ -21,7 +21,7 @@
 #include "interface/engine.hpp"
 #include "utils/utils.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
@@ -30,7 +30,7 @@ using namespace dnnl::graph::impl;
 status_t DNNL_GRAPH_API dnnl_graph_engine_create(
         engine_t **created_engine, engine_kind_t kind, int32_t device_id) {
     if (kind == engine_kind::gpu) { return status::invalid_argument; }
-#if DNNL_GRAPH_CPU_SYCL
+#ifdef DNNL_GRAPH_CPU_SYCL
     UNUSED(created_engine);
     UNUSED(kind);
     UNUSED(device_id);
@@ -43,7 +43,7 @@ status_t DNNL_GRAPH_API dnnl_graph_engine_create(
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
         engine_t **created_engine, const void *dev, const void *ctx) {
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(created_engine, dev, ctx)) {
         return status::invalid_argument;
     }

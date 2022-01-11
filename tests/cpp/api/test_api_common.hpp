@@ -32,7 +32,7 @@
 
 #include "src/interface/partition_cache.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
@@ -127,7 +127,7 @@ struct dnnl_graph_test_conv_params {
 
 extern dnnl_graph_engine_kind_t api_test_engine_kind;
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 struct allocator_handle_t {
     dnnl_graph_allocator_t *allocator = nullptr;
     ~allocator_handle_t() { dnnl_graph_allocator_destroy(allocator); }

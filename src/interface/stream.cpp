@@ -26,7 +26,7 @@
 
 #include "utils/utils.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
@@ -65,7 +65,7 @@ status_t DNNL_GRAPH_API dnnl_graph_stream_attr_destroy(
 status_t DNNL_GRAPH_API dnnl_graph_stream_create(
         stream_t **created_stream, const engine_t *engine) {
     if (engine->kind() == engine_kind::gpu) { return status::invalid_argument; }
-#if DNNL_GRAPH_CPU_SYCL
+#ifdef DNNL_GRAPH_CPU_SYCL
     UNUSED(created_stream);
     UNUSED(engine);
     return status::invalid_argument;
@@ -77,7 +77,7 @@ status_t DNNL_GRAPH_API dnnl_graph_stream_create(
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
         stream_t **created_stream, const engine_t *engine, const void *queue) {
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(created_stream, engine, queue)) {
         return status::invalid_argument;
     }
@@ -149,7 +149,7 @@ status_t DNNL_GRAPH_API dnnl_graph_stream_create_with_attr(
 status_t DNNL_GRAPH_API dnnl_graph_stream_create_sycl_with_attr(
         stream_t **created_stream, const engine_t *engine, const void *queue,
         const stream_attr_t *attr) {
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(created_stream, engine, queue, attr)) {
         return status::invalid_argument;
     }

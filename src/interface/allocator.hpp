@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 #include "utils/utils.hpp"
 #include "utils/verbose.hpp"
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
@@ -45,7 +45,7 @@ private:
             dnnl_graph_cpu_deallocate_f cpu_free)
         : cpu_malloc_ {cpu_malloc}, cpu_free_ {cpu_free} {}
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     dnnl_graph_allocator(dnnl_graph_sycl_allocate_f sycl_malloc,
             dnnl_graph_sycl_deallocate_f sycl_free)
         : sycl_malloc_(sycl_malloc), sycl_free_(sycl_free) {}
@@ -82,7 +82,7 @@ public:
         return new dnnl_graph_allocator {cpu_malloc, cpu_free};
     }
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     static dnnl_graph_allocator *create(dnnl_graph_sycl_allocate_f sycl_malloc,
             dnnl_graph_sycl_deallocate_f sycl_free) {
         return new dnnl_graph_allocator {sycl_malloc, sycl_free};
@@ -169,7 +169,7 @@ public:
         return buffer;
     }
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     void *allocate(size_t n, const cl::sycl::device &dev,
             const cl::sycl::context &ctx, attribute_t attr) const {
         void *buffer = sycl_malloc_(n, static_cast<const void *>(&dev),
@@ -191,7 +191,7 @@ public:
         return buffer;
     }
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     template <typename T>
     T *allocate(size_t num_elem, const cl::sycl::device &dev,
             const cl::sycl::context &ctx, attribute_t attr = {}) {
@@ -215,7 +215,7 @@ public:
         }
     }
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     void deallocate(void *buffer, const cl::sycl::context &ctx) const {
         if (buffer) {
             sycl_free_(buffer, static_cast<const void *>(&ctx));
@@ -232,7 +232,7 @@ private:
     dnnl_graph_cpu_deallocate_f cpu_free_ {
             dnnl::graph::impl::utils::cpu_allocator_t::free};
 
-#if DNNL_GRAPH_WITH_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
     dnnl_graph_sycl_allocate_f sycl_malloc_ {
             dnnl::graph::impl::utils::sycl_allocator_t::malloc};
     dnnl_graph_sycl_deallocate_f sycl_free_ {
