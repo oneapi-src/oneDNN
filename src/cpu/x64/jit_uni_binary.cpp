@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 *******************************************************************************/
 
 #include <functional>
-#include <numeric>
 
 #include "cpu/cpu_primitive.hpp"
 #include "cpu/x64/jit_uni_binary.hpp"
@@ -31,34 +30,6 @@ static bcast_set_t get_supported_postops_bcast_strategies() {
             broadcasting_strategy_t::no_broadcast};
 }
 
-// compute dims order (layout) based on strides
-static std::vector<int> compute_dims_order(
-        const strides_t &strides, const int ndims) {
-    std::vector<int> dims_order(ndims);
-    std::iota(dims_order.begin(), dims_order.end(), 0);
-    // try to reproduce the order of dims by sorting strides
-    const auto stride_sorter
-            = [&](const int a, const int b) { return strides[a] < strides[b]; };
-    std::sort(dims_order.begin(), dims_order.end(), stride_sorter);
-    return dims_order;
-}
-
-// compute strides without broadcast based on computed layout
-static void compute_stride_without_bcast(strides_t &strides_src1_without_bcast,
-        const dims_t &dims0, const dims_t &dims1,
-        const std::vector<int> &dims_order, const strides_t &strides_to_copy) {
-    const auto ndims = dims_order.size();
-    utils::array_copy(strides_src1_without_bcast, strides_to_copy, ndims);
-    // update temporary strides1 by broadcasted dims from src0
-    int multiplier = 1;
-    for (size_t d = 0; d < ndims; d++) {
-        const int current_dim = dims_order[d];
-        strides_src1_without_bcast[current_dim] *= multiplier;
-        if (dims0[current_dim] != dims1[current_dim])
-            multiplier *= dims0[current_dim];
-    }
-}
-
 static bool compare_layouts(const memory_desc_wrapper &src0_md,
         const memory_desc_wrapper &src1_md) {
     const strides_t &strides0 = src0_md.blocking_desc().strides;
@@ -67,15 +38,14 @@ static bool compare_layouts(const memory_desc_wrapper &src0_md,
     const dims_t &dims1 = src1_md.dims();
     const int ndims = src0_md.ndims();
 
-    const std::vector<int> dims_order = compute_dims_order(strides0, ndims);
-    strides_t strides_src1_without_bcast;
-    compute_stride_without_bcast(
-            strides_src1_without_bcast, dims0, dims1, dims_order, strides1);
+    bool is_bcast = false;
+    for (int d = 1; d < ndims; d++)
+        is_bcast = is_bcast || dims0[d] != dims1[d];
+    if (is_bcast) return true;
 
     bool same_layouts = true;
-    for (int d = 0; d < ndims; d++)
-        same_layouts
-                = same_layouts && strides0[d] == strides_src1_without_bcast[d];
+    for (int d = 0; d < ndims; ++d)
+        same_layouts = same_layouts && strides0[d] == strides1[d];
     return same_layouts;
 }
 
@@ -284,18 +254,6 @@ bool jit_uni_binary_t::pd_t::is_bcast_allowed(const int ndims) const {
     return ok;
 }
 
-bool jit_uni_binary_t::pd_t::is_ncsp_or_nspc(
-        const memory_desc_wrapper &mdw) const {
-    const auto &dims = mdw.dims();
-    const auto &strides = mdw.blocking_desc().strides;
-    const auto &ndims = mdw.ndims();
-
-    return strides[0] == utils::array_product(dims + 1, ndims - 1)
-            && IMPLICATION(strides[1] > 1,
-                    strides[1] == utils::array_product(dims + 2, ndims - 2))
-            && strides[0] >= strides[1];
-}
-
 // check for different src formats with same dims
 // broadcast can be accepted if src_dim == src1_dims (1 == 1)
 bool jit_uni_binary_t::pd_t::is_different_layouts_allowed(
@@ -310,11 +268,14 @@ bool jit_uni_binary_t::pd_t::is_different_layouts_allowed(
         without_bcast = without_bcast && src0_dims[d] == src1_dims[d];
     if (!without_bcast) return false;
 
-    // disable for blocked layouts and allow only nchw:nhwc or nhwc:nchw
     const auto &bd0 = src0_d.blocking_desc();
     const auto &bd1 = src1_d.blocking_desc();
+    // allow nchw:nhwc and nhwc:nchw
+    const bool aligned_batch = bd0.strides[0] > bd0.strides[1]
+            && bd1.strides[0] > bd1.strides[1];
+    // disable for blocked layouts
     return utils::everyone_is(0, bd0.inner_nblks, bd1.inner_nblks)
-            && is_ncsp_or_nspc(src0_d) && is_ncsp_or_nspc(src1_d);
+            && aligned_batch;
 }
 
 bool jit_uni_binary_t::pd_t::is_applicable() {
@@ -388,8 +349,18 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
                         is_src_different_layouts, different_layouts_allowed)))
         return false;
 
-    // only nspc and ncsp formats are supported for bcast
-    if (src0_d.is_plain() && src1_d.is_plain()) return is_ncsp_or_nspc(src0_d);
+    if (src0_d.is_plain() && src1_d.is_plain()) {
+        const auto &bd0 = src0_d.blocking_desc();
+        const auto &bd1 = src1_d.blocking_desc();
+        // only nspc and ncsp formats are supported for bcast
+        return bd0.strides[0]
+                == utils::array_product(src0_d.dims() + 1, src0_d.ndims() - 1)
+                && IMPLICATION(bd0.strides[1] > 1,
+                        bd0.strides[1]
+                                == utils::array_product(
+                                        src0_d.dims() + 2, src0_d.ndims() - 2))
+                && bd1.strides[0] >= bd1.strides[1];
+    }
 
     // blocked formats
     if (!conf_.is_i8) {
