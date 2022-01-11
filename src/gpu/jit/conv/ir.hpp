@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -920,43 +920,6 @@ inline stmt_t _continue() {
 }
 
 } // namespace funcs
-
-// Helper functionality to extract ND indices packed into 1D index.
-// Example:
-//     i = [0; Bi, 2 * Bi, ... (I - 1) * Bi]
-//     i_info.dim = I; i_info.block = Bi
-//     j = [0; Bj, 2 * Bj, ... (J - 1) * Bj]
-//     j_info.dim = J; j_info.block = Bj
-// 1D index: ij_idx
-// 2D indices: [i; j]
-// Unpacking:
-//     i = (ij_idx % I) * Bi
-//     j = (ij_idx / I) * Bj
-struct unpack_dim_info_t {
-    const expr_t &var;
-    int dim;
-    int block;
-};
-
-inline void cvt_args_to_unpack_dim_info(std::vector<unpack_dim_info_t> &) {}
-
-template <typename... ArgsT>
-void cvt_args_to_unpack_dim_info(std::vector<unpack_dim_info_t> &infos,
-        const expr_t &var, int dim, int block, const ArgsT &... args) {
-    infos.push_back(unpack_dim_info_t {var, dim, block});
-    cvt_args_to_unpack_dim_info(infos, args...);
-}
-
-void unpack(std::vector<stmt_t> &init_stmts, constraint_set_t &cset,
-        const expr_t &_e, const std::vector<unpack_dim_info_t> &infos);
-
-template <typename... ArgsT>
-void unpack(std::vector<stmt_t> &init_stmts, constraint_set_t &cset,
-        const expr_t &e, const ArgsT &... args) {
-    std::vector<unpack_dim_info_t> infos;
-    cvt_args_to_unpack_dim_info(infos, args...);
-    unpack(init_stmts, cset, e, infos);
-}
 
 } // namespace jit
 } // namespace gpu

@@ -546,7 +546,7 @@ private:
     }
 
     // rhs tensor layout is defined by md memory descriptor.
-    view_t create_view(const memory_desc_t &md /*, uint32_t &rhs_mask*/) const {
+    view_t create_view(const memory_desc_t &md) const {
         ir_assert(cp_ndims() >= 3);
         // Add groups to match ngcdhw layout.
         bool add_groups = (cp_view_.vvars()[1].as<var_t>().name == "g");

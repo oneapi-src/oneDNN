@@ -898,33 +898,6 @@ int constraint_set_t::max_proven_gcd(const expr_t &var) const {
     return ret;
 }
 
-void unpack(std::vector<stmt_t> &init_stmts, constraint_set_t &cset,
-        const expr_t &_e, const std::vector<unpack_dim_info_t> &infos) {
-    int elems = 1;
-    for (auto &info : infos)
-        elems *= info.dim;
-    ir_assert(elems >= 1);
-
-    expr_t e = _e;
-    int rem_elems = elems;
-    for (auto &info : infos) {
-        auto &var = info.var;
-        int dim = info.dim;
-        int block = info.block;
-        expr_t value;
-        if (dim == 1) {
-            value = expr_t(0);
-            cset.add_constraint(var == 0);
-        } else {
-            value = block * (rem_elems > dim ? e % dim : e);
-            e = e / dim;
-        }
-        init_stmts.emplace_back(let_t::make(var, value));
-        if (dim > 1 && block > 1) cset.add_constraint(var % block == 0);
-        rem_elems /= dim;
-    }
-}
-
 } // namespace jit
 } // namespace gpu
 } // namespace impl
