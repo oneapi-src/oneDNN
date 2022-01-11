@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@
 #define GET_INT_BLOCK(src_slm, slm_index, src_global) \
     uchar4 res = 0; \
     for (int j = 0; j < IC; j++) { \
-        ((uchar*)&res)[j] = src_global[j]; \
+        ((uchar *)&res)[j] = src_global[j]; \
     } \
     src_slm[slm_index] = as_int(res); \
     src_global += IC;
@@ -712,33 +712,33 @@ conv_nhwc_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 
 #define PACK(C0, C1, C2, C3, idx) \
     do { \
-        tmp.s0 = ((int*)&C0)[idx]; \
-        tmp.s1 = ((int*)&C1)[idx]; \
-        tmp.s2 = ((int*)&C2)[idx]; \
-        tmp.s3 = ((int*)&C3)[idx]; \
+        tmp.s0 = ((int *)&C0)[idx]; \
+        tmp.s1 = ((int *)&C1)[idx]; \
+        tmp.s2 = ((int *)&C2)[idx]; \
+        tmp.s3 = ((int *)&C3)[idx]; \
     } while (0)
 
 #define PACK_4(C0, C1, C2, C3, idx) \
     do { \
-        tmp0.s0 = ((int*)&C0)[idx]; \
-        tmp0.s1 = ((int*)&C1)[idx]; \
-        tmp0.s2 = ((int*)&C2)[idx]; \
-        tmp0.s3 = ((int*)&C3)[idx]; \
+        tmp0.s0 = ((int *)&C0)[idx]; \
+        tmp0.s1 = ((int *)&C1)[idx]; \
+        tmp0.s2 = ((int *)&C2)[idx]; \
+        tmp0.s3 = ((int *)&C3)[idx]; \
 \
-        tmp0.s4 = ((int*)&C0)[idx + 1]; \
-        tmp0.s5 = ((int*)&C1)[idx + 1]; \
-        tmp0.s6 = ((int*)&C2)[idx + 1]; \
-        tmp0.s7 = ((int*)&C3)[idx + 1]; \
+        tmp0.s4 = ((int *)&C0)[idx + 1]; \
+        tmp0.s5 = ((int *)&C1)[idx + 1]; \
+        tmp0.s6 = ((int *)&C2)[idx + 1]; \
+        tmp0.s7 = ((int *)&C3)[idx + 1]; \
 \
-        tmp1.s0 = ((int*)&C0)[idx + 2]; \
-        tmp1.s1 = ((int*)&C1)[idx + 2]; \
-        tmp1.s2 = ((int*)&C2)[idx + 2]; \
-        tmp1.s3 = ((int*)&C3)[idx + 2]; \
+        tmp1.s0 = ((int *)&C0)[idx + 2]; \
+        tmp1.s1 = ((int *)&C1)[idx + 2]; \
+        tmp1.s2 = ((int *)&C2)[idx + 2]; \
+        tmp1.s3 = ((int *)&C3)[idx + 2]; \
 \
-        tmp1.s4 = ((int*)&C0)[idx + 3]; \
-        tmp1.s5 = ((int*)&C1)[idx + 3]; \
-        tmp1.s6 = ((int*)&C2)[idx + 3]; \
-        tmp1.s7 = ((int*)&C3)[idx + 3]; \
+        tmp1.s4 = ((int *)&C0)[idx + 3]; \
+        tmp1.s5 = ((int *)&C1)[idx + 3]; \
+        tmp1.s6 = ((int *)&C2)[idx + 3]; \
+        tmp1.s7 = ((int *)&C3)[idx + 3]; \
     } while (0)
 
 #define CONVERT_PACK() \

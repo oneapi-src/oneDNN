@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -158,7 +158,8 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
             conf.gws_d[1]
                     = conf.od * conf.oh * utils::rnd_up(ow_nchunk, ow_group);
             conf.gws_d[2] = is_1stconv
-                    ? utils::rnd_up(conf.mb, conf.mb_block)
+                    ? conf.mb < 16 ? conf.mb
+                                   : utils::rnd_up(conf.mb, conf.mb_block)
                     : utils::div_up(conf.mb,
                             utils::div_up(conf.mb_block,
                                     conf.mb_block == 32 ? 2 : 1));
