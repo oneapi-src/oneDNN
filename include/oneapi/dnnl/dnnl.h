@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -3569,7 +3569,7 @@ dnnl_status_t DNNL_API dnnl_set_default_fpmath_mode(dnnl_fpmath_mode_t mode);
 ///
 /// @note
 ///     Enabling verbose output affects performance.
-///     This setting overrides the DNNL_VERBOSE environment variable.
+///     This setting overrides the ONEDNN_VERBOSE environment variable.
 ///
 /// @param level Verbosity level:
 ///  - 0: no verbose output (default),

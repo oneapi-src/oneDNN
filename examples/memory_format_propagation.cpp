@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -325,11 +325,11 @@ int main(int argc, char **argv) {
 /// ~~~
 ///
 /// It may be interesting to check what really happens during the run. We can
-/// use `DNNL_VERBOSE` environment variable for that (see also @ref
+/// use `ONEDNN_VERBOSE` environment variable for that (see also @ref
 /// dev_guide_verbose). Here's an example output:
 ///
 /// ~~~sh
-/// $ DNNL_VERBOSE=1 ./memory-format-propagation-cpp
+/// $ ONEDNN_VERBOSE=1 ./memory-format-propagation-cpp
 /// onednn_verbose,info,oneDNN <ver> (Git Hash <hash>)
 /// onednn_verbose,info,cpu,runtime:OpenMP
 /// onednn_verbose,info,cpu,isa:Intel AVX2

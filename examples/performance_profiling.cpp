@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 ///
 /// > Example code: @ref performance_profiling.cpp
 ///
-/// This example uses [DNNL_VERBOSE](@ref dev_guide_verbose) trace output
+/// This example uses [ONEDNN_VERBOSE](@ref dev_guide_verbose) trace output
 /// to tune oneDNN code to align
 /// with the [best practices](@ref dev_guide_inference).
 ///
@@ -66,10 +66,10 @@
 /// ./program.exe [cpu|gpu] [implementation]
 /// ~~~
 ///
-/// Before you run the program, set your `DNNL_VERBOSE` environment
+/// Before you run the program, set your `ONEDNN_VERBOSE` environment
 /// variable to 1:
 /// ~~~sh
-/// export DNNL_VERBOSE=1
+/// export ONEDNN_VERBOSE=1
 /// ~~~
 ///
 /// The program starts by creating oneDNN memory objects in **NCHW**
@@ -214,11 +214,11 @@ void conv_relu_naive(const memory &user_src, const memory &user_wei,
     /// the input data format is at the time it is called.
     ///
     /// Using NCHW data format may result in suboptimal performance for compute
-    /// intensive primitives, as shown in the following DNNL_VERBOSE output
+    /// intensive primitives, as shown in the following ONEDNN_VERBOSE output
     /// by the convolution and relu execution
     /// times of 38.3 and 2.9 milliseconds, respectively.
     ///
-    /// *DNNL_VERBOSE output (see configuration notice\*):*
+    /// *ONEDNN_VERBOSE output (see configuration notice\*):*
     /// ~~~sh
     /// onednn_verbose,exec,cpu,convolution,gemm:jit,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:abcd:f0 bia_undef::undef::f0 dst_f32::blocked:abcd:f0,,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,38.314
     /// onednn_verbose,exec,cpu,eltwise,jit:avx512_common,forward_inference,data_f32::blocked:abcd:f0 diff_undef::undef::f0,,alg:eltwise_relu alpha:0 beta:0,128x96x55x55,2.87695
@@ -339,7 +339,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// @page performance_profiling_cpp
     /// Blocked memory format is recommended for oneDNN primitive
     /// execution and provides better performance, as shown in the
-    /// DNNL_VERBOSE output by the convolution and relu execution times of
+    /// ONEDNN_VERBOSE output by the convolution and relu execution times of
     /// 18.3 and 2.7 milliseconds (down from 38.3 and 2.9 in
     /// *naive implementation*), respectively.
     /// In this implementation, there is an additional reorder operation that
@@ -350,7 +350,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// and one at the end of the chain, and only pay the reorder penalty at
     /// those points in the execution.
     ///
-    /// *DNNL_VERBOSE output (see configuration notice\*):*
+    /// *ONEDNN_VERBOSE output (see configuration notice\*):*
     /// ~~~sh
     /// onednn_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:abcd:f0 dst_f32::blocked:Acdb16a:f0,,,96x3x11x11,0.0310059
     /// onednn_verbose,exec,cpu,convolution,jit:avx512_common,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:Acdb16a:f0 bia_undef::undef::f0 dst_f32::blocked:aBcd16b:f0,,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,18.3101
@@ -465,7 +465,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
     /// The consequence to following best practices can be seen in the execution
     /// time of the fused primitive of 18.0 milliseconds.
     ///
-    /// *DNNL_VERBOSE output (see configuration notice\*):*
+    /// *ONEDNN_VERBOSE output (see configuration notice\*):*
     /// ~~~sh
     /// onednn_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:abcd:f0 dst_f32::blocked:Acdb16a:f0,,,96x3x11x11,0.0148926
     /// onednn_verbose,exec,cpu,convolution,jit:avx512_common,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:Acdb16a:f0 bia_undef::undef::f0 dst_f32::blocked:aBcd16b:f0,post_ops:'eltwise_relu;';,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,17.968
