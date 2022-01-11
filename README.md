@@ -75,7 +75,6 @@ The library is optimized for the following CPUs:
 * Intel Core(TM) processors (at least Intel SSE4.1 support is required)
 * Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
-* Intel Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
 * Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, and Cooper
   Lake)
 * future Intel Xeon Scalable processor (code name Sapphire Rapids)
@@ -356,7 +355,7 @@ See also: [Security Policy](SECURITY.md)
 
 # Trademark Information
 
-Intel, the Intel logo, Arc, Intel Atom, Intel Core, Intel Xeon Phi, Iris,
+Intel, the Intel logo, Arc, Intel Atom, Intel Core, Iris,
 OpenVINO, the OpenVINO logo, Pentium, VTune, and Xeon are trademarks
 of Intel Corporation or its subsidiaries.
 
