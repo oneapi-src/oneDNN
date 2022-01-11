@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,19 @@ const impl_list_map_t regular_f32_bf16_impl_list_map REG_REORDER_P({
 
         DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
         DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
+#if !DNNL_X64
+        REG_SR_BIDIR(f32, any, bf16, nChw16c)
+        REG_SR_BIDIR(f32, any, bf16, nCdhw16c)
 
+        REG_SR(f32, oihw, bf16, OIhw8i16o2i, fmt_order::keep)
+        REG_SR(f32, goihw, bf16, gOIhw8i16o2i, fmt_order::keep)
+        REG_SR(f32, oihw, bf16, OIhw8o16i2o, fmt_order::keep)
+        REG_SR(f32, goihw, bf16, gOIhw8o16i2o, fmt_order::keep)
+        REG_SR(f32, oihw, bf16, IOhw8o16i2o, fmt_order::keep)
+        REG_SR(f32, goihw, bf16, gIOhw8o16i2o, fmt_order::keep)
+        REG_SR(f32, oihw, bf16, OIhw16i16o, fmt_order::keep)
+        REG_SR(f32, goihw, bf16, gOIhw16i16o, fmt_order::keep)
+#endif
         REG_SR(f32, any, bf16, any, fmt_order::any, spec::reference)
 
         nullptr,

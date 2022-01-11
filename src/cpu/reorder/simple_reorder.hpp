@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -117,7 +117,6 @@ inline bool simple_attr_check(const primitive_attr_t *attr,
 } // namespace
 
 /* specific reorders: implementation */
-// required for non-x64 only
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
@@ -239,6 +238,543 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 };
 
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<
+                (utils::one_of(tag_i, format_tag::iwo, format_tag::oiw,
+                         format_tag::wio)
+                        && utils::one_of(tag_o, format_tag::OIw4i16o4i,
+                                format_tag::OIw4i32o4i, format_tag::OIw4i64o4i,
+                                format_tag::OIw2i8o4i, format_tag::OIw4o4i))
+                        || (utils::one_of(tag_i, format_tag::oi, format_tag::io)
+                                && utils::one_of(tag_o, format_tag::OI4i16o4i,
+                                        format_tag::OI4i32o4i,
+                                        format_tag::OI4i64o4i))
+                        || (utils::one_of(
+                                    tag_i, format_tag::goiw, format_tag::wigo)
+                                && utils::one_of(tag_o, format_tag::gOIw4i16o4i,
+                                        format_tag::gOIw2i8o4i,
+                                        format_tag::gOIw4o4i))
+                        || (utils::one_of(tag_i, format_tag::ihwo,
+                                    format_tag::hwio, format_tag::oihw)
+                                && utils::one_of(tag_o, format_tag::OIhw4i16o4i,
+                                        format_tag::OIhw4i32o4i,
+                                        format_tag::OIhw4i64o4i,
+                                        format_tag::OIhw2i8o4i,
+                                        format_tag::OIhw4o4i))
+                        || (utils::one_of(tag_i, format_tag::idhwo,
+                                    format_tag::dhwio, format_tag::oidhw)
+                                && utils::one_of(tag_o,
+                                        format_tag::OIdhw4i16o4i,
+                                        format_tag::OIdhw4i32o4i,
+                                        format_tag::OIdhw4i64o4i,
+                                        format_tag::OIdhw2i8o4i,
+                                        format_tag::OIdhw4o4i))
+                        || (utils::one_of(
+                                    tag_i, format_tag::goihw, format_tag::hwigo)
+                                && utils::one_of(tag_o, format_tag::gOIhw4o4i,
+                                        format_tag::gOIhw2i8o4i,
+                                        format_tag::gOIhw4i16o4i))
+                        || (utils::one_of(tag_i, format_tag::goidhw)
+                                && (utils::one_of(tag_o,
+                                        format_tag::gOIdhw4i16o4i,
+                                        format_tag::gOIdhw2i8o4i,
+                                        format_tag::gOIdhw4o4i))),
+                spec::conv_req_comp>::type> {
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        using namespace format_tag;
+        using namespace data_type;
+        using namespace utils;
+
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
+        const size_t D_mask = array_product(
+                input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
+        const bool w_groups = !one_of(tag_o, OIw4i16o4i, OIw2i8o4i, OIw4o4i,
+                OIhw4i16o4i, OIhw2i8o4i, OIhw4o4i, OIdhw4i16o4i, OIdhw2i8o4i,
+                OIdhw4o4i, OI4i16o4i, OI4i32o4i, OI4i64o4i, OIw4i32o4i,
+                OIw4i64o4i, OIhw4i32o4i, OIhw4i64o4i, OIdhw4i32o4i,
+                OIdhw4i64o4i);
+        const dim_t oc = (input_d.dims()[w_groups ? 1 : 0]);
+        const dim_t g = w_groups ? input_d.dims()[0] : 1;
+
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+        const bool req_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
+        auto mask_ok = [&](bool check, int mask) {
+            return IMPLICATION(check, mask == (w_groups ? 0x3 : 0x1));
+        };
+
+        return simple_attr_check(attr, true, false)
+                && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
+                && (req_comp || req_asymmetric_comp)
+                && mask_ok(req_comp, output_d.extra().compensation_mask)
+                && mask_ok(req_asymmetric_comp,
+                        output_d.extra().asymm_compensation_mask)
+                && IMPLICATION(
+                        req_comp, one_of(D_mask, (size_t)1, (size_t)g * oc))
+                && one_of(input_d.data_type(), f32, s8, bf16)
+                && output_d.data_type() == s8;
+    }
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+        using namespace format_tag;
+
+        static constexpr bool w_groups = !utils::one_of(tag_o, OIw4o4i,
+                OIw4i16o4i, OIhw4i16o4i, OIdhw4i16o4i, OIhw4o4i, OIw2i8o4i,
+                OIhw2i8o4i, OIdhw2i8o4i, OIdhw4o4i, OI4i16o4i, OI4i32o4i,
+                OI4i64o4i, OIw4i32o4i, OIw4i64o4i, OIhw4i32o4i, OIhw4i64o4i,
+                OIdhw4i32o4i, OIdhw4i64o4i);
+
+        constexpr int is_0d
+                = utils::one_of(tag_o, OI4i16o4i, OI4i32o4i, OI4i64o4i);
+        constexpr int is_1d
+                = utils::one_of(tag_o, gOIw4i16o4i, OIw4i16o4i, gOIw2i8o4i,
+                        OIw2i8o4i, gOIw4o4i, OIw4o4i, OIw4i32o4i, OIw4i64o4i);
+        constexpr int is_3d = utils::one_of(tag_o, gOIdhw4i16o4i, OIdhw4i16o4i,
+                gOIdhw2i8o4i, OIdhw2i8o4i, gOIdhw4o4i, OIdhw4o4i, OIdhw4i32o4i,
+                OIdhw4i64o4i);
+        constexpr dim_t icblksize = utils::one_of(tag_traits<tag_o>::inner_blks,
+                                            ib::_4a4b, ib::_4b4c)
+                ? 4
+                : utils::one_of(tag_traits<tag_o>::inner_blks, ib::_2c8b4c,
+                          ib::_2b8a4b)
+                        ? 8
+                        : 16;
+        constexpr dim_t ocblksize
+                = tag_traits<tag_o>::inner_blks == ib::_4b32a4b
+                ? 32
+                : tag_traits<tag_o>::inner_blks == ib::_4b64a4b ? 64
+                                                                : icblksize;
+
+        const auto &plain_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        const auto &pdims
+                = order_keep ? output_d.padded_dims() : input_d.padded_dims();
+
+        const dim_t G = w_groups ? dims[0] : 1;
+        const dim_t OC = dims[w_groups + 0];
+        const dim_t NB_OC = pdims[w_groups + 0] / ocblksize;
+        const dim_t IC = dims[w_groups + 1];
+        const dim_t NB_IC = pdims[w_groups + 1] / icblksize;
+        const dim_t D = is_3d ? dims[2 + w_groups] : 1;
+        const dim_t H = is_1d || is_0d ? 1 : dims[2 + w_groups + is_3d];
+        const dim_t W = is_0d ? 1 : dims[w_groups + is_3d + 3 - is_1d];
+
+        const float *scales = pd->attr()->output_scales_.scales_;
+        const size_t D_mask = utils::array_product(input_d.dims(),
+                math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+        const bool has_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
+        assert(req_comp || has_asymmetric_comp);
+
+        float adj_scale
+                = (output_d.extra().flags & memory_extra_flags::scale_adjust)
+                ? output_d.extra().scale_adjust
+                : 1.f;
+        const bool broadcast_scales = (D_mask == 1);
+
+        // This kernel is used primarily for tensors with multiple inner
+        // blocks for which generic zero padding must be used.
+        // TODO: apply zero padding inside parallel_nd()
+        ctx.zero_pad_output(DNNL_ARG_TO);
+
+        auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
+                           int32_t *c, int32_t *zp, const float *s,
+                           const dim_t oc_block, const dim_t ic_block) {
+#define index AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>
+            for_(dim_t ic = 0; ic < ic_block; ++ic)
+            for (dim_t oc = 0; oc < oc_block; ++oc) {
+                const auto plain_off
+                        = oc * plain_d.blocking_desc().strides[w_groups + 0]
+                        + ic * plain_d.blocking_desc().strides[w_groups + 1];
+                out[index(oc, ic)] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                        inp[plain_off],
+                        s[broadcast_scales ? 0 : oc] * adj_scale);
+                if (req_comp) c[oc] -= (128 * (int32_t)(out[index(oc, ic)]));
+                if (has_asymmetric_comp)
+                    zp[oc] -= (int32_t)(out[index(oc, ic)]);
+            }
+#undef index
+        };
+
+        constexpr dim_t i_mult_ic = icblksize;
+        constexpr dim_t i_mult_oc = ocblksize;
+        constexpr dim_t o_mult = 1;
+
+        size_t offset
+                = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
+        size_t zp_offset = offset
+                + (req_comp ? G * dims[w_groups + 0] * sizeof(int32_t) : 0);
+        int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
+                               : nullptr;
+        int32_t *zp = has_asymmetric_comp
+                ? reinterpret_cast<int32_t *>(output + zp_offset)
+                : nullptr;
+
+        parallel_nd(G * OC, [&](dim_t i) {
+            if (req_comp) cp[i] = 0;
+            if (has_asymmetric_comp) zp[i] = 0;
+        });
+
+#define wei_blk_off(md, g, o, i, d, h, w) \
+    (is_0d ? (md).blk_off<!w_groups>(g, o, i) \
+           : is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
+                   : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                           : (md).blk_off<!w_groups>(g, o, i, h, w))
+        parallel_nd(G, NB_OC, [&](dim_t g, dim_t O) {
+            for_(dim_t I = 0; I < NB_IC; I++)
+            for_(dim_t d = 0; d < D; d++)
+            for_(dim_t h = 0; h < H; h++)
+            for (dim_t w = 0; w < W; w++) {
+                auto i = &input[wei_blk_off(
+                        input_d, g, i_mult_oc * O, i_mult_ic * I, d, h, w)];
+                auto o = &output[wei_blk_off(
+                        output_d, g, o_mult * O, o_mult * I, d, h, w)];
+                const dim_t oc_block = nstl::min(ocblksize, OC - O * ocblksize);
+                const dim_t ic_block = nstl::min(icblksize, IC - I * icblksize);
+                dim_t _offset = (g * NB_OC + O) * ocblksize;
+                ker(i, o, (order_keep && req_comp) ? &cp[_offset] : nullptr,
+                        (order_keep && has_asymmetric_comp) ? &zp[_offset]
+                                                            : nullptr,
+                        &scales[broadcast_scales ? 0 : _offset], oc_block,
+                        ic_block);
+            }
+        });
+
+#undef wei_blk_off
+
+        return status::success;
+    }
+};
+
+/* Asymmetric Blocking */
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<(utils::one_of(tag_i, format_tag::iwo,
+                                           format_tag::oiw, format_tag::wio)
+                                          && utils::one_of(
+                                                  tag_o, format_tag::Owi16o))
+                        || (utils::one_of(
+                                    tag_i, format_tag::goiw, format_tag::wigo)
+                                && utils::one_of(tag_o, format_tag::gOwi16o))
+                        || (utils::one_of(tag_i, format_tag::ihwo,
+                                    format_tag::hwio, format_tag::oihw)
+                                && utils::one_of(tag_o, format_tag::Owhi16o))
+                        || (utils::one_of(
+                                    tag_i, format_tag::goihw, format_tag::hwigo)
+                                && utils::one_of(tag_o, format_tag::gOwhi16o)),
+                spec::conv_req_comp>::type> {
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        using namespace format_tag;
+        using namespace data_type;
+        using namespace utils;
+
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
+        const bool w_groups = !one_of(tag_o, Owi16o, Owhi16o);
+
+        // Current formats are only used in jit kernels that natively
+        // support s8 instructions, hence, there is no need for signed
+        // compensation.
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+
+        const bool req_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
+        auto mask_ok = [&](bool check, int mask) {
+            const int c_mask = 0x1,
+                      g_mask = 0x3; // mask for i/o-channel and ngroups
+            return IMPLICATION(check, mask == (w_groups ? g_mask : c_mask));
+        };
+
+        return simple_attr_check(attr, true, false)
+                && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
+                && mask_ok(req_asymmetric_comp,
+                        output_d.extra().asymm_compensation_mask)
+                && one_of(input_d.data_type(), f32, s8, bf16)
+                && output_d.data_type() == s8 && !req_comp;
+    }
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+        using namespace format_tag;
+
+        static constexpr bool w_groups = !utils::one_of(tag_o, Owi16o, Owhi16o);
+        constexpr int is_1d = utils::one_of(tag_o, Owi16o, gOwi16o);
+        const bool is_3d = false; // TODO once enabled
+
+        constexpr dim_t oc_blksize = 16;
+
+        const auto &plain_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        const auto &pdims
+                = order_keep ? output_d.padded_dims() : input_d.padded_dims();
+
+        const dim_t G = w_groups ? dims[0] : 1;
+        const dim_t OC = dims[w_groups + 0];
+        const dim_t NB_OC = pdims[w_groups + 0] / oc_blksize;
+        const dim_t IC = dims[w_groups + 1];
+
+        const dim_t D = is_3d ? dims[2 + w_groups] : 1;
+        const dim_t H = is_1d ? 1 : dims[2 + w_groups + is_3d];
+        const dim_t W = dims[w_groups + is_3d + 3 - is_1d];
+
+        const float *scales = pd->attr()->output_scales_.scales_;
+        const size_t D_mask = utils::array_product(input_d.dims(),
+                math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
+        const bool has_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
+        float adj_scale
+                = (output_d.extra().flags & memory_extra_flags::scale_adjust)
+                ? output_d.extra().scale_adjust
+                : 1.f;
+
+        auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
+                           int32_t *zp, const float *s, const dim_t oc_block) {
+            for (dim_t oc = 0; oc < oc_block; ++oc) {
+                const auto plain_off
+                        = oc * plain_d.blocking_desc().strides[w_groups + 0];
+                out[oc] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                        inp[plain_off], s[oc] * adj_scale);
+                if (has_asymmetric_comp) zp[oc] -= (int32_t)(out[oc]);
+            }
+            // fill memory with '0' in case of padded channel dimensions
+            for (dim_t oc = oc_block; oc < oc_blksize; ++oc) {
+                out[oc] = 0;
+            }
+        };
+
+        size_t offset
+                = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
+        int32_t *zp = has_asymmetric_comp
+                ? reinterpret_cast<int32_t *>(output + offset)
+                : nullptr;
+
+        if (has_asymmetric_comp) {
+            parallel_nd(G * NB_OC * oc_blksize, [&](dim_t i) { zp[i] = 0; });
+        }
+
+#define wei_blk_off(md, g, o, i, d, h, w) \
+    (is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
+           : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                   : (md).blk_off<!w_groups>(g, o, i, h, w))
+
+        parallel_nd(G, NB_OC, [&](dim_t g, dim_t O) {
+            for_(dim_t I = 0; I < IC; I++)
+            for_(dim_t d = 0; d < D; d++)
+            for_(dim_t h = 0; h < H; h++)
+            for (dim_t w = 0; w < W; w++) {
+                auto i = &input[wei_blk_off(
+                        input_d, g, oc_blksize * O, I, d, h, w)];
+                auto o = &output[wei_blk_off(output_d, g, O, I, d, h, w)];
+                const dim_t oc_block
+                        = nstl::min(oc_blksize, OC - O * oc_blksize);
+                dim_t _offset = (g * NB_OC + O) * oc_blksize;
+                ker(i, o,
+                        (order_keep && has_asymmetric_comp) ? &zp[_offset]
+                                                            : nullptr,
+                        &scales[(D_mask == 1) ? 0 : _offset], oc_block);
+            }
+        });
+
+#undef wei_blk_off
+
+        return status::success;
+    }
+};
+
+/* Asymmetric Blocking */
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<(utils::one_of(tag_i, format_tag::iwo,
+                                           format_tag::oiw, format_tag::wio)
+                                          && utils::one_of(tag_o,
+                                                  format_tag::OwI16o4i,
+                                                  format_tag::OIw16i16o4i))
+                        || (utils::one_of(
+                                    tag_i, format_tag::goiw, format_tag::wigo)
+                                && utils::one_of(tag_o, format_tag::gOwI16o4i,
+                                        format_tag::gOIw16i16o4i))
+                        || (utils::one_of(tag_i, format_tag::ihwo,
+                                    format_tag::hwio, format_tag::oihw)
+                                && utils::one_of(tag_o, format_tag::OhwI16o4i,
+                                        format_tag::OIhw16i16o4i))
+                        || (utils::one_of(
+                                    tag_i, format_tag::goihw, format_tag::hwigo)
+                                && utils::one_of(tag_o, format_tag::gOhwI16o4i,
+                                        format_tag::gOIhw16i16o4i))
+                        || (utils::one_of(tag_i, format_tag::idhwo,
+                                    format_tag::dhwio, format_tag::oidhw)
+                                && utils::one_of(tag_o, format_tag::OdhwI16o4i,
+                                        format_tag::OIdhw16i16o4i))
+                        || (utils::one_of(tag_i, format_tag::goidhw)
+                                && utils::one_of(tag_o, format_tag::gOdhwI16o4i,
+                                        format_tag::gOIdhw16i16o4i)),
+                spec::conv_req_comp>::type> {
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        using namespace format_tag;
+        using namespace data_type;
+        using namespace utils;
+
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
+        const bool w_groups = !one_of(tag_o, OwI16o4i, OIw16i16o4i, OhwI16o4i,
+                OIhw16i16o4i, OdhwI16o4i, OIdhw16i16o4i);
+
+        // Current formats are only used in jit kernels that natively
+        // support s8 instructions, hence, there is no need for signed
+        // compensation.
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+
+        const bool req_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
+        auto mask_ok = [&](bool check, int mask) {
+            const int c_mask = 0x1,
+                      g_mask = 0x3; // mask for i/o-channel and ngroups
+            return IMPLICATION(check, mask == (w_groups ? g_mask : c_mask));
+        };
+
+        return simple_attr_check(attr, true, false)
+                && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
+                && mask_ok(req_asymmetric_comp,
+                        output_d.extra().asymm_compensation_mask)
+                && one_of(input_d.data_type(), f32, s8, bf16)
+                && output_d.data_type() == s8 && !req_comp;
+    }
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+        using namespace format_tag;
+
+        static constexpr bool w_groups
+                = !utils::one_of(tag_o, OwI16o4i, OIw16i16o4i, OhwI16o4i,
+                        OIhw16i16o4i, OdhwI16o4i, OIdhw16i16o4i);
+        constexpr int is_1d = utils::one_of(
+                tag_o, OwI16o4i, gOwI16o4i, OIw16i16o4i, gOIw16i16o4i);
+        const bool is_3d = utils::one_of(
+                tag_o, OdhwI16o4i, gOdhwI16o4i, OIdhw16i16o4i, gOIdhw16i16o4i);
+
+        constexpr dim_t oc_blksize = 16;
+        constexpr dim_t ic_blksize
+                = utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16b16a4b,
+                          ib::_16c16b4c)
+                ? 64
+                : utils::one_of(
+                          tag_traits<tag_o>::inner_blks, ib::_16a4b, ib::_16b4c)
+                        ? 4
+                        : 1;
+        assert(ic_blksize != 1);
+
+        const auto &plain_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        const auto &pdims
+                = order_keep ? output_d.padded_dims() : input_d.padded_dims();
+
+        const dim_t G = w_groups ? dims[0] : 1;
+        const dim_t OC = dims[w_groups + 0];
+        const dim_t NB_OC = pdims[w_groups + 0] / oc_blksize;
+        const dim_t IC = dims[w_groups + 1];
+        const dim_t NB_IC = pdims[w_groups + 1] / ic_blksize;
+
+        const dim_t D = is_3d ? dims[2 + w_groups] : 1;
+        const dim_t H = is_1d ? 1 : dims[2 + w_groups + is_3d];
+        const dim_t W = dims[w_groups + is_3d + 3 - is_1d];
+
+        const float *scales = pd->attr()->output_scales_.scales_;
+        const size_t D_mask = utils::array_product(input_d.dims(),
+                math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
+        const bool has_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
+        float adj_scale
+                = (output_d.extra().flags & memory_extra_flags::scale_adjust)
+                ? output_d.extra().scale_adjust
+                : 1.f;
+
+        // This kernel is used primarily for tensors with multiple inner
+        // blocks for which generic zero padding must be used.
+        // TODO: apply zero padding inside parallel_nd()
+        ctx.zero_pad_output(DNNL_ARG_TO);
+
+        auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
+                           int32_t *zp, const float *s, const dim_t oc_block,
+                           const dim_t ic_block) {
+            for_(dim_t ic = 0; ic < ic_block; ++ic)
+            for (dim_t oc = 0; oc < oc_block; ++oc) {
+                const auto plain_off
+                        = oc * plain_d.blocking_desc().strides[w_groups + 0]
+                        + ic * plain_d.blocking_desc().strides[w_groups + 1];
+                auto index = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
+                        oc, ic);
+                out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                        inp[plain_off], s[oc] * adj_scale);
+
+                if (has_asymmetric_comp) zp[oc] -= (int32_t)(out[index]);
+            }
+        };
+
+        size_t offset
+                = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
+        int32_t *zp = has_asymmetric_comp
+                ? reinterpret_cast<int32_t *>(output + offset)
+                : nullptr;
+
+        if (has_asymmetric_comp) {
+            parallel_nd(G * NB_OC * oc_blksize, [&](dim_t i) { zp[i] = 0; });
+        }
+
+#define wei_blk_off(md, g, o, i, d, h, w) \
+    (is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
+           : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                   : (md).blk_off<!w_groups>(g, o, i, h, w))
+
+        parallel_nd(G, NB_OC, [&](dim_t g, dim_t O) {
+            for_(dim_t I = 0; I < NB_IC; I++)
+            for_(dim_t d = 0; d < D; d++)
+            for_(dim_t h = 0; h < H; h++)
+            for (dim_t w = 0; w < W; w++) {
+                auto i = &input[wei_blk_off(
+                        input_d, g, oc_blksize * O, ic_blksize * I, d, h, w)];
+                auto o = &output[wei_blk_off(output_d, g, O, I, d, h, w)];
+                const dim_t oc_block
+                        = nstl::min(oc_blksize, OC - O * oc_blksize);
+                const dim_t ic_block
+                        = nstl::min(ic_blksize, IC - I * ic_blksize);
+                dim_t _offset = (g * NB_OC + O) * oc_blksize;
+                ker(i, o,
+                        (order_keep && has_asymmetric_comp) ? &zp[_offset]
+                                                            : nullptr,
+                        &scales[(D_mask == 1) ? 0 : _offset], oc_block,
+                        ic_block);
+            }
+        });
+
+#undef wei_blk_off
+
+        return status::success;
+    }
+};
+
 /* Asymmetric Blocking */
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
@@ -256,8 +792,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
+        // Current formats are only used in jit kernels that natively
+        // support s8 instructions, hence, there is no need for signed
+        // compensation.
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
+
         const bool req_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
 
@@ -267,13 +807,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const size_t D_mask = utils::array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
+
         return simple_attr_check(attr, true, false)
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
-                && mask_ok(req_comp, output_d.extra().compensation_mask)
                 && mask_ok(req_asymmetric_comp,
                         output_d.extra().asymm_compensation_mask)
                 && one_of(input_d.data_type(), f32, s8, bf16)
-                && output_d.data_type() == s8 && D_mask == 1;
+                && output_d.data_type() == s8 && !req_comp && D_mask == 1;
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -305,11 +845,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t NB_Adim = pdims[0] / A_blksize;
         const dim_t Bdim = dims[1];
         const dim_t NB_Bdim = pdims[1] / B_blksize;
-        assert(pdims[1] == NB_Bdim * B_blksize);
 
         const float *scales = pd->attr()->output_scales_.scales_;
-        const bool req_comp = output_d.extra().flags
-                & memory_extra_flags::compensation_conv_s8s8;
         const bool has_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
 
@@ -319,8 +856,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 : 1.f;
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
-                           int32_t *c, int32_t *zp, const float *s,
-                           const int a_block, const int b_block) {
+                           int32_t *zp, const float *s, const int a_block,
+                           const int b_block) {
             for (int a = 0; a < a_block; ++a) {
                 for (int b = 0; b < b_block; ++b) {
                     const auto plain_off
@@ -332,9 +869,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
                             inp[plain_off], s[0] * adj_scale);
 
-                    auto o = static_cast<int32_t>(out[index]);
-                    if (req_comp) c[b] -= (128 * o);
-                    if (has_asymmetric_comp) zp[b] -= o;
+                    if (has_asymmetric_comp) zp[b] -= (int32_t)(out[index]);
                 }
                 for (int b = b_block; b < B_blksize; ++b) {
                     auto index
@@ -354,20 +889,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-        const auto w_d = order_keep ? output_d : input_d;
-        size_t offset = w_d.size() - w_d.additional_buffer_size();
-        size_t zp_offset = offset + (req_comp ? pdims[1] * sizeof(int32_t) : 0);
-        int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
-                               : nullptr;
+        size_t offset = pdims[0] * pdims[1];
         int32_t *zp = has_asymmetric_comp
-                ? reinterpret_cast<int32_t *>(output + zp_offset)
+                ? reinterpret_cast<int32_t *>(output + offset)
                 : nullptr;
 
-        if (has_asymmetric_comp || req_comp) {
-            parallel_nd(NB_Bdim * B_blksize, [&](dim_t i) {
-                if (req_comp) cp[i] = 0;
-                if (has_asymmetric_comp) zp[i] = 0;
-            });
+        if (has_asymmetric_comp) {
+            parallel_nd(NB_Bdim * B_blksize, [&](dim_t i) { zp[i] = 0; });
         }
 
 #define get_blk_off(md, a, b) (md).blk_off(a, b)
@@ -382,7 +910,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const dim_t b_block
                         = nstl::min(B_blksize, Bdim - B * B_blksize);
                 dim_t _offset = B * B_blksize;
-                ker(i, o, (order_keep && req_comp) ? &cp[_offset] : nullptr,
+                ker(i, o,
                         (order_keep && has_asymmetric_comp) ? &zp[_offset]
                                                             : nullptr,
                         &scales[0], a_block, b_block);
@@ -395,14 +923,15 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 };
 
-// required for non-x64 only
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<false
-                        || (utils::one_of(tag_i, format_tag::goiw)
+                        || (utils::one_of(
+                                    tag_i, format_tag::goiw, format_tag::wigo)
                                 && utils::one_of(tag_o, format_tag::Goiw16g,
                                         format_tag::Goiw8g, format_tag::Goiw4g))
-                        || (utils::one_of(tag_i, format_tag::goihw)
+                        || (utils::one_of(
+                                    tag_i, format_tag::goihw, format_tag::hwigo)
                                 && utils::one_of(tag_o, format_tag::Goihw16g,
                                         format_tag::Goihw8g,
                                         format_tag::Goihw4g)),
@@ -436,12 +965,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
-
-    static inline dim_t wei_blk_off(const bool is_1d,
-            const memory_desc_wrapper &md, const dim_t g, const dim_t o,
-            const dim_t i, const dim_t h, const dim_t w) {
-        return (is_1d ? (md).blk_off(g, o, i, w) : (md).blk_off(g, o, i, h, w));
-    }
 
     static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
@@ -523,15 +1046,18 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         });
 
+#define wei_blk_off(md, g, o, i, h, w) \
+    (is_1d ? (md).blk_off(g, o, i, w) : (md).blk_off(g, o, i, h, w))
+
         parallel_nd(Gp / blksize, OC, [&](dim_t gb, dim_t O) {
             for (dim_t I = 0; I < IC; I++) {
                 for_(dim_t h = 0; h < H; h++)
                 for (dim_t w = 0; w < W; w++) {
                     const dim_t g_block = nstl::min(G - gb * blksize, blksize);
                     const auto inp = &input[wei_blk_off(
-                            is_1d, input_d, gb * blksize, O, I, h, w)];
-                    const auto out = &output[wei_blk_off(
-                            is_1d, output_d, gb, O, I, h, w)];
+                            input_d, gb * blksize, O, I, h, w)];
+                    const auto out
+                            = &output[wei_blk_off(output_d, gb, O, I, h, w)];
                     dim_t offset = gb * blksize + O;
 
                     ker_out(inp, out, &scales[(D_mask == 1) ? 0 : offset],
@@ -547,6 +1073,671 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 }
             }
         });
+
+#undef wei_blk_off
+
+        return status::success;
+    }
+};
+
+/* bf16 reorders */
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<(
+                (tag_i == format_tag::goihw || tag_i == format_tag::oihw)
+                && (tag_o == format_tag::gOIhw16i16o
+                        || tag_o == format_tag::OIhw16i16o
+                        || tag_o == format_tag::gOIhw8i16o2i
+                        || tag_o == format_tag::OIhw8i16o2i
+                        || tag_o == format_tag::gOIhw8o16i2o
+                        || tag_o == format_tag::OIhw8o16i2o
+                        || tag_o == format_tag::gIOhw8o16i2o
+                        || tag_o == format_tag::IOhw8o16i2o)
+                && type_i == data_type::f32
+                && type_o == data_type::bf16)>::type> {
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        using namespace data_type;
+
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
+        return order_keep && input_d.matches_tag(tag_i)
+                && output_d.matches_tag(tag_o) && input_d.data_type() == f32
+                && output_d.data_type() == bf16 && attr->has_default_values();
+    }
+
+    static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        const dim_t blksize = 16;
+        return sizeof(float) * blksize * blksize * dnnl_get_max_threads();
+    }
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+        using namespace format_tag;
+
+        static constexpr bool w_groups = tag_i == goihw;
+        const dim_t blksize = 16;
+        const int sblk = 2;
+
+        const auto &plain_d = input_d;
+        const auto &dims = input_d.dims();
+        const auto &pdims = output_d.padded_dims();
+
+        const dim_t G = w_groups ? dims[0] : 1;
+        const dim_t OC = dims[w_groups + 0];
+        const dim_t NB_OC = pdims[w_groups + 0] / blksize;
+        const dim_t IC = dims[w_groups + 1];
+        const dim_t NB_IC = pdims[w_groups + 1] / blksize;
+        const dim_t H = dims[w_groups + 2];
+        const dim_t W = dims[w_groups + 3];
+
+        const size_t wsp_size = blksize * blksize;
+        float *wspace = scratchpad.template get<float>(
+                memory_tracking::names::key_reorder_space);
+
+        auto index = [&](dim_t ic, dim_t oc) -> dim_t {
+            if (utils::one_of(tag_o, gOIhw16i16o, OIhw16i16o))
+                return (ic * blksize + oc);
+            else if (utils::one_of(tag_o, gOIhw8i16o2i, OIhw8i16o2i))
+                return ((ic / sblk) * blksize * sblk + sblk * oc + ic % sblk);
+            else if (utils::one_of(tag_o, gOIhw8o16i2o, gIOhw8o16i2o,
+                             OIhw8o16i2o, IOhw8o16i2o))
+                return ((oc / sblk) * blksize * sblk + sblk * ic + oc % sblk);
+            else
+                assert(!"Invalid weight format");
+            return dim_t(0);
+        };
+
+        auto ker = [&](const data_t<type_i> *inp, data_t<type_i> *out,
+                           const dim_t curr_oc_block, const dim_t oc_block,
+                           const dim_t curr_ic_block, const dim_t ic_block) {
+            dim_t ic = 0;
+            for (ic = 0; ic < curr_ic_block; ++ic) {
+                dim_t oc = 0;
+                for (oc = 0; oc < curr_oc_block; ++oc) {
+                    const auto plain_off
+                            = oc * plain_d.blocking_desc().strides[w_groups + 0]
+                            + ic
+                                    * plain_d.blocking_desc()
+                                              .strides[w_groups + 1];
+                    out[index(ic, oc)] = inp[plain_off];
+                }
+                for (/* continue */; oc < oc_block; ++oc) {
+                    out[index(ic, oc)] = (data_t<type_i>)0;
+                }
+            }
+            for (/* continue */; ic < ic_block; ++ic) {
+                for (dim_t oc = 0; oc < oc_block; ++oc) {
+                    out[index(ic, oc)] = (data_t<type_i>)0;
+                }
+            }
+        };
+
+        constexpr int i_mult = blksize;
+        constexpr int o_mult = 1;
+
+        parallel_nd_ext(0, G, NB_OC, NB_IC, H, W,
+                [&](int ithr, int, dim_t g, dim_t O, dim_t I, dim_t h,
+                        dim_t w) {
+                    float *_wspace = wspace + wsp_size * ithr;
+                    auto i = &input[input_d.blk_off<!w_groups>(
+                            g, i_mult * O, i_mult * I, h, w)];
+                    auto o = &output[output_d.blk_off<!w_groups>(
+                            g, o_mult * O, o_mult * I, h, w)];
+                    const dim_t oc_block = nstl::min(blksize, OC - O * blksize);
+                    const dim_t ic_block = nstl::min(blksize, IC - I * blksize);
+                    ker(i, _wspace, oc_block, blksize, ic_block, blksize);
+                    cvt_float_to_bfloat16(o, _wspace, wsp_size);
+                });
+
+        return status::success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<(tag_i == format_tag::nchw
+                                          && tag_o == format_tag::nChw16c)
+                && type_i == data_type::f32
+                && type_o == data_type::bf16>::type> {
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        using namespace data_type;
+
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
+        return input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
+                && input_d.data_type() == f32 && output_d.data_type() == bf16
+                && attr->has_default_values();
+    }
+
+    static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        const size_t blksize = 16;
+        const size_t W = input_d.dims()[3];
+        return sizeof(float) * blksize * W * dnnl_get_max_threads();
+    }
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+
+        const dim_t blksize = 16;
+
+        const auto &flat_d = input_d;
+        const auto &dims = input_d.dims();
+        const auto &pdims = output_d.padded_dims();
+
+        const dim_t C = dims[1];
+        const dim_t H = dims[2];
+        const dim_t W = dims[3];
+
+        const dim_t wsp_size = W * blksize;
+        float *wspace = scratchpad.template get<float>(
+                memory_tracking::names::key_reorder_space);
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_i> *o,
+                           const dim_t curr_c_block, const dim_t c_block) {
+            for (dim_t w = 0; w < W; ++w) {
+                dim_t c = 0;
+                for (c = 0; c < curr_c_block; ++c) {
+                    const ptrdiff_t flat_off = 0
+                            + c * flat_d.blocking_desc().strides[1]
+                            + w * flat_d.blocking_desc().strides[3];
+                    o[w * blksize + c] = i[flat_off];
+                }
+                for (/* continue */; c < c_block; ++c) {
+                    o[w * blksize + c] = (data_t<type_i>)0;
+                }
+            }
+        };
+
+        constexpr int i_c_mult = blksize;
+        constexpr int o_c_mult = 1;
+
+        parallel_nd_ext(0, dims[0], pdims[1] / blksize, H,
+                [&](int ithr, int, dim_t n, dim_t nb_c, dim_t h) {
+                    float *_wspace = wspace + wsp_size * ithr;
+                    auto i = &input[input_d.blk_off(n, i_c_mult * nb_c, h)];
+                    auto o = &output[output_d.blk_off(n, o_c_mult * nb_c, h)];
+                    const dim_t c_block
+                            = nstl::min(blksize, C - nb_c * blksize);
+                    ker(i, _wspace, c_block, blksize);
+                    cvt_float_to_bfloat16(o, _wspace, wsp_size);
+                });
+
+        return status::success;
+    }
+};
+
+/* reorders with tail support */
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<false
+                || (utils::one_of(
+                            tag_i, format_tag::nCdhw4c, format_tag::nCdhw8c)
+                        && tag_o == format_tag::nCdhw16c)
+                || (utils::one_of(tag_i, format_tag::nChw4c, format_tag::nChw8c)
+                        && tag_o == format_tag::nChw16c)
+                || (utils::one_of(tag_i, format_tag::nCw4c, format_tag::nCw8c)
+                        && tag_o == format_tag::nCw16c)>::type> {
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        return simple_fmt_check(order_keep, tag_i, tag_o, input_d, output_d)
+                && simple_attr_check(attr, false, true);
+    }
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+        using namespace format_tag;
+
+        constexpr int is_1d = utils::one_of(tag_i, nCw4c, nCw8c);
+        constexpr int is_3d = utils::one_of(tag_i, nCdhw4c, nCdhw8c);
+
+        constexpr dim_t blksize_i
+                = tag_traits<tag_i>::inner_blks == ib::_4b ? 4 : 8;
+        constexpr dim_t blksize_16 = 16;
+
+        constexpr dim_t ic_mult = order_keep ? blksize_16 / blksize_i : 1;
+        constexpr dim_t oc_mult = order_keep ? 1 : blksize_16 / blksize_i;
+
+        const auto &dims = input_d.dims();
+        const auto &pdims
+                = order_keep ? output_d.padded_dims() : input_d.padded_dims();
+
+        const auto &d_i = order_keep ? input_d : output_d;
+        const auto stride_C_in_blk_i = d_i.blocking_desc().strides[1];
+
+        const dim_t C = dims[1];
+        const dim_t D = is_3d ? dims[2] : 1;
+        const dim_t H = is_1d ? 1 : dims[2 + is_3d];
+        const dim_t W = dims[3 + is_3d - is_1d];
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
+                           const int block) {
+            const int nb = utils::div_up(block, blksize_i);
+            if (alpha == 1.0 && beta == 0.0) {
+                for (int b = 0; b < nb; ++b) {
+                    const ptrdiff_t i_off
+                            = b * (order_keep ? stride_C_in_blk_i : blksize_i);
+                    const ptrdiff_t o_off
+                            = b * (order_keep ? blksize_i : stride_C_in_blk_i);
+                    const int block_i
+                            = nstl::min(blksize_i, block - b * blksize_i);
+                    for (int c = 0; c < block_i; ++c) {
+                        o[o_off + c] = _qz_a1b0<type_i, type_o>()(i[i_off + c]);
+                    }
+                    if (order_keep && b + 1 == nb) {
+                        // zero padding
+                        const auto pad_size
+                                = blksize_16 - ((nb - 1) * blksize_i);
+                        const auto pad_start = block_i + o_off;
+                        const auto pad_end = pad_size + o_off;
+                        PRAGMA_OMP_SIMD()
+                        for (int i = pad_start; i < pad_end; i++) {
+                            o[i] = 0;
+                        }
+                    }
+                }
+            } else {
+                for (int b = 0; b < nb; ++b) {
+                    const ptrdiff_t i_off
+                            = b * (order_keep ? stride_C_in_blk_i : blksize_i);
+                    const ptrdiff_t o_off
+                            = b * (order_keep ? blksize_i : stride_C_in_blk_i);
+                    const int block_i
+                            = nstl::min(blksize_i, block - b * blksize_i);
+                    for (int c = 0; c < block_i; ++c) {
+                        o[o_off + c] = _qz<type_i, type_o>()(
+                                i[i_off + c], o[o_off + c], alpha, beta);
+                    }
+                    if (order_keep && b + 1 == nb) {
+                        // zero padding
+                        const auto pad_size
+                                = blksize_16 - ((nb - 1) * blksize_i);
+                        const auto pad_start = block_i + o_off;
+                        const auto pad_end = pad_size + o_off;
+                        PRAGMA_OMP_SIMD()
+                        for (int i = pad_start; i < pad_end; i++) {
+                            o[i] = 0;
+                        }
+                    }
+                }
+            }
+        };
+
+#define data_blk_off(md, n, c, d, h, w) \
+    (is_1d ? (md).blk_off(n, c, w) \
+           : is_3d ? (md).blk_off(n, c, d, h, w) : (md).blk_off(n, c, h, w))
+
+        parallel_nd(dims[0], pdims[1] / blksize_16, D, H, W,
+                [&](dim_t n, dim_t nb_c, dim_t d, dim_t h, dim_t w) {
+                    auto i = &input[data_blk_off(
+                            input_d, n, ic_mult * nb_c, d, h, w)];
+                    auto o = &output[data_blk_off(
+                            output_d, n, oc_mult * nb_c, d, h, w)];
+                    const int block
+                            = nstl::min(blksize_16, C - nb_c * blksize_16);
+                    ker(i, o, block);
+                });
+
+#undef data_blk_off
+
+        return status::success;
+    }
+};
+
+#define PLAIN_TO_BLOCKED_IS_APPLICABLE() \
+    static bool is_applicable(const memory_desc_wrapper &input_d, \
+            const memory_desc_wrapper &output_d, \
+            const primitive_attr_t *attr) { \
+        return !input_d.has_runtime_dims_or_strides() \
+                && simple_attr_check(attr, false, true) \
+                && (order_keep ? output_d.matches_tag(tag_o) \
+                                        && input_d.is_plain() \
+                               : input_d.matches_tag(tag_o) \
+                                        && output_d.is_plain()); \
+    }
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<tag_i == format_tag::any
+                && (tag_traits<tag_o>::block_dims == bd::_A
+                        || tag_traits<tag_o>::block_dims == bd::_B)
+                && tag_traits<tag_o>::ndims >= 3
+                && tag_traits<tag_o>::ndims <= 6>::type> {
+    PLAIN_TO_BLOCKED_IS_APPLICABLE();
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+
+        const auto &flat_d = order_keep ? input_d : output_d;
+        const auto &block_d = order_keep ? output_d : input_d;
+        const dims_t &dims = input_d.dims();
+        const dims_t &pdims = block_d.padded_dims();
+
+        const int ndims = tag_traits<tag_o>::ndims;
+        const int blk_idx = tag_traits<tag_o>::block_dims == bd::_A ? 0 : 1;
+
+        const dim_t H0 = dims[0];
+        const dim_t H1 = dims[1];
+        const dim_t M0 = ndims == 6 ? dims[ndims - 4] : 1;
+        const dim_t M1 = ndims >= 5 ? dims[ndims - 3] : 1;
+        const dim_t M2 = ndims >= 4 ? dims[ndims - 2] : 1;
+        const dim_t L = dims[ndims - 1];
+        const dim_t l_blk_stride = block_d.blocking_desc().strides[ndims - 1];
+        const dim_t l_flat_stride = flat_d.blocking_desc().strides[ndims - 1];
+        const dim_t blk_flat_stride = flat_d.blocking_desc().strides[blk_idx];
+        using namespace data_type;
+        using namespace utils;
+
+        constexpr int blksize = false
+                ? 0
+                : one_of(tag_traits<tag_o>::inner_blks, ib::_4a, ib::_4b)
+                        ? 4
+                        : one_of(tag_traits<tag_o>::inner_blks, ib::_8a,
+                                  ib::_8b)
+                                ? 8
+                                : 16;
+
+        constexpr bool f32bf16
+                = one_of(type_i, f32, bf16) && one_of(type_o, f32, bf16);
+
+        auto wrap_qz_a1b0 = [=](data_t<type_o> &out, data_t<type_i> inp) {
+            if (f32bf16)
+                out = inp;
+            else
+                out = _qz_a1b0<type_i, type_o>()(inp);
+        };
+
+        auto wrap_qz = [=](data_t<type_o> &out, data_t<type_i> inp, float alpha,
+                               float beta) {
+            if (f32bf16)
+                out = alpha * inp + (beta ? beta * out : 0);
+            else
+                out = _qz<type_i, type_o>()(inp, out, alpha, beta);
+        };
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o, int block) {
+            if (alpha == 1.0 && beta == 0.0) {
+                for (int l = 0; l < L; ++l) {
+                    for (int blk = 0; blk < block; ++blk) {
+                        const dim_t flat_off
+                                = blk * blk_flat_stride + l * l_flat_stride;
+                        const dim_t blk_offset = l * l_blk_stride + blk;
+                        if (order_keep) {
+                            wrap_qz_a1b0(o[blk_offset], i[flat_off]);
+                        } else {
+                            wrap_qz_a1b0(o[flat_off], i[blk_offset]);
+                        }
+                    }
+                    if (order_keep) {
+                        // zero padding
+                        const auto pad_start = block + l * l_blk_stride;
+                        const auto pad_end = blksize + l * l_blk_stride;
+                        PRAGMA_OMP_SIMD()
+                        for (int i = pad_start; i < pad_end; ++i) {
+                            o[i] = 0;
+                        }
+                    }
+                }
+            } else {
+                for (int l = 0; l < L; ++l) {
+                    for (int blk = 0; blk < block; ++blk) {
+                        const dim_t flat_off
+                                = blk * blk_flat_stride + l * l_flat_stride;
+                        const dim_t blk_offset = l * l_blk_stride + blk;
+                        if (order_keep)
+                            wrap_qz(o[blk_offset], i[flat_off], alpha, beta);
+                        else
+                            wrap_qz(o[flat_off], i[blk_offset], alpha, beta);
+                    }
+                    if (order_keep) {
+                        // zero padding
+                        const auto pad_start = block + l * l_blk_stride;
+                        const auto pad_end = blksize + l * l_blk_stride;
+                        PRAGMA_OMP_SIMD()
+                        for (int i = pad_start; i < pad_end; ++i) {
+                            o[i] = 0;
+                        }
+                    }
+                }
+            }
+        };
+
+#define off(md, h0, h1, m0, m1, m2) \
+    (ndims >= 6 ? (md).blk_off(h0, h1, m0, m1, m2) \
+                : ndims >= 5 ? (md).blk_off(h0, h1, m1, m2) \
+                             : ndims >= 4 \
+                                    ? (md).blk_off(h0, h1, m2) \
+                                    : /* ndims >= 3 ? */ (md).blk_off(h0, h1))
+
+        constexpr int i_mult = order_keep ? blksize : 1;
+        constexpr int o_mult = order_keep ? 1 : blksize;
+
+        if (blk_idx == 0) {
+            const dim_t BH0 = pdims[0] / blksize;
+            parallel_nd(BH0, H1, M0, M1, M2,
+                    [&](dim_t bh0, dim_t h1, dim_t m0, dim_t m1, dim_t m2) {
+                        auto i = &input[off(
+                                input_d, bh0 * i_mult, h1, m0, m1, m2)];
+                        auto o = &output[off(
+                                output_d, bh0 * o_mult, h1, m0, m1, m2)];
+                        const int block
+                                = nstl::min<int>(blksize, H0 - bh0 * blksize);
+                        ker(i, o, block);
+                    });
+        } else if (blk_idx == 1) {
+            const dim_t BH1 = pdims[1] / blksize;
+            parallel_nd(H0, BH1, M0, M1, M2,
+                    [&](dim_t h0, dim_t bh1, dim_t m0, dim_t m1, dim_t m2) {
+                        auto i = &input[off(
+                                input_d, h0, bh1 * i_mult, m0, m1, m2)];
+                        auto o = &output[off(
+                                output_d, h0, bh1 * o_mult, m0, m1, m2)];
+                        const int block
+                                = nstl::min<int>(blksize, H1 - bh1 * blksize);
+                        ker(i, o, block);
+                    });
+        } else {
+            assert(!"unimplemented");
+        }
+
+#undef off
+
+        return status::success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<tag_i == format_tag::any
+                && (tag_traits<tag_o>::block_dims == bd::_AB
+                        || tag_traits<tag_o>::block_dims == bd::_BC)
+                && IMPLICATION(tag_traits<tag_o>::block_dims == bd::_AB,
+                        tag_traits<tag_o>::ndims >= 3
+                                && tag_traits<tag_o>::ndims <= 5)
+                && IMPLICATION(tag_traits<tag_o>::block_dims == bd::_BC,
+                        tag_traits<tag_o>::ndims >= 4
+                                && tag_traits<tag_o>::ndims <= 6)>::type> {
+    PLAIN_TO_BLOCKED_IS_APPLICABLE();
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+
+        const auto &flat_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        const auto &pdims
+                = order_keep ? output_d.padded_dims() : input_d.padded_dims();
+
+        constexpr int ndims = tag_traits<tag_o>::ndims;
+
+        static constexpr bool with_g = tag_traits<tag_o>::block_dims == bd::_BC;
+        const dim_t G = with_g ? dims[0] : 1;
+
+        const dim_t H0 = dims[0 + with_g];
+        const dim_t H1 = dims[1 + with_g];
+
+        const dim_t M0 = ndims >= 5 + with_g ? dims[ndims - 3] : 1;
+        const dim_t M1 = ndims >= 4 + with_g ? dims[ndims - 2] : 1;
+        const dim_t M2 = ndims >= 3 + with_g ? dims[ndims - 1] : 1;
+
+        const dim_t h0_flat_stride = flat_d.blocking_desc().strides[with_g + 0];
+        const dim_t h1_flat_stride = flat_d.blocking_desc().strides[with_g + 1];
+        using namespace data_type;
+        using namespace utils;
+
+        constexpr dim_t blksize_0 = false
+                ? 0
+                : one_of(tag_traits<tag_o>::inner_blks, ib::_4b4a, ib::_4b4c,
+                          ib::_4c4b)
+                        ? 4
+                        : one_of(tag_traits<tag_o>::inner_blks, ib::_8a8b,
+                                  ib::_8b8a, ib::_8b8c, ib::_8c8b, ib::_2c8b4c)
+                                ? 8
+                                : one_of(tag_traits<tag_o>::inner_blks,
+                                          ib::_16a16b, ib::_16b16a, ib::_16b16c,
+                                          ib::_16c16b, ib::_8a16b2a,
+                                          ib::_4b16a4b, ib::_8b16a2b,
+                                          ib::_8b16c2b, ib::_4c16b4c,
+                                          ib::_8c16b2c)
+                                        ? 16
+                                        : -1;
+
+        constexpr dim_t blksize_1
+                = one_of(tag_traits<tag_o>::inner_blks, ib::_8a8b, ib::_8b8a,
+                          ib::_8b8c, ib::_8c8b, ib::_2c8b4c)
+                ? 8
+                : one_of(tag_traits<tag_o>::inner_blks, ib::_16a16b,
+                          ib::_16b16a, ib::_16b16c, ib::_16c16b, ib::_8a16b2a,
+                          ib::_4b16a4b, ib::_8b16a2b, ib::_8b16c2b,
+                          ib::_4c16b4c, ib::_8c16b2c)
+                        ? 16
+                        : one_of(tag_traits<tag_o>::inner_blks, ib::_4b4a,
+                                  ib::_4b4c, ib::_4c4b)
+                                ? 4
+                                : -1;
+
+        const dim_t NB_H0 = pdims[0 + with_g] / blksize_0;
+        const dim_t NB_H1 = pdims[1 + with_g] / blksize_1;
+
+        constexpr bool f32bf16
+                = one_of(type_i, f32, bf16) && one_of(type_o, f32, bf16);
+
+        auto wrap_qz_a1b0 = [=](data_t<type_o> &out, data_t<type_i> inp) {
+            if (f32bf16)
+                out = inp;
+            else
+                out = _qz_a1b0<type_i, type_o>()(inp);
+        };
+
+        auto wrap_qz = [=](data_t<type_o> &out, data_t<type_i> inp, float alpha,
+                               float beta) {
+            if (f32bf16)
+                out = alpha * inp + (beta ? beta * out : 0);
+            else
+                out = _qz<type_i, type_o>()(inp, out, alpha, beta);
+        };
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
+                           const int block_h0, const int block_h1) {
+#define blk_off AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>
+            if (alpha == 1.0 && beta == 0.0) {
+                for (int h0 = 0; h0 < block_h0; ++h0) {
+                    for (int h1 = 0; h1 < block_h1; ++h1) {
+                        const dim_t flat_off
+                                = h0 * h0_flat_stride + h1 * h1_flat_stride;
+                        if (order_keep)
+                            wrap_qz_a1b0(o[blk_off(h0, h1)], i[flat_off]);
+                        else
+                            wrap_qz_a1b0(o[flat_off], i[blk_off(h0, h1)]);
+                    }
+                    if (order_keep && block_h1 < blksize_1) {
+                        // zero padding
+                        PRAGMA_OMP_SIMD()
+                        for (int h1 = block_h1; h1 < blksize_1; h1++) {
+                            o[blk_off(h0, h1)] = 0;
+                        }
+                    }
+                }
+                if (order_keep && block_h0 < blksize_0) {
+                    // zero padding
+                    for (int h0 = block_h0; h0 < blksize_0; h0++) {
+                        PRAGMA_OMP_SIMD()
+                        for (int h1 = 0; h1 < blksize_1; ++h1) {
+                            o[blk_off(h0, h1)] = 0;
+                        }
+                    }
+                }
+            } else {
+                for (int h0 = 0; h0 < block_h0; ++h0) {
+                    for (int h1 = 0; h1 < block_h1; ++h1) {
+                        const dim_t flat_off
+                                = h0 * h0_flat_stride + h1 * h1_flat_stride;
+                        if (order_keep)
+                            wrap_qz(o[blk_off(h0, h1)], i[flat_off], alpha,
+                                    beta);
+                        else
+                            wrap_qz(o[flat_off], i[blk_off(h0, h1)], alpha,
+                                    beta);
+                    }
+                    if (order_keep && block_h1 < blksize_1) {
+                        // zero padding
+                        PRAGMA_OMP_SIMD()
+                        for (int h1 = block_h1; h1 < blksize_1; h1++) {
+                            o[blk_off(h0, h1)] = 0;
+                        }
+                    }
+                }
+                if (order_keep && block_h0 < blksize_0) {
+                    // zero padding
+                    for (int h0 = block_h0; h0 < blksize_0; h0++) {
+                        PRAGMA_OMP_SIMD()
+                        for (int h1 = 0; h1 < blksize_1; ++h1) {
+                            o[blk_off(h0, h1)] = 0;
+                        }
+                    }
+                }
+            }
+
+#undef blk_off
+        };
+
+        constexpr int i_mult_0 = order_keep ? blksize_0 : 1;
+        constexpr int o_mult_0 = order_keep ? 1 : blksize_0;
+
+        constexpr int i_mult_1 = order_keep ? blksize_1 : 1;
+        constexpr int o_mult_1 = order_keep ? 1 : blksize_1;
+
+#define off(md, g, h0, h1, m0, m1, m2) \
+    (ndims >= 5 + with_g ? (md).blk_off<!with_g>(g, h0, h1, m0, m1, m2) \
+                         : ndims >= 4 + with_g \
+                            ? (md).blk_off<!with_g>(g, h0, h1, m1, m2) \
+                            : /* ndims >= 3 + with_g ? */ (md) \
+                                      .blk_off<!with_g>(g, h0, h1, m2))
+
+        parallel_nd(G, NB_H0, NB_H1, M0, M1, M2,
+                [&](dim_t g, dim_t nb_h0, dim_t nb_h1, dim_t m0, dim_t m1,
+                        dim_t m2) {
+                    auto i = &input[off(input_d, g, i_mult_0 * nb_h0,
+                            i_mult_1 * nb_h1, m0, m1, m2)];
+                    auto o = &output[off(output_d, g, o_mult_0 * nb_h0,
+                            o_mult_1 * nb_h1, m0, m1, m2)];
+                    const int block_h0
+                            = nstl::min<int>(blksize_0, H0 - nb_h0 * blksize_0);
+                    const int block_h1
+                            = nstl::min<int>(blksize_1, H1 - nb_h1 * blksize_1);
+                    ker(i, o, block_h0, block_h1);
+                });
+
+#undef off
 
         return status::success;
     }

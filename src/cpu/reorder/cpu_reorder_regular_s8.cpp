@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,20 @@ const impl_list_map_t regular_s8_impl_list_map REG_REORDER_P({
         DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
         DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
+#if !DNNL_X64
+        REG_SR_BIDIR(s8, any, f32, nChw16c)
+        REG_SR_BIDIR(s8, any, s32, nChw16c)
+        REG_SR_BIDIR(s8, any, bf16, nChw16c)
+        REG_SR_BIDIR(s8, any, s8, nChw16c)
+        REG_SR_BIDIR(s8, any, u8, nChw16c)
 
+        REG_SR_BIDIR(s8, any, f32, OIhw4i16o4i)
+        REG_SR_BIDIR(s8, any, bf16, OIhw4i16o4i)
+        REG_SR_BIDIR(s8, any, s8, OIhw4i16o4i)
+        REG_SR_BIDIR(s8, any, f32, gOIhw4i16o4i)
+        REG_SR_BIDIR(s8, any, bf16, gOIhw4i16o4i)
+        REG_SR_BIDIR(s8, any, s8, gOIhw4i16o4i)
+#endif
         REG_SR(s8, any, f32, any, fmt_order::any, spec::reference)
         REG_SR(s8, any, s32, any, fmt_order::any, spec::reference)
         REG_SR(s8, any, bf16, any, fmt_order::any, spec::reference)
