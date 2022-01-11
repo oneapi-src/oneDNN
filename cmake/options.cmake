@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2021 Intel Corporation
+# Copyright 2018-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ set(options_cmake_included true)
 # ========
 
 option(DNNL_VERBOSE
-    "allows oneDNN be verbose whenever DNNL_VERBOSE
+    "allows oneDNN be verbose whenever ONEDNN_VERBOSE
     environment variable set to 1" ON) # enabled by default
 
 option(DNNL_ENABLE_CONCURRENT_EXEC
