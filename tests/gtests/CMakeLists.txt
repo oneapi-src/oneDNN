@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2021 Intel Corporation
+# Copyright 2016-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -219,7 +219,7 @@ function(register_gtest exe src)
         maybe_configure_windows_test(${exe}_gpu TEST)
     elseif(DNNL_CPU_RUNTIME STREQUAL "NONE" AND NOT no_engine_param)
         add_dnnl_test(${exe}_gpu ${exe} COMMAND ${exe} --engine=gpu)
-        maybe_configure_windows_test(${exe} TEST)
+        maybe_configure_windows_test(${exe}_gpu TEST)
     else()
         add_dnnl_test(${exe} ${exe})
         maybe_configure_windows_test(${exe} TEST)
