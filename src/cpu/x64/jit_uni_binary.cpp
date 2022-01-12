@@ -189,6 +189,36 @@ bool jit_uni_binary_t::pd_t::is_only_dim0_bcasted(
     return only_dim0_bcasted;
 }
 
+// non-blocked: nxc || ncx
+bool jit_uni_binary_t::pd_t::is_format_non_blocked(
+        const memory_desc_wrapper &mdw) const {
+    const auto &dims = mdw.dims();
+    const auto &strides = mdw.blocking_desc().strides;
+    const auto &ndims = mdw.ndims();
+
+    const bool is_ncx
+            = IMPLICATION(strides[0] != 0,
+                      strides[0] >= utils::array_product(dims + 1, ndims - 1))
+            && IMPLICATION(ndims >= 3 && strides[1] != 0,
+                    strides[1] >= utils::array_product(dims + 2, ndims - 2))
+            && IMPLICATION(ndims >= 4 && strides[2] != 0,
+                    strides[2] >= utils::array_product(dims + 3, ndims - 3))
+            && IMPLICATION(ndims >= 5 && strides[3] != 0,
+                    strides[3] >= utils::array_product(dims + 4, ndims - 4))
+            && IMPLICATION(strides[ndims - 1] != 0, strides[ndims - 1] == 1);
+    const bool is_nxc
+            = IMPLICATION(strides[0] != 0,
+                      strides[0] >= utils::array_product(dims + 1, ndims - 1))
+            && IMPLICATION(ndims >= 3 && strides[2] != 0,
+                    strides[2] >= utils::array_product(dims + 2, ndims - 2))
+            && IMPLICATION(ndims >= 4 && strides[3] != 0,
+                    strides[3] >= utils::array_product(dims + 3, ndims - 3))
+            && IMPLICATION(ndims >= 5 && strides[4] != 0,
+                    strides[4] >= utils::array_product(dims + 4, ndims - 4))
+            && IMPLICATION(strides[1] != 0, strides[1] == 1);
+    return is_nxc || is_ncx;
+}
+
 bcast_t jit_uni_binary_t::pd_t::get_bcast_type(
         const memory_desc_wrapper &src1_d, const dims_t &bcast_dims) {
     if (src1_d.nelems() == 1)
@@ -268,14 +298,9 @@ bool jit_uni_binary_t::pd_t::is_different_layouts_allowed(
         without_bcast = without_bcast && src0_dims[d] == src1_dims[d];
     if (!without_bcast) return false;
 
-    const auto &bd0 = src0_d.blocking_desc();
-    const auto &bd1 = src1_d.blocking_desc();
-    // allow nchw:nhwc and nhwc:nchw
-    const bool aligned_batch = bd0.strides[0] > bd0.strides[1]
-            && bd1.strides[0] > bd1.strides[1];
-    // disable for blocked layouts
-    return utils::everyone_is(0, bd0.inner_nblks, bd1.inner_nblks)
-            && aligned_batch;
+    // allow nchw:nhwc and nhwc:nchw and disable for blocked layouts
+    return src0_d.is_plain() && src1_d.is_plain()
+            && is_format_non_blocked(src0_d) && is_format_non_blocked(src1_d);
 }
 
 bool jit_uni_binary_t::pd_t::is_applicable() {
@@ -349,18 +374,9 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
                         is_src_different_layouts, different_layouts_allowed)))
         return false;
 
-    if (src0_d.is_plain() && src1_d.is_plain()) {
-        const auto &bd0 = src0_d.blocking_desc();
-        const auto &bd1 = src1_d.blocking_desc();
-        // only nspc and ncsp formats are supported for bcast
-        return bd0.strides[0]
-                == utils::array_product(src0_d.dims() + 1, src0_d.ndims() - 1)
-                && IMPLICATION(bd0.strides[1] > 1,
-                        bd0.strides[1]
-                                == utils::array_product(
-                                        src0_d.dims() + 2, src0_d.ndims() - 2))
-                && bd1.strides[0] >= bd1.strides[1];
-    }
+    // only nspc and ncsp formats are supported for bcast
+    if (src0_d.is_plain() && src1_d.is_plain())
+        return is_format_non_blocked(src0_d) && is_format_non_blocked(src1_d);
 
     // blocked formats
     if (!conf_.is_i8) {

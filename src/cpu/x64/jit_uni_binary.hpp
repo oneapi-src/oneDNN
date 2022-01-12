@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ struct jit_uni_binary_t : public primitive_t {
         bool is_bcast_pattern(const dims_t &bcast_dims, const dim_t N_bcast,
                 const dim_t C_bcast) const;
         bool is_bcast_allowed(const int ndims) const;
-        bool is_ncsp_or_nspc(const memory_desc_wrapper &mdw) const;
+        bool is_format_non_blocked(const memory_desc_wrapper &mdw) const;
         bool is_different_layouts_allowed(const memory_desc_wrapper &src0_d,
                 const memory_desc_wrapper &src1_d) const;
         bool is_applicable();
