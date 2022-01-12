@@ -1091,6 +1091,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_pooling_v2) return "pooling_v2";
     if (v == dnnl_reduction) return "reduction";
     if (v == dnnl_prelu) return "prelu";
+    if (v == dnnl_softmax_v2) return "softmax_v2";
     if (v == dnnl_primitive_kind_max) return "primitive_kind_max";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
@@ -1168,6 +1169,8 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_reduction_norm_lp_sum) return "reduction_norm_lp_sum";
     if (v == dnnl_reduction_norm_lp_power_p_max) return "reduction_norm_lp_power_p_max";
     if (v == dnnl_reduction_norm_lp_power_p_sum) return "reduction_norm_lp_power_p_sum";
+    if (v == dnnl_softmax_accurate) return "softmax_accurate";
+    if (v == dnnl_softmax_log) return "softmax_log";
     assert(!"unknown alg_kind");
     return "unknown alg_kind";
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -263,6 +263,7 @@ enum {
     key_rnn_ptrs_wei_iter,
     key_rnn_ptrs_wei_projection,
     key_softmax_reduction,
+    key_softmax_interim_store,
     key_sum_reduction,
     key_sum_srcs_cvt,
     key_wino_U,

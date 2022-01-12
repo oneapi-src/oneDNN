@@ -141,6 +141,8 @@ const alg_kind_t reduction_norm_lp_power_p_max
         = dnnl_reduction_norm_lp_power_p_max;
 const alg_kind_t reduction_norm_lp_power_p_sum
         = dnnl_reduction_norm_lp_power_p_sum;
+const alg_kind_t softmax_accurate = dnnl_softmax_accurate;
+const alg_kind_t softmax_log = dnnl_softmax_log;
 } // namespace alg_kind
 
 using data_type_t = dnnl_data_type_t;
@@ -1246,6 +1248,7 @@ const primitive_kind_t logsoftmax = dnnl_logsoftmax;
 const primitive_kind_t matmul = dnnl_matmul;
 const primitive_kind_t resampling = dnnl_resampling;
 const primitive_kind_t reduction = dnnl_reduction;
+const primitive_kind_t softmax_v2 = dnnl_softmax_v2;
 
 // Internal only primitive kinds.
 const primitive_kind_t internal_only_start = (primitive_kind_t)(1 << 12);
@@ -1298,6 +1301,7 @@ const query_t logsoftmax_d = dnnl_query_logsoftmax_d;
 const query_t matmul_d = dnnl_query_matmul_d;
 const query_t resampling_d = dnnl_query_resampling_d;
 const query_t reduction_d = dnnl_query_reduction_d;
+const query_t softmax_v2_d = dnnl_query_softmax_v2_d;
 
 const query_t some_md = dnnl_query_some_md;
 const query_t src_md = dnnl_query_src_md;
@@ -1338,6 +1342,7 @@ using logsoftmax_desc_t = dnnl_logsoftmax_desc_t;
 using matmul_desc_t = dnnl_matmul_desc_t;
 using resampling_desc_t = dnnl_resampling_desc_t;
 using reduction_desc_t = dnnl_reduction_desc_t;
+using softmax_v2_desc_t = dnnl_softmax_v2_desc_t;
 
 using rnn_direction_t = dnnl_rnn_direction_t;
 using rnn_desc_t = dnnl_rnn_desc_t;
@@ -1364,7 +1369,7 @@ struct op_desc_t {
         pooling_v2_desc_t pooling_v2;
         prelu_desc_t prelu;
         eltwise_desc_t eltwise;
-        softmax_desc_t softmax;
+        softmax_v2_desc_t softmax_v2;
         lrn_desc_t lrn;
         batch_normalization_desc_t batch_normalization;
         layer_normalization_desc_t layer_normalization;
@@ -1395,7 +1400,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(pooling_v2_desc_t);
     DECL_CTOR_AND_CONVERTERS(prelu_desc_t);
     DECL_CTOR_AND_CONVERTERS(eltwise_desc_t);
-    DECL_CTOR_AND_CONVERTERS(softmax_desc_t);
+    DECL_CTOR_AND_CONVERTERS(softmax_v2_desc_t);
     DECL_CTOR_AND_CONVERTERS(lrn_desc_t);
     DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t);
     DECL_CTOR_AND_CONVERTERS(layer_normalization_desc_t);

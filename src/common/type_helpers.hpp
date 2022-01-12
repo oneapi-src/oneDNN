@@ -560,6 +560,18 @@ inline bool operator==(const softmax_desc_t &lhs, const softmax_desc_t &rhs) {
     return ret;
 }
 
+inline bool operator==(
+        const softmax_v2_desc_t &lhs, const softmax_v2_desc_t &rhs) {
+    const auto &v1_desc_lhs = *reinterpret_cast<const softmax_desc_t *>(&lhs);
+    const auto &v1_desc_rhs = *reinterpret_cast<const softmax_desc_t *>(&rhs);
+
+    bool ret = v1_desc_lhs == v1_desc_rhs
+            && COMPARE_DESC_MEMBERS(alg_kind)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(diff_dst_desc);
+     return ret;
+}
+
 inline bool operator==(const sum_desc_t &lhs, const sum_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && DEREF_AND_COMPARE_DESC_MEMBERS(dst_md)

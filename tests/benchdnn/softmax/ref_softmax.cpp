@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,6 +63,7 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
                     } else if (alg == LOGSOFTMAX) {
                         dst_ptr[idx] -= space_denom;
                     }
+                    maybe_oscale(prb->attr, dst_ptr[idx], prb->scales, 0);
                 }
             });
 }

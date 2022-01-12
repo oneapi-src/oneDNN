@@ -1399,6 +1399,9 @@ typedef enum {
     dnnl_reduction,
     /// A PReLU primitive.
     dnnl_prelu,
+    /// A softmax version 2 primitive (softmax with destination memory
+    /// descriptor and algorithm kind).
+    dnnl_softmax_v2,
 
     /// Parameter to allow internal only primitives without undefined behavior.
     /// This parameter is chosen to be valid for so long as sizeof(int) >= 2.
@@ -1557,6 +1560,10 @@ typedef enum {
     dnnl_reduction_norm_lp_power_p_max,
     /// Reduction using lp norm without final pth-root
     dnnl_reduction_norm_lp_power_p_sum,
+    /// Softmax
+    dnnl_softmax_accurate = 0x30000,
+    /// Logsoftmax
+    dnnl_softmax_log,
 } dnnl_alg_kind_t;
 
 /// Flags for normalization primitives.
@@ -2010,8 +2017,8 @@ typedef struct {
     /// The kind of primitive. Used for self-identifying the primitive
     /// descriptor. Must be #dnnl_softmax.
     dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training and
-    /// #dnnl_forward_inference.
+    /// The kind of propagation. Possible values: #dnnl_forward_training,
+    /// #dnnl_forward_inference, and #dnnl_backward_data.
     dnnl_prop_kind_t prop_kind;
     /// Source and destination memory descriptor.
     dnnl_memory_desc_t data_desc;
@@ -2022,6 +2029,34 @@ typedef struct {
 } dnnl_softmax_desc_t;
 
 /// @} dnnl_api_softmax
+
+/// @addtogroup dnnl_api_softmax_v2
+/// @{
+
+/// A descriptor of a Softmax operation.
+typedef struct {
+    /// The kind of primitive. Used for self-identifying the primitive
+    /// descriptor. Must be #dnnl_softmax_v2.
+    dnnl_primitive_kind_t primitive_kind;
+    /// The kind of propagation. Possible values: #dnnl_forward_training,
+    /// #dnnl_forward_inference, and #dnnl_backward_data.
+    dnnl_prop_kind_t prop_kind;
+    /// Source memory descriptor.
+    dnnl_memory_desc_t src_desc;
+    /// Source gradient memory descriptor.
+    dnnl_memory_desc_t diff_src_desc;
+    /// The axis along which to perform the softmax.
+    int softmax_axis;
+    /// Softmax algorithm. Possible values: #dnnl_softmax_accurate and
+    /// #dnnl_softmax_log.
+    dnnl_alg_kind_t alg_kind;
+    /// Destination memory descriptor.
+    dnnl_memory_desc_t dst_desc;
+    /// Destination gradient memory descriptor.
+    dnnl_memory_desc_t diff_dst_desc;
+} dnnl_softmax_v2_desc_t;
+
+/// @} dnnl_api_softmax_v2
 
 /// @addtogroup dnnl_api_logsoftmax
 /// @{
@@ -2939,6 +2974,7 @@ typedef enum {
     dnnl_query_pooling_v2_d, ///< pooling version 2 descriptor
     dnnl_query_reduction_d, ///< reduction descriptor
     dnnl_query_prelu_d, ///< prelu descriptor
+    dnnl_query_softmax_v2_d, ///< softmax version 2 descriptor
 
     // memory descriptor section
     dnnl_query_some_md = 128, ///< stub

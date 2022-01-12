@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -301,8 +301,9 @@ protected:
         using pd_op_desc_t = typename pkind_traits<pd_t::base_pkind>::desc_type;
         // A hack to reuse softmax code using logsoftmax primitive.
         // TODO: consider removing it in v2.0 by introducing alg_kind in softmax
-        bool valid_logsoftmax = pd_t::base_pkind == primitive_kind::softmax
-                && adesc->kind == primitive_kind::logsoftmax;
+        bool valid_logsoftmax = pd_t::base_pkind == primitive_kind::softmax_v2
+                && utils::one_of(adesc->kind, primitive_kind::softmax,
+                        primitive_kind::logsoftmax);
         bool valid_pooling = pd_t::base_pkind == primitive_kind::pooling_v2
                 && adesc->kind == primitive_kind::pooling;
         if (adesc->kind != pd_t::base_pkind && !valid_logsoftmax

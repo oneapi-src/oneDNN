@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -432,8 +432,13 @@ TEST_F(runtime_attr_test_t, TestSoftmax) {
     memory::desc md {{2, 16}, data_type::f32, tag::ab};
     softmax_forward::desc op_d(prop_kind::forward, md, 1);
     CHECK_OK(softmax_forward::primitive_desc(op_d, eng));
-    CHECK_UNIMPL(softmax_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(false), eng));
+    if (get_test_engine_kind() == engine::kind::gpu) {
+        CHECK_UNIMPL(softmax_forward::primitive_desc(
+                op_d, gen_attr_with_oscale(false), eng));
+    } else {
+        CHECK_OK(softmax_forward::primitive_desc(
+                op_d, gen_attr_with_oscale(false), eng));
+    }
     CHECK_UNIMPL(softmax_forward::primitive_desc(
             op_d, gen_attr_with_oscale(true), eng));
 

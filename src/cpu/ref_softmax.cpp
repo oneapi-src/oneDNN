@@ -36,25 +36,41 @@ static bool is_padding(const memory_desc_wrapper &md) {
 }
 
 status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
+
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+    const float *scales = pd()->attr()->output_scales_.scales_;
+    float *scratchpad_int8 = ctx.get_scratchpad_grantor().template get<float>(
+            key_softmax_interim_store);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
+
+    const auto interim_dt
+            = pd()->need_int8_scratchpad() ? data_type::f32 : dst_d.data_type();
+
     const dim_t ou_stride = pd()->outer_stride();
     const auto is_inplace = (src == dst);
     const auto has_padding = is_padding(dst_d);
     const auto zero_padding = has_padding && !is_inplace;
     const auto axis = pd()->axis();
+    const auto axis_size = pd()->axis_size(true);
     const auto axis_blk_size = src_d.padded_dims()[axis] - src_d.dims()[axis];
     const auto src_dt_size = types::data_type_size(pd()->src_md()->data_type);
     const auto dst_dt_size = types::data_type_size(pd()->dst_md()->data_type);
 
-    parallel_nd(outer_size_, [&](dim_t ou) {
+    const int nthr = pd()->nthr_;
+
+    parallel_nd_ext(nthr, outer_size_, [&](int ithr, int, dim_t ou) {
         const void *src_data = reinterpret_cast<const char *>(src)
                 + ou * ou_stride * src_dt_size;
         void *dst_data
                 = reinterpret_cast<char *>(dst) + ou * ou_stride * dst_dt_size;
+        void *interim_ptr = pd()->need_int8_scratchpad()
+                ? (scratchpad_int8 + ithr * axis_size)
+                : dst_data;
+
         float space_max = -FLT_MAX;
         float space_denom = 0;
         constexpr int unroll_factor = 32;
@@ -97,7 +113,8 @@ status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
         }
 #else
         for (int c = 0; c < channels_; ++c)
-            space_max = nstl::max(space_max, io::load_float_value(src_d.data_type(), src_data, c));
+            space_max = nstl::max(space_max,
+                    io::load_float_value(src_d.data_type(), src_data, c));
 #endif
 
         // sub + exp + sum
@@ -114,7 +131,8 @@ status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
                 } else if (pd()->is_logsoftmax()) {
                     space_denom += expf(d);
                 }
-                io::store_float_value(dst_d.data_type(), d, dst_data, i + j);
+
+                io::store_float_value(interim_dt, d, interim_ptr, i + j);
             }
         }
         for (int i = channels_ - tail; i < channels_; i++) {
@@ -126,7 +144,7 @@ status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
             } else if (pd()->is_logsoftmax()) {
                 space_denom += expf(d);
             }
-            io::store_float_value(dst_d.data_type(), d, dst_data, i);
+            io::store_float_value(interim_dt, d, interim_ptr, i);
         }
 
         // scal
@@ -136,13 +154,14 @@ status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
             space_denom = logf(space_denom);
         }
         for (int c = 0; c < channels_; ++c) {
-            float d = io::load_float_value(dst_d.data_type(), dst_data, c);
+            float d = io::load_float_value(interim_dt, interim_ptr, c);
             float val = 0;
             if (pd()->is_softmax()) {
                 val = d * space_denom;
             } else if (pd()->is_logsoftmax()) {
                 val = d - space_denom;
             }
+            val *= scales[0];
             io::store_float_value(dst_d.data_type(), val, dst_data, c);
         }
         if (zero_padding) {
@@ -157,18 +176,26 @@ status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
 
 status_t ref_softmax_fwd_t::execute_forward_generic(
         const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
 
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+    const float *scales = pd()->attr()->output_scales_.scales_;
+    float *scratchpad_int8 = ctx.get_scratchpad_grantor().template get<float>(
+            key_softmax_interim_store);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
+    void *interim_ptr = pd()->need_int8_scratchpad() ? scratchpad_int8 : dst;
+    const auto interim_dt
+            = pd()->need_int8_scratchpad() ? data_type::f32 : dst_d.data_type();
+
     const auto is_inplace = (src == dst);
-    const auto has_padding = is_padding(src_d);
+    const auto has_padding = is_padding(dst_d);
     if (has_padding && !is_inplace) {
-        if (src_d.is_dense(true)) {
-            const auto res = std::div(static_cast<int>(src_d.size()), PAGE_4K);
+        if (dst_d.is_dense(true)) {
+            const auto res = std::div(static_cast<int>(dst_d.size()), PAGE_4K);
             if (!res.quot)
                 std::memset(dst, 0, res.rem);
             else
@@ -183,11 +210,15 @@ status_t ref_softmax_fwd_t::execute_forward_generic(
             ctx.zero_pad_output(DNNL_ARG_DST);
     }
 
-    parallel_nd(outer_size_, [&](dim_t ou) {
+    const auto axis_size = pd()->axis_size(true);
+    const int nthr = pd()->nthr_;
+
+    parallel_nd_ext(nthr, outer_size_, [&](int ithr, int, dim_t ou) {
+        const dim_t thr_shift = ithr * axis_size;
+
         float space_max_val = 0, space_denom_val = 0;
         float *space_max = &space_max_val, *space_denom = &space_denom_val;
         if (inner_size_ > 1) {
-            using namespace memory_tracking::names;
             space_max = ctx.get_scratchpad_grantor().template get<float>(
                                 key_softmax_reduction)
                     + ou * 2 * inner_size_;
@@ -207,8 +238,8 @@ status_t ref_softmax_fwd_t::execute_forward_generic(
             }
 
             for (int c = 0; c < channels_; c++) {
-                size_t off = src_d.off_l(ou_in_offset + c * inner_size_);
-                float s = io::load_float_value(src_d.data_type(), src, off);
+                size_t src_off = src_d.off_l(ou_in_offset + c * inner_size_);
+                float s = io::load_float_value(src_d.data_type(), src, src_off);
                 float d = s - space_max[in];
                 if (pd()->is_softmax()) {
                     d = expf(d);
@@ -216,7 +247,11 @@ status_t ref_softmax_fwd_t::execute_forward_generic(
                 } else if (pd()->is_logsoftmax()) {
                     space_denom[in] += expf(d);
                 }
-                io::store_float_value(dst_d.data_type(), d, dst, off);
+                size_t dst_off = dst_d.off_l(ou_in_offset + c * inner_size_);
+                size_t interim_off = pd()->need_int8_scratchpad()
+                        ? thr_shift + c
+                        : dst_off;
+                io::store_float_value(interim_dt, d, interim_ptr, interim_off);
             }
 
             if (pd()->is_logsoftmax()) {
@@ -224,14 +259,20 @@ status_t ref_softmax_fwd_t::execute_forward_generic(
             }
 
             for (int c = 0; c < channels_; c++) {
-                size_t off = dst_d.off_l(ou_in_offset + c * inner_size_);
-                float d = io::load_float_value(dst_d.data_type(), dst, off);
+                size_t dst_off = dst_d.off_l(ou_in_offset + c * inner_size_);
+                size_t interim_off = pd()->need_int8_scratchpad()
+                        ? thr_shift + c
+                        : dst_off;
+                float d = io::load_float_value(
+                        interim_dt, interim_ptr, interim_off);
                 float sd = space_denom[in];
                 if (pd()->is_softmax()) {
-                    io::store_float_value(dst_d.data_type(), d / sd, dst, off);
+                    d /= sd;
                 } else if (pd()->is_logsoftmax()) {
-                    io::store_float_value(dst_d.data_type(), d - sd, dst, off);
+                    d -= sd;
                 }
+                d *= scales[0];
+                io::store_float_value(dst_d.data_type(), d, dst, dst_off);
             }
         }
     });

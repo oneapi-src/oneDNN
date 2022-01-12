@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ DECLARE_IMPL_LIST(reduction);
 DECLARE_IMPL_LIST(resampling);
 DECLARE_IMPL_LIST(rnn);
 DECLARE_IMPL_LIST(shuffle);
-DECLARE_IMPL_LIST(softmax);
+DECLARE_IMPL_LIST(softmax_v2);
 DECLARE_IMPL_LIST(zero_pad);
 
 #undef DECLARE_IMPL_LIST

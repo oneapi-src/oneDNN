@@ -19,6 +19,7 @@
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
+#include "common/memory_tracking.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
@@ -48,6 +49,8 @@ struct jit_softmax_base_t : public jit_generator {
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
         const void *src, *dst, *diff_dst; // src dubs as diff_src
+        const void *interim; // scratch memory for intermediate storage
+        const void *oscale; // oscale defined for all data type cases
         size_t process_n_elems;
     };
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_softmax_t)
@@ -79,24 +82,29 @@ struct jit_softmax_base_t : public jit_generator {
     Reg64 reg_tmp = r13;
     Reg64 reg_dst_spat_offt = r15;
     Reg64 reg_diff_dst_spat_offt = reg_log_injector_table;
+    Reg64 reg_interim = reg_diff_dst;
+    Reg64 reg_interim_spat_offt = abi_not_param1;
+    Reg64 reg_output_scale = rsi;
 
     Opmask injector_mask = Opmask(1);
 
     Vmm vtmp; // assigned at placed where used
     Vmm tail_vmask = Vmm(0);
     Xmm xneg_flt_max = Xmm(12);
-    Vmm vneg_flt_max = Vmm(isa == avx512_common ? 28 : 12);
+    Vmm vneg_flt_max = Vmm(isa == avx512_core ? 28 : 12);
     Xmm xone = Xmm(13);
-    Vmm vone = Vmm(isa == avx512_common ? 29 : 13);
-    Vmm vsum = Vmm(isa == avx512_common ? 30 : 14);
-    Vmm vmax = Vmm(isa == avx512_common ? 31 : 15);
+    Vmm vone = Vmm(isa == avx512_core ? 29 : 13);
+    Vmm vsum = Vmm(isa == avx512_core ? 30 : 14);
+    Vmm vmax = Vmm(isa == avx512_core ? 31 : 15);
     Vmm vsbr = vsum; // must be not equal to vmax
-    Vmm vzeropad = Vmm(isa == avx512_common ? 21 : 11);
+    Vmm vzero = Vmm(isa == avx512_core ? 21 : 11);
+    Vmm vsaturation_ubound = vneg_flt_max;
 
     bool is_bf16_ = false;
     bool is_softmax_ = pd_->is_softmax();
     bool is_logsoftmax_ = pd_->is_logsoftmax();
     bool axis_is_blocked_;
+    bool need_scratchpad_;
 
     size_t simd_w_ = 0;
     size_t unroll_regs_ = 4;
@@ -107,6 +115,7 @@ struct jit_softmax_base_t : public jit_generator {
     size_t loop_tail_;
     size_t process_n_elems_;
     size_t src_axis_stride_;
+    size_t interim_axis_stride_;
     size_t dst_axis_stride_;
     size_t diff_dst_axis_stride_;
 
@@ -117,6 +126,7 @@ struct jit_softmax_base_t : public jit_generator {
         loop_tail_ = axis_simd_full_ - n_loops_ * unroll_regs_;
         process_n_elems_ = compute_process_n_elems(dst_d_);
         src_axis_stride_ = compute_axis_stride(src_d_);
+        interim_axis_stride_ = simd_w_ * sizeof(float);
         dst_axis_stride_ = compute_axis_stride(dst_d_);
         if (!pd_->is_fwd())
             diff_dst_axis_stride_ = compute_axis_stride(diff_dst_d_);
@@ -150,6 +160,10 @@ struct jit_softmax_base_t : public jit_generator {
             mov(reg_diff_src, ptr[reg_param + PARAM_OFF(src)]); // src is reused
             mov(reg_diff_dst, ptr[reg_param + PARAM_OFF(diff_dst)]);
         }
+        if (need_scratchpad_) {
+            mov(reg_interim, ptr[reg_param + PARAM_OFF(interim)]);
+        }
+        mov(reg_output_scale, ptr[reg_param + PARAM_OFF(oscale)]);
 #undef PARAM_OFF
     }
 
@@ -159,6 +173,10 @@ struct jit_softmax_base_t : public jit_generator {
 
     Address src_ptr(size_t offt = 0) {
         return vmmword[reg_src + reg_src_spat_offt + offt];
+    }
+
+    Address interim_ptr(size_t offt = 0) {
+        return vmmword[reg_interim + reg_interim_spat_offt + offt];
     }
 
     Address dst_ptr(size_t offt = 0) {
@@ -186,6 +204,8 @@ struct jit_softmax_base_t : public jit_generator {
         mov(reg_reverse_n_elems, reg_process_n_elems);
         xor_(reg_src_spat_offt, reg_src_spat_offt); // src/diff_src addr
         xor_(reg_dst_spat_offt, reg_dst_spat_offt); // dst addr
+        if (need_scratchpad_)
+            xor_(reg_interim_spat_offt, reg_interim_spat_offt); // scratch addr
         if (!pd_->is_fwd())
             xor_(reg_diff_dst_spat_offt, reg_diff_dst_spat_offt); // d_dst addr
         L(main_loop);
@@ -198,6 +218,9 @@ struct jit_softmax_base_t : public jit_generator {
                 sub(reg_reverse_n_elems, unroll_regs_ * process_n_elems_);
                 add(reg_src_spat_offt, unroll_regs_ * src_axis_stride_);
                 add(reg_dst_spat_offt, unroll_regs_ * dst_axis_stride_);
+                if (need_scratchpad_)
+                    add(reg_interim_spat_offt,
+                            unroll_regs_ * interim_axis_stride_);
                 if (!pd_->is_fwd())
                     add(reg_diff_dst_spat_offt,
                             unroll_regs_ * diff_dst_axis_stride_);
@@ -211,6 +234,9 @@ struct jit_softmax_base_t : public jit_generator {
                 body(loop_tail_, false);
                 add(reg_src_spat_offt, loop_tail_ * src_axis_stride_);
                 add(reg_dst_spat_offt, loop_tail_ * dst_axis_stride_);
+                if (need_scratchpad_)
+                    add(reg_interim_spat_offt,
+                            loop_tail_ * interim_axis_stride_);
                 if (!pd_->is_fwd())
                     add(reg_diff_dst_spat_offt,
                             loop_tail_ * diff_dst_axis_stride_);
@@ -282,6 +308,8 @@ struct jit_softmax_base_t : public jit_generator {
         is_bf16_ = utils::one_of(
                 data_type::bf16, src_d_.data_type(), dst_d_.data_type());
         simd_w_ = vlen / sizeof(float); // bf16 works on ymms
+        need_scratchpad_ = utils::one_of(
+                dst_d_.data_type(), data_type::u8, data_type::s8);
     }
 };
 
@@ -289,7 +317,7 @@ template <cpu_isa_t isa>
 struct jit_softmax_t;
 
 template <>
-struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
+struct jit_softmax_t<avx512_core> : public jit_softmax_base_t<avx512_core> {
     std::unique_ptr<bf16_emulation_t> bf16_emu_ = nullptr;
     Ymm bf16_cvt_ymm = Ymm(22);
     Zmm bf16_emu_zmm_1 = Zmm(23);
@@ -307,14 +335,18 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
         Vmm src_vmm = vmm;
 
         if (tail) {
-            if (axis_is_blocked_) {
-                src_vmm = vzeropad | tail_opmask;
-                uni_vxorps(vzeropad, vzeropad, vzeropad);
-                uni_vmovups(src_vmm, vmm);
-                src_vmm = vzeropad;
-                effective_addr = addr;
-            } else {
-                effective_addr = addr | tail_opmask;
+            if (utils::one_of(dt, data_type::f32, data_type::bf16)) {
+                if (axis_is_blocked_) {
+                    src_vmm = vzero | tail_opmask;
+                    uni_vxorps(vzero, vzero, vzero);
+                    uni_vmovups(src_vmm, vmm);
+                    src_vmm = vzero;
+                    effective_addr = addr;
+                } else {
+                    effective_addr = addr | tail_opmask;
+                }
+            } else { // int8 store instructions assume mask on register
+                src_vmm = src_vmm | tail_opmask;
             }
         }
 
@@ -328,7 +360,22 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
                 vmovdqu16(effective_addr, bf16_cvt_ymm);
                 break;
             case data_type::u8:
-            case data_type::s8: assert(!"unsupported"); break;
+                uni_vxorps(vzero, vzero, vzero); // since vzero might be spoiled
+                saturate_f32(vmm, vzero, vsaturation_ubound, data_type::u8);
+                vcvtps2dq(vmm, vmm);
+                vpmovusdb(effective_addr, src_vmm);
+                // Need to restore data back to fp32 since we apply exp after
+                // storing and data should be fp32.
+                if (is_logsoftmax_) vcvtdq2ps(vmm, vmm);
+                break;
+            case data_type::s8:
+                saturate_f32(vmm, vzero, vsaturation_ubound, data_type::s8);
+                vcvtps2dq(vmm, vmm);
+                vpmovsdb(effective_addr, src_vmm);
+                // Need to restore data back to fp32 since we apply exp after
+                // storing and data should be fp32.
+                if (is_logsoftmax_) vcvtdq2ps(vmm, vmm);
+                break;
             default: assert(!"unsupported"); break;
         }
     };
@@ -345,7 +392,13 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
                 vpslld(effective_vmm, effective_vmm, 0x10);
                 break;
             case data_type::u8:
-            case data_type::s8: assert(!"unsupported"); break;
+                vpmovzxbd(effective_vmm, addr);
+                vcvtdq2ps(effective_vmm, effective_vmm);
+                break;
+            case data_type::s8:
+                vpmovsxbd(effective_vmm, addr);
+                vcvtdq2ps(effective_vmm, effective_vmm);
+                break;
             default: assert(!"unsupported"); break;
         }
     };
@@ -388,6 +441,12 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
     }
 
     void accumulate_vsum() override {
+        // Initialize saturation vector register
+        if (utils::one_of(dst_d_.data_type(), data_type::u8, data_type::s8)) {
+            init_saturate_f32(vzero, vsaturation_ubound, reg_tmp,
+                    data_type::f32, dst_d_.data_type());
+        }
+
         uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
 
         axis_loop([&](int unroll, bool tail = false) {
@@ -396,17 +455,29 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
                 load(vreg_tmp_src, src_ptr(src_axis_stride_ * i),
                         src_d_.data_type(), tail);
                 uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                if (is_logsoftmax_) // store before applying exp
-                    store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
-                            dst_d_.data_type(), tail);
+                if (is_logsoftmax_) { // store before applying exp
+                    if (need_scratchpad_) {
+                        store(interim_ptr(interim_axis_stride_ * i),
+                                vreg_tmp_src, data_type::f32, tail);
+                    } else {
+                        store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
+                                dst_d_.data_type(), tail);
+                    }
+                }
                 exp_injector_->compute_vector(vreg_tmp_src.getIdx());
                 if (tail)
                     uni_vaddps(vsum | tail_opmask, vsum, vreg_tmp_src);
                 else
                     uni_vaddps(vsum, vsum, vreg_tmp_src);
-                if (is_softmax_) // store after applying exp
-                    store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
-                            dst_d_.data_type(), tail);
+                if (is_softmax_) { // store after applying exp
+                    if (need_scratchpad_) {
+                        store(interim_ptr(interim_axis_stride_ * i),
+                                vreg_tmp_src, data_type::f32, tail);
+                    } else {
+                        store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
+                                dst_d_.data_type(), tail);
+                    }
+                }
             }
         });
 
@@ -419,14 +490,24 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
         axis_loop([&](int unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
-                load(vreg_tmp_src, dst_ptr(dst_axis_stride_ * i),
-                        dst_d_.data_type(), tail);
+                if (need_scratchpad_) {
+                    load(vreg_tmp_src, interim_ptr(interim_axis_stride_ * i),
+                            data_type::f32, tail);
+                } else {
+                    load(vreg_tmp_src, dst_ptr(dst_axis_stride_ * i),
+                            dst_d_.data_type(), tail);
+                }
+
                 if (is_softmax_) {
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
                 }
                 if (is_logsoftmax_) {
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
                 }
+
+                Vmm vscale = vmax;
+                uni_vmovups(vscale, ptr[reg_output_scale]);
+                uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
                 store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
                         dst_d_.data_type(), tail);
             }
@@ -600,10 +681,9 @@ struct jit_softmax_t<avx2> : public jit_softmax_base_t<avx2> {
                         uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
 
                     if (axis_is_blocked_) {
-                        uni_vxorps(vzeropad, vzeropad, vzeropad);
-                        uni_vblendvps(
-                                vzeropad, vzeropad, vreg_tmp_src, tail_vmask);
-                        uni_vmovups(dst_ptr(dst_axis_stride_ * i), vzeropad);
+                        uni_vxorps(vzero, vzero, vzero);
+                        uni_vblendvps(vzero, vzero, vreg_tmp_src, tail_vmask);
+                        uni_vmovups(dst_ptr(dst_axis_stride_ * i), vzero);
                     } else {
                         uni_vmovups_tail(dst_ptr(dst_axis_stride_ * i),
                                 tail_vmask, vreg_tmp_src);
@@ -771,6 +851,9 @@ template <cpu_isa_t isa>
 status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+    auto scratchpad_ptr = ctx.get_scratchpad_grantor().template get<char>(
+            memory_tracking::names::key_softmax_interim_store);
+    const float *oscales = pd()->attr()->output_scales_.scales_;
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -779,19 +862,27 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     const auto &bd = src_d.blocking_desc();
     const auto axis = pd()->axis();
 
+    const auto axis_size_padded = pd()->axis_size(true);
     const auto inner_stride
             = bd.inner_nblks ? bd.inner_blks[bd.inner_nblks - 1] : (dim_t)1;
     const auto inner_size = bd.strides[axis] / inner_stride;
     const auto process_n_elems = pd()->axis_size() * inner_size;
-    const auto outer_stride = pd()->axis_size(true) * inner_size;
+    const auto outer_stride = axis_size_padded * inner_size;
     const auto outer_size = src_d.nelems(true) / outer_stride;
 
-    parallel_nd(outer_size, inner_size, [&](dim_t ou, dim_t in) {
-        dim_t offset = (ou * outer_stride + in * inner_stride);
-        const char *src_ptr = src + offset * src_data_type_size;
-        char *dst_ptr = dst + offset * dst_data_type_size;
-        softmax_driver_->exec(src_ptr, dst_ptr, process_n_elems);
-    });
+    const int nthr = pd()->nthr_;
+
+    parallel_nd_ext(nthr, outer_size, inner_size,
+            [&](int ithr, int, dim_t ou, dim_t in) {
+                dim_t offset = (ou * outer_stride + in * inner_stride);
+                const char *src_ptr = src + offset * src_data_type_size;
+                char *dst_ptr = dst + offset * dst_data_type_size;
+                char *interim_ptr = scratchpad_ptr
+                        + ithr * axis_size_padded * sizeof(float);
+                const auto *oscale_ptr = oscales;
+                softmax_driver_->exec(src_ptr, dst_ptr, interim_ptr, oscale_ptr,
+                        process_n_elems);
+            });
 
     return status::success;
 }
@@ -852,11 +943,14 @@ struct driver_t : public c_compatible {
 
     driver_t(const softmax_pd_t *pd) : pd_(pd), ker_(pd_) {}
 
-    void exec(const void *src, void *dst, const dim_t process_n_elems) {
+    void exec(const void *src, void *dst, void *interim, const void *oscale,
+            const dim_t process_n_elems) {
         typename jit_softmax_t<isa>::call_params_t p;
         p.process_n_elems = process_n_elems;
         p.src = src;
         p.dst = dst;
+        p.interim = interim;
+        p.oscale = oscale;
         ker_(&p);
     }
 
@@ -882,8 +976,8 @@ private:
 /* struct instantiation */
 template struct jit_uni_softmax_fwd_t<sse41>;
 template struct jit_uni_softmax_fwd_t<avx2>;
-template struct jit_uni_softmax_fwd_t<avx512_common>;
-template struct jit_uni_softmax_bwd_t<avx512_common>;
+template struct jit_uni_softmax_fwd_t<avx512_core>;
+template struct jit_uni_softmax_bwd_t<avx512_core>;
 
 } // namespace x64
 } // namespace cpu

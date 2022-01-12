@@ -85,7 +85,9 @@ protected:
         // logsoftmax specific types and values
         using op_desc_t = logsoftmax_forward::desc;
         using pd_t = logsoftmax_forward::primitive_desc;
-        allows_attr_t aa {false}; // doesn't support anything
+        const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
+        allows_attr_t aa {false};
+        if (!is_gpu) aa.oscale = true;
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
@@ -112,6 +114,9 @@ protected:
         auto logsoftmax = logsoftmax_forward();
         // regular primitive ctor
         logsoftmax = logsoftmax_forward(pd);
+
+        // check primitive kind is logsoftmax
+        ASSERT_TRUE(logsoftmax.get_kind() == primitive::kind::softmax);
 
         // query for data_desc from pd via src
         const auto data_desc = pd.src_desc();
@@ -193,6 +198,9 @@ protected:
         auto logsoftmax = logsoftmax_backward();
         // regular primitive ctor
         logsoftmax = logsoftmax_backward(pd);
+
+        // check primitive kind is logsoftmax
+        ASSERT_TRUE(logsoftmax.get_kind() == primitive::kind::softmax);
 
         // query for diff_data_desc from pd via diff_src
         const auto diff_data_desc = pd.diff_src_desc();

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,7 +43,8 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
 // clang-format on
 } // namespace
 
-const impl_list_item_t *get_softmax_impl_list(const softmax_desc_t *desc) {
+const impl_list_item_t *get_softmax_v2_impl_list(
+        const softmax_v2_desc_t *desc) {
     static const impl_list_item_t empty_list[] = {nullptr};
 
     const bool is_fwd = utils::one_of(
@@ -57,7 +58,8 @@ const impl_list_item_t *get_softmax_impl_list(const softmax_desc_t *desc) {
 
 const impl_list_item_t *get_logsoftmax_impl_list(
         const logsoftmax_desc_t *desc) {
-    return get_softmax_impl_list(desc);
+    return get_softmax_v2_impl_list(
+            reinterpret_cast<const softmax_v2_desc_t *>(desc));
 }
 
 } // namespace gpu

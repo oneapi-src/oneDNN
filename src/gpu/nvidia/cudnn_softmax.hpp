@@ -48,8 +48,9 @@ struct cudnn_softmax_fwd_t : public primitive_t {
             bool ok = is_fwd()
                     && utils::one_of(
                             src_d.data_type(), data_type::f32, data_type::f16)
-                    && src_d.is_plain() && dst_d.is_plain()
-                    && attr()->has_default_values() && dst_d == src_d;
+                    && attr()->has_default_values()
+                    && set_default_formats() == status::success
+                    && src_d.is_plain() && dst_d.is_plain() && dst_d == src_d;
             if (!ok) return status::unimplemented;
 
             softmax_impl_.reset(new cudnn_softmax_fwd_impl_t());
@@ -83,9 +84,10 @@ struct cudnn_softmax_bwd_t : public primitive_t {
                     && utils::one_of(
                             dst_d.data_type(), data_type::f32, data_type::f16)
                     && attr()->has_default_values()
-                    && set_default_formats_common() && dst_d.is_plain()
-                    && diff_dst_d.is_plain() && diff_src_d.is_plain()
-                    && diff_src_d == diff_dst_d && diff_src_d == dst_d;
+                    && set_default_formats() == status::success
+                    && dst_d.is_plain() && diff_dst_d.is_plain()
+                    && diff_src_d.is_plain() && diff_src_d == diff_dst_d
+                    && diff_src_d == dst_d;
             if (!ok) return status::unimplemented;
 
             softmax_impl_.reset(new cudnn_softmax_bwd_impl_t());

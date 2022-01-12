@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ status_t dnnl_primitive_desc_iterator_create(
             batch_normalization, binary, convolution, deconvolution, eltwise,
             gemm, inner_product, layer_normalization, lrn, logsoftmax, matmul,
             pooling, pooling_v2, prelu, reduction, resampling, rnn, shuffle,
-            softmax);
+            softmax, softmax_v2);
     if (!known_primitive_kind) return invalid_arguments;
 
     auto it = new primitive_desc_iterator_t(engine, op_desc, attr,

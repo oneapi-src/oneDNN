@@ -1238,7 +1238,8 @@ int check_tag(const std::string &tag_, bool check_enum_tags_only) {
     return check_abc_tag(tag, check_enum_tags_only);
 }
 
-void maybe_oscale(const attr_t &attr, float &d, float *scales, int64_t oc) {
+void maybe_oscale(
+        const attr_t &attr, float &d, const float *scales, int64_t oc) {
     if (!attr.oscale.is_def()) {
         int64_t idx = attr.oscale.policy == policy_t::COMMON ? 0 : oc;
         d *= scales[idx];

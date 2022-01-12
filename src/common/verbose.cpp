@@ -902,14 +902,18 @@ static std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto data_md = pd->dst_md();
-    auto diff_data_md = pd->diff_src_md();
-    ss << "data_" << data_md << " diff_" << diff_data_md << ",";
+    auto src_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
+    auto dst_md = pd->dst_md();
+    ss << "src_" << src_md << " dst_" << dst_md;
+    if (!pd->is_fwd()) {
+        auto diff_dst_md = pd->diff_dst_md();
+        ss << " diff_dst_" << diff_dst_md;
+    }
+    ss << ",";
 
     ss << pd->attr() << ",";
-    ss << "alg:" << (pd->is_softmax() ? "softmax" : "logsoftmax")
-       << " axis:" << pd->axis() << ",";
-    ss << md2dim_str(data_md);
+    ss << "alg:" << pd->alg_kind() << " axis:" << pd->axis() << ",";
+    ss << md2dim_str(src_md);
 
     return ss.str();
 }
@@ -971,6 +975,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(resampling);
             CASE(rnn);
             CASE(shuffle);
+            case primitive_kind::softmax_v2:
             CASE(softmax);
             CASE(sum);
             case primitive_kind::zero_pad: break;

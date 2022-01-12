@@ -28,9 +28,9 @@ namespace impl {
 struct softmax_fwd_pd_t;
 
 struct softmax_pd_t : public primitive_desc_t {
-    static constexpr auto base_pkind = primitive_kind::softmax;
+    static constexpr auto base_pkind = primitive_kind::softmax_v2;
 
-    const softmax_desc_t *desc() const { return &desc_; }
+    const softmax_v2_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
@@ -41,10 +41,18 @@ struct softmax_pd_t : public primitive_desc_t {
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
             case query::softmax_d:
-                *(const softmax_desc_t **)result = desc();
+                *(const softmax_desc_t **)result
+                        = reinterpret_cast<const softmax_desc_t *>(desc());
                 break;
             case query::logsoftmax_d:
-                *(const logsoftmax_desc_t **)result = desc();
+                *(const logsoftmax_desc_t **)result
+                        = reinterpret_cast<const logsoftmax_desc_t *>(desc());
+                break;
+            case query::softmax_v2_d:
+                *(const softmax_v2_desc_t **)result = desc();
+                break;
+            case query::primitive_kind:
+                *(primitive_kind_t *)result = desc_.primitive_kind;
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }
@@ -53,31 +61,31 @@ struct softmax_pd_t : public primitive_desc_t {
 
     /* common softmax aux functions */
 
-    dim_t MB() const { return data_desc().dims[0]; }
-    dim_t C() const { return data_desc().dims[1]; }
-    dim_t D() const { return ndims() >= 5 ? data_desc().dims[ndims() - 3] : 1; }
-    dim_t H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
-    dim_t W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
+    dim_t MB() const { return dst_desc().dims[0]; }
+    dim_t C() const { return dst_desc().dims[1]; }
+    dim_t D() const { return ndims() >= 5 ? dst_desc().dims[ndims() - 3] : 1; }
+    dim_t H() const { return ndims() >= 4 ? dst_desc().dims[ndims() - 2] : 1; }
+    dim_t W() const { return ndims() >= 3 ? dst_desc().dims[ndims() - 1] : 1; }
 
     dim_t outer_size() const {
-        return utils::array_product(data_desc().dims, axis());
+        return utils::array_product(dst_desc().dims, axis());
     }
     dim_t axis_size(bool padded = false) const {
-        return padded ? data_desc().padded_dims[axis()]
-                      : data_desc().dims[axis()];
+        return padded ? dst_desc().padded_dims[axis()]
+                      : dst_desc().dims[axis()];
     }
     dim_t inner_size() const {
         return utils::array_product(
-                data_desc().dims + axis() + 1, ndims() - 1 - axis());
+                dst_desc().dims + axis() + 1, ndims() - 1 - axis());
     }
 
     dim_t outer_stride() const {
-        const memory_desc_wrapper data_d(data_desc());
-        return axis() > 0 ? data_d.blocking_desc().strides[axis() - 1] : 1;
+        const memory_desc_wrapper dst_d(dst_desc());
+        return axis() > 0 ? dst_d.blocking_desc().strides[axis() - 1] : 1;
     }
 
     int axis() const { return desc_.softmax_axis; }
-    int ndims() const { return data_desc().ndims; }
+    int ndims() const { return dst_desc().ndims; }
 
     bool is_fwd() const {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
@@ -85,31 +93,50 @@ struct softmax_pd_t : public primitive_desc_t {
     }
 
     bool has_zero_dim_memory() const {
-        return memory_desc_wrapper(data_desc()).has_zero_dim();
+        return memory_desc_wrapper(dst_desc()).has_zero_dim();
     }
 
-    bool is_softmax() const {
-        return desc()->primitive_kind == primitive_kind::softmax;
-    }
-    bool is_logsoftmax() const {
-        return desc()->primitive_kind == primitive_kind::logsoftmax;
-    }
+    alg_kind_t alg_kind() const { return desc()->alg_kind; }
+    bool is_softmax() const { return alg_kind() == alg_kind::softmax_accurate; }
+    bool is_logsoftmax() const { return alg_kind() == alg_kind::softmax_log; }
 
 protected:
-    softmax_desc_t desc_;
+    softmax_v2_desc_t desc_;
     const softmax_fwd_pd_t *hint_fwd_pd_;
 
-    memory_desc_t data_md_;
+    memory_desc_t dst_md_;
 
-    softmax_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
+    softmax_pd_t(const softmax_v2_desc_t *adesc, const primitive_attr_t *attr,
             const softmax_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(cast_softmax_v1_to_v2(*adesc))
         , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc) {}
+        , dst_md_(desc_.dst_desc) {}
 
 private:
-    const memory_desc_t &data_desc() const { return desc_.data_desc; }
+    const memory_desc_t &dst_desc() const { return dst_md_; }
+
+    softmax_v2_desc_t cast_softmax_v1_to_v2(
+            const softmax_v2_desc_t &softmax_desc) const {
+        if (softmax_desc.primitive_kind == primitive_kind::softmax_v2)
+            return softmax_desc;
+
+        softmax_v2_desc_t softmax_v2_desc;
+        // Return always kind::softmax since logsoftmax relied on this
+        softmax_v2_desc.primitive_kind = primitive_kind::softmax;
+        softmax_v2_desc.prop_kind = softmax_desc.prop_kind;
+        softmax_v2_desc.src_desc = softmax_desc.src_desc;
+        softmax_v2_desc.diff_src_desc = softmax_desc.diff_src_desc;
+        softmax_v2_desc.softmax_axis = softmax_desc.softmax_axis;
+        softmax_v2_desc.alg_kind
+                = softmax_desc.primitive_kind == primitive_kind::softmax
+                ? alg_kind::softmax_accurate
+                : alg_kind::softmax_log;
+        softmax_v2_desc.dst_desc = softmax_desc.src_desc;
+        softmax_v2_desc.diff_dst_desc = softmax_desc.diff_src_desc;
+
+        return softmax_v2_desc;
+    }
 };
 
 struct softmax_fwd_pd_t : public softmax_pd_t {
@@ -136,10 +163,10 @@ struct softmax_fwd_pd_t : public softmax_pd_t {
     }
 
     const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 ? &data_md_ : &glob_zero_md;
+        return index == 0 ? &src_md_ : &glob_zero_md;
     }
     const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 ? &data_md_ : &glob_zero_md;
+        return index == 0 ? &dst_md_ : &glob_zero_md;
     }
 
     int n_inputs() const override { return 1; }
@@ -148,9 +175,26 @@ struct softmax_fwd_pd_t : public softmax_pd_t {
     }
 
 protected:
-    softmax_fwd_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
-            const softmax_fwd_pd_t *hint_fwd_pd)
-        : softmax_pd_t(adesc, attr, hint_fwd_pd) {}
+    memory_desc_t src_md_;
+
+    softmax_fwd_pd_t(const softmax_v2_desc_t *adesc,
+            const primitive_attr_t *attr, const softmax_fwd_pd_t *hint_fwd_pd)
+        : softmax_pd_t(adesc, attr, hint_fwd_pd), src_md_(desc_.src_desc) {}
+
+    status_t set_default_formats() {
+        if (dst_md()->format_kind != format_kind::any) return status::success;
+
+        if (src_md()->format_kind != format_kind::blocked)
+            return status::unimplemented;
+
+        return memory_desc_init_by_blocking_desc(
+                dst_md_, src_md_.format_desc.blocking);
+    }
+
+    bool attr_oscale_ok() const {
+        const auto &oscale = attr()->output_scales_;
+        return oscale.mask_ == 0;
+    }
 };
 
 struct softmax_bwd_pd_t : public softmax_pd_t {
@@ -179,13 +223,13 @@ struct softmax_bwd_pd_t : public softmax_pd_t {
     }
 
     const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 ? &data_md_ : &glob_zero_md;
+        return index == 0 ? &dst_md_ : &glob_zero_md;
     }
     const memory_desc_t *diff_dst_md(int index = 0) const override {
-        return index == 0 ? &diff_data_md_ : &glob_zero_md;
+        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
     }
     const memory_desc_t *diff_src_md(int index = 0) const override {
-        return index == 0 ? &diff_data_md_ : &glob_zero_md;
+        return index == 0 ? &diff_src_md_ : &glob_zero_md;
     }
 
     int n_inputs() const override {
@@ -194,19 +238,28 @@ struct softmax_bwd_pd_t : public softmax_pd_t {
     int n_outputs() const override { return 1; }
 
 protected:
-    memory_desc_t diff_data_md_;
+    memory_desc_t diff_src_md_;
+    memory_desc_t diff_dst_md_;
 
-    softmax_bwd_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
-            const softmax_fwd_pd_t *hint_fwd_pd)
+    softmax_bwd_pd_t(const softmax_v2_desc_t *adesc,
+            const primitive_attr_t *attr, const softmax_fwd_pd_t *hint_fwd_pd)
         : softmax_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_data_md_(desc_.diff_desc) {}
+        , diff_src_md_(desc_.diff_src_desc)
+        , diff_dst_md_(desc_.diff_dst_desc) {}
 
-    bool set_default_formats_common() {
-        if (diff_data_md_.format_kind != format_kind::any) return true;
-
-        return memory_desc_init_by_md_and_dt(
-                       diff_data_md_, data_md_, diff_data_md_.data_type)
-                == status::success;
+    status_t set_default_formats() {
+        status_t st = status::invalid_arguments;
+        if (diff_dst_md_.format_kind == format_kind::any) {
+            st = memory_desc_init_by_md_and_dt(
+                    diff_dst_md_, dst_md_, diff_dst_md_.data_type);
+            if (st != status::success) return st;
+        }
+        if (diff_src_md_.format_kind == format_kind::any) {
+            st = memory_desc_init_by_md_and_dt(
+                    diff_src_md_, diff_dst_md_, diff_src_md_.data_type);
+            if (st != status::success) return st;
+        }
+        return status::success;
     }
 };
 

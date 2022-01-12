@@ -1972,6 +1972,45 @@ dnnl_status_t DNNL_API dnnl_softmax_backward_desc_init(
 
 /// @} dnnl_api_softmax
 
+/// @addtogroup dnnl_api_softmax_v2
+/// @{
+
+/// Initializes a descriptor for softmax v2 forward propagation primitive.
+///
+/// @param softmax_desc Output descriptor for a softmax primitive.
+/// @param prop_kind Propagation kind. Possible values are
+///     #dnnl_forward_training and #dnnl_forward_inference.
+/// @param alg_kind Softmax algorithm kind: either #dnnl_softmax_accurate, or
+///     #dnnl_softmax_log.
+/// @param src_desc Source memory descriptor.
+/// @param dst_desc Destination memory descriptor.
+/// @param softmax_axis Axis over which softmax is computed.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_softmax_v2_forward_desc_init(
+        dnnl_softmax_v2_desc_t *softmax_desc, dnnl_prop_kind_t prop_kind,
+        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
+        const dnnl_memory_desc_t *dst_desc, int softmax_axis);
+
+/// Initializes a descriptor for softmax v2 backward propagation primitive.
+///
+/// @param softmax_desc Output descriptor for a softmax primitive.
+/// @param alg_kind Softmax algorithm kind: either #dnnl_softmax_accurate, or
+///     #dnnl_softmax_log.
+/// @param diff_src_desc Diff source memory descriptor.
+/// @param diff_dst_desc Diff destination memory descriptor.
+/// @param dst_desc Destination memory descriptor.
+/// @param softmax_axis Axis over which softmax is computed.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_softmax_v2_backward_desc_init(
+        dnnl_softmax_v2_desc_t *softmax_desc, dnnl_alg_kind_t alg_kind,
+        const dnnl_memory_desc_t *diff_src_desc,
+        const dnnl_memory_desc_t *diff_dst_desc,
+        const dnnl_memory_desc_t *dst_desc, int softmax_axis);
+
+/// @} dnnl_api_softmax_v2
+
 /// @addtogroup dnnl_api_logsoftmax
 /// @{
 

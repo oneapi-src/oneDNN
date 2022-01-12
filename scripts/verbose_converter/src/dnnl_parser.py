@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -93,6 +93,8 @@ class LogParser:
             def convert_prim_kind(prim_kind):
                 if prim_kind == 'pooling_v2':
                     prim_kind = 'pooling'
+                if prim_kind == 'softmax_v2':
+                    prim_kind = 'softmax'
                 return prim_kind
 
             def convert_exts(exts):

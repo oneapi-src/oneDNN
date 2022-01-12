@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,6 +61,8 @@ void serialize_desc(
         serialization_stream_t &sstream, const shuffle_desc_t &desc);
 void serialize_desc(
         serialization_stream_t &sstream, const softmax_desc_t &desc);
+void serialize_desc(
+        serialization_stream_t &sstream, const softmax_v2_desc_t &desc);
 void serialize_desc(serialization_stream_t &sstream, const sum_desc_t &desc);
 
 status_t serialize_desc(

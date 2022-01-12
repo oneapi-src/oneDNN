@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 * Copyright 2020 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,7 +64,7 @@ DECLARE_IMPL_LIST(reduction);
 DECLARE_IMPL_LIST(resampling);
 DECLARE_IMPL_LIST(rnn);
 DECLARE_IMPL_LIST(shuffle);
-DECLARE_IMPL_LIST(softmax);
+DECLARE_IMPL_LIST(softmax_v2);
 
 #undef DECLARE_IMPL_LIST
 
@@ -101,7 +101,8 @@ public:
             CASE(resampling);
             CASE(rnn);
             CASE(shuffle);
-            CASE(softmax);
+            case primitive_kind::softmax:
+            CASE(softmax_v2);
             default: assert(!"unknown primitive kind"); return empty_list;
         }
 #undef CASE

@@ -2,9 +2,18 @@
 
 --inplace=true,false
 
---dir=FWD_I,FWD_D,BWD_D
---dt=f32,bf16,f16
---tag=abx,axb
+--stag=abx,axb
+--dtag=any
 --alg=SOFTMAX,LOGSOFTMAX
 --axis=0,1
+
+--dir=FWD_D,BWD_D
+--sdt=f32,bf16,f16
+--ddt=f32,bf16,f16
+--batch=shapes_ci
+
+--dir=FWD_I
+--sdt=f32,bf16,f16,s8,u8
+--ddt=s8,u8
+--attr-oscale=,common:128
 --batch=shapes_ci

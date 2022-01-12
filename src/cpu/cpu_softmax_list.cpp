@@ -43,7 +43,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     // clang-format off
     static std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map =  REG_SOFTMAX_P({
         {{forward}, {
-            CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<avx512_common>)
+            CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<avx512_core>)
             CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<avx2>)
             CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<sse41>)
             CPU_INSTANCE_AARCH64(jit_uni_softmax_fwd_t<sve_512>)
@@ -53,7 +53,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             nullptr,
         }},
         {{backward}, REG_BWD_PK({
-            CPU_INSTANCE_X64(jit_uni_softmax_bwd_t<avx512_common>)
+            CPU_INSTANCE_X64(jit_uni_softmax_bwd_t<avx512_core>)
             CPU_INSTANCE(ref_softmax_bwd_t)
             nullptr,
         })},
@@ -61,9 +61,11 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     // clang-format on
     return the_map;
 }
+
 } // namespace
 
-const impl_list_item_t *get_softmax_impl_list(const softmax_desc_t *desc) {
+const impl_list_item_t *get_softmax_v2_impl_list(
+        const softmax_v2_desc_t *desc) {
     static const impl_list_item_t empty_list[] = {nullptr};
 
     const bool is_fwd = utils::one_of(
@@ -79,7 +81,8 @@ const impl_list_item_t *get_softmax_impl_list(const softmax_desc_t *desc) {
 
 const impl_list_item_t *get_logsoftmax_impl_list(
         const logsoftmax_desc_t *desc) {
-    return get_softmax_impl_list(desc);
+    return get_softmax_v2_impl_list(
+            reinterpret_cast<const softmax_v2_desc_t *>(desc));
 }
 
 } // namespace cpu

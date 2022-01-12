@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,6 +96,7 @@ size_t get_desc_hash(const resampling_desc_t &desc);
 size_t get_desc_hash(const rnn_desc_t &desc);
 size_t get_desc_hash(const shuffle_desc_t &desc);
 size_t get_desc_hash(const softmax_desc_t &desc);
+size_t get_desc_hash(const softmax_v2_desc_t &desc);
 size_t get_desc_hash(const sum_desc_t &desc);
 size_t get_desc_hash(const zero_pad_desc_t &desc);
 
@@ -185,6 +186,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
             CASE(rnn)
             CASE(shuffle)
             CASE(softmax)
+            CASE(softmax_v2)
             CASE(sum)
             CASE(zero_pad)
             default: assert(!"unknown primitive_kind");

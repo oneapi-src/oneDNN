@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
@@ -68,22 +69,47 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             };
 
             using namespace data_type;
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
+
+            const auto src_dt = src_md()->data_type;
+            const auto dst_dt = dst_md()->data_type;
             bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(src_md()->data_type, f32, bf16)
-                    && utils::one_of(dst_md()->data_type, f32, bf16)
-                    && IMPLICATION(utils::one_of(bf16, src_md()->data_type,
-                                           dst_md()->data_type),
+                    && utils::one_of(src_dt, f32, bf16, s8, u8)
+                    && utils::one_of(dst_dt, f32, bf16, s8, u8)
+                    // s8/u8 are temporary limitations due to priorities
+                    && IMPLICATION(
+                            (utils::one_of(bf16, src_dt, dst_dt)
+                                    || utils::one_of(s8, src_dt, dst_dt)
+                                    || utils::one_of(u8, src_dt, dst_dt)),
                             is_superset(isa, avx512_core))
-                    && attr()->has_default_values();
+                    && attr()->has_default_values(skip_mask_t::oscale)
+                    && attr_oscale_ok()
+                    && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
 
             ok = memory_desc_wrapper(src_md()).similar_to(
-                         memory_desc_wrapper(dst_md()), true, true, 0)
+                         memory_desc_wrapper(dst_md()), true, false, 0)
                     && is_dense(); // not dense impl can be easily done
             if (!ok) return status::unimplemented;
 
+            nthr_ = dnnl_get_max_threads();
+            init_scratchpad();
+
             return status::success;
         };
+
+        int nthr_; // To not exceed the limit in execute used for set up.
+
+    private:
+        void init_scratchpad() {
+            if (utils::one_of(
+                        dst_md()->data_type, data_type::u8, data_type::s8)) {
+                auto scratchpad = scratchpad_registry().registrar();
+                scratchpad.template book<char>(
+                        memory_tracking::names::key_softmax_interim_store,
+                        axis_size(true) * sizeof(float) * nthr_);
+            }
+        }
     };
 
     jit_uni_softmax_fwd_t(const pd_t *apd);
@@ -139,12 +165,12 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                                            diff_src_md()->data_type),
                             is_superset(isa, avx512_core))
                     && attr()->has_default_values()
-                    && set_default_formats_common();
+                    && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
 
             ok = memory_desc_wrapper(diff_src_md())
                             .similar_to(memory_desc_wrapper(diff_dst_md()),
-                                    true, true, 0)
+                                    true, false, 0)
                     && memory_desc_wrapper(diff_dst_md())
                             == memory_desc_wrapper(dst_md())
                     && is_dense(); // not dense impl can be easily done

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,6 +104,7 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(rnn)
             CASE(shuffle)
             CASE(softmax)
+            CASE(softmax_v2)
             CASE(sum)
             CASE(zero_pad)
             default: assert(!"unknown primitive kind");
@@ -506,6 +507,7 @@ size_t get_desc_hash(const pooling_v2_desc_t &desc) {
     const auto &v1_desc = *reinterpret_cast<const pooling_desc_t *>(&desc);
     size_t seed = get_desc_hash(v1_desc);
     seed = get_array_hash(seed, desc.dilation, DNNL_MAX_NDIMS);
+    // Combined hash for pooling_v2 desc
     return seed;
 }
 
@@ -519,7 +521,7 @@ size_t get_desc_hash(const prelu_desc_t &desc) {
     seed = hash_combine(seed, get_md_hash(desc.diff_data_desc));
     seed = hash_combine(seed, get_md_hash(desc.weights_desc));
     seed = hash_combine(seed, get_md_hash(desc.diff_weights_desc));
-    // Combined hash for pooling desc
+    // Combined hash for prelu desc
     return seed;
 }
 
@@ -637,6 +639,18 @@ size_t get_desc_hash(const softmax_desc_t &desc) {
     // Axis
     seed = hash_combine(seed, desc.softmax_axis);
     // Combined hash for softmax desc
+    return seed;
+}
+
+size_t get_desc_hash(const softmax_v2_desc_t &desc) {
+    const auto &v1_desc = *reinterpret_cast<const softmax_desc_t *>(&desc);
+    size_t seed = get_desc_hash(v1_desc);
+    // Kinds
+    seed = hash_combine(seed, static_cast<size_t>(desc.alg_kind));
+    // Memory descriptors
+    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_dst_desc));
+    // Combined hash for softmax_v2 desc
     return seed;
 }
 

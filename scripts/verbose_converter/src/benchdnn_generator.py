@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ def convert_driver(prop_kind):
         'rnn': 'rnn',
         'shuffle': 'shuffle',
         'softmax': 'softmax',
+        'softmax_v2': 'softmax',
         'sum': 'sum',
     }.get(prop_kind)
     return driver
@@ -256,7 +257,7 @@ def convert_dts(mds, prim_kind):
         'resampling': convert_dts_all,
         'rnn': convert_dts_cfg,
         'shuffle': convert_dts_common,
-        'softmax': convert_dts_common,
+        'softmax': convert_dts_all,
         'sum': convert_dts_multiple_src
     }
 
@@ -347,7 +348,7 @@ def convert_tags(mds, prim_kind):
         'resampling': convert_tags_common,
         'rnn': convert_tags_rnn,
         'shuffle': convert_tags_common,
-        'softmax': convert_tags_common,
+        'softmax': convert_tags_all,
         'sum': convert_tags_multiple_src
     }
 

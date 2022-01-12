@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -469,6 +469,8 @@ void check_known_skipped_case_common(
 void check_binary_post_ops(const attr_t &attr, res_t *res);
 void check_sum_post_ops(const attr_t &attr, res_t *res,
         dnnl_data_type_t dst_dt = dnnl_data_type_undef);
+void check_inplace(res_t *res, dnnl_data_type_t sdt, dnnl_data_type_t ddt,
+        const std::string &stag, const std::string &dtag);
 
 bool is_cpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_gpu(const dnnl_engine_t &engine = get_test_engine());

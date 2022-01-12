@@ -7,13 +7,16 @@ Softmax {#dev_guide_softmax}
 
 ## General
 
-The softmax primitive performs softmax along a particular axis on data with
-arbitrary dimensions. All other axes are treated as independent (batch).
+The softmax primitive performs forward or backward softmax or logsoftmax
+operation along a particular axis on data with arbitrary dimensions. All other
+axes are treated as independent (batch).
 
 ### Forward
 
 In general form, the operation is defined by the following formulas (the
-variable names follow the standard @ref dev_guide_conventions):
+variable names follow the standard @ref dev_guide_conventions).
+
+Softmax:
 
 \f[
     \dst(\overline{ou}, c, \overline{in}) =
@@ -22,15 +25,34 @@ variable names follow the standard @ref dev_guide_conventions):
         {
             \sum\limits_{ic}
                 e^{\src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
-        },
+        }
 \f]
 
-where
+Logsoftmax:
 
-- \f$c\f$ axis over which the softmax computation is computed on,
-- \f$\overline{ou}\f$ is the outermost index (to the left of softmax axis),
-- \f$\overline{in}\f$ is the innermost index (to the right of softmax axis), and
-- \f$\nu\f$ is used to produce more accurate results and defined as:
+\f[
+    \dst(\overline{ou}, c, \overline{in}) =
+        \ln\left({\frac
+        {
+            e^{\src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})}
+        }
+        {
+            \sum\limits_{ic}
+                e^{\src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
+        }}\right) =
+        \left(\src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})\right)
+            - \ln\left(
+                    \sum\limits_{ic}
+                    e^{\src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
+                 \right)
+\f]
+
+Above
+
+- \f$c\f$ is the axis over which the operation is computed on,
+- \f$\overline{ou}\f$ is the outermost index (to the left of the axis),
+- \f$\overline{in}\f$ is the innermost index (to the right of the axis), and
+- \f$\nu\f$ is used to produce numerically stable results and defined as:
 
 \f[
     \nu(\overline{ou}, \overline{in}) =
@@ -66,20 +88,29 @@ argument index as specified by the following table.
 1. Both forward and backward propagation support in-place operations, meaning
    that `src` can be used as input and output for forward propagation, and
    `diff_dst` can be used as input and output for backward propagation. In case
-   of in-place operation, the original data will be overwritten.
+   of in-place operation, the original data will be overwritten. This support is
+   limited to cases when data types of `src`/`dst` or `diff_src`/`diff_dst` are
+   identical.
 
 ### Post-ops and Attributes
 
-The softmax primitive does not support any post-ops or attributes.
+Attributes enable you to modify the behavior of the softmax primitive.
+The following attributes are supported by the softmax primitive:
+
+| Propagation | Type      | Operation                                                    | Description                                        | Restrictions                      |
+| :--         | :--       | :--                                                          | :--                                                | :--                               |
+| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of softmax by given scale factor | int8 softmax only, zero mask only |
 
 ### Data Type Support
 
 The softmax primitive supports the following combinations of data types:
 
-| Propagation        | Source / Destination
-| :--                | :--
-| forward / backward | bf16, f32
-| forward            | f16
+| Propagation        | Source            | Destination |
+| :--                | :--               | :--         |
+| forward / backward | f32, bf16         | f32, bf16   |
+| forward            | f16               | f16         |
+| forward            | f32, bf16, u8, s8 | u8, s8      |
+| forward            | u8, s8            | f32, bf16   |
 
 ### Data Representation
 

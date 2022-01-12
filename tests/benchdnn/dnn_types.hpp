@@ -493,7 +493,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
 dnnl_engine_kind_t str2engine_kind(const char *str);
 dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
 
-void maybe_oscale(const attr_t &attr, float &d, float *scales, int64_t oc);
+void maybe_oscale(
+        const attr_t &attr, float &d, const float *scales, int64_t oc);
 void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
         int64_t c, int arg, bool opposite_zero_point = false);
 float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,

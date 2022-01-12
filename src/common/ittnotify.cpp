@@ -80,6 +80,7 @@ void primitive_task_start(primitive_kind_t kind) {
             CASE(pooling_v2),
             CASE(reduction),
             CASE(prelu),
+            CASE(softmax_v2),
     };
 #undef CASE
     int kind_idx = (int)kind;

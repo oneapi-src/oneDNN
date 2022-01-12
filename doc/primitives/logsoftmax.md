@@ -7,6 +7,8 @@ LogSoftmax {#dev_guide_logsoftmax}
 
 ## General
 
+@note This functionality is deprecated and will be removed in future releases.
+
 The logsoftmax primitive performs softmax along a particular axis on data with
 arbitrary dimensions followed by the logarithm function. All other axes are
 treated as independent (batch).

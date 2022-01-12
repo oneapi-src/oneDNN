@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ status_t serialize_desc(
         CASE(rnn)
         CASE(shuffle)
         CASE(softmax)
+        CASE(softmax_v2)
         CASE(sum)
         default: return status::invalid_arguments;
     }
@@ -513,6 +514,17 @@ void serialize_desc(
     serialize_md(sstream, desc.diff_desc);
     // Axis
     sstream.write(&desc.softmax_axis);
+}
+
+void serialize_desc(
+        serialization_stream_t &sstream, const softmax_v2_desc_t &desc) {
+    const auto &v1_desc = *reinterpret_cast<const softmax_desc_t *>(&desc);
+    serialize_desc(sstream, v1_desc);
+    // Kinds
+    sstream.write(&desc.alg_kind);
+    // Memory descriptors
+    serialize_md(sstream, desc.dst_desc);
+    serialize_md(sstream, desc.diff_dst_desc);
 }
 
 void serialize_desc(serialization_stream_t &sstream, const sum_desc_t &desc) {
