@@ -93,4 +93,5 @@
 
 --stag=abcd:dabc     1x1x3x3:1x1x3x3
 --stag=abc:bac       4x6x7:4x6x7 4x6x7:4x6x1
+--stag=adbc:abcd,abcd:abdc     1x10x10x8:1x10x10x8
 
