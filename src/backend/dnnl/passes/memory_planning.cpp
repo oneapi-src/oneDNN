@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -803,7 +803,6 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::to_group
                         || op->get_kind() == op_kind::expand
                         || op->get_kind() == op_kind::squeeze
-                        || op->get_kind() == op_kind::unsqueeze
                         || op->get_kind() == impl::op_kind::Interpolate
                         || op->get_kind() == impl::op_kind::StaticReshape
                         || op->get_kind() == impl::op_kind::StaticTranspose) {

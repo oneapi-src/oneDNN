@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -689,7 +689,7 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-impl::status_t insert_squeeze_and_unsqueeze_for_reduction(
+impl::status_t insert_expand_and_squeeze_for_reduction(
         std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
@@ -715,14 +715,13 @@ impl::status_t insert_squeeze_and_unsqueeze_for_reduction(
             size_t src1_offset
                     = (post_op.get_input_value(0).get() == connector.get()) ? 1
                                                                             : 0;
-            // insert unsqueeze OP before binary's src1 input
+            // insert expand OP before binary's src1 input
             if (post_op.get_kind() == op_kind::dnnl_binary) {
                 if (!post_binary_fusible(cur_op.get(), &post_op)) break;
-                op_ptr unsqueeze_op
-                        = std::make_shared<op_t>(op_kind::unsqueeze);
-                unsqueeze_op->set_attr<std::vector<int64_t>>("axes", axes);
-                insert_op_before(unsqueeze_op.get(), &post_op, src1_offset);
-                to_be_inserted_ops.emplace_back(unsqueeze_op);
+                op_ptr expand_op = std::make_shared<op_t>(op_kind::expand);
+                expand_op->set_attr<std::vector<int64_t>>("axes", axes);
+                insert_op_before(expand_op.get(), &post_op, src1_offset);
+                to_be_inserted_ops.emplace_back(expand_op);
             }
 
             // set fresh value for cur_op_ptr output (which is post-op input

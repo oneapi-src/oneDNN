@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, reduction_canonicalization);
 
         BACKEND_DNNL_ADD_PASS(
-                pipeline, insert_squeeze_and_unsqueeze_for_reduction);
+                pipeline, insert_expand_and_squeeze_for_reduction);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
 
@@ -198,8 +198,7 @@ public:
                     reduction_op->num_inputs() - post_sum_index);
 
             while (val->has_producer()) {
-                if (val->get_producer().get_kind() == op_kind::expand
-                        || val->get_producer().get_kind() == op_kind::unsqueeze)
+                if (val->get_producer().get_kind() == op_kind::expand)
                     val = val->get_producer().get_input_value(0);
                 else
                     break;

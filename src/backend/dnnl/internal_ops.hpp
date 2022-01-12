@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,7 +137,6 @@ namespace op_kind {
     X(to_group, To_group) \
     X(expand, Expand) \
     X(squeeze, Squeeze) \
-    X(unsqueeze, Unsqueeze) \
     X(dnnl_convolution, Dnnl_convolution) \
     X(dnnl_convtranspose, Dnnl_convtranspose) \
     X(int8_maxpool, INT8_MaxPool) \

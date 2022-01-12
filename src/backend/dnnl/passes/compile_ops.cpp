@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,7 +88,6 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
                 || cur_op->get_kind() == op_kind::to_group
                 || cur_op->get_kind() == op_kind::expand
                 || cur_op->get_kind() == op_kind::squeeze
-                || cur_op->get_kind() == op_kind::unsqueeze
                 || cur_op->get_kind() == impl::op_kind::StaticReshape
                 || cur_op->get_kind() == impl::op_kind::StaticTranspose) {
             // For preprocess ops. The memory_reparser will not do

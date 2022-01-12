@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -597,33 +597,15 @@ static void layout_propagation_for_transpose(
 }
 
 static void layout_propagation_for_expand(op_ptr &op) {
-    std::shared_ptr<impl::value_t> src, dst;
-    src = op->get_input_value(0);
-    dst = op->get_output_value(0);
+    value_ptr src = op->get_input_value(0);
+    value_ptr dst = op->get_output_value(0);
     auto in_lt = src->get_logical_tensor();
     auto out_lt = dst->get_logical_tensor();
 
     if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
-        dnnl::memory::desc out_md = in_md;
-
-        if (op->has_attr("insert_1dim")) {
-            auto insert_1dim = op->get_attr<std::string>("insert_1dim");
-            if (insert_1dim == "before") {
-                out_md = in_md.reshape({1, in_md.dims()[0]});
-            } else if (insert_1dim == "after") {
-                out_md = in_md.reshape({in_md.dims()[0], 1});
-            }
-        }
-
-        if (op->has_attr("expand_to")) {
-            auto expand_to_ndims = op->get_attr<int64_t>("expand_to");
-            if (expand_to_ndims != -1) {
-                out_md = expand(out_md, static_cast<int>(expand_to_ndims));
-            }
-        }
-
-        fill_layout_info(dst, out_md);
+        // 'out_lt' shape should be known at this stage
+        fill_layout_info(dst, in_md.reshape(ltw(out_lt).vdims()));
     }
 }
 
@@ -729,18 +711,6 @@ static void layout_propagation_for_squeeze(
         if (make_dnnl_memory_desc(in_lt) != tmp_in_md)
             insert_reorder_before(op, 0, tmp_in_md, reorder_ops);
     }
-}
-
-static void layout_propagation_for_unsqueeze(op_ptr &op) {
-    std::shared_ptr<impl::value_t> src, dst;
-    src = op->get_input_value(0);
-    dst = op->get_output_value(0);
-    auto in_lt = src->get_logical_tensor();
-    auto out_lt = dst->get_logical_tensor();
-
-    auto in_md = make_dnnl_memory_desc(in_lt);
-    if (ltw(out_lt).is_any())
-        fill_layout_info(dst, in_md.reshape(ltw(out_lt).vdims()));
 }
 
 static void layout_propagation_for_reorder(op_ptr &op) {
@@ -1072,8 +1042,6 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 layout_propagation_for_reorder(cur_op);
             } else if (cur_op->get_kind() == op_kind::squeeze) {
                 layout_propagation_for_squeeze(cur_op, reorder_ops);
-            } else if (cur_op->get_kind() == op_kind::unsqueeze) {
-                layout_propagation_for_unsqueeze(cur_op);
             } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
                 layout_propagation_for_bn_folding(cur_op, p_engine);
             } else if (cur_op->get_kind() == impl::op_kind::Interpolate) {

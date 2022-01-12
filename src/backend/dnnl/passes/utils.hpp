@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -238,8 +238,7 @@ void set_weight_bias_constant(std::vector<std::shared_ptr<op_t>> &subgraph);
 inline bool is_preprocess_op(impl::op_t &op) {
     static const std::set<impl::op_kind_t> preprocess_ops = {op_kind::permute,
             op_kind::to_group, op_kind::expand, op_kind::squeeze,
-            op_kind::unsqueeze, impl::op_kind::StaticReshape,
-            impl::op_kind::StaticTranspose};
+            impl::op_kind::StaticReshape, impl::op_kind::StaticTranspose};
     return preprocess_ops.count(op.get_kind()) != 0;
 }
 

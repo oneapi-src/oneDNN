@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2787,6 +2787,11 @@ DNNL_GRAPH_OP_SCHEMA(expand, 1,
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor")
                 .set_output(0, "y", "output tensor")
+                .set_attr("axes",
+                        "indices at which to insert the singleton dimension, "
+                        "negative value means counting dimensions from the "
+                        "back",
+                        false, attribute_kind::is)
                 .set_attr("insert_1dim", "where to insert 1 dim", false,
                         attribute_kind::s, "none")
                 .set_attr("expand_to", "target ndims to expand", false,
@@ -2804,18 +2809,6 @@ DNNL_GRAPH_OP_SCHEMA(squeeze, 1,
                         "value means counting dimensions from the back",
                         false, attribute_kind::is)
                 .set_shape_inference_function(infer_squeeze_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(unsqueeze, 1,
-        op_schema_t()
-                .set_num_inputs(1)
-                .set_num_outputs(1)
-                .set_input(0, "x", "input tensor")
-                .set_output(0, "y", "output tensor")
-                .set_attr("axes",
-                        "which dims to be unsqueezed, negative "
-                        "value means counting dimensions from the back",
-                        false, attribute_kind::is)
-                .set_shape_inference_function(infer_unsqueeze_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
         op_schema_t()

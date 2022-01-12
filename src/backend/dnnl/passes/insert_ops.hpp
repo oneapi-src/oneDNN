@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,21 +86,21 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg);
 /// after expanding weights, we additionally have to permute them.
 impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg);
 
-/// Insert squeeze and unsqueeze op for reduction:
+/// Insert expand and squeeze op for reduction:
 ///     Both OPs will only be inserted when reduction 'keep_dims' attribute is
 ///     equal to false. Their goal is to make subgraph compatible with oneDNN
 ///     requirements (no support for dropping axes on which reduction was
 ///     performed).
+///
+/// The usage of expand op:
+///     It will be placed before each post-op src1 input (if exists).
 ///
 /// The usage of squeeze op:
 ///     It will be placed after reduction op or (if present) after its last
 ///     supported post-op. Squeeze will take responsibility for removing
 ///     reduced dimensions, meaning that reductions 'keep_dims' attribute will
 ///     be changed to true.
-///
-/// The usage of unsqueeze op:
-///     It will be placed before each post-op src1 input (if exists).
-impl::status_t insert_squeeze_and_unsqueeze_for_reduction(
+impl::status_t insert_expand_and_squeeze_for_reduction(
         std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl

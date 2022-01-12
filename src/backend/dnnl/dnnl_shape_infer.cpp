@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -193,24 +193,62 @@ status_t infer_expand_output_shape(op_t *n,
     using ltw = logical_tensor_wrapper_t;
     if (!ltw(outputs[0]).is_shape_unknown()) return status::success;
 
-    auto in_dims = ltw(inputs[0]).vdims();
-    if (n->has_attr("insert_1dim")) {
-        auto insert_1dim = n->get_attr<std::string>("insert_1dim");
-        if (insert_1dim == "before") {
-            in_dims.insert(in_dims.begin(), 1);
-        } else if (insert_1dim == "after") {
-            in_dims.insert(in_dims.end(), 1);
+    auto axes = (n->has_attr("axes"))
+            ? n->get_attr<std::vector<int64_t>>("axes")
+            : std::vector<int64_t>();
+    const auto in_dims = ltw(inputs[0]).vdims();
+    // if axes are present, we ignore other attributes,
+    // otherwise, we calculate axes based on them
+    if (axes.empty()) {
+        const int64_t first = 0;
+        const int64_t last = -1;
+        if (n->has_attr("insert_1dim")) {
+            const auto insert_1dim = n->get_attr<std::string>("insert_1dim");
+            if (insert_1dim == "before") {
+                axes.push_back(first);
+            } else if (insert_1dim == "after") {
+                axes.push_back(last);
+            }
+        }
+        if (n->has_attr("expand_to")) {
+            const auto target_ndims = n->get_attr<int64_t>("expand_to");
+            const size_t to_insert = static_cast<size_t>(target_ndims)
+                    - in_dims.size() - axes.size();
+            const size_t offset
+                    = (!axes.empty() && axes.front() == first) ? 1 : 0;
+            for (size_t i = 0; i < to_insert; ++i) {
+                axes.push_back(i + offset);
+            }
         }
     }
 
-    if (n->has_attr("expand_to")) {
-        auto target_ndims = n->get_attr<int64_t>("expand_to");
-        if (target_ndims != -1) {
-            in_dims.insert(in_dims.begin(),
-                    static_cast<size_t>(target_ndims) - in_dims.size(), 1);
-        }
+    const auto out_ndim = static_cast<int64_t>(in_dims.size() + axes.size());
+    if (std::any_of(axes.begin(), axes.end(), [&out_ndim](int64_t axis) {
+            return axis < -out_ndim || axis >= out_ndim;
+        }))
+        return status::unsupported;
+
+    // convert negative axis to positive one
+    std::transform(axes.begin(), axes.end(), axes.begin(),
+            [&out_ndim](int64_t axis) -> int64_t {
+                return axis < 0 ? out_ndim + axis : axis;
+            });
+
+    if (std::unordered_set<int64_t>(axes.begin(), axes.end()).size()
+            < axes.size())
+        return status::unsupported;
+
+    std::vector<size_t> indices(out_ndim);
+    std::iota(indices.begin(), indices.end(), 0);
+    dims inferred_output_shape(out_ndim, 1);
+    size_t in_dims_idx = 0;
+    for (const auto i : indices) {
+        if (std::find(axes.begin(), axes.end(), i) == axes.end())
+            inferred_output_shape[i] = in_dims[in_dims_idx++];
     }
-    set_shape_and_strides(*outputs[0], in_dims);
+
+    set_shape_and_strides(*outputs[0], inferred_output_shape);
+
     return status::success;
 }
 
@@ -245,45 +283,6 @@ status_t infer_squeeze_output_shape(op_t *n,
         }
     }
     set_shape_and_strides(*outputs[0], inferred_output_shape);
-    return status::success;
-}
-
-status_t infer_unsqueeze_output_shape(op_t *n,
-        std::vector<logical_tensor_t *> &inputs,
-        std::vector<logical_tensor_t *> &outputs) {
-    using ltw = logical_tensor_wrapper_t;
-    if (!ltw(outputs[0]).is_shape_unknown()) return status::success;
-
-    auto axes = n->get_attr<std::vector<int64_t>>("axes");
-    const auto in_dims = ltw(inputs[0]).vdims();
-    const auto out_ndim = static_cast<int64_t>(in_dims.size() + axes.size());
-
-    if (std::any_of(axes.begin(), axes.end(), [&out_ndim](int64_t axis) {
-            return axis < -out_ndim || axis >= out_ndim;
-        }))
-        return status::unsupported;
-
-    // convert negative axis to positive one
-    std::transform(axes.begin(), axes.end(), axes.begin(),
-            [&out_ndim](int64_t axis) -> int64_t {
-                return axis < 0 ? out_ndim + axis : axis;
-            });
-
-    if (std::unordered_set<int64_t>(axes.begin(), axes.end()).size()
-            < axes.size())
-        return status::unsupported;
-
-    std::vector<size_t> indices(out_ndim);
-    std::iota(indices.begin(), indices.end(), 0);
-    dims inferred_output_shape(out_ndim, 1);
-    size_t in_dims_idx = 0;
-    for (const auto i : indices) {
-        if (std::find(axes.begin(), axes.end(), i) == axes.end())
-            inferred_output_shape[i] = in_dims[in_dims_idx++];
-    }
-
-    set_shape_and_strides(*outputs[0], inferred_output_shape);
-
     return status::success;
 }
 
