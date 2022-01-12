@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,7 +62,10 @@ struct softmax_pd_t : public primitive_desc_t {
     dim_t outer_size() const {
         return utils::array_product(data_desc().dims, axis());
     }
-    dim_t axis_size() const { return data_desc().dims[axis()]; }
+    dim_t axis_size(bool padded = false) const {
+        return padded ? data_desc().padded_dims[axis()]
+                      : data_desc().dims[axis()];
+    }
     dim_t inner_size() const {
         return utils::array_product(
                 data_desc().dims + axis() + 1, ndims() - 1 - axis());

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,43 +47,39 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_softmax_fwd_t);
 
         status_t init(engine_t *engine) {
-            const memory_desc_wrapper src_d(src_md());
-            const memory_desc_wrapper dst_d(dst_md());
-            auto data_type = src_d.data_type();
             auto is_dense = [&]() {
+                const memory_desc_wrapper src_d(src_md());
                 const auto &bd = src_d.blocking_desc();
 
                 if (!src_d.is_dense(true) || !src_d.only_padded_dim(axis()))
                     return false;
 
+                if (src_d.is_plain()) return bd.strides[axis()] == 1;
+
                 // It is fine to use float here as the kernel uses halfs of
                 // vector registers.
                 const auto blk_size = cpu_isa_traits<isa>::vlen / sizeof(float);
-                if (src_d.is_plain())
-                    return bd.strides[axis()] == 1;
-                else {
-                    // 31 is a general limit, 2 is for unroll_regs_ = 4;
-                    const size_t max_stride = (1LL << (31 - 2)) - 1;
-                    const int last_blk = bd.inner_nblks - 1;
-                    return true && bd.inner_blks[last_blk] == blk_size
-                            && bd.inner_idxs[last_blk] == axis()
-                            && sizeof(float) * bd.strides[axis()] < max_stride;
-                }
+                // 31 is a general limit, 2 is for unroll_regs_ = 4;
+                const size_t max_stride = (1LL << (31 - 2)) - 1;
+                const int last_blk = bd.inner_nblks - 1;
+                return bd.inner_blks[last_blk] == blk_size
+                        && bd.inner_idxs[last_blk] == axis()
+                        && sizeof(float) * bd.strides[axis()] < max_stride;
             };
 
             using namespace data_type;
-            bool ok = src_d == dst_d && mayiuse(isa) && is_fwd()
-                    && !has_zero_dim_memory()
-                    && utils::one_of(data_type, f32, bf16)
-                    && IMPLICATION(data_type == bf16,
-                            // extra check for isa is required because
-                            // the avx512_common version may reject a
-                            // problem because it is blocked by 8
-                            // instead of 16.
-                            is_superset(isa, avx512_common)
-                                    && mayiuse(avx512_core))
-                    && is_dense() // not dense impl can be easily done
+            bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
+                    && utils::one_of(src_md()->data_type, f32, bf16)
+                    && utils::one_of(dst_md()->data_type, f32, bf16)
+                    && IMPLICATION(utils::one_of(bf16, src_md()->data_type,
+                                           dst_md()->data_type),
+                            is_superset(isa, avx512_core))
                     && attr()->has_default_values();
+            if (!ok) return status::unimplemented;
+
+            ok = memory_desc_wrapper(src_md()).similar_to(
+                         memory_desc_wrapper(dst_md()), true, true, 0)
+                    && is_dense(); // not dense impl can be easily done
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -111,11 +107,8 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_softmax_bwd_t);
 
         status_t init(engine_t *engine) {
-            const memory_desc_wrapper dst_d(dst_md());
-            const memory_desc_wrapper diff_dst_d(diff_dst_md());
-            const memory_desc_wrapper diff_src_d(diff_src_md());
-            auto data_type = dst_d.data_type();
             auto is_dense = [&]() {
+                const memory_desc_wrapper dst_d(dst_md());
                 const auto &bd = dst_d.blocking_desc();
 
                 if (!dst_d.is_dense(true) || !dst_d.only_padded_dim(axis()))
@@ -130,26 +123,31 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                     // 31 is a general limit, 2 is for unroll_regs_ = 4;
                     const size_t max_stride = (1LL << (31 - 2)) - 1;
                     const int last_blk = bd.inner_nblks - 1;
-                    return true && bd.inner_blks[last_blk] == blk_size
+                    return bd.inner_blks[last_blk] == blk_size
                             && bd.inner_idxs[last_blk] == axis()
                             && sizeof(float) * bd.strides[axis()] < max_stride;
                 }
             };
 
             using namespace data_type;
-            bool ok = dst_d == diff_dst_d && dst_d == diff_src_d && mayiuse(isa)
-                    && !is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(data_type, f32, bf16)
-                    && IMPLICATION(data_type == bf16,
-                            // extra check for isa is required because
-                            // the avx512_common version may reject a
-                            // problem because it is blocked by 8
-                            // instead of 16.
-                            is_superset(isa, avx512_common)
-                                    && mayiuse(avx512_core))
-                    && set_default_formats_common()
-                    && is_dense() // not dense impl can be easily done
-                    && attr()->has_default_values();
+            bool ok = mayiuse(isa) && !is_fwd() && !has_zero_dim_memory()
+                    && utils::one_of(dst_md()->data_type, f32, bf16)
+                    && utils::one_of(diff_dst_md()->data_type, f32, bf16)
+                    && utils::one_of(diff_src_md()->data_type, f32, bf16)
+                    && IMPLICATION(utils::one_of(bf16, dst_md()->data_type,
+                                           diff_dst_md()->data_type,
+                                           diff_src_md()->data_type),
+                            is_superset(isa, avx512_core))
+                    && attr()->has_default_values()
+                    && set_default_formats_common();
+            if (!ok) return status::unimplemented;
+
+            ok = memory_desc_wrapper(diff_src_md())
+                            .similar_to(memory_desc_wrapper(diff_dst_md()),
+                                    true, true, 0)
+                    && memory_desc_wrapper(diff_dst_md())
+                            == memory_desc_wrapper(dst_md())
+                    && is_dense(); // not dense impl can be easily done
             if (!ok) return status::unimplemented;
 
             return status::success;
