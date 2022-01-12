@@ -149,7 +149,6 @@ struct jit_conv_conf_t {
     size_t tr_diff_dst_buf_size, tr_diff_dst_buf_count;
     int nthr_mb_work;
 
-    /* 4vnni */
     int typesize_in;
     int typesize_out;
     int typesize_bia;
@@ -580,7 +579,7 @@ struct jit_1x1_conv_conf_t {
     bool use_vmovntps;
     /* avx512 core */
     bool expl_bcast;
-    /* 4vnni */
+
     int typesize_in;
     int typesize_out;
     int typesize_bia;
