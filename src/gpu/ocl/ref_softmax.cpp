@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,8 +22,7 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
-    if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
-        return status::success;
+    if (pd()->has_zero_dim_memory()) return status::success;
 
     status_t status = status::success;
 
@@ -42,8 +41,7 @@ status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
 }
 
 status_t ref_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
-    if (memory_desc_wrapper(pd()->desc()->diff_desc).has_zero_dim())
-        return status::success;
+    if (pd()->has_zero_dim_memory()) return status::success;
 
     status_t status = status::success;
 

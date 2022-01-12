@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,8 +26,7 @@ namespace gpu {
 namespace nvidia {
 
 status_t cudnn_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
-    if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
-        return status::success;
+    if (pd()->has_zero_dim_memory()) return status::success;
 
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
@@ -52,8 +51,7 @@ status_t cudnn_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
 }
 
 status_t cudnn_softmax_bwd_t::execute(const exec_ctx_t &ctx) const {
-    if (memory_desc_wrapper(pd()->desc()->diff_desc).has_zero_dim())
-        return status::success;
+    if (pd()->has_zero_dim_memory()) return status::success;
 
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());

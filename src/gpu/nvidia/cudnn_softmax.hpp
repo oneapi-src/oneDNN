@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,18 +42,14 @@ struct cudnn_softmax_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_softmax_fwd_t);
 
         status_t init(engine_t *) {
-            bool ok = true
-                    && utils::one_of(desc()->prop_kind,
-                            prop_kind::forward_inference,
-                            prop_kind::forward_training)
-                    && utils::one_of(desc()->data_desc.data_type,
-                            data_type::f32, data_type::f16)
-                    // Blocking is supported only for s8 and softmax does not
-                    // support it.
-                    && src_md()->format_desc.blocking.inner_nblks == 0
-                    && dst_md()->format_desc.blocking.inner_nblks == 0
-                    && attr()->has_default_values();
+            const memory_desc_wrapper src_d(src_md());
+            const memory_desc_wrapper dst_d(dst_md());
 
+            bool ok = is_fwd()
+                    && utils::one_of(
+                            src_d.data_type(), data_type::f32, data_type::f16)
+                    && src_d.is_plain() && dst_d.is_plain()
+                    && attr()->has_default_values() && dst_d == src_d;
             if (!ok) return status::unimplemented;
 
             softmax_impl_.reset(new cudnn_softmax_fwd_impl_t());
@@ -79,15 +75,17 @@ struct cudnn_softmax_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_softmax_bwd_t);
 
         status_t init(engine_t *) {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && utils::one_of(desc()->data_desc.data_type,
-                            data_type::f32, data_type::f16)
-                    && set_default_formats_common()
-                    // Blocking is not supported
-                    && dst_md()->format_desc.blocking.inner_nblks == 0
-                    && diff_dst_md()->format_desc.blocking.inner_nblks == 0
-                    && attr()->has_default_values();
+            const memory_desc_wrapper diff_src_d(diff_src_md());
+            const memory_desc_wrapper diff_dst_d(diff_dst_md());
+            const memory_desc_wrapper dst_d(dst_md());
 
+            bool ok = !is_fwd()
+                    && utils::one_of(
+                            dst_d.data_type(), data_type::f32, data_type::f16)
+                    && attr()->has_default_values()
+                    && set_default_formats_common() && dst_d.is_plain()
+                    && diff_dst_d.is_plain() && diff_src_d.is_plain()
+                    && diff_src_d == diff_dst_d && diff_src_d == dst_d;
             if (!ok) return status::unimplemented;
 
             softmax_impl_.reset(new cudnn_softmax_bwd_impl_t());

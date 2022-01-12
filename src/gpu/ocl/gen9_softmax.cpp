@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,8 +22,7 @@ namespace gpu {
 namespace ocl {
 
 status_t gen9_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
-    if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
-        return status::success;
+    if (pd()->has_zero_dim_memory()) return status::success;
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
@@ -38,8 +37,7 @@ status_t gen9_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
 }
 
 status_t gen9_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
-    if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
-        return status::success;
+    if (pd()->has_zero_dim_memory()) return status::success;
 
     auto &dst = CTX_IN_STORAGE(DNNL_ARG_DST);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);

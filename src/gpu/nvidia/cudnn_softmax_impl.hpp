@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -161,9 +161,7 @@ struct cudnn_softmax_fwd_impl_t : public cudnn_softmax_impl_base_t {
     status_t init(const softmax_pd_t *pd) override {
         // If any of the dimensions are 0 we should not continue with
         // creating cudnn descriptors
-        if (has_zero_dims(pd->src_md(0)->dims, pd->ndims())) {
-            return status::success;
-        }
+        if (pd->has_zero_dim_memory()) return status::success;
 
         if (pd->ndims() > CUDNN_DIM_MAX) { return status::invalid_arguments; }
         ndims = pd->ndims() < 4 ? 4 : pd->ndims();
@@ -206,8 +204,7 @@ struct cudnn_softmax_bwd_impl_t : public cudnn_softmax_impl_base_t {
     status_t init(const softmax_pd_t *pd) override {
         // If any of the dimensions are 0 we should not continue with
         // creating cudnn descriptors
-        if (memory_desc_wrapper(pd->desc()->diff_desc).has_zero_dim())
-            return status::success;
+        if (pd->has_zero_dim_memory()) return status::success;
 
         if (pd->ndims() > CUDNN_DIM_MAX) { return status::invalid_arguments; }
         ndims = pd->ndims() < 4 ? 4 : pd->ndims();

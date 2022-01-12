@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,9 +36,7 @@ namespace ocl {
 struct ref_softmax_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_softmax_fwd_pd_t {
-        pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
-                const softmax_fwd_pd_t *hint_fwd_pd)
-            : gpu_softmax_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using gpu_softmax_fwd_pd_t::gpu_softmax_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
@@ -46,18 +44,17 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            bool ok = true
-                    && utils::one_of(desc()->prop_kind,
-                            prop_kind::forward_inference,
-                            prop_kind::forward_training)
-                    && utils::one_of(desc()->data_desc.data_type,
-                            data_type::f32, data_type::f16, data_type::bf16)
-                    && IMPLICATION(
-                            desc()->data_desc.data_type == data_type::f16,
+            const memory_desc_wrapper src_d(src_md());
+            const memory_desc_wrapper dst_d(dst_md());
+
+            bool ok = is_fwd()
+                    && utils::one_of(src_d.data_type(), data_type::f32,
+                            data_type::f16, data_type::bf16)
+                    && IMPLICATION(src_md()->data_type == data_type::f16,
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
                     && compute_engine->mayiuse_sub_group(16)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values() && dst_d == src_d;
             if (!ok) return status::unimplemented;
 
             gws[0] = 1;
@@ -81,8 +78,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
                 }
             }
 
-            int nelems = desc()->data_desc.padded_dims[desc()->softmax_axis];
-
+            int nelems = axis_size(true);
             if (nelems <= 100) {
                 group_size = 16;
             } else if (nelems <= 1000) {
@@ -108,26 +104,23 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
-            return status::success;
+        if (pd()->has_zero_dim_memory()) return status::success;
 
         compute::kernel_ctx_t kernel_ctx;
 
         const auto *desc = pd()->desc();
         kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
-        kernel_ctx.define_int("SOFTMAX_AXIS",
-                desc->data_desc.padded_dims[desc->softmax_axis]);
+        kernel_ctx.define_int("SOFTMAX_AXIS", pd()->axis_size(true));
         kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
         kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
         kernel_ctx.define_int("IS_FWD", 1);
         kernel_ctx.add_option("-cl-std=CL2.0");
-        kernel_ctx.define_int("LOGSOFTMAX",
-                desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
+        kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());
 
         const memory_desc_wrapper dst_mdw(pd()->dst_md());
         def_memory_desc_info(
                 kernel_ctx, memory_desc_info_t::create(dst_mdw), "DST");
-        kernel_ctx.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.set_data_type(dst_mdw.data_type());
         set_offsets(kernel_ctx, pd()->dst_md(), "DATA");
 
         for (int i = 0; i < 3; i++)
@@ -152,9 +145,7 @@ protected:
 struct ref_softmax_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_softmax_bwd_pd_t {
-        pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
-                const softmax_fwd_pd_t *hint_fwd_pd)
-            : gpu_softmax_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using gpu_softmax_bwd_pd_t::gpu_softmax_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
@@ -162,12 +153,17 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            bool ok = desc()->prop_kind == prop_kind::backward_data
-                    && utils::one_of(desc()->data_desc.data_type,
-                            data_type::f32, data_type::bf16)
-                    && set_default_formats_common()
+            const memory_desc_wrapper diff_src_d(diff_src_md());
+            const memory_desc_wrapper diff_dst_d(diff_dst_md());
+            const memory_desc_wrapper dst_d(dst_md());
+
+            bool ok = !is_fwd()
+                    && utils::one_of(
+                            dst_d.data_type(), data_type::f32, data_type::bf16)
                     && compute_engine->mayiuse_sub_group(16)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && set_default_formats_common() && diff_src_d == diff_dst_d
+                    && diff_src_d == dst_d;
             if (!ok) return status::unimplemented;
 
             gws[0] = 1;
@@ -182,17 +178,16 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
             block[1] = 1;
             block[2] = 1;
 
-            for (int i = 0, j = 0; i < desc()->data_desc.ndims; ++i) {
-                if (i != desc()->softmax_axis) {
-                    auto dim = diff_src_md()->padded_dims[i];
+            for (int i = 0, j = 0; i < dst_d.ndims(); ++i) {
+                if (i != axis()) {
+                    auto dim = dst_d.padded_dims()[i];
                     gws[j % 3] *= dim;
                     if (j < 3) block[j % 3] = dim;
                     j++;
                 }
             }
 
-            int nelems = desc()->data_desc.padded_dims[desc()->softmax_axis];
-
+            int nelems = axis_size(true);
             if (nelems <= 100) {
                 group_size = 16;
             } else if (nelems <= 1000) {
@@ -218,27 +213,22 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        if (memory_desc_wrapper(pd()->desc()->diff_desc).has_zero_dim())
-            return status::success;
+        if (pd()->has_zero_dim_memory()) return status::success;
 
         compute::kernel_ctx_t kernel_ctx;
 
-        const auto *desc = pd()->desc();
-        kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
-        kernel_ctx.define_int("IS_BWD", 1);
+        kernel_ctx.define_int("SOFTMAX_AXIS_IDX", pd()->axis());
+        kernel_ctx.define_int("SOFTMAX_AXIS", pd()->axis_size(true));
         kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
         kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
-        kernel_ctx.define_int("SOFTMAX_AXIS",
-                desc->data_desc.padded_dims[desc->softmax_axis]);
-        kernel_ctx.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.define_int("IS_BWD", 1);
         kernel_ctx.add_option("-cl-std=CL2.0");
-        kernel_ctx.define_int("LOGSOFTMAX",
-                desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
+        kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());
 
         const memory_desc_wrapper diff_src_mdw(pd()->diff_src_md());
         def_memory_desc_info(kernel_ctx,
                 memory_desc_info_t::create(diff_src_mdw), "DIFF_SRC");
-
+        kernel_ctx.set_data_type(diff_src_mdw.data_type());
         set_offsets(kernel_ctx, *pd()->diff_src_md(), "DATA");
 
         for (int i = 0; i < 3; i++)
