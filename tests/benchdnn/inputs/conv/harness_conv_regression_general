@@ -49,7 +49,7 @@
 # DNNL-949
 --reset --dir=BWD_D mb2_g1ic1oc2_ih3oh1kh2sh1dh1ph0_iw5ow3kw2sw1dw1pw0
 
-# special case for 4vnni and 4fma kernels had this FPE bug
+# special case for kernels having FPE bug
 --reset --cfg=f32 mb1_g1ic16oc16_ih7oh7kh3ph1
 
 # DNNL-982: FPE for large right-hand-side padding
