@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -148,7 +148,8 @@ device_uuid_t get_device_uuid(const ::sycl::device &dev) {
     static_assert(ZE_MAX_DEVICE_UUID_SIZE == 16,
             "ZE_MAX_DEVICE_UUID_SIZE is expected to be 16");
 
-    ze_device_properties_t ze_device_properties;
+    ze_device_properties_t ze_device_properties
+            = {ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES};
     auto ze_device = compat::get_native<ze_device_handle_t>(dev);
     auto status = func_zeDeviceGetProperties(ze_device, &ze_device_properties);
     MAYBE_UNUSED(status);
