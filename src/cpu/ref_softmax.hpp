@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t data_type>
 struct ref_softmax_fwd_t : public primitive_t {
     struct pd_t : public cpu_softmax_fwd_pd_t {
         using cpu_softmax_fwd_pd_t::cpu_softmax_fwd_pd_t;
@@ -39,7 +38,9 @@ struct ref_softmax_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && is_fwd() && src_md()->data_type == data_type
+            using namespace data_type;
+            bool ok = is_fwd() && utils::one_of(src_md()->data_type, f32, bf16)
+                    && platform::has_data_type_support(src_md()->data_type)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -78,13 +79,11 @@ struct ref_softmax_fwd_t : public primitive_t {
             if (bd.inner_idxs[iblk] == axis)
                 axis_blk_size *= bd.inner_blks[iblk];
 
-        use_dense_ = true && inner_size_ == 1 && data_d.is_dense(true)
+        use_dense_ = inner_size_ == 1 && data_d.is_dense(true)
                 && data_d.only_padded_dim(axis)
                 && bd.strides[axis] == axis_blk_size;
         return status::success;
     }
-
-    typedef typename prec_traits<data_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (use_dense_)
@@ -103,7 +102,6 @@ private:
     int outer_size_, channels_, inner_size_;
 };
 
-template <impl::data_type_t data_type>
 struct ref_softmax_bwd_t : public primitive_t {
     struct pd_t : public cpu_softmax_bwd_pd_t {
         using cpu_softmax_bwd_pd_t::cpu_softmax_bwd_pd_t;
@@ -111,11 +109,12 @@ struct ref_softmax_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && !is_fwd()
-                    && utils::everyone_is(data_type, dst_md()->data_type,
-                            diff_src_md()->data_type)
-                    && set_default_formats_common()
-                    && attr()->has_default_values();
+            using namespace data_type;
+            bool ok = !is_fwd() && utils::one_of(dst_md()->data_type, f32, bf16)
+                    && platform::has_data_type_support(dst_md()->data_type)
+                    && dst_md()->data_type == diff_dst_md()->data_type
+                    && attr()->has_default_values()
+                    && set_default_formats_common();
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -139,12 +138,10 @@ struct ref_softmax_bwd_t : public primitive_t {
             if (bd.inner_idxs[iblk] == axis)
                 axis_blk_size *= bd.inner_blks[iblk];
 
-        use_dense_ = true && inner_size_ == 1 && diff_d == data_d
-                && diff_d.is_dense() && bd.strides[axis] == axis_blk_size;
+        use_dense_ = inner_size_ == 1 && diff_d == data_d && diff_d.is_dense()
+                && bd.strides[axis] == axis_blk_size;
         return status::success;
     }
-
-    typedef typename prec_traits<data_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (use_dense_)

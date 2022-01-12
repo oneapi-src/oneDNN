@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 * Copyright 2021 Arm Ltd. and affiliates
 *
@@ -48,14 +48,12 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_S
         CPU_INSTANCE_AARCH64(jit_uni_softmax_fwd_t<sve_512>)
         CPU_INSTANCE_AARCH64(jit_uni_softmax_bwd_t<sve_512>)
         CPU_INSTANCE_AARCH64_ACL(acl_softmax_fwd_t<f32>)
-        CPU_INSTANCE(ref_softmax_fwd_t<f32>)
-        CPU_INSTANCE(ref_softmax_fwd_t<bf16>)
+        CPU_INSTANCE(ref_softmax_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
         CPU_INSTANCE_X64(jit_uni_softmax_bwd_t<avx512_common>)
-        CPU_INSTANCE(ref_softmax_bwd_t<f32>)
-        CPU_INSTANCE(ref_softmax_bwd_t<bf16>)
+        CPU_INSTANCE(ref_softmax_bwd_t)
         nullptr,
     })},
 });
