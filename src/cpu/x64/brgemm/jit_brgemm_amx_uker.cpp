@@ -295,7 +295,7 @@ private:
     size_t bias_offset(int ldb) const noexcept;
 
     size_t scales_offset(int ldb) const noexcept;
-    size_t zp_comp_a_offset(int ldb, bool is_tail = false) const noexcept;
+    size_t zp_comp_a_offset(int ldb) const noexcept;
     size_t zp_comp_b_offset(int bd) const noexcept;
     size_t zp_c_values_offset(int ldb, bool is_tail = false) const noexcept;
     int get_out_bd(int bd_inp_bdb, int bd) const;
@@ -381,9 +381,8 @@ size_t jit_brgemm_amx_uker_base_t::scales_offset(int ldb) const noexcept {
     return brg.is_oc_scale * ldb * ld_block_scales_size_;
 }
 
-size_t jit_brgemm_amx_uker_base_t::zp_comp_a_offset(int ldb, bool is_tail) const
-        noexcept {
-    return (is_tail) ? ldb_tail_zp_size_ : ldb * ld_block_zp_size_;
+size_t jit_brgemm_amx_uker_base_t::zp_comp_a_offset(int ldb) const noexcept {
+    return ldb * ld_block_zp_size_;
 }
 
 size_t jit_brgemm_amx_uker_base_t::zp_comp_b_offset(int bd) const noexcept {
@@ -647,7 +646,7 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers_ldb(
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
         mov(reg_aux_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
 
-        int zp_comp_a_off = zp_comp_a_offset(ldb, is_ld_tail);
+        int zp_comp_a_off = zp_comp_a_offset(ldb);
         auto zp_comp_a_addr
                 = EVEX_compress_addr(reg_aux_zp_comp_a, zp_comp_a_off);
         cvt2ps(data_type::s32, zmm_zp_comp_a, zp_comp_a_addr, true, false,
