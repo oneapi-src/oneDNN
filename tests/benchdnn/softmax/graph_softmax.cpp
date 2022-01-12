@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,17 +24,21 @@ namespace benchdnnext {
 namespace softmax {
 
 softmax_graph_prb_t::spec_t::spec_t(const ::softmax::prb_t *prb) noexcept {
+    using graph_op = dnnl::graph::op;
+    is_bwd_pass = prb->dir & FLAG_BWD;
     axis = prb->axis;
     dims = prb->dims;
     softmax_dt = convert_dt(prb->dt);
     switch (prb->alg) {
         case ::softmax::SOFTMAX:
-            op_kind = dnnl::graph::op::kind::SoftMax;
+            op_kind = (is_bwd_pass) ? graph_op::kind::SoftMaxBackprop
+                                    : graph_op::kind::SoftMax;
             break;
         case ::softmax::LOGSOFTMAX:
-            op_kind = dnnl::graph::op::kind::LogSoftmax;
+            op_kind = (is_bwd_pass) ? graph_op::kind::LogSoftmaxBackprop
+                                    : graph_op::kind::LogSoftmax;
             break;
-        default: op_kind = dnnl::graph::op::kind::LastSymbol;
+        default: op_kind = graph_op::kind::LastSymbol;
     }
     tag = prb->tag;
 }
@@ -49,21 +53,42 @@ void check_known_skipped_case_graph(
 }
 
 fill_status_t softmax_graph_prb_t::handle_main_op_() {
+    using logical_tensor = dnnl::graph::logical_tensor;
     using op = dnnl::graph::op;
 
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string DST {TENSOR_ID + "_DST"};
 
-    tensor_descs_.emplace(SRC, spec_.softmax_dt, spec_.dims, spec_.tag);
+    const std::string DST {TENSOR_ID + "_DST"};
     tensor_descs_.emplace(DST, spec_.softmax_dt, spec_.dims, spec_.tag);
 
-    std::string name
-            = spec_.op_kind == op::kind::SoftMax ? "Softmax" : "LogSoftMax";
-    op softmax_op(new_op_id, spec_.op_kind, {tensor_descs_[SRC]},
-            {tensor_descs_[DST]}, name);
+    std::string name;
+    std::vector<logical_tensor> inputs;
+    std::vector<logical_tensor> outputs;
+    if (spec_.is_bwd_pass) {
+        name = spec_.op_kind == op::kind::SoftMaxBackprop
+                ? "SoftMaxBackprop"
+                : "LogSoftmaxBackprop";
+        const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
+        const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
+
+        tensor_descs_.emplace(
+                DIFF_SRC, spec_.softmax_dt, spec_.dims, spec_.tag);
+        tensor_descs_.emplace(
+                DIFF_DST, spec_.softmax_dt, spec_.dims, spec_.tag);
+        inputs = {tensor_descs_[DIFF_DST], tensor_descs_[DST]};
+        outputs = {tensor_descs_[DIFF_SRC]};
+    } else {
+        name = spec_.op_kind == op::kind::SoftMax ? "SoftMax" : "LogSoftmax";
+        const std::string SRC {TENSOR_ID + "_SRC"};
+
+        tensor_descs_.emplace(SRC, spec_.softmax_dt, spec_.dims, spec_.tag);
+        inputs = {tensor_descs_[SRC]};
+        outputs = {tensor_descs_[DST]};
+    }
+
+    op softmax_op(new_op_id, spec_.op_kind, inputs, outputs, name);
     softmax_op.set_attr<int64_t>("axis", spec_.axis);
 
     ops_.emplace_back(softmax_op);
@@ -135,7 +160,41 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
 
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
+    } else if (prb->dir & FLAG_BWD) {
+        auto d_dst_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
+        auto d_dst_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
+
+        auto placeholder_d_src_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
+        dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
+        dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
+
+        const bool neg_sign = prb->alg == ::softmax::SOFTMAX ? true : false;
+        SAFE(::softmax::fill_data_bwd(prb, src_dt, src_fp, neg_sign), WARN);
+        SAFE(::softmax::fill_data_bwd(prb, d_dst_dt, d_dst_fp, !neg_sign),
+                WARN);
+
+        tensors_in.emplace_back(ins[0], eng, static_cast<void *>(d_dst_dt));
+        tensors_in.emplace_back(ins[1], eng, static_cast<void *>(src_dt));
+        tensors_out.emplace_back(outs[0], eng, static_cast<void *>(d_src_dt));
+
+        SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+
+        if (is_bench_mode(CORR)) {
+            ::softmax::compute_ref_bwd(prb, src_fp, d_dst_fp, d_src_fp);
+
+            compare::compare_t cmp;
+            const float trh_coeff_f32 = prb->dt == dnnl_f32 ? 10.f : 1.f;
+            const float trh = 4 * trh_coeff_f32 * epsilon_dt(prb->dt);
+            cmp.set_threshold(trh);
+
+            ::softmax::add_additional_softmax_check(cmp);
+
+            SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
+        }
+    } else {
+        SAFE(FAIL, CRIT);
     }
+
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
 

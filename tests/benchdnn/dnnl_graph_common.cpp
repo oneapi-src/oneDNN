@@ -27,12 +27,6 @@ namespace benchdnnext {
 void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res) {
-    // FWD_I is the supported testcase for now
-    if (!(dir & FLAG_FWD)) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-
     // tag::undef not supported for now
     if (tag == tag::undef) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
@@ -43,7 +37,6 @@ void check_known_skipped_case_graph_common(
     for (const auto &i_dt : v_dt) {
         if (i_dt == dnnl_bf16 || i_dt == dnnl_f16) {
             if (strcmp("lnorm", driver_name) != 0
-                    && strcmp("softmax", driver_name) != 0
                     && strcmp("bnorm", driver_name) != 0) {
                 res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
                 break;

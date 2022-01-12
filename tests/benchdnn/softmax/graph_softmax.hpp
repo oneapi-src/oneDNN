@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ struct softmax_graph_prb_t : public graph_prb_t {
 private:
     struct spec_t {
         spec_t(const ::softmax::prb_t *prb) noexcept;
+        bool is_bwd_pass {false};
         int axis {1};
         dims_t dims;
         dt softmax_dt;
@@ -56,7 +57,7 @@ private:
     fill_status_t handle_main_op_();
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::SoftMax;
+        return spec_.op_kind;
     }
 };
 
