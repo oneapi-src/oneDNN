@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include <random>
 
 #include <float.h>
 #include <math.h>
@@ -104,7 +106,7 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     // Fill data the way it tests two modes: max_val < 0 and max_val >= 0;
     // Test max_val < 0 by using only negative numbers to check correct max_val
     // subtraction, mostly if library used signed value, not abs.
-    // Test max_val >= 0 by exceeding `exp_overflow_arg` value to check answer
+    // Test max_val >= 0 by exceeding `exp_ovfl_arg` value to check answer
     // does not contain +infinity (nan).
     // Distribute several top-1 values to check softmax works right. Also use
     // bit more top-2 values so they contribute in final exp sum as well. Fill
@@ -112,26 +114,64 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     // input.
     // Filling data such way prevents cancellation error for LOGSOFTMAX due to
     // log(sum(x_j)) won't be close to zero as in case of single top-1 value.
-    const int exp_overflow_arg = 88;
-    const int top1_val = exp_overflow_arg + 2;
-    const int top2_val = exp_overflow_arg + 1;
-    const int top3_val = exp_overflow_arg;
-    const float top1_prob = 4. / axis_size;
-    const float top2_prob = 7. * top1_prob;
-    const float top3_prob = 3. * top2_prob;
 
-    dnnl::impl::parallel_nd(outer_size, axis_size, inner_size,
-            [&](int64_t ou, int64_t as, int64_t in) {
-                const int sign = (outer_size > 1 ? ou : in) % 2 == 0 ? -1 : 1;
-                const int gen = 13 * ou + 101 * as + 7 * in + 1637;
-                const bool top1 = flip_coin(gen, top1_prob);
-                const bool top2 = !top1 && flip_coin(gen, top2_prob);
-                const bool top3 = !top1 && !top2 && flip_coin(gen, top3_prob);
-                const int value = sign
-                        * (top1 * top1_val + top2 * top2_val + top3 * top3_val);
-                const int64_t ou_in_offset = ou * axis_size * inner_size + in;
-                mem_fp.set_elem(ou_in_offset + as * inner_size, value);
-            });
+    // Do fixed partitioning to have same filling for any number of threads.
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(outer_size, n_chunks);
+
+    dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, outer_size);
+        std::minstd_rand msr(idx_start + 1);
+        msr.discard(1);
+        std::vector<std::uniform_int_distribution<>> igen_top_fp {
+                std::uniform_int_distribution<>(1, 2),
+                std::uniform_int_distribution<>(2, 5),
+                std::uniform_int_distribution<>(5, 8)};
+        std::vector<std::uniform_int_distribution<>> igen_top_int8 {
+                std::uniform_int_distribution<>(1, 1),
+                std::uniform_int_distribution<>(1, 1),
+                std::uniform_int_distribution<>(0, 4)};
+        std::vector<std::uniform_int_distribution<>> igen_top
+                = sizeof_dt(prb->dt) == 1 ? igen_top_int8 : igen_top_fp;
+        const int sign = idx_chunk % 2 != 0 ? -1 : 1;
+        const int exp_ovfl_arg = 88 * sign;
+        std::vector<int> top_val {
+                exp_ovfl_arg + 2, exp_ovfl_arg + 1, exp_ovfl_arg};
+
+        for_(int64_t idx = idx_start; idx < idx_end; ++idx)
+        for (int64_t in = 0; in < inner_size; in++) {
+            std::vector<int64_t> n_top {
+                    igen_top[0](msr), igen_top[1](msr), igen_top[2](msr)};
+            int i = 2;
+            int64_t n_sum = n_top[0] + n_top[1] + n_top[2];
+            // Adjust number of top elements to fit axis_size if needed
+            while (n_sum > axis_size) {
+                n_sum -= n_top[i];
+                n_top[i] -= std::min(n_top[i], n_sum + n_top[i] - axis_size);
+                n_sum += n_top[i];
+                i--;
+            }
+            // If number of top elements is less the axis_size, set a random
+            // index to start dense filling from.
+            std::uniform_int_distribution<> igen_as_idx(0, axis_size - n_sum);
+            msr.discard(2);
+            int64_t axis_idx_start = igen_as_idx(msr);
+
+            i = 0;
+            for (int64_t as = 0; as < axis_size; as++) {
+                auto offset = inner_size * (idx * axis_size + as) + in;
+                float value = INT_MIN;
+                if (as >= axis_idx_start && as < axis_idx_start + n_sum) {
+                    value = top_val[i];
+                    n_top[i]--;
+                    if (n_top[i] == 0) i++;
+                }
+                mem_fp.set_elem(offset,
+                        round_to_nearest_representable(mem_dt.dt(), value));
+            }
+        }
+    });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
@@ -230,15 +270,24 @@ int doit(const prb_t *prb, res_t *res) {
 
             compare::compare_t cmp;
 
-            const float trh_coeff_log = prb->alg == LOGSOFTMAX ? 4 : 1;
-            const float trh_coeff_f32
-                    = data_md.data_type == dnnl_f32 ? 10.f : 1.f;
-            const float trh = trh_coeff_log * trh_coeff_f32
-                    * epsilon_dt(data_md.data_type);
+            const float trh_coeff_log = prb->alg == LOGSOFTMAX ? 5 : 1;
+            const float trh_coeff_f32 = dst_dt.dt() == dnnl_f32 ? 10.f : 1.f;
+            const float trh
+                    = trh_coeff_log * trh_coeff_f32 * epsilon_dt(dst_dt.dt());
             cmp.set_threshold(trh);
 
             const int64_t axis_size = prb->dims[prb->axis];
-            cmp.set_zero_trust_percent(axis_size < 10 ? 100.f : 60.f);
+            const int64_t n_zeros = dst_dt.sizeof_dt() == 1
+                    ? (axis_size - 1)
+                    : MAX2(0, axis_size - 8);
+            float zero_percent = 100.f * n_zeros / axis_size;
+            // Note:
+            // * Logsoftmax over axis of size `1` does not make any sense.
+            // * Logsoftmax for u8 dst does not make any sense either.
+            if (prb->alg == LOGSOFTMAX
+                    && (axis_size == 1 || dst_dt.dt() == dnnl_u8))
+                zero_percent = 100.f;
+            cmp.set_zero_trust_percent(zero_percent);
 
             add_additional_softmax_check(cmp);
 
