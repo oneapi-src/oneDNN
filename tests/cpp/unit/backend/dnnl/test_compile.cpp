@@ -15743,9 +15743,9 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
     std::vector<std::string> dtypes = {"uint8", "int8"};
 
     std::vector<int64_t> src_shape = {1, 4, 16, 8};
-    std::vector<int64_t> src_stride = {512, 8, 128, 1};
+    std::vector<int64_t> src_stride = {512, 8, 32, 1};
     std::vector<int64_t> weight_shape = {1, 4, 8, 16};
-    std::vector<int64_t> weight_stride = {512, 1, 128, 8};
+    std::vector<int64_t> weight_stride = {512, 8, 1, 32};
     std::vector<int64_t> dst_shape = {1, 4, 16, 16};
 
     test::vector<uint8_t> src_data(product(src_shape));

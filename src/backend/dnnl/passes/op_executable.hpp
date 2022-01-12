@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -182,10 +182,16 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    src = to_format_any(src);
+    if (!(src.dims().size() == 4
+                && is_format(src, dnnl::memory::format_tag::acbd))) {
+        src = to_format_any(src);
+    }
     auto wei = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
-    wei = to_format_any(wei);
+    if (!(wei.dims().size() == 4
+                && is_format(wei, dnnl::memory::format_tag::adbc))) {
+        wei = to_format_any(wei);
+    }
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
     dst = to_format_any(dst);

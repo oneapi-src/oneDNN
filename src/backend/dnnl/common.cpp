@@ -332,6 +332,10 @@ memory::desc to_format_any(const memory::desc &adesc) {
             adesc.dims(), adesc.data_type(), memory::format_tag::any);
 }
 
+bool is_format(const memory::desc &adesc, memory::format_tag tag) {
+    return adesc == memory::desc(adesc.dims(), adesc.data_type(), tag);
+}
+
 bool is_4c_blocked(const memory::desc &adesc) {
     if (adesc.data.format_kind != dnnl_blocked) return false;
 
