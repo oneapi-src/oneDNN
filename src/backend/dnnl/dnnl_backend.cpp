@@ -178,7 +178,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::Divide, binary_t)
 
     // bias_add
-    DNNL_REGISTER_KERNEL(impl::op_kind::BiasAdd, bias_add)
+    DNNL_REGISTER_KERNEL(impl::op_kind::BiasAdd, binary_t)
 
     // elementwise related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::Abs, float_eltwise_fwd)

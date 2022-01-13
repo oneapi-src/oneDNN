@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -557,6 +557,7 @@ const std::map<op_kind_t, dnnl::algorithm> &get_binary_alg_map() {
             {impl::op_kind::Divide, dnnl::algorithm::binary_div},
             {impl::op_kind::Minimum, dnnl::algorithm::binary_min},
             {impl::op_kind::Maximum, dnnl::algorithm::binary_max},
+            {impl::op_kind::BiasAdd, dnnl::algorithm::binary_add},
     };
     return binary_alg_map;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -243,115 +243,6 @@ public:
             subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
-        return impl::status::success;
-    }
-};
-
-struct bias_add : public dnnl::binary, public kernel_base_t {
-    using super = dnnl::binary;
-
-private:
-    primitive_desc pd_;
-    dnnl::binary prim_;
-    std::string data_format_ {"NXC"};
-
-    size_t idx_src_ {0};
-    size_t idx_bias_ {1};
-    size_t idx_dst_ {0};
-
-    dnnl::memory expected_bias_;
-    dnnl::memory expected_dst_;
-
-    void *expected_dst_buf_ {nullptr};
-
-    dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
-    impl::allocator_t *g_alloc_;
-
-public:
-    ~bias_add() override {
-        if (expected_dst_buf_)
-            dnnl_allocator_t::free(expected_dst_buf_, p_engine_, g_alloc_);
-    }
-
-    impl::status_t compile_impl(const impl::op_t *op,
-            const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = dnnl::memory::desc;
-
-        data_format_ = op->get_attr<std::string>("data_format");
-
-        desc src = make_dnnl_memory_desc(inputs.at(idx_src_));
-        desc bias = make_dnnl_memory_desc(inputs.at(idx_bias_));
-        desc dst = make_dnnl_memory_desc(outputs.at(idx_dst_));
-
-        int src_ndims = src.data.ndims;
-
-        // do expand always, c in the last dim
-        bias = expand(bias, src_ndims);
-
-        // do permute
-        // NCX data_format_ means src's channel is in the second dim. so we
-        // need permute the expanded bias to NCX too
-        if (data_format_ == "NCX") { bias = permute_NXC2NCX(bias); }
-
-        p_engine_ = make_dnnl_engine(*g_engine);
-
-        desc dst_any(dst.dims(), dst.data_type(), format_tag::any);
-        pd_ = primitive_desc(
-                {algorithm::binary_add, src, bias, dst_any}, p_engine_);
-        prim_ = super(pd_);
-        impl::logical_tensor_t *orgi_dst_lt
-                = const_cast<impl::logical_tensor_t *>(&outputs.at(idx_dst_));
-        fill_layout_info(orgi_dst_lt, pd_.dst_desc());
-        return impl::status::success;
-    }
-
-    impl::status_t execute_impl(const impl::op_t *op,
-            const impl::stream_t *g_stream,
-            const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(op);
-
-        memory src = make_dnnl_memory(inputs.at(idx_src_), p_engine_);
-        memory bias = make_dnnl_memory(inputs.at(idx_bias_), p_engine_);
-        memory dst = make_dnnl_memory(outputs.at(idx_dst_), p_engine_);
-
-        // Deal with bias:
-        // bias is always broadcasted: parse its buffer with the reshaped desc
-        expected_bias_
-                = memory(pd_.src1_desc(), p_engine_, bias.get_data_handle());
-
-        g_alloc_ = g_stream->get_engine()->get_allocator();
-
-        // Deal with the dst:
-        // when create the primitive, we use any format for dst, so the
-        // optiminal layout may be different from the original. we need
-        // to check this and alloc new memory for optiminal dst
-        if (pd_.dst_desc() != dst.get_desc()) {
-            if (!expected_dst_) {
-                expected_dst_buf_ = dnnl_allocator_t::malloc(
-                        pd_.dst_desc().get_size(), p_engine_, g_alloc_,
-                        impl::allocator_lifetime::temp);
-                expected_dst_
-                        = memory(pd_.dst_desc(), p_engine_, expected_dst_buf_);
-            }
-        } else {
-            expected_dst_ = dst;
-        }
-
-        exec_args args {{DNNL_ARG_SRC_0, src}, {DNNL_ARG_SRC_1, expected_bias_},
-                {DNNL_ARG_DST, expected_dst_}};
-
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
-
-        prim_.execute(p_stream_, args);
-
-        if (expected_dst_ != dst) {
-            dnnl::reorder(expected_dst_, dst)
-                    .execute(p_stream_, expected_dst_, dst);
-        }
         return impl::status::success;
     }
 };

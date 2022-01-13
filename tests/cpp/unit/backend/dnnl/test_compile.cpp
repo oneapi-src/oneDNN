@@ -1694,7 +1694,6 @@ TEST(Execute, ReversedDifferentFormatBroadcastAdd) {
 
 TEST(Execute, BiasAdd) {
     impl::engine_t &eng = get_engine();
-    auto &op_factory = get_dnnl_kernel_registry();
 
     test::vector<float> src {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
             1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -1716,9 +1715,6 @@ TEST(Execute, BiasAdd) {
         impl::op_t bias_add_op(impl::op_kind::BiasAdd);
         bias_add_op.set_attr<std::string>("data_format", data_formats[i]);
 
-        auto bias_add_kernel = op_factory.create_kernel(bias_add_op);
-        ASSERT_TRUE(bias_add_kernel);
-
         impl::logical_tensor_t src_lt = utils::logical_tensor_init(
                 0, src_shapes[i], impl::data_type::f32);
         impl::logical_tensor_t bias_lt = utils::logical_tensor_init(
@@ -1726,17 +1722,33 @@ TEST(Execute, BiasAdd) {
         impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
                 2, dst_shapes[i], impl::data_type::f32);
 
-        // compile the add operator
-        bias_add_kernel->compile(
-                &bias_add_op, &eng, {src_lt, bias_lt}, {dst_lt});
+        bias_add_op.add_input(src_lt);
+        bias_add_op.add_input(bias_lt);
+        bias_add_op.add_output(dst_lt);
+
+        impl::graph_t g(eng.kind());
+        ASSERT_EQ(g.add_op(&bias_add_op), impl::status::success);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("bias_add_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+        std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &bias_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+        p.compile(&cp, inputs, outputs, &eng);
 
         impl::tensor_t src_ts(src_lt, &eng, src.data());
         impl::tensor_t bias_ts(bias_lt, &eng, bias.data());
         impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
         impl::stream_t &strm = get_stream();
-        bias_add_kernel->execute(
-                &bias_add_op, &strm, {src_ts, bias_ts}, {dst_ts});
+        cp.execute(&strm, {src_ts, bias_ts}, {dst_ts});
         strm.wait();
 
         if (i == 0) {

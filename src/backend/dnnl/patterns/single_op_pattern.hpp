@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(abs_pass, dnnl, Abs, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(avg_pool_pass, dnnl, AvgPool, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(avg_pool_bw_pass, dnnl, AvgPoolBackprop, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(bias_add_pass, dnnl, BiasAdd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(bn_pass, dnnl, BatchNormInference, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(ln_pass, dnnl, LayerNorm, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(

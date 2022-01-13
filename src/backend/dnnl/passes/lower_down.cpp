@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2122,9 +2122,10 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<op_ptr> to_be_removed_ops;
 
-    const static std::set<impl::op_kind_t> binary_op_set = {impl::op_kind::Add,
-            impl::op_kind::Multiply, impl::op_kind::Divide,
-            impl::op_kind::Minimum, impl::op_kind::Maximum};
+    const static std::set<impl::op_kind_t> binary_op_set
+            = {impl::op_kind::Add, impl::op_kind::Multiply,
+                    impl::op_kind::Divide, impl::op_kind::Minimum,
+                    impl::op_kind::Maximum, impl::op_kind::BiasAdd};
 
     auto &subgraph = sg->get_mutable_ops();
 
@@ -2134,9 +2135,23 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         // check doable
         auto src0_lt = cur_op->get_input_value(0)->get_logical_tensor();
         auto src1_lt = cur_op->get_input_value(1)->get_logical_tensor();
-        if (!binary_doable(ltw(src0_lt).vdims(), ltw(src1_lt).vdims())) {
-            return status::invalid_shape;
+
+        bool shape_check_ok = true;
+        if (cur_op->get_kind() == impl::op_kind::BiasAdd) {
+            // special check for BiasAdd
+            const auto &data_format = cur_op->has_attr("data_format")
+                    ? cur_op->get_attr<std::string>("data_format")
+                    : "NCX";
+            const auto channel_num
+                    = impl::logical_tensor_wrapper_t(src0_lt).get_src_c(
+                            data_format);
+            shape_check_ok = channel_num == src1_lt.dims[0];
+        } else {
+            shape_check_ok
+                    = binary_doable(ltw(src0_lt).vdims(), ltw(src1_lt).vdims());
         }
+
+        if (!shape_check_ok) return impl::status::invalid_shape;
 
         // insert expand op
         int32_t src0_ndims = src0_lt.ndims;
@@ -2147,7 +2162,18 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             if (in_ndims[i] == target_ndims) { continue; }
 
             auto expand_op = std::make_shared<op_t>(op_kind::expand);
-            expand_op->set_attr<int64_t>("expand_to", target_ndims);
+            // for BiasAdd, use axes to specify where to insert dimension 1
+            if (cur_op->get_kind() == impl::op_kind::BiasAdd
+                    && (!cur_op->has_attr("data_format")
+                            || cur_op->get_attr<std::string>("data_format")
+                                    == "NCX")) {
+                std::vector<int64_t> axes(target_ndims);
+                std::iota(axes.begin(), axes.end(), 0);
+                axes.erase(axes.begin() + 1);
+                expand_op->set_attr<std::vector<int64_t>>("axes", axes);
+            } else {
+                expand_op->set_attr<int64_t>("expand_to", target_ndims);
+            }
             insert_op_before(expand_op, cur_op, i);
             to_be_inserted_ops.emplace_back(expand_op);
         }
