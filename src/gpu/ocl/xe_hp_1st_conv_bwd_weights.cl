@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -241,6 +241,8 @@ xe_hp_1st_conv_bwd_weights(__global SRC_DATA_T *src,
 #endif
                     }
 #endif
+                    barrier(CLK_LOCAL_MEM_FENCE);
+
                     intel_sub_group_block_write_us4(slm_oc
                                     + (oc % 2) * OW_BLOCK * 2 * (OC_BLOCK / 2)
                                     + lchan * (OW_BLOCK / 2) * (OC_BLOCK / 2),
