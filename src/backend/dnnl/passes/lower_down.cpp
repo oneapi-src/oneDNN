@@ -2122,10 +2122,10 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<op_ptr> to_be_removed_ops;
 
-    const static std::set<impl::op_kind_t> binary_op_set
-            = {impl::op_kind::Add, impl::op_kind::Multiply,
-                    impl::op_kind::Divide, impl::op_kind::Minimum,
-                    impl::op_kind::Maximum, impl::op_kind::BiasAdd};
+    const static std::set<impl::op_kind_t> binary_op_set = {impl::op_kind::Add,
+            impl::op_kind::Subtract, impl::op_kind::Multiply,
+            impl::op_kind::Divide, impl::op_kind::Minimum,
+            impl::op_kind::Maximum, impl::op_kind::BiasAdd};
 
     auto &subgraph = sg->get_mutable_ops();
 

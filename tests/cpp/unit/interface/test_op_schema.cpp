@@ -2092,6 +2092,29 @@ TEST(OpSchema, SqrtBackprop) {
             expected_attr_size, attrs_data);
 }
 
+TEST(OpSchema, Subtract) {
+    const op_kind_t op_kind_ = op_kind::Subtract;
+    const size_t expected_in_size = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 1;
+    const std::map<std::string, bool> attrs_data = {{"auto_broadcast", false}};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferSubtractOutputShapeWithoutBroadcast) {
+    const op_kind_t op_kind_ = op_kind::Subtract;
+
+    verify_shape_infer_for_arithmetic_op_no_broadcast(op_kind_);
+}
+
+TEST(OpSchema, InferSubtractOutputShapeWithBroadcast) {
+    const op_kind_t op_kind_ = op_kind::Subtract;
+
+    verify_shape_infer_for_arithmetic_op_with_broadcast(op_kind_);
+}
+
 TEST(OpSchema, Tanh) {
     const op_kind_t op_kind_ = op_kind::Tanh;
     const size_t expected_in_size = 1;
@@ -2858,6 +2881,19 @@ TEST(OpSchema, SqrtBackpropDefaultAttribute) {
     const bool *bval {nullptr};
     tmp_op.get_attr<bool>("use_dst", &bval);
     EXPECT_TRUE(bval);
+}
+
+TEST(OpSchema, SubtractDefaultAttribute) {
+    op_kind_t tmp_op_kind = kSubtract;
+    op_t tmp_op {0, tmp_op_kind, std::string("sub")};
+
+    const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
+    EXPECT_EQ(*sval, "numpy");
 }
 
 TEST(OpSchema, TanhBackpropDefaultAttribute) {

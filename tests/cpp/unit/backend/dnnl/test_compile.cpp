@@ -2027,11 +2027,11 @@ TEST(Execute, AddSigmoid) {
 TEST(Execute, BinaryOp) {
     impl::engine_t &eng = get_engine();
 
-    std::vector<impl::op_kind_t> op_kinds
-            = {impl::op_kind::Multiply, impl::op_kind::Minimum,
-                    impl::op_kind::Maximum, impl::op_kind::Divide};
+    std::vector<impl::op_kind_t> op_kinds = {impl::op_kind::Multiply,
+            impl::op_kind::Minimum, impl::op_kind::Maximum,
+            impl::op_kind::Divide, impl::op_kind::Subtract};
     std::vector<std::string> pass_names
-            = {"mul_pass", "min_pass", "max_pass", "div_pass"};
+            = {"mul_pass", "min_pass", "max_pass", "div_pass", "sub_pass"};
 
     test::vector<float> src0 {2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
     test::vector<float> src1 {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};

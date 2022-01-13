@@ -551,14 +551,14 @@ subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, bool reset_layout)
 }
 
 const std::map<op_kind_t, dnnl::algorithm> &get_binary_alg_map() {
-    static const std::map<op_kind_t, dnnl::algorithm> &binary_alg_map = {
-            {impl::op_kind::Add, dnnl::algorithm::binary_add},
-            {impl::op_kind::Multiply, dnnl::algorithm::binary_mul},
-            {impl::op_kind::Divide, dnnl::algorithm::binary_div},
-            {impl::op_kind::Minimum, dnnl::algorithm::binary_min},
-            {impl::op_kind::Maximum, dnnl::algorithm::binary_max},
-            {impl::op_kind::BiasAdd, dnnl::algorithm::binary_add},
-    };
+    static const std::map<op_kind_t, dnnl::algorithm> &binary_alg_map
+            = {{impl::op_kind::Add, dnnl::algorithm::binary_add},
+                    {impl::op_kind::Multiply, dnnl::algorithm::binary_mul},
+                    {impl::op_kind::Divide, dnnl::algorithm::binary_div},
+                    {impl::op_kind::Minimum, dnnl::algorithm::binary_min},
+                    {impl::op_kind::Maximum, dnnl::algorithm::binary_max},
+                    {impl::op_kind::Subtract, dnnl::algorithm::binary_sub},
+                    {impl::op_kind::BiasAdd, dnnl::algorithm::binary_add}};
     return binary_alg_map;
 }
 

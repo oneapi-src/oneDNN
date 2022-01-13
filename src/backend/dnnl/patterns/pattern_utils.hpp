@@ -52,8 +52,8 @@ struct op_set_t {
      */
     static bool check_inputs_commutativity(op_kind_t op_kind) {
         static const std::set<op_kind_t> supported_ops {impl::op_kind::Add,
-                impl::op_kind::Multiply, impl::op_kind::Maximum,
-                impl::op_kind::Minimum};
+                impl::op_kind::Subtract, impl::op_kind::Multiply,
+                impl::op_kind::Maximum, impl::op_kind::Minimum};
         return supported_ops.count(op_kind);
     }
 };

@@ -3050,7 +3050,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                         false, attribute_kind::s, "numpy")
                 .set_attr("alg_kind",
                         "specifies algorithm kind, can be one of "
-                        "add/mul/div/min/max",
+                        "add/sub/mul/div/min/max",
                         true, attribute_kind::i)
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))

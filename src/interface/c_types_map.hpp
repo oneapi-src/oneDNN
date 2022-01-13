@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,6 +130,7 @@ const op_kind_t SoftPlusBackprop = kSoftPlusBackprop;
 const op_kind_t Sqrt = kSqrt;
 const op_kind_t SqrtBackprop = kSqrtBackprop;
 const op_kind_t Square = kSquare;
+const op_kind_t Subtract = kSubtract;
 const op_kind_t Tanh = kTanh;
 const op_kind_t TanhBackprop = kTanhBackprop;
 const op_kind_t Wildcard = kWildcard;
