@@ -154,21 +154,21 @@ private:
     size_t *skipped_bd_mask_buffer_ptr = nullptr;
     size_t adj_bd;
 
-    int LDA_size;
-    int LDB_size;
-    int LDC_size;
-    int LDD_size;
-    int ld_block_B_size;
-    int ld_block_C_size;
-    int ld_block_D_size;
-    int ld_block_bias_size;
-    int ld_block_scales_size;
-    int ld_block_zp_size;
+    size_t LDA_size;
+    size_t LDB_size;
+    size_t LDC_size;
+    size_t LDD_size;
+    size_t ld_block_B_size;
+    size_t ld_block_C_size;
+    size_t ld_block_D_size;
+    size_t ld_block_bias_size;
+    size_t ld_block_scales_size;
+    size_t ld_block_zp_size;
 
-    int ldb_tail_B_size;
-    int ldb_tail_C_size;
-    int ldb_tail_D_size;
-    int ldb_tail_zp_size;
+    size_t ldb_tail_B_size;
+    size_t ldb_tail_C_size;
+    size_t ldb_tail_D_size;
+    size_t ldb_tail_zp_size;
 
     // variables of bd loop
     size_t bd_ind;
@@ -263,25 +263,25 @@ private:
     int adjusted_bd_mask(int bd_ind) noexcept;
     int skipped_bd_mask(int bd_ind) noexcept;
 
-    int A_offset(int bdb) const noexcept;
+    size_t A_offset(int bdb) const noexcept;
 
-    int B_offset(int ldb) const noexcept;
-    int C_offset(int bd, int ldb) const noexcept;
-    int D_offset(int bd, int ldb) const noexcept;
+    size_t B_offset(int ldb) const noexcept;
+    size_t C_offset(int bd, int ldb) const noexcept;
+    size_t D_offset(int bd, int ldb) const noexcept;
 
-    int rdb_A_offset() const noexcept;
-    int rdb_B_offset() const noexcept;
+    size_t rdb_A_offset() const noexcept;
+    size_t rdb_B_offset() const noexcept;
 
-    int ldb_B_offset(int ld_block2, bool is_tail = false) const noexcept;
-    int ldb_C_offset(int ld_block2, bool is_tail = false) const noexcept;
-    int ldb_D_offset(int ld_block2, bool is_tail = false) const noexcept;
+    size_t ldb_B_offset(int ld_block2, bool is_tail = false) const noexcept;
+    size_t ldb_C_offset(int ld_block2, bool is_tail = false) const noexcept;
+    size_t ldb_D_offset(int ld_block2, bool is_tail = false) const noexcept;
 
-    int bias_offset(int ldb) const noexcept;
+    size_t bias_offset(int ldb) const noexcept;
 
-    int scales_offset(int ldb) const noexcept;
-    int zp_comp_a_offset(int ldb, bool is_tail = false) const noexcept;
-    int zp_comp_b_offset(int bd) const noexcept;
-    int zp_c_values_offset(int ldb, bool is_tail = false) const noexcept;
+    size_t scales_offset(int ldb) const noexcept;
+    size_t zp_comp_a_offset(int ldb, bool is_tail = false) const noexcept;
+    size_t zp_comp_b_offset(int bd) const noexcept;
+    size_t zp_c_values_offset(int ldb, bool is_tail = false) const noexcept;
     int get_input_bd(int bd_ind_bdb, int bd) const;
 };
 
@@ -324,65 +324,65 @@ int jit_brgemm_amx_uker_base_t::skipped_bd_mask(int bd_ind) noexcept {
         return skipped_bd_mask_buffer_ptr[bd_ind];
 }
 
-int jit_brgemm_amx_uker_base_t::A_offset(int bd) const noexcept {
+size_t jit_brgemm_amx_uker_base_t::A_offset(int bd) const noexcept {
     return bd * LDA_size;
 }
 
-int jit_brgemm_amx_uker_base_t::B_offset(int ldb) const noexcept {
+size_t jit_brgemm_amx_uker_base_t::B_offset(int ldb) const noexcept {
     return brg.rd_step * ldb * ld_block_B_size;
 }
 
-int jit_brgemm_amx_uker_base_t::C_offset(int bd, int ldb) const noexcept {
+size_t jit_brgemm_amx_uker_base_t::C_offset(int bd, int ldb) const noexcept {
     return bd * LDC_size + ldb * ld_block_C_size;
 }
 
-int jit_brgemm_amx_uker_base_t::D_offset(int bd, int ldb) const noexcept {
+size_t jit_brgemm_amx_uker_base_t::D_offset(int bd, int ldb) const noexcept {
     return bd * LDD_size + ldb * ld_block_D_size;
 }
 
-int jit_brgemm_amx_uker_base_t::rdb_A_offset() const noexcept {
+size_t jit_brgemm_amx_uker_base_t::rdb_A_offset() const noexcept {
     return brg.typesize_A * brg.rd_block;
 }
 
-int jit_brgemm_amx_uker_base_t::rdb_B_offset() const noexcept {
+size_t jit_brgemm_amx_uker_base_t::rdb_B_offset() const noexcept {
     return brg.rd_block * LDB_size;
 }
 
-int jit_brgemm_amx_uker_base_t::ldb_B_offset(int ld_block2, bool is_tail) const
-        noexcept {
+size_t jit_brgemm_amx_uker_base_t::ldb_B_offset(
+        int ld_block2, bool is_tail) const noexcept {
     return (is_tail) ? ldb_tail_B_size * brg.ld_step
                      : ld_block2 * ld_block_B_size * brg.ld_step;
 }
 
-int jit_brgemm_amx_uker_base_t::ldb_C_offset(int ld_block2, bool is_tail) const
-        noexcept {
+size_t jit_brgemm_amx_uker_base_t::ldb_C_offset(
+        int ld_block2, bool is_tail) const noexcept {
     return (is_tail) ? ldb_tail_C_size : ld_block2 * ld_block_C_size;
 }
 
-int jit_brgemm_amx_uker_base_t::ldb_D_offset(int ld_block2, bool is_tail) const
-        noexcept {
+size_t jit_brgemm_amx_uker_base_t::ldb_D_offset(
+        int ld_block2, bool is_tail) const noexcept {
     return (is_tail) ? ldb_tail_D_size : ld_block2 * ld_block_D_size;
 }
 
-int jit_brgemm_amx_uker_base_t::bias_offset(int ldb) const noexcept {
+size_t jit_brgemm_amx_uker_base_t::bias_offset(int ldb) const noexcept {
     return ldb * ld_block_bias_size;
 }
 
-int jit_brgemm_amx_uker_base_t::scales_offset(int ldb) const noexcept {
+size_t jit_brgemm_amx_uker_base_t::scales_offset(int ldb) const noexcept {
     return brg.is_oc_scale * ldb * ld_block_scales_size;
 }
 
-int jit_brgemm_amx_uker_base_t::zp_comp_a_offset(int ldb, bool is_tail) const
+size_t jit_brgemm_amx_uker_base_t::zp_comp_a_offset(int ldb, bool is_tail) const
         noexcept {
     return (is_tail) ? ldb_tail_zp_size : ldb * ld_block_zp_size;
 }
 
-int jit_brgemm_amx_uker_base_t::zp_comp_b_offset(int bd) const noexcept {
+size_t jit_brgemm_amx_uker_base_t::zp_comp_b_offset(int bd) const noexcept {
     return sizeof(int32_t) * bd;
 }
 
-int jit_brgemm_amx_uker_base_t::zp_c_values_offset(int ldb, bool is_tail) const
-        noexcept {
+size_t jit_brgemm_amx_uker_base_t::zp_c_values_offset(
+        int ldb, bool is_tail) const noexcept {
     if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
         return (is_tail) ? ldb_tail_zp_size : ldb * ld_block_zp_size;
     }
