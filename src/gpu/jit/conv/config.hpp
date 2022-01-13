@@ -1770,7 +1770,7 @@ private:
 
     bool prefer_prefetch() const {
         bool ret = false;
-        if (hw >= ngen::HW::XeHPC) ret = true;
+        if (hw >= ngen::HW::XeHPC && !is_small_ic()) ret = true;
 
 #ifdef GEN_CONV_DEBUG
         ret = ir_utils::getenv_bool("prefer_prefetch", ret);
