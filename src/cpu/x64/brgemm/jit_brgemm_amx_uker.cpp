@@ -1052,23 +1052,7 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(
                 = static_cast<size_t>(rdb) * rdb_A_offset() + a_offset;
         const size_t rdb_B_off = static_cast<size_t>(rdb) * rdb_B_offset()
                 + b_offset_ + b_offset;
-#if 0
-        for (int bdb = 0; bdb < bd_block2; bdb++) {
-            maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb)), reg_aux_A,
-                    rdb_A_off + A_offset(bd_ind_bdb), reg_stride_lda,
-                    try_load_nt_A);
-            bd_ind_bdb += brg.bd_block;
-            bd_ind_bdb = skipped_bd_mask(bd_ind_bdb);
-        }
-        for (int ldb = 0; ldb < ld_block2; ldb++) {
-            const int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
-            maybe_tileloadd_nt(Tmm(brg.get_B_tensor(idx)), reg_aux_B,
-                    rdb_B_off + B_offset(ldb), reg_stride_ldb, try_load_nt_B);
-            for (int bdb = 0; bdb < bd_block2; bdb++) {
-                tdpbxxd(bdb, idx);
-            }
-        }
-#elif 1
+
         for (int bdb = 0; bdb < bd_block2; bdb++) {
             maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb)), reg_aux_A,
                     rdb_A_off + +A_offset(bd_ind_bdb), reg_stride_lda,
@@ -1103,44 +1087,6 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(
             const int bdb_idx = bd_block2 - 1;
             tdpbxxd(bdb_idx, ldb_idx);
         }
-
-#else
-        for (int ldb = 0; ldb < ld_block2; ldb++) {
-            const int ldb_idx = (is_ld_tail) ? brg.ld_block2 : ldb;
-            maybe_tileloadd_nt(Tmm(brg.get_B_tensor(ldb_idx)), reg_aux_B,
-                    rdb_B_off + B_offset(ldb), reg_stride_ldb, try_load_nt_B);
-            int bd_ind_bdb = bd_ind;
-            for (int bdb = 0; bdb < bd_block2; bdb++) {
-                if (ldb == 0) {
-                    maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb)), reg_aux_A,
-                            rdb_A_off + +A_offset(bd_ind_bdb), reg_stride_lda,
-                            try_load_nt_A);
-                }
-                bd_ind_bdb += brg.bd_block;
-                bd_ind_bdb = skipped_bd_mask(bd_ind_bdb);
-                if (bdb == 0) {
-                    if (ldb > 0) {
-                        const int ldb_idx
-                                = (is_ld_tail) ? brg.ld_block2 : ld_block2 - 1;
-                        const int bdb_idx = bdb - 1;
-                        tdpbxxd(bdb_idx, ldb_idx);
-                    }
-                } else {
-                    const int ldb_idx
-                            = (is_ld_tail) ? brg.ld_block2 : (ldb - 1);
-                    const int bdb_idx = bdb;
-                    tdpbxxd(bdb_idx, ldb_idx);
-                }
-            }
-        }
-        // last tdpbxxd
-        {
-            const int ldb_idx = (is_ld_tail) ? brg.ld_block2 : (ld_block2 - 1);
-            const int bdb_idx = bd_block2 - 1;
-            tdpbxxd(bdb_idx, ldb_idx);
-        }
-
-#endif
     }
 }
 

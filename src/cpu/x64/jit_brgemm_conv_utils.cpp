@@ -2070,30 +2070,6 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             : 0;
     jcp.buffer_size = jcp.LDC * jcp.M;
 
-#if 0
-    printf("@@@ debug: nthreads = %d, IC = %d, OC = %d, ID = %d, IH = %d, IW = "
-           "%d, OD = %d, OH = %d, OW = %d, KD = %d, "
-           "KH = %d, KW = %d\n",
-            nthreads, jcp.ic, jcp.oc, jcp.id, jcp.ih, jcp.iw, jcp.od, jcp.oh,
-            jcp.ow, jcp.kd, jcp.kh, jcp.kw);
-
-    printf("@@@ debug: blocking: ic_block = %d, nb_ic_blocking = %d, oc_block "
-           "= %d, os_block = %d, ow_block = %d, nb_os_blocking = %d, "
-           "loop_order = %d, "
-           "wei_plain = %d, wei_tag = %d \n",
-            jcp.ic_block, jcp.nb_ic_blocking, jcp.oc_block, jcp.os_block,
-            jcp.ow_block, jcp.nb_os_blocking, jcp.loop_order, jcp.wei_plain,
-            jcp.wei_tag);
-
-    printf("@@@ debug: Matrix configuration: M = %d, N = %d, K = "
-           "%d, M_tail = %d, N_tail = %d, K_tail = %d, LDA = %d, LDB = %d, LDC "
-           "= %d ur = %d\n",
-            jcp.M, jcp.N, jcp.K, jcp.M_tail, jcp.N_tail, jcp.K_tail, jcp.LDA,
-            jcp.LDB, jcp.LDC, best_brgb.ur);
-    printf("@@@ debug: brg_type = %d use_buffer = %d \n", jcp.brg_type,
-            jcp.use_buffer);
-    fflush(nullptr);
-#endif
     return status::success;
 }
 
