@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1097,7 +1097,6 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
                         || kw_block_pad != kw);
         if (exec_type == exec_base)
             use_buffer = use_buffer || (maybe_use_buffer && iwp != iw);
-        if (is_amx(isa)) use_buffer = use_buffer || (use_M_mask > 0);
 
         const status_t st = estimate_brgemm_ur();
         if (st != status::success) continue;
