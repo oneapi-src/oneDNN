@@ -97,6 +97,11 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         const auto DH = jcp_.dilate_h + 1;
         const auto KH = jcp_.kh;
         const auto IH = jcp_.ih;
+        const auto KD_BLOCK = jcp_.kd_block;
+        const auto KH_BLOCK = jcp_.kh_block;
+
+        assert(KD % KD_BLOCK == 0);
+        assert(KH % KH_BLOCK == 0);
 
         for_(int iod = 0; iod < jcp_.od; iod++)
         {
@@ -104,7 +109,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             const int kd_s = div_up(max(0, -iid), DD);
             const int kd_f
                     = KD - div_up(max(0, iid - ID + (KD - 1) * DD + 1), DD);
-            const auto kd_l = kd_f - kd_s;
+            const auto kd_l = nstl::min(KD_BLOCK, kd_f - kd_s);
             for_(int ioh = 0; ioh < jcp_.oh; ioh += jcp_.oh_block)
             {
 
@@ -113,7 +118,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                         = jcp_.is_os_blocking ? 0 : div_up(max(0, -iih), DH);
                 const auto kh_f
                         = KH - div_up(max(0, iih - IH + (KH - 1) * DH + 1), DH);
-                const auto kh_l = kh_f - kh_s;
+                const auto kh_l = nstl::min(KH_BLOCK, kh_f - kh_s);
                 const auto bs = kd_l * kh_l * jcp_.kw;
 
                 if (batchsizes[bs] == -1) {
