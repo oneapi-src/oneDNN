@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,6 +133,7 @@ inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
             case memory::data_type::f32: return false;
             case memory::data_type::f16: return false;
             case memory::data_type::s8: return false;
+            case memory::data_type::undef: return false;
             default: return true;
         }
     }
