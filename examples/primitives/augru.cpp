@@ -47,6 +47,10 @@ using dt = memory::data_type;
 
 void augru_example(dnnl::engine::kind engine_kind) {
 
+    if (engine_kind == engine::kind::gpu)
+        throw example_allows_unimplemented {
+                "No AUGRU implementation is available for GPU.\n"};
+
     // Create execution dnnl::engine.
     dnnl::engine engine(engine_kind, 0);
 
