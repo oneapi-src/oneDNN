@@ -214,10 +214,14 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
         int arch_idx = xehpc ? 1 : 0;
         bool bad_ld = false;
 
-        auto lda_bytes = d->lda() * types::data_type_size(d->a_type());
-        auto ldb_bytes = d->ldb() * types::data_type_size(d->b_type());
-        if (!packed_a_) bad_ld |= ((lda_bytes & 0xF) != 0);
-        if (!packed_b_) bad_ld |= ((ldb_bytes & 0xF) != 0);
+        if (!packed_a_) {
+            auto lda_bytes = d->lda() * types::data_type_size(d->a_type());
+            bad_ld |= ((lda_bytes & 0xF) != 0);
+        }
+        if (!packed_b_) {
+            auto ldb_bytes = d->ldb() * types::data_type_size(d->b_type());
+            bad_ld |= ((ldb_bytes & 0xF) != 0);
+        }
 
         auto table = all_tables[arch_idx][int(bad_ld)][type_idx];
         long mnl = table->mn_limit[d->transa()][d->transb()];
