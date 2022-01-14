@@ -644,8 +644,7 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
         mov(reg_aux_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
 
-        int zp_comp_a_off = zp_comp_a_offset(
-                0); //!!!??? maybe zp_comp_a_offset(ldb, is_ld_tail ) ?
+        int zp_comp_a_off = zp_comp_a_offset(ldb, is_ld_tail);
         auto zp_comp_a_addr
                 = EVEX_compress_addr(reg_aux_zp_comp_a, zp_comp_a_off);
         cvt2ps(data_type::s32, zmm_zp_comp_a, zp_comp_a_addr, true, false,
@@ -664,8 +663,7 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
             vcvtdq2ps(zmm_zp_c, EVEX_compress_addr(reg_zp_c_values, 0, true));
         }
         if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
-            int zp_c_off = zp_c_values_offset(
-                    0); //!!!??? maybe zp_c_values_offset(ldb, is_ld_tail) ?
+            int zp_c_off = zp_c_values_offset(ldb, is_ld_tail);
             auto zp_c_addr = EVEX_compress_addr(reg_zp_c_values, zp_c_off);
             cvt2ps(data_type::s32, zmm_zp_c, zp_c_addr, true, false, k_mask);
         }
