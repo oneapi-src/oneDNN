@@ -86,6 +86,8 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(round_pass, dnnl, Round, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(sigmoid_pass, dnnl, Sigmoid, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(sqrt_pass, dnnl, Sqrt, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(square_pass, dnnl, Square, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(
+        squareddifference_pass, dnnl, SquaredDifference, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(tanh_pass, dnnl, Tanh, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(logsoftmax_pass, dnnl, LogSoftmax, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(

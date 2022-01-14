@@ -44,6 +44,11 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper_t;
 
+static bool need_attr_adjustment(op_kind_t kind) {
+    static const std::set<op_kind_t> ops {impl::op_kind::SquaredDifference};
+    return ops.count(kind) != 0;
+}
+
 static bool has_optional_bias(op_kind_t kind) {
     std::set<op_kind_t> ops {op_kind::dnnl_convolution, op_kind::dnnl_matmul,
             op_kind::dnnl_convtranspose};
@@ -62,6 +67,52 @@ static bool is_output_scales_supported(op_kind_t kind) {
     // ops which don't support output scales
     std::set<op_kind_t> ops {op_kind::dnnl_pool, op_kind::dnnl_eltwise};
     return ops.count(kind) == 0;
+}
+
+impl::status_t split_squared_difference(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    auto &subgraph = sg->get_mutable_ops();
+
+    for (auto &cur_op : subgraph) {
+        if (need_attr_adjustment(cur_op->get_kind())) {
+            if (cur_op->get_kind() == impl::op_kind::SquaredDifference) {
+                op_ptr subtract = std::make_shared<op_t>(op_kind::dnnl_binary);
+                subtract->set_attr<int64_t>("alg_kind",
+                        static_cast<int64_t>(dnnl::algorithm::binary_sub));
+
+                replace_op(cur_op, subtract);
+                to_be_inserted_ops.emplace_back(subtract);
+                to_be_removed_ops.emplace_back(cur_op);
+
+                op_ptr square = std::make_shared<op_t>(op_kind::dnnl_eltwise);
+                square->set_attr<int64_t>("alg_kind",
+                        static_cast<int64_t>(dnnl::algorithm::eltwise_square));
+
+                const float default_attr_value = 0.0f;
+                square->set_attr<float>("alpha", default_attr_value);
+                square->set_attr<float>("beta", default_attr_value);
+
+                insert_op_after(square, subtract, 0);
+                to_be_inserted_ops.emplace_back(square);
+                insert_empty_scratchpad(subtract);
+                insert_empty_scratchpad(square);
+            }
+        }
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
 }
 
 static std::pair<op_ptr, op_ptr> combine_scales(op_t *src_scales_op,

@@ -110,6 +110,7 @@ public:
         // non-broadcast add. So we have to know concret shape before fuse
         // post-ops
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, split_squared_difference);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
 
         // fuse binary post-ops need shape and type info

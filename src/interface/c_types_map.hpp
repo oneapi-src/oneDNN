@@ -130,6 +130,7 @@ const op_kind_t SoftPlusBackprop = kSoftPlusBackprop;
 const op_kind_t Sqrt = kSqrt;
 const op_kind_t SqrtBackprop = kSqrtBackprop;
 const op_kind_t Square = kSquare;
+const op_kind_t SquaredDifference = kSquaredDifference;
 const op_kind_t Subtract = kSubtract;
 const op_kind_t Tanh = kTanh;
 const op_kind_t TanhBackprop = kTanhBackprop;

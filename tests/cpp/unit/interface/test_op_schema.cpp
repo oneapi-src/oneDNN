@@ -2089,6 +2089,17 @@ TEST(OpSchema, SqrtBackprop) {
             expected_attr_size, attrs_data);
 }
 
+TEST(OpSchema, SquaredDifference) {
+    const op_kind_t op_kind_ = op_kind::SquaredDifference;
+    const size_t expected_in_size = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 1;
+    const std::map<std::string, bool> attrs_data = {{"auto_broadcast", false}};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
 TEST(OpSchema, Subtract) {
     const op_kind_t op_kind_ = op_kind::Subtract;
     const size_t expected_in_size = 2;

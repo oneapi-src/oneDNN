@@ -87,6 +87,7 @@ TEST(api_op, create_all_ops) {
             op::kind::Sqrt,
             op::kind::SqrtBackprop,
             op::kind::Square,
+            op::kind::SquaredDifference,
             op::kind::Subtract,
             op::kind::Tanh,
             op::kind::TanhBackprop,

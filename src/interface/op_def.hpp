@@ -1198,6 +1198,22 @@ DNNL_GRAPH_OP_SCHEMA(Square, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(SquaredDifference, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "a", "first input tensor", "T")
+                .set_input(1, "b", "second input tensor", "T")
+                .set_output(0, "output", "output tensor", "T")
+                .set_attr("auto_broadcast",
+                        "specifies rules used for auto-broadcasting of input "
+                        "tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_type_constraints(
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(Subtract, 1,
         op_schema_t()
                 .set_num_inputs(2)

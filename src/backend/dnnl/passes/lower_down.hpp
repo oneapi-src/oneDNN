@@ -29,6 +29,8 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
+impl::status_t split_squared_difference(std::shared_ptr<subgraph_t> &sg);
+
 impl::status_t check_with_bias(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg);
