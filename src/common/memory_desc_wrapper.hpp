@@ -497,8 +497,11 @@ inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
     if (is_wino_desc() || is_rnn_packed_desc()) return false;
 
     const int ds = dim_start;
-    if (stride_start == -1)
+    if (stride_start == -1) {
         stride_start = ds;
+    } else if (stride_start > ndims()) {
+        stride_start = ndims();
+    }
     const auto &blk = blocking_desc();
     const auto &r_blk = rhs.blocking_desc();
 
@@ -507,7 +510,7 @@ inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
             && format_kind() == rhs.format_kind()
             && IMPLICATION(with_data_type, data_type() == rhs.data_type())
             && custom_cpm(dims() + ds, rhs.dims() + ds, ndims() - ds)
-            && custom_cpm(blk.strides + ds, r_blk.strides + ds, ndims() - ds)
+            && custom_cpm(blk.strides + stride_start, r_blk.strides + stride_start, ndims() - stride_start)
             && blk.inner_nblks == r_blk.inner_nblks
             && array_cmp(blk.inner_blks, r_blk.inner_blks, blk.inner_nblks)
             && array_cmp(blk.inner_idxs, r_blk.inner_idxs, blk.inner_nblks)
