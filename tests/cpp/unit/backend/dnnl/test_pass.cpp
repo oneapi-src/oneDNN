@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -8328,7 +8328,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDivAdd) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul_div);
+            dnnl_impl::op_kind::x8x8float_matmul_div_add);
 }
 
 TEST(Pass, FuseToX8s8bf16MatmulBias) {
