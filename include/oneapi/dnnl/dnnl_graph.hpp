@@ -815,6 +815,7 @@ public:
         Sqrt = kSqrt,
         SqrtBackprop = kSqrtBackprop,
         Square = kSquare,
+        SquaredDifference = kSquaredDifference,
         StaticReshape = kStaticReshape,
         StaticTranspose = kStaticTranspose,
         Subtract = kSubtract,

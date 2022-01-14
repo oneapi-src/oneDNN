@@ -84,6 +84,7 @@
     _(Sqrt) \
     _(SqrtBackprop) \
     _(Square) \
+    _(SquaredDifference) \
     _(Subtract) \
     _(Tanh) \
     _(TanhBackprop) \
