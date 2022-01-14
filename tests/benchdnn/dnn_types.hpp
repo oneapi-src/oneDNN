@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,6 +101,7 @@ struct attr_t {
         PER_DIM_01, // ... unique combination of dims[0] and dims[1] points.
         PER_MB_SPATIAL, // ... combination of dims[0], dims[2], dims[3] points.
         PER_SPATIAL, // ... combination of dims[2] and dims[3] points.
+        PER_MB_W, // combination of dims[0] and dims[3] points.
         PER_TENSOR, // ... point in the tensor.
         POLICY_TOTAL // guard
     };
