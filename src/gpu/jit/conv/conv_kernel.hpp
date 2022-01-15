@@ -1318,16 +1318,19 @@ public:
 
         zero_out_c_temp();
 
-        auto icb_count = ra_.alloc().d(0);
+        auto reg_count = ra_.alloc();
+        auto icb_count = reg_count.d(0);
+        auto ic_mask = reg_count.d(4);
         mov(1, icb_count, int(0));
+        mov(1, ic_mask, uint32_t(~0u));
 
         mark(icb_loop);
 
         if (icb_padded) {
             mov(1, f0[1], int(0));
-            mov(1, f1.ud(), uint32_t(~0u));
-            cmp(1 | eq | f0[1], null.d(), icb_count, int(conf.icb - 1));
-            mov(1 | f0[1] | any16h, f1.ud(), uint32_t(last_icb_mask));
+            cmp(1 | lt | f0[1], null.d(), icb_count, int(conf.icb - 1));
+            sel(1 | f0[1] | any16h, ic_mask, ic_mask, int(last_icb_mask));
+            mov(1, f1.d(), ic_mask);
             load_a_masked();
         } else {
             load_a_no_mask();
@@ -1366,17 +1369,21 @@ public:
             add(1, iw, iw, int(1 + cfg.dw));
         }
 
-        ngen::Label skip_mul;
+        ngen::Label do_mul, skip_mul;
 
         auto wei_ptr = b_headers[0].uq(0);
         const int wei_block = conf.ic_block * conf.oc_block * sizeof(char);
 
         and_(1, f1[1], do_kd, do_kh);
         and_(1, f1[1], f1[1], do_kw);
-        eadd(1 | f1[1] | any16h, wei_ptr, wei_ptr, int(wei_block));
 
         fixup_control_flow();
-        if_(16 | ~f1[1] | any16h, skip_mul, skip_mul);
+        if_(16 | f1[1] | any16h, do_mul, skip_mul);
+
+        eadd(1, wei_ptr, wei_ptr, int(wei_block));
+
+        else_(16, skip_mul, skip_mul);
+        mark(do_mul);
 
         load_b();
         multiply();
@@ -1412,7 +1419,7 @@ public:
         fixup_control_flow();
         while_(16 | f1[1] | any16h, icb_loop);
 
-        ra_.release(ngen::GRF(icb_count.getBase()));
+        ra_.release(reg_count);
 
         finalize();
 
@@ -1540,17 +1547,20 @@ public:
                 multiply();
             }
         } else {
-            auto icb_count = ra_.alloc().d(0);
+            auto reg_count = ra_.alloc();
+            auto icb_count = reg_count.d(0);
+            auto ic_mask = reg_count.d(4);
             mov(1, icb_count, int(0));
+            mov(1, ic_mask, uint32_t(~0u));
 
             ngen::Label icb_loop;
             mark(icb_loop);
 
             if (icb_padded) {
                 mov(1, f0[1], int(0));
-                mov(1, f1.ud(), uint32_t(~0u));
-                cmp(1 | eq | f0[1], null.d(), icb_count, int(conf.icb - 1));
-                mov(1 | f0[1] | any16h, f1.ud(), uint32_t(last_icb_mask));
+                cmp(1 | lt | f0[1], null.d(), icb_count, int(conf.icb - 1));
+                sel(1 | f0[1] | any16h, ic_mask, ic_mask, int(last_icb_mask));
+                mov(1, f1.d(), ic_mask);
                 load_a_masked();
             } else {
                 load_a_no_mask();
@@ -1586,7 +1596,7 @@ public:
             fixup_control_flow();
             while_(16 | f1[1] | any16h, icb_loop);
 
-            ra_.release(ngen::GRF(icb_count.getBase()));
+            ra_.release(reg_count);
         }
     }
 
