@@ -454,7 +454,7 @@ void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
     bool with_input_zp = input_zp != nullptr;
 
     if (sd == 1 && sh == 1 && sw == 1 && dd == 1 && dh == 1 && dw == 1)
-        parallel_nd(jcp.kd, jcp.kh, jcp.kw, jcp.ic,
+        parallel_nd_legacy(jcp.kd, jcp.kh, jcp.kw, jcp.ic,
                 [&](dim_t kd, dim_t kh, dim_t kw, dim_t ic) {
                     col_dt *__restrict col_loc = col + kd * col_kd_s
                             + kh * col_kh_s + kw * col_kw_s + ic * col_ic_s;
@@ -484,7 +484,7 @@ void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
                     }
                 });
     else if (sd == 2 && sh == 2 && sw == 2 && dd == 1 && dh == 1 && dw == 1)
-        parallel_nd(jcp.kd, jcp.kh, jcp.kw, jcp.ic,
+        parallel_nd_legacy(jcp.kd, jcp.kh, jcp.kw, jcp.ic,
                 [&](dim_t kd, dim_t kh, dim_t kw, dim_t ic) {
                     col_dt *__restrict col_loc = col + kd * col_kd_s
                             + kh * col_kh_s + kw * col_kw_s + ic * col_ic_s;
@@ -516,7 +516,7 @@ void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
                     }
                 });
     else
-        parallel_nd(jcp.kd, jcp.kh, jcp.kw, jcp.ic,
+        parallel_nd_legacy(jcp.kd, jcp.kh, jcp.kw, jcp.ic,
                 [&](dim_t kd, dim_t kh, dim_t kw, dim_t ic) {
                     col_dt *__restrict col_loc = col + kd * col_kd_s
                             + kh * col_kh_s + kw * col_kw_s + ic * col_ic_s;
@@ -660,7 +660,7 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
         // Generated code is more optimized for stride_w == 1
         // because innermost loop is by width
         if (sw == 1)
-            parallel_nd(cb, jcp.kh, jcp.kw, oh_range,
+            parallel_nd_legacy(cb, jcp.kh, jcp.kw, oh_range,
                     [&](dim_t ic, dim_t kh, dim_t kw, dim_t ohr) {
                         const dim_t oh = ohr + oh_begin;
                         const dim_t ih = oh * sh - tp + kh * dh;
@@ -685,7 +685,7 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
                             }
                     });
         else
-            parallel_nd(cb, jcp.kh, jcp.kw, oh_range,
+            parallel_nd_legacy(cb, jcp.kh, jcp.kw, oh_range,
                     [&](dim_t ic, dim_t kh, dim_t kw, dim_t ohr) {
                         const dim_t oh = ohr + oh_begin;
                         const dim_t ih = oh * sh - tp + kh * dh;
@@ -840,7 +840,7 @@ void im2col_dt(const conv_gemm_conf_t &jcp, const void *__restrict _im,
             }
         }
     } else {
-        parallel_nd(jcp.kh, jcp.kw, jcp.ic, hb,
+        parallel_nd_legacy(jcp.kh, jcp.kw, jcp.ic, hb,
                 [&](dim_t kh, dim_t kw, dim_t ic, dim_t oh) {
                     const dim_t hp = tp - kh * dh;
                     const dim_t ih = (oh + hs) * sh - hp;

@@ -74,6 +74,16 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
     // Applies when concat axis is the outermost dimension, e.g. concat_axis = 0
     // or concat_axis = 1, and dims[0] = 1;
     if (!has_outer_loop) {
+        // @todo CPU_PLUGIN:
+        // the following implementation was used to fix some performace issues
+        // Now after original oneDNN re-designed this piece it seems to be not applicable
+        // anymore
+        // for (int a = 0; a < num_arrs; ++a) {
+        //     const data_t *i = &iptrs[a][0];
+        //     data_t *o = &optrs[a][0];
+        //     parallel_nd_legacy(nelems_to_copy[a], [&](dim_t e) { o[e] = i[e]; });
+        // }
+
         int nthr = dnnl_get_max_threads();
         parallel(nthr, [&](int ithr, int nthr) {
             for (int a = 0; a < num_arrs; ++a) {
@@ -104,7 +114,7 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
     const auto L1_size = platform::get_per_core_cache_size(1);
     UNUSED(L1_size); // for Windows
 
-    parallel_nd(phys_dims[0], phys_dims[1], phys_dims[2], phys_dims[3],
+    parallel_nd_legacy(phys_dims[0], phys_dims[1], phys_dims[2], phys_dims[3],
             phys_dims[4], num_arrs,
             [&](dim_t n0, dim_t n1, dim_t n2, dim_t n3, dim_t n4, dim_t a) {
                 // check if zero memory
