@@ -43,15 +43,6 @@ LayerNormBackprop
   * **Default value**: 1e-5
   * **Required**: *no*
 
-* *use_stats*
-
-  * **Description**: *use_stats* is used to indicate whether to use input mean
-    and variance.
-  * **Range of values**: False or True
-  * **Type**: ``bool``
-  * **Default value**: true
-  * **Required**: *no*
-
 
 **Inputs**
 
@@ -59,42 +50,45 @@ LayerNormBackprop
 
   * **Type**: T1
 
-* **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of the same
-  span as input's channel axis. Required by attribute ``use_affine``.
+* **2**: ``output_delta`` - the gradient tensor with respect to the output of
+  the layer normalization. **Required.**
+
+  * **Type**: T1
+
+* **3**: ``mean`` - mean of input_forward. **Required.**
+
+  * **Type**: T2
+
+* **4**: ``variance`` - variance of input_forward. **Required.**
+
+  * **Type**: T2
+
+* **5**: ``gamma`` - gamma scaling for normalized value. A 1D tensor with the
+  same span as input's channel axis. Required by attribute ``use_affine``.
   **Optional.**
 
   * **Type**: T2
 
-* **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor with
-  the same span as input's channel axis.Required by attribute ``use_affine``.
-  **Optional.**
-
-  * **Type**: T2
-
-* **4**: ``mean`` - mean of input. Required by attribute ``use_stats``.
-  **Optional.**
-
-  * **Type**: T2
-
-* **5**: ``variance`` - variance of input. Required by attribute ``use_stats``.
+* **6**: ``beta`` - bias added to the scaled normalized value. A 1D tensor with
+  the same span as input's channel axis. Required by attribute ``use_affine``.
   **Optional.**
 
   * **Type**: T2
 
 **Outputs**
 
-* **1**: ``input_delta`` - the the gradient tensor with respect to the output of
-  the layer normalization. **Required.**
+* **1**: ``input_delta`` - the gradient tensor with respect to the input of the
+  layer normalization. **Required.**
 
   * **Type**: T1
 
-* **2**: ``gamma_delta`` - the the gradient tensor with respect to the gamma of
-  the layer normalization. **Optional.**
+* **2**: ``gamma_delta`` - the gradient tensor with respect to the gamma of the
+  layer normalization. **Optional.**
 
   * **Type**: T2
 
-* **3**: ``beta_delta`` - the the gradient tensor with respect to the beta of
-  the layer normalization. **Optional.**
+* **3**: ``beta_delta`` - the gradient tensor with respect to the beta of the
+  layer normalization. **Optional.**
 
   * **Type**: T2
 
