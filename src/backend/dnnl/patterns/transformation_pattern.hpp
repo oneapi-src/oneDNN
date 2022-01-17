@@ -124,17 +124,10 @@ public:
     }
 };
 
-#define DECLARE_PASS_EX(bname, pname, counter) \
-    static auto _registered_pass_##pname##_##bname##_##counter##_
-
-#define DECLARE_PASS(bname, pname, counter) \
-    DECLARE_PASS_EX(bname, pname, counter)
-
 #define DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS( \
         backend_name, pass_class_name) \
-    DECLARE_PASS(backend_name, pass_class_name, __COUNTER__) \
-            = registry.register_pass(#backend_name, #pass_class_name, \
-                    &transformation_pass::create)
+    registry.register_pass( \
+            #backend_name, #pass_class_name, &transformation_pass::create)
 
 #define DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(passes_class_) \
     inline void register_##passes_class_( \

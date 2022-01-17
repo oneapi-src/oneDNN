@@ -84,23 +84,9 @@ bool dnnl_backend::register_passes() {
 }
 
 bool dnnl_backend::register_kernels() {
-#if defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
-#define DNNL_GRAPH_ATTR_UNUSED __attribute__((unused))
-#else
-#define DNNL_GRAPH_ATTR_UNUSED
-#endif
-    // Register DNNL kernel
-#define DECLARE_KERNEL_EX(kernel_class_, counter) \
-    static DNNL_GRAPH_ATTR_UNUSED auto \
-            _registered_dnnl_kernel_##kernel_class_##_##counter##_
-
-#define DECLARE_KERNEL(kernel_class_, counter) \
-    DECLARE_KERNEL_EX(kernel_class_, counter)
-
 #define DNNL_REGISTER_KERNEL(op_kind_, kernel_class_) \
-    DECLARE_KERNEL(kernel_class_, __COUNTER__) \
-            = kernel_registry_.register_kernel(op_kind_, \
-                    &kernel_registry_t::create_kernel<kernel_class_>);
+    kernel_registry_.register_kernel( \
+            op_kind_, &kernel_registry_t::create_kernel<kernel_class_>);
 
     // concat
     DNNL_REGISTER_KERNEL(impl::op_kind::Concat, float_concat);
@@ -394,8 +380,6 @@ bool dnnl_backend::register_kernels() {
             impl::op_kind::DynamicDequantize, quantize_dequantize_t)
 
 #undef DNNL_REGISTER_KERNEL
-#undef DNNL_GRAPH_ATTR_UNUSED
-
     return true;
 }
 
