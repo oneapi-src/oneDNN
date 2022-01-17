@@ -129,16 +129,17 @@ public:
     registry.register_pass( \
             #backend_name, #pass_class_name, &transformation_pass::create)
 
+#define DNNL_BACKEND_REGISTER_PASSES_DECLARE(passes_class_) \
+    void register_##passes_class_(impl::pass::pass_registry_t &registry);
+
 #define DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(passes_class_) \
-    inline void register_##passes_class_( \
-            impl::pass::pass_registry_t &registry) {
+    void register_##passes_class_(impl::pass::pass_registry_t &registry) {
 #define DNNL_BACKEND_REGISTER_PASSES_DEF_END }
 
 #define DNNL_BACKEND_REGISTER_PASSES_CALL(passes_class_, pass_registry_) \
     pass::register_##passes_class_(pass_registry_);
 
 #define MAX_REPETITION 33
-
 } // namespace pass
 } // namespace dnnl_impl
 } // namespace impl

@@ -13,15 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_DNNL_PATTERNS_SINGLE_OP_PATTERN_HPP
-#define BACKEND_DNNL_PATTERNS_SINGLE_OP_PATTERN_HPP
 
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "backend/dnnl/internal_ops.hpp"
-#include "backend/dnnl/patterns/transformation_pattern.hpp"
+#include "backend/dnnl/patterns/fusions.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -230,5 +228,3 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_END
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
-
-#endif

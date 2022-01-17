@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "interface/c_types_map.hpp"
+
 namespace dnnl {
 namespace graph {
 namespace impl {

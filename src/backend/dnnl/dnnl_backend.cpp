@@ -21,21 +21,8 @@
 #include "dnnl_backend.hpp"
 #include "dnnl_opset.hpp"
 #include "kernels/kernels.hpp"
-#include "patterns/binary_fusion.hpp"
-#include "patterns/bn_fusion.hpp"
-#include "patterns/conv_fusion.hpp"
-#include "patterns/convtranspose_fusion.hpp"
-#include "patterns/eltwise_fusion.hpp"
-#include "patterns/gelu_fusion.hpp"
-#include "patterns/interpolate_fusion.hpp"
-#include "patterns/matmul_fusion.hpp"
-#include "patterns/pool_fusion.hpp"
-#include "patterns/quantize_fusion.hpp"
-#include "patterns/reduction_fusion.hpp"
-#include "patterns/reorder_fusion.hpp"
-#include "patterns/shuffle_fusion.hpp"
-#include "patterns/single_op_pattern.hpp"
-#include "patterns/sum_fusion.hpp"
+
+#include "patterns/fusions.hpp"
 #include "tensor.hpp"
 
 namespace dnnl {

@@ -13,8 +13,6 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef BACKEND_DNNL_PATTERNS_MATMUL_FUSION_HPP
-#define BACKEND_DNNL_PATTERNS_MATMUL_FUSION_HPP
 
 #include <iostream>
 #include <memory>
@@ -24,7 +22,7 @@
 #include <vector>
 #include <unordered_set>
 
-#include "backend/dnnl/patterns/transformation_pattern.hpp"
+#include "backend/dnnl/patterns/fusions.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -32,9 +30,15 @@ namespace impl {
 namespace dnnl_impl {
 namespace pass {
 
+namespace pm = impl::utils::pm;
+
 using pattern = impl::pass::pattern;
 using FCreatePattern = impl::pass::FCreatePattern;
+using in_edges_t = pm::in_edges_t;
+using pb_graph_t = pm::pb_graph_t;
 using FCreateOptPattern = impl::pass::FCreateOptPattern;
+using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
+using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 /*!
  * \brief This provides matmul-related fusion, i.e.
@@ -2752,5 +2756,3 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_END
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
-
-#endif
