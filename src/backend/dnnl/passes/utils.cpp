@@ -20,6 +20,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include <unordered_map>
@@ -670,34 +671,74 @@ bool post_binary_fusible(const impl::op_t *base_op, const impl::op_t *bin_op) {
             base_op, ltw(fused_in).vdims(), ltw(other_in).vdims(), data_fmt);
 }
 
-bool post_depthwise_conv_fusible(const impl::op_t *conv_op) {
-    if (!conv_op->has_attr("groups")) return false;
-    if (conv_op->has_attr("auto_pad")
-            && conv_op->get_attr<std::string>("auto_pad") != "None")
+bool post_depthwise_conv_fusible(
+        const impl::op_t *base_conv_op, const impl::op_t *post_conv_op) {
+    using spatial_dims_t = std::vector<int64_t>;
+    using oix_dims_t = std::tuple<int64_t, int64_t, spatial_dims_t>;
+    const auto extract_dims_as_oix = [](const impl::op_t *op) -> oix_dims_t {
+        const size_t wei_offset = 1;
+        const auto wei_dims
+                = ltw(op->get_input_value(wei_offset)->get_logical_tensor())
+                          .vdims();
+        const auto wei_format = (op->has_attr("filter_format"))
+                ? op->get_attr<std::string>("filter_format")
+                : "XIO";
+        const size_t ndims = wei_dims.size();
+        const int64_t o
+                = (wei_format == "OIX") ? wei_dims[0] : wei_dims[ndims - 1];
+        const int64_t i
+                = (wei_format == "OIX") ? wei_dims[1] : wei_dims[ndims - 2];
+        const auto spatial_dims = (wei_format == "OIX")
+                ? spatial_dims_t(wei_dims.begin() + 2, wei_dims.end())
+                : spatial_dims_t(wei_dims.begin(), wei_dims.end() - 2);
+
+        return std::make_tuple(o, i, spatial_dims);
+    };
+    const auto all_equal_to = [](const dims &ds, const int64_t val) -> bool {
+        return std::all_of(ds.begin(), ds.end(),
+                [val](const int64_t d) { return d == val; });
+    };
+
+    spatial_dims_t conv_spatial;
+    std::tie(std::ignore, std::ignore, conv_spatial)
+            = extract_dims_as_oix(base_conv_op);
+
+    int64_t dw_o;
+    int64_t dw_i;
+    spatial_dims_t dw_spatial;
+    std::tie(dw_o, dw_i, dw_spatial) = extract_dims_as_oix(post_conv_op);
+
+    // only 2D conv is supported
+    const size_t expected_spatial_ndims = 2;
+    if (conv_spatial.size() != expected_spatial_ndims
+            || dw_spatial.size() != expected_spatial_ndims)
         return false;
-    const auto strides = conv_op->get_attr<dims>("strides");
-    const auto pads_begin = conv_op->get_attr<dims>("pads_begin");
-    const auto pads_end = conv_op->get_attr<dims>("pads_end");
-    const int32_t attrs_size = 2;
-    for (int32_t i = 0; i < attrs_size; ++i) {
-        if ((strides[i] != 1 && strides[i] != 2) || pads_begin[i] != 1
-                || pads_end[i] != 1)
-            return false;
-    }
-    const size_t wei_offset = 1;
-    const logical_tensor_t wei_port
-            = conv_op->get_input_value(wei_offset)->get_logical_tensor();
-    if (wei_port.ndims != 4) return false;
-    const auto groups = conv_op->get_attr<int64_t>("groups");
-    const std::string wei_format = (conv_op->has_attr("filter_format"))
-            ? conv_op->get_attr<std::string>("filter_format")
-            : "XIO";
-    const size_t oc_offset = (wei_format == "OIX") ? 0 : wei_port.ndims - 1;
-    const size_t ic_offset = (wei_format == "OIX") ? 1 : wei_port.ndims - 2;
-    const auto oc = wei_port.dims[oc_offset];
-    const auto ic_over_g = wei_port.dims[ic_offset];
-    if (groups == oc && oc == groups * ic_over_g) return true;
-    return false;
+
+    // base conv has to be 1x1 conv
+    if (!all_equal_to(conv_spatial, 1)) return false;
+
+    // post conv has to be 3x3 conv
+    if (!all_equal_to(dw_spatial, 3)) return false;
+
+    // other post conv requirements
+    if (post_conv_op->has_attr("auto_pad")
+            && post_conv_op->get_attr<std::string>("auto_pad") != "None")
+        return false;
+    if (!post_conv_op->has_attr("groups")) return false;
+
+    const auto groups = post_conv_op->get_attr<int64_t>("groups");
+    if (!(groups == dw_o && dw_o == groups * dw_i)) return false;
+
+    const auto strides = post_conv_op->get_attr<dims>("strides");
+    if (!(all_equal_to(strides, 1) || all_equal_to(strides, 2))) return false;
+
+    const auto pads_begin = post_conv_op->get_attr<dims>("pads_begin");
+    if (!all_equal_to(pads_begin, 1)) return false;
+
+    const auto pads_end = post_conv_op->get_attr<dims>("pads_end");
+    if (!(all_equal_to(pads_end, 0) || all_equal_to(pads_end, 1))) return false;
+
+    return true;
 }
 
 const std::unordered_map<impl::op_kind_t, std::unordered_set<impl::op_kind_t>> &

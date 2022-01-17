@@ -1178,7 +1178,8 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                             || (post_op_kind == op_kind::dnnl_binary
                                     && !post_binary_fusible(op, &post_op))
                             || (post_op_kind == impl::op_kind::Convolution
-                                    && !post_depthwise_conv_fusible(&post_op));
+                                    && !post_depthwise_conv_fusible(
+                                            op, &post_op));
                     if (not_fusible) { return impl::status::success; }
 
                     // push fusible pair to fuse group for later fusion

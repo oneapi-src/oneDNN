@@ -64,70 +64,6 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(conv_fusion)
         return true; \
     })
 
-#define SET_SPATIAL_NDIMS_CHECK(n) \
-    append_decision_function([](op_t *graph_op) -> bool { \
-        const size_t src_offset = 0; \
-        const int32_t spatial_dims = graph_op->get_input_value(src_offset) \
-                                             ->get_logical_tensor() \
-                                             .ndims \
-                - 2; \
-        if (spatial_dims == (n)) return true; \
-        return false; \
-    })
-
-#define SET_KERNEL_SPATIAL_SIZE_CHECK(k) \
-    append_decision_function([](op_t *graph_op) -> bool { \
-        const size_t wei_offset = 1; \
-        const logical_tensor_t wei_port \
-                = graph_op->get_input_value(wei_offset)->get_logical_tensor(); \
-        if (wei_port.ndims != 4) return false; \
-        const std::string wei_format = (graph_op->has_attr("filter_format")) \
-                ? graph_op->get_attr<std::string>("filter_format") \
-                : "XIO"; \
-        const size_t kh_offset \
-                = (wei_format == "OIX") ? wei_port.ndims - 2 : 0; \
-        const size_t kw_offset \
-                = (wei_format == "OIX") ? wei_port.ndims - 1 : 1; \
-        if (wei_port.dims[kh_offset] != (k) \
-                || wei_port.dims[kw_offset] != (k)) \
-            return false; \
-        return true; \
-    })
-
-#define SET_DEPTHWISE_CHECK() \
-    append_decision_function([](op_t *graph_op) -> bool { \
-        if (!graph_op->has_attr("groups")) return false; \
-        if (graph_op->has_attr("auto_pad") \
-                && graph_op->get_attr<std::string>("auto_pad") != "None") \
-            return false; \
-        const auto strides = graph_op->get_attr<dims>("strides"); \
-        if (strides[0] != strides[1] || (strides[0] != 1 && strides[0] != 2)) \
-            return false; \
-        const auto pads_begin = graph_op->get_attr<dims>("pads_begin"); \
-        const auto pads_end = graph_op->get_attr<dims>("pads_end"); \
-        const int32_t pads_size = 2; \
-        for (int32_t i = 0; i < pads_size; ++i) { \
-            if (pads_begin[i] != 1 || (pads_end[i] != 0 && pads_end[i] != 1)) \
-                return false; \
-        } \
-        const size_t wei_offset = 1; \
-        const logical_tensor_t wei_port \
-                = graph_op->get_input_value(wei_offset)->get_logical_tensor(); \
-        if (wei_port.ndims != 4) return false; \
-        const auto groups = graph_op->get_attr<int64_t>("groups"); \
-        const std::string wei_format = (graph_op->has_attr("filter_format")) \
-                ? graph_op->get_attr<std::string>("filter_format") \
-                : "XIO"; \
-        const size_t oc_offset \
-                = (wei_format == "OIX") ? 0 : wei_port.ndims - 1; \
-        const size_t ic_offset \
-                = (wei_format == "OIX") ? 1 : wei_port.ndims - 2; \
-        const auto oc = wei_port.dims[oc_offset]; \
-        const auto ic_over_g = wei_port.dims[ic_offset]; \
-        if (groups == oc && oc == groups * ic_over_g) return true; \
-        return false; \
-    })
-
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -588,16 +524,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_depthwise_fusion)
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
                     conv->SET_NUM_INPUTS_CHECK(2);
-                    conv->SET_SPATIAL_NDIMS_CHECK(2);
-                    conv->SET_KERNEL_SPATIAL_SIZE_CHECK(1);
 
                     pm::pb_op *depthwise
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, conv, 0)});
                     depthwise->SET_NUM_INPUTS_CHECK(2);
-                    depthwise->SET_SPATIAL_NDIMS_CHECK(2);
-                    depthwise->SET_KERNEL_SPATIAL_SIZE_CHECK(3);
-                    depthwise->SET_DEPTHWISE_CHECK();
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

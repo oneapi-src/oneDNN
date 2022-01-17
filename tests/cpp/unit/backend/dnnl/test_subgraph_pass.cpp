@@ -1149,6 +1149,66 @@ TEST(SubgraphPass, MemoryPlanning) {
     ASSERT_EQ(unique_offkeys.size(), 2);
 }
 
+TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
+    /*   conv
+          |
+         conv (depthwise)
+    */
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+
+    // N, IC, IH, IW
+    std::vector<int64_t> conv_src_shape {4, 4, 4, 4};
+    // OC, IC/G, KH, KW
+    std::vector<int64_t> conv_wei_shape {4, 4, 1, 1};
+    // N, OC, OH, OW
+    std::vector<int64_t> conv_dst_shape {4, 4, 4, 4};
+    // OC, IC/G, KH, KW
+    std::vector<int64_t> dw_wei_shape {4, 1, 3, 3};
+    // N, OC, OH, OW
+    std::vector<int64_t> dw_dst_shape {4, 4, 2, 2};
+
+    impl::op_t conv {0, impl::op_kind::Convolution, "conv"};
+    set_conv_dw_base_op_attr(conv);
+
+    impl::op_t depthwise {1, impl::op_kind::Convolution, "depthwise"};
+    set_conv_dw_post_op_attr(depthwise, "k3s2p1");
+
+    impl::logical_tensor_t conv_src
+            = logical_tensor_init(0, conv_src_shape, impl::data_type::f32);
+    impl::logical_tensor_t conv_wei
+            = logical_tensor_init(1, conv_wei_shape, impl::data_type::f32);
+    impl::logical_tensor_t conv_dst
+            = logical_tensor_init(2, conv_dst_shape, impl::data_type::f32);
+
+    impl::logical_tensor_t dw_wei
+            = logical_tensor_init(3, dw_wei_shape, impl::data_type::f32);
+    impl::logical_tensor_t dw_dst
+            = logical_tensor_init(4, dw_dst_shape, impl::data_type::f32);
+
+    conv.add_input(conv_src);
+    conv.add_input(conv_wei);
+    conv.add_output(conv_dst);
+
+    depthwise.add_input(conv_dst);
+    depthwise.add_input(dw_wei);
+    depthwise.add_output(dw_dst);
+
+    impl::graph_t g;
+    g.add_op(&conv);
+    g.add_op(&depthwise);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    auto subgraph
+            = std::make_shared<dnnl_impl::subgraph_t>(part->get_ops(), p_eng);
+    ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), impl::status::success);
+    ASSERT_EQ(subgraph->get_mutable_ops().size(), 1);
+}
+
 TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     /*
         | (u8/s8)  | (u8/s8)

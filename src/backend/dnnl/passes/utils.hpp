@@ -328,8 +328,9 @@ std::pair<bool, std::pair<size_t, int64_t>> shuffle_fusible(
 bool post_binary_fusible(const impl::op_t *base_op, const impl::op_t *bin_op);
 
 // oneDNN support post depthwise conv fusion. This function is used to check if
-// the conv op can be fused as a depthwise conv.
-bool post_depthwise_conv_fusible(const impl::op_t *conv_op);
+// two conv ops can be fused as a conv + depthwise pattern.
+bool post_depthwise_conv_fusible(
+        const impl::op_t *base_conv_op, const impl::op_t *post_conv_op);
 
 // Get the map between base op kind and fusible post ops kinds. The map is
 // determined by oneDNN's fusion capability and may change. For example, a
