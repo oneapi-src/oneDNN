@@ -14,10 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <memory>
-#include <string>
-#include <utility>
-
 #include "backend/dnnl/patterns/fusions.hpp"
 
 namespace dnnl {

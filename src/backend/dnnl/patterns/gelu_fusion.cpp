@@ -14,14 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <iostream>
-#include <memory>
-#include <queue>
-#include <string>
-#include <utility>
-#include <vector>
-#include <unordered_set>
-
 #include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 

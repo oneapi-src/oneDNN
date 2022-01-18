@@ -14,9 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <memory>
-#include <string>
-
 #include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 
