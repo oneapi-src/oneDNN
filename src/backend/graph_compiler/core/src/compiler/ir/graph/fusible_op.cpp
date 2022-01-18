@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2474,7 +2474,14 @@ void split_op_t::compute_block(context_ptr ctx,
 
 void reorder_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {}
+        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+    if (!attrs_.get_or_else("internal", false)) {
+        in_formats.push_back(std::vector<sc_data_format_t> {
+                info_.inputs_[0]->details_.get_format()});
+        out_formats.push_back(std::vector<sc_data_format_t> {
+                info_.inputs_[0]->details_.get_format()});
+    }
+}
 
 reorder_op_t::reorder_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {

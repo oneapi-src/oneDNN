@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ static void insert_reorder_op(sc_graph_t &graph, graph_tensor_ptr in,
         size_t in_index, const sc_data_format_t &out_format,
         const sc_op_ptr &cur_op) {
     auto ret = graph.make("reorder", {std::move(in)}, {},
-            {{"out_format", out_format},
+            {{"out_format", out_format}, {"internal", true},
                     {op_attr_key::no_fuse, // walk around for conv graph. will
                             // be dropped after yijie's refactor
                             graph.attrs_.get_or_else(

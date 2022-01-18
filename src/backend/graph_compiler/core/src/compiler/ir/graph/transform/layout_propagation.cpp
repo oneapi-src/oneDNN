@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,8 +73,7 @@ static void fusible_layout_propagation(sc_graph_t &graph, context_ptr ctx,
     auto &inputs = cur_node->info_.inputs_;
     auto &outputs = cur_node->info_.outputs_;
     check_input_format(inputs);
-    if (dynamic_cast<binary_elementwise_op_t *>(cur_node.get())
-            || dynamic_cast<transpose_op_t *>(cur_node.get())) {
+    if (dynamic_cast<binary_elementwise_op_t *>(cur_node.get())) {
         // need to unify input formats
         // todo: should check add_op input shape, output shape size =
         // max(input size), so need to enhance
