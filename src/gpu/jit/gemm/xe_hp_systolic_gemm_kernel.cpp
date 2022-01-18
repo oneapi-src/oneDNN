@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -910,6 +910,9 @@ void xehp_systolic_gemm_kernel_t<hw>::update_c(bool remainder) {
                 8, t0[0][8](1), Immediate::uv(8, 9, 10, 11, 12, 13, 14, 15));
         add<uint16_t>(16, t0[1], t0[0], 16u);
         cmp<uint16_t>(32 | gt | f0[0], um_rem, t0);
+
+        // Skip C blocks that are completely outside the matrix.
+        if (cfg.c_packed) cmp(32 | f0[0] | gt | f0[0], un_rem, 0);
     }
 
     // Set up headers and multiples of LDC (= ldc in bytes). TODO collapse into one instruction.
