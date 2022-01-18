@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -885,7 +885,10 @@ public:
                 mad(mod, rem, x, _qot, -int16_t(y));
             } else {
                 auto tmp = ra_.alloc_sub<uint64_t>();
-                mul(1, tmp, _qot, y);
+                mul(1, tmp.ud(0), _qot, y & 0xFFFF);
+                mul(1, tmp.ud(1), _qot, y >> 16);
+                shl<uint32_t>(1, tmp.ud(1), tmp.ud(1), 16);
+                add(1, tmp.ud(0), tmp.ud(1), tmp.ud(0));
                 add(mod, rem, x, -tmp.ud(0));
                 ra_.safeRelease(tmp);
             }
