@@ -370,12 +370,17 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t scratchpad_fp;
     const_dnnl_primitive_desc_t const_pd_ref;
-    SAFE_V(dnnl_primitive_get_primitive_desc(prim_ref, &const_pd_ref));
+    if (prim_ref) {
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim_ref, &const_pd_ref),
+                CRIT);
+    }
     const auto q_ref = [&](int index = 0) -> const dnnl_memory_desc_t & {
         return *dnnl_primitive_desc_query_md(
                 const_pd_ref, dnnl_query_exec_arg_md, index);
     };
-    scratchpad_fp = dnn_mem_t(q_ref(DNNL_ARG_SCRATCHPAD), ref_engine);
+    if (prim_ref) {
+        scratchpad_fp = dnn_mem_t(q_ref(DNNL_ARG_SCRATCHPAD), ref_engine);
+    }
 
     args_t args, ref_args;
 
