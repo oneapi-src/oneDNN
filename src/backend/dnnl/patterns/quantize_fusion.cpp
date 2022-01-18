@@ -46,17 +46,17 @@ using pb_graph_t = impl::utils::pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(quantize_fusion)
+namespace {
+bool check_inputs_all_bf16(op_t *op) {
+    for (size_t i = 0; i < op->num_inputs(); ++i) {
+        logical_tensor_t iport = op->get_input_value(i)->get_logical_tensor();
+        if (iport.data_type != impl::data_type::bf16) return false;
+    }
+    return true;
+}
+} // namespace
 
-#define SET_BF16_CHECK() \
-    append_decision_function([](op_t *graph_op) -> bool { \
-        for (size_t i = 0; i < graph_op->num_inputs(); ++i) { \
-            logical_tensor_t iport \
-                    = graph_op->get_input_value(i)->get_logical_tensor(); \
-            if (iport.data_type != impl::data_type::bf16) return false; \
-        } \
-        return true; \
-    })
+DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(quantize_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_quantize_fusion)
         .set_priority(8.1f)
@@ -65,7 +65,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_quantize_fusion)
                     pm::pb_op *typecast
                             = pgraph->append_op(impl::op_kind::TypeCast);
                     // check it is a bf16->f32 typecast
-                    typecast->SET_BF16_CHECK();
+                    typecast->append_decision_function(check_inputs_all_bf16);
 
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, typecast, 0)});

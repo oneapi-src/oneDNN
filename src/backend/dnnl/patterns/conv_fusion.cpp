@@ -38,6 +38,22 @@ using pb_graph_t = pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
+namespace {
+template <size_t N>
+bool check_input_num(op_t *op) {
+    return op->num_inputs() == N;
+}
+
+bool check_input_all_s8(op_t *op) {
+    for (size_t i = 0; i < op->num_inputs(); ++i) {
+        logical_tensor_t iport = op->get_input_value(i)->get_logical_tensor();
+        if (iport.data_type != impl::data_type::s8) return false;
+    }
+
+    return true;
+}
+} // namespace
+
 /*!
  * \brief This provides conv-related fusion, i.e.
  *        conv-relu fusion, conv-bn fusion, conv-sum fusion, conv-bn-sum fusion, etc.
@@ -48,28 +64,13 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
  */
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(conv_fusion)
 
-#define SET_NUM_INPUTS_CHECK(n) \
-    append_decision_function([](op_t *graph_op) -> bool { \
-        return graph_op->num_inputs() == (n); \
-    })
-
-#define SET_S8_CHECK() \
-    append_decision_function([](op_t *graph_op) -> bool { \
-        for (size_t i = 0; i < graph_op->num_inputs(); ++i) { \
-            logical_tensor_t iport \
-                    = graph_op->get_input_value(i)->get_logical_tensor(); \
-            if (iport.data_type != impl::data_type::s8) return false; \
-        } \
-        return true; \
-    })
-
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -92,7 +93,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu6_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv = pgraph->append_op(
                             impl::op_kind::Convolution, "p-conv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)}, "p-add");
@@ -118,7 +119,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_elu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -141,7 +142,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -161,7 +162,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bn = pgraph->append_op(
                             impl::op_kind::BatchNormInference,
@@ -188,7 +189,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -207,7 +208,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu6_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -233,7 +234,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -253,7 +254,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *bn = pgraph->append_op(
                             impl::op_kind::BatchNormInference,
@@ -280,7 +281,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_sum_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bn = pgraph->append_op(
                             impl::op_kind::BatchNormInference,
@@ -304,7 +305,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -321,7 +322,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_sum_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *bn = pgraph->append_op(
                             impl::op_kind::BatchNormInference,
@@ -345,7 +346,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bn = pgraph->append_op(
                             impl::op_kind::BatchNormInference,
@@ -368,7 +369,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -384,7 +385,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *bn = pgraph->append_op(
                             impl::op_kind::BatchNormInference,
@@ -407,7 +408,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -423,7 +424,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_elu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -446,7 +447,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -462,7 +463,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -485,7 +486,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu6_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -500,7 +501,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu6_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *relu6
                             = pgraph->append_op(impl::op_kind::HardTanh,
@@ -522,12 +523,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_depthwise_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *depthwise
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, conv, 0)});
-                    depthwise->SET_NUM_INPUTS_CHECK(2);
+                    depthwise->append_decision_function(check_input_num<2>);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -551,7 +552,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_fusion)
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -581,7 +582,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_fusion)
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, conv, 0)});
                 })
@@ -607,7 +608,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -627,7 +628,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -654,7 +655,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_relu_fusion)
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -685,7 +686,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_relu_fusion)
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
                     pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv, 0)});
                     pgraph->append_op(impl::op_kind::Quantize,
@@ -712,7 +713,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_fusion)
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)}, "pbias");
@@ -736,7 +737,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_fusion)
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
                     pm::pb_op *dequant_other = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_other");
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
@@ -768,7 +769,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_relu_fusion)
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -791,7 +792,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_relu_fusion)
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -825,7 +826,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)}, "pbias");
@@ -857,7 +858,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
@@ -897,7 +898,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
@@ -923,7 +924,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -960,7 +961,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *relu = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -981,7 +982,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1014,7 +1015,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_bias_fusion)
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1033,7 +1034,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_conv_bias_fusion)
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1064,7 +1065,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_add_relu_fusion)
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
@@ -1102,7 +1103,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
@@ -1130,14 +1131,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_fusion)
                     pm::pb_op *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -1157,14 +1159,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_fusion)
                     pm::pb_op *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1174,14 +1177,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_fusion)
                     pm::pb_op *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)}, "pbias");
@@ -1204,14 +1208,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_relu_fusion)
                     pm::pb_op *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv, 0)}, "prelu");
@@ -1234,14 +1239,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_relu_fusion)
                     pm::pb_op *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv, 0)}, "prelu");
@@ -1254,14 +1260,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_bias_relu_fusion)
                     pm::pb_op *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)}, "pbias");
@@ -1287,7 +1294,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *dequant_other = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_other");
@@ -1297,7 +1305,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)}, "pbias");
@@ -1318,7 +1326,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *dequant_other = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_other");
@@ -1328,7 +1337,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
@@ -1356,7 +1365,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_add_relu_fusion)
                     pm::pb_op *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_weight");
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *dequant_other = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_other");
@@ -1366,7 +1376,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_add_relu_fusion)
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
                                     "pconv");
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
@@ -1396,13 +1406,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_quant_wei_conv_fusion)
                             = pgraph->append_op(impl::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -1425,13 +1436,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1443,13 +1455,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1475,13 +1488,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1507,13 +1521,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1528,13 +1543,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
 
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1562,7 +1578,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
                     pm::pb_op *dequant_other
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -1570,7 +1587,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
@@ -1589,7 +1606,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
                     pm::pb_op *dequant_other
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -1597,7 +1615,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1630,7 +1648,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, quant_weight, 0)});
                     // this pattern requires the weight should be s8
-                    dequant_weight->SET_S8_CHECK();
+                    dequant_weight->append_decision_function(
+                            check_input_all_s8);
                     pm::pb_op *dequant_other
                             = pgraph->append_op(impl::op_kind::Dequantize);
 
@@ -1638,7 +1657,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0),
@@ -1661,7 +1680,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1674,7 +1693,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sum_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1694,7 +1713,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_elu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1706,7 +1725,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_elu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::Elu,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1725,7 +1744,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sigmoid_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1737,7 +1756,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sigmoid_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::Sigmoid,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1756,7 +1775,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1773,7 +1792,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv = pgraph->append_op(
                             impl::op_kind::Convolution, "p-conv");
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pm::pb_op *sigmoid
                             = pgraph->append_op(impl::op_kind::Sigmoid,
@@ -1798,7 +1817,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bn_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pgraph->append_op(impl::op_kind::BatchNormInference,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1817,7 +1836,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1829,7 +1848,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_bn_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::BatchNormInference,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1848,7 +1867,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1867,7 +1886,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1879,7 +1898,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1898,7 +1917,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_hardtanh_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1910,7 +1929,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_hardtanh_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::HardTanh,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1929,7 +1948,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_square_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1941,7 +1960,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_square_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::Square,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1960,7 +1979,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_tanh_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1972,7 +1991,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_tanh_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::Tanh,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -1991,7 +2010,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_abs_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -2003,7 +2022,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_abs_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::Abs,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -2022,7 +2041,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sqrt_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -2034,7 +2053,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_sqrt_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     pgraph->append_op(impl::op_kind::Sqrt,
                             in_edges_t {in_edge(0, conv, 0)});
@@ -2053,7 +2072,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
                     pgraph->append_op(impl::op_kind::BiasAdd,
                             in_edges_t {in_edge(0, conv, 0)});
                 })
@@ -2061,7 +2080,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -2108,21 +2127,21 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_simple_resblock_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv0
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv0->SET_NUM_INPUTS_CHECK(2);
+                    conv0->append_decision_function(check_input_num<2>);
                     pm::pb_op *relu0 = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv0, 0)});
 
                     pm::pb_op *conv1
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, relu0, 0)});
-                    conv1->SET_NUM_INPUTS_CHECK(2);
+                    conv1->append_decision_function(check_input_num<2>);
                     pm::pb_op *relu1 = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv1, 0)});
 
                     pm::pb_op *conv2
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, relu1, 0)});
-                    conv2->SET_NUM_INPUTS_CHECK(2);
+                    conv2->append_decision_function(check_input_num<2>);
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv2, 0)});
@@ -2154,7 +2173,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_src0, 0),
                                             in_edge(1, dequant_wei0, 0)});
-                    conv0->SET_NUM_INPUTS_CHECK(3);
+                    conv0->append_decision_function(check_input_num<3>);
                     pm::pb_op *relu0 = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv0, 0)});
                     pm::pb_op *quant_dst0
@@ -2171,7 +2190,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_src1, 0),
                                             in_edge(1, dequant_wei1, 0)});
-                    conv1->SET_NUM_INPUTS_CHECK(3);
+                    conv1->append_decision_function(check_input_num<3>);
                     pm::pb_op *relu1 = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv1, 0)});
                     pm::pb_op *quant_dst1
@@ -2190,7 +2209,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_src2, 0),
                                             in_edge(1, dequant_wei2, 0)});
-                    conv2->SET_NUM_INPUTS_CHECK(3);
+                    conv2->append_decision_function(check_input_num<3>);
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv2, 0),
                                     in_edge(1, dequant_other, 0)});
@@ -2222,7 +2241,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_src0, 0),
                                             in_edge(1, dequant_wei0, 0)});
-                    conv0->SET_NUM_INPUTS_CHECK(3);
+                    conv0->append_decision_function(check_input_num<3>);
                     pm::pb_op *relu0 = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv0, 0)});
                     pm::pb_op *quant_dst0
@@ -2239,7 +2258,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(impl::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_src1, 0),
                                             in_edge(1, dequant_wei1, 0)});
-                    conv1->SET_NUM_INPUTS_CHECK(3);
+                    conv1->append_decision_function(check_input_num<3>);
                     pm::pb_op *relu1 = pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, conv1, 0)});
                     pgraph->append_op(impl::op_kind::Quantize,
@@ -2259,7 +2278,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_related_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(2);
+                    conv->append_decision_function(check_input_num<2>);
                     pm::pb_op *biasadd
                             = pgraph->append_op(impl::op_kind::BiasAdd,
                                     in_edges_t {in_edge(0, conv, 0)});
@@ -2298,7 +2317,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_related_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *conv
                             = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->SET_NUM_INPUTS_CHECK(3);
+                    conv->append_decision_function(check_input_num<3>);
 
                     auto pograph_1 = std::make_shared<pb_graph_t>();
                     auto addormul = pograph_1->append_alternation(

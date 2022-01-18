@@ -34,14 +34,13 @@ using pb_graph_t = pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
-// if op is interpolate, need to filter out attrs not supported by dnnl
-#define INTERPOLATE_ATTR_CHECK() \
-    append_decision_function([](op_t *graph_op) -> bool { \
-        if (graph_op->get_attr<std::string>("coordinate_transformation_mode") \
-                != std::string("half_pixel")) \
-            return false; \
-        return true; \
-    })
+namespace {
+bool check_attributes(op_t *op) {
+    return op->get_attr<std::string>("coordinate_transformation_mode")
+            == std::string("half_pixel");
+}
+} // namespace
+
 /*!
  * \brief This provides interpolate-related fusion, i.e.
  *        interpolate-relu fusion
@@ -59,7 +58,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_relu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *interpolate
                             = pgraph->append_op(impl::op_kind::Interpolate);
-                    interpolate->INTERPOLATE_ATTR_CHECK();
+                    interpolate->append_decision_function(check_attributes);
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, interpolate, 0)});
@@ -78,7 +77,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_multiply_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *interpolate
                             = pgraph->append_op(impl::op_kind::Interpolate);
-                    interpolate->INTERPOLATE_ATTR_CHECK();
+                    interpolate->append_decision_function(check_attributes);
 
                     pgraph->append_op(impl::op_kind::Multiply,
                             in_edges_t {in_edge(0, interpolate, 0)});
@@ -97,7 +96,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_sum_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *interpolate
                             = pgraph->append_op(impl::op_kind::Interpolate);
-                    interpolate->INTERPOLATE_ATTR_CHECK();
+                    interpolate->append_decision_function(check_attributes);
 
                     pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, interpolate, 0)});
