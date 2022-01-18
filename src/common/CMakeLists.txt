@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2021 Intel Corporation
+# Copyright 2019-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,20 @@ if(DNNL_ENABLE_JIT_PROFILING OR DNNL_ENABLE_ITT_TASKS)
             ${CMAKE_CURRENT_SOURCE_DIR}/ittnotify/*.[ch]
             )
         list(APPEND SOURCES ${ITT_SOURCES})
+
+        # Add processor trace sources
+        if(DNNL_TARGET_ARCH STREQUAL "X64")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DITT_API_IPT_SUPPORT")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DITT_API_IPT_SUPPORT")
+            if(NOT WIN32)
+                enable_language(ASM)
+                set(ITT_PT ${CMAKE_CURRENT_SOURCE_DIR}/ittnotify/ittptmark64.S)
+            else()
+                enable_language(ASM_MASM)
+                set(ITT_PT ${CMAKE_CURRENT_SOURCE_DIR}/ittnotify/ittptmark64.asm)
+            endif()
+            list(APPEND SOURCES ${ITT_PT})
+        endif()
     endif()
 endif()
 
