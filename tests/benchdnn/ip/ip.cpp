@@ -140,7 +140,7 @@ int init_prim_ref(
     // modifying prb in place.
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
-    prb_t prb_cpu {*prb, prb->mb, prb->dir, prb->cfg, tag::abx, tag::abx,
+    prb_t prb_cpu {*prb, prb->mb, prb->dir, conf_f32, tag::abx, tag::abx,
             tag::abx, cpu_attr};
 
     dnnl_primitive_desc_t pd_ref_ {};
