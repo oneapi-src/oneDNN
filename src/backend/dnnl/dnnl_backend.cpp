@@ -52,6 +52,7 @@ bool dnnl_backend::register_op_schemas() {
 bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PASSES_CALL(binary_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(bn_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(concat_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(conv_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(convtranspose_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(gelu_fusion, pass_registry_);

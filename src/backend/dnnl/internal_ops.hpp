@@ -216,7 +216,8 @@ namespace op_kind {
     X(matmul_div_add, MatMul_div_add) \
     X(dnnl_batchnorm_bwd, Dnnl_batchnorm_bwd) \
     X(dnnl_softmax_bwd, Dnnl_softmax_bwd) \
-    X(dnnl_logsoftmax_bwd, Dnnl_logsoftmax_bwd)
+    X(dnnl_logsoftmax_bwd, Dnnl_logsoftmax_bwd) \
+    X(int8_concat, INT8_concat)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,
