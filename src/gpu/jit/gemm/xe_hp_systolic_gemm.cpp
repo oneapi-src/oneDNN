@@ -195,6 +195,11 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
 
     if (any_prepacked_ || (packed_a_ && packed_b_)) return false;
 
+    // Use no-copy for gemv cases (just f16 for now).
+    if (d->a_type() == f16) {
+        if (d->m() <= 1 || d->n() <= 1) return true;
+    }
+
     // Use no-copy implementation if one matrix is very small.
     if (d->m() < 32 && d->n() < 32) return true;
     if (d->m() < 32 && d->k() < 32) return true;

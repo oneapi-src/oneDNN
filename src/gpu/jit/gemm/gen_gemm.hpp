@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -165,11 +165,11 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             choose_kernel();
 
-            // k-parallel kernels don't support post-ops.
+            // global k-parallel kernels don't support post-ops.
             bool with_eltwise = (attr()->post_ops_.find(eltwise) != -1);
             ok &= IMPLICATION(tag_ == 'K', !with_bias() && !with_eltwise);
 
-            // use k-parallel kernels only with f32 accumulation
+            // use global k-parallel kernels only with f32 accumulation
             ok &= IMPLICATION(tag_ == 'K', utils::one_of(d->c_type(), f32));
 
             if (!ok) return status::unimplemented;

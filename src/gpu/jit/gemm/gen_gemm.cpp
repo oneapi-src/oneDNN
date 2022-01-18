@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -180,7 +180,8 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
 
-    bool k_parallel = nocopy_info_.kParallel || nocopy_info_.kParallelLocal;
+    bool k_parallel_global = nocopy_info_.kParallel;
+    bool k_parallel_local = nocopy_info_.kParallelLocal;
 
     auto &a = swapab ? GEMM_CTX_ARG_STORAGE(a) : GEMM_CTX_ARG_STORAGE(b);
     auto &b = swapab ? GEMM_CTX_ARG_STORAGE(b) : GEMM_CTX_ARG_STORAGE(a);
@@ -242,6 +243,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     if (!utils::one_of(pd()->desc()->c_type(), data_type::f32, data_type::f16))
         block_k = k;
 
+    if (k_parallel_local && !k_parallel_global)
+        block_k = utils::div_up(k, nocopy_info_.wg[2]);
+
     block_m = utils::rnd_up(
             block_m, nocopy_info_.wg[0] * nocopy_info_.unroll[0]);
     block_n = utils::rnd_up(
@@ -249,11 +253,12 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     block_k = utils::rnd_up(block_k, nocopy_info_.unroll[2]);
 
     int32_t k0 = 1;
-    if (k_parallel) {
+    if (k_parallel_local || k_parallel_global) {
         k0 = block_k;
         block_k = k;
 
-        if (beta != 1.0f && (k > k0 * nocopy_info_.wg[2])) {
+        if (k_parallel_global && beta != 1.0f
+                && (k > k0 * nocopy_info_.wg[2])) {
             status = launch_nocopy(ctx, compute_stream, a, b, c, *co, off_a0,
                     off_b0, off_c0, int32_t(off_co0), lda, ldb, ldc, m, n, 0, 1,
                     1.0f, beta, 0, 0, 0, false, swapab, true);

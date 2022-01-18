@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -737,6 +737,7 @@ const kernel_table_t xe_hp_f16_nocopy_nt_table[] = {
 };
 
 const kernel_table_t xe_hp_f16_nocopy_tn_table[] = {
+    {{32,  1}, {0,   1}, {0,   1}, {}, 'k'},
     {{16,  8}, {32, 32}, {32, 32}, {}, {}},
     {{16, 16}, {-1, -1}, {0,   0}, {}, {}}
 };
@@ -983,8 +984,8 @@ void gen_gemm_nocopy_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
                 || !has_alignment(c_type, align_c, ldc, table->aligns.c))
             continue;
 
-        // 'K' tag kernels require k parallelization, which can't be used for batch gemm.
-        if (table->tag == 'K' && (batch > 1)) continue;
+        // 'K'/'k' tag kernels require k parallelization, which can't be used for batch gemm.
+        if (utils::one_of(table->tag, 'k', 'K') && (batch > 1)) continue;
 
         // If m/n under "always use" threshold or threshold set to "always", use this kernel.
         // If m/n over "reject" threshold, don't use this kernel.
