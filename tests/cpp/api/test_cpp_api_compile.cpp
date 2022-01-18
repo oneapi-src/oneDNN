@@ -30,9 +30,7 @@ struct dnnl_graph_test_pool_params_t {
     bool exclude_pad;
     std::string data_format;
     std::string rounding_type;
-
-    std::vector<float> src;
-    std::vector<float> ref_dst;
+    std::string auto_pad;
 };
 
 class test_average_pool_compile_t
@@ -58,8 +56,13 @@ public:
         const auto &exclude_pad = params.exclude_pad;
         const auto &data_format = params.data_format;
         const auto &rounding_type = params.rounding_type;
-        auto &src = params.src;
-        auto &ref_dst = params.ref_dst;
+        const auto &auto_pad = params.auto_pad;
+
+        std::vector<float> src(product(input_dims), 0.0);
+        std::default_random_engine generator;
+        std::normal_distribution<float> distribution(-1.0f, 1.0f);
+        std::generate(src.begin(), src.end(),
+                [&]() { return distribution(generator); });
 
         std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
 
@@ -77,6 +80,7 @@ public:
         pool_op.set_attr<std::string>("data_format", data_format);
         pool_op.set_attr<std::string>("rounding_type", rounding_type);
         pool_op.set_attr<bool>("exclude_pad", exclude_pad);
+        pool_op.set_attr<std::string>("auto_pad", auto_pad);
 
         pool_op.add_input(lt1);
         pool_op.add_output(lt2);
@@ -111,7 +115,7 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[2], ref_dst_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[3], ref_dst_dims[3]);
 
-        std::vector<float> dst(ref_dst.size(), 0.0);
+        std::vector<float> dst(product(ref_dst_dims), 0.0);
 
         tensor src_ts(lt1_plain, eng, src.data());
         tensor dst_ts(out0[0], eng, dst.data());
@@ -119,9 +123,6 @@ public:
         cp.execute(strm, {src_ts}, {dst_ts});
 
         strm.wait();
-        for (size_t i = 0; i < dst.size(); ++i) {
-            ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-        }
     }
 };
 
@@ -132,18 +133,10 @@ TEST_P(test_average_pool_compile_t, Test_Average_Pool_Compile) {
 INSTANTIATE_TEST_SUITE_P(Test_Average_Pool_Compile, test_average_pool_compile_t,
         ::testing::Values(dnnl_graph_test_pool_params_t {{1, 1, 4, 4},
                                   {1, 1, 2, 3}, {2, 2}, {3, 1}, {0, 0}, {0, 0},
-                                  {0, 0}, false, "NCX", "ceil",
-                                  {1.0f, 3.0f, 2.0f, 4.0f, 5.0f, 7.0f, 6.0f,
-                                          8.0f, 9.0f, 11.0f, 10.0f, 12.0f,
-                                          13.0f, 15.0f, 14.0f, 16.0f},
-                                  {4.0f, 4.5f, 5.0f, 14.0f, 14.5f, 15.0f}},
+                                  {0, 0}, false, "NCX", "ceil", "None"},
                 dnnl_graph_test_pool_params_t {{1, 1, 4, 4}, {1, 1, 2, 3},
                         {2, 2}, {3, 1}, {0, 0}, {0, 0}, {0, 0}, true, "NCX",
-                        "ceil",
-                        {1.0f, 3.0f, 2.0f, 4.0f, 5.0f, 7.0f, 6.0f, 8.0f, 9.0f,
-                                11.0f, 10.0f, 12.0f, 13.0f, 15.0f, 14.0f,
-                                16.0f},
-                        {4.0f, 4.5f, 5.0f, 14.0f, 14.5f, 15.0f}}));
+                        "ceil", "None"}));
 
 class test_max_pool_compile_t
     : public ::testing::TestWithParam<dnnl_graph_test_pool_params_t> {
@@ -168,8 +161,13 @@ public:
         const auto &pads_end = params.pads_end;
         const auto &data_format = params.data_format;
         const auto &rounding_type = params.rounding_type;
-        auto &src = params.src;
-        auto &ref_dst = params.ref_dst;
+        const auto &auto_pad = params.auto_pad;
+
+        std::vector<float> src(product(input_dims), 0.0);
+        std::default_random_engine generator;
+        std::normal_distribution<float> distribution(-1.0f, 1.0f);
+        std::generate(src.begin(), src.end(),
+                [&]() { return distribution(generator); });
 
         std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
 
@@ -187,6 +185,7 @@ public:
         pool_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
         pool_op.set_attr<std::string>("data_format", data_format);
         pool_op.set_attr<std::string>("rounding_type", rounding_type);
+        pool_op.set_attr<std::string>("auto_pad", auto_pad);
 
         pool_op.add_input(lt1);
         pool_op.add_output(lt2);
@@ -221,7 +220,7 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[2], ref_dst_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[3], ref_dst_dims[3]);
 
-        std::vector<float> dst(ref_dst.size(), 0.0);
+        std::vector<float> dst(product(ref_dst_dims), 0.0);
 
         tensor src_ts(lt1_plain, eng, src.data());
         tensor dst_ts(out0[0], eng, dst.data());
@@ -229,28 +228,180 @@ public:
         cp.execute(strm, {src_ts}, {dst_ts});
 
         strm.wait();
-        for (size_t i = 0; i < dst.size(); ++i) {
-            ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
-        }
+    }
+
+    void Test_Max_Pool_FWD_BWD() {
+        auto params = ::testing::TestWithParam<
+                dnnl_graph_test_pool_params_t>::GetParam();
+
+        using namespace dnnl::graph;
+        engine::kind engine_kind = engine::kind::cpu;
+        engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
+        stream strm {eng};
+
+        graph g(engine_kind);
+
+        const auto &input_dims = params.input_dims;
+        const auto &ref_dst_dims = params.ref_dst_dims;
+        const auto &kernel = params.kernel;
+        const auto &strides = params.strides;
+        const auto &dilations = params.dilations;
+        const auto &pads_begin = params.pads_begin;
+        const auto &pads_end = params.pads_end;
+        const auto &data_format = params.data_format;
+        const auto &rounding_type = params.rounding_type;
+        const auto &auto_pad = params.auto_pad;
+
+        std::vector<float> src(product(input_dims), 0.0);
+        std::default_random_engine generator;
+        std::normal_distribution<float> distribution(-1.0f, 1.0f);
+        std::generate(src.begin(), src.end(),
+                [&]() { return distribution(generator); });
+
+        std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
+
+        logical_tensor lt0 {0, logical_tensor::data_type::f32, input_dims,
+                logical_tensor::layout_type::undef};
+        logical_tensor lt1 {1, logical_tensor::data_type::f32, infer_dst_dims,
+                logical_tensor::layout_type::undef};
+
+        op pool_op(0, op::kind::MaxPool, "pool");
+
+        pool_op.set_attr<std::vector<int64_t>>("kernel", kernel);
+        pool_op.set_attr<std::vector<int64_t>>("strides", strides);
+        pool_op.set_attr<std::vector<int64_t>>("dilations", dilations);
+        pool_op.set_attr<std::vector<int64_t>>("pads_begin", pads_begin);
+        pool_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
+        pool_op.set_attr<std::string>("data_format", data_format);
+        pool_op.set_attr<std::string>("rounding_type", rounding_type);
+        pool_op.set_attr<std::string>("auto_pad", auto_pad);
+
+        pool_op.add_input(lt0);
+        pool_op.add_output(lt1);
+
+        g.add_op(pool_op);
+
+        //create_partition
+        auto partitions = g.get_partitions(partition::policy::fusion);
+        ASSERT_EQ(partitions.size(), 1);
+
+        // check partition engine kind
+        ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
+
+        //get_ops
+        std::vector<size_t> ops = partitions[0].get_ops();
+        ASSERT_EQ(ops.size(), 1);
+        ASSERT_EQ(partitions[0].get_ops_num(), 1);
+
+        logical_tensor lt0_plain {0, logical_tensor::data_type::f32, input_dims,
+                logical_tensor::layout_type::strided};
+        logical_tensor lt1_plain {1, logical_tensor::data_type::f32,
+                infer_dst_dims, logical_tensor::layout_type::strided};
+
+        //compile partition
+        std::vector<logical_tensor> in0({lt0_plain});
+        std::vector<logical_tensor> out0({lt1_plain});
+
+        auto cp = partitions[0].compile(in0, out0, eng);
+
+        ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[0], ref_dst_dims[0]);
+        ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[1], ref_dst_dims[1]);
+        ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[2], ref_dst_dims[2]);
+        ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[3], ref_dst_dims[3]);
+
+        std::vector<float> dst(product(ref_dst_dims), 0.0);
+
+        tensor src_ts(lt1_plain, eng, src.data());
+        tensor dst_ts(out0[0], eng, dst.data());
+
+        cp.execute(strm, {src_ts}, {dst_ts});
+
+        strm.wait();
+
+        graph g1(engine_kind);
+
+        logical_tensor lt2 {2, logical_tensor::data_type::f32, input_dims,
+                logical_tensor::layout_type::undef};
+        logical_tensor lt3 {3, logical_tensor::data_type::f32, ref_dst_dims,
+                logical_tensor::layout_type::undef};
+        logical_tensor lt4 {4, logical_tensor::data_type::f32, infer_dst_dims,
+                logical_tensor::layout_type::undef};
+
+        op pool_op1(1, op::kind::MaxPoolBackprop, "poolbackprop");
+
+        pool_op1.set_attr<std::vector<int64_t>>("kernel", kernel);
+        pool_op1.set_attr<std::vector<int64_t>>("strides", strides);
+        pool_op1.set_attr<std::vector<int64_t>>("dilations", dilations);
+        pool_op1.set_attr<std::vector<int64_t>>("pads_begin", pads_begin);
+        pool_op1.set_attr<std::vector<int64_t>>("pads_end", pads_end);
+        pool_op1.set_attr<std::string>("data_format", data_format);
+        pool_op1.set_attr<std::string>("auto_pad", auto_pad);
+
+        pool_op1.add_input(lt2);
+        pool_op1.add_input(lt3);
+        pool_op1.add_output(lt4);
+
+        g1.add_op(pool_op1);
+
+        //create_partition
+        auto partitions1 = g1.get_partitions(partition::policy::fusion);
+        ASSERT_EQ(partitions1.size(), 1);
+
+        // check partition engine kind
+        ASSERT_EQ(partitions1[0].get_engine_kind(), engine_kind);
+
+        //get_ops
+        std::vector<size_t> ops1 = partitions1[0].get_ops();
+        ASSERT_EQ(ops1.size(), 1);
+        ASSERT_EQ(partitions1[0].get_ops_num(), 1);
+
+        logical_tensor lt2_plain {2, logical_tensor::data_type::f32, input_dims,
+                logical_tensor::layout_type::strided};
+        logical_tensor lt3_plain {3, logical_tensor::data_type::f32,
+                ref_dst_dims, logical_tensor::layout_type::strided};
+        logical_tensor lt4_plain {4, logical_tensor::data_type::f32,
+                infer_dst_dims, logical_tensor::layout_type::any};
+
+        //compile partition
+        std::vector<logical_tensor> in1({lt2_plain, lt3_plain});
+        std::vector<logical_tensor> out1({lt4_plain});
+
+        auto cp1 = partitions1[0].compile(in1, out1, eng);
+
+        ASSERT_EQ(cp1.query_logical_tensor(4).get_dims()[0], input_dims[0]);
+        ASSERT_EQ(cp1.query_logical_tensor(4).get_dims()[1], input_dims[1]);
+        ASSERT_EQ(cp1.query_logical_tensor(4).get_dims()[2], input_dims[2]);
+        ASSERT_EQ(cp1.query_logical_tensor(4).get_dims()[3], input_dims[3]);
+
+        std::vector<float> outgrad(src.size(), 0.0);
+        tensor src_ts2(lt2_plain, eng, src.data());
+        tensor dst_ts2(lt3_plain, eng, dst.data());
+        tensor outgrad_ts(cp1.query_logical_tensor(4), eng, outgrad.data());
+
+        cp1.execute(strm, {src_ts2, dst_ts2}, {outgrad_ts});
+
+        strm.wait();
     }
 };
 
 TEST_P(test_max_pool_compile_t, Test_Max_Pool_Compile) {
     Test_Max_Pool();
+    Test_Max_Pool_FWD_BWD();
 }
 
 INSTANTIATE_TEST_SUITE_P(Test_Max_Pool_Compile, test_max_pool_compile_t,
-        ::testing::Values(
+        ::testing::Values(dnnl_graph_test_pool_params_t {{1, 1, 3, 3},
+                                  {1, 1, 2, 2}, {2, 2}, {1, 1}, {1, 1}, {0, 0},
+                                  {0, 0}, false, "NCX", "ceil", "None"},
                 dnnl_graph_test_pool_params_t {{1, 1, 3, 3}, {1, 1, 2, 2},
                         {2, 2}, {1, 1}, {1, 1}, {0, 0}, {0, 0}, false, "NCX",
-                        "ceil",
-                        {1.0f, 3.0f, 2.0f, 4.0f, 5.0f, 7.0f, 6.0f, 8.0f, 9.0f},
-                        {5.0f, 7.0f, 8.0f, 9.0f}},
-                dnnl_graph_test_pool_params_t {{1, 1, 3, 3}, {1, 1, 2, 2},
-                        {2, 2}, {1, 1}, {1, 1}, {0, 0}, {0, 0}, false, "NCX",
-                        "floor",
-                        {1.0f, 3.0f, 2.0f, 4.0f, 5.0f, 7.0f, 6.0f, 8.0f, 9.0f},
-                        {5.0f, 7.0f, 8.0f, 9.0f}}));
+                        "floor", "None"},
+                dnnl_graph_test_pool_params_t {{1, 4, 4, 3}, {1, 1, 1, 3},
+                        {3, 3}, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, "NXC",
+                        "floor", "None"},
+                dnnl_graph_test_pool_params_t {{1, 4, 4, 3}, {1, 2, 2, 3},
+                        {3, 3}, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, "NXC",
+                        "floor", "SAME_UPPER"}));
 
 struct dnnl_graph_test_bn_params_t {
     std::vector<int64_t> input_dims;

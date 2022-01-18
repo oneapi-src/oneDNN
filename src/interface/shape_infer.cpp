@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -613,6 +613,64 @@ status_t infer_pool_output_shape(op_t *n,
     }
 
     set_shape_and_strides(*outputs[0], out_shape);
+    return status::success;
+}
+
+status_t infer_pool_bwd_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+
+    // check if partial set shape aligns with inferred shape
+    if (out0.ndims() != -1) {
+        if (!validate(in0.vdims(), out0.vdims())) {
+            return status::invalid_shape;
+        }
+    }
+
+    // We should compute output dense strides instead of
+    // directly copying input strides to it
+    set_shape_and_strides(*outputs[0], in0.vdims());
+
+    // get attr value
+    const dims &strides = n->get_attr<dims>("strides");
+    const dims &kernel = n->get_attr<dims>("kernel");
+    const dims &pads_begin = n->get_attr<dims>("pads_begin");
+    const dims &pads_end = n->get_attr<dims>("pads_end");
+    std::string src_format = n->get_attr<std::string>("data_format");
+
+    dims dilations(kernel.size(), 1);
+    if (n->has_attr("dilations")) {
+        auto dilations_tmp = n->get_attr<dims>("dilations");
+        if (dilations_tmp.size() != dilations.size()) {
+            return status::invalid_argument;
+        } else {
+            dilations = dilations_tmp;
+        }
+    }
+
+    const dims src_dims = in0.vdims();
+
+    dims src_sp = in0.get_src_spatial_dims(src_format);
+
+    // if paddings are empty vectors?
+    dims new_pads_begin(pads_begin);
+    if (new_pads_begin.empty()) { new_pads_begin.assign(src_sp.size(), 0); }
+    dims new_pads_end(pads_end);
+    if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
+    if (n->has_attr("auto_pad")
+            && n->get_attr<std::string>("auto_pad") != "None") {
+        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+        // infer auto_pad
+        for (size_t i = 0; i < src_sp.size(); ++i) {
+            infer_auto_pad(src_sp[i], strides[i], kernel[i], dilations[i],
+                    auto_pad, new_pads_begin[i], new_pads_end[i]);
+        }
+        n->set_attr("pads_begin", new_pads_begin);
+        n->set_attr("pads_end", new_pads_end);
+    }
+
     return status::success;
 }
 

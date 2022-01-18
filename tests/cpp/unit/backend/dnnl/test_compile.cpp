@@ -7891,6 +7891,7 @@ TEST(Execute, AvgPoolBackwardExcludePad) {
     avg_pool_bwd_op.set_attr<dims>("pads_begin", {1, 1});
     avg_pool_bwd_op.set_attr<dims>("pads_end", {1, 1});
     avg_pool_bwd_op.set_attr<bool>("exclude_pad", true);
+    avg_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -7940,6 +7941,7 @@ TEST(Execute, AvgPoolBackwardIncludePad) {
     avg_pool_bwd_op.set_attr<dims>("pads_begin", {1, 1});
     avg_pool_bwd_op.set_attr<dims>("pads_end", {1, 1});
     avg_pool_bwd_op.set_attr<bool>("exclude_pad", false);
+    avg_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -8002,6 +8004,7 @@ TEST(Execute, MaxPoolBackwardWithIncides) {
     max_pool_bwd_op.set_attr<dims>("pads_begin", dims {0, 0});
     max_pool_bwd_op.set_attr<dims>("pads_end", dims {0, 0});
     max_pool_bwd_op.set_attr<dims>("dilations", {1, 1});
+    max_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -8060,6 +8063,7 @@ TEST(Execute, MaxPoolBackwardWithoutIncides) {
     max_pool_bwd_op.set_attr<dims>("pads_begin", dims {0, 0});
     max_pool_bwd_op.set_attr<dims>("pads_end", dims {0, 0});
     max_pool_bwd_op.set_attr<dims>("dilations", {1, 1});
+    max_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -8088,6 +8092,51 @@ TEST(Execute, MaxPoolBackwardWithoutIncides) {
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
+}
+
+TEST(Execute, MaxPoolBackwardWithoutIncidesPlainGrad) {
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
+    impl::engine_t &eng = get_engine();
+
+    impl::op_t max_pool_bwd_op(impl::op_kind::MaxPoolBackprop);
+
+    max_pool_bwd_op.set_attr<dims>("strides", dims {2, 2});
+    max_pool_bwd_op.set_attr<dims>("kernel", dims {2, 2});
+    max_pool_bwd_op.set_attr<dims>("pads_begin", dims {0, 0});
+    max_pool_bwd_op.set_attr<dims>("pads_end", dims {0, 0});
+    max_pool_bwd_op.set_attr<dims>("dilations", {1, 1});
+    max_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
+
+    dims input_dims = {1, 8, 4, 4};
+    dims input_stride = {128, 1, 32, 8};
+    dims output_dims = {1, 8, 2, 2};
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, input_dims, input_stride, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            1, input_dims, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t diff_dst_lt
+            = utils::logical_tensor_init(3, output_dims, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto max_pool_bwd_kernel = op_factory.create_kernel(max_pool_bwd_op);
+    max_pool_bwd_kernel->compile(
+            &max_pool_bwd_op, &eng, {src_lt, diff_dst_lt}, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    test::vector<float> src(product(input_dims), 1);
+    test::vector<float> diff_dst(product(output_dims), 1);
+    test::vector<float> diff_src(product(input_dims), 1);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+
+    impl::stream_t &strm = get_stream();
+    max_pool_bwd_kernel->execute(
+            &max_pool_bwd_op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    strm.wait();
 }
 
 TEST(Execute, LayernormTraining) {

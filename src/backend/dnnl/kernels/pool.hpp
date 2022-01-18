@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -321,50 +321,91 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = dnnl_tensor_t::desc_t;
         // prepare the inputs and outputs' tensors' descs
-        const desc src {inputs.at(pool_bwd::kSrc)};
-        const desc diff_dst {inputs.at(pool_bwd::kDiff_dst)};
-        impl::logical_tensor_t *diff_src_lt
-                = const_cast<impl::logical_tensor_t *>(
-                        &outputs.at(pool_bwd::kDiff_src));
-        const desc diff_src {*diff_src_lt};
+        std::string data_format = op->get_attr<std::string>("data_format");
+        size_t diff_dst_index
+                = (op->get_kind() == impl::op_kind::MaxPoolBackprop
+                          && inputs.size() > 2)
+                ? 2
+                : 1;
+        impl::logical_tensor_t src_lt = inputs.at(pool_bwd::kSrc);
+        impl::logical_tensor_t in_grad_lt = inputs.at(diff_dst_index);
+        impl::logical_tensor_t diff_src_lt = outputs.at(pool_bwd::kDiff_src);
 
         dims strides = op->get_attr<dims>("strides");
         dims kernel = op->get_attr<dims>("kernel");
         dims pads_begin = op->get_attr<dims>("pads_begin");
         dims pads_end = op->get_attr<dims>("pads_end");
+        dims dilations(strides.size(), 0);
+        if (op->has_attr("dilations")) {
+            dilations = op->get_attr<dims>("dilations");
+        }
+
+        auto src = make_dnnl_memory_desc(src_lt);
+        auto in_grad = make_dnnl_memory_desc(in_grad_lt);
+        auto diff_src = make_dnnl_memory_desc(diff_src_lt);
+        if (data_format == "NXC") {
+            src = permute_NXC2NCX(src);
+            in_grad = permute_NXC2NCX(in_grad);
+            diff_src = permute_NXC2NCX(diff_src);
+        }
+
+        // infer dnnl expilicit pad
+        dims new_pads_end(pads_end);
+        bool adj_pad = false;
+        std::string rounding_type = "floor";
+        if (op->has_attr("rounding_type")) {
+            rounding_type = op->get_attr<std::string>("rounding_type");
+        }
+        if (rounding_type == "ceil") {
+            dims src_sp = src.dims();
+            src_sp.erase(src_sp.begin(), src_sp.begin() + 2);
+            dims output_sp = in_grad.dims();
+            output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
+            for (size_t i = 0; i < kernel.size(); ++i) {
+                dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
+                if (op->get_kind() == impl::op_kind::AvgPoolBackprop)
+                    dilated += 1;
+                dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
+                        - src_sp[i] - pads_begin[i];
+                new_pads_end[i] = cur_pads_end;
+            }
+            adj_pad = true;
+        }
 
         kind_ = op->get_kind();
         algorithm algo = algorithm::undef;
-        dims dilations {};
         if (kind_ == impl::op_kind::AvgPoolBackprop) {
-            bool exclude_pad = op->get_attr<bool>("exclude_pad");
-            algo = exclude_pad ? algorithm::pooling_avg_exclude_padding
-                               : algorithm::pooling_avg_include_padding;
-            dilations = dims(strides.size(), 0);
+            const bool exclude_pad = op->get_attr<bool>("exclude_pad");
+            algo = (exclude_pad || adj_pad)
+                    ? algorithm::pooling_avg_exclude_padding
+                    : algorithm::pooling_avg_include_padding;
         } else if (kind_ == impl::op_kind::MaxPoolBackprop) {
             algo = algorithm::pooling_max;
-            dilations = op->get_attr<dims>("dilations");
-            // default dilations are all 1s but in primitive, they're 0s.
-            std::for_each(dilations.begin(), dilations.end(),
-                    [](dim_t &v) { v -= 1; });
+            dilations = get_compatible_dilates(dilations, src.dims().size());
         } else {
             return status::unsupported;
         }
 
         p_engine_ = make_dnnl_engine(*g_engine);
+        in_grad = to_format_any(in_grad);
         forward_hints_ = dnnl::pooling_v2_forward::primitive_desc(
-                {prop_kind::forward_training, algo, src, diff_dst, strides,
-                        kernel, dilations, pads_begin, pads_end},
+                {prop_kind::forward_training, algo, src, in_grad, strides,
+                        kernel, dilations, pads_begin, new_pads_end},
                 p_engine_);
 
-        pd_ = primitive_desc({algo, src, diff_dst, strides, kernel, dilations,
-                                     pads_begin, pads_end},
+        pd_ = primitive_desc({algo, diff_src, in_grad, strides, kernel,
+                                     dilations, pads_begin, new_pads_end},
                 p_engine_, forward_hints_);
 
-        const dnnl_tensor_t::desc_t optimal_diff_src_desc {pd_.diff_src_desc()};
-        fill_layout_info(diff_src_lt, optimal_diff_src_desc);
+        dnnl_tensor_t::desc_t optimal_diff_src_desc {pd_.diff_src_desc()};
+        impl::logical_tensor_t *raw_diff_src_lt
+                = const_cast<impl::logical_tensor_t *>(
+                        &outputs.at(pool_bwd::kDiff_src));
+        if (data_format == "NXC") {
+            optimal_diff_src_desc = permute_NCX2NXC(optimal_diff_src_desc);
+        }
+        fill_layout_info(raw_diff_src_lt, optimal_diff_src_desc);
         return impl::status::success;
     }
 
@@ -374,24 +415,42 @@ public:
             const std::vector<impl::tensor_t> &outputs) override {
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
+        std::string data_format = op->get_attr<std::string>("data_format");
+        auto diff_dst_index = (op->get_kind() == impl::op_kind::MaxPoolBackprop
+                                      && inputs.size() > 2)
+                ? 2
+                : 1;
+        auto &src_lt = const_cast<impl::logical_tensor_t &>(
+                inputs.at(pool_bwd::kSrc).get_logical_tensor());
+        auto &in_grad_lt = const_cast<impl::logical_tensor_t &>(
+                inputs.at(diff_dst_index).get_logical_tensor());
+        auto &diff_src_lt = const_cast<impl::logical_tensor_t &>(
+                outputs.at(pool_bwd::kDiff_src).get_logical_tensor());
 
-        dnnl_tensor_t src {inputs.at(pool_bwd::kSrc), p_engine_, alc};
+        auto src_desc = make_dnnl_memory_desc(src_lt);
+        auto in_grad_desc = make_dnnl_memory_desc(in_grad_lt);
+        auto diff_src_desc = make_dnnl_memory_desc(diff_src_lt);
+
+        if (data_format == "NXC") {
+            src_desc = permute_NXC2NCX(src_desc);
+            in_grad_desc = permute_NXC2NCX(in_grad_desc);
+            diff_src_desc = permute_NXC2NCX(diff_src_desc);
+        }
+
+        dnnl_tensor_t src {src_desc, p_engine_, alc,
+                inputs.at(pool_bwd::kSrc).get_data_handle()};
         dnnl_tensor_t diff_dst {};
         dnnl_tensor_t indices {};
         if (op->get_kind() == impl::op_kind::MaxPoolBackprop
                 && inputs.size() > pool_bwd_with_indices::kDiff_dst) {
-            diff_dst = dnnl_tensor_t {
-                    inputs.at(pool_bwd_with_indices::kDiff_dst), p_engine_,
-                    alc};
             indices = dnnl_tensor_t {
                     inputs.at(pool_bwd_with_indices::kIndices), p_engine_, alc};
-        } else {
-            diff_dst = dnnl_tensor_t {
-                    inputs.at(pool_bwd::kDiff_dst), p_engine_, alc};
         }
+        diff_dst = dnnl_tensor_t {in_grad_desc, p_engine_, alc,
+                inputs.at(diff_dst_index).get_data_handle()};
 
-        dnnl_tensor_t diff_src {
-                outputs.at(pool_bwd::kDiff_src), p_engine_, alc};
+        dnnl_tensor_t diff_src {diff_src_desc, p_engine_, alc,
+                outputs.at(pool_bwd::kDiff_src).get_data_handle()};
         pooling_backward::compute(
                 diff_dst, src, diff_src, p_engine_, alc, p_stream_, indices);
         return impl::status::success;

@@ -1689,11 +1689,6 @@ TEST(OpSchema, MaxPoolBackprop) {
     }
 }
 
-TEST(OpSchema, InferMaxPoolBackpropOutputShape) {
-    const op_kind_t op_kind_ = op_kind::MaxPoolBackprop;
-
-    verify_two_ins_identity_shape_infer(op_kind_);
-}
 TEST(OpSchema, Minimum) {
     const op_kind_t op_kind_ = op_kind::Minimum;
     const size_t expected_in_size = 2;
