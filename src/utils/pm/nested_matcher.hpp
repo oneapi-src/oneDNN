@@ -154,6 +154,8 @@ protected:
 };
 
 bool has_commutative_inputs(op_t *op);
+
+bool has_variadic_inputs(op_t *op);
 //
 // match a pattern node by checking paired graph op's attributes
 // and pair pattern node neighboring nodes with graph op's neighboring

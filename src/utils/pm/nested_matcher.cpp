@@ -29,9 +29,14 @@ namespace utils {
 namespace pm {
 
 bool has_commutative_inputs(op_t *op) {
-    static std::unordered_set<op_kind_t> commutative_kinds {
+    static const std::unordered_set<op_kind_t> commutative_kinds {
             op_kind::Add, op_kind::Multiply};
     return commutative_kinds.count(op->get_kind());
+}
+
+bool has_variadic_inputs(op_t *op) {
+    static const std::unordered_set<op_kind_t> variadic_kinds {op_kind::Concat};
+    return variadic_kinds.count(op->get_kind());
 }
 
 binding_t::binding_t(node_bind_kind p_kind, op_t *p_op, int64_t p_op_port,
@@ -64,7 +69,12 @@ bool match_node_inputs(op_t *op, pb_node *node, match_context_t *ctx,
     std::unordered_map<op_t *, pb_op *> copied_op_map = matched_op_map;
     if (!has_commutative_inputs(op)) {
         for (size_t i = 0; i < node_inputs.size(); ++i) {
-            if (op->num_inputs() < i + 1) return false;
+            if (op->num_inputs() < i + 1) {
+                if (has_variadic_inputs(op))
+                    break;
+                else
+                    return false;
+            }
             std::shared_ptr<value_t> op_in_value = op->get_input_value(i);
             if (!op_in_value->has_producer()) return false;
             op_t *in_op = op->get_input_op(i);
@@ -106,6 +116,7 @@ bool match_node_inputs(op_t *op, pb_node *node, match_context_t *ctx,
             if (matched_op_input_offset == op->num_inputs()) return false;
         }
     }
+
     matched_op_map = copied_op_map;
     return true;
 }
