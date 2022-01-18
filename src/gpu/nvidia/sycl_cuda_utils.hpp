@@ -55,6 +55,11 @@ namespace nvidia {
             ->buffer() \
             .get_access<::sycl::access::mode::read_write>(cgh)
 
+#define CTX_SCRATCH_OFFSET(arg) \
+    utils::downcast<sycl::sycl_buffer_memory_storage_t *>( \
+            ctx.get_scratchpad_grantor().get_memory_storage(arg).get()) \
+            ->base_offset()
+
 bool compare_cuda_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
 
 // Check if the device type matches the passed engine kind

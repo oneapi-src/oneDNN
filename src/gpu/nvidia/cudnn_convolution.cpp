@@ -47,24 +47,21 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
         const bool use_temp_dst = pd()->use_temp_dst();
 
         if (with_scratchpad) {
-            scratch_acc = std::make_shared<scratch_acc_t>(
-                    utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
-                            ctx.get_scratchpad_grantor()
-                                    .get_memory_storage(memory_tracking::names::
-                                                    key_conv_cudnn_algo)
-                                    .get())
-                            ->buffer()
-                            .get_access<::sycl::access::mode::read_write>(cgh));
+            scratch_acc = std::make_shared<scratch_acc_t>(CTX_SCRATCH_ACCESSOR(
+                    memory_tracking::names::key_conv_cudnn_algo));
         }
         if (with_bias) {
             bias_acc = std::make_shared<
                     ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::read>>(
                     CTX_IN_ACCESSOR(DNNL_ARG_BIAS));
         }
+        size_t filter_offset = 0;
         if (pd()->impl_->using_transformed_filter()) {
             filter_scratch_acc
                     = std::make_shared<scratch_acc_t>(CTX_SCRATCH_ACCESSOR(
                             memory_tracking::names::key_conv_cudnn_filter));
+            filter_offset = CTX_SCRATCH_OFFSET(
+                    memory_tracking::names::key_conv_cudnn_filter);
         }
 
         if (use_temp_dst) {
@@ -91,7 +88,9 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
             args.push_back(with_scratchpad ? sc.memory<void *>(ih, *scratch_acc)
                                            : nullptr);
             args.push_back(pd()->impl_->using_transformed_filter()
-                            ? sc.memory<void *>(ih, *filter_scratch_acc)
+                            ? static_cast<void *>(sc.memory<uint8_t *>(ih,
+                                                          *filter_scratch_acc)
+                                    + filter_offset)
                             : nullptr);
             args.push_back(use_temp_dst ? sc.memory<void *>(ih, *temp_dst_acc)
                                         : nullptr);
@@ -119,15 +118,10 @@ status_t cudnn_convolution_bwd_data_t::execute_convolution(
                 bias_acc;
         std::shared_ptr<scratch_acc_t> scratch_acc;
         std::shared_ptr<scratch_acc_t> filter_scratch_acc;
+        size_t filter_offset = 0;
         if (with_scratchpad) {
-            scratch_acc = std::make_shared<scratch_acc_t>(
-                    utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
-                            ctx.get_scratchpad_grantor()
-                                    .get_memory_storage(memory_tracking::names::
-                                                    key_conv_cudnn_algo)
-                                    .get())
-                            ->buffer()
-                            .get_access<::sycl::access::mode::read_write>(cgh));
+            scratch_acc = std::make_shared<scratch_acc_t>(CTX_SCRATCH_ACCESSOR(
+                    memory_tracking::names::key_conv_cudnn_algo));
         }
         if (with_bias) {
             bias_acc = std::make_shared<
@@ -138,6 +132,8 @@ status_t cudnn_convolution_bwd_data_t::execute_convolution(
             filter_scratch_acc
                     = std::make_shared<scratch_acc_t>(CTX_SCRATCH_ACCESSOR(
                             memory_tracking::names::key_conv_cudnn_filter));
+            filter_offset = CTX_SCRATCH_OFFSET(
+                    memory_tracking::names::key_conv_cudnn_filter);
         }
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -154,7 +150,9 @@ status_t cudnn_convolution_bwd_data_t::execute_convolution(
             args.push_back(with_scratchpad ? sc.memory<void *>(ih, *scratch_acc)
                                            : nullptr);
             args.push_back(pd()->impl_->using_transformed_filter()
-                            ? sc.memory<void *>(ih, *filter_scratch_acc)
+                            ? static_cast<void *>(sc.memory<uint8_t *>(ih,
+                                                          *filter_scratch_acc)
+                                    + filter_offset)
                             : nullptr);
             pd()->impl_->execute(handle, args);
         });
@@ -219,10 +217,13 @@ status_t cudnn_convolution_bwd_weights_t::execute_convolution(
                     ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::write>>(
                     CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_BIAS));
         }
+        int filter_offset = 0;
         if (pd()->impl_->using_transformed_filter()) {
             filter_scratch_acc
                     = std::make_shared<scratch_acc_t>(CTX_SCRATCH_ACCESSOR(
                             memory_tracking::names::key_conv_cudnn_filter));
+            filter_offset = CTX_SCRATCH_OFFSET(
+                    memory_tracking::names::key_conv_cudnn_filter);
         }
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
@@ -240,7 +241,9 @@ status_t cudnn_convolution_bwd_weights_t::execute_convolution(
             args.push_back(with_scratchpad ? sc.memory<void *>(ih, *scratch_acc)
                                            : nullptr);
             args.push_back(pd()->impl_->using_transformed_filter()
-                            ? sc.memory<void *>(ih, *filter_scratch_acc)
+                            ? static_cast<void *>(sc.memory<uint8_t *>(ih,
+                                                          *filter_scratch_acc)
+                                    + filter_offset)
                             : nullptr);
             pd()->impl_->execute(handle, args);
         });
