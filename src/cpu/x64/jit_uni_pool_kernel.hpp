@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,7 +46,8 @@ struct jit_uni_pool_kernel : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_pool_kernel)
 
     static status_t init_conf(jit_pool_conf_t &jbp,
-            memory_tracking::registrar_t &scratchpad, const pooling_pd_t *ppd);
+            memory_tracking::registrar_t &scratchpad, primitive_attr_t &attr,
+            const pooling_pd_t *ppd);
 
 private:
     using Xmm = Xbyak::Xmm;

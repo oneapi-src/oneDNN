@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +32,8 @@ using namespace alg_kind;
 #define GET_OFF(field) offsetof(jit_pool_call_s, field)
 
 static bcast_set_t get_supported_bcast_strategies() {
-    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc};
+    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+            broadcasting_strategy_t::no_broadcast};
 }
 
 template <cpu_isa_t isa>
@@ -61,11 +62,13 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
         if (high_half_block_empty) postop_tail -= sse41_single_block_size;
 
         const binary_injector::rhs_arg_static_params_t rhs_sp {
-                static_cast<std::size_t>(this->xmm4.getIdx()), this->rax,
-                this->rdx, preserve_gpr, preserve_vmm,
-                GET_OFF(post_ops_binary_rhs_arg_vec),
-                memory_desc_wrapper(*dst_md), postop_tail, k_c_tail_mask,
-                use_exact_tail_scalar_bcast};
+                static_cast<std::size_t>(this->xmm4.getIdx()), this->r14,
+                this->r15, preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
+                memory_desc_wrapper(jpp.tag_kind == jit_memory_tag_kind_t::ncsp
+                                ? *(jpp.tmp_md)
+                                : *dst_md),
+                postop_tail, k_c_tail_mask, use_exact_tail_scalar_bcast};
 
         const binary_injector::static_params_t bsp {
                 reg_param, get_supported_bcast_strategies(), rhs_sp};
@@ -76,9 +79,34 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
     }
 }
 
+static status_t set_binary_postops_formats(
+        post_ops_t &post_ops, const memory_desc_t *dst_md) {
+    for (int idx = 0; idx < post_ops.len(); ++idx) {
+        if (!post_ops.contain(primitive_kind::binary, idx)) continue;
+
+        auto &src1_md = post_ops.entry_[idx].binary.src1_desc;
+        const memory_desc_wrapper src1_mdw(src1_md);
+        if (!src1_mdw.format_any()) {
+            if (src1_mdw.is_blocking_desc())
+                continue;
+            else
+                return status::unimplemented;
+        }
+
+        const memory_desc_wrapper dst_mdw(dst_md);
+        assert(!dst_mdw.format_any());
+
+        CHECK(memory_desc_init_by_blocking_desc(
+                src1_md, dst_mdw.blocking_desc()));
+    }
+
+    return status::success;
+}
+
 template <cpu_isa_t isa>
 status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
-        memory_tracking::registrar_t &scratchpad, const pooling_pd_t *ppd) {
+        memory_tracking::registrar_t &scratchpad, primitive_attr_t &attr,
+        const pooling_pd_t *ppd) {
 
     const auto &pd = *ppd->desc();
     const memory_desc_wrapper src_d(
@@ -148,12 +176,20 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
 
     if (!dst_d.matches_tag(fmt_tag)) return status::unimplemented;
 
+    if (!post_ops_ok(jpp, attr, dst_d)) return status::unimplemented;
+
     if (fmt_tag == ncsp_fmt_tag) {
         // transform input to blocked f32, call f32 jit, transform result to
         // plain output
         jpp.is_bf16 = false;
         jpp.dt_size = types::data_type_size(data_type::f32);
         jpp.tag_kind = jit_memory_tag_kind_t::ncsp;
+
+        // used to initialize binary post-ops
+        if (ppd->is_fwd() && jpp.with_binary) {
+            CHECK(dnnl_memory_desc_init_by_tag(jpp.tmp_md, ndims,
+                    dst_d.md_->dims, data_type::f32, blocked_fmt_tag));
+        }
     } else {
         jpp.is_bf16 = (src_d.data_type() == data_type::bf16
                 && dst_d.data_type() == data_type::bf16);
@@ -161,6 +197,12 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
         jpp.tag_kind = (fmt_tag == nspc_fmt_tag)
                 ? jit_memory_tag_kind_t::nspc
                 : jit_memory_tag_kind_t::blocked;
+    }
+
+    if (ppd->is_fwd() && jpp.with_binary) {
+        CHECK(set_binary_postops_formats(attr.post_ops_,
+                jpp.tag_kind == jit_memory_tag_kind_t::ncsp ? jpp.tmp_md
+                                                            : dst_d.md_));
     }
 
     jpp.isa = (jpp.is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16
@@ -284,9 +326,6 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
         scratchpad.book<uint32_t>(key_pool_ind_plain2blocked_cvt,
                 jpp.c_block * jpp.od * jpp.oh * jpp.ow * nscr);
     }
-
-    const auto attr = *ppd->attr();
-    if (!post_ops_ok(jpp, attr, dst_d)) return status::unimplemented;
 
     jpp.post_ops = attr.post_ops_;
 
@@ -481,18 +520,30 @@ void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block,
 
     if (jpp.with_binary && !sse41_postops_disabled) {
 
-        static constexpr int sse41_simd_w
-                = cpu_isa_traits<sse41>::vlen / sizeof(float);
-        const int sse_elem_off = sse_high_half ? sse41_simd_w : 0;
+        const int c_off = (jpp.tag_kind == jit_memory_tag_kind_t::nspc)
+                ? jpp.c
+                : c_block;
+
+        if (jpp.tag_kind == jit_memory_tag_kind_t::ncsp) {
+            mov(tmp_gpr, reg_output);
+            sub(tmp_gpr, ptr[reg_param + GET_OFF(dst)]);
+            add(tmp_gpr, ptr[reg_param + GET_OFF(dst_po_helper)]);
+        }
 
         for (int jj = 0; jj < ur_w; jj++) {
             for (int bci = 0; bci < ur_bc; bci++) {
                 const auto vmm_idx
                         = vreg(reg_ind(0, bci, jj, ur_bc, ur_w)).getIdx();
-                rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                        vmm_idx, ptr[reg_param + GET_OFF(c_elem_off)]);
-                rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                        vmm_idx, bci * c_block + sse_elem_off);
+
+                const size_t output_offset
+                        = jpp.dt_size * (jj * c_off + bci * c_block);
+
+                rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx,
+                        jpp.tag_kind == jit_memory_tag_kind_t::ncsp
+                                ? tmp_gpr
+                                : reg_output);
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        vmm_idx, output_offset);
                 if (is_tail_predicate
                         && is_tail_predicate(
                                 bci, true /*process_with_postops*/)) {

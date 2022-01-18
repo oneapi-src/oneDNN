@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017 - 2021 Intel Corporation
+* Copyright 2017 - 2022 Intel Corporation
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -541,7 +541,9 @@ status_t jit_uni_pooling_fwd_t<isa, d_type>::init_ncsp_trans_ctx() {
 }
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
-jit_uni_pooling_fwd_t<isa, d_type>::~jit_uni_pooling_fwd_t() = default;
+jit_uni_pooling_fwd_t<isa, d_type>::~jit_uni_pooling_fwd_t() {
+    delete pd()->jpp_.tmp_md;
+}
 
 template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
@@ -581,7 +583,6 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
                 = ((jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c_block
                                                                  : 1)
                 * b_c;
-        const int c_elem_off = jpp.c_block * b_c;
 
         if (trans_src)
             arg.src = transpose_facade.get_src_addr(ithr, ih, jpp);
@@ -589,11 +590,22 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
             arg.src = static_cast<const void *>(
                     &src[src_d.blk_off(n, c_off, ih)]);
 
-        if (trans_dst)
+        arg.dst_orig = dst;
+        if (trans_dst) {
             arg.dst = transpose_facade.get_dst_addr(ithr, oh, jpp);
-        else
+            if (jpp.tmp_md != nullptr) {
+                const memory_desc_wrapper tmp_d
+                        = memory_desc_wrapper(jpp.tmp_md);
+                // offset needs to be f32
+                const auto blk_off = d_type == data_type::bf16
+                        ? tmp_d.blk_off(n, c_off, oh) * 2
+                        : tmp_d.blk_off(n, c_off, oh);
+                arg.dst_po_helper = static_cast<const void *>(&dst[blk_off]);
+            }
+        } else {
             arg.dst = static_cast<const void *>(
                     &dst[dst_d.blk_off(n, c_off, oh)]);
+        }
 
         if (indices) {
             if (trans_dst)
@@ -612,7 +624,6 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
         arg.ur_bc = ur_bc;
         arg.b_c = b_c;
         arg.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
-        arg.c_elem_off = c_elem_off;
         (*kernel_)(&arg);
     };
 
@@ -707,10 +718,21 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
         else
             arg.src = &src[src_d.blk_off(n, c_off, id, ih)];
 
-        if (trans_dst)
+        arg.dst_orig = dst;
+        if (trans_dst) {
             arg.dst = transpose_facade.get_dst_addr_3d(ithr, od, oh, jpp);
-        else
+            if (jpp.tmp_md != nullptr) {
+                const memory_desc_wrapper tmp_d
+                        = memory_desc_wrapper(jpp.tmp_md);
+                // offset needs to be f32
+                const auto blk_off = d_type == data_type::bf16
+                        ? tmp_d.blk_off(n, c_off, od, oh) * 2
+                        : tmp_d.blk_off(n, c_off, od, oh);
+                arg.dst_po_helper = static_cast<const void *>(&dst[blk_off]);
+            }
+        } else {
             arg.dst = &dst[dst_d.blk_off(n, c_off, od, oh)];
+        }
 
         if (indices) {
             if (trans_dst) {
@@ -740,7 +762,6 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
         arg.ur_bc = ur_bc;
         arg.b_c = b_c;
         arg.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
-        arg.c_elem_off = jpp.c_block * b_c;
         (*kernel_)(&arg);
     };
 

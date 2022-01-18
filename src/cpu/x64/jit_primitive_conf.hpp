@@ -673,6 +673,7 @@ struct jit_pool_conf_t {
     bool with_eltwise;
     bool with_binary;
     int nthr;
+    memory_desc_t *tmp_md = nullptr;
 };
 
 struct jit_pool_call_s {
@@ -684,7 +685,7 @@ struct jit_pool_call_s {
     const void *indices_prf;
     const void *post_ops_binary_rhs_arg_vec;
     const void *dst_orig;
-    size_t c_elem_off;
+    const void *dst_po_helper;
     size_t zero_ih;
     size_t zero_id;
     const void *zero_ptr;

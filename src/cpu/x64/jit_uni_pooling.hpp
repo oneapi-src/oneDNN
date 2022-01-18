@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,8 +56,7 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
                             d_type, src_md()->data_type, dst_md()->data_type)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, d_type)
-                    && !is_dilated() && set_default_params() == status::success
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
+                    && !is_dilated() && set_default_params() == status::success;
             if (!ok) return status::unimplemented;
 
             const bool is_training
@@ -66,7 +65,9 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
                 init_default_ws();
 
             auto scratchpad = scratchpad_registry().registrar();
-            CHECK(jit_uni_pool_kernel<isa>::init_conf(jpp_, scratchpad, this));
+
+            CHECK(jit_uni_pool_kernel<isa>::init_conf(
+                    jpp_, scratchpad, attr_, this));
 
             return status::success;
         }
@@ -133,7 +134,9 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
             }
 
             auto scratchpad = scratchpad_registry().registrar();
-            CHECK(jit_uni_pool_kernel<isa>::init_conf(jpp_, scratchpad, this));
+
+            CHECK(jit_uni_pool_kernel<isa>::init_conf(
+                    jpp_, scratchpad, attr_, this));
 
             return status::success;
         }
