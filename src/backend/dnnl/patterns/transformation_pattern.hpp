@@ -36,19 +36,19 @@ namespace dnnl_impl {
 namespace pass {
 
 /*!
- * \brief transformation_pass generates an optimized graph
+ * \brief transformation_pass_t generates an optimized graph
  *        when the pass is hit, it can be op replacements,
  *        dead branch elimination, etc.
  */
-class transformation_pass : public impl::pass::pass_base {
+class transformation_pass_t : public impl::pass::pass_base {
 public:
-    explicit transformation_pass(std::string pbackend, std::string pname)
+    explicit transformation_pass_t(std::string pbackend, std::string pname)
         : impl::pass::pass_base(impl::pass::pass_type::kTransformation,
                 std::move(pbackend), std::move(pname)) {}
 
     static impl::pass::pass_base_ptr create(
             std::string pbackend, std::string pname) {
-        return std::make_shared<transformation_pass>(
+        return std::make_shared<transformation_pass_t>(
                 std::move(pbackend), std::move(pname));
     }
 
@@ -127,7 +127,7 @@ public:
 #define DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS( \
         backend_name, pass_class_name) \
     registry.register_pass( \
-            #backend_name, #pass_class_name, &transformation_pass::create)
+            #backend_name, #pass_class_name, &transformation_pass_t::create)
 
 #define DNNL_BACKEND_REGISTER_PASSES_DECLARE(passes_class_) \
     void register_##passes_class_(impl::pass::pass_registry_t &registry);
