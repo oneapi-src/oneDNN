@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ static void transed_matmul(const std::shared_ptr<sc_graph_t> &graph,
         any_map_t &attrs, bool is_batch, const graph_tensor_ptr &ins0,
         const graph_tensor_ptr &ins1, graph_tensor_ptr &trans0,
         graph_tensor_ptr &trans1) {
-    if (attrs.get<bool>("transpose_a")) {
+    if (attrs.get_or_else("transpose_a", false)) {
         auto original_dims = ins0->details_.get_plain_dims();
         sc_dims transed_plain_dims(original_dims.begin(), original_dims.end());
         std::swap(transed_plain_dims[transed_plain_dims.size() - 1],
@@ -54,10 +54,12 @@ static void transed_matmul(const std::shared_ptr<sc_graph_t> &graph,
         trans0 = graph->make("transpose", {ins0}, {out}, {{"axes", axes}})
                          ->get_outputs()[0];
         attrs.set("transpose_a", false);
+    } else {
+        attrs.set("transpose_a", false);
     }
 
     // if transpose_b is true: need to permute
-    if (attrs.get<bool>("transpose_b")) {
+    if (attrs.get_or_else("transpose_b", false)) {
         auto original_dims = ins1->details_.get_plain_dims();
         sc_dims transed_plain_dims(original_dims.begin(), original_dims.end());
         std::swap(transed_plain_dims[transed_plain_dims.size() - 1],
@@ -68,6 +70,8 @@ static void transed_matmul(const std::shared_ptr<sc_graph_t> &graph,
                 ins1->details_.get_format(), ins1->details_.dtype_);
         trans1 = graph->make("transpose", {ins1}, {out}, {{"axes", axes}})
                          ->get_outputs()[0];
+        attrs.set("transpose_b", false);
+    } else {
         attrs.set("transpose_b", false);
     }
 }
@@ -81,7 +85,7 @@ std::shared_ptr<sc_graph_t> matmul_op::get_graph() {
     auto ins = graph->make_input(inputs);
     sc_op_ptr matmul, graph_out;
 
-    // analysis matmul is batch_matmul2d or matmul2d which is tunable op by
+    // analysis matmul is matmul_core_op_t which is tunable op by
     // inputs[0](the left matrix) and inputs[1](the right matrix).
     graph_tensor_ptr trans0 = ins->get_outputs()[0],
                      trans1 = ins->get_outputs()[1];
@@ -99,16 +103,10 @@ std::shared_ptr<sc_graph_t> matmul_op::get_graph() {
         is_bf16 = true;
     }
 
-    if (inputs[0]->details_.get_plain_dims().size() > 2) {
-        matmul = graph->make("batch_matmul", {trans0, trans1}, {}, {});
-        if (is_bf16) {
-            matmul = graph->make("cast", matmul->get_outputs(), {},
-                    {{"dtype", datatypes::bf16}});
-        }
-
-    } else {
-        throw std::runtime_error(
-                "Matrix multiplication with 2d dimensions is not supported");
+    matmul = graph->make("matmul_core", {trans0, trans1}, {}, {});
+    if (is_bf16) {
+        matmul = graph->make("cast", matmul->get_outputs(), {},
+                {{"dtype", datatypes::bf16}});
     }
 
     // check optional input lotgical tensor: bias
@@ -137,6 +135,6 @@ void matmul_op::query_format(context_ptr ctx,
 
 } // namespace ops
 
-// matmul op is graph op, matmul2d and batch_matmul2d is tunable op
+// matmul op is graph op, matmul_core_op_t is tunable op
 OP_REGISTER(::sc::ops::matmul_op, matmul)
 } // namespace sc

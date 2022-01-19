@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ namespace sc {
 namespace quantize {
 
 static std::unordered_set<std::string> data_wei_op_set
-        = {"matmul2d_new", "conv_fwd", "batch_matmul"};
+        = {"conv_fwd", "matmul_core"};
 // quantize awared nodes search starts from dequantize node and end in
 // quantize node.
 static std::vector<std::pair<int, sc_op_ptr>> find_quantize_aware_nodes(

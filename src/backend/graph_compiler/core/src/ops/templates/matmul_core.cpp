@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,9 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "batch_matmul.hpp"
+#include "matmul_core.hpp"
 #include <algorithm>
 #include <string>
-#include "matmul2d.hpp"
 #include "utils.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/easy_build.hpp>
@@ -25,7 +24,8 @@
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
 #include <microkernel/builtin.hpp>
-#include <ops/batch_matmul.hpp>
+#include <ops/matmul_core.hpp>
+#include <runtime/config.hpp>
 #include <runtime/parallel.hpp>
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
@@ -34,13 +34,9 @@ using namespace sc::builder;
 namespace sc {
 namespace ops {
 
-static bool is_valid_num_tiles(int K_num_tile, int K_num_blocks) {
-  return K_num_tile <= K_num_blocks && K_num_blocks % K_num_tile == 0;
-}
-
 static sc_dim get_dims_product(const sc_dims &dims) {
   if (dims.empty()) { return 0; }
-  int ret = 1;
+  sc_dim ret = 1;
   for (size_t i = 0; i < dims.size(); ++i) {
     ret *= dims[i];
   }
@@ -60,7 +56,7 @@ static std::vector<T> concat_vec(
 // check if cfg is valid for lower library, fallback to a default value if is
 // not valid
 static void inline validate_cfg(
-  batch_matmul_config &cfg, bool is_amx, sc_data_type_t dtype) {
+  matmul_core_config_t &cfg, bool is_amx, sc_data_type_t dtype) {
   if (!is_amx) return;
   int rd_block = dtype == datatypes::bf16
     ? 32
@@ -85,19 +81,20 @@ static void inline validate_cfg(
 // to 16x for f32/s32, and should be close to M_blk, rnd_dn(M_blk, 16) is fine
 // 3. smaller M*K should use 32 as k_blk, threshold is still testing
 
-std::shared_ptr<void> gen_batch_matmul_t::get_default_config(
+std::shared_ptr<void> gen_matmul_core_t::get_default_config(
   context_ptr ctx) const {
-  auto ret = std::make_shared<batch_matmul_config>();
+  // todo:(xianhang) take into consideration num thread information from
+  // threadpool
+  auto ret = std::make_shared<matmul_core_config_t>();
   const bool is_amx = is_use_amx(ctx);
   const bool is_int8
     = utils::is_one_of(get_in_dtypes(0), datatypes::u8, datatypes::s8);
   const bool is_bf16 = get_in_dtypes(0) == datatypes::bf16;
   const int max_block = 64;
   const int min_block = 32;
-  batch_matmul_config &cfg = *ret;
+  matmul_core_config_t &cfg = *ret;
   auto A_plain_dims = get_mma_plain_dims();
   std::vector<int> possible_blks;
-  cfg.num_tile_k = 1;
   cfg.K_block = 64;
   if (in_tensors_[0].get_format().is_blocking()) {
     cfg.M_block = in_tensors_[0].get_format().blocks_[0];
@@ -108,37 +105,44 @@ std::shared_ptr<void> gen_batch_matmul_t::get_default_config(
     return ret;
   } else {
     assert(A_plain_dims.size() == 2);
-    int M = A_plain_dims[0];
-    int K = A_plain_dims[1];
-    cfg.M_block = 0;
-    for (int m = max_block; m >= min_block; m--) {
-      if (M % m == 0) { possible_blks.emplace_back(m); }
-    }
-    for (const auto &blk : possible_blks) {
-      if (blk % 2 == 0) {
-        cfg.M_block = blk;
-        break;
+    int M = static_cast<int>(A_plain_dims[0]);
+    int K = static_cast<int>(A_plain_dims[1]);
+    if (get_a_batch_dims().empty() && get_b_batch_dims().empty()) {
+      // matmul2d default config
+      cfg.M_block = std::min(M, 64);
+      cfg.K_block = std::min(K, 64);
+    } else {
+      // bmm default config
+      cfg.M_block = 0;
+      for (int m = max_block; m >= min_block; m--) {
+        if (M % m == 0) { possible_blks.emplace_back(m); }
       }
-    }
-    if (cfg.M_block == 0) {
-      if (!possible_blks.empty()) {
-        cfg.M_block = possible_blks.front();
-      } else {
-        if (M > 64) {
-          int ceil64_M = sc::utils::rnd_up(M, 64);
-          int ceil48_M = sc::utils::rnd_up(M, 48);
-          int ceil32_M = sc::utils::rnd_up(M, 32);
-          int pad64_M = ceil64_M - M;
-          int pad48_M = ceil48_M - M;
-          int pad32_M = ceil32_M - M;
-          if (!(is_amx && is_bf16)) {
-            cfg.M_block = pad48_M >= pad64_M ? (pad64_M > pad32_M ? 32 : 64)
-                                             : (pad48_M >= pad32_M ? 32 : 48);
-          } else {
-            cfg.M_block = pad32_M >= pad64_M ? 64 : 32;
-          }
+      for (const auto &blk : possible_blks) {
+        if (blk % 2 == 0) {
+          cfg.M_block = blk;
+          break;
+        }
+      }
+      if (cfg.M_block == 0) {
+        if (!possible_blks.empty()) {
+          cfg.M_block = possible_blks.front();
         } else {
-          cfg.M_block = std::min(M, 64);
+          if (M > 64) {
+            int ceil64_M = static_cast<int>(sc::utils::rnd_up(M, 64));
+            int ceil48_M = static_cast<int>(sc::utils::rnd_up(M, 48));
+            int ceil32_M = static_cast<int>(sc::utils::rnd_up(M, 32));
+            int pad64_M = ceil64_M - M;
+            int pad48_M = ceil48_M - M;
+            int pad32_M = ceil32_M - M;
+            if (!(is_amx && is_bf16)) {
+              cfg.M_block = pad48_M >= pad64_M ? (pad64_M > pad32_M ? 32 : 64)
+                                               : (pad48_M >= pad32_M ? 32 : 48);
+            } else {
+              cfg.M_block = pad32_M >= pad64_M ? 64 : 32;
+            }
+          } else {
+            cfg.M_block = std::min(M, 64);
+          }
         }
       }
     }
@@ -149,30 +153,37 @@ std::shared_ptr<void> gen_batch_matmul_t::get_default_config(
     cfg.N_block = in_tensors_[1].get_format().blocks_[1];
   } else {
     assert(B_plain_dims.size() == 2);
-    int N = B_plain_dims[1];
-    int K = B_plain_dims[0];
-    assert(cfg.M_block > 0);
-
-    int ceil64_N = sc::utils::rnd_up(N, 64);
-    int ceil48_N = sc::utils::rnd_up(N, 48);
-    int ceil32_N = sc::utils::rnd_up(N, 32);
-    int pad64_N = ceil64_N - N;
-    int pad48_N = ceil48_N - N;
-    int pad32_N = ceil32_N - N;
-    if (!(is_amx && is_bf16)) {
-      cfg.N_block = pad48_N >= pad64_N ? (pad64_N > pad32_N ? 32 : 64)
-                                       : (pad48_N >= pad32_N ? 32 : 48);
+    int N = static_cast<int>(B_plain_dims[1]);
+    int K = static_cast<int>(B_plain_dims[0]);
+    if (get_a_batch_dims().empty() && get_b_batch_dims().empty()) {
+      // matmul2d default config
+      assert(A_plain_dims[1] == B_plain_dims[0]);
+      cfg.N_block = std::min(N, 64);
+      cfg.K_block = std::min(K, 64);
     } else {
-      cfg.N_block = pad32_N >= pad64_N ? 64 : 32;
+      // bmm default config
+      assert(cfg.M_block > 0);
+
+      int ceil64_N = static_cast<int>(sc::utils::rnd_up(N, 64));
+      int ceil48_N = static_cast<int>(sc::utils::rnd_up(N, 48));
+      int ceil32_N = static_cast<int>(sc::utils::rnd_up(N, 32));
+      int pad64_N = ceil64_N - N;
+      int pad48_N = ceil48_N - N;
+      int pad32_N = ceil32_N - N;
+      if (!(is_amx && is_bf16)) {
+        cfg.N_block = pad48_N >= pad64_N ? (pad64_N > pad32_N ? 32 : 64)
+                                         : (pad48_N >= pad32_N ? 32 : 48);
+      } else {
+        cfg.N_block = pad32_N >= pad64_N ? 64 : 32;
+      }
+      if (N < 32) { cfg.N_block = 16; }
     }
-    if (N < 32) { cfg.N_block = 16; }
   }
-  cfg.num_tile_k = 1;
   validate_cfg(cfg, is_amx, get_in_dtypes(0));
   return ret;
 }
 
-gen_batch_matmul_t::gen_batch_matmul_t(
+gen_matmul_core_t::gen_matmul_core_t(
   std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
   : parent(std::move(ins), std::move(outs)) {
   COMPILE_ASSERT(
@@ -181,26 +192,31 @@ gen_batch_matmul_t::gen_batch_matmul_t(
     out_tensors_.size() == 1, "output logical tensor size should be one.");
 }
 
-float gen_batch_matmul_t::get_gflop() const {
-  const int plain_M = get_mma_plain_dims()[0];
-  const int plain_K = get_mma_plain_dims()[1];
-  const int plain_N = get_mmb_plain_dims()[1];
-  return 2.f * plain_M * plain_N * plain_K * get_dims_product(get_batch_dims())
-    / 1e9;
+float gen_matmul_core_t::get_gflop() const {
+  const int64_t plain_M = get_mma_plain_dims()[0];
+  const int64_t plain_K = get_mma_plain_dims()[1];
+  const int64_t plain_N = get_mmb_plain_dims()[1];
+  return get_a_batch_dims().empty() && get_a_batch_dims().empty()
+    ? 2.f * plain_M * plain_N * plain_K / 1e9
+    : 2.f * plain_M * plain_N * plain_K
+      * get_dims_product(get_a_batch_dims().size() > get_b_batch_dims().size()
+          ? get_a_batch_dims()
+          : get_b_batch_dims())
+      / 1e9;
 }
 
-void gen_batch_matmul_t::get_and_check_blocks(const logical_tensor_t &ta,
-  const logical_tensor_t &tb, const batch_matmul_config &config,
+void gen_matmul_core_t::get_and_check_blocks(const logical_tensor_t &ta,
+  const logical_tensor_t &tb, const matmul_core_config_t &config,
   int &M_num_blocks, int &K_num_blocks, int &M_block, int &K_block,
   int &N_block, int &B_K_num_blocks, int &N_num_blocks) {
   const sc_dims &A_dims = ta.get_blocking_dims();
   const sc_dims &B_dims = tb.get_blocking_dims();
-  uint8_t pds = ta.get_plain_dims().size();
-  assert(pds == tb.get_plain_dims().size());
-  const int plain_M = ta.get_plain_dims()[pds - 2];
-  const int plain_K = ta.get_plain_dims()[pds - 1];
-  const int plain_B_K = tb.get_plain_dims()[pds - 2];
-  const int plain_N = tb.get_plain_dims()[pds - 1];
+  size_t pds_a = ta.get_plain_dims().size();
+  size_t pds_b = tb.get_plain_dims().size();
+  const int plain_M = ta.get_plain_dims()[pds_a - 2];
+  const int plain_K = ta.get_plain_dims()[pds_a - 1];
+  const int plain_B_K = tb.get_plain_dims()[pds_b - 2];
+  const int plain_N = tb.get_plain_dims()[pds_b - 1];
   bool is_config_set
     = config.M_block != 0 && config.K_block != 0 && config.N_block != 0;
 
@@ -230,15 +246,14 @@ void gen_batch_matmul_t::get_and_check_blocks(const logical_tensor_t &ta,
     K_num_blocks == B_K_num_blocks, "A and B num blocks of K are not equal.");
 }
 
-void gen_batch_matmul_t::get_brgemm_and_fusion_params(
-  const logical_tensor_t &ta, const logical_tensor_t &tb,
-  const logical_tensor_t &tc, std::vector<expr> &aidx, std::vector<expr> &bidx,
-  std::vector<expr> &cidx, int &stride_a, int &stride_b,
-  std::vector<std::pair<expr, expr>> &fidx1,
+void gen_matmul_core_t::get_brgemm_and_fusion_params(const logical_tensor_t &ta,
+  const logical_tensor_t &tb, const logical_tensor_t &tc,
+  std::vector<expr> &aidx, std::vector<expr> &bidx, std::vector<expr> &cidx,
+  int &stride_a, int &stride_b, std::vector<std::pair<expr, expr>> &fidx1,
   std::vector<std::pair<expr, expr>> &fidx2) {
-  if (ta.get_format().format_code_.is_batch_format()) {
-    assert(tb.get_format().format_code_.is_batch_format()
-      && tc.get_format().format_code_.is_batch_format());
+  if (ta.get_format().format_code_.is_batch_format()
+    || tb.get_format().format_code_.is_batch_format()) {
+    assert(tc.get_format().format_code_.is_batch_format());
     return;
   }
   bool flag = false;
@@ -309,41 +324,31 @@ void gen_batch_matmul_t::get_brgemm_and_fusion_params(
   fidx2.swap(fidx2_);
 }
 
-void gen_batch_matmul_t::schedule_loops(context_ptr ctx,
-  const batch_matmul_config &config, stmt body,
+void gen_matmul_core_t::schedule_loops(context_ptr ctx,
+  const matmul_core_config_t &config, stmt body,
   std::vector<for_loop> &fors) const {
-  auto batch_dims_size = get_batch_dims().size();
-  for (size_t i = 1; i < batch_dims_size; i++) {
-    fors[0] = fors[0]->fuse(fors[i]);
-  }
-  stmts matmul_body = fors[0]->body_.static_as<stmts>();
-  scope_flatten(matmul_body, -1);
-  if (config.num_tile_k == 1) {
-    matmul_body->seq_[0].static_as<for_loop>()->unroll(0, matmul_body);
+  if (get_a_batch_dims().empty() && get_b_batch_dims().empty()) {
+    for_loop lm_c = fors.at(fors.size() - 2), ln_c = fors.back();
+    auto lmn = lm_c->fuse(ln_c);
+  } else {
+    size_t bs = std::max(get_a_batch_dims().size(), get_b_batch_dims().size());
+    for (size_t i = 1; i < bs; i++) {
+      fors[0] = fors[0]->fuse(fors[i]);
+    }
+    stmts matmul_body = fors[0]->body_.static_as<stmts>();
     scope_flatten(matmul_body, -1);
     fors[0]->fuse(matmul_body->seq_[0].static_as<for_loop>());
   }
 }
 
-bool gen_batch_matmul_t::is_valid_config(
-  const context_ptr &ctx, const batch_matmul_config &config) const {
-  const int K_num_blocks
-    = utils::divide_and_ceil(get_mma_plain_dims()[1], config.K_block);
-  auto K_num_tile = config.num_tile_k;
-  if (K_num_tile > K_num_blocks || K_num_blocks % K_num_tile != 0) {
-    return false;
-  }
-  return true;
-}
-
-bool gen_batch_matmul_t::generate(context_ptr ctx,
-  const batch_matmul_config &config, fusion_manager *fusion,
+bool gen_matmul_core_t::generate(context_ptr ctx,
+  const matmul_core_config_t &config, fusion_manager *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
-  // batch_matmul will support plain format as input in the future
+  // matmul_core will support plain format as input in the future
   COMPILE_ASSERT(!in_tensors_[0].get_format().is_plain()
       && !in_tensors_[1].get_format().is_plain(),
-    "batch_matmul should input blocking format");
+    "matmul_core should input blocking format");
 
   // Init
   auto A_dtype = get_A_dtype(), B_dtype = get_B_dtype();
@@ -366,60 +371,59 @@ bool gen_batch_matmul_t::generate(context_ptr ctx,
   } else if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
     dtype_block = 4;
   }
-  // this needs to be verified in bertBMM case
+
   if (dtype_block > 1) {
     COMPILE_ASSERT(in_tensors_[1].get_format().blocks_[2] == -1
         || in_tensors_[1].get_format().blocks_[2] == dtype_block,
       "Wrong data format of B");
   }
 
-  // TODO(xxx): return an empty func if K_num_tile value is invalid as tune
-  // space builder doesn't support nested spliting for a given dimension
-  // currently.
-  auto K_num_tile = config.num_tile_k;
-  if (K_num_tile > K_num_blocks || K_num_blocks % K_num_tile != 0) {
-    return false;
-  }
-  auto K_tile = K_num_blocks / K_num_tile;
-
-  // whether we need special compensation for microkernel.
-  bool s8s8_compensation = ctx->machine_.cpu_flags_.fAVX512VNNI
-    && A_dtype == datatypes::s8
-    && (!ctx->flags_.brgemm_use_amx_
-      || (ctx->flags_.brgemm_use_amx_
-        && !ctx->machine_.cpu_flags_.fAVX512AMXINT8));
-
-  for_loop lm_c, ln_c, l_k_t;
+  for_loop lm_c, ln_c;
 
   expr C = outputs[op_params_t::out_C];
   expr A = inputs[op_params_t::in_A];
   expr B = inputs[op_params_t::in_B];
-  auto batch_dims = get_batch_dims();
-  auto batch_dims_size = get_batch_dims().size();
-  std::vector<expr> idxs;
+  auto batch_dims = get_a_batch_dims().size() > get_b_batch_dims().size()
+    ? get_a_batch_dims()
+    : get_b_batch_dims();
+  auto batch_dims_size = batch_dims.size();
+  auto small_batch_dims_size
+    = get_a_batch_dims().size() > get_b_batch_dims().size()
+    ? get_b_batch_dims().size()
+    : get_a_batch_dims().size();
+  std::vector<expr> idxs, idxs_small;
   std::vector<for_loop> batch_loops;
   std::vector<for_range_simulator_t> ranges;
   idxs.resize(batch_dims_size);
+  idxs_small.resize(small_batch_dims_size);
   batch_loops.resize(batch_dims_size);
   ranges.reserve(batch_dims_size);
   for (size_t i = 0; i < batch_dims_size; i++) {
     ranges.emplace_back(sc::builder::range(batch_loops[i], expr(0),
       expr(dim2unsigned(batch_dims[i])), expr(1), for_type::PARALLEL));
   }
-  _nested_for_(std::move(ranges)) {
-    std::vector<std::pair<expr, expr>> batch_tensor_slice_ranges, fidx1, fidx2;
-    for (size_t i = 0; i < batch_dims_size; i++) {
-      idxs[i] = _0_nested_for.get_var();
-      idxs[i].checked_as<var>()->name_ = std::string("idx") + std::to_string(i);
-      batch_tensor_slice_ranges.emplace_back(idxs[i], 1);
-    }
-    _named_for_(l_k_t, k_o, 0, K_num_tile) {
+  if (!batch_dims.empty()) {
+    _nested_for_(std::move(ranges)) {
+      std::vector<std::pair<expr, expr>> batch_tensor_slice_ranges, fidx1,
+        fidx2;
+      for (size_t i = 0; i < batch_dims_size; i++) {
+        idxs[i] = _0_nested_for.get_var();
+        idxs[i].checked_as<var>()->name_
+          = std::string("idx") + std::to_string(i);
+        batch_tensor_slice_ranges.emplace_back(idxs[i], 1);
+      }
+      idxs_small
+        = {idxs.begin() + batch_dims_size - small_batch_dims_size, idxs.end()};
       _named_for_(lm_c, m_o, 0, M_num_blocks) {
         _named_for_(ln_c, n_o, 0, N_num_blocks) {
-          std::vector<expr> aidx
-            = concat_vec(idxs, std::vector<expr> {m_o, k_o * K_tile, 0, 0});
-          std::vector<expr> bidx
-            = concat_vec(idxs, std::vector<expr> {n_o, k_o * K_tile, 0, 0});
+          std::vector<expr> aidx = concat_vec(
+            get_a_batch_dims().size() > get_b_batch_dims().size() ? idxs
+                                                                  : idxs_small,
+            std::vector<expr> {m_o, 0, 0, 0});
+          std::vector<expr> bidx = concat_vec(
+            get_a_batch_dims().size() > get_b_batch_dims().size() ? idxs_small
+                                                                  : idxs,
+            std::vector<expr> {n_o, 0, 0, 0});
           std::vector<expr> cidx
             = concat_vec(idxs, std::vector<expr> {m_o, n_o, 0, 0});
           fidx1 = concat_vec(batch_tensor_slice_ranges,
@@ -436,46 +440,62 @@ bool gen_batch_matmul_t::generate(context_ptr ctx,
             out_tensors_[0], aidx, bidx, cidx, stride_a, stride_b, fidx1,
             fidx2);
 
-          _if_(k_o == 0) {
-            sc::builtin::brgemm_init_update(tensor_ptr(A, aidx),
-              tensor_ptr(B, bidx), tensor_ptr(C, cidx), K_tile, M_block,
-              N_block, K_block, K_block, N_block, N_block, stride_a, stride_b,
-              A_dtype, B_dtype);
-          }
-          _else_ {
-            sc::builtin::brgemm_update(tensor_ptr(A, aidx), tensor_ptr(B, bidx),
-              tensor_ptr(C, cidx), K_tile, M_block, N_block, K_block, K_block,
-              N_block, N_block, stride_a, stride_b, A_dtype, B_dtype);
-          }
-
-          // todo: this is for s8s8 vnni compensation
+          sc::builtin::brgemm_init_update(tensor_ptr(A, aidx),
+            tensor_ptr(B, bidx), tensor_ptr(C, cidx), K_num_blocks, M_block,
+            N_block, K_block, K_block, N_block, N_block, stride_a, stride_b,
+            A_dtype, B_dtype);
 
           // this is the gemm output
           if (fusion) {
-            _if_(k_o == K_num_tile - 1) {
-              std::vector<tensor_slice> fusion_inputs
-                = {tensor_slice(C, std::vector<std::pair<expr, expr>>(fidx1))};
-              fusion->create_output_fusion_anchor(fusion_inputs);
-            }
-          }
-        }
-        if (fusion) {
-          _if_(k_o == K_num_tile - 1) {
             std::vector<tensor_slice> fusion_inputs
-              = {tensor_slice(C, std::vector<std::pair<expr, expr>>(fidx2))};
+              = {tensor_slice(C, std::vector<std::pair<expr, expr>>(fidx1))};
             fusion->create_output_fusion_anchor(fusion_inputs);
           }
         }
+        if (fusion) {
+          std::vector<tensor_slice> fusion_inputs
+            = {tensor_slice(C, std::vector<std::pair<expr, expr>>(fidx2))};
+          fusion->create_output_fusion_anchor(fusion_inputs);
+        }
+      }
+      if (fusion) {
+        fusion->create_output_fusion_anchor({tensor_slice(C,
+          concat_vec(batch_tensor_slice_ranges,
+            {{0, M_num_blocks}, {0, N_num_blocks}, {0, M_block},
+              {0, N_block}}))});
       }
     }
-    if (fusion) {
-      fusion->create_output_fusion_anchor({tensor_slice(C,
-        concat_vec(batch_tensor_slice_ranges,
-          {{0, M_num_blocks}, {0, N_num_blocks}, {0, M_block},
-            {0, N_block}}))});
+  } else {
+    _named_for_(lm_c, m_o, 0, M_num_blocks, 1, for_type::PARALLEL) {
+      _named_for_(ln_c, n_o, 0, N_num_blocks) {
+        sc::builtin::brgemm_init_update(
+          tensor_ptr(A, std::vector<expr> {m_o, 0, 0, 0}),
+          tensor_ptr(B,
+            dtype_block > 1 ? std::vector<expr> {n_o, 0, 0, 0, 0}
+                            : std::vector<expr> {n_o, 0, 0, 0}),
+          tensor_ptr(C, std::vector<expr> {m_o, n_o, 0, 0}), K_num_blocks,
+          M_block, N_block, K_block, K_block, N_block, N_block,
+          M_block * K_block,
+          (int)utils::divide_and_ceil(K_block, dtype_block) * dtype_block
+            * N_block,
+          A_dtype, B_dtype);
+
+        // this is the gemm output
+        if (fusion) {
+          fusion->create_output_fusion_anchor({tensor_slice(
+            C, {{m_o, 1}, {n_o, 1}, {0, M_block}, {0, N_block}})});
+        }
+      }
+      // this is the gemm output
+      if (fusion
+        && M_num_blocks >= runtime_config_t::get().threads_per_instance_) {
+        fusion->create_output_fusion_anchor({tensor_slice(
+          C, {{m_o, 1}, {0, N_num_blocks}, {0, M_block}, {0, N_block}})});
+      }
     }
   }
-  loops = concat_vec(batch_loops, {lm_c, ln_c, l_k_t});
+
+  loops = concat_vec(batch_loops, {lm_c, ln_c});
   return true;
 }
 } // namespace ops

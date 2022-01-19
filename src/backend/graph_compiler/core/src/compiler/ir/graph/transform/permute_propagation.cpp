@@ -71,10 +71,8 @@ void permute_propagation(sc_graph_t &graph, const context_ptr &ctx) {
                 in->details_.set_format(sc_data_format_t::get_plain_by_dims(
                         (int)in->details_.get_plain_dims().size()));
             } else if (in->details_.get_format().is_plain()
-                    && need_to_reorder(in->details_.get_format())
-                    && node->op_name_ != "batch_matmul") {
+                    && need_to_reorder(in->details_.get_format())) {
                 // todo: should query the Op if it accepts a permuted layout.
-                // Currently only "batch_matmul" ATT_QK and ATT_V accepts that
                 insert_reorder_op(graph, in, i,
                         sc_data_format_t::get_plain_by_dims(
                                 (int)in->details_.get_plain_dims().size()),

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_BATCH_MATMUL_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_BATCH_MATMUL_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_MATMUL_CORE_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_MATMUL_CORE_HPP
 
 #include <vector>
 #include <compiler/ir/graph/traits.hpp>
@@ -24,15 +24,9 @@
 namespace sc {
 namespace ops {
 
-namespace BMM_kind {
-constexpr int Normal = 0;
-constexpr int ATT_QK = 1;
-constexpr int ATT_V = 2;
-}; // namespace BMM_kind
-
-class SC_INTERNAL_API batch_matmul_op_t : public tunable_op_t {
+class SC_INTERNAL_API matmul_core_op_t : public tunable_op_t {
 public:
-    batch_matmul_op_t(const std::vector<graph_tensor_ptr> &producer_lt,
+    matmul_core_op_t(const std::vector<graph_tensor_ptr> &producer_lt,
             const std::vector<graph_tensor_ptr> &consumer_lt,
             const any_map_t &attrs);
     void query_format(context_ptr ctx,
@@ -43,9 +37,10 @@ public:
     sc_dims get_batch_dims();
     sc_op_ptr do_compensations(
             sc_graph_t &mgr, const context_ptr &ctx) override;
-    sc_op_ptr get_s8s8_compensation(sc_graph_t &mgr);
     sc_op_ptr get_data_compensation(sc_graph_t &mgr);
-    sc_op_ptr get_weight_compensation(sc_graph_t &mgr);
+    // reuse cast and reduce nodes to do s8s8 and weight compensations togethor
+    std::vector<sc_op_ptr> get_s8s8_and_weight_compensation(
+            sc_graph_t &mgr, bool s8s8_compensation);
     sc_op_ptr get_constant_compensation(sc_graph_t &mgr);
 };
 } // namespace ops
