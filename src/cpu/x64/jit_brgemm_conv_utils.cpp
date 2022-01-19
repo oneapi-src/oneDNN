@@ -1689,6 +1689,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.oskip = 0;
     jcp.use_uker = false;
     jcp.use_interleave_stores = false;
+    jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_default;
     jcp.brgemm_bd_loop_innermost = false;
 
     // fast check data layout before spending time for blocking selection
@@ -1856,6 +1857,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             jcp.use_M_mask = jcp.is_os_blocking ? 2 : 0;
             jcp.use_uker = true;
             jcp.use_interleave_stores = true;
+            jcp.hint_prefetching
+                    = brgemm_kernel_prefetching_t::brgemm_prf_output1;
             // assuming 2x2 decomposition in amx brgemm kernel
             // and overlap of input by kw
             const auto bd_blocking = 2 * jcp.amx_h;
@@ -2048,6 +2051,9 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.adjusted_batch_size
             = div_up(rnd_up(jcp.gemm_batch_size * sc_size, P4K), sc_size);
 
+    jcp.use_uker = is_amx(isa);
+    if (jcp.use_uker)
+        jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_output1;
     CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
     CHECK(attr.set_default_formats(&dst_md));
 

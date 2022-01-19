@@ -222,6 +222,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                 brgemm_attr_t brgattr;
                 brgattr.use_uker = jcp_.use_uker;
                 brgattr.use_interleave_stores = jcp_.use_interleave_stores;
+                brgattr.hint_prefetching = jcp_.hint_prefetching;
                 brgattr.max_bs = bs;
                 brgattr.hint_innermost_loop = jcp_.brgemm_bd_loop_innermost
                         ? brgemm_bd_loop_innermost
