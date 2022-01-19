@@ -851,12 +851,10 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
 
     int bd_inp_bdb = ils_inp_bd_;
 
-    int vec = 0;
-
     auto cur_bdb = ils_bdb_;
     auto cur_ldb = ils_ldb_;
 
-    ils_bd_step_ = 2; // heuristic value
+    ils_bd_step_ = 3; // heuristic value
 
     // if first block
     if (ils_vec_ == 0) {
@@ -871,50 +869,51 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
                 cur_ldb, ils_is_ld_tail_, ils_apply_post_ops_);
     }
 
-    for (int bdb = 0; bdb < ils_bd_block2_; bdb++) {
-        int adj_bd_block = adjusted_bd_block(bdb);
+    // last bd_block may be bd_tail
+    const auto last_bd_block = adjusted_bd_block(ils_bd_block2_ - 1);
+    const auto bdb_row = brg.bd_block * ils_ld_block2_;
+    const auto total_vectors
+            = (ils_bd_block2_ - 1) * bdb_row + last_bd_block * ils_ld_block2_;
+    const auto nvecs = store_all ? total_vectors : ils_vecs_per_store_;
+    for (int vec = 0; vec < nvecs && ils_vec_ < total_vectors; vec++) {
+        int bdb = ils_vec_ / bdb_row;
+        auto adj_bd_block = adjusted_bd_block(bdb);
+        auto vec_in_bdb_row = ils_vec_ - bdb * bdb_row;
+        int ldb = vec_in_bdb_row / adj_bd_block;
+        int bd = vec_in_bdb_row % adj_bd_block;
 
-        for (int ldb = 0; ldb < ils_ld_block2_; ldb++) {
-            for (int bd = 0; bd < adj_bd_block; bd++) {
-                if (store_all
-                        || (ils_vec_ <= vec
-                                && vec < ils_vec_ + ils_vecs_per_store_)) {
-                    const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
-                    if (bd_out_bd != -1) {
-                        if (ldb != cur_ldb)
-                            prepare_post_ops_registers_ldb(ils_ldb_ind_ + ldb,
-                                    ils_is_ld_tail_, ils_apply_post_ops_);
-                        if (bdb != cur_bdb || ldb != cur_ldb
-                                || rnd_dn(bd, ils_bd_step_) != ils_bd_start_) {
-                            ils_bd_start_ = rnd_dn(bd, ils_bd_step_);
-                            auto bd_finish = nstl::min(
-                                    ils_bd_start_ + ils_bd_step_, adj_bd_block);
-                            process_output_range(ils_bd_start_, bd_finish,
-                                    bd_inp_bdb, bdb, ils_ldb_ind_, ldb,
-                                    ils_is_ld_tail_, ils_apply_post_ops_);
-                        }
-
-                        auto vreg_acc = ils_is_ld_tail_
-                                ? accm(bd) | ld_tail_mask | T_z
-                                : accm(bd);
-
-                        store_vector(vreg_acc.getIdx(), bd_out_bd,
-                                ils_ldb_ind_ + ldb, ils_apply_post_ops_,
-                                ils_is_ld_tail_);
-                    }
-                    cur_bdb = bdb;
-                    cur_ldb = ldb;
-                }
-                vec++;
-            }
-            if (cur_ldb != ils_ldb_) { ils_ldb_ = cur_ldb; }
+        auto bd_inp_bdb = ils_inp_bd_;
+        for (int ibdb = 0; ibdb < bdb; ibdb++) {
+            bd_inp_bdb += brg.bd_block;
+            bd_inp_bdb = skipped_bd_mask(bd_inp_bdb);
         }
-        bd_inp_bdb += brg.bd_block;
-        bd_inp_bdb = skipped_bd_mask(bd_inp_bdb);
-        if (cur_bdb != ils_bdb_) { ils_bdb_ = cur_bdb; }
-    }
+        if (ldb != cur_ldb)
+            prepare_post_ops_registers_ldb(
+                    ils_ldb_ind_ + ldb, ils_is_ld_tail_, ils_apply_post_ops_);
 
-    ils_vec_ += ils_vecs_per_store_;
+        if (bdb != cur_bdb || ldb != cur_ldb
+                || rnd_dn(bd, ils_bd_step_) != ils_bd_start_) {
+            ils_bd_start_ = rnd_dn(bd, ils_bd_step_);
+            auto bd_finish
+                    = nstl::min(ils_bd_start_ + ils_bd_step_, adj_bd_block);
+            process_output_range(ils_bd_start_, bd_finish, bd_inp_bdb, bdb,
+                    ils_ldb_ind_, ldb, ils_is_ld_tail_, ils_apply_post_ops_);
+        }
+
+        const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
+        if (bd_out_bd != -1) {
+            auto vreg_acc = ils_is_ld_tail_ ? accm(bd) | ld_tail_mask | T_z
+                                            : accm(bd);
+
+            store_vector(vreg_acc.getIdx(), bd_out_bd, ils_ldb_ind_ + ldb,
+                    ils_apply_post_ops_, ils_is_ld_tail_);
+        }
+        cur_bdb = bdb;
+        cur_ldb = ldb;
+        ils_vec_++;
+    }
+    ils_ldb_ = cur_ldb;
+    ils_bdb_ = cur_bdb;
 }
 
 void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
