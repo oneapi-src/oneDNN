@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,7 +86,9 @@ void bnorm_u8_via_binary_postops(dnnl::engine::kind engine_kind) {
     });
     std::generate(variance_data.begin(), variance_data.end(), []() {
         static int i = 0;
-        return std::sin(i++ * 4.f);
+        float value = std::abs(std::sin(i++ * 4.f));
+        // Avoid division by zero. Variance should be positive.
+        return value == 0.f ? 1.f : value;
     });
     std::generate(scale_data.begin(), scale_data.end(), []() {
         static int i = 0;
