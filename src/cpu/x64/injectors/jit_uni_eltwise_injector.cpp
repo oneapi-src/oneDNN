@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1114,31 +1114,31 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_fwd(
     // differences with respect to glibc erf based GELU, in particular
     // ~1.0e-5 -- 1.0e-3 absolute error at s = -5.
 
+    // use vmm_aux3 to store original src.
+    h->uni_vmovups(vmm_aux3, vmm_src);
+
     // x = s / sqrt(2)
     h->uni_vmulps(vmm_src, vmm_src, table_val(gelu_erf_one_over_sqrt_two));
 
-    // IMPORTANT: we use vmm_aux3 to save `x` as exp_compute does not use it.
-    h->uni_vmovups(vmm_aux3, vmm_src);
+    // abs(x)
+    h->uni_vmovups(vmm_aux4, vmm_src);
+    abs_compute_vector_fwd(vmm_aux4);
+
+    // t = 1 / (p*x + 1)
+    h->uni_vmovups(vmm_aux2, table_val(gelu_erf_approx_const));
+    h->uni_vfmadd213ps(vmm_aux2, vmm_aux4, table_val(one));
+    h->uni_vmovups(vmm_aux4, table_val(one));
+    h->uni_vdivps(vmm_aux4, vmm_aux4, vmm_aux2);
 
     // -exp(-x*x)
     h->uni_vmulps(vmm_src, vmm_src, vmm_src);
     h->uni_vxorps(vmm_src, vmm_src, table_val(sign_mask));
-    exp_compute_vector_fwd(vmm_src);
+    exp_compute_vector_fwd(vmm_src); // pollutes aux1, aux2
     h->uni_vxorps(vmm_src, vmm_src, table_val(sign_mask));
 
     // get sign
     h->uni_vmovups(vmm_aux0, vmm_aux3);
     h->uni_vandps(vmm_aux0, vmm_aux0, table_val(sign_mask));
-
-    // abs(x)
-    h->uni_vmovups(vmm_aux1, vmm_aux3);
-    abs_compute_vector_fwd(vmm_aux1);
-
-    // t = 1 / (p*x + 1)
-    h->uni_vmovups(vmm_aux2, table_val(gelu_erf_approx_const));
-    h->uni_vfmadd213ps(vmm_aux2, vmm_aux1, table_val(one));
-    h->uni_vmovups(vmm_aux4, table_val(one));
-    h->uni_vdivps(vmm_aux4, vmm_aux4, vmm_aux2);
 
     // -exp(-x*x)*t
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux4);
@@ -1154,8 +1154,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_fwd(
     h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(one));
     h->uni_vxorps(vmm_src, vmm_src, vmm_aux0);
 
-    // S = 0.5 * s = x / sqrt^2(2)
-    h->uni_vmulps(vmm_aux3, vmm_aux3, table_val(gelu_erf_one_over_sqrt_two));
+    // S = 0.5 * s
+    h->uni_vmulps(vmm_aux3, vmm_aux3, table_val(half));
     // GELU = 0.5 * s * (1 + erf) = S + S * erf
     h->uni_vfmadd213ps(vmm_src, vmm_aux3, vmm_aux3);
 }
