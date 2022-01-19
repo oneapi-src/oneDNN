@@ -186,6 +186,7 @@ private:
     // current storing coordinates
     int ils_vec_ = 0, ils_bdb_ = 0, ils_ldb_ = 0, ils_bd_start_ = 0,
         ils_bd_step_ = 0;
+    int pfo_vec_ = 0, pfo_vecs_per_store_ = 0;
 
     bool dt_requires_saturation_;
 
@@ -246,6 +247,8 @@ private:
             int ldb, bool is_ld_tail, bool apply_post_ops);
     void prepare_post_ops_registers(
             int ldb_ind, int ld_block2, bool is_ld_tail, bool apply_post_ops);
+    void prefetch_output_range(int bd_start, int bd_finish, int bd_inp_bdb,
+            int ldb, bool apply_post_ops);
     void process_output_range(int bd_start, int bd_finish, int bd_inp_bdb,
             int bdb, int ldb_ind, int ldb, bool is_ld_tail,
             bool apply_post_ops);
@@ -254,6 +257,7 @@ private:
     void store_vector(const int idx, const int bd, const int ldb,
             const bool apply_post_ops, bool is_ld_tail);
 
+    void prefetch_output_data(int ldb_ind, int bd_block2, int ld_block2);
     void interleave_store(bool store_all);
 
     void store_accumulators(int bd_block2, int ld_block, int l_step,
@@ -262,8 +266,8 @@ private:
 
     void set_A_B_matrices(int bs);
 
-    void gemm_microkernel_amx(
-            int bd_block2, int ld_block2, bool is_rd_tail, bool is_ld_tail);
+    void gemm_microkernel_amx(int bd_block2, int ldb_ind, int ld_block2,
+            bool is_rd_tail, bool is_ld_tail);
 
     void ldb_loop(int bd_block2, int ld_block, int ldb_loop_length,
             bool is_reg_tail, bool is_ld_tail, size_t c_offset, size_t d_offset,
@@ -687,6 +691,28 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
     }
 }
 
+void jit_brgemm_amx_uker_base_t::prefetch_output_range(int bd_start,
+        int bd_finish, int bd_inp_bdb, int ldb, bool apply_post_ops) {
+
+    for (int bd = bd_start; bd < bd_finish; bd++) {
+        const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
+        if (bd_out_bd == -1) continue;
+        if (apply_post_ops) {
+            const auto d_offset = D_offset(bd_out_bd, ldb);
+            auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
+            prefetcht1(ptr_D);
+        } else if (are_post_ops_applicable_) {
+            const auto c_offset = C_offset(bd_out_bd, ldb);
+            auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
+            prefetcht1(ptr_C);
+        } else {
+            const auto d_offset = D_offset(bd_out_bd, ldb);
+            auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
+            prefetcht1(ptr_D);
+        }
+    }
+}
+
 void jit_brgemm_amx_uker_base_t::process_output_range(int bd_start,
         int bd_finish, int bd_inp_bdb, int bdb, int ldb_ind, int ldb,
         bool is_ld_tail, bool apply_post_ops) {
@@ -839,6 +865,37 @@ void jit_brgemm_amx_uker_base_t::store_vector(const int idx, const int bd,
         store_vector_without_post_ops(idx, ptr_D, is_ld_tail);
 }
 
+void jit_brgemm_amx_uker_base_t::prefetch_output_data(
+        int ldb_ind, int bd_block2, int ld_block2) {
+
+    if (brg.brgattr.hint_prefetching
+            != brgemm_kernel_prefetching_t::brgemm_prf_output1)
+        return;
+
+    // last bd_block may be bd_tail
+    const auto last_bd_block = adjusted_bd_block(bd_block2 - 1);
+    const auto bdb_row = brg.bd_block * ld_block2;
+    const auto tot_vecs = (bd_block2 - 1) * bdb_row + last_bd_block * ld_block2;
+    const auto nvecs = nstl::min(pfo_vecs_per_store_, tot_vecs - pfo_vec_);
+
+    for (int vec = 0; vec < nvecs && pfo_vec_ < tot_vecs; vec++) {
+        int bdb = pfo_vec_ / bdb_row;
+        auto adj_bd_block = adjusted_bd_block(bdb);
+        auto vec_in_bdb_row = pfo_vec_ - bdb * bdb_row;
+        int ldb = vec_in_bdb_row / adj_bd_block;
+        int bd = vec_in_bdb_row % adj_bd_block;
+
+        auto bd_inp_bdb = skipped_bd_mask(inp_bd_);
+        for (int ibdb = 0; ibdb < bdb; ibdb++) {
+            bd_inp_bdb += brg.bd_block;
+            bd_inp_bdb = skipped_bd_mask(bd_inp_bdb);
+        }
+        prefetch_output_range(
+                0, 1, bd_inp_bdb + bd, ldb_ind + ldb, ils_apply_post_ops_);
+        pfo_vec_++;
+    }
+}
+
 void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
 
     if (!use_ils_) return;
@@ -943,6 +1000,7 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
     ils_ldb_ = 0;
     ils_buffer_ready_ = true;
     ils_store_ops_ = ld_block2 * bd_block2 * brg.bd_block;
+    pfo_vec_ = 0;
 
     if (store_by_vectors && !use_ils_ && !prepare_post_ops_registers_once_)
         prepare_post_ops_registers(
@@ -1007,9 +1065,10 @@ void jit_brgemm_amx_uker_base_t::set_A_B_matrices(int bs) {
     }
 }
 
-void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(
-        int bd_block2, int ld_block2, bool is_rd_tail, bool is_ld_tail) {
+void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(int bd_block2,
+        int ldb_ind, int ld_block2, bool is_rd_tail, bool is_ld_tail) {
     auto tdpbxxd = [=](int bdb_idx, int ldb_idx) {
+        prefetch_output_data(ldb_ind, bd_block2, ld_block2);
         const Tmm &x1 = Tmm(brg.get_C_tensor(bdb_idx, ldb_idx));
         const Tmm &x2 = Tmm(brg.get_A_tensor(bdb_idx));
         const Tmm &x3 = Tmm(brg.get_B_tensor(ldb_idx));
@@ -1114,6 +1173,7 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
         int calc_ops = brg.brgattr.max_bs * (brg.rdb + (brg.rdb_tail ? 1 : 0))
                 * ld_block2 * bd_block2;
         ils_vecs_per_store_ = (calc_ops) ? div_up(ils_store_ops_, calc_ops) : 0;
+        pfo_vecs_per_store_ = ils_vecs_per_store_;
 
         size_t l_c_offset = (is_ld_tail) ? ldb_C_offset(1, true)
                                          : ldb_C_offset(ld_block2);
@@ -1131,11 +1191,12 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
         if (brg.alpha != 0.f) {
             for (int bs = 0; bs < brg.brgattr.max_bs; bs++) {
                 set_A_B_matrices(bs);
-                gemm_microkernel_amx(bd_block2, ld_block2, false, is_ld_tail);
+                gemm_microkernel_amx(
+                        bd_block2, ldb_ind, ld_block2, false, is_ld_tail);
 
                 if (brg.rdb_tail != 0) {
                     gemm_microkernel_amx(
-                            bd_block2, ld_block2, true, is_ld_tail);
+                            bd_block2, ldb_ind, ld_block2, true, is_ld_tail);
                 }
             }
         }

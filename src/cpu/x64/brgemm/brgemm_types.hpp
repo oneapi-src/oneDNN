@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,6 +64,7 @@ typedef enum {
 
 typedef enum {
     brgemm_prf_default = 1,
+    brgemm_prf_output1 = 2,
 } brgemm_kernel_prefetching_t;
 
 typedef enum {
@@ -81,7 +82,8 @@ struct DNNL_API brgemm_attr_t {
     dim_t hint_expected_A_size, hint_expected_B_size, hint_expected_C_size;
     brgemm_kernel_innermost_loop_t hint_innermost_loop;
     brgemm_kernel_loop_order_t hint_loop_order;
-    brgemm_kernel_prefetching_t hint_prefetching;
+    brgemm_kernel_prefetching_t hint_prefetching
+            = brgemm_kernel_prefetching_t::brgemm_prf_default;
     bool wary_tail_read;
     bool generate_skip_accumulation;
     // bd_mask is char array in which each element is a boolean value that
