@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,11 +74,22 @@ outer_loop_generator_t::outer_loop_generator_t(size_t base_inp_idx)
 typedef std::vector<int> (*loop_sort_rule_func)(
         const std::vector<int> &, sc_graph_t &, const tensor &);
 
-static bool axis_can_be_sort(const sc_graph_t &graph) {
-    return std::all_of(
-            graph.ops_.begin(), graph.ops_.end(), [](const sc_op_ptr &op) {
-                return !op->isa<reorder_op_t>() && !op->isa<tensor_view_op_t>();
+/**
+ * @param forced: If True, axis needs to be sorted forcedly to ensure
+ * parallelism which means some op may break fusion. Default is false.
+ * */
+static bool axis_can_be_sort(sc_graph_t &graph, bool forced = false) {
+    bool res = std::all_of(graph.ops_.begin(), graph.ops_.end(),
+            [&forced](const sc_op_ptr &op) {
+                if (op->isa<reorder_op_t>() || op->isa<tensor_view_op_t>()) {
+                    if (forced) { op->attrs_.set(op_attr_key::no_fuse, true); }
+                    return false;
+                }
+                return true;
             });
+    // if forced, the given graph need repartition
+    if (!res && forced) graph.attrs_["temp.need_repartition"] = true;
+    return res;
 }
 
 /**
@@ -89,22 +100,32 @@ static bool axis_can_be_sort(const sc_graph_t &graph) {
  * */
 static std::vector<int> move_reduce_axis_to_inner(
         const std::vector<int> &in_axis, sc_graph_t &graph, const tensor &tsr) {
-    if (!axis_can_be_sort(graph)) { return in_axis; }
     std::vector<int> out_axis(in_axis.begin(), in_axis.end());
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(graph.ops_.size());
+    bool can_move = true;
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         if (auto reduce_node = node->dyn_cast<reduce_op_t>()) {
             auto reduce_axis = reduce_node->get_rd_axis();
             std::sort(reduce_axis.begin(), reduce_axis.end());
             auto shape = reduce_node->get_inputs()[0]
                                  ->details_.get_blocking_dims();
+            int parallel_num = 1;
+            for (int i = 0; i < *reduce_axis.begin(); i++) {
+                parallel_num *= shape[i];
+            }
             auto run_threads = runtime_config_t::get().threads_per_instance_;
             /* Due to loop order not only affect outer-loop parallelism,
              * but also inner-loop fusion, which will affect local buffer size(
              * sensitive to cache line size). Further, more performance data
              * maybe required and analyzed to decide which strategy shuold be
              * applied to achieve best performance*/
-            // if (parallel_num >= run_threads) { return; }
+
+            // need check parallel_num
+            if (!axis_can_be_sort(graph, parallel_num < run_threads)) {
+                can_move = false;
+                return;
+            }
+
             for (auto raxis : reduce_axis) {
                 auto rend
                         = std::remove(out_axis.begin(), out_axis.end(), raxis);
@@ -113,7 +134,7 @@ static std::vector<int> move_reduce_axis_to_inner(
             }
         }
     });
-    return out_axis;
+    return can_move ? out_axis : in_axis;
 }
 
 /**
@@ -183,6 +204,12 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
     // sort loop axis with rules
     for (auto sort_rule : loop_sort_rules) {
         loop_axis = sort_rule(loop_axis, fusion->get_graph(), in_tsr);
+        // check whether need to repartition
+        if (fusion->get_graph().attrs_.get_or_else(
+                    "temp.need_repartition", false)) {
+            fusion->get_graph().attrs_.remove("temp.need_repartition");
+            return false;
+        }
     }
     // generate anchors from inner to outer
     for (size_t i = 0; i < numdims - 1; i++) {
@@ -324,7 +351,15 @@ ir_module_ptr try_lower_fusion_manager(const context_ptr &ctx,
 
     std::vector<for_loop> loops;
     bool status = gen->generate(ctx, nullptr, fmgr, ins, real_outs, loops);
-    assert(status);
+    // if status is false, also return and add failed ops
+    if (!status) {
+        for (auto &op : fmgr->get_graph().ops_) {
+            if (op->attrs_.get_or_else(op_attr_key::no_fuse, false))
+                out_failed.emplace_back(op);
+        }
+        fmgr->clear_anchor();
+        return nullptr;
+    }
     bld.push_returns(true);
     auto body = bld.pop_scope();
 
