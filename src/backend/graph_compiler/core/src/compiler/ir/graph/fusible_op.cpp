@@ -1961,39 +1961,71 @@ tensor_view_op_t::tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes)
 bool tensor_view_op_t::try_penetrate(
         sc_data_format_t &new_output_format) const {
     auto input_plain_shapes = info_.inputs_[0]->details_.get_plain_dims();
+    auto input_format = info_.inputs_[0]->details_.get_format();
+    // if it is batch format return false
+    if (input_format.format_code_.is_batch_format()
+            || info_.outputs_[0]
+                       ->details_.get_format()
+                       .format_code_.is_batch_format()) {
+        return false;
+    }
     auto output_plain_shapes = info_.outputs_[0]->details_.get_plain_dims();
     auto input_size = input_plain_shapes.size();
     auto output_size = output_plain_shapes.size();
-    if (output_size < input_size) {
-        bool can_penetrate = true;
-        std::unordered_map<size_t, size_t> inp_to_out;
-        size_t out_idx = 0, inp_idx = 0;
-        while (out_idx < output_size) {
-            int64_t acc_shape = input_plain_shapes[inp_idx];
-            inp_to_out[inp_idx] = out_idx;
-            inp_idx++;
-            while (inp_idx < input_size
-                    && (acc_shape < output_plain_shapes[out_idx]
-                            || input_plain_shapes[inp_idx] == 1)) {
-                acc_shape *= input_plain_shapes[inp_idx];
-                inp_to_out[inp_idx] = out_idx;
-                inp_idx++;
-            }
-            if (acc_shape != output_plain_shapes[out_idx]) {
-                can_penetrate = false;
-                break;
-            }
-            out_idx++;
+    bool inp_short = input_size < output_size;
+    auto &short_plain_shapes
+            = inp_short ? input_plain_shapes : output_plain_shapes;
+    auto &long_plain_shapes
+            = inp_short ? output_plain_shapes : input_plain_shapes;
+    auto &short_size = inp_short ? input_size : output_size;
+    auto &long_size = inp_short ? output_size : input_size;
+    bool can_penetrate = true;
+    std::unordered_map<size_t, size_t> long_to_short;
+    // if inp_short, inp blk idx to out blk idx
+    std::unordered_map<size_t, size_t> inp_blk_map;
+    size_t short_idx = 0, long_idx = 0;
+    while (short_idx < short_size) {
+        int64_t acc_shape = long_plain_shapes[long_idx];
+        long_to_short[long_idx] = short_idx;
+        long_idx++;
+        while (long_idx < long_size
+                && (acc_shape < short_plain_shapes[short_idx]
+                        || long_plain_shapes[long_idx] == 1)) {
+            acc_shape *= long_plain_shapes[long_idx];
+            long_to_short[long_idx] = short_idx;
+            long_idx++;
         }
-        if (can_penetrate) {
-            auto input_format = info_.inputs_[0]->details_.get_format();
+
+        if (acc_shape != short_plain_shapes[short_idx]) {
+            can_penetrate = false;
+            break;
+        }
+        // blocking of short format is big than corresponding long plain dims.
+        if (inp_short) {
+            auto blk_idx_list
+                    = input_format.format_code_.collect_blocking_index(
+                            short_idx);
+            if (!blk_idx_list.empty()) {
+                inp_blk_map[short_idx] = long_idx - 1;
+                if (input_format.blocks_[blk_idx_list[0]]
+                        > long_plain_shapes[long_idx - 1]) {
+                    can_penetrate = false;
+                    break;
+                }
+            }
+        }
+        short_idx++;
+    }
+
+    if (can_penetrate) {
+        if (!inp_short) {
             auto &input_code = input_format.format_code_;
             sc_data_format_t new_format;
             auto &new_code = new_format.format_code_;
             int out_count[sc_data_format_kind_t::MAX_DIMS] = {0};
             size_t blk_idx = 0;
             for (int i = 0; i < input_code.ndims(); i++) {
-                new_code.set(i, inp_to_out[input_code.get(i)]);
+                new_code.set(i, long_to_short[input_code.get(i)]);
                 out_count[new_code.get(i)]++;
                 if (out_count[new_code.get(i)] > 1
                         && blk_idx < input_size - output_size) {
@@ -2001,12 +2033,36 @@ bool tensor_view_op_t::try_penetrate(
                             = input_plain_shapes[input_code.get(i)];
                 }
             }
+            new_code.set(sc_data_format_kind_t::MAX_DIMS,
+                    input_format.format_code_.get(
+                            sc_data_format_kind_t::MAX_DIMS));
             size_t inp_blk_idx = 0;
             while (inp_blk_idx < 4 && blk_idx < 4
                     && input_format.blocks_[inp_blk_idx] > 0) {
                 new_format.blocks_[blk_idx++]
                         = input_format.blocks_[inp_blk_idx++];
             }
+            new_output_format = new_format;
+            return true;
+        } else {
+            sc_data_format_t new_format;
+            auto &new_code = new_format.format_code_;
+            for (int i = 0; i < static_cast<int>(output_plain_shapes.size());
+                    i++) {
+                new_code.set(i, i);
+            }
+            int inp_plain_idx = input_format.format_code_.norig_dims();
+            int inp_blk_size = input_format.format_code_.ndims()
+                    - input_format.format_code_.norig_dims();
+            for (int i = 0; i < inp_blk_size; i++) {
+                new_code.set(i + static_cast<int>(output_plain_shapes.size()),
+                        inp_blk_map[input_format.format_code_.get(
+                                i + inp_plain_idx)]);
+            }
+            new_code.set(sc_data_format_kind_t::MAX_DIMS,
+                    input_format.format_code_.get(
+                            sc_data_format_kind_t::MAX_DIMS));
+            new_format.blocks_ = input_format.blocks_;
             new_output_format = new_format;
             return true;
         }
