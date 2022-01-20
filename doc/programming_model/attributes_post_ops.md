@@ -164,8 +164,8 @@ convolution.
 The @ref dnnl::primitive::kind of this post-op
 is #dnnl::primitive::kind::convolution.
 
-There are two variants of this post-op: dw_k3s1p1 and dw_k3_s2p1 for stride-1
-and and stride-2 respectively.
+There are two variants of this post-op: `dw_k3s1p1` and `dw_k3s2p1` for stride-1
+and stride-2 respectively.
 
 API:
 - C: @ref dnnl_post_ops_append_dw_k3s1p1 , @ref dnnl_post_ops_append_dw_k3s2p1
@@ -214,10 +214,18 @@ Supported data types
 @note
   * Currently only supported for 2D 1x1 convolution.
 
-  * Only eltwise post-op can be part of post-op chain (i.e., sum post-op is
-    not supported)
+  * Sum or another depthwise post-ops cannot be a part of post-op chain.
 
   * The `dst_1x1`, `wei_dw` and `dst_dw` are assumed to be #dnnl_format_tag_any.
+
+  * Operation descriptor for base 1x1 convolution requires spatial dimensions of
+    destination memory descriptor to coincide with source spatial dimensions. It
+    is important for cases when depthwise post-op stride is not equal to `1`.
+    In this case, the queried destination descriptor after fusion **will not**
+    coincide with the one passed to base convolution. It means that if
+    intermediate object is utilized in other places in user application, its
+    lifetime has to be handled by user separately since the library does not
+    provide a mechanism to query an intermediate output of base convolution.
 
 @anchor dev_guide_attributes_post_ops_binary
 ### Binary Post-op
