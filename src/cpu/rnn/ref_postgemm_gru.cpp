@@ -62,6 +62,8 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
     const ws_states_iter_aoc<const src_data_t> src_iter(
             rnn, src_iter_, src_iter_ld);
 
+    const float *scales_G1 = scales ? scales + 1 : nullptr;
+
     parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
@@ -70,7 +72,7 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
                             acc_to_float(scratch_gates(i, 0, j), 0, j)
                                     + bias(0, j));
             const auto G1 // default func1 is sigmoid
-                    = func1(scales + 1,
+                    = func1(scales_G1,
                             acc_to_float(scratch_gates(i, 1, j), 1, j)
                                     + bias(1, j));
             /* TODO: Can be optimized for fwd_training by using ws_gates instead of scratch_gates in p2 */
@@ -115,12 +117,14 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
     const ws_states_iter_aoc<const src_data_t> src_iter(
             rnn, src_iter_, src_iter_ld);
 
+    const float *scales_G2 = scales ? scales + 2 : nullptr;
+
     parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
             auto G0 = reinterpret_as_float(scratch_gates(i, 0, j));
             const auto G2 // default func1 is tanh
-                    = func1(scales + 2,
+                    = func1(scales_G2,
                             acc_to_float(scratch_gates(i, 2, j), 2, j)
                                     + bias(2, j));
 
