@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -274,8 +274,7 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     //save post_ops desc for further usage
     jcp.post_ops = p;
 
-    jcp.ver = ver_avx512_core;
-    if (mayiuse(avx512_core_vnni)) jcp.ver = ver_vnni;
+    jcp.has_vnni = mayiuse(avx512_core_vnni);
     const auto &oscales = attr.output_scales_;
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;
 
@@ -295,7 +294,7 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     jcp.nb_ic = jcp.ic / jcp.ic_block;
 
     /* kernel blocking params */
-    const int regs = jcp.ver == ver_vnni ? 30 : 28;
+    const int regs = jcp.has_vnni ? 30 : 28;
     jcp.nb_ch_blocking = 1;
     jcp.nb_oc_blocking = nstl::min(4, jcp.nb_oc);
     for (; jcp.nb_oc_blocking > 1; jcp.nb_oc_blocking--)
@@ -371,7 +370,7 @@ bool _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::post_ops_ok(
 void _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         dim_t count = nstl::max<dim_t>(attr.output_scales_.count_, 16);
         scratchpad.book<float>(key_conv_adjusted_scales, count);
     }
@@ -387,7 +386,7 @@ template <typename Vmm>
 void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::compute(
         const Vmm &vreg_acc, const Vmm &vreg_wei, const Vmm &vreg_src) {
 
-    if (jcp.ver == ver_vnni) {
+    if (jcp.has_vnni) {
         vpdpbusd(vreg_acc, vreg_src, vreg_wei);
     } else if (jcp.is_depthwise) {
         uni_vmovups(vmm_tmp, vreg_src);
@@ -915,7 +914,7 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::store_output(
         mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
     }
 
-    if (jcp.with_bias && jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.with_bias && jcp.signed_input && (!jcp.has_vnni)) {
         mov(reg_bias_alpha, float2int(jcp.wei_adj_scale));
         vmovq(xmm_bias_alpha(), reg_bias_alpha);
         vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
@@ -955,7 +954,7 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::store_output(
             int bias_offset = jcp.typesize_bia * ocb * jcp.oc_block;
             auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
             cvt2ps(jcp.bia_dt, vmm_bias, bias_addr, mask_flag);
-            if (jcp.signed_input && jcp.ver != ver_vnni)
+            if (jcp.signed_input && (!jcp.has_vnni))
                 vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
         }
         if (jcp.signed_input) {
@@ -1395,7 +1394,7 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_1d(
     const int nb_groups = jcp.nb_ch;
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
@@ -1509,7 +1508,7 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_2d(
     size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
@@ -1687,7 +1686,7 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_3d(
     size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 0, 1);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;

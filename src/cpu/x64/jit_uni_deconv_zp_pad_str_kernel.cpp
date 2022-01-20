@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,10 +79,9 @@ jit_uni_deconv_zp_pad_str_kernel_t<isa,
         Vmm>::jit_uni_deconv_zp_pad_str_kernel_t(const jit_conv_conf_t &jcp)
     : jit_uni_deconv_zp_pad_str_kernel_base_t(jcp)
     , result_acc_(reserve_vmm())
-    , vmm_tmp_((jcp.ver == ver_vnni || jcp.is_depthwise) ? 0 : reserve_vmm())
+    , vmm_tmp_((jcp.has_vnni || jcp.is_depthwise) ? 0 : reserve_vmm())
     , vmm_one_bytes_(jcp.is_depthwise ? 0 : reserve_vmm())
-    , vmm_one_words_(
-              (jcp.ver == ver_vnni || jcp.is_depthwise) ? 0 : reserve_vmm())
+    , vmm_one_words_((jcp.has_vnni || jcp.is_depthwise) ? 0 : reserve_vmm())
     , current_vmm_(number_reserved_vmms_) {}
 
 template <cpu_isa_t isa, typename Vmm>
@@ -109,7 +108,7 @@ void jit_uni_deconv_zp_pad_str_kernel_t<isa, Vmm>::init() {
             vmovd(xmm_one, reg32_scratch);
         uni_vbroadcastss(vmm_one_bytes_, xmm_one);
 
-        if (jcp_.ver != ver_vnni) {
+        if (!jcp_.has_vnni) {
             const Xbyak::Xmm xmm_one_words
                     = Xbyak::Xmm(vmm_one_words_.getIdx());
             mov(reg_tmp_, 0x10001);
@@ -142,7 +141,7 @@ void jit_uni_deconv_zp_pad_str_kernel_t<isa, Vmm>::compute_step(
 
     if (jcp_.is_depthwise)
         uni_vpaddd(result_acc_, result_acc_, wei_vmm);
-    else if (jcp_.ver == ver_vnni)
+    else if (jcp_.has_vnni)
         vpdpbusd(result_acc_, vmm_one_bytes_, wei_vmm,
                 is_superset(isa, avx512_common) ? Xbyak::EvexEncoding
                                                 : Xbyak::VexEncoding);

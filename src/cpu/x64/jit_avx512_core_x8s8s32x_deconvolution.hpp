@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -243,10 +243,9 @@ struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_deconvolution:",
-                                    ((jcp_.ver == ver_vnni) ? avx512_core_vnni
-                                                            : avx512_core),
-                                    ""),
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_deconvolution:",
+                        ((jcp_.has_vnni) ? avx512_core_vnni : avx512_core), ""),
                 jit_avx512_core_x8s8s32x_deconvolution_fwd_t);
 
         status_t init(engine_t *engine) {

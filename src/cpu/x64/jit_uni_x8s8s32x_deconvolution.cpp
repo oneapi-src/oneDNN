@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
     jcp.is_depthwise = true && with_groups
             && utils::everyone_is(
                     1, jcp.ic_without_padding, jcp.oc_without_padding);
-    jcp.ver = mayiuse(avx2_vnni) ? ver_vnni : ver_unused;
+    jcp.has_vnni = mayiuse(avx2_vnni);
 
     /* TODO: future work, on hold until depthwise specialized kernel is
      * implemented. */
@@ -151,7 +151,7 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
                     | memory_extra_flags::scale_adjust;
             want_wei_md.extra.compensation_mask = (1 << 0)
                     + (with_groups && !jcp.is_depthwise ? (1 << 1) : 0);
-            want_wei_md.extra.scale_adjust = (jcp.ver == ver_vnni) ? 1.f : 0.5f;
+            want_wei_md.extra.scale_adjust = jcp.has_vnni ? 1.f : 0.5f;
         }
         if (jcp.src_zero_point) set_zp_src_comp_flags(want_wei_md, with_groups);
 
@@ -271,7 +271,7 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
     jcp.nb_ic = jcp.ic / jcp.ic_block;
 
     /* kernel blocking params */
-    const int regs = (jcp.ver == ver_vnni ? 14 : 12);
+    const int regs = jcp.has_vnni ? 14 : 12;
 
     jcp.nb_ch_blocking = 1;
     jcp.nb_oc_blocking = nstl::min(4, jcp.nb_oc);
@@ -366,7 +366,7 @@ template <cpu_isa_t isa>
 void jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         dim_t count = nstl::max<dim_t>(attr.output_scales_.count_, 8);
         scratchpad.book<float>(key_conv_adjusted_scales, count);
     }
@@ -490,7 +490,7 @@ template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::compute(
         const Vmm &vreg_acc, const Vmm &vreg_wei, const Vmm &vreg_src) {
 
-    if (jcp_.ver == ver_vnni) {
+    if (jcp_.has_vnni) {
         vpdpbusd(vreg_acc, vreg_src, vreg_wei, Xbyak::VexEncoding);
     } else if (jcp_.is_depthwise) {
         uni_vmovups(vmm_tmp_, vreg_src);
@@ -1068,7 +1068,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
     const int32_t *p_sum_zp
             = (sum_idx != -1) ? &p.entry_[sum_idx].sum.zero_point : nullptr;
 
-    if (jcp_.with_bias && jcp_.signed_input && jcp_.ver != ver_vnni) {
+    if (jcp_.with_bias && jcp_.signed_input && (!jcp_.has_vnni)) {
         mov(reg_bias_alpha_, float2int(jcp_.wei_adj_scale));
         uni_vmovq(xmm_bias_alpha(), reg_bias_alpha_);
         uni_vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
@@ -1106,7 +1106,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
             int bias_offset = jcp_.typesize_bia * ocb * jcp_.oc_block;
             cvt2ps(jcp_.bia_dt, vmm_bias_, reg_bias_, bias_offset,
                     mask_flag ? get_tail_size() : get_blocking_size());
-            if (jcp_.signed_input && jcp_.ver != ver_vnni)
+            if (jcp_.signed_input && (!jcp_.has_vnni))
                 uni_vmulps(vmm_bias_, vmm_bias_, vmm_bias_alpha());
         }
         if (jcp_.signed_input) {
@@ -1461,7 +1461,7 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_1d(
     const int nb_groups = jcp.nb_ch;
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         const size_t count = pd()->attr()->output_scales_.count_;
@@ -1579,7 +1579,7 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_2d(
     const size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         const size_t count = pd()->attr()->output_scales_.count_;
@@ -1761,7 +1761,7 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_3d(
     const size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 0, 1);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         const auto local_scales
                 = ctx.get_scratchpad_grantor().template get<float>(
                         key_conv_adjusted_scales);
