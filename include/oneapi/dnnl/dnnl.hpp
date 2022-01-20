@@ -7221,10 +7221,11 @@ struct logsoftmax_backward : public primitive {
 ///
 /// The batch normalization primitives computations can be controlled by
 /// specifying different @ref dnnl::normalization_flags values. For example,
-/// batch normalization can compute the mean and variance on its own or take
-/// them as inputs.  It can either perform scaling and shifting using gamma
-/// and beta parameters or not. Optionally, it can also perform a fused ReLU,
-/// which in case of training would also require a workspace.
+/// batch normalization forward propagation can be configured to either
+/// compute the mean and variance or take them as arguments. It can either
+/// perform scaling and shifting using gamma and beta parameters or not.
+/// Optionally, it can also perform a fused ReLU, which in case of training
+/// would also require a workspace.
 ///
 /// @sa @ref dev_guide_batch_normalization in developer guide
 ///
@@ -7519,12 +7520,10 @@ struct batch_normalization_backward : public primitive {
 /// backward propagation.
 ///
 /// The layer normalization primitives computations can be controlled by
-/// specifying different dnnl::normalization_flags values. For example,
+/// specifying different @ref dnnl::normalization_flags values. For example,
 /// layer normalization forward propagation can be configured to either
 /// compute the mean and variance or take them as arguments. It can either
 /// perform scaling and shifting using gamma and beta parameters or not.
-/// Optionally, it can also perform a fused ReLU, which in case of training
-/// would also require a workspace.
 ///
 /// @sa @ref dev_guide_layer_normalization in developer guide
 ///
