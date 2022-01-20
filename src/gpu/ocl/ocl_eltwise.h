@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ float abs_bwd(float dd, float s) {
 }
 
 float tanh_fwd(float s) {
-    return tanh(s);
+    return s < 0 ? 2 / (1 + exp(-2 * s)) - 1 : 1 - (2 / (1 + exp(2 * s)));
 }
 float tanh_bwd(float dd, float s) {
     float e = tanh_fwd(s);
