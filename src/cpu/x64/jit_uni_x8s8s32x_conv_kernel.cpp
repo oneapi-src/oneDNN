@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -240,7 +240,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
         p_sum_scale = &p_entry.sum.scale;
         p_sum_zp = &p_entry.sum.zero_point;
     }
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         /* put 'wei_adj_scale = 0.5' for bias calculation */
         mov(reg_bias_alpha, float2int(jcp.wei_adj_scale));
         uni_vmovq(xmm_bias_alpha(), reg_bias_alpha);
@@ -255,7 +255,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
 
             int bias_offset = jcp.typesize_bia * k * oc_block;
             cvt2ps(jcp.bia_dt, vmm_bias, reg_bias, bias_offset, load_size);
-            if (jcp.signed_input && jcp.ver != ver_vnni) /* bias *= 0.5 */
+            if (jcp.signed_input && (!jcp.has_vnni)) /* bias *= 0.5 */
                 uni_vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
         }
         if (jcp.signed_input) {
@@ -400,7 +400,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
     };
 
     auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
-        if (jcp.ver == ver_vnni) {
+        if (jcp.has_vnni) {
             vpdpbusd(vreg_acc, vreg_src, vreg_wei, VexEncoding);
         } else {
             // okay for depthwise since src is zero-extended
@@ -539,7 +539,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker(int ur_w, int pad_l,
                         + ic_sub_step * ic * oc_block);
     };
     auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
-        if (jcp.ver == ver_vnni) {
+        if (jcp.has_vnni) {
             vpdpbusd(vreg_acc, vreg_src, vreg_wei, VexEncoding);
         } else {
             uni_vpmaddubsw(vmm_tmp, vreg_src, vreg_wei);
@@ -626,7 +626,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker(int ur_w, int pad_l,
                         for (int ic = 0; ic < icb; ic++) {
                             const int aux_kernel_offset
                                     = kernel_offset(ii, ic, ki);
-                            if (jcp.ver == ver_vnni) {
+                            if (jcp.has_vnni) {
                                 vpdpbusd(vmm_tmp, vmm_zp_one,
                                         ptr[aux_reg_ker + aux_kernel_offset],
                                         VexEncoding);
@@ -896,7 +896,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
         const bool is_zero_point = jcp.src_zero_point || jcp.dst_zero_point;
         int idx = ker_max_reg + 1 - jcp.max_regs_ur - 2 * is_zero_point;
         if (!jcp.is_resrc_depthwise) vmm_dw_src = Vmm(--idx);
-        if (jcp.ver != ver_vnni) vmm_dw_tmp = Vmm(--idx);
+        if (!jcp.has_vnni) vmm_dw_tmp = Vmm(--idx);
         if (jcp.signed_input) {
             --idx; // due to extra register used for compensations
         }
@@ -904,7 +904,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
                 !is_zero_point, idx == ker_max_reg - ker_dw_reg_base_idx));
     }
 
-    if (!jcp.is_depthwise && jcp.ver != ver_vnni) {
+    if (!jcp.is_depthwise && (!jcp.has_vnni)) {
         auto vmm_one_128 = Xbyak::Xmm(vmm_one.getIdx());
         mov(reg_scratch, 0x10001);
         uni_vmovq(vmm_one_128, reg_scratch);
@@ -1292,7 +1292,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     jcp.back_pad = calculate_end_padding(
             jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, ext_kd);
 
-    jcp.ver = mayiuse(avx2_vnni) ? ver_vnni : ver_unused;
+    jcp.has_vnni = mayiuse(avx2_vnni);
 
     jcp.signed_input = src_d.data_type() == data_type::s8;
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
@@ -1340,9 +1340,9 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
 
     if (jcp.is_depthwise) {
         jcp.max_regs_ur = 14 - !jcp.is_resrc_depthwise - jcp.signed_input
-                + (jcp.ver == ver_vnni);
+                + (jcp.has_vnni);
     } else {
-        jcp.max_regs_ur = jcp.ver == ver_vnni ? 15 - jcp.signed_input : 12;
+        jcp.max_regs_ur = jcp.has_vnni ? 15 - jcp.signed_input : 12;
     }
 
     if (jcp.src_zero_point || jcp.dst_zero_point) jcp.max_regs_ur = 9;
@@ -1389,7 +1389,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
                     | memory_extra_flags::scale_adjust;
             want_wei_md.extra.compensation_mask
                     = (with_groups && !jcp.is_depthwise) ? g_mask : c_mask;
-            want_wei_md.extra.scale_adjust = (jcp.ver == ver_vnni) ? 1.f : 0.5f;
+            want_wei_md.extra.scale_adjust = (jcp.has_vnni) ? 1.f : 0.5f;
         }
         if (jcp.src_zero_point) {
             want_wei_md.extra.flags |= compensation_conv_asymmetric_src;
@@ -1593,7 +1593,7 @@ void jit_uni_x8s8s32x_fwd_kernel<isa>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
 
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         dim_t count = attr.output_scales_.count_ == 1
                 ? (dim_t)8
                 : attr.output_scales_.count_;

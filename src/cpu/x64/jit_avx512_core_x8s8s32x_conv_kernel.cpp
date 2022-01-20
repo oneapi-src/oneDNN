@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -251,7 +251,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
         p_sum_zp = &p_entry.sum.zero_point;
     }
 
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         /* put 'wei_adj_scale = 0.5' for bias calculation */
         mov(reg_bias_alpha, float2int(jcp.wei_adj_scale));
         vmovq(xmm_bias_alpha(), reg_bias_alpha);
@@ -266,7 +266,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
             auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
 
             cvt2ps(jcp.bia_dt, vmm_bias, bias_addr, mask_flag);
-            if (jcp.signed_input && jcp.ver != ver_vnni) /* bias *= 0.5 */
+            if (jcp.signed_input && (!jcp.has_vnni)) /* bias *= 0.5 */
                 vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
         }
         if (jcp.signed_input) {
@@ -395,7 +395,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Zmm>::compute_ker_dw(int ur_w,
 
     auto compute = [=](Zmm vreg_acc, Zmm vreg_wei, Zmm vreg_src) {
         // okay for depthwise since src is zero-extended
-        if (jcp.ver == ver_vnni) {
+        if (jcp.has_vnni) {
             vpdpbusd(vreg_acc, vreg_src, vreg_wei);
         } else {
             vpmaddwd(zmm_tmp, vreg_src, vreg_wei);
@@ -556,7 +556,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
                         + ic_sub_step * ic * oc_block);
     };
     auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
-        if (jcp.ver == ver_vnni) {
+        if (jcp.has_vnni) {
             vpdpbusd(vreg_acc, vreg_src, vreg_wei);
         } else {
             vpmaddubsw(vmm_tmp, vreg_src, vreg_wei);
@@ -635,7 +635,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
                         vpxord(vmm_zp_tmp, vmm_zp_tmp, vmm_zp_tmp);
                         for (int ic = 0; ic < icb; ic++) {
                             int aux_kernel_offset = kernel_offset(ii, ic, ki);
-                            if (jcp.ver == ver_vnni) {
+                            if (jcp.has_vnni) {
                                 vpdpbusd(vmm_zp_tmp, vmm_zp_one,
                                         EVEX_compress_addr(aux_reg_ker,
                                                 aux_kernel_offset));
@@ -911,7 +911,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
         bool is_zero_point = jcp.src_zero_point || jcp.dst_zero_point;
         int idx = jcp.max_regs_ur - 1 + 2 * is_zero_point;
         if (!jcp.is_resrc_depthwise) zmm_src = Zmm(++idx);
-        if (jcp.ver != ver_vnni) zmm_tmp = Zmm(++idx);
+        if (!jcp.has_vnni) zmm_tmp = Zmm(++idx);
         if (jcp.is_fast_depthwise) zmm_permute = Zmm(++idx);
         if (jcp.signed_input) zmm_shifted_zero = Zmm(++idx);
         // due to extra register used for shifts and compensations
@@ -920,7 +920,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
 
         assert(IMPLICATION(!is_zero_point, idx == ker_dw_reg_base_idx));
     }
-    if (!jcp.is_depthwise && jcp.ver != ver_vnni) {
+    if (!jcp.is_depthwise && (!jcp.has_vnni)) {
         xor_(reg_scratch, reg_scratch);
         Reg16 _t16 = reg_scratch.cvt16();
         mov(_t16, 0x1);
@@ -1380,8 +1380,8 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if ((jcp.dst_zero_point || jcp.src_zero_point) && jcp.is_fused_conv)
         return status::unimplemented;
 
-    jcp.ver = mayiuse(avx512_core_vnni) ? ver_vnni : ver_avx512_core;
-    jcp.is_fast_depthwise = true && jcp.is_depthwise && jcp.ver == ver_vnni
+    jcp.has_vnni = mayiuse(avx512_core_vnni);
+    jcp.is_fast_depthwise = true && jcp.is_depthwise && jcp.has_vnni
             && jcp.ngroups % jcp.ch_block == 0; /* groups not multiple of
     ch_block (= 16) would require byte masking for load from src */
 
@@ -1389,10 +1389,10 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             && jcp.kw < 4 && jcp.dilate_w == 0;
     if (jcp.is_depthwise) {
         jcp.max_regs_ur = 31 - jcp.is_fast_depthwise - !jcp.is_resrc_depthwise
-                - jcp.signed_input - (jcp.ver != ver_vnni)
+                - jcp.signed_input - (!jcp.has_vnni)
                 - (jcp.signed_input || jcp.need_saturation); // both alias
     } else {
-        jcp.max_regs_ur = jcp.ver == ver_vnni ? 31 : 28;
+        jcp.max_regs_ur = jcp.has_vnni ? 31 : 28;
     }
 
     // TODO: re-implement so that the JIT Kernel uses the least amount of
@@ -1530,7 +1530,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     // TODO: generalize this condition and rewrite it in appropriate manner
     int ncores_per_socket = (int)cpu().getNumCores(
             Xbyak::util::IntelCpuTopologyLevel::CoreLevel);
-    if (jcp.ver == ver_vnni && jcp.mb == 1 && jcp.kh == 3 && jcp.kw == 3
+    if (jcp.has_vnni && jcp.mb == 1 && jcp.kh == 3 && jcp.kw == 3
             && jcp.stride_w == 1 && jcp.ic % 64 == 0
             && jcp.nthr <= ncores_per_socket)
         max_threading_nb_oc_chunk = 2;
@@ -1656,7 +1656,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 void jit_avx512_core_x8s8s32x_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         dim_t count = attr.output_scales_.count_ == 1
                 ? (dim_t)16
                 : attr.output_scales_.count_;

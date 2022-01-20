@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d(
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
@@ -243,7 +243,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_1d(
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
@@ -388,7 +388,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d_dw(
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
@@ -511,7 +511,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_3d(
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
