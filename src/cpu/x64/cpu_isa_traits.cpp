@@ -97,6 +97,7 @@ struct isa_info_t {
             case avx512_core_vnni: return dnnl_cpu_isa_avx512_core_vnni;
             case avx512_core: return dnnl_cpu_isa_avx512_core;
             case avx2_vnni: return dnnl_cpu_isa_avx2_vnni;
+            case avx512_common:
             case avx2: return dnnl_cpu_isa_avx2;
             case avx: return dnnl_cpu_isa_avx;
             case sse41: return dnnl_cpu_isa_sse41;
