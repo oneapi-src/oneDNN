@@ -792,12 +792,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
-        // Current formats are only used in jit kernels that natively
-        // support s8 instructions, hence, there is no need for signed
-        // compensation.
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
-
         const bool req_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
 
@@ -810,10 +806,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         return simple_attr_check(attr, true, false)
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
+                && mask_ok(req_comp, output_d.extra().compensation_mask)
                 && mask_ok(req_asymmetric_comp,
                         output_d.extra().asymm_compensation_mask)
                 && one_of(input_d.data_type(), f32, s8, bf16)
-                && output_d.data_type() == s8 && !req_comp && D_mask == 1;
+                && output_d.data_type() == s8 && D_mask == 1;
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -845,8 +842,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t NB_Adim = pdims[0] / A_blksize;
         const dim_t Bdim = dims[1];
         const dim_t NB_Bdim = pdims[1] / B_blksize;
+        assert(pdims[1] == NB_Bdim * B_blksize);
 
         const float *scales = pd->attr()->output_scales_.scales_;
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
         const bool has_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
 
@@ -856,8 +856,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 : 1.f;
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
-                           int32_t *zp, const float *s, const int a_block,
-                           const int b_block) {
+                           int32_t *c, int32_t *zp, const float *s,
+                           const int a_block, const int b_block) {
             for (int a = 0; a < a_block; ++a) {
                 for (int b = 0; b < b_block; ++b) {
                     const auto plain_off
@@ -869,7 +869,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
                             inp[plain_off], s[0] * adj_scale);
 
-                    if (has_asymmetric_comp) zp[b] -= (int32_t)(out[index]);
+                    auto o = static_cast<int32_t>(out[index]);
+                    if (req_comp) c[b] -= (128 * o);
+                    if (has_asymmetric_comp) zp[b] -= o;
                 }
                 for (int b = b_block; b < B_blksize; ++b) {
                     auto index
@@ -889,13 +891,20 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-        size_t offset = pdims[0] * pdims[1];
+        const auto w_d = order_keep ? output_d : input_d;
+        size_t offset = w_d.size() - w_d.additional_buffer_size();
+        size_t zp_offset = offset + (req_comp ? pdims[1] * sizeof(int32_t) : 0);
+        int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
+                               : nullptr;
         int32_t *zp = has_asymmetric_comp
-                ? reinterpret_cast<int32_t *>(output + offset)
+                ? reinterpret_cast<int32_t *>(output + zp_offset)
                 : nullptr;
 
-        if (has_asymmetric_comp) {
-            parallel_nd(NB_Bdim * B_blksize, [&](dim_t i) { zp[i] = 0; });
+        if (has_asymmetric_comp || req_comp) {
+            parallel_nd(NB_Bdim * B_blksize, [&](dim_t i) {
+                if (req_comp) cp[i] = 0;
+                if (has_asymmetric_comp) zp[i] = 0;
+            });
         }
 
 #define get_blk_off(md, a, b) (md).blk_off(a, b)
@@ -910,7 +919,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const dim_t b_block
                         = nstl::min(B_blksize, Bdim - B * B_blksize);
                 dim_t _offset = B * B_blksize;
-                ker(i, o,
+                ker(i, o, (order_keep && req_comp) ? &cp[_offset] : nullptr,
                         (order_keep && has_asymmetric_comp) ? &zp[_offset]
                                                             : nullptr,
                         &scales[0], a_block, b_block);

@@ -28,28 +28,28 @@ const impl_list_map_t regular_bf16_impl_list_map REG_REORDER_P({
 
         DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
         DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-#if !DNNL_X64
-        REG_SR_BIDIR(bf16, any, f32, nChw16c)
-        REG_SR_BIDIR(bf16, any, f32, nCdhw16c)
 
-        REG_SR_BIDIR(bf16, any, s8, nChw16c)
-        REG_SR_BIDIR(bf16, any, s8, nCdhw16c)
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, f32, nChw16c))
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, f32, nCdhw16c))
 
-        REG_SR_BIDIR(bf16, any, u8, nChw16c)
-        REG_SR_BIDIR(bf16, any, u8, nCdhw16c)
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, s8, nChw16c))
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, s8, nCdhw16c))
 
-        REG_SR_BIDIR(bf16, any, bf16, nChw16c)
-        REG_SR_BIDIR(bf16, any, bf16, nCdhw16c)
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, u8, nChw16c))
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, u8, nCdhw16c))
 
-        REG_SR_BIDIR(bf16, any, f32, OIdhw16o16i)
-        REG_SR_BIDIR(bf16, any, f32, OIdhw16i16o)
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, bf16, nChw16c))
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, bf16, nCdhw16c))
 
-        REG_SR_BIDIR(bf16, any, s8, OIdhw16o16i)
-        REG_SR_BIDIR(bf16, any, s8, OIdhw16i16o)
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, f32, OIdhw16o16i))
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, f32, OIdhw16i16o))
 
-        REG_SR_BIDIR(bf16, any, u8, OIdhw16o16i)
-        REG_SR_BIDIR(bf16, any, u8, OIdhw16i16o)
-#endif
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, s8, OIdhw16o16i))
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, s8, OIdhw16i16o))
+
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, u8, OIdhw16o16i))
+        DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, u8, OIdhw16i16o))
+
         REG_SR(bf16, any, bf16, any, fmt_order::any, spec::reference)
         REG_SR(bf16, any, f32, any, fmt_order::any, spec::reference)
         REG_SR(bf16, any, s8, any, fmt_order::any, spec::reference)
