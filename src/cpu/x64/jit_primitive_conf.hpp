@@ -819,7 +819,6 @@ enum conv_brgemm_exec_type_t {
 struct jit_brgemm_conv_conf_t {
     cpu_isa_t isa;
     prop_kind_t prop_kind;
-    conv_version_t ver;
     conv_brgemm_loop_order_t loop_order;
     conv_harness_t harness;
     int simd_w, amx_w, amx_h;
