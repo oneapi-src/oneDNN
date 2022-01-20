@@ -3274,7 +3274,7 @@ public:
 
         int elems_per_load = 16;
         for (int i = 0; i < elems_per_thr; i += elems_per_load) {
-            cmp(16 | lt | f0[0], get_elem(i), elems_);
+            cmp(16 | lt | f0[0], get_elem(i)(1), elems_);
             if (use_a64) {
                 auto h_a64 = get_subregister(
                         hw, ngen::DataType::uq, src_ptr_vec, i);
@@ -3312,7 +3312,7 @@ public:
                 if (use_a64) eadd(8, h, h, dst_ptr_);
             }
 
-            cmp(16 | lt | f0[0], get_elem(i), elems_);
+            cmp(16 | lt | f0[0], get_elem(i)(1), elems_);
             if (use_a64) {
                 store(16 | f0[0], ngen::scattered_byte(2), A64, dst_header[0],
                         get_dst_reg(i * 2));
