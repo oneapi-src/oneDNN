@@ -549,6 +549,10 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         const primitive_attr_t &attr, int nthreads, bool reduce_src) {
     if (!mayiuse(avx512_common)) return status::unimplemented;
 
+    if (!everyone_is(data_type::f32, src_d.data_type(), weights_d.data_type(),
+                dst_d.data_type()))
+        return status::unimplemented;
+
     jcp.nthr = nthreads;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -655,24 +659,19 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 
     jcp.ic_block = jcp.oc_block = simd_w;
 
-    if (everyone_is(data_type::f32, src_d.data_type(), weights_d.data_type(),
-                dst_d.data_type())) {
-        const int is_bwd_d = jcp.prop_kind == backward_data;
-        format_tag_t wei_tag = with_groups
-                ? pick(2 * ndims - 6 + is_bwd_d, gOIw16i16o, gIOw16o16i,
-                        gOIhw16i16o, gIOhw16o16i, gOIdhw16i16o, gIOdhw16o16i)
-                : pick(2 * ndims - 6 + is_bwd_d, OIw16i16o, IOw16o16i,
-                        OIhw16i16o, IOhw16o16i, OIdhw16i16o, IOdhw16o16i);
+    const int is_bwd_d = jcp.prop_kind == backward_data;
+    format_tag_t wei_tag = with_groups
+            ? pick(2 * ndims - 6 + is_bwd_d, gOIw16i16o, gIOw16o16i,
+                    gOIhw16i16o, gIOhw16o16i, gOIdhw16i16o, gIOdhw16o16i)
+            : pick(2 * ndims - 6 + is_bwd_d, OIw16i16o, IOw16o16i, OIhw16i16o,
+                    IOhw16o16i, OIdhw16i16o, IOdhw16o16i);
 
-        jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
-        if (jcp.wei_tag != wei_tag) return status::unimplemented;
+    jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+    if (jcp.wei_tag != wei_tag) return status::unimplemented;
 
-        jcp.ver = mayiuse(avx512_core) ? ver_avx512_core : ver_fma;
-        jcp.typesize_in = sizeof(prec_traits<data_type::f32>::type);
-        jcp.typesize_out = sizeof(prec_traits<data_type::f32>::type);
-    } else {
-        return status::unimplemented;
-    }
+    jcp.ver = mayiuse(avx512_core) ? ver_avx512_core : ver_fma;
+    jcp.typesize_in = sizeof(prec_traits<data_type::f32>::type);
+    jcp.typesize_out = sizeof(prec_traits<data_type::f32>::type);
 
     /* once all the formats are set, check the padding consistency */
     if (!is_data_layout_nxc) {
