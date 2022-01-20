@@ -700,11 +700,6 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
     auto ker = [&](const int ithr, const int nthr) {
         assert(nthr == jcp.nthr);
-        const bool ready_for_async
-                = utils::one_of(jcp.ver, ver_fma, ver_avx512_core);
-        MAYBE_UNUSED(ready_for_async);
-        assert(IMPLICATION(
-                !ready_for_async && !dnnl_thr_syncable(), jcp.nthr_mb == 1));
 
         const int ithr_ic_b = ithr % jcp.nthr_ic_b;
         const int ithr_oc_b = ithr / jcp.nthr_ic_b % jcp.nthr_oc_b;

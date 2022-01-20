@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -359,7 +359,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
             if (p_sum_scale_val != 1.f)
                 mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
         }
-        if (jcp.signed_input && jcp.ver != ver_vnni) {
+        if (jcp.signed_input && (!jcp.has_vnni)) {
             mov(reg_scratch, float2int(jcp.wei_adj_scale));
             vmovq(xmm_bias_alpha(), reg_scratch);
             vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
@@ -379,7 +379,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
                     mov(reg_bias_data,
                             EVEX_compress_addr(rsp, reg_bias_data_off));
                 cvt2ps(jcp.bia_dt, vmm_bias, bias_ptr(i_load), mask_flag);
-                if (jcp.signed_input && jcp.ver != ver_vnni)
+                if (jcp.signed_input && (!jcp.has_vnni))
                     vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
             }
             if (jcp.signed_input) {
@@ -468,7 +468,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
     };
 
     auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
-        if (jcp.ver == ver_vnni) {
+        if (jcp.has_vnni) {
             vpdpbusd(vreg_acc, vreg_src, vreg_wei);
         } else {
             vpmaddubsw(vmm_tmp, vreg_src, vreg_wei);
@@ -763,8 +763,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
 
     jcp.nthr = nthreads;
 
-    jcp.ver = ver_avx512_core;
-    if (mayiuse(avx512_core_vnni)) jcp.ver = ver_vnni;
+    jcp.has_vnni = mayiuse(avx512_core_vnni);
 
     int ndims = src_d.ndims();
     jcp.ndims = ndims;
@@ -950,7 +949,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     int size_treshold = 28;
     int max_regs = 0;
     int min_regs = 6;
-    if (jcp.ver == ver_vnni)
+    if (jcp.has_vnni)
         max_regs = ((jcp.oh > size_treshold && jcp.ow > size_treshold)
                            && (jcp.oc < 128 || jcp.ic < 128))
                 ? min_regs
@@ -1142,7 +1141,7 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_scratchpad(
         const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
     using namespace dnnl::impl::memory_tracking::names;
 
-    if (jcp.signed_input && jcp.ver != ver_vnni) {
+    if (jcp.signed_input && (!jcp.has_vnni)) {
         dim_t count = nstl::max<dim_t>(
                 attr.output_scales_.count_, (dim_t)jcp.ic_block);
         scratchpad.book<float>(key_conv_adjusted_scales, count);

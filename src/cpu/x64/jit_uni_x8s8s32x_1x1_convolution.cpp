@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ status_t jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward(
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    if (pd()->jcp_.signed_input && pd()->jcp_.ver != ver_vnni) {
+    if (pd()->jcp_.signed_input && (!pd()->jcp_.has_vnni)) {
         auto local_scales
                 = scratchpad.template get<float>(key_conv_adjusted_scales);
         auto scales = pd()->attr()->output_scales_.scales_;
@@ -78,7 +78,7 @@ status_t jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward(
 
     if (pd()->jcp_.with_dw_conv) {
         auto jcp_dw = pd()->jcp_dw_;
-        if (jcp_dw->signed_input && jcp_dw->ver != ver_vnni) {
+        if (jcp_dw->signed_input && (!jcp_dw->has_vnni)) {
             memory_tracking::grantor_t dw_scratchpad(
                     scratchpad, memory_tracking::names::prefix_fusion);
             auto attr_dw = pd()->dw_conv_pd_->attr();
@@ -142,7 +142,7 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward_thr(
     const int stride_w = pd()->desc()->strides[ndims - 3];
 
     float *oscales {nullptr};
-    if (jcp.signed_input && jcp.ver != ver_vnni)
+    if (jcp.signed_input && (!jcp.has_vnni))
         oscales = scratchpad.get<float>(key_conv_adjusted_scales);
     else
         oscales = pd()->attr()->output_scales_.scales_;
@@ -190,7 +190,7 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward_thr(
         compensation_dw = (jcp_dw->signed_input)
                 ? reinterpret_cast<int32_t *>(w + offset)
                 : nullptr;
-        if (jcp_dw->signed_input && jcp_dw->ver != ver_vnni)
+        if (jcp_dw->signed_input && (!jcp_dw->has_vnni))
             dw_oscales = dw_scratchpad.get<float>(key_conv_adjusted_scales);
         else
             dw_oscales = dw_pd->attr()->output_scales_.scales_;
@@ -273,7 +273,7 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward_thr(
                 : nullptr;
         p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
         p.dst_zero_point = jcp.dst_zero_point ? dst_zero_point : nullptr;
-        p.scales = (jcp.signed_input && jcp.ver != ver_vnni)
+        p.scales = (jcp.signed_input && (!jcp.has_vnni))
                 ? &local_scales[jcp.is_oc_scale * _ocb * jcp.oc_block]
                 : &oscales[jcp.is_oc_scale * _ocb * jcp.oc_block];
         if (pd()->rtus_.reduce_src_) {

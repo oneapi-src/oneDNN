@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,8 +54,7 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_uni_int8_1x1:",
-                        isa == avx2 && jcp_.ver == ver_vnni ? avx2_vnni : isa,
-                        ""),
+                        isa == avx2 && jcp_.has_vnni ? avx2_vnni : isa, ""),
                 jit_uni_x8s8s32x_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
