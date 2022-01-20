@@ -793,6 +793,7 @@ const kernel_table_t xe_hp_x8_nocopy_nt_table[] = {
 };
 
 const kernel_table_t xe_hp_x8_nocopy_tn_table[] = {
+    {{32,  1}, { 0,  1}, {0, 1}, {}, 'k'},
     {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
 };
 
