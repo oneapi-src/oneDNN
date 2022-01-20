@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,13 @@
  * limitations under the License.
  *******************************************************************************/
 #include "simplify.hpp"
+#include <string>
 #include <utility>
 #include <vector>
 #include "../visitor.hpp"
 #include <compiler/ir/builder.hpp>
+#include <unordered_map>
+#include <unordered_set>
 #include <util/any_map.hpp>
 
 namespace sc {
@@ -31,15 +34,70 @@ public:
     using ir_visitor_t::visit;
     // the current/ancestor stmts
     std::vector<stmt_c> cur;
+    // the defined var/tensor in stmts
+    std::unordered_set<std::string> defs;
+    // old var to new var map
+    std::unordered_map<expr_c, expr_c> rmap;
+    // repeat var index
+    int var_index = 1;
     // the parent stmts nodes currently met stmt sequences
     std::vector<stmt_c> *pnewseq = nullptr;
-    // not interested in any exprs
-    expr_c dispatch(expr_c v) override { return v; }
+    // only interested in var/tensor
+    expr_c visit(var_c v) override {
+        if (rmap.find(v) != rmap.end()) { return rmap[v]; }
+        return v;
+    }
+    expr_c visit(tensor_c v) override {
+        if (rmap.find(v) != rmap.end()) { return rmap[v]; }
+        return v;
+    }
     stmt_c dispatch(stmt_c v) override {
+        if (cur.empty()) { defs.clear(); }
         cur.emplace_back(v);
         auto ret = ir_visitor_t::dispatch(v);
         cur.pop_back();
+        if (cur.empty()) { defs.clear(); }
         return ret;
+    }
+
+    stmt_c visit(define_c v) override {
+        auto ret = ir_visitor_t::visit(v).static_as<define_c>();
+        bool changed = !ret.ptr_same(v);
+        auto var0 = ret->var_;
+        expr new_var = var0;
+        // in stmts
+        if (!cur.empty()) {
+            if (var0.isa<var>()) {
+                auto &name = var0.static_as<var>()->name_;
+                if (defs.find(name) == defs.end()) {
+                    defs.insert(name);
+                } else {
+                    new_var = var0->remake();
+                    new_var.static_as<var>()->name_
+                            = name + "_" + std::to_string(var_index++);
+                    rmap[var0] = new_var;
+                    changed = true;
+                }
+            } else {
+                assert(var0.isa<tensor>());
+                auto &name = var0.static_as<tensor>()->name_;
+                if (defs.find(name) == defs.end()) {
+                    defs.insert(name);
+                } else {
+                    new_var = var0->remake();
+                    new_var.static_as<tensor>()->name_
+                            = name + "_" + std::to_string(var_index++);
+                    rmap[var0] = new_var;
+                    changed = true;
+                }
+            }
+        }
+        if (changed) {
+            return copy_attr(*ret,
+                    builder::make_var_tensor_def_unattached(
+                            new_var, ret->linkage_, ret->init_));
+        }
+        return v;
     }
 
     stmt_c visit(stmts_c v) override {
@@ -50,21 +108,15 @@ public:
         auto parent_seq = pnewseq;
         std::vector<stmt_c> newseq;
         pnewseq = &newseq;
-        // if there is any var/tensor def in the current sequence
-        // if there is none, we can safely promote the current sequence of
-        // statements to the parent scope
-        bool has_def = false;
+
         bool changed = false;
         for (auto &s : v->seq_) {
             auto ret = dispatch(s);
-            if (ret.defined()) {
-                newseq.emplace_back(ret);
-                has_def |= ret.isa<define_c>();
-            }
+            if (ret.defined()) { newseq.emplace_back(ret); }
             changed |= !ret.ptr_same(s);
         }
         pnewseq = parent_seq;
-        if (!has_def && parent_is_stmts) {
+        if (parent_is_stmts) {
             // if we have no definitions in the current scope and direct parent
             // is a stmts, promote to parent seq
             parent_seq->insert(parent_seq->end(), newseq.begin(), newseq.end());

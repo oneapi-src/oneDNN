@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<bf16_legalize_t>(ctx));
     ret.emplace_back(utils::make_unique<target_specific_lowering_cpu_t>(ctx));
     ret.emplace_back(module_function_pass_t::make<func_inliner_t>());
+    ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>());
 
     ret.emplace_back(
             module_function_pass_t::make<parallel_workload_dispatcher_t>());
