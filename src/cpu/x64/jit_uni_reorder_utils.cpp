@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
     ld.ndims = 0;
     ld.dt = md.data_type();
 
-    auto add_dim = [&ld](int id, int dim, int tail, bool is_blk,
+    auto add_dim = [&ld](int id, dim_t dim, dim_t tail, bool is_blk,
                            ptrdiff_t stride) {
         assert((size_t)ld.ndims < sizeof(ld.dims) / sizeof(ld.dims[0]));
         ld.id[ld.ndims] = id;
@@ -99,7 +99,7 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
             int tail = tails[d];
             for (int iblk = bd.inner_nblks - 1; iblk >= 0; --iblk) {
                 if (bd.inner_idxs[iblk] == d) {
-                    const int inner_tail = tail % bd.inner_blks[iblk];
+                    const dim_t inner_tail = tail % bd.inner_blks[iblk];
                     add_dim(d, bd.inner_blks[iblk], inner_tail, it_is_blk,
                             stride);
                     tail = utils::div_up(tail, bd.inner_blks[iblk]);
@@ -108,10 +108,10 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
             }
         }
 
-        const int dim_with_external_padding
+        const dim_t dim_with_external_padding
                 = (md.padded_dims()[d] + external_padding[d]) / blocks[d];
-        const int padded_dim = md.padded_dims()[d] / blocks[d];
-        const int tail = dim_with_external_padding != padded_dim
+        const dim_t padded_dim = md.padded_dims()[d] / blocks[d];
+        const dim_t tail = dim_with_external_padding != padded_dim
                 ? dim_with_external_padding
                         - (dim_with_external_padding - padded_dim)
                 : 0;
@@ -200,10 +200,10 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     utils::array_set(o_paddings, 0, om_d.ndims());
 
     for (int d = 0; d < im_d.ndims(); ++d) {
-        const int i_dim = im_d.dims()[d];
-        const int o_dim = om_d.dims()[d];
-        const int i_tail = i_dim % iblocks[d];
-        const int o_tail = o_dim % oblocks[d];
+        const dim_t i_dim = im_d.dims()[d];
+        const dim_t o_dim = om_d.dims()[d];
+        const dim_t i_tail = i_dim % iblocks[d];
+        const dim_t o_tail = o_dim % oblocks[d];
 
         if (o_tail > 0) {
             is_tail_present = true;
@@ -329,7 +329,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             if (ild.dims[i_pos] == 0 || old.dims[o_pos] % ild.dims[i_pos] != 0)
                 return status::unimplemented;
 
-            int factor = old.dims[o_pos] / ild.dims[i_pos];
+            dim_t factor = old.dims[o_pos] / ild.dims[i_pos];
 
             const size_t tail_of_upper_dim
                     = utils::div_up(old.tails[o_pos], factor) == ild.dims[i_pos]
@@ -356,7 +356,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             if (old.dims[o_pos] == 0 || ild.dims[i_pos] % old.dims[o_pos] != 0)
                 return status::unimplemented;
 
-            int factor = ild.dims[i_pos] / old.dims[o_pos];
+            dim_t factor = ild.dims[i_pos] / old.dims[o_pos];
             p.nodes[ndims].n = old.dims[o_pos];
             p.nodes[ndims].dim_id = old.id[o_pos];
             p.nodes[ndims].tail_size = old.tails[o_pos];
