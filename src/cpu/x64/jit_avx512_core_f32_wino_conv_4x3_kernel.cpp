@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1114,7 +1114,6 @@ status_t _jit_avx512_core_f32_wino_conv_4x3_data_kernel::init_conf_common(
 
     jcp.nthr = dnnl_get_max_threads();
 
-    jcp.ver = ver_avx512_core;
     jcp.prop_kind = cd.prop_kind;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -1219,7 +1218,6 @@ void set_kernel_dims_reg_block(jit_conv_winograd_conf_t &jcp) {
 }
 
 status_t set_wsched_DATA_W_SGD_avx512_core(jit_conv_winograd_conf_t &jcp) {
-    if (jcp.ver != ver_avx512_core) return status::unimplemented;
 
     jcp.kernel_kind = embd_bcast;
 
@@ -2458,10 +2456,7 @@ status_t jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &diff_dst_d,
         const memory_desc_wrapper &diff_weights_d) {
-    if (!mayiuse(avx512_core))
-        return status::unimplemented;
-    else
-        jcp.ver = ver_avx512_core;
+    if (!mayiuse(avx512_core)) return status::unimplemented;
 
     // This kernel only supports 2D convolutions.
     if (src_d.ndims() != 4) return status::unimplemented;

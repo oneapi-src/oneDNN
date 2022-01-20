@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -608,7 +608,6 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
         jcp.ic = rnd_up(jcp.ic, simdw);
     }
 
-    jcp.ver = ver_avx512_core;
     if (!(mayiuse(avx512_core))) return status::unimplemented;
 
     if (!IMPLICATION(cd.alg_kind == alg_kind::convolution_auto,

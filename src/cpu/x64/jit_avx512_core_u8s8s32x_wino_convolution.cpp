@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -545,8 +545,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t : public jit_generator {
         return Zmm(31 - id_reg_out);
     }
     Zmm vreg_wei(int i) const {
-        assert(31 - jcp.n2_block * jcp.m_block - i
-                > (jcp.ver == ver_vnni ? 0 : 2));
+        assert(31 - jcp.n2_block * jcp.m_block - i > (jcp.has_vnni ? 0 : 2));
         return Zmm(31 - jcp.n2_block * jcp.m_block - i);
     }
 
@@ -593,7 +592,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
     Label nnb_loop_label, K_loop_label, mb_loop_label;
 
     auto compute = [=](Zmm vreg_acc, Zmm vreg_wei, Zmm vreg_src) {
-        if (jcp.ver == ver_vnni) {
+        if (jcp.has_vnni) {
             vpdpbusd(vreg_acc, vreg_src, vreg_wei);
         } else {
             vpmaddubsw(vreg_tmp, vreg_src, vreg_wei);
@@ -611,7 +610,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
     READ_PARAM(reg_aux_dst_b, dst_b);
 #undef READ_PARAM
 
-    if (jcp.ver != ver_vnni) {
+    if (!jcp.has_vnni) {
         xor_(reg_scratch, reg_scratch);
         Reg16 _t = reg_scratch.cvt16();
         mov(_t, 0x1);
@@ -686,7 +685,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
 }
 namespace {
 bool is_winograd_faster_than_direct(const jit_conv_conf_2x3_wino_t &jcp) {
-    if (jcp.ver == ver_vnni) {
+    if (jcp.has_vnni) {
         return (jcp.mb <= jcp.nthr
                        && (jcp.mb > 4 && jcp.ic > 64
                                && !(jcp.oc > 128 && jcp.ih < 14)))
@@ -736,13 +735,13 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
     jcp.b_pad = calculate_end_padding(
             jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
 
-    jcp.ver = ver_avx512_core;
     if (!(mayiuse(avx512_core) && src_d.data_type() == data_type::u8
                 && wei_d.data_type() == data_type::s8
                 && one_of(dst_d.data_type(), data_type::f32, data_type::s32,
                         data_type::s8, data_type::u8)))
         return status::unimplemented;
-    if (mayiuse(avx512_core_vnni)) jcp.ver = ver_vnni;
+
+    jcp.has_vnni = mayiuse(avx512_core_vnni);
 
     if (!IMPLICATION(cd.alg_kind == alg_kind::convolution_auto,
                 is_winograd_faster_than_direct(jcp)))
@@ -789,7 +788,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
     int L1_cap = platform::get_per_core_cache_size(1);
     int L2_cap = platform::get_per_core_cache_size(2);
     // need 1 extra reg for bcast, and 2 tmp regs for non-vnni
-    int free_regs = jcp.ver == ver_vnni ? 31 : 29;
+    int free_regs = jcp.has_vnni ? 31 : 29;
 
     auto get_thr_eff = [&](int small_mb, int ix, int iy, int n2_b) {
         float thr_eff;
