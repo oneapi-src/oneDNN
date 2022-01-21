@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -5051,7 +5051,7 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
     if (!mayiuse(avx512_core_bf16_amx_bf16)) return status::unimplemented;
     jcp.isa = avx512_core_bf16_amx_bf16;
 
-    jcp.ver = ver_vnni; // Needed for transpose routines
+    jcp.has_vnni = true; // Needed for transpose routines
     jcp.nthr = nthreads;
 
     jcp.ndims = ndims;
