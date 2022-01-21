@@ -1724,8 +1724,11 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 && (jcp.oh == jcp.ow) && (jcp.oh == 150))
             return status::unimplemented;
         // disabled for first convolutions excepting 3d
-        const bool is_3d = jcp.ndims == 5;
-        if (jcp.ic <= 4 && !is_3d) return status::unimplemented;
+        const bool is_real_3d = (jcp.ndims == 5
+                && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1
+                        || jcp.dilate_d > 0));
+
+        if (jcp.ic <= 4 && !is_real_3d) return status::unimplemented;
 
         if (jcp.f_pad >= jcp.kd || jcp.t_pad >= jcp.kh || jcp.r_pad >= jcp.kw)
             return status::unimplemented;
