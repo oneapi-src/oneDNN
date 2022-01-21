@@ -30,7 +30,6 @@ namespace cpu {
 namespace x64 {
 
 /* convolution */
-enum conv_version_t { ver_unused, ver_fma, ver_avx512_core, ver_vnni };
 enum conv_loop_order_t {
     loop_cgn,
     loop_gnc,
@@ -84,7 +83,6 @@ enum class jit_memory_tag_kind_t { ncsp, nspc, blocked, undef };
 
 struct jit_conv_conf_t {
     prop_kind_t prop_kind;
-    conv_version_t ver;
     bool has_vnni;
     conv_loop_order_t loop_order;
     conv_harness_t harness;
@@ -275,7 +273,6 @@ inline status_t init_tag(format_tag_t &tag, const memory_desc_wrapper &mdw,
 }
 
 struct jit_conv_conf_2x3_wino_t {
-    conv_version_t ver;
     bool has_vnni;
 
     int m;
@@ -542,7 +539,6 @@ struct jit_wino_transform_call_s {
 
 struct jit_1x1_conv_conf_t {
     prop_kind_t prop_kind;
-    conv_version_t ver;
     bool has_vnni;
 
     int ndims;
