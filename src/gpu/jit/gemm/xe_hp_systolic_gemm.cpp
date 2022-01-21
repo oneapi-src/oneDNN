@@ -156,7 +156,7 @@ const nocopy_table_t xe_hp_f16_nocopy_table[] = {
 
 const nocopy_table_t xe_hp_bf16_nocopy_table[] = {
         // NN   NT     TN   TT
-        {{{512, 256}, {512, 512}}, {{512, 256}, {384, 384}}}};
+        {{{512, 256}, {768, 512}}, {{512, 256}, {384, 384}}}};
 
 const nocopy_table_t xe_hp_x8x8s32_nocopy_table[] = {
         // NN   NT     TN   TT

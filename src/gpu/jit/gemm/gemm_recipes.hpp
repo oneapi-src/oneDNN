@@ -203,6 +203,7 @@ const gemm_recipe_t gemm_recipes[] = {
     {ngen::HW::XeHP, "BBS", "NTN", {}, 16, 16, "sb1x4 sb1x4 sb l4 cs di nmk fn pab", {}, {}},           // DLRM
     {ngen::HW::XeHP, "BBS", "NTN", {},  8,  8, "sb4x2 sb4x2 ab cs di wg 2x2x16 kr kb bk64", {}, 'K'},   // DCRNN
     {ngen::HW::XeHP, "BBS", "TNN", {}, 32,  8, "sb16 sb16 ab ca2 wg 1x4 fn nmk cs pab", {}, {}},        // DLRM
+    {ngen::HW::XeHP, "BBS", "TNN", {}, 32,  4, "sb16 su16 sb l4 cab1 wg 2x8 cs di", {}, {}},            // DCRNN
     {ngen::HW::XeHP, "BBS", "TTN", {}, 8,  32, "sb16 sb16 as cab1 wg 4x4 cs pab", {}, {}},              // DLRM
     {ngen::HW::XeHP, "HHH", "NNN", {}, 32, 16, "ab16/8 as16 ab l4 cab1 wg 4x4 cs di", {}, 'A'},         // BERT
     {ngen::HW::XeHP, "HHH", "NNN", {}, 32, 16, "ab8 ab16 ab l4 ca1 wg 2x8 cs di", {}, 'B'},             // BERT
