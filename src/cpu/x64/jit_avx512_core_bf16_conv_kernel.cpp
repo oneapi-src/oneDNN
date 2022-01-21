@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -835,7 +835,7 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.nthr = nthreads;
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                         : bf16_emulation_t::get_isa();
-    jcp.ver = ver_vnni;
+    jcp.has_vnni = true;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -1541,7 +1541,7 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                         : bf16_emulation_t::get_isa();
     jcp.nthr = nthreads;
-    jcp.ver = ver_vnni;
+    jcp.has_vnni = true;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
 
@@ -4123,7 +4123,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     jcp.nthr = nthreads;
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                         : bf16_emulation_t::get_isa();
-    jcp.ver = ver_vnni;
+    jcp.has_vnni = true;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
 
