@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -135,10 +135,9 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
 void gemm_with_post_ops_t::pd_t::init_scratchpad() {
     auto scratchpad = scratchpad_registry().registrar();
     if (use_scratchpad_with_post_op_worker) {
-        size_t size
-                = utils::array_product(dst_md()->padded_dims, dst_md()->ndims);
-        scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer, size,
-                types::data_type_size(desc()->acc_type));
+        memory_desc_wrapper dst_mdw(dst_md());
+        scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer,
+                dst_mdw.size(), types::data_type_size(desc()->acc_type));
     }
     scratchpad.book(memory_tracking::names::key_nested_multiple,
             gemm_pd_->scratchpad_registry());
