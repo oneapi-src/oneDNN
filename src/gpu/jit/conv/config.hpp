@@ -227,7 +227,7 @@ public:
 
         // If the kernel fits 128 registers, switch to the normal mode which is
         // expected to have better performance for such cases.
-        if (regs == 256 && estimated_peak_grf_usage <= 128) {
+        if (regs == 256 && estimated_peak_grf_usage <= 112) {
             *this = conv_config_t();
             regs = 128;
             CHECK(init_with_regs(conv_pd, attr, engine));
