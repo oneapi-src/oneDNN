@@ -27,7 +27,6 @@ namespace x64 {
 
 struct jit_brgemm_primitive_conf_t {
     prop_kind_t prop_kind;
-    conv_version_t ver;
     conv_loop_order_t loop_order;
     conv_harness_t harness;
     int simd_w;
