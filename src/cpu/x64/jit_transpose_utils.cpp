@@ -1037,15 +1037,14 @@ void jit_diff_wei_trans_to_vnni_t::generate() {
 #undef GET_OFF
 
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf) {
-    if (conf->ver == ver_vnni
-            && IMPLICATION(conf->is_1stconv, conf->transpose_src))
+    if (conf->has_vnni && IMPLICATION(conf->is_1stconv, conf->transpose_src))
         return new jit_trans_iw_ic_int16_t(conf);
     assert(!"unsupported configuration");
     return nullptr;
 }
 
 jit_trans_dst_t *create_trans_dst(const jit_conv_conf_t *conf) {
-    if (conf->ver == ver_vnni) return new jit_trans_ow_oc_t(conf);
+    if (conf->has_vnni) return new jit_trans_ow_oc_t(conf);
     assert(!"unsupported configuration");
     return nullptr;
 }
