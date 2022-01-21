@@ -3055,11 +3055,11 @@ typedef enum {
     /// Intel Advanced Vector Extensions 2 (Intel AVX2)
     dnnl_cpu_isa_avx2 = 0x7,
 
-    /// Intel Advanced Vector Extensions 512 (Intel AVX-512) subset
+    /// (deprecated) Intel Advanced Vector Extensions 512 (Intel AVX-512) subset
     /// for Intel Xeon Phi processors x200 Series.
     dnnl_cpu_isa_avx512_mic = 0xf,
 
-    /// Intel AVX-512 subset
+    /// (deprecated) Intel AVX-512 subset
     /// for Intel Xeon Phi processors 7235, 7285, 7295 Series.
     dnnl_cpu_isa_avx512_mic_4ops = 0x1f,
 
