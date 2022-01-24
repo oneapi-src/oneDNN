@@ -64,6 +64,12 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
     const ws_gates_aoc<scratch_data_t> scratch_cell(rnn, scratch_cell_);
     const AOC<src_data_t, 2> ws_Wh_b(ws_grid_, rnn.mb, rnn.dhc);
 
+    const auto get_scales = [](const float *scales, int idx) {
+        return scales ? scales + idx : nullptr;
+    };
+    const float *scales_G1 = get_scales(scales, 1);
+    const float *scales_G2 = get_scales(scales, 2);
+
     parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
@@ -71,10 +77,10 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
             auto G0 = func1(scales, // default func1 is sigmoid
                     scratch_gates(i, 0, j) + scratch_cell(i, 0, j)
                             + bias(0, j));
-            const auto G1 = func1(scales + 1, // default func1 is sigmoid
+            const auto G1 = func1(scales_G1, // default func1 is sigmoid
                     scratch_gates(i, 1, j) + scratch_cell(i, 1, j)
                             + bias(1, j));
-            const auto G2 = func2(scales + 2, // default func2 is tanh
+            const auto G2 = func2(scales_G2, // default func2 is tanh
                     scratch_gates(i, 2, j) + G1 * Wh_b + bias(2, j));
             if (rnn.is_training) {
                 ws_gates(i, 0, j) = to_src(G0);
