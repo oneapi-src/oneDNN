@@ -94,7 +94,7 @@ static inline void insert_reorder_after(op_ptr &op, size_t offset,
 static void layout_propagation_for_conv(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
-    const bool is_dw = op->get_kind() == op_kind::conv_depthwise;
+    const bool is_dw = op->get_kind() == op_kind::dnnl_conv_depthwise;
     // always create pd using any format
     const auto &pd_flag_pair
             = create_conv_pd(op, p_engine, prm_attr_mgr, pd_cache);
@@ -131,7 +131,8 @@ static void layout_propagation_for_conv(op_ptr &op,
     fill_layout_info(dst, pd.dst_desc());
 
     // fill scratchpads dimensions and data type to scratchpad value_t
-    auto scratchpad_val = insert_scratchpad(op);
+    // according to op schema, scratchpad must be be second output
+    auto scratchpad_val = op->get_output_value(1);
     const memory::desc scratchpad_desc = pd.scratchpad_desc();
     const memory::dims dims = scratchpad_desc.dims();
     scratchpad_val->set_dims(dims);
@@ -174,7 +175,7 @@ static void layout_propagation_for_deconv(op_ptr &op,
     fill_layout_info(dst, pd.dst_desc());
 
     // fill scratchpads dimensions and data type to scratchpad value_t
-    auto scratchpad_val = insert_scratchpad(op);
+    auto scratchpad_val = op->get_output_value(1);
     const memory::desc scratchpad_desc = pd.scratchpad_desc();
     const memory::dims dims = scratchpad_desc.dims();
     scratchpad_val->set_dims(dims);
@@ -329,7 +330,7 @@ static void layout_propagation_for_pool(op_ptr &op,
     fill_layout_info(dst, pd.dst_desc());
 
     // make scratchpad as pool's last output
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
     // if pooling's prop_kind id forward_training or backward
     if (op->has_attr("is_training") && op->get_attr<bool>("is_training")) {
@@ -783,7 +784,7 @@ static void layout_propagation_for_conv_bwd_data(op_ptr &op,
     fill_layout_info(diff_src, pd.diff_src_desc());
 
     // fill scratchpads dimensions and data type to scratchpad value_t
-    auto scratchpad_val = insert_scratchpad(op);
+    auto scratchpad_val = op->get_output_value(1);
     const memory::desc scratchpad_desc = pd.scratchpad_desc();
     const memory::dims dims = scratchpad_desc.dims();
     scratchpad_val->set_dims(dims);
@@ -918,22 +919,20 @@ static void remove_optional_conv_dw_output(
     std::vector<op_ptr> to_be_removed_ops;
 
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::conv_depthwise) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_conv_depthwise) continue;
 
         op_ptr new_conv_dw
-                = std::make_shared<impl::op_t>(op_kind::conv_depthwise);
+                = std::make_shared<impl::op_t>(op_kind::dnnl_conv_depthwise);
         new_conv_dw->merge_attributes(cur_op->get_attributes());
 
         for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
             new_conv_dw->connect_input(i, cur_op->get_input_value(i));
         }
-        // connect outputs, omit optional one with offset = 1
+        // connect outputs, omit optional one with offset > 1
         value_ptr conv_dw_dst = cur_op->get_output_value(0);
         new_conv_dw->connect_output(0, conv_dw_dst);
-        if (cur_op->num_outputs() == 3) {
-            value_ptr scratchpad = cur_op->get_output_value(2);
-            new_conv_dw->connect_output(1, scratchpad);
-        }
+        value_ptr scratchpad = cur_op->get_output_value(1);
+        new_conv_dw->connect_output(1, scratchpad);
 
         auto pos = pd_cache.find(cur_op.get());
         if (pos != pd_cache.end()) {
@@ -988,13 +987,11 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
         impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
             auto cur_op = op->shared_from_this();
 
-            if (cur_op->get_kind() == impl::op_kind::Convolution
-                    || cur_op->get_kind() == op_kind::dnnl_convolution
-                    || cur_op->get_kind() == op_kind::conv_depthwise) {
+            if (cur_op->get_kind() == op_kind::dnnl_convolution
+                    || cur_op->get_kind() == op_kind::dnnl_conv_depthwise) {
                 layout_propagation_for_conv(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose
-                    || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose) {
                 layout_propagation_for_deconv(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
@@ -1003,9 +1000,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
                 layout_propagation_for_matmul(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == impl::op_kind::MaxPool
-                    || cur_op->get_kind() == impl::op_kind::AvgPool
-                    || cur_op->get_kind() == op_kind::dnnl_pool) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_pool) {
                 layout_propagation_for_pool(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm) {
@@ -1085,7 +1080,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             size_t out_idx = 0;
             for (const auto &out : cur_op->get_output_values()) {
                 // ignore the second output of conv_depthwise
-                if (cur_op->get_kind() == op_kind::conv_depthwise
+                if (cur_op->get_kind() == op_kind::dnnl_conv_depthwise
                         && out_idx > 0)
                     continue;
                 if (ltw(out->get_logical_tensor()).layout_type()

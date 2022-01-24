@@ -524,8 +524,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_depthwise_fusion)
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::conv_depthwise);
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::dnnl_conv_depthwise);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });

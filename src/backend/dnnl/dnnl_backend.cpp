@@ -108,7 +108,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::conv_bn_add_relu, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::conv_bn_relu, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::conv_relu, float_conv_fwd)
-    DNNL_REGISTER_KERNEL(op_kind::conv_depthwise, float_conv_fwd)
+    DNNL_REGISTER_KERNEL(op_kind::dnnl_conv_depthwise, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::conv_simple_resblock, float_conv_fwd)
     DNNL_REGISTER_KERNEL(
             op_kind::conv_bias_post_ops_chain_fusion, float_conv_fwd)

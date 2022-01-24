@@ -17,6 +17,7 @@
 #define BACKEND_DNNL_PASSES_UTILS_HPP
 
 #include <algorithm>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <set>
@@ -60,7 +61,10 @@ public:
         return ret.first->first;
     }
 
-    dnnl::primitive_attr &get_attr(int64_t key) { return data_[key]; }
+    dnnl::primitive_attr &get_attr(int64_t key) {
+        assertm(key != -1, "invalid key");
+        return data_[key];
+    }
 
 private:
     std::unordered_map<int64_t, dnnl::primitive_attr> data_;
@@ -137,6 +141,12 @@ private:
 #endif
 };
 
+class subgraph_validator_t {
+public:
+    subgraph_validator_t() = default;
+    status_t run(const std::shared_ptr<subgraph_t> &sg);
+};
+
 // The pass_pipeline_t class is used to manage all transformation passes to run
 // on a subgraph. Users should add passes need to run to the pipeline with a
 // user defined order. And then call the run() method to run those added passes.
@@ -179,6 +189,10 @@ public:
             // Dump the subgraph to dot file
             visualizer_.run(sg, names_[i], is_layout_sensitives_[i],
                     is_memory_sensitives_[i]);
+
+            // Validate the subgraph after each pass
+            ret = validator_.run(sg);
+            if (ret != impl::status::success) { return ret; }
         }
         return impl::status::success;
     }
@@ -193,6 +207,7 @@ private:
     std::vector<bool> is_memory_sensitives_;
 
     subgraph_visualizer_t visualizer_;
+    subgraph_validator_t validator_;
 
     // The current visualize arguments
     bool is_layout_sensitive_;

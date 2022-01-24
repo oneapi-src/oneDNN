@@ -46,13 +46,11 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         auto cur_op = op->shared_from_this();
         std::shared_ptr<op_executable_t> exec;
 
-        if (cur_op->get_kind() == impl::op_kind::Convolution
-                || cur_op->get_kind() == op_kind::dnnl_convolution
-                || cur_op->get_kind() == op_kind::conv_depthwise) {
+        if (cur_op->get_kind() == op_kind::dnnl_convolution
+                || cur_op->get_kind() == op_kind::dnnl_conv_depthwise) {
             exec = std::make_shared<conv_fwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
-        } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose
-                || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose) {
             exec = std::make_shared<deconv_fwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
@@ -68,9 +66,7 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
                 || cur_op->get_kind() == op_kind::dnnl_prelu) {
             exec = std::make_shared<prelu_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
-        } else if (cur_op->get_kind() == impl::op_kind::MaxPool
-                || cur_op->get_kind() == impl::op_kind::AvgPool
-                || cur_op->get_kind() == op_kind::dnnl_pool) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_pool) {
             exec = std::make_shared<pool_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::Concat) {

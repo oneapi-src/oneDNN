@@ -7516,7 +7516,7 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
             &conv_src, &conv_wei, &dw_wei};
     std::vector<const impl::logical_tensor_t *> lt_outs {&dw_dst};
 
-    p.compile(&cp, lt_ins, lt_outs, &engine);
+    ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, &engine), impl::status::success);
 
     test::vector<float> case2_out_data(product(dw_dst_shape));
     impl::tensor_t dw_dst_ts2(dw_dst, &engine, case2_out_data.data());

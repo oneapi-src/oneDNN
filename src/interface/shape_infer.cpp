@@ -563,6 +563,7 @@ status_t infer_pool_output_shape(op_t *n,
     dims dilations(kernel.size(), 1);
     if (n->has_attr("dilations")) {
         auto dilations_tmp = n->get_attr<dims>("dilations");
+        dilations_tmp.resize(kernel.size());
         if (dilations_tmp.size() != dilations.size()) {
             return status::invalid_argument;
         } else {

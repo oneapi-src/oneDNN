@@ -1533,7 +1533,7 @@ TEST(Pass, FuseConvDepthwise) {
         ASSERT_EQ(agraph.get_num_partitions(), 1);
 
         ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-                dnnl_impl::op_kind::conv_depthwise);
+                dnnl_impl::op_kind::dnnl_conv_depthwise);
     }
 }
 

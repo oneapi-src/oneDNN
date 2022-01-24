@@ -28,10 +28,14 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs) {
     using ltw = impl::logical_tensor_wrapper_t;
 
-    auto backup = *inputs[1];
-    if (n->get_attr<int64_t>("groups") > 1) {
+    auto backup_wei_shape = *inputs[1];
+    auto backup_groups = n->get_attr<int64_t>("groups");
+    if (n->get_attr<bool>("canonicalized")
+            && (ltw(inputs[1]).ndims() == ltw(inputs[0]).ndims() + 1)) {
         auto ndims = ltw(inputs[1]).ndims() - 1;
         auto dims = ltw(inputs[1]).vdims();
+        n->set_attr<int64_t>("groups", static_cast<int64_t>(dims[0]));
+
         dims[1] *= dims[0];
         dims.erase(dims.begin());
 
@@ -42,8 +46,8 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
     }
 
     infer_conv_output_shape(n, inputs, outputs);
-    *inputs[1] = backup;
-
+    *inputs[1] = backup_wei_shape;
+    n->set_attr<int64_t>("groups", backup_groups);
     return status::success;
 }
 

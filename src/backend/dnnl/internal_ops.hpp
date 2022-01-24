@@ -66,7 +66,7 @@ namespace op_kind {
     X(conv_bn_add_relu, Conv_bn_add_relu) \
     X(conv_bn_relu, Conv_bn_relu) \
     X(conv_relu, Conv_relu) \
-    X(conv_depthwise, Conv_depthwise) \
+    X(dnnl_conv_depthwise, Dnnl_conv_depthwise) \
     X(conv_bwd_f_biasadd_bwd, ConvBwdF_biasAddBwd) \
     X(conv_bias_post_ops_chain_fusion, Conv_bias_post_ops_chain_fusion) \
     X(convtranspose_fusion, ConvTranspose_fusion) \

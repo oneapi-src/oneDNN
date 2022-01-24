@@ -38,11 +38,9 @@ using value_ptr = std::shared_ptr<impl::value_t>;
 // for those ops with data_format/filter_format attributes
 static bool need_insert_permute(op_kind_t kind) {
     static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
-            op_kind::conv_depthwise, impl::op_kind::Convolution,
-            impl::op_kind::ConvTranspose, op_kind::dnnl_convtranspose,
-            impl::op_kind::MaxPool, impl::op_kind::AvgPool, op_kind::dnnl_pool,
-            op_kind::dnnl_batchnorm, impl::op_kind::PReLU, op_kind::dnnl_prelu,
-            impl::op_kind::Interpolate};
+            op_kind::dnnl_conv_depthwise, op_kind::dnnl_convtranspose,
+            op_kind::dnnl_pool, op_kind::dnnl_batchnorm, impl::op_kind::PReLU,
+            op_kind::dnnl_prelu, impl::op_kind::Interpolate};
     return ops.count(kind) != 0;
 }
 
@@ -96,7 +94,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
                     perm_op->set_attr<std::string>("from_format", "XIO");
                     perm_op->set_attr<std::string>("to_format", "OIX");
                 } else if (need_permute_0
-                        && conv_op->get_kind() != op_kind::conv_depthwise) {
+                        && conv_op->get_kind()
+                                != op_kind::dnnl_conv_depthwise) {
                     // this input is also the input of post binary ops
                     perm_op->set_attr<std::string>("from_format", "NXC");
                     perm_op->set_attr<std::string>("to_format", "NCX");
@@ -136,7 +135,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
 
         size_t num_post_binary_ops = 0;
         auto &prm_attr_mgr = sg->prm_attr_mgr_;
-        if (op->has_attr("primitive_attr_key")) {
+        if (op->has_attr("primitive_attr_key")
+                && op->get_attr<int64_t>("primitive_attr_key") != -1) {
             int64_t key = op->get_attr<int64_t>("primitive_attr_key");
             const auto &pops = prm_attr_mgr.get_attr(key).get_post_ops();
             for (int n = 0; n < pops.len(); ++n) {
@@ -169,10 +169,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
         if (!need_insert_permute(cur_op->get_kind())) continue;
 
         bool require_output_permute = false;
-        if (cur_op->get_kind() == impl::op_kind::Convolution
-                || cur_op->get_kind() == op_kind::dnnl_convolution
-                || cur_op->get_kind() == op_kind::conv_depthwise
-                || cur_op->get_kind() == impl::op_kind::ConvTranspose
+        if (cur_op->get_kind() == op_kind::dnnl_convolution
+                || cur_op->get_kind() == op_kind::dnnl_conv_depthwise
                 || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
             require_output_permute = insert_permute_for_conv_or_deconv(cur_op);
         } else {
@@ -188,37 +186,6 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
             perm_op->set_attr<std::string>("to_format", "NXC");
             insert_op_after(perm_op, cur_op, 0);
             to_be_inserted_ops.emplace_back(perm_op);
-        }
-
-        if (cur_op->get_kind() == impl::op_kind::Convolution) {
-            // replace impl::op_kind::Convolution to be
-            // op_kind::dnnl_convolution
-            op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_convolution);
-            replace_op(cur_op, new_op);
-            to_be_inserted_ops.emplace_back(new_op);
-            to_be_removed_ops.emplace_back(cur_op);
-        }
-
-        if (cur_op->get_kind() == impl::op_kind::ConvTranspose) {
-            // replace impl::op_kind::ConvTranspose to be
-            // op_kind::dnnl_convtranspose
-            op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_convtranspose);
-            replace_op(cur_op, new_op);
-            to_be_inserted_ops.emplace_back(new_op);
-            to_be_removed_ops.emplace_back(cur_op);
-        }
-
-        if (cur_op->get_kind() == impl::op_kind::MaxPool
-                || cur_op->get_kind() == impl::op_kind::AvgPool) {
-            op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_pool);
-            replace_op(cur_op, new_op);
-            if (cur_op->get_kind() == impl::op_kind::MaxPool) {
-                new_op->set_attr<std::string>("kind", "maxpool");
-            } else {
-                new_op->set_attr<std::string>("kind", "avgpool");
-            }
-            to_be_inserted_ops.emplace_back(new_op);
-            to_be_removed_ops.emplace_back(cur_op);
         }
     }
     for (const auto &op : to_be_inserted_ops)
@@ -282,16 +249,21 @@ impl::status_t insert_to_group_for_conv_or_deconv(
             = [&to_be_inserted_ops](op_ptr &op, const std::string &attr_name,
                       const size_t offset) -> bool {
         auto groups = op->get_attr<int64_t>(attr_name);
-        if (groups <= 1) return false;
+        if (groups <= 1) {
+            op->set_attr<bool>("canonicalized", true);
+            return false;
+        }
 
         op_ptr to_group_op = std::make_shared<impl::op_t>(op_kind::to_group);
         to_group_op->set_attr<int64_t>("groups", groups);
 
+        op->set_attr<bool>("canonicalized", true);
+        op->set_attr<int64_t>("groups", 1);
+
         insert_op_before(to_group_op, op, offset);
         to_be_inserted_ops.emplace_back(to_group_op);
 
-        if (op->get_kind() == impl::op_kind::ConvTranspose
-                || op->get_kind() == op_kind::dnnl_convtranspose)
+        if (op->get_kind() == op_kind::dnnl_convtranspose)
             to_group_op->set_attr<bool>("is_convtranspose", true);
 
         return true;
@@ -299,37 +271,17 @@ impl::status_t insert_to_group_for_conv_or_deconv(
 
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != op_kind::dnnl_convolution
-                && cur_op->get_kind() != impl::op_kind::Convolution
                 && cur_op->get_kind() != op_kind::dnnl_convtranspose
-                && cur_op->get_kind() != impl::op_kind::ConvTranspose
-                && cur_op->get_kind() != op_kind::conv_depthwise)
+                && cur_op->get_kind() != op_kind::dnnl_conv_depthwise)
             continue;
 
-        if (cur_op->get_kind() == op_kind::conv_depthwise) {
+        if (cur_op->get_kind() == op_kind::dnnl_conv_depthwise) {
             const auto inserted = insert_to_group(cur_op, "dw_groups", 2);
             if (!inserted) continue;
         }
 
         const auto inserted = insert_to_group(cur_op, "groups", 1);
         if (!inserted) continue;
-
-        if (cur_op->get_kind() == impl::op_kind::Convolution) {
-            // replace impl::op_kind::Convolution to be
-            // op_kind::dnnl_convolution
-            op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_convolution);
-            replace_op(cur_op, new_op);
-            to_be_inserted_ops.emplace_back(new_op);
-            to_be_removed_ops.emplace_back(cur_op);
-        }
-
-        if (cur_op->get_kind() == impl::op_kind::ConvTranspose) {
-            // replace impl::op_kind::Convolution to be
-            // op_kind::dnnl_convtranspose
-            op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_convtranspose);
-            replace_op(cur_op, new_op);
-            to_be_inserted_ops.emplace_back(new_op);
-            to_be_removed_ops.emplace_back(cur_op);
-        }
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
@@ -672,6 +624,7 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
         // replace original op to dnnl specific op
         op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_prelu);
         replace_op(cur_op, new_op);
+        new_op->merge_attributes(cur_op->get_attributes());
         to_be_inserted_ops.emplace_back(new_op);
         to_be_removed_ops.emplace_back(cur_op);
     }

@@ -166,12 +166,17 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     dnnl_impl::set_given_inputs_outputs(
             subgraph, {int8_data, s8_weight, fp32_bias, s8_other}, {int8_out});
 
+    dnnl_impl::lower_down(subgraph);
+    dnnl_impl::subgraph_validator_t validator;
+    validator.run(subgraph); // validate and set default param
+
     dnnl_impl::split_quant_dequant(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 11);
     auto conv_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
-                return op->get_kind() == op_kind::Convolution;
+                return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
+    ASSERT_NE(conv_op, subgraph->get_ops().end());
     auto &producer0 = (*conv_op)->get_input_value(0)->get_producer();
     ASSERT_EQ(producer0.get_kind(), dnnl_impl::op_kind::mul_scales);
     ASSERT_EQ(producer0.get_attr<std::vector<float>>("scales")[0], scales[0]);
@@ -494,7 +499,36 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
             = {src_u8, weight_f32, bias_f32, other_s8};
     std::vector<logical_tensor_t> outputs = {dst_s8};
 
+    std::vector<logical_tensor_t> wrong_inputs = {src_u8, weight_s8, bias_f32};
+    std::vector<logical_tensor_t> wrong_outputs = {};
+
+    ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(
+                      subgraph, wrong_inputs, outputs),
+            status::miss_ins_outs);
+    ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(
+                      subgraph, inputs, wrong_outputs),
+            status::miss_ins_outs);
+
+    // output shape is not must
+    ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(subgraph, inputs,
+                      {logical_tensor_init(9, impl::data_type::s8)}),
+            status::success);
+
     dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
+
+    for (auto &val : subgraph->get_input_values()) {
+        auto lt = val->get_logical_tensor();
+        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+    }
+
+    for (auto &val : subgraph->get_output_values()) {
+        auto lt = val->get_logical_tensor();
+        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+    }
+
+    dnnl_impl::lower_down(subgraph);
+    dnnl_impl::subgraph_validator_t validator;
+    validator.run(subgraph); // validate and set default param
 
     dnnl_impl::infer_shape(subgraph);
     dnnl_impl::binary_canonicalization(subgraph);
@@ -531,33 +565,6 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 
     dnnl_impl::insert_to_group_for_conv_or_deconv(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 8);
-
-    std::vector<logical_tensor_t> wrong_inputs = {src_u8, weight_s8, bias_f32};
-    std::vector<logical_tensor_t> wrong_outputs = {};
-
-    ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(
-                      subgraph, wrong_inputs, outputs),
-            status::miss_ins_outs);
-    ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(
-                      subgraph, inputs, wrong_outputs),
-            status::miss_ins_outs);
-
-    // output shape is not must
-    ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(subgraph, inputs,
-                      {logical_tensor_init(9, impl::data_type::s8)}),
-            status::success);
-
-    dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
-
-    for (auto &val : subgraph->get_input_values()) {
-        auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
-    }
-
-    for (auto &val : subgraph->get_output_values()) {
-        auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
-    }
 
     // infer shape/type, layout propagation and memory binding
     ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
@@ -1205,6 +1212,7 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
 
     auto subgraph
             = std::make_shared<dnnl_impl::subgraph_t>(part->get_ops(), p_eng);
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), impl::status::success);
     ASSERT_EQ(subgraph->get_mutable_ops().size(), 1);
 }

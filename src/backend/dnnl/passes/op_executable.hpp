@@ -58,7 +58,7 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -71,13 +71,14 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
             op->get_input_value(1)->get_logical_tensor());
     weight = to_format_any(weight);
     size_t dst_offset = 0;
-    if (op->get_kind() == op_kind::conv_depthwise) {
-        // at this stage conv_depthwise op should have two outputs
-        assertm(op->num_outputs() == 2,
-                "conv_depthwise op should have two outputs.");
-        // we want to take 2nd output as it represent base conv output
+    if (op->get_kind() == op_kind::dnnl_conv_depthwise) {
+        // at this stage conv_depthwise op should have 3 outputs: the dst, the
+        // scratchpad and the intermediate out
+        assertm(op->num_outputs() == 3,
+                "conv_depthwise op should have 3 outputs.");
+        // we want to take 3nd output as it represent base conv output
         // (needed to create pd)
-        dst_offset = 1;
+        dst_offset = 2;
     }
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(dst_offset)->get_logical_tensor());
@@ -124,7 +125,7 @@ create_deconv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -227,13 +228,13 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
     dims pads_begin = op->get_attr<dims>("pads_begin");
     dims pads_end = op->get_attr<dims>("pads_end");
     dims dilations(strides.size(), 0);
-    if (op->has_attr("dilations")) {
+    if (op->has_attr("dilations")
+            && (op->get_attr<std::string>("kind") == "maxpool")) {
         dilations = op->get_attr<dims>("dilations");
     }
-    std::string data_format = op->get_attr<std::string>("data_format");
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -258,10 +259,7 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
         output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
         for (size_t i = 0; i < kernel.size(); ++i) {
             dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
-            if (op->get_kind() == impl::op_kind::AvgPool
-                    || (op->get_kind() == op_kind::dnnl_pool
-                            && op->get_attr<std::string>("kind") == "avgpool"))
-                dilated += 1;
+            if (op->get_attr<std::string>("kind") == "avgpool") dilated += 1;
             dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
                     - src_sp[i] - pads_begin[i];
             new_pads_end[i] = cur_pads_end;
@@ -270,14 +268,10 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
     }
 
     algorithm algo = algorithm::undef;
-    if (op->get_kind() == impl::op_kind::MaxPool
-            || (op->get_kind() == op_kind::dnnl_pool
-                    && op->get_attr<std::string>("kind") == "maxpool")) {
+    if (op->get_attr<std::string>("kind") == "maxpool") {
         algo = algorithm::pooling_max;
         dilations = get_compatible_dilates(dilations, src.dims().size());
-    } else if (op->get_kind() == impl::op_kind::AvgPool
-            || (op->get_kind() == op_kind::dnnl_pool
-                    && op->get_attr<std::string>("kind") == "avgpool")) {
+    } else if (op->get_attr<std::string>("kind") == "avgpool") {
         const bool exclude_pad = op->get_attr<bool>("exclude_pad");
         algo = (exclude_pad || adj_pad)
                 ? algorithm::pooling_avg_exclude_padding
@@ -415,7 +409,7 @@ create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }

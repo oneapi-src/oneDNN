@@ -88,8 +88,6 @@ void fuse_op_to_successor(op_t *op, std::vector<op_ptr> &subgraph) {
 void fuse_op_to_predecessor(
         op_t *op, std::vector<op_ptr> &subgraph, size_t in_offset) {
     value_ptr in_val = op->get_input_value(in_offset);
-    assertm(op->num_outputs() == 1,
-            "this op should have only one output value.");
     value_ptr out_val = op->get_output_value(0);
 
     op_t &predecessor = in_val->get_producer();
@@ -159,7 +157,7 @@ void insert_op_before(op_t *inserted_op, op_t *base_op, size_t base_offset,
 //     |               |
 //  out_val         out_value
 void insert_op_after(op_ptr &inserted_op, op_ptr &base_op, size_t offset) {
-    insert_op_after(inserted_op.get(), base_op.get(), offset);
+    return insert_op_after(inserted_op.get(), base_op.get(), offset);
 }
 
 void insert_op_after(op_t *inserted_op, op_t *base_op, size_t offset) {
@@ -268,7 +266,6 @@ void set_all_layout_to_any(std::vector<op_ptr> &subgraph) {
 void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
     for (auto &op : subgraph) {
         if (!(op->get_kind() == impl::op_kind::MatMul
-                    || op->get_kind() == impl::op_kind::Convolution
                     || op->get_kind() == op_kind::dnnl_convolution))
             continue;
 
@@ -279,6 +276,20 @@ void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
         if (op->get_attr<bool>("with_bias")) {
             op->get_input_value(2)->set_property(property_type::constant);
         }
+    }
+}
+
+const std::string &kind2str(op_kind_t kind) {
+    // 0: Abs, ..., N: LastSymbol, 0x1234: any, ...
+    const size_t k = static_cast<size_t>(kind);
+    const size_t l
+            = static_cast<size_t>(dnnl::graph::impl::op_kind::LastSymbol);
+
+    if (k <= l) {
+        return impl::op_kind::op_kind_strings.at(k);
+    } else {
+        return impl::dnnl_impl::op_kind::internal_op_strings.at(k
+                - static_cast<size_t>(op_kind::kDNNL_INTERNAL_OP_STARTER) - 1);
     }
 }
 
@@ -336,20 +347,6 @@ std::string layout2str(const dnnl::memory::desc &md) {
     }
 
     return str;
-}
-
-const std::string &kind2str(op_kind_t kind) {
-    // 0: Abs, ..., N: LastSymbol, 0x1234: any, ...
-    const size_t k = static_cast<size_t>(kind);
-    const size_t l
-            = static_cast<size_t>(dnnl::graph::impl::op_kind::LastSymbol);
-
-    if (k <= l) {
-        return impl::op_kind::op_kind_strings.at(k);
-    } else {
-        return impl::dnnl_impl::op_kind::internal_op_strings.at(k
-                - static_cast<size_t>(op_kind::kDNNL_INTERNAL_OP_STARTER) - 1);
-    }
 }
 
 std::string property2str(impl::property_type_t ptype) {
@@ -484,9 +481,106 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
     return status::success;
 }
 
-void replace_op(op_ptr &org_op, op_ptr &new_op) {
-    new_op->merge_attributes(org_op->get_attributes());
+status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
+    return topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
+        // TODO(qun) Call each op's validator
+        const impl::op_schema_t *opm
+                = impl::op_schema_registry_t::get_op_schema(op->get_kind());
+        if (!opm) { return impl::status::invalid_op; }
 
+        // ops in this list need to be refined further, we should lower them to
+        // internal ops or improve the definition
+        const static std::set<impl::op_kind_t> ops_need_refine = {
+                // dnnl internal ops
+                op_kind::mul_scales,
+                op_kind::add_zps,
+                op_kind::squeeze,
+                op_kind::dnnl_constant,
+                op_kind::expand,
+                op_kind::to_group,
+                op_kind::permute,
+                op_kind::dnnl_u8_to_s8,
+                op_kind::dnnl_binary,
+                op_kind::dnnl_batchnorm,
+                op_kind::dnnl_prelu,
+                op_kind::dnnl_reduction,
+                op_kind::dnnl_eltwise,
+                op_kind::dnnl_shuffle,
+                op_kind::dnnl_sum,
+                op_kind::dnnl_bn_folding,
+                op_kind::dnnl_swish,
+                // frontend ops that need to be lower to dnnl internal ops.
+                // but now, we reuse these frontend ops and set some new attrs
+                // for them, which makes them unwell defined
+                impl::op_kind::StaticReshape,
+                impl::op_kind::StaticTranspose,
+                impl::op_kind::TypeCast,
+                impl::op_kind::Quantize,
+                impl::op_kind::Dequantize,
+                impl::op_kind::MatMul,
+                impl::op_kind::Reorder,
+                impl::op_kind::Add,
+                impl::op_kind::Multiply,
+                impl::op_kind::Minimum,
+                impl::op_kind::MaxPool,
+                impl::op_kind::BatchNormInference,
+                impl::op_kind::LayerNorm,
+                impl::op_kind::PReLU,
+                impl::op_kind::ReduceL1,
+                impl::op_kind::ReduceL2,
+                impl::op_kind::ReduceMax,
+                impl::op_kind::ReduceMean,
+                impl::op_kind::ReduceMin,
+                impl::op_kind::ReduceProd,
+                impl::op_kind::ReduceSum,
+                impl::op_kind::Interpolate,
+                impl::op_kind::Concat,
+                impl::op_kind::SoftMax,
+                impl::op_kind::LogSoftmax,
+        };
+
+        // Validate
+        // TODO(xxx) Skip unwell defined ops for now. we need to validate
+        // all ops after refactor done
+        if (ops_need_refine.count(op->get_kind()) == 0) {
+            opm->set_default_attribute(op);
+            if (!opm->verify(op)) { return impl::status::invalid_op; }
+
+            // Not allow undefined attributes
+            const auto &expected_attrs = opm->get_attrs();
+            const auto &actual_attrs = op->get_attributes();
+            for (const auto &elem : actual_attrs) {
+                // The matched_pattern attr is added by pattern matcher, we skip
+                // it. The backend attr is added by benchdnn ext, we skip it.
+                // The with_sum attr will be removed later, we skip it.
+                bool skip = elem.first == "matched_pattern"
+                        || elem.first == "backend" || elem.first == "with_sum";
+                if (!skip && expected_attrs.count(elem.first) == 0) {
+                    return impl::status::invalid_op;
+                }
+            }
+        }
+
+        // Additional verifications
+        if (op->get_kind() == op_kind::dnnl_convolution) {
+            bool canonicalized = op->get_attr<bool>("canonicalized");
+            if (canonicalized) {
+                auto data_fmt = op->get_attr<std::string>("data_format");
+                auto filter_fmt = op->get_attr<std::string>("filter_format");
+                auto groups = op->get_attr<int64_t>("groups");
+                bool ok = data_fmt == "NCX" && filter_fmt == "OIX"
+                        && groups == 1;
+                if (!ok) { return status::invalid_op; }
+            }
+        } else {
+            // TODO(qun)
+        }
+
+        return status::success;
+    });
+}
+
+void replace_op(op_ptr &org_op, op_ptr &new_op) {
     for (size_t i = 0; i < org_op->num_inputs(); i++) {
         auto in_val = org_op->get_input_value(i);
         in_val->remove_consumer(*org_op, i);
@@ -748,19 +842,13 @@ get_post_ops_fusible_map() {
     static const std::unordered_map<impl::op_kind_t,
             std::unordered_set<impl::op_kind_t>>
             fusible_map = {// conv
-                    {Convolution,
-                            {dnnl_eltwise, dnnl_binary, Convolution,
-                                    dnnl_convolution}},
                     {dnnl_convolution,
-                            {dnnl_eltwise, dnnl_binary, Convolution,
-                                    dnnl_convolution}},
+                            {dnnl_eltwise, dnnl_binary, dnnl_convolution}},
                     // deconv
-                    {ConvTranspose, {dnnl_eltwise, dnnl_binary}},
                     {dnnl_convtranspose, {dnnl_eltwise, dnnl_binary}},
                     // matmul
                     {MatMul, {dnnl_eltwise, dnnl_binary}},
                     // pool
-                    {AvgPool, {dnnl_binary}}, {MaxPool, {dnnl_binary}},
                     {dnnl_pool, {dnnl_binary}},
                     // eltwise
                     {dnnl_eltwise, {dnnl_binary}},

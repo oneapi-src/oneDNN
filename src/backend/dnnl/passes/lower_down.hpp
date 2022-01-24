@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -148,6 +148,8 @@ impl::status_t fuse_dynamic_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
 impl::status_t fuse_dynamic_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl
 } // namespace impl

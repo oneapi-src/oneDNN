@@ -29,6 +29,7 @@
 #include "interface/op_schema.hpp"
 #include "utils/utils.hpp"
 
+#include "insert_ops.hpp"
 #include "lower_down.hpp"
 #include "utils.hpp"
 
@@ -42,8 +43,8 @@ using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper_t;
 
 static bool has_optional_bias(op_kind_t kind) {
-    std::set<op_kind_t> ops {impl::op_kind::Convolution, impl::op_kind::MatMul,
-            impl::op_kind::ConvTranspose};
+    std::set<op_kind_t> ops {op_kind::dnnl_convolution, impl::op_kind::MatMul,
+            op_kind::dnnl_convtranspose};
     return ops.count(kind) != 0;
 }
 
@@ -57,8 +58,7 @@ static bool has_int8_support(op_kind_t kind) {
 // TODO(xxx): extend to support other ops
 static bool is_output_scales_supported(op_kind_t kind) {
     // ops which don't support output scales
-    std::set<op_kind_t> ops {impl::op_kind::AvgPool, impl::op_kind::MaxPool,
-            op_kind::dnnl_pool, op_kind::dnnl_eltwise};
+    std::set<op_kind_t> ops {op_kind::dnnl_pool, op_kind::dnnl_eltwise};
     return ops.count(kind) == 0;
 }
 
@@ -341,11 +341,9 @@ impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
                 || visited.count(cur_op.get()) != 0)
             continue;
 
-        assertm(cur_op->num_outputs() == 1,
-                "cur_op should have only one output value.");
         auto out_val = cur_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
-        if (consumers.empty()) continue;
+        if (consumers.size() != 1) continue;
 
         auto &next_op = consumers[0].get_op();
         if (next_op.get_kind() != op_kind::mul_scales) continue;
@@ -366,7 +364,8 @@ impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
         int mask = output_scales.size() == 1 ? 0 : 1 << axis;
 
         int64_t key = -1;
-        if (base_op->has_attr("primitive_attr_key")) {
+        if (base_op->has_attr("primitive_attr_key")
+                && base_op->get_attr<int64_t>("primitive_attr_key") != -1) {
             key = base_op->get_attr<int64_t>("primitive_attr_key");
         } else {
             key = prm_attr_mgr.init_attr();
@@ -533,8 +532,8 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &op : subgraph) {
-        if (op->get_kind() == impl::op_kind::Convolution
-                || op->get_kind() == impl::op_kind::ConvTranspose) {
+        if (op->get_kind() == op_kind::dnnl_convolution
+                || op->get_kind() == op_kind::dnnl_convtranspose) {
             auto &in0 = op->get_input_value(0)->get_producer();
             auto &in1 = op->get_input_value(1)->get_producer();
             if (in0.get_kind() != op_kind::mul_scales
@@ -546,39 +545,34 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
         }
     }
 
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
     for (auto &fusion_group : fusion_groups) {
         op_t *conv_op = fusion_group[0];
-        op_t &in0 = *fusion_group[1];
-        op_t &in1 = *fusion_group[2];
+        op_t *in0 = fusion_group[1];
+        op_t *in1 = fusion_group[2];
 
-        op_kind_t tgt_op_kind;
-        if (conv_op->get_kind() == impl::op_kind::Convolution)
-            tgt_op_kind = op_kind::dnnl_convolution;
-        else
-            tgt_op_kind = op_kind::dnnl_convtranspose;
-        op_ptr qconv_op = std::make_shared<op_t>(tgt_op_kind);
         op_ptr mul_op = std::make_shared<op_t>(op_kind::mul_scales);
 
-        qconv_op->merge_attributes(conv_op->get_attributes());
-
-        auto dq_src_scales = in0.get_attr<std::vector<float>>("scales");
-        auto dq_wei_scales = in1.get_attr<std::vector<float>>("scales");
+        auto dq_src_scales = in0->get_attr<std::vector<float>>("scales");
+        auto dq_wei_scales = in1->get_attr<std::vector<float>>("scales");
         std::vector<float> fused_scale(
                 std::max(dq_src_scales.size(), dq_wei_scales.size()), 0);
         if (dq_src_scales.size() >= dq_wei_scales.size()) {
             for (int i = 0; i < dq_src_scales.size(); i++)
                 fused_scale[i] = (dq_src_scales[i] * dq_wei_scales[0]);
-            mul_op->set_attr<int64_t>("axis", in0.get_attr<int64_t>("axis"));
+            mul_op->set_attr<int64_t>("axis", in0->get_attr<int64_t>("axis"));
             mul_op->set_attr<std::string>(
-                    "qtype", in0.get_attr<std::string>("qtype"));
+                    "qtype", in0->get_attr<std::string>("qtype"));
         } else {
             // Currently for ConvTranspose, the output channel in weight tensor
             // (OC/g, IC, H, W) is not equal to the one in output tensor
             // (N, OC, H, W) if `groups` > 1, so the size of weight's
             // per-channel scale is not the same as the output channel in output
             // tensor, here we will broadcast scales from `OC/g` to `OC`.
-            int64_t group = qconv_op->get_attr<int64_t>("groups");
-            if (tgt_op_kind == op_kind::dnnl_convtranspose && group > 1) {
+            int64_t group = conv_op->get_attr<int64_t>("groups");
+            if (conv_op->get_kind() == op_kind::dnnl_convtranspose
+                    && group > 1) {
                 fused_scale.resize(group * dq_wei_scales.size(), 0);
                 for (int i = 0; i < fused_scale.size(); ++i)
                     fused_scale[i] = (dq_src_scales[0]
@@ -591,16 +585,19 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
             // format
             mul_op->set_attr<int64_t>("axis", 1); // hardcode to 1 for pytorch
             mul_op->set_attr<std::string>(
-                    "qtype", in1.get_attr<std::string>("qtype"));
+                    "qtype", in1->get_attr<std::string>("qtype"));
         }
         mul_op->set_attr<std::vector<float>>("scales", fused_scale);
 
-        auto in0_ivalue = in0.get_input_value(0);
-        auto in1_ivalue = in1.get_input_value(0);
-        qconv_op->connect_input(0, in0_ivalue);
-        qconv_op->connect_input(1, in1_ivalue);
-        in0_ivalue->remove_consumer(in0, 0);
-        in1_ivalue->remove_consumer(in1, 0);
+        auto in0_ivalue = in0->get_input_value(0);
+        auto in1_ivalue = in1->get_input_value(0);
+        conv_op->connect_input(0, in0_ivalue);
+        conv_op->connect_input(1, in1_ivalue);
+        in0_ivalue->remove_consumer(*in0, 0);
+        in1_ivalue->remove_consumer(*in1, 0);
+
+        to_be_removed_ops.emplace_back(in0->shared_from_this());
+        to_be_removed_ops.emplace_back(in1->shared_from_this());
 
         if (conv_op->num_inputs() == 3) { //with bias
             op_ptr mul_op1 = std::make_shared<op_t>(op_kind::mul_scales);
@@ -619,40 +616,24 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
             mul_op1->set_attr<std::string>(
                     "qtype", mul_op->get_attr<std::string>("qtype"));
 
-            auto bias_val = conv_op->get_input_value(2);
-            bias_val->remove_consumer(*conv_op, 2);
-            mul_op1->connect_input(0, bias_val);
-            auto scaled_bias_lt = impl::empty_logical_tensor_with_default_id();
-            auto scaled_bias_val = std::make_shared<value_t>(
-                    *mul_op1, 0, scaled_bias_lt, true);
-            mul_op1->add_output(scaled_bias_val);
-            qconv_op->connect_input(2, scaled_bias_val);
-
-            subgraph.emplace_back(mul_op1);
+            insert_op_before(mul_op1.get(), conv_op, 2);
+            to_be_inserted_ops.emplace_back(mul_op1);
         }
 
-        auto out_value = conv_op->get_output_value(0);
-
-        auto new_lt1 = impl::empty_logical_tensor_with_default_id();
-        auto new_value1
-                = std::make_shared<value_t>(*qconv_op, 0, new_lt1, true);
-
-        qconv_op->add_output(new_value1);
-        out_value->set_producer(*mul_op);
-        mul_op->connect_input(0, new_value1);
-        mul_op->add_output(out_value);
-
-        subgraph.emplace_back(qconv_op);
-        subgraph.emplace_back(mul_op);
-
-        for (auto &del_op : fusion_group) {
-            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [del_op](const op_ptr &f_op) {
-                        return del_op == f_op.get();
-                    });
-            if (pos != subgraph.end()) subgraph.erase(pos);
-        }
+        insert_op_after(mul_op.get(), conv_op, 0);
+        to_be_inserted_ops.emplace_back(mul_op);
     }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
     return impl::status::success;
 }
 
@@ -951,23 +932,13 @@ impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_t *> fusion_ops;
     for (const auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::MaxPool
-                && cur_op->get_kind() != impl::op_kind::AvgPool)
-            continue;
+        if (cur_op->get_kind() != op_kind::dnnl_pool) continue;
         fusion_ops.emplace_back(cur_op.get());
     }
 
     if (fusion_ops.empty()) return impl::status::success;
 
     for (auto &pool_op : fusion_ops) {
-        op_ptr q_pool_op = std::make_shared<op_t>(op_kind::dnnl_pool);
-        q_pool_op->merge_attributes(pool_op->get_attributes());
-        if (pool_op->get_kind() == impl::op_kind::MaxPool) {
-            q_pool_op->set_attr<std::string>("kind", "maxpool");
-        } else {
-            q_pool_op->set_attr<std::string>("kind", "avgpool");
-        }
-
         // mul_scales which feeds pooling will be always removed. If binary
         // post-op will occur, src scales data will be combined with dst
         // scales data.
@@ -976,14 +947,14 @@ impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
                 "the predecessor op of pool should be mul_scales.");
         value_ptr in_value = src_scales_op.get_input_value(0);
         in_value->remove_consumer(src_scales_op, 0);
-        q_pool_op->connect_input(0, in_value);
+        pool_op->connect_input(0, in_value);
 
         assertm(pool_op->get_output_value(0)->get_consumers().size() == 1,
                 "pooling's successor op should only have one consumer.");
         op_t &pool_op_successor
                 = pool_op->get_output_value(0)->get_consumers()[0].get_op();
 
-        std::vector<const op_t *> deleted_ops {pool_op, &src_scales_op};
+        std::vector<const op_t *> deleted_ops {&src_scales_op};
 
         if (pool_op_successor.get_kind() != op_kind::dnnl_binary) {
             // standalone pool case: detach pooling from the dst mul_scales
@@ -991,8 +962,8 @@ impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
             assertm(dst_scales_op.get_kind() == op_kind::mul_scales,
                     "the successor op of pool should be mul_scales or binary.");
             value_ptr out_value = dst_scales_op.get_output_value(0);
-            q_pool_op->add_output(out_value);
-
+            pool_op->connect_output(0, out_value);
+            out_value->set_producer(*pool_op);
             deleted_ops.push_back(&dst_scales_op);
         } else {
             // pool + binary case
@@ -1029,7 +1000,7 @@ impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
             // make new connections
             value_ptr src_bin_value
                     = binary_op.get_input_value(1 - src1_scales_offset);
-            q_pool_op->add_output(src_bin_value);
+            pool_op->connect_output(0, src_bin_value);
 
             impl::logical_tensor_t new_dst_bin_lt
                     = impl::empty_logical_tensor_with_default_id();
@@ -1076,8 +1047,6 @@ impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
                     });
             if (pos != subgraph.end()) subgraph.erase(pos);
         }
-
-        subgraph.emplace_back(q_pool_op);
     }
     return impl::status::success;
 }
@@ -1177,7 +1146,7 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                                                        .count(post_op_kind))
                             || (post_op_kind == op_kind::dnnl_binary
                                     && !post_binary_fusible(op, &post_op))
-                            || (post_op_kind == impl::op_kind::Convolution
+                            || (post_op_kind == op_kind::dnnl_convolution
                                     && !post_depthwise_conv_fusible(
                                             op, &post_op));
                     if (not_fusible) { return impl::status::success; }
@@ -1204,7 +1173,8 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                                                         .get_offset();
 
             int64_t key = -1;
-            if (base_op->has_attr("primitive_attr_key")) {
+            if (base_op->has_attr("primitive_attr_key")
+                    && base_op->get_attr<int64_t>("primitive_attr_key") != -1) {
                 key = base_op->get_attr<int64_t>("primitive_attr_key");
             } else {
                 key = prm_attr_mgr.init_attr();
@@ -1325,14 +1295,10 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     if (ltw(fused_in->get_logical_tensor()).vdims()
                             == ltw(other_in->get_logical_tensor()).vdims()) {
                         if (base_op->get_kind() == op_kind::dnnl_eltwise
-                                || base_op->get_kind() == op_kind::dnnl_pool
-                                || base_op->get_kind() == impl::op_kind::MaxPool
-                                || base_op->get_kind()
-                                        == impl::op_kind::AvgPool) {
+                                || base_op->get_kind() == op_kind::dnnl_pool) {
                             memory::desc post_src = make_dnnl_memory_desc(
                                     other_in->get_logical_tensor());
                             pops.append_binary(algorithm::binary_add, post_src);
-                            base_op->set_attr<bool>("with_binary", true);
                         } else {
                             // use sum post-ops for no-broadcast add
                             pops.append_sum(1.f);
@@ -1349,7 +1315,6 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                                 other_in->get_logical_tensor());
 
                         pops.append_binary(algorithm::binary_add, post_src);
-                        base_op->set_attr<bool>("with_binary", true);
                     }
                 }
             } else if (post_op->get_kind() == op_kind::dnnl_binary
@@ -1363,8 +1328,7 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                         = get_binary_alg_map().at(static_cast<impl::op_kind_t>(
                                 post_op->get_attr<int64_t>("alg_kind")));
                 pops.append_binary(algo, post_src);
-                base_op->set_attr<bool>("with_binary", true);
-            } else if (post_op->get_kind() == impl::op_kind::Convolution) {
+            } else if (post_op->get_kind() == op_kind::dnnl_convolution) {
                 const auto get_dnn_dt = [](const value_ptr &val) {
                     const auto graph_dt
                             = ltw(val->get_logical_tensor()).data_type();
@@ -1392,7 +1356,7 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                             std::vector<float> {});
 
                 op_ptr conv_dw
-                        = std::make_shared<op_t>(op_kind::conv_depthwise);
+                        = std::make_shared<op_t>(op_kind::dnnl_conv_depthwise);
                 const auto dw_groups = post_op->get_attr<int64_t>("groups");
                 const auto dw_filter_format
                         = post_op->get_attr<std::string>("filter_format");
@@ -1406,6 +1370,7 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                         });
                 assert(pos != subgraph.end());
                 replace_op(*pos, conv_dw);
+                conv_dw->merge_attributes((*pos)->get_attributes());
 
                 fuse_op_to_predecessor(
                         post_op, subgraph, fuse_op_predecessor_offset);
@@ -1657,7 +1622,7 @@ impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
 
     for (auto &bn_op : bn_ops) {
         auto &prv_op = bn_op->get_input_value(0)->get_producer();
-        if (prv_op.get_kind() != impl::op_kind::Convolution) continue;
+        if (prv_op.get_kind() != op_kind::dnnl_convolution) continue;
 
         op_ptr bn_folding_op = std::make_shared<op_t>(op_kind::dnnl_bn_folding);
         bn_folding_op->merge_attributes(bn_op->get_attributes());
@@ -1711,8 +1676,7 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     std::vector<op_ptr> to_be_removed_ops;
 
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::ConvolutionBackpropData)
-            continue;
+        if (cur_op->get_kind() != op_kind::dnnl_conv_bwd_data) continue;
 
         // insert permute
         bool need_permute_0 = cur_op->has_attr("data_format")
@@ -1762,12 +1726,6 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             to_be_inserted_ops.emplace_back(to_group_op);
             cur_op->set_attr<int64_t>("groups", 1);
         }
-
-        // replace original op to dnnl specific op
-        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_conv_bwd_data);
-        replace_op(cur_op, new_op);
-        to_be_inserted_ops.emplace_back(new_op);
-        to_be_removed_ops.emplace_back(cur_op);
     }
 
     for (const auto &op : to_be_inserted_ops) {
@@ -2060,6 +2018,7 @@ impl::status_t batchnorm_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         // replace original oneDNN Graph ops with dnnl_batchnorm
         replace_op(cur_op, new_op);
+        new_op->merge_attributes(cur_op->get_attributes());
         to_be_inserted_ops.emplace_back(new_op);
         to_be_removed_ops.emplace_back(cur_op);
     }
@@ -2184,6 +2143,7 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         new_op->set_attr<int64_t>(
                 "alg_kind", static_cast<int64_t>(cur_op->get_kind()));
         replace_op(cur_op, new_op);
+        new_op->merge_attributes(cur_op->get_attributes());
         to_be_inserted_ops.emplace_back(new_op);
         to_be_removed_ops.emplace_back(cur_op);
     }
@@ -2472,6 +2432,7 @@ impl::status_t eltwise_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         }
 
         replace_op(cur_op, new_op);
+        new_op->merge_attributes(cur_op->get_attributes());
         to_be_inserted_ops.emplace_back(new_op);
         to_be_removed_ops.emplace_back(cur_op);
     }
@@ -2509,6 +2470,7 @@ impl::status_t reduction_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         new_op->set_attr<int64_t>(
                 "alg_kind", static_cast<int64_t>(cur_op->get_kind()));
         replace_op(cur_op, new_op);
+        new_op->merge_attributes(cur_op->get_attributes());
         to_be_inserted_ops.emplace_back(new_op);
         to_be_removed_ops.emplace_back(cur_op);
     }
@@ -2888,6 +2850,68 @@ impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                 index++;
             }
         }
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
+}
+
+static value_ptr insert_empty_scratchpad(op_ptr &op) {
+    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
+    value_ptr scratchpad_val
+            = std::make_shared<value_t>(*op, op->num_outputs(), lt);
+    op->add_output(scratchpad_val);
+    scratchpad_val->set_data_type(impl::data_type::u8);
+    scratchpad_val->set_dims(impl::dims {0});
+    return scratchpad_val;
+}
+
+impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    auto &subgraph = sg->get_mutable_ops();
+
+    for (auto &cur_op : subgraph) {
+        op_ptr new_op;
+
+        if (cur_op->get_kind() == impl::op_kind::Convolution) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_convolution);
+            new_op->merge_attributes(cur_op->get_attributes());
+        } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_convtranspose);
+            new_op->merge_attributes(cur_op->get_attributes());
+        } else if (cur_op->get_kind()
+                == impl::op_kind::ConvolutionBackpropData) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_conv_bwd_data);
+            new_op->merge_attributes(cur_op->get_attributes());
+        } else if (cur_op->get_kind() == impl::op_kind::MaxPool
+                || cur_op->get_kind() == impl::op_kind::AvgPool) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_pool);
+            new_op->merge_attributes(cur_op->get_attributes());
+            if (cur_op->get_kind() == impl::op_kind::MaxPool) {
+                new_op->set_attr<std::string>("kind", "maxpool");
+            } else {
+                new_op->set_attr<std::string>("kind", "avgpool");
+            }
+        } else {
+            // TODO(xxx) Lower other ops to internal ops
+            continue;
+        }
+
+        replace_op(cur_op, new_op);
+        auto scratchpad_val = insert_empty_scratchpad(new_op);
+        to_be_inserted_ops.emplace_back(new_op);
+        to_be_removed_ops.emplace_back(cur_op);
     }
 
     for (const auto &op : to_be_inserted_ops) {

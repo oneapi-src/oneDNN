@@ -134,7 +134,9 @@ void memory_planner_t::prepare_args_for_conv_and_matmul(op_t *op,
         args.insert({DNNL_ARG_BIAS, mem});
     }
 
-    dnnl::primitive_attr prm_attr = op->has_attr("primitive_attr_key")
+    dnnl::primitive_attr prm_attr
+            = (op->has_attr("primitive_attr_key")
+                      && op->get_attr<int64_t>("primitive_attr_key") != -1)
             ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
             : dnnl::primitive_attr();
     dnnl::post_ops pops = prm_attr.get_post_ops();
@@ -250,7 +252,9 @@ void memory_planner_t::prepare_args_for_siso_op(op_t *op,
     exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
     args.insert({DNNL_ARG_FROM, mem});
 
-    dnnl::primitive_attr prm_attr = op->has_attr("primitive_attr_key")
+    dnnl::primitive_attr prm_attr
+            = (op->has_attr("primitive_attr_key")
+                      && op->get_attr<int64_t>("primitive_attr_key") != -1)
             ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
             : dnnl::primitive_attr();
     dnnl::post_ops pops = prm_attr.get_post_ops();
@@ -776,17 +780,13 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
     // semantics should be fixed and a part of IR
     ret = impl::topo_order_visit(
             impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
-                if (op->get_kind() == impl::op_kind::Convolution
-                        || op->get_kind() == op_kind::dnnl_convolution
+                if (op->get_kind() == op_kind::dnnl_convolution
                         || op->get_kind() == impl::op_kind::MatMul
-                        || op->get_kind() == impl::op_kind::ConvTranspose
                         || op->get_kind() == op_kind::dnnl_convtranspose
-                        || op->get_kind() == op_kind::conv_depthwise) {
+                        || op->get_kind() == op_kind::dnnl_conv_depthwise) {
                     prepare_args_for_conv_and_matmul(
                             op, p_engine, prm_attr_mgr);
-                } else if (op->get_kind() == impl::op_kind::MaxPool
-                        || op->get_kind() == impl::op_kind::AvgPool
-                        || op->get_kind() == op_kind::dnnl_pool
+                } else if (op->get_kind() == op_kind::dnnl_pool
                         || op->get_kind() == impl::op_kind::SoftMax
                         || op->get_kind() == impl::op_kind::LogSoftmax) {
                     const bool is_training = op->has_attr("is_training")
