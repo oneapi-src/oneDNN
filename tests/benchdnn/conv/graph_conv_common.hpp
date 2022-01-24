@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ constexpr int CONV_MAX_NDIMS = CONV_3D_NDIMS;
 
 struct spec_t {
     spec_t(const ::conv::prb_t *prb, bool is_deconv = false) noexcept {
+        dir = prb->dir;
         groups = prb->has_groups ? (int64_t)prb->g : 1;
         has_groups = prb->has_groups;
 
@@ -107,6 +108,8 @@ struct spec_t {
         raw_wei_tag = prb->wtag;
         raw_dst_tag = prb->dtag;
     }
+
+    dir_t dir;
 
     dims_t src_dims;
     dims_t wei_dims;

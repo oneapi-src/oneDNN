@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,15 +42,12 @@ void check_known_skipped_case_graph(
 }
 
 fill_status_t conv_graph_prb_t::handle_main_op_() {
-    using kind = graph::op::kind;
+    using logical_tensor = dnnl::graph::logical_tensor;
+    using kind = dnnl::graph::op::kind;
 
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
-
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string WEI {TENSOR_ID + "_WEI"};
-    const std::string DST {TENSOR_ID + "_DST"};
 
     dims_t wei_dims = spec_.wei_dims;
     if (spec_.has_groups) {
@@ -64,14 +61,52 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
     auto wei_dt = benchdnnext::set_main_op_dtype(spec_.wei_dt);
     auto dst_dt = benchdnnext::set_main_op_dtype(spec_.dst_dt);
 
-    tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
-    tensor_descs_.emplace(WEI, wei_dt, wei_dims, spec_.raw_wei_tag,
-            tensor_descs_t::property_type::constant);
-    tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
+    std::string op_name {};
+    kind op_kind {kind::LastSymbol};
+    std::vector<logical_tensor> inputs {};
+    std::vector<logical_tensor> outputs {};
 
-    graph::op conv_op(new_op_id, kind::Convolution,
-            {tensor_descs_[SRC], tensor_descs_[WEI]}, {tensor_descs_[DST]},
-            "conv");
+    if (spec_.dir & FLAG_FWD) {
+        op_name = "Convolution";
+        op_kind = kind::Convolution;
+
+        const std::string SRC {TENSOR_ID + "_SRC"};
+        const std::string WEI {TENSOR_ID + "_WEI"};
+        const std::string DST {TENSOR_ID + "_DST"};
+
+        tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
+        tensor_descs_.emplace(WEI, wei_dt, wei_dims, spec_.raw_wei_tag,
+                tensor_descs_t::property_type::constant);
+        tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
+
+        inputs = {tensor_descs_[SRC], tensor_descs_[WEI]};
+        outputs = {tensor_descs_[DST]};
+    } else if (spec_.dir & FLAG_BWD) {
+        if (spec_.dir == BWD_D) {
+            op_name = "ConvolutionBackpropData";
+            op_kind = kind::ConvolutionBackpropData;
+
+            const std::string DIFF_SRC {TENSOR_ID + "DIFF_SRC"};
+            const std::string WEI {TENSOR_ID + "_WEI"};
+            const std::string DIFF_DST {TENSOR_ID + "DIFF_DST"};
+
+            tensor_descs_.emplace(
+                    DIFF_SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
+            tensor_descs_.emplace(WEI, wei_dt, wei_dims, spec_.raw_wei_tag,
+                    tensor_descs_t::property_type::constant);
+            tensor_descs_.emplace(
+                    DIFF_DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
+
+            inputs = {tensor_descs_[DIFF_DST], tensor_descs_[WEI]};
+            outputs = {tensor_descs_[DIFF_SRC]};
+        } else {
+            return fill_status::UNSUPPORTED_CONFIG;
+        }
+    } else {
+        return fill_status::UNSUPPORTED_CONFIG;
+    }
+
+    graph::op conv_op(new_op_id, op_kind, inputs, outputs, op_name);
 
     conv_op.set_attr("strides", spec_.strides)
             .set_attr("pads_begin", spec_.pads_begin)
@@ -207,8 +242,7 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
             &src_zero_points, &wei_zero_points, &dst_zero_points, prb_->scales,
             prb_->oc, def_oscales);
 
-    fill_status_t ctor_status;
-    ctor_status
+    fill_status_t ctor_status
             = po_handler.conv.low_precision_handler.handle_low_precision_src(
                     *this, lp_attr);
     if (ctor_status != fill_status::DONE) return ctor_status;
@@ -269,7 +303,6 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     auto init_pd = [&](dnnl_engine_t engine, const ::conv::prb_t *prb,
                            dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
                            const_dnnl_primitive_desc_t hint) {
@@ -313,12 +346,15 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
 
     dnnl::graph::engine &eng = get_test_engine();
 
-    graph::tensor src_tensor(ins[0], eng, static_cast<float *>(src_dt));
-    graph::tensor wei_tensor(ins[1], eng, static_cast<float *>(wei_dt));
+    graph::tensor src_tensor(ins[0], eng,
+            static_cast<void *>(prb->dir == BWD_D ? dst_dt : src_dt));
+    graph::tensor dst_tensor(outs[0], eng,
+            static_cast<void *>(prb->dir == BWD_D ? src_dt : dst_dt));
+
+    graph::tensor wei_tensor(ins[1], eng, static_cast<void *>(wei_dt));
     graph::tensor bia_tensor;
     if (prb->dir == FWD_B)
-        bia_tensor = graph::tensor(ins[2], eng, static_cast<float *>(bia_dt));
-    graph::tensor dst_tensor(outs[0], eng, static_cast<float *>(dst_dt));
+        bia_tensor = graph::tensor(ins[2], eng, static_cast<void *>(bia_dt));
 
     std::vector<graph::tensor> tensors_in {src_tensor, wei_tensor};
     if (prb->dir == FWD_B) tensors_in.emplace_back(bia_tensor);
@@ -328,7 +364,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     if (graph_prb.has_post_sum()) { // Always use in-place operation.
         const size_t idx = prb->dir == FWD_B ? 3 : 2;
         sum_src1_tensor
-                = graph::tensor(ins[idx], eng, static_cast<float *>(dst_dt));
+                = graph::tensor(ins[idx], eng, static_cast<void *>(dst_dt));
         tensors_in.emplace_back(sum_src1_tensor);
     } else if (graph_prb.has_post_bin()) {
         bin_tensor = graph::tensor(
@@ -342,28 +378,39 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     args_t ref_args;
 
     if (is_bench_mode(CORR)) {
-        dnnl_primitive_t c_ref = nullptr;
-        ref_args.set(DNNL_ARG_SRC, src_fp);
-        ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
-        ref_args.set(DNNL_ARG_DST, dst_fp);
-        std::vector<int> binary_po_args;
-        for (int idx = 0; idx < binary_po_fp.size(); idx++) {
-            binary_po_args.emplace_back(
-                    (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
-        }
-        ref_args.set(binary_po_args, binary_po_fp);
-        ref_args.set(prelu_po_args, prelu_po_fp);
+        if (prb->dir & FLAG_FWD) {
+            dnnl_primitive_t c_ref = nullptr;
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            std::vector<int> binary_po_args;
+            for (int idx = 0; idx < binary_po_fp.size(); idx++) {
+                binary_po_args.emplace_back(
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+            }
+            ref_args.set(binary_po_args, binary_po_fp);
+            ref_args.set(prelu_po_args, prelu_po_fp);
 
-        // re-scale bias
-        dnn_mem_t bia_fp_scaled;
-        if (prb->dir == FWD_B) {
-            bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
-            scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
-        }
-        ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
+            // re-scale bias
+            dnn_mem_t bia_fp_scaled;
+            if (prb->dir == FWD_B) {
+                bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
+                scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
+            }
+            ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
 
-        ::conv::compute_ref_fwd(prb, c_ref, ref_args);
-        SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
+            ::conv::compute_ref_fwd(prb, c_ref, ref_args);
+            SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
+        } else if (prb->dir == BWD_D) {
+            dnnl_primitive_t c_ref = nullptr;
+            ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
+            ::conv::compute_ref_bwd_d(prb, c_ref, ref_args);
+            SAFE(compare_data(prb, SRC, src_dt, src_fp, res), WARN);
+        } else {
+            SAFE(FAIL, CRIT);
+        }
     }
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
