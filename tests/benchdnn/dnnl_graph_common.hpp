@@ -82,6 +82,9 @@ int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales);
 
 dnnl_format_tag_t dnnl_fmt_str2tag(const std::string &fmt_str);
 
+std::vector<size_t> get_post_bin_indices(
+        const std::vector<attr_t::post_ops_t::entry_t> &po_entry);
+
 /**  Get the outer format string without blocking expression.
  *     For example, AcdB16a8b -> acdb
  */
@@ -323,6 +326,7 @@ dnnl::graph::compiled_partition compile_partition(const func_t &init_pd_func,
 
     return cp;
 }
+
 struct graph_prb_t {
     using dt = dnnl::graph::logical_tensor::data_type;
     using lt = dnnl::graph::logical_tensor::layout_type;

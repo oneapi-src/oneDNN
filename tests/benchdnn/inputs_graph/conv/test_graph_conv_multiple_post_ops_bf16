@@ -1,0 +1,5 @@
+# post mul+sum+relu+add
+# --reset
+# --dir=FWD_B
+# --cfg=bf16bf16bf16
+# --attr-post-ops=mul:bf16:common+sum+relu+add:bf16:per_oc mb50ic64ih56oc64oh56kh1ph0

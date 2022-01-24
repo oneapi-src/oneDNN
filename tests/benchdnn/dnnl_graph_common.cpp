@@ -307,6 +307,16 @@ dims_t calculate_strides(dims_t dims, dt dtype, const std::string &tag) {
     return strides;
 }
 
+// Get indices, on which post binary ops are located.
+std::vector<size_t> get_post_bin_indices(
+        const std::vector<attr_t::post_ops_t::entry_t> &po_entry) {
+    std::vector<size_t> post_bin_indexes {};
+    for (size_t idx = 0; idx < po_entry.size(); idx++) {
+        if (po_entry[idx].is_binary_kind()) post_bin_indexes.push_back(idx);
+    }
+    return post_bin_indexes;
+}
+
 dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
         const dnnl::graph::logical_tensor::data_type &graph_dt,
         const char *atag) {

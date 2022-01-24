@@ -311,17 +311,21 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     };
     auto cp = compile_partition(init_pd, prb, res, par, ins, outs);
 
-    auto src_fp = make_dnn_mem(ins[0], spec.src_dims, dt::f32, tag::abx);
-    auto wei_fp = make_dnn_mem(ins[1], spec.wei_dims, dt::f32, tag::abx);
+    int idx_ins = 0;
+    auto src_fp = make_dnn_mem(ins[idx_ins], spec.src_dims, dt::f32, tag::abx);
+    auto src_dt = make_dnn_mem(ins[idx_ins], spec.src_dims, spec.raw_src_tag);
 
-    dnn_mem_t bia_fp;
-    if (prb->dir == FWD_B) bia_fp = make_dnn_mem(ins[2], dt::f32, tag::x);
+    auto wei_fp
+            = make_dnn_mem(ins[++idx_ins], spec.wei_dims, dt::f32, tag::abx);
+    auto wei_dt = make_dnn_mem(ins[idx_ins], spec.wei_dims, spec.raw_wei_tag);
+
+    dnn_mem_t bia_fp, bia_dt;
+    if (prb->dir == FWD_B) {
+        bia_fp = make_dnn_mem(ins[++idx_ins], dt::f32, tag::x);
+        bia_dt = make_dnn_mem(ins[idx_ins], tag::x);
+    }
+
     auto dst_fp = make_dnn_mem(outs[0], spec.dst_dims, dt::f32, tag::abx);
-
-    auto src_dt = make_dnn_mem(ins[0], spec.src_dims, spec.raw_src_tag);
-    auto wei_dt = make_dnn_mem(ins[1], spec.wei_dims, spec.raw_wei_tag);
-    dnn_mem_t bia_dt;
-    if (prb->dir == FWD_B) bia_dt = make_dnn_mem(ins[2], tag::x);
     auto dst_dt = make_dnn_mem(outs[0], spec.dst_dims, spec.raw_dst_tag);
 
     SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
@@ -336,41 +340,53 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     //SAFE(prelu::setup_prelu_po(
     //             const_pd, dst_md, prelu_po_args, prelu_po_fp, prelu_po_dt),
     //        WARN);
-    if (graph_prb.has_post_bin()) {
-        binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
-        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), tag::abx));
-        const int idx = 0;
-        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
-                binary_po_dt.back(), binary_po_fp.back());
+
+    const std::vector<attr_t::post_ops_t::entry_t> &po_entry
+            = prb->attr.post_ops.entry;
+    const std::vector<size_t> post_bin_indices = get_post_bin_indices(po_entry);
+
+    for (size_t i = 0; i < post_bin_indices.size(); i++) {
+        binary_po_fp.emplace_back(
+                make_dnn_mem(ins[++idx_ins], dt::f32, tag::abx));
+        binary_po_dt.emplace_back(make_dnn_mem(ins[idx_ins], tag::abx));
+        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                 static_cast<int>(post_bin_indices[i])),
+                binary_po_dt[i], binary_po_fp[i]);
     }
 
     dnnl::graph::engine &eng = get_test_engine();
 
-    graph::tensor src_tensor(ins[0], eng,
+    idx_ins = 0;
+    graph::tensor src_tensor(ins[idx_ins], eng,
             static_cast<void *>(prb->dir == BWD_D ? dst_dt : src_dt));
-    graph::tensor dst_tensor(outs[0], eng,
-            static_cast<void *>(prb->dir == BWD_D ? src_dt : dst_dt));
-
-    graph::tensor wei_tensor(ins[1], eng, static_cast<void *>(wei_dt));
+    graph::tensor wei_tensor(ins[++idx_ins], eng, static_cast<void *>(wei_dt));
     graph::tensor bia_tensor;
     if (prb->dir == FWD_B)
-        bia_tensor = graph::tensor(ins[2], eng, static_cast<void *>(bia_dt));
+        bia_tensor = graph::tensor(
+                ins[++idx_ins], eng, static_cast<void *>(bia_dt));
+    graph::tensor dst_tensor(outs[0], eng,
+            static_cast<void *>(prb->dir == BWD_D ? src_dt : dst_dt));
 
     std::vector<graph::tensor> tensors_in {src_tensor, wei_tensor};
     if (prb->dir == FWD_B) tensors_in.emplace_back(bia_tensor);
 
     graph::tensor sum_src1_tensor;
     graph::tensor bin_tensor;
-    if (graph_prb.has_post_sum()) { // Always use in-place operation.
-        const size_t idx = prb->dir == FWD_B ? 3 : 2;
-        sum_src1_tensor
-                = graph::tensor(ins[idx], eng, static_cast<void *>(dst_dt));
-        tensors_in.emplace_back(sum_src1_tensor);
-    } else if (graph_prb.has_post_bin()) {
-        bin_tensor = graph::tensor(
-                ins.back(), eng, static_cast<void *>(binary_po_dt.back()));
-        tensors_in.emplace_back(bin_tensor);
+
+    size_t bin_dt_idx = 0;
+    for (size_t i = 0; i < po_entry.size(); i++) {
+        if (po_entry[i].is_sum_kind()) { // Always use in-place operation.
+            sum_src1_tensor = graph::tensor(
+                    ins[++idx_ins], eng, static_cast<void *>(dst_dt));
+            tensors_in.emplace_back(sum_src1_tensor);
+        } else if (po_entry[i].is_binary_kind()) {
+            bin_tensor = graph::tensor(ins[++idx_ins], eng,
+                    static_cast<void *>(binary_po_dt[bin_dt_idx]));
+            tensors_in.emplace_back(bin_tensor);
+            ++bin_dt_idx;
+        }
     }
+
     std::vector<graph::tensor> tensors_out {dst_tensor};
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
@@ -384,9 +400,10 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             std::vector<int> binary_po_args;
-            for (int idx = 0; idx < binary_po_fp.size(); idx++) {
-                binary_po_args.emplace_back(
-                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+            for (size_t idx_bin : post_bin_indices) {
+                binary_po_args.emplace_back((DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                                     static_cast<int>(idx_bin))
+                        | DNNL_ARG_SRC_1));
             }
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(prelu_po_args, prelu_po_fp);

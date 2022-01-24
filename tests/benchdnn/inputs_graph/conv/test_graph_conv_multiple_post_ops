@@ -1,0 +1,4 @@
+# post mul+sum+relu+add
+# --reset
+# --dir=FWD_B
+# --attr-post-ops=mul:f32:common+sum+relu+add:f32:per_oc mb50ic64ih56oc64oh56kh1ph0
