@@ -16,40 +16,18 @@ respect to the input. Also known as a Deconvolution or a Transposed Convolution.
 **Detailed description**:
 
 ConvolutionBackpropData takes the input tensor, weights tensor and output shape
-and computes the output tensor of a given shape. The shape of the output can be
-specified as an input 1D integer tensor explicitly or determined by other
-attributes implicitly. If output shape is specified as an explicit input, shape
-of the output exactly matches the specified size and required amount of padding
-is computed.
+and computes the output tensor of a given shape. The shape of the output should
+either be specified as an input 1D integer tensor or be determined by the
+attribute ``output_shape``.
 
 ConvolutionBackpropData accepts the same set of attributes as a regular
 Convolution operation, but they are interpreted in a "backward way", so they are
 applied to the output of ConvolutionBackpropData, but not to the input. Refer to
 a regular Convolution operation for detailed description of each attribute.
 
-Output shape when specified as an input ``output_shape``, specifies only spatial
-dimensions. No batch or channel dimension should be passed along with H, W or
-other spatial dimensions. If ``output_shape`` is omitted, then ``pads_begin``,
-``pads_end`` or ``auto_pad`` are used to determine output spatial shape
-``[Y_1, Y_2, ..., Y_D]`` by input spatial shape ``[X_1, X_2, ..., X_D]`` in the
-following way:
-
-.. code-block:: cpp
-
-   if auto_pads != None:
-       pads_begin[i] = 0
-       pads_end[i] = 0
-
-   Y_i = stride[i] * (X_i - 1) + ((K_i - 1) * dilations[i] + 1) - pads_begin[i]
-       - pads_end[i] + output_padding[i]
-
-where ``K_i`` filter kernel dimension along spatial axis ``i``.
-
-If ``output_shape`` is specified, ``pads_begin`` and ``pads_end`` are ignored,
-and ``auto_pad`` defines how to distribute padding amount around the tensor.
+If ``auto_pad`` is specified, ``pads_begin`` and ``pads_end`` will be ignored,
 In this case pads are determined based on the next formulas to correctly align
-input and output tensors (similar to ONNX definition at
-https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
+input and output tensors:
 
 .. code-block:: cpp
 
@@ -164,6 +142,13 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
   * **Default value**: *XIO*
   * **Required**: *no*
 
+* *output_shape*
+
+  * **Description**: *output_shape* denotes the shape of the output tensor.
+  * **Type**: s64[]
+  * **Default value**: None
+  * **Required**: *no*
+
 **Inputs**:
 
 * **1**: ``data`` -- input tensor of rank 3 or greater. **Required**.
@@ -177,11 +162,11 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
 
   * **Type**: T
 
-* **3**: ``output_shape`` is 1D integer tensor that specifies spatial shape of
-  the output. **Optional**. If specified, *padding amount* is deduced from
-  relation of input and output spatial shapes according to formulas in the
-  description. If not specified, *output shape* is calculated based on the
-  ``pads_begin`` and ``pads_end`` or completely according to ``auto_pad``.
+* **3**: ``output_shape`` is 1D integer tensor that specifies shape of
+  the output. **Optional**. If specified, *output_shape* attribute will be
+  ignored. If not specified, users should define *output_shape* through
+  attribute. *padding amount* can be deduced from relation of input and output
+  spatial shapes according to formulas in the description.
 
   * **Type**: s32
 

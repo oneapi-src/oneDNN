@@ -108,23 +108,32 @@ gradient and computes the weights gradient.
   * **Default value**: *XIO*
   * **Required**: *no*
 
+* *filter_shape*
+
+  * **Description**: *filter_shape* denotes the shape of the filter.
+  * **Type**: s64[]
+  * **Default value**: None
+  * **Required**: *no*
+
 **Inputs**:
 
 * **1**: ``input`` - input tensor. **Required**.
 
   * **Type**: T
 
-* **2**: ``filters_shape`` - 1D integer tensor that specifies spatial shape of
-  the filter. The shape of filter is (out_channels, in_channels // groups,
-  spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
-  out_channels) for XIO format. **Required**
-
-  * **Type**: s32
-
-* **3**: ``output_delta`` - gradients tensor with respect to the output of the
+* **2**: ``output_delta`` - gradients tensor with respect to the output of the
   convolution. **Required**.
 
   * **Type**: T
+
+* **3**: ``filter_shape`` - 1D integer tensor that specifies spatial shape of
+  the filter. The shape of filter is (out_channels, in_channels // groups,
+  spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
+  out_channels) for XIO format. **Optional**. If specified, *filter_shape*
+  attribute will be ignored. If not specified, users should define
+  *filter_shape* through attribute.
+
+  * **Type**: s32
 
 **Outputs**:
 
