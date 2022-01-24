@@ -128,6 +128,7 @@ struct array_offset_calculator {
 
     template <typename... Targs>
     Telem &operator()(Targs... Fargs) const {
+        assert(static_cast<bool>(base_ptr_));
         return *(base_ptr_ + offset(1, Fargs...));
     }
 

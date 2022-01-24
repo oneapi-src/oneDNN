@@ -325,22 +325,25 @@ void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
                 int64_t prev_iter
                         = (iter_dir == left2right) ? iter - 1 : iter + 1;
                 int64_t lay = il + 1;
+#define SAFE_PTR(FN, ...) CONCAT2(FN, _) ? &(FN(__VA_ARGS__)) : nullptr
                 rnn_cell_fwd(prb, &ws_src_layer(lay, dir_val, iter, 0, 0),
                         &ws_src_iter(lay, dir_val, iter, 0, 0),
                         &ws_src_iter_c(lay, dir_val, iter, 0, 0),
                         &ws_gates(lay - 1, dir_val, iter - 1, 0, 0, 0),
                         &ws_ht(lay - 1, dir_val, iter - 1, 0, 0),
-                        &weights_layer(lay - 1, dir_val, 0, 0),
-                        &weights_iter(lay - 1, dir_val, 0, 0),
-                        &weights_peephole(lay - 1, dir_val, 0),
-                        &weights_projection(lay - 1, dir_val, 0),
-                        &weights_projection_compensation(lay - 1, dir_val, 0),
-                        &bias(lay - 1, dir_val, 0),
+                        SAFE_PTR(weights_layer, lay - 1, dir_val, 0, 0),
+                        SAFE_PTR(weights_iter, lay - 1, dir_val, 0, 0),
+                        SAFE_PTR(weights_peephole, lay - 1, dir_val, 0),
+                        SAFE_PTR(weights_projection, lay - 1, dir_val, 0),
+                        SAFE_PTR(weights_projection_compensation, lay - 1,
+                                dir_val, 0),
+                        SAFE_PTR(bias, lay - 1, dir_val, 0),
                         &ws_src_layer(lay - 1, dir_val, iter, 0, 0),
-                        &src_layer_attention(iter - 1, 0, 0),
+                        SAFE_PTR(src_layer_attention, iter - 1, 0, 0),
                         &ws_src_iter(lay, dir_val, prev_iter, 0, 0),
                         &ws_src_iter_c(lay, dir_val, prev_iter, 0, 0),
                         cell_scratchpad_);
+#undef SAFE_PTR
             }
         }
 
