@@ -7333,20 +7333,20 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     expr_t od_mask, oh_mask, ow_mask;
     expr_t src_mb_mask, dst_mb_mask;
     expr_t wei_oc_mask, dst_oc_mask;
-    expr_t src_g_mask, wei_g_mask, dst_g_mask, src_ic_mask;
+    expr_t src_g_mask, wei_g_mask, dst_g_mask, src_ic_mask, wei_ic_mask;
     expr_t kw_mask, kh_mask;
 
-    bool check_iw = check_ow
+    bool check_kw = (cfg_.kw % cfg_.kw_blk != 0);
+    bool check_kh = (cfg_.kh % cfg_.kh_blk != 0);
+    bool check_iw = check_kw || check_ow
             || need_src_or_dst_check(cfg_.is_fwd, cfg_.ow, cfg_.iw, cfg_.kw,
                     cfg_.pw, cfg_.sw, cfg_.dw);
-    bool check_ih = check_oh
+    bool check_ih = check_kh || check_oh
             || need_src_or_dst_check(cfg_.is_fwd, cfg_.oh, cfg_.ih, cfg_.kh,
                     cfg_.ph, cfg_.sh, cfg_.dh);
     bool check_id = check_od
             || need_src_or_dst_check(cfg_.is_fwd, cfg_.od, cfg_.id, cfg_.kd,
                     cfg_.pd, cfg_.sd, cfg_.dd);
-    bool check_kw = (cfg_.kw % cfg_.kw_blk != 0);
-    bool check_kh = (cfg_.kh % cfg_.kh_blk != 0);
     int src_g = int(src_layout.dim(1));
     int src_g_inner_blk = ir_utils::max_pow2_divisor(src_g);
     src_g_inner_blk = std::min(src_g_inner_blk, cfg_.g_thr_blk);
@@ -7354,6 +7354,10 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     int src_ic = int(src_layout.dim(2));
     int src_ic_inner_blk = ir_utils::max_pow2_divisor(src_ic);
     src_ic_inner_blk = std::min(src_ic_inner_blk, cfg_.ic_blk);
+
+    int wei_ic = int(wei_layout.dim(2));
+    int wei_ic_inner_blk = ir_utils::max_pow2_divisor(wei_ic);
+    wei_ic_inner_blk = std::min(wei_ic_inner_blk, cfg_.ic_blk);
 
     int wei_g = int(wei_layout.dim(0));
     int wei_g_inner_blk = ir_utils::max_pow2_divisor(wei_g);
@@ -7383,6 +7387,7 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     bool check_src_mb = (src_mb % cfg_.mb_tg_blk != 0);
     bool check_dst_mb = (dst_mb % cfg_.mb_tg_blk != 0);
     bool check_src_ic = (src_ic % cfg_.ic_blk != 0);
+    bool check_wei_ic = (wei_ic % cfg_.ic_blk != 0);
     auto &x = view_t::placeholder_var();
     if (check_id) id_mask = (x >= 0) & (x < cfg_.id);
     if (check_ih) ih_mask = (x >= 0) & (x < cfg_.ih);
@@ -7406,7 +7411,8 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     if (check_dst_mb) dst_mb_mask = (x < dst_mb);
     if (check_src_ic)
         src_ic_mask = (x / src_ic_inner_blk < src_ic / src_ic_inner_blk);
-
+    if (check_wei_ic)
+        wei_ic_mask = (x / wei_ic_inner_blk < wei_ic / wei_ic_inner_blk);
     // Source.
     if (cfg_.fuse_spatial) {
         src_view = view_t({mb, g, ic, osp, kd, kh, kw}, 6);
@@ -7444,7 +7450,7 @@ void kernel_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     wei_view.set_vdim(kw, cfg_.kw);
     wei_view.set_tdim(0, g, wei_g_mask);
     wei_view.set_tdim(1, oc, wei_oc_mask);
-    wei_view.set_tdim(2, ic);
+    wei_view.set_tdim(2, ic, wei_ic_mask);
     wei_view.set_tdim(3, kd);
     wei_view.set_tdim(4, kh, kh_mask);
     wei_view.set_tdim(5, kw, kw_mask);
