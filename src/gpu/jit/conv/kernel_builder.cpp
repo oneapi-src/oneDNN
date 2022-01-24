@@ -1442,19 +1442,23 @@ private:
         stmt_t s = body;
 
         object_eq_map_t<expr_t, expr_t> and_ops;
+        object_eq_map_t<expr_t, expr_t> mask_exprs;
         for (auto &kv : hoisted_masks_) {
             if (split_by_and_) {
                 auto e = split_by_and_ops(kv.first, and_ops);
-                s = let_t::make(kv.second, e, s);
-            } else {
-                s = let_t::make(kv.second, cast(kv.first, kv.second.type()), s);
+                mask_exprs.emplace(e, kv.second);
             }
         }
-
-        if (split_by_and_) {
+        if (and_ops.size() < mask_exprs.size()) {
+            for (auto &kv : mask_exprs) {
+                s = let_t::make(kv.second, cast(kv.first, kv.second.type()), s);
+            }
             for (auto &kv : and_ops) {
                 s = let_t::make(kv.second, cast(kv.first, kv.second.type()), s);
             }
+        } else {
+            for (auto &kv : hoisted_masks_)
+                s = let_t::make(kv.second, cast(kv.first, kv.second.type()), s);
         }
 
         return s;
