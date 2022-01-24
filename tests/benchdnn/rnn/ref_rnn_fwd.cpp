@@ -300,6 +300,7 @@ void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
     int64_t cell_scratchpad_size = is_lbr * prb.mb * prb.n_gates() * prb.dhc;
     float *cell_scratchpad_
             = (float *)zmalloc(cell_scratchpad_size * sizeof(float), 4096);
+    SAFE_V(cell_scratchpad_ != nullptr ? OK : FAIL);
     for (int i = 0; i < cell_scratchpad_size; i++) {
         cell_scratchpad_[i] = NAN;
     }
