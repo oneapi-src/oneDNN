@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ private:
     void square_compute_fwd(int simd, const ngen::GRF &r);
     void round_compute_fwd(int simd, const ngen::GRF &r);
     void swish_compute_fwd(int simd, const ngen::GRF &r, int phase, int off);
-    void tanh_compute_fwd(int simd, const ngen::GRF &r, int phase);
+    void tanh_compute_fwd(int simd, const ngen::GRF &r, int phase, int off);
     void linear_compute_fwd(int simd, const ngen::GRF &r, int phase);
     void clip_compute_fwd(
             int simd, const ngen::GRF &r, int phase, float alpha, float beta);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ int jit_eltwise_injector_f32<hw>::min_scratch_regs() {
             case eltwise_square: return 0;
             case eltwise_swish: return 1;
             case eltwise_tanh:
-            case eltwise_tanh_use_dst_for_bwd: return 0;
+            case eltwise_tanh_use_dst_for_bwd: return 1;
             case eltwise_round: return 0;
             case eltwise_linear: return 0;
             case eltwise_bounded_relu:
@@ -89,6 +89,7 @@ int jit_eltwise_injector_f32<hw>::preferred_scratch_regs() {
             case eltwise_mish: return 8;
             case eltwise_relu:
             case eltwise_relu_use_dst_for_bwd: return (alpha_ == 0.f) ? 0 : 8;
+            case eltwise_tanh: return 8;
             case eltwise_gelu_tanh: return 8;
             case eltwise_soft_relu: return 8;
             case eltwise_swish: return 8;
@@ -122,6 +123,7 @@ int jit_eltwise_injector_f32<hw>::max_batch_size() {
             case eltwise_logsigmoid:
             case eltwise_pow:
             case eltwise_soft_relu:
+            case eltwise_tanh:
             case eltwise_swish: return ss;
             case eltwise_mish:
             case eltwise_gelu_erf: return ss / min_scratch_regs();
@@ -162,7 +164,7 @@ int jit_eltwise_injector_f32<hw>::phase_count(alg_kind_t alg) {
             case eltwise_soft_relu: return 9;
             case eltwise_swish: return 5;
             case eltwise_tanh:
-            case eltwise_tanh_use_dst_for_bwd: return 6;
+            case eltwise_tanh_use_dst_for_bwd: return 7;
             case eltwise_linear: return 2;
             case eltwise_bounded_relu:
             case eltwise_clip:
@@ -251,15 +253,17 @@ void jit_eltwise_injector_f32<hw>::square_compute_fwd(
 
 template <gpu_gen_t hw>
 void jit_eltwise_injector_f32<hw>::tanh_compute_fwd(
-        int simd, const ngen::GRF &r, int phase) {
+        int simd, const ngen::GRF &r, int phase, int off) {
     const float log2e = 1.442695f; // log_2(e)
+    auto a = scratch_[off].f();
     switch (phase) {
-        case 0: h->mul(simd, r, r, -2 * log2e); break;
-        case 1: h->exp(simd, r, r); break;
-        case 2: h->add(simd, r, r, 1.f); break;
-        case 3: h->inv(simd, r, r); break;
-        case 4: h->mul(simd, r, r, 2.f); break;
-        case 5: h->add(simd, r, r, -1.f); break;
+        case 0: h->mul(simd, a, abs(r), 2 * log2e); break;
+        case 1: h->exp(simd, a, a); break;
+        case 2: h->add(simd, a, a, 1.f); break;
+        case 3: h->inv(simd, a, a); break;
+        case 4: h->mul(simd, a, a, 2.f); break;
+        case 5: h->add(simd, a, -a, 1.f); break;
+        case 6: h->csel(simd | ge | f0[0], r, a, -a, r); break;
         default: assert(!"invalid phase");
     }
 }
@@ -566,10 +570,11 @@ void jit_eltwise_injector_f32<hw>::mish_compute_fwd(
     auto temp2 = scratch_[off + batch].f();
     const int srelu_phases = phase_count(alg_kind::eltwise_soft_relu);
     const int tanh_phases = phase_count(alg_kind::eltwise_tanh);
+    // note tanh_compute_fwd will trash temp
     if (phase < srelu_phases)
         soft_relu_compute_fwd_inner(simd, r, temp, temp2, phase, off);
     if (phase >= srelu_phases && phase < srelu_phases + tanh_phases)
-        tanh_compute_fwd(simd, temp2, phase - srelu_phases);
+        tanh_compute_fwd(simd, temp2, phase - srelu_phases, off);
     if (phase == srelu_phases + tanh_phases) h->mul(simd, r, r, temp2);
     if (phase > srelu_phases + tanh_phases) assert(!"invalid phase");
 }
@@ -665,7 +670,7 @@ void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
                             break;
                         case eltwise_tanh:
                         case eltwise_tanh_use_dst_for_bwd:
-                            tanh_compute_fwd(simd, base, phase);
+                            tanh_compute_fwd(simd, base, phase, ii);
                             break;
                         case eltwise_round:
                             round_compute_fwd(simd, base);
