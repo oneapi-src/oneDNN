@@ -502,6 +502,7 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 op_kind::dnnl_u8_to_s8,
                 op_kind::dnnl_binary,
                 op_kind::dnnl_batchnorm,
+                op_kind::dnnl_batchnorm_bwd,
                 op_kind::dnnl_prelu,
                 op_kind::dnnl_reduction,
                 op_kind::dnnl_eltwise,

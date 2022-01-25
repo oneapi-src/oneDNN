@@ -2083,6 +2083,7 @@ impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         // replace original oneDNN Graph ops with dnnl_batchnorm_bwd
         replace_op(cur_op, new_op);
+        new_op->merge_attributes(cur_op->get_attributes());
         to_be_inserted_ops.emplace_back(new_op);
         to_be_removed_ops.emplace_back(cur_op);
     }
