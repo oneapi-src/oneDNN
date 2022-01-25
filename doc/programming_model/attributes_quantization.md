@@ -83,8 +83,8 @@ where
 Note that in order to perform the operation, one does not need to know the
 exact scaling factors for all the tensors; it is enough to know only the
 \f$output\_scale\f$. The library utilizes this fact: a user needs to provide
-only this one extra parameter to the convolution primitive (see the [Output
-Scaling Attribute](@ref dev_guide_attributes_quantization_output_scare)
+only this one extra parameter to the convolution primitive (see the
+[Output Scaling Attribute](@ref dev_guide_attributes_quantization_output_scale)
 section below).
 
 ### Per-Channel Scaling
@@ -162,7 +162,7 @@ according to the current HW setting (for instance, on CPU according to the
 MXCSR register).
 
 
-@anchor dev_guide_attributes_quantization_output_scare
+@anchor dev_guide_attributes_quantization_output_scale
 ### Output Scaling Attribute
 
 The library uses @ref dev_guide_attributes API for setting the scaling factors
