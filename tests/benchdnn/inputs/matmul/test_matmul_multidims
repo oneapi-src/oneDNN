@@ -5,7 +5,7 @@
 --wtag=abcd,abdc
 --dtag=abx
 --runtime_dims_masks=0,1:1,8:4
---attr-post-ops=,add:f32:per_mb_spatial+sub:s8:per_tensor,add:f32:per_oc,add:f32:per_mb_w+sub:s8:per_tensor
+--attr-post-ops=,add:f32:per_mb_spatial+sub:s8:per_tensor,add:f32:per_oc,add:f32:per_mb_w+sub:s8:per_tensor,add:f32:per_w
 --batch=shapes_4d
 
 --reset
