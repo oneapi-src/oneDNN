@@ -1200,7 +1200,8 @@ void binary_elementwise_op_t::query_format(context_ptr ctx,
             in_formats.push_back({in0_format});
             // for {1} shape
             if (info_.inputs_[1]->details_.get_plain_dims().size() == 1
-                    && info_.inputs_[1]->details_.get_plain_dims()[0] == 1) {
+                    && info_.inputs_[1]->details_.get_plain_dims()[0] == 1
+                    && plain_bc_axis_ == std::vector<int> {-1}) {
                 in_formats.push_back({in1_format});
             } else {
                 in_formats.push_back({infer_blocking_format(
@@ -1211,7 +1212,8 @@ void binary_elementwise_op_t::query_format(context_ptr ctx,
         } else {
             // for {1} shape
             if (info_.inputs_[0]->details_.get_plain_dims().size() == 1
-                    && info_.inputs_[0]->details_.get_plain_dims()[0] == 1) {
+                    && info_.inputs_[0]->details_.get_plain_dims()[0] == 1
+                    && plain_bc_axis_ == std::vector<int> {-1}) {
                 in_formats.push_back({in0_format});
             } else {
                 in_formats.push_back({infer_blocking_format(

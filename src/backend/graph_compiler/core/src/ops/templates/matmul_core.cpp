@@ -99,10 +99,12 @@ std::shared_ptr<void> gen_matmul_core_t::get_default_config(
   if (in_tensors_[0].get_format().is_blocking()) {
     cfg.M_block = in_tensors_[0].get_format().blocks_[0];
     cfg.K_block = in_tensors_[0].get_format().blocks_[1];
-    cfg.N_block = 64;
-    // Safe Guard: avoid K_block % rbd != 0
-    validate_cfg(cfg, is_amx, get_in_dtypes(0));
-    return ret;
+    if (!get_a_batch_dims().empty() || !get_b_batch_dims().empty()) {
+      cfg.N_block = 64;
+      // Safe Guard: avoid K_block % rbd != 0
+      validate_cfg(cfg, is_amx, get_in_dtypes(0));
+      return ret;
+    }
   } else {
     assert(A_plain_dims.size() == 2);
     int M = static_cast<int>(A_plain_dims[0]);
