@@ -629,6 +629,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
                                     broadcasting_strategy_t::scalar,
                                     broadcasting_strategy_t::per_mb_spatial,
                                     broadcasting_strategy_t::per_mb_w,
+                                    broadcasting_strategy_t::per_w,
                                     broadcasting_strategy_t::no_broadcast})))
         return status::unimplemented;
 
