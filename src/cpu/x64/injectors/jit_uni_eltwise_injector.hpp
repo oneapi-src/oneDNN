@@ -210,6 +210,7 @@ private:
     void linear_compute_vector_fwd(const Vmm &vmm_src);
     void bounded_relu_compute_vector_fwd(const Vmm &vmm_src);
     void soft_relu_compute_vector_fwd(const Vmm &vmm_src);
+    void soft_relu_v2_compute_vector_fwd(const Vmm &vmm_src);
     void logsigmoid_compute_vector_fwd(const Vmm &vmm_src);
     void mish_compute_vector_fwd(const Vmm &vmm_src);
     void logistic_compute_vector_fwd(const Vmm &vmm_src);
@@ -232,6 +233,7 @@ private:
     void linear_compute_vector_bwd(const Vmm &vmm_src);
     void bounded_relu_compute_vector_bwd(const Vmm &vmm_src);
     void soft_relu_compute_vector_bwd(const Vmm &vmm_src);
+    void soft_relu_v2_compute_vector_bwd(const Vmm &vmm_src);
     void logistic_compute_vector_bwd(const Vmm &vmm_src);
     void logsigmoid_compute_vector_bwd(const Vmm &vmm_src);
     void mish_compute_vector_bwd(const Vmm &vmm_src);

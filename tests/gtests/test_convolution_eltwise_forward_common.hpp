@@ -97,6 +97,9 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
                     case algorithm::eltwise_soft_relu:
                         d = soft_relu_fwd(d);
                         break;
+                    case algorithm::eltwise_soft_relu_v2:
+                        d = soft_relu_v2_fwd(d, elt_alpha);
+                        break;
                     case algorithm::eltwise_logistic:
                         d = logistic_fwd(d);
                         break;

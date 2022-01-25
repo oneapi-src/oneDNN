@@ -7,7 +7,7 @@
 
 ## algs which support negative alpha
 --alpha=-2 --beta=0
---alg=elu,relu,swish
+--alg=elu,relu,soft_relu_v2,swish
 --batch=shapes_ci
 
 ## algs which do not support negative alpha
