@@ -80,6 +80,8 @@ struct jit_brgemm_primitive_conf_t {
     bool use_uker;
     bool use_interleave_stores;
     static constexpr int tile_wsp_per_thread = 4096;
+    brgemm_kernel_prefetching_t hint_prefetching
+            = brgemm_kernel_prefetching_t::brgemm_prf_default;
 };
 
 } // namespace x64
