@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,15 @@
 #define VECT_DT_N VECT_SIZE
 
 #include "gpu/ocl/ocl_types.h"
+
+// The kernels perform IC tail processing for NHWC and for ic % 8 == 0 only
+// and the case IC == 8 is processed by special code
+#define IS_IC_EQ_8 (IC == 8)
+#define HAS_IC_TAIL (IC != IC16)
+
+#if HAS_IC_TAIL && !USE_NHWC
+#error IC tail processing not supported
+#endif
 
 #define HAS_STAT_SP_TAIL (STAT_SP_TAIL != STAT_SP_NBLOCKS)
 #define HAS_SP_TAIL (SP != SP_TAIL)
@@ -65,6 +74,15 @@
 #define STORE_CHAR_8x16(ptr, val) \
     intel_sub_group_block_write_uc8((__global uchar *)(ptr), as_uchar8(val));
 
+#if HAS_IC_TAIL
+#define MAYBE_LAST_IC_LOAD_FLOAT_1x16(ptr, idx) \
+    (is_last_ic_block ? (simd_id < 8 ? ptr[(idx) + simd_id] : 0.0f) \
+                      : as_float(intel_sub_group_block_read( \
+                              (const __global uint *)(&ptr[(idx)]))));
+#else
+#define MAYBE_LAST_IC_LOAD_FLOAT_1x16(ptr, idx) LOAD_FLOAT_1x16(&ptr[(idx)]);
+#endif
+
 #if USE_NHWC
 #define IC_BLOCK_STRIDE IC
 #else
@@ -73,12 +91,27 @@
 
 #if IS_FWD
 
+#define LOAD_DATA_Nx16_USING_LOOP_IDX(n, dest, src, idx) \
+    { \
+        for (int k = 0; k < n; ++k) { \
+            dest[k] = LOAD_DATA_1x16(&src[(k + idx) * IC]); \
+        } \
+    }
+#define LOAD_DATA_Nx16_USING_LOOP_IDX_HALF(n, dest, src, idx) \
+    { \
+        for (int k = 0; k < n; k += 2) { \
+            dest[k] = LOAD_DATA_1x16(&src[(k + idx) * IC]); \
+        } \
+    }
+
 void gen9_reduce_common(__global float *reduce_temp, __local float *local_sum,
         __global float *dst) {
+
     const int ic_sub_group = get_global_id(0) / 16;
     const int group_c = get_global_id(1);
     const int simd_id = get_sub_group_local_id();
     const int c = group_c * 16 + simd_id;
+    const bool is_last_ic_block = (IC - group_c * 16) < 16;
     float sum = 0.0f;
 
     reduce_temp
@@ -94,19 +127,27 @@ void gen9_reduce_common(__global float *reduce_temp, __local float *local_sum,
         for (int i = 1; i < REDUCE_IC_SUB_GROUPS; i++) {
             sum += local_sum[i * 16 + simd_id];
         }
-        dst[c] = sum / (MB * ID * IH * IW);
+#if HAS_IC_TAIL
+        if (!is_last_ic_block || (is_last_ic_block && simd_id < 8))
+#endif
+            dst[c] = sum / (MB * ID * IH * IW);
     }
 }
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calc_mean(
         __global DATA_T *src, __global float *reduce_temp) {
+
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
     const int mb_sp_idx = mb * STAT_SP_NBLOCKS + sp_block_idx;
     const int group_c_offset = REDUCE_STAT_NBLOCKS * 16 * (int)(c / 16);
     const int simd_id = get_sub_group_local_id();
+#if HAS_IC_TAIL
+    const bool is_last_ic_block = c + 16 > IC;
+    const bool is_last_sp_block = (sp_block_idx == STAT_SP_NBLOCKS - 1);
+#endif
 
 #if USE_NHWC
     src += c + sp_block_idx * STAT_SP_BLOCK * IC;
@@ -124,14 +165,36 @@ __kernel void gen9_calc_mean(
         while (sp >= 16) {
 #if USE_NHWC
             float8 s0, s1;
-            for (int k = 0; k < 8; ++k)
-                s0[k] = LOAD_DATA_1x16(&src[k * IC]);
-            for (int k = 0; k < 8; ++k)
-                s1[k] = LOAD_DATA_1x16(&src[(k + 8) * IC]);
+#if IS_IC_EQ_8
+            LOAD_DATA_Nx16_USING_LOOP_IDX_HALF(8, s0, src, 0);
+            LOAD_DATA_Nx16_USING_LOOP_IDX_HALF(8, s1, src, 8);
+            float8 t0 = intel_sub_group_shuffle_down(s0, s0, 8);
+            float8 t1 = intel_sub_group_shuffle_down(s1, s1, 8);
+            for (int k = 0; k < 7; k += 2) {
+                s0[k + 1] = t0[k];
+                s1[k + 1] = t1[k];
+            }
+#elif HAS_IC_TAIL
+            const bool is_last_sp = sp == 16;
+            if (is_last_sp && is_last_ic_block) {
+                LOAD_DATA_Nx16_USING_LOOP_IDX(7, s0, src, 0);
+                s0[7] = simd_id < 8 ? CONVERT_FLOAT_T(src[7 * IC + simd_id])
+                                    : 0.0f;
+                LOAD_DATA_Nx16_USING_LOOP_IDX(7, s1, src, 8);
+                s1[7] = simd_id < 8 ? CONVERT_FLOAT_T(src[15 * IC + simd_id])
+                                    : 0.0f;
+            } else {
+                LOAD_DATA_Nx16_USING_LOOP_IDX(8, s0, src, 0);
+                LOAD_DATA_Nx16_USING_LOOP_IDX(8, s1, src, 8);
+            }
+#else
+            LOAD_DATA_Nx16_USING_LOOP_IDX(8, s0, src, 0);
+            LOAD_DATA_Nx16_USING_LOOP_IDX(8, s1, src, 8);
+#endif // IS_IC_EQ_8
 #else
             float8 s0 = LOAD_DATA_8x16(&src[0]);
             float8 s1 = LOAD_DATA_8x16(&src[8 * 16]);
-#endif
+#endif // USE_NHWC
             res0 += s0;
             res1 += s1;
 
@@ -139,25 +202,55 @@ __kernel void gen9_calc_mean(
             sp -= 16;
         }
         while (sp >= 1) {
+#if HAS_IC_TAIL
+            float s0;
+            if (sp == 1 && is_last_ic_block)
+                s0 = simd_id < 8 ? CONVERT_FLOAT_T(src[simd_id]) : 0.0f;
+            else
+                s0 = LOAD_DATA_1x16(&src[0]);
+#else
             float s0 = LOAD_DATA_1x16(&src[0]);
+#endif
             v_mean += s0;
             src += IC_BLOCK_STRIDE;
             --sp;
         }
     } else
-#endif
+#endif // HAS_STAT_SP_TAIL
     {
         for (int sp = 0; sp < STAT_SP_BLOCK / 16; ++sp) {
 #if USE_NHWC
             float8 s0, s1;
-            for (int k = 0; k < 8; ++k)
-                s0[k] = LOAD_DATA_1x16(&src[k * IC]);
-            for (int k = 0; k < 8; ++k)
-                s1[k] = LOAD_DATA_1x16(&src[(k + 8) * IC]);
+#if IS_IC_EQ_8
+            LOAD_DATA_Nx16_USING_LOOP_IDX_HALF(8, s0, src, 0);
+            LOAD_DATA_Nx16_USING_LOOP_IDX_HALF(8, s1, src, 8);
+            float8 t0 = intel_sub_group_shuffle_down(s0, s0, 8);
+            float8 t1 = intel_sub_group_shuffle_down(s1, s1, 8);
+            for (int k = 0; k < 7; k += 2) {
+                s0[k + 1] = t0[k];
+                s1[k + 1] = t1[k];
+            }
+#elif HAS_IC_TAIL
+            const bool is_last_sp = sp == STAT_SP_BLOCK / 16 - 1;
+            if (is_last_sp && is_last_ic_block && is_last_sp_block) {
+                LOAD_DATA_Nx16_USING_LOOP_IDX(7, s0, src, 0);
+                s0[7] = simd_id < 8 ? CONVERT_FLOAT_T(src[7 * IC + simd_id])
+                                    : 0.0f;
+                LOAD_DATA_Nx16_USING_LOOP_IDX(7, s1, src, 8);
+                s1[7] = simd_id < 8 ? CONVERT_FLOAT_T(src[15 * IC + simd_id])
+                                    : 0.0f;
+            } else {
+                LOAD_DATA_Nx16_USING_LOOP_IDX(8, s0, src, 0);
+                LOAD_DATA_Nx16_USING_LOOP_IDX(8, s1, src, 8);
+            }
+#else
+            LOAD_DATA_Nx16_USING_LOOP_IDX(8, s0, src, 0);
+            LOAD_DATA_Nx16_USING_LOOP_IDX(8, s1, src, 8);
+#endif // IS_IC_EQ_8
 #else
             float8 s0 = LOAD_DATA_8x16(&src[0]);
             float8 s1 = LOAD_DATA_8x16(&src[8 * 16]);
-#endif
+#endif // NHWC
             res0 += s0;
             res1 += s1;
             src += 16 * IC_BLOCK_STRIDE;
@@ -168,6 +261,7 @@ __kernel void gen9_calc_mean(
         v_mean += res0[i] + res1[i];
     }
 
+    // reduce_temp is padded to IC16, no OOB writes
     STORE_FLOAT_1x16(
             &reduce_temp[group_c_offset + mb_sp_idx * 16 + simd_id], v_mean);
 }
@@ -188,7 +282,11 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
     const int mb_sp_idx = mb * STAT_SP_NBLOCKS + sp_block_idx;
     const int group_c_offset = REDUCE_STAT_NBLOCKS * 16 * (int)(c / 16);
     const int simd_id = get_sub_group_local_id();
-    reduce_temp += REDUCE_STAT_NBLOCKS * IC;
+#if HAS_IC_TAIL
+    const bool is_last_ic_block = c + 16 > IC;
+    const bool is_last_sp_block = (sp_block_idx == STAT_SP_NBLOCKS - 1);
+#endif
+    reduce_temp += REDUCE_STAT_NBLOCKS * IC16;
 
 #if USE_NHWC
     src += c + sp_block_idx * STAT_SP_BLOCK * IC;
@@ -200,7 +298,7 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
     float8 res0 = 0.0f, res1 = 0.0f;
     float v_var = 0.0f;
 
-    float v_mean = LOAD_FLOAT_1x16(&mean[c]);
+    float v_mean = MAYBE_LAST_IC_LOAD_FLOAT_1x16(mean, c);
 
 #if HAS_STAT_SP_TAIL
     if (sp_block_idx == STAT_SP_TAIL) {
@@ -208,14 +306,37 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
         while (sp >= 16) {
 #if USE_NHWC
             float8 s0, s1;
-            for (int k = 0; k < 8; ++k)
-                s0[k] = LOAD_DATA_1x16(&src[k * IC]);
-            for (int k = 0; k < 8; ++k)
-                s1[k] = LOAD_DATA_1x16(&src[(k + 8) * IC]);
+#if IS_IC_EQ_8
+            LOAD_DATA_Nx16_USING_LOOP_IDX_HALF(8, s0, src, 0);
+            LOAD_DATA_Nx16_USING_LOOP_IDX_HALF(8, s1, src, 8);
+            float8 t0 = intel_sub_group_shuffle_down(s0, s0, 8);
+            float8 t1 = intel_sub_group_shuffle_down(s1, s1, 8);
+            for (int k = 0; k < 7; k += 2) {
+                s0[k + 1] = t0[k];
+                s1[k + 1] = t1[k];
+            }
+#elif HAS_IC_TAIL
+            const bool is_last_sp = sp == 16;
+            if (is_last_sp && is_last_ic_block) {
+                LOAD_DATA_Nx16_USING_LOOP_IDX(7, s0, src, 0);
+                s0[7] = simd_id < 8 ? CONVERT_FLOAT_T(src[7 * IC + simd_id])
+                                    : 0.0f;
+                LOAD_DATA_Nx16_USING_LOOP_IDX(7, s1, src, 8);
+                s1[7] = simd_id < 8 ? CONVERT_FLOAT_T(src[15 * IC + simd_id])
+                                    : 0.0f;
+            } else {
+                LOAD_DATA_Nx16_USING_LOOP_IDX(8, s0, src, 0);
+                LOAD_DATA_Nx16_USING_LOOP_IDX(8, s1, src, 8);
+            }
 #else
+            LOAD_DATA_Nx16_USING_LOOP_IDX(8, s0, src, 0);
+            LOAD_DATA_Nx16_USING_LOOP_IDX(8, s1, src, 8);
+#endif
+#else // USE_NHWC
             float8 s0 = LOAD_DATA_8x16(&src[0]);
             float8 s1 = LOAD_DATA_8x16(&src[8 * 16]);
 #endif
+
             float8 v0 = s0 - v_mean;
             float8 v1 = s1 - v_mean;
             res0 = fma(v0, v0, res0);
@@ -224,8 +345,17 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
             src += 16 * IC_BLOCK_STRIDE;
             sp -= 16;
         }
+
         while (sp >= 1) {
+#if HAS_IC_TAIL
+            float s0;
+            if (sp == 1 && is_last_ic_block)
+                s0 = simd_id < 8 ? CONVERT_FLOAT_T(src[simd_id]) : 0.0f;
+            else
+                s0 = LOAD_DATA_1x16(&src[0]);
+#else
             float s0 = LOAD_DATA_1x16(&src[0]);
+#endif
             float v0 = s0 - v_mean;
             v_var = fma(v0, v0, v_var);
 
@@ -238,14 +368,36 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
         for (int sp = 0; sp < STAT_SP_BLOCK / 16; ++sp) {
 #if USE_NHWC
             float8 s0, s1;
-            for (int k = 0; k < 8; ++k)
-                s0[k] = LOAD_DATA_1x16(&src[k * IC]);
-            for (int k = 0; k < 8; ++k)
-                s1[k] = LOAD_DATA_1x16(&src[(k + 8) * IC]);
+#if IS_IC_EQ_8
+            LOAD_DATA_Nx16_USING_LOOP_IDX_HALF(8, s0, src, 0);
+            LOAD_DATA_Nx16_USING_LOOP_IDX_HALF(8, s1, src, 8);
+            float8 t0 = intel_sub_group_shuffle_down(s0, s0, 8);
+            float8 t1 = intel_sub_group_shuffle_down(s1, s1, 8);
+            for (int k = 0; k < 7; k += 2) {
+                s0[k + 1] = t0[k];
+                s1[k + 1] = t1[k];
+            }
+#elif HAS_IC_TAIL
+            const bool is_last_sp = sp == STAT_SP_BLOCK / 16 - 1;
+            if (is_last_sp && is_last_ic_block && is_last_sp_block) {
+                LOAD_DATA_Nx16_USING_LOOP_IDX(7, s0, src, 0);
+                s0[7] = simd_id < 8 ? CONVERT_FLOAT_T(src[7 * IC + simd_id])
+                                    : 0.0f;
+                LOAD_DATA_Nx16_USING_LOOP_IDX(7, s1, src, 8);
+                s1[7] = simd_id < 8 ? CONVERT_FLOAT_T(src[15 * IC + simd_id])
+                                    : 0.0f;
+            } else {
+                LOAD_DATA_Nx16_USING_LOOP_IDX(8, s0, src, 0);
+                LOAD_DATA_Nx16_USING_LOOP_IDX(8, s1, src, 8);
+            }
+#else
+            LOAD_DATA_Nx16_USING_LOOP_IDX(8, s0, src, 0);
+            LOAD_DATA_Nx16_USING_LOOP_IDX(8, s1, src, 8);
+#endif // IS == 8
 #else
             float8 s0 = LOAD_DATA_8x16(&src[0]);
             float8 s1 = LOAD_DATA_8x16(&src[8 * 16]);
-#endif
+#endif // USE_NHWC
             float8 v0 = s0 - v_mean;
             float8 v1 = s1 - v_mean;
             res0 = fma(v0, v0, res0);
@@ -258,6 +410,7 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
     for (int i = 0; i < 8; i++) {
         v_var += res0[i] + res1[i];
     }
+    // reduce_temp is padded to IC16, no OOB writes
     STORE_FLOAT_1x16(
             &reduce_temp[group_c_offset + mb_sp_idx * 16 + simd_id], v_var);
 }
@@ -267,7 +420,7 @@ __kernel void gen9_reduce_variance(
         __global float *reduce_temp, __global float *variance) {
     __local float local_sum[16 * REDUCE_IC_SUB_GROUPS];
     gen9_reduce_common(
-            reduce_temp + REDUCE_STAT_NBLOCKS * IC, local_sum, variance);
+            reduce_temp + REDUCE_STAT_NBLOCKS * IC16, local_sum, variance);
 }
 
 KERNEL_ATTR
@@ -275,52 +428,91 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global float *shift, __global char *ws,
         float eps) {
+
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
     const int sp = GWS_GET_SP() * VECT_SIZE;
+
+    const int simd_id = get_sub_group_local_id();
+#if HAS_IC_TAIL
+    const bool is_last_ic_block = c + 16 > IC;
+    const bool is_last_sp_block = sp >= SP - VECT_SIZE;
+#endif
 
 #if USE_NHWC
     const uint d_off = sp * IC + c;
 #else
     const uint d_off = (c & 15) + sp * 16 + (c & ~15) * SP + n * SP * IC;
 #endif
+
     src += d_off;
     dst += d_off;
 
     float8 blockS0 = 0.0f, blockD0;
+
 #if HAS_SP_TAIL
     if (sp == SP_TAIL) {
         for (int k = 0; k < SP - SP_TAIL; ++k)
-            blockS0[k] = LOAD_DATA_1x16(&src[k * IC_BLOCK_STRIDE]);
+#if HAS_IC_TAIL
+            if (k == SP - SP_TAIL - 1 && is_last_ic_block)
+                blockS0[k] = simd_id < 8
+                        ? CONVERT_FLOAT_T(src[k * IC_BLOCK_STRIDE + simd_id])
+                        : 0.0f;
+            else
+#endif
+                blockS0[k] = LOAD_DATA_1x16(&src[k * IC_BLOCK_STRIDE]);
     } else
 #endif // HAS_SP_TAIL
     {
 #if USE_NHWC
-        for (int k = 0; k < 8; ++k)
-            blockS0[k] = LOAD_DATA_1x16(&src[k * IC]);
+#if IS_IC_EQ_8
+        LOAD_DATA_Nx16_USING_LOOP_IDX_HALF(8, blockS0, src, 0);
+        float8 t0 = intel_sub_group_shuffle_down(blockS0, blockS0, 8);
+        for (int k = 0; k < 7; k += 2)
+            blockS0[k + 1] = t0[k];
+#elif HAS_IC_TAIL
+        if (is_last_ic_block && is_last_sp_block) {
+            LOAD_DATA_Nx16_USING_LOOP_IDX(7, blockS0, src, 0);
+            blockS0[7] = simd_id < 8 ? CONVERT_FLOAT_T(src[7 * IC + simd_id])
+                                     : 0.0f;
+        } else {
+            LOAD_DATA_Nx16_USING_LOOP_IDX(8, blockS0, src, 0);
+        }
+#else
+        LOAD_DATA_Nx16_USING_LOOP_IDX(8, blockS0, src, 0);
+#endif // IS_IC_EQ_8
 #else
         blockS0 = LOAD_DATA_8x16(&src[0]);
-#endif
+#endif // USE_NHWC
     }
 
 #if USE_SCALESHIFT == 1
-    float sm = LOAD_FLOAT_1x16(&scaleshift[c]);
-    float sv = LOAD_FLOAT_1x16(&scaleshift[IC + c]);
+    float sm = MAYBE_LAST_IC_LOAD_FLOAT_1x16(scaleshift, c);
+    float sv = MAYBE_LAST_IC_LOAD_FLOAT_1x16(scaleshift, IC + c);
 #else
 #if USE_SCALE == 1
-    float sm = LOAD_FLOAT_1x16(&scaleshift[c]);
+    float sm = MAYBE_LAST_IC_LOAD_FLOAT_1x16(scaleshift, c);
 #else
     float sm = 1.0f;
 #endif
 #if USE_SHIFT == 1
-    float sv = LOAD_FLOAT_1x16(&shift[c]);
+    float sv = MAYBE_LAST_IC_LOAD_FLOAT_1x16(shift, c);
 #else
     float sv = 0.0f;
 #endif
 #endif
 
-    float v_mean = LOAD_FLOAT_1x16(&mean[c]);
-    float v_variance = LOAD_FLOAT_1x16(&variance[c]);
+    float v_mean, v_variance;
+#if HAS_IC_TAIL
+    if (is_last_ic_block) {
+        v_mean = simd_id < 8 ? mean[c + simd_id] : 0.0f;
+        v_variance = simd_id < 8 ? variance[c + simd_id] : 0.0f;
+    } else
+#endif
+    {
+        v_mean = LOAD_FLOAT_1x16(&mean[c]);
+        v_variance = LOAD_FLOAT_1x16(&variance[c]);
+    }
 
     float sqrt_variance = sm / sqrt(v_variance + eps);
 
@@ -358,17 +550,31 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #if HAS_SP_TAIL
     if (sp == SP_TAIL) {
         for (int k = 0; k < SP - SP_TAIL; ++k) {
-            STORE_DATA_1x16(&dst[k * IC_BLOCK_STRIDE], blockD0[k]);
+#if HAS_IC_TAIL
+            if (is_last_ic_block) {
+                if (simd_id < 8)
+                    dst[k * IC_BLOCK_STRIDE + simd_id]
+                            = CONVERT_DATA_T(blockD0[k]);
+            } else
+#endif
+                STORE_DATA_1x16(&dst[k * IC_BLOCK_STRIDE], blockD0[k]);
         }
     } else
 #endif // HAS_SP_TAIL
     {
 #if USE_NHWC
         for (int k = 0; k < 8; ++k)
-            STORE_DATA_1x16(&dst[k * IC_BLOCK_STRIDE], blockD0[k]);
+#if HAS_IC_TAIL
+            if (is_last_ic_block) {
+                if (simd_id < 8)
+                    dst[k * IC_BLOCK_STRIDE + simd_id]
+                            = CONVERT_DATA_T(blockD0[k]);
+            } else
+#endif
+                STORE_DATA_1x16(&dst[k * IC_BLOCK_STRIDE], blockD0[k]);
 #else
         STORE_DATA_8x16(&dst[0], blockD0);
-#endif
+#endif // USE_NHWC
     }
 }
 
@@ -424,16 +630,29 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         } \
     }
 
+#define LOAD_DATA_Nx16_USING_LOOP_HALF(n, dest, src) \
+    { \
+        for (int k = 0; k < n; k += 2) { \
+            dest[k] = LOAD_DATA_1x16(&src[k * IC_BLOCK_STRIDE]); \
+        } \
+    }
+
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
         __global DATA_T *diff_dst, __global char *ws,
         __global float *diff_scaleshift) {
+
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
     const int mb_sp_idx = mb * STAT_SP_NBLOCKS + sp_block_idx;
     const int group_c_offset = REDUCE_STAT_NBLOCKS * 16 * (int)(c / 16);
     const int simd_id = get_sub_group_local_id();
+#if HAS_IC_TAIL
+    const bool is_last_ic_block = c + 16 > IC;
+    const bool is_last_sp_block = (sp_block_idx == STAT_SP_NBLOCKS - 1);
+#endif
+
     diff_scaleshift += group_c_offset;
 
 #if USE_NHWC
@@ -446,7 +665,7 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
     diff_dst += offset;
     ws += offset;
 
-    float v_mean = LOAD_FLOAT_1x16(&mean[c]);
+    float v_mean = MAYBE_LAST_IC_LOAD_FLOAT_1x16(mean, c);
 
     float8 diff_gamma = 0.0f;
     float8 diff_beta = 0.0f;
@@ -473,8 +692,34 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
         LOAD_CHAR_8x16_USING_LAYOUT(ws_data, ws);
 #endif // #if FUSE_BN_RELU == 1
 
+#if IS_IC_EQ_8
+        LOAD_DATA_Nx16_USING_LOOP_HALF(8, src_data, src);
+        LOAD_DATA_Nx16_USING_LOOP_HALF(8, dd_data, diff_dst);
+        float8 t_src = intel_sub_group_shuffle_down(src_data, src_data, 8);
+        float8 t_dd = intel_sub_group_shuffle_down(dd_data, dd_data, 8);
+        for (int k = 0; k < 7; k += 2) {
+            dd_data[k + 1] = t_dd[k];
+            src_data[k + 1] = t_src[k];
+        }
+#elif HAS_IC_TAIL
+        const bool is_last_sp = sp - C_PARALLEL_FACTOR <= C_PARALLEL_FACTOR - 1;
+        if (is_last_sp && is_last_ic_block && is_last_sp_block) {
+            LOAD_DATA_Nx16_USING_LOOP(7, src_data, src);
+            LOAD_DATA_Nx16_USING_LOOP(7, dd_data, diff_dst);
+            dd_data[7] = simd_id < 8
+                    ? CONVERT_FLOAT_T(diff_dst[7 * IC_BLOCK_STRIDE + simd_id])
+                    : 0.0f;
+            src_data[7] = simd_id < 8
+                    ? CONVERT_FLOAT_T(src[7 * IC_BLOCK_STRIDE + simd_id])
+                    : 0.0f;
+        } else {
+            LOAD_DATA_Nx16_USING_LOOP(8, src_data, src);
+            LOAD_DATA_Nx16_USING_LOOP(8, dd_data, diff_dst);
+        }
+#else
         LOAD_DATA_8x16_USING_LAYOUT(src_data, src);
         LOAD_DATA_8x16_USING_LAYOUT(dd_data, diff_dst);
+#endif
 
         src += C_PARALLEL_FACTOR * IC_BLOCK_STRIDE;
         diff_dst += C_PARALLEL_FACTOR * IC_BLOCK_STRIDE;
@@ -494,8 +739,7 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
 
 #if HAS_STAT_SP_TAIL
     if (sp_block_idx == STAT_SP_TAIL) {
-        sp = (SP - STAT_SP_TAIL * STAT_SP_BLOCK)
-                % C_PARALLEL_FACTOR; // replace with "and 0x7" ?????
+        sp = (SP - STAT_SP_TAIL * STAT_SP_BLOCK) % C_PARALLEL_FACTOR;
         while (sp-- >= 1) {
 #if FUSE_BN_RELU == 1
             const char ws_data = LOAD_CHAR_1x16(&ws[0]);
@@ -503,8 +747,20 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
             const char ws_data = 1;
 #endif // #if FUSE_BN_RELU == 1
 
+#if HAS_IC_TAIL
+            float src_data, dd_data;
+            if (sp == 0 && is_last_ic_block) {
+                src_data = simd_id < 8 ? CONVERT_FLOAT_T(src[simd_id]) : 0.0f;
+                dd_data = simd_id < 8 ? CONVERT_FLOAT_T(diff_dst[simd_id])
+                                      : 0.0f;
+            } else {
+                src_data = LOAD_DATA_1x16(&src[0]);
+                dd_data = LOAD_DATA_1x16(&diff_dst[0]);
+            }
+#else
             const float src_data = LOAD_DATA_1x16(&src[0]);
             const float dd_data = LOAD_DATA_1x16(&diff_dst[0]);
+#endif
 
             src += IC_BLOCK_STRIDE;
             diff_dst += IC_BLOCK_STRIDE;
@@ -527,9 +783,10 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
         diff_beta[0] += diff_beta[i];
     }
 
-    STORE_FLOAT_1x16(&diff_scaleshift[mb_sp_idx * 16 + simd_id], diff_gamma[0]);
-    STORE_FLOAT_1x16(&diff_scaleshift[REDUCE_STAT_NBLOCKS * IC + mb_sp_idx * 16
-                             + simd_id],
+    // diff_scaleshift (temp_reduce) is padded to IC16
+    STORE_FLOAT_1x16(&diff_scaleshift[mb_sp_idx * 16], diff_gamma[0]);
+    STORE_FLOAT_1x16(
+            &diff_scaleshift[REDUCE_STAT_NBLOCKS * IC16 + mb_sp_idx * 16],
             diff_beta[0]);
 }
 
@@ -537,6 +794,7 @@ NAMED_KERNEL_ATTR(REDUCE)
 __kernel void gen9_reduce_stats(__global float *reduce_temp,
         __global float *diff_scaleshift, __global float *diff_shift,
         __global float *variance, float eps) {
+
     __local float local_gamma[16 * REDUCE_IC_SUB_GROUPS];
     __local float local_beta[16 * REDUCE_IC_SUB_GROUPS];
     const int ic_sub_group = get_global_id(0) / 16;
@@ -552,7 +810,7 @@ __kernel void gen9_reduce_stats(__global float *reduce_temp,
     for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
         diff_gamma += reduce_temp[i * 16];
     }
-    reduce_temp += IC * REDUCE_STAT_NBLOCKS;
+    reduce_temp += IC16 * REDUCE_STAT_NBLOCKS;
     for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
         diff_beta += reduce_temp[i * 16];
     }
@@ -570,14 +828,20 @@ __kernel void gen9_reduce_stats(__global float *reduce_temp,
 
         float sqrt_variance = 1.0f / sqrt(variance[c] + eps);
 
-        diff_scaleshift[c] = diff_gamma * sqrt_variance;
+#if HAS_IC_TAIL
+        const bool is_last_ic_block = group_c * 16 + 16 > IC;
+        if (!is_last_ic_block || (is_last_ic_block && simd_id < 8))
+#endif
+        {
+            diff_scaleshift[c] = diff_gamma * sqrt_variance;
 #if DIFF_SCALESHIFT == 1
-        diff_scaleshift[IC + c] = diff_beta;
+            diff_scaleshift[IC + c] = diff_beta;
 #elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
-        diff_shift[c] = diff_beta;
+            diff_shift[c] = diff_beta;
 #else
-        diff_scaleshift[IC * REDUCE_STAT_NBLOCKS + c] = diff_beta;
+            diff_scaleshift[IC * REDUCE_STAT_NBLOCKS + c] = diff_beta;
 #endif // #if DIFF_SCALESHIFT == 1
+        }
     }
 }
 
@@ -587,25 +851,30 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *scaleshift, __global char *ws,
         __global DATA_T *diff_src, __global float *diff_scaleshift,
         __global float *diff_shift, float eps) {
+
     const int c = GWS_GET_IC();
+    const int simd_id = get_sub_group_local_id();
+#if HAS_IC_TAIL
+    const bool is_last_ic_block = c + 16 > IC;
+#endif
 
-    const float v_variance = LOAD_FLOAT_1x16(&variance[c]);
-
+    const float v_variance = MAYBE_LAST_IC_LOAD_FLOAT_1x16(variance, c);
 #if CALCULATE_DIFF_STATS == 1
-    const float v_mean = LOAD_FLOAT_1x16(&mean[c]);
-    const float diff_gamma = LOAD_FLOAT_1x16(&diff_scaleshift[c]);
+    const float v_mean = MAYBE_LAST_IC_LOAD_FLOAT_1x16(mean, c);
+    const float diff_gamma = MAYBE_LAST_IC_LOAD_FLOAT_1x16(diff_scaleshift, c);
 #if DIFF_SCALESHIFT == 1
-    const float diff_beta = LOAD_FLOAT_1x16(&diff_scaleshift[IC + c]);
-#elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
-    const float diff_beta = LOAD_FLOAT_1x16(&diff_shift[c]);
-#else
     const float diff_beta
-            = LOAD_FLOAT_1x16(&diff_scaleshift[REDUCE_STAT_NBLOCKS * IC + c]);
+            = MAYBE_LAST_IC_LOAD_FLOAT_1x16(diff_scaleshift, IC + c);
+#elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
+    const float diff_beta = MAYBE_LAST_IC_LOAD_FLOAT_1x16(diff_shift, c);
+#else
+    const float diff_beta = MAYBE_LAST_IC_LOAD_FLOAT_1x16(
+            diff_scaleshift, REDUCE_STAT_NBLOCKS * IC + c);
 #endif // #if DIFF_SCALESHIFT == 1
 #endif // #if CALCULATE_DIFF_STATS == 1
 
 #if USE_SCALESHIFT == 1 || USE_SCALE == 1
-    const float gamma = LOAD_FLOAT_1x16(&scaleshift[c]);
+    const float gamma = MAYBE_LAST_IC_LOAD_FLOAT_1x16(scaleshift, c);
 #else
     const float gamma = 1;
 #endif // #if USE_SCALESHIFT == 1 || USE_SCALE == 1
@@ -618,6 +887,11 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
     const int offset = (c & 15) + sp_block_idx * VECT_SIZE * 16 + (c & ~15) * SP
             + mb * SP * IC;
 #endif
+
+#if HAS_IC_TAIL
+    const bool is_last_sp_block = sp_block_idx == SP / VECT_SIZE - 1;
+#endif
+
     src += offset;
     diff_dst += offset;
     ws += offset;
@@ -646,8 +920,34 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         LOAD_CHAR_8x16_USING_LAYOUT(ws_data, ws);
 #endif // #if FUSE_BN_RELU == 1
 
+#if IS_IC_EQ_8
+        LOAD_DATA_Nx16_USING_LOOP_HALF(8, src_data, src);
+        LOAD_DATA_Nx16_USING_LOOP_HALF(8, dd_data, diff_dst);
+        float8 t_dd = intel_sub_group_shuffle_down(dd_data, dd_data, 8);
+        float8 t_src = intel_sub_group_shuffle_down(src_data, src_data, 8);
+        for (int k = 0; k < 7; k += 2) {
+            dd_data[k + 1] = t_dd[k];
+            src_data[k + 1] = t_src[k];
+        }
+#elif HAS_IC_TAIL && !HAS_SP_TAIL
+        const bool is_last_sp = sp - C_PARALLEL_FACTOR <= C_PARALLEL_FACTOR - 1;
+        if (is_last_sp && is_last_ic_block && is_last_sp_block) {
+            LOAD_DATA_Nx16_USING_LOOP(7, src_data, src);
+            LOAD_DATA_Nx16_USING_LOOP(7, dd_data, diff_dst);
+            dd_data[7] = simd_id < 8
+                    ? CONVERT_FLOAT_T(diff_dst[7 * IC_BLOCK_STRIDE + simd_id])
+                    : 0.0f;
+            src_data[7] = simd_id < 8
+                    ? CONVERT_FLOAT_T(src[7 * IC_BLOCK_STRIDE + simd_id])
+                    : 0.0f;
+        } else {
+            LOAD_DATA_Nx16_USING_LOOP(8, src_data, src);
+            LOAD_DATA_Nx16_USING_LOOP(8, dd_data, diff_dst);
+        }
+#else
         LOAD_DATA_8x16_USING_LAYOUT(dd_data, diff_dst);
         LOAD_DATA_8x16_USING_LAYOUT(src_data, src);
+#endif // IS_IC_EQ_8
 
         src += C_PARALLEL_FACTOR * IC_BLOCK_STRIDE;
         diff_dst += C_PARALLEL_FACTOR * IC_BLOCK_STRIDE;
@@ -669,8 +969,17 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         dd_data *= gamma * sqrt_variance;
 
 #if USE_NHWC
-        for (int k = 0; k < 8; ++k)
-            STORE_DATA_1x16(&diff_src[k * IC_BLOCK_STRIDE], dd_data[k]);
+#if HAS_IC_TAIL
+        if (is_last_ic_block) {
+            if (simd_id < 8) {
+                for (int k = 0; k < 8; ++k)
+                    diff_src[k * IC_BLOCK_STRIDE + simd_id]
+                            = CONVERT_DATA_T(dd_data[k]);
+            }
+        } else
+#endif // HAS_IC_TAIL
+            for (int k = 0; k < 8; ++k)
+                STORE_DATA_1x16(&diff_src[k * IC_BLOCK_STRIDE], dd_data[k]);
 #else
         STORE_DATA_8x16(&diff_src[0], dd_data);
 #endif // #if USE_NHWC
@@ -679,16 +988,32 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 
 #if HAS_SP_TAIL
     if (sp_block_idx == SP_TAIL / VECT_SIZE) {
-        sp = (SP - SP_TAIL) % C_PARALLEL_FACTOR; // replace with "and 0x7" ?????
+        sp = (SP - SP_TAIL) % C_PARALLEL_FACTOR;
         while (sp-- >= 1) {
 #if FUSE_BN_RELU == 1
             const char ws_data = LOAD_CHAR_1x16(&ws[0]);
 #endif // #if FUSE_BN_RELU == 1
 
+#if HAS_IC_TAIL
+            float dd_data;
+            if (sp == 0 && is_last_ic_block)
+                dd_data = simd_id < 8 ? CONVERT_FLOAT_T(diff_dst[simd_id])
+                                      : 0.0f;
+            else
+                dd_data = LOAD_DATA_1x16(&diff_dst[0]);
+#if CALCULATE_DIFF_STATS == 1
+            float src_data;
+            if (sp == 0 && is_last_ic_block)
+                src_data = simd_id < 8 ? CONVERT_FLOAT_T(src[simd_id]) : 0.0f;
+            else
+                src_data = LOAD_DATA_1x16(&src[0]);
+#endif // #if CALCULATE_DIFF_STATS == 1
+#else
             float dd_data = LOAD_DATA_1x16(&diff_dst[0]);
 #if CALCULATE_DIFF_STATS == 1
             const float src_data = LOAD_DATA_1x16(&src[0]);
 #endif // #if CALCULATE_DIFF_STATS == 1
+#endif // HAS_IC_TAIL
 
             src += IC_BLOCK_STRIDE;
             diff_dst += IC_BLOCK_STRIDE;
@@ -709,7 +1034,17 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 
             dd_data *= gamma * sqrt_variance;
 
+#if HAS_IC_TAIL
+            if (!is_last_ic_block) {
+                STORE_DATA_1x16(&diff_src[0], dd_data);
+            } else {
+                if (simd_id < 8) {
+                    diff_src[simd_id] = CONVERT_DATA_T(dd_data);
+                }
+            }
+#else
             STORE_DATA_1x16(&diff_src[0], dd_data);
+#endif
             diff_src += IC_BLOCK_STRIDE;
         }
     }

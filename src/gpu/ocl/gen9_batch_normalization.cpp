@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -102,8 +102,15 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             = data_mdw.matches_one_of_tag(NCw16n16c, NChw16n16c, NCdhw16n16c);
     const bool is_blocked_32n16c
             = data_mdw.matches_one_of_tag(NCw32n16c, NChw32n16c, NCdhw32n16c);
-    const bool is_nhwc = conf.ic % 16 == 0
-            && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc);
+    const bool is_nhwc
+            = conf.ic % 8 == 0 && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc);
+
+    // Due to intel_sub_group_write_uc requires 16-bytes aligment,
+    // IC div by 8 tail processing is not applicable to fuse_norm_relu
+    // and char data type.
+    if (conf.ic % 8 == 0 && conf.ic % 16
+            && (conf.fuse_norm_relu || conf.data_type == data_type::s8))
+        return status::unimplemented;
 
     conf.use_nhwc = is_nhwc;
 
@@ -124,9 +131,13 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         conf.sp = conf.id * conf.ih * conf.iw * conf.mb_block;
     }
 
+    // The case IC==8 requires spacial dim to be even because of using one
+    // block read/write operation for 2 spacial rows at once
+    if (is_nhwc && conf.ic == 8 && conf.sp % 2) return status::unimplemented;
+
     const int max_sp_block_size = get_block_size(conf.is_backward,
-            compute_engine->device_info()->eu_count(), conf.nn, conf.ic,
-            conf.sp);
+            compute_engine->device_info()->eu_count(), conf.nn,
+            utils::rnd_up(conf.ic, 16), conf.sp);
 
     if (conf.nn == 1)
         conf.stat_sp_block = max_sp_block_size;
@@ -144,7 +155,10 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch_calc_stat = compute_engine->create_dispatch();
     conf.dispatch_calc_stat.define_dim("STAT_MB", 0, conf.nn);
     conf.dispatch_calc_stat.define_dim("STAT_SP", 1, conf.stat_sp_nblocks);
-    conf.dispatch_calc_stat.define_dim("STAT_IC", 2, conf.ic);
+
+    conf.dispatch_calc_stat.define_dim(
+            "STAT_IC", 2, utils::rnd_up(conf.ic, 16));
+
     CHECK(conf.dispatch_calc_stat.vectorize_dim("STAT_IC", 16));
     conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
     conf.dispatch_calc_stat.generate();
@@ -157,7 +171,8 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     }
     conf.stat_ic = reduce_sub_group_count * 16;
     conf.dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", 0, conf.stat_ic);
-    conf.dispatch_reduce_stat.define_dim("REDUCE_IC_GROUP", 1, conf.ic / 16);
+    conf.dispatch_reduce_stat.define_dim(
+            "REDUCE_IC_GROUP", 1, utils::rnd_up(conf.ic, 16) / 16);
     CHECK(conf.dispatch_reduce_stat.vectorize_dim("REDUCE_STAT_IC", 16));
     conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
     conf.dispatch_reduce_stat.generate();
@@ -178,7 +193,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
     conf.dispatch.define_dim("MB", 0, conf.nn);
     conf.dispatch.define_dim("SP", 1, sp_pad / conf.vect_size);
-    conf.dispatch.define_dim("IC", 2, conf.ic);
+    conf.dispatch.define_dim("IC", 2, utils::rnd_up(conf.ic, 16));
     CHECK(conf.dispatch.vectorize_dim("IC", 16));
     conf.dispatch.generate();
 
@@ -192,6 +207,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("IC", conf.ic);
+    kernel_ctx.define_int("IC16", utils::rnd_up(conf.ic, 16));
     kernel_ctx.define_int("ID", conf.id);
     kernel_ctx.define_int("IH", conf.ih);
     kernel_ctx.define_int("IW", conf.iw);
@@ -251,7 +267,7 @@ status_t gen9_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
 
 void gen9_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     if (conf.calculate_stats) {
-        size_t size = 2 * conf.reduce_stat_nblocks * conf.ic;
+        size_t size = 2 * conf.reduce_stat_nblocks * utils::rnd_up(conf.ic, 16);
 
         auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(key_bnorm_reduction, size,
@@ -382,7 +398,7 @@ status_t gen9_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
 }
 
 void gen9_batch_normalization_bwd_t::pd_t::init_scratchpad() {
-    size_t size = 2 * conf.reduce_stat_nblocks * conf.ic;
+    size_t size = 2 * conf.reduce_stat_nblocks * utils::rnd_up(conf.ic, 16);
 
     auto scratchpad = scratchpad_registry().registrar();
     scratchpad.book(key_bnorm_reduction, size,
