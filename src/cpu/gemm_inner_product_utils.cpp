@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -205,14 +205,18 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
 
         bool is_binary_po_channel_bcast {};
         bool is_binary_po_per_mb_w_bcast {};
-        std::tie(is_binary_po_channel_bcast, is_binary_po_per_mb_w_bcast)
+        bool is_binary_po_per_w_bcast {};
+        std::tie(is_binary_po_channel_bcast, is_binary_po_per_mb_w_bcast,
+                is_binary_po_per_w_bcast)
                 = binary_injector_utils::bcast_strategies_present_tup(
                         post_ops.entry_, *dst_d,
                         broadcasting_strategy_t::per_mb_spatial,
-                        broadcasting_strategy_t::per_mb_w);
+                        broadcasting_strategy_t::per_mb_w,
+                        broadcasting_strategy_t::per_w);
         const bool supported_binary_bcast
                 = IMPLICATION(is_binary_po_channel_bcast, ndims == 4)
-                && IMPLICATION(is_binary_po_per_mb_w_bcast, ndims == 4);
+                && IMPLICATION(is_binary_po_per_mb_w_bcast, ndims == 4)
+                && IMPLICATION(is_binary_po_per_w_bcast, ndims == 4);
         const cpu_isa_t isa = get_max_cpu_isa();
         return supported_binary_bcast
                 && injector::post_ops_ok({isa, {binary, eltwise, sum}, post_ops,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -102,6 +102,7 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
                 broadcasting_strategy_t::per_oc_spatial,
                 broadcasting_strategy_t::per_mb_spatial,
                 broadcasting_strategy_t::per_mb_w,
+                broadcasting_strategy_t::per_w,
                 broadcasting_strategy_t::no_broadcast};
         const bool is_binary_po_per_oc
                 = binary_injector_utils::bcast_strategy_present(
