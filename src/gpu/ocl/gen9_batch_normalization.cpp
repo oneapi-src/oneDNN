@@ -111,6 +111,11 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     if (conf.ic % 8 == 0 && conf.ic % 16
             && (conf.fuse_norm_relu || conf.data_type == data_type::s8))
         return status::unimplemented;
+    // IC tail processing performnce boost is not obvious on arch < xe_hpc
+    if (conf.ic % 8 == 0 && conf.ic % 16
+            && compute_engine->device_info()->gpu_arch()
+                    < compute::gpu_arch_t::xe_hpc)
+        return status::unimplemented;
 
     conf.use_nhwc = is_nhwc;
 
