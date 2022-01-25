@@ -57,8 +57,6 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     if (one_of(src_type, u8, s8)) skip_mask |= skip_mask_t::oscale;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
-            && expect_data_types(src_type, wei_type, data_type::undef, dst_type,
-                    data_type::undef)
             && IMPLICATION(with_bias(),
                     ((one_of(src_type, u8, s8)
                              && one_of(bias_md_.data_type, f32, s32, s8, u8))
@@ -77,7 +75,8 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
     const auto adj_M = nstl::max(jcp_.M, jcp_.M_tail);
 
-    // 1. Use unrolled kernel for exec_trans only to avoid creation a lot of kernels for each kw range
+    // 1. Use unrolled kernel for exec_trans only to avoid creation a lot of
+    //    kernels for each kw range
     // 2. For exec_trans block by kw is always KW
     assert(IMPLICATION(jcp_.use_uker, is_amx && jcp_.exec_type == exec_trans));
     assert(IMPLICATION(jcp_.use_interleave_stores, jcp_.use_uker));
