@@ -24,6 +24,8 @@
 
 #include "common/nstl.hpp"
 
+#include "sycl_cuda_helper.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -38,9 +40,6 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     bool is_training = pd()->desc()->prop_kind == prop_kind::forward_training;
-    auto wkspace_st = is_training
-            ? ctx.output(DNNL_ARG_WORKSPACE)->memory_storage()
-            : &memory_storage_t::empty_storage();
 
     memory_desc_wrapper src_wrap(pd()->src_md());
     auto dst_offset_bytes = src_wrap.nelems() * src_wrap.data_type_size();
@@ -49,14 +48,17 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
     // numeric_limits<dt>::lowest() to match the other backends' behaviour
     if (src_wrap.size() == 0 && dst_wrap.size() != 0) {
         return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-            auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
+            auto *mem_dst = static_cast<sycl::sycl_memory_storage_base_t *>(
+                    &CTX_OUT_STORAGE(DNNL_ARG_DST));
+            auto dst_acc = get_cudnn_accessor<decltype(
+                    CTX_OUT_ACCESSOR(DNNL_ARG_DST))>(mem_dst, cgh);
 
             compat::host_task(cgh, [=](const compat::interop_handle &ih) {
                 auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                         cuda_stream->engine());
                 auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
 
-                auto dst = sc.memory<void *>(ih, dst_acc);
+                void *dst = get_cudnn_ptr(sc, ih, dst_acc, mem_dst);
 
                 if (dst_wrap.data_type() == data_type_t::dnnl_f32) {
                     auto val = nstl::numeric_limits<float>::lowest();
@@ -81,21 +83,29 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
     }
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-        auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
+        auto *mem_src = static_cast<sycl::sycl_memory_storage_base_t *>(
+                &CTX_IN_STORAGE(DNNL_ARG_SRC));
+        auto src_acc
+                = get_cudnn_accessor<decltype(CTX_IN_ACCESSOR(DNNL_ARG_SRC))>(
+                        mem_src, cgh);
 
-        std::shared_ptr<
-                ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::write>>
+        auto *mem_dst = static_cast<sycl::sycl_memory_storage_base_t *>(
+                &CTX_OUT_STORAGE(DNNL_ARG_DST));
+        auto dst_acc
+                = get_cudnn_accessor<decltype(CTX_OUT_ACCESSOR(DNNL_ARG_DST))>(
+                        mem_dst, cgh);
+
+        sycl::sycl_memory_storage_base_t *wkspace_st
+                = static_cast<sycl::sycl_memory_storage_base_t *>(
+                        &memory_storage_t::empty_storage());
+        if (is_training)
+            wkspace_st = static_cast<sycl::sycl_memory_storage_base_t *>(
+                    &CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE));
+        std::optional<decltype(CTX_OUT_ACCESSOR(DNNL_ARG_WORKSPACE))>
                 wkspace_acc;
-        if (!wkspace_st->is_null()) {
-            wkspace_acc = std::make_shared<
-                    ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::write>>(
-                    utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
-                            wkspace_st)
-                            ->buffer()
-                            .template get_access<::sycl::access::mode::write>(
-                                    cgh));
-        }
+        if (!wkspace_st->is_null())
+            wkspace_acc = get_cudnn_accessor<decltype(
+                    CTX_OUT_ACCESSOR(DNNL_ARG_WORKSPACE))>(wkspace_st, cgh);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -103,11 +113,13 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            auto x = sc.memory<void *>(ih, src_acc);
-            auto y = sc.memory<void *>(ih, dst_acc);
+            void *x = get_cudnn_ptr(sc, ih, src_acc, mem_src);
+            void *y = get_cudnn_ptr(sc, ih, dst_acc, mem_dst);
+
             uint8_t *ws_x = nullptr, *ws_y = nullptr;
             if (!wkspace_st->is_null()) {
-                ws_x = sc.memory<uint8_t *>(ih, *wkspace_acc);
+                ws_x = static_cast<uint8_t *>(
+                        get_cudnn_ptr(sc, ih, wkspace_acc, wkspace_st));
                 ws_y = ws_x + dst_offset_bytes;
             }
 
@@ -131,9 +143,20 @@ status_t cudnn_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto diff_src_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_SRC);
-        auto diff_dst_acc = CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST);
-        auto wkspace_acc = CTX_IN_ACCESSOR(DNNL_ARG_WORKSPACE);
+        auto *diff_mem_src = static_cast<sycl::sycl_memory_storage_base_t *>(
+                &CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC));
+        auto diff_src_acc = get_cudnn_accessor<decltype(
+                CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_SRC))>(diff_mem_src, cgh);
+
+        auto *diff_mem_dst = static_cast<sycl::sycl_memory_storage_base_t *>(
+                &CTX_IN_STORAGE(DNNL_ARG_DIFF_DST));
+        auto diff_dst_acc = get_cudnn_accessor<decltype(
+                CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST))>(diff_mem_dst, cgh);
+
+        auto *mem_wkspace = static_cast<sycl::sycl_memory_storage_base_t *>(
+                &CTX_IN_STORAGE(DNNL_ARG_WORKSPACE));
+        auto wkspace_acc = get_cudnn_accessor<decltype(
+                CTX_IN_ACCESSOR(DNNL_ARG_WORKSPACE))>(mem_wkspace, cgh);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -141,10 +164,11 @@ status_t cudnn_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            auto dx = sc.memory<void *>(ih, diff_src_acc);
-            auto dy = sc.memory<void *>(ih, diff_dst_acc);
-            auto ws_x = sc.memory<uint8_t *>(ih, wkspace_acc);
-            auto ws_y = ws_x + dst_offset_bytes;
+            void *dx = get_cudnn_ptr(sc, ih, diff_src_acc, diff_mem_src);
+            void *dy = get_cudnn_ptr(sc, ih, diff_dst_acc, diff_mem_dst);
+            void *ws_x = get_cudnn_ptr(sc, ih, wkspace_acc, mem_wkspace);
+
+            auto ws_y = (uint8_t *)ws_x + dst_offset_bytes;
 
             pd()->pooling_impl_->execute(handle, dx, dy, ws_x, ws_y);
         });
