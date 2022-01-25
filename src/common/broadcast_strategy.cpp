@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
             broadcasting_strategy_t::per_oc_spatial,
             broadcasting_strategy_t::shared_axes,
             broadcasting_strategy_t::per_mb_spatial,
-            broadcasting_strategy_t::per_mb_w,
+            broadcasting_strategy_t::per_mb_w, broadcasting_strategy_t::per_w,
             broadcasting_strategy_t::no_broadcast};
 
     return get_rhs_arg_broadcasting_strategy(
@@ -64,6 +64,19 @@ bool is_per_mb_w_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
     for (int d = 1; d < last_dim; ++d)
         per_mb_w_bcast = per_mb_w_bcast && mask.test(d);
     return per_mb_w_bcast;
+}
+
+bool is_per_w_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
+        const memory_desc_wrapper &dst_d) {
+    const auto ndims = dst_d.ndims();
+    const int last_dim = ndims - 1;
+
+    bool per_w_bcast = !mask.test(last_dim);
+    if (!per_w_bcast) return false;
+
+    for (int d = 0; d < last_dim; ++d)
+        per_w_bcast = per_w_bcast && mask.test(d);
+    return per_w_bcast;
 }
 
 bool is_channel_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
@@ -140,7 +153,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
         const auto both_one_dim
                 = (output_dims[d] == 1 && rhs_arg_md.dims[d] == 1);
         if ((output_dims[d] != rhs_arg_md.dims[d] || output_dims[d] == 1)
-                && !both_one_dim)
+                && (!both_one_dim || all_ones))
             mask.set(d);
     }
 
@@ -156,6 +169,9 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
     else if (is_per_mb_w_bcast(mask, dst_d)
             && is_enabled(broadcasting_strategy_t::per_mb_w))
         bcast = broadcasting_strategy_t::per_mb_w;
+    else if (is_per_w_bcast(mask, dst_d)
+            && is_enabled(broadcasting_strategy_t::per_w))
+        bcast = broadcasting_strategy_t::per_w;
     else if (is_per_oc_bcast(mask, rhs_arg_md)
             && (is_enabled(broadcasting_strategy_t::per_oc)
                     || is_enabled(broadcasting_strategy_t::per_oc_spatial))) {
