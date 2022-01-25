@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 
+#include "sycl_cuda_memory_storage_helper.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -31,8 +33,8 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-        auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
+        auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+        auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -40,10 +42,14 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            auto a = sc.memory<uint8_t *>(ih, src_acc)
+            void *src_ = arg_src.get_native_pointer(ih);
+            void *dst_ = arg_dst.get_native_pointer(ih);
+
+            auto a = static_cast<uint8_t *>(src_)
                     + pd()->reorder_->src_offset_in_bytes();
-            auto b = sc.memory<uint8_t *>(ih, dst_acc)
+            auto b = static_cast<uint8_t *>(dst_)
                     + pd()->reorder_->dst_offset_in_bytes();
+
             pd()->reorder_->execute(handle, a, b);
         });
     });
