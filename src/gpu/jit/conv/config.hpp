@@ -1452,13 +1452,6 @@ private:
         } else if (is_dw) {
             fma_kind = fma_kind_t::mad;
         }
-        // Downgrade dpas/dpasw -> dp4a for some cases. dpas generally operates
-        // on lower frequency than dp4a so for smaller sizes dp4a can be faster.
-        if (is_dpas_or_dpasw_fma()) {
-            bool is_xe_hpg = (hw == ngen::HW::XeHPG);
-            if (is_fwd && is_xe_hpg && is_s32_accumulator() && mb < 16)
-                fma_kind = fma_kind_t::dp4a;
-        }
 
         // Requery SIMD size as FMA kind may be changed.
         simd_size = fma_kind::get_simd_size(
