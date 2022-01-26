@@ -1412,12 +1412,16 @@ private:
         if (e.type().elems() > 16) return e;
         if (is_shuffle_const(e)) return e;
 
+        // Can't hoist a mask containing loop vars.
         auto vars = find_objects<var_t>(e);
         for (auto &v : vars) {
             if (is_loop_dependency(v)) return e;
         }
 
         auto e_expanded = expand(e, vars);
+
+        // Can't hoist a mask containing loads.
+        if (!find_objects<load_t>(e_expanded).empty()) return e;
 
         auto it = hoisted_masks_.find(e_expanded);
         if (it != hoisted_masks_.end()) return it->second;
