@@ -468,10 +468,8 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
         }
 
         int get_brg_batchsize(bool is_bs_tail, bool is_K_tail) const {
-            auto adj_os = jbgp_.os
-                    + ((isa == avx512_core_bf16_amx_bf16) ? jbgp_.os % 2 : 0);
             auto bs = (is_K_tail) ? 1
-                                  : ((is_bs_tail) ? (adj_os / jbgp_.os_block)
+                                  : ((is_bs_tail) ? (jbgp_.os / jbgp_.os_block)
                                                           % jbgp_.nb_os_blocking
                                                   : jbgp_.nb_os_blocking);
             return bs;
