@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -123,6 +123,7 @@ public:
     void view(tensorptr_c v) override;
     void view(intrin_call_c v) override;
     void view(func_addr_c v) override;
+    void view(ssa_phi_c v) override;
 
     void view(assign_c v) override;
     void view(stmts_c v) override;

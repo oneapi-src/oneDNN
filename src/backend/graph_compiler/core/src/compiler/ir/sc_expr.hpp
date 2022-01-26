@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@
 namespace sc {
 
 struct any_map_t;
+struct ssa_data_t;
 
 using std::ostream;
 /**
@@ -73,6 +74,7 @@ enum class sc_expr_type {
     tensor,
     tensorptr,
     intrin_call,
+    ssa_phi,
     func_addr,
 };
 
@@ -117,31 +119,33 @@ public:
 
     // constructible from a sub-class node_ptr<T2, Base>, where T2 < T
     template <typename T2>
-    node_ptr_impl_t(const node_ptr<T2, _assignable<T2>> &other)
+    node_ptr_impl_t(const node_ptr<T2, _assignable<T2>> &other) noexcept
         : impl(other.impl) {}
 
     // Move-constructible from a sub-class node_ptr<T2, Base>, where T2 < T
     template <typename T2>
-    node_ptr_impl_t(node_ptr<T2, _assignable<T2>> &&other)
+    node_ptr_impl_t(node_ptr<T2, _assignable<T2>> &&other) noexcept
         : impl(std::move(other.impl)) {}
 
     // Constructs a node_ptr_impl_t from raw shared_ptr<Base>
-    explicit node_ptr_impl_t(const impl_ptr &impl) : impl(impl) {}
+    explicit node_ptr_impl_t(const impl_ptr &impl) noexcept : impl(impl) {}
     // Move-constructs a node_ptr_impl_t from raw shared_ptr<Base>
-    explicit node_ptr_impl_t(impl_ptr &&impl) : impl(std::move(impl)) {}
+    explicit node_ptr_impl_t(impl_ptr &&impl) noexcept
+        : impl(std::move(impl)) {}
 
     // Constructs an empty node_ptr_impl_t
-    node_ptr_impl_t() = default;
+    node_ptr_impl_t() noexcept = default;
 
     template <typename T2>
-    node_ptr_impl_t &operator=(const node_ptr<T2, _assignable<T2>> &other) {
+    node_ptr_impl_t &operator=(
+            const node_ptr<T2, _assignable<T2>> &other) noexcept {
         impl = other.impl;
         return *this;
     }
 
     // move-assignable from node_ptr
     template <typename T2>
-    node_ptr_impl_t &operator=(node_ptr<T2, _assignable<T2>> &&other) {
+    node_ptr_impl_t &operator=(node_ptr<T2, _assignable<T2>> &&other) noexcept {
         impl = std::move(other.impl);
         return *this;
     }
@@ -159,7 +163,7 @@ public:
      *      a.isa<binary>() == false
      * */
     template <typename T2>
-    bool isa() const {
+    bool isa() const noexcept {
         static_assert(is_base_of_t<T, typename T2::type>::value,
                 "Cannot cast T to T2");
         return impl->node_type_ == T2::type::type_code_;
@@ -176,7 +180,7 @@ public:
      *  pointer is a sub-class of T2.
      * */
     template <typename T2>
-    bool instanceof () const { // NOLINT
+    bool instanceof () const noexcept { // NOLINT
         return dynamic_cast<typename T2::type *>(impl.get()) != nullptr;
     }
 
@@ -191,7 +195,7 @@ public:
      * @return The casted node_ptr of T2.
      * */
     template <typename T2>
-    node_ptr<typename T2::type, Base> static_as() const {
+    node_ptr<typename T2::type, Base> static_as() const noexcept {
         static_assert(is_base_of_t<T, typename T2::type>::value
                         || is_base_of_t<typename T2::type, T>::value,
                 "Cannot cast T to T2");
@@ -209,7 +213,7 @@ public:
      * pointer is not T2::type, returns empty
      * */
     template <typename T2>
-    node_ptr<typename T2::type, Base> as() const {
+    node_ptr<typename T2::type, Base> as() const noexcept {
         if (isa<T2>()) {
             return static_as<T2>();
         } else {
@@ -245,7 +249,7 @@ public:
      * pointer is not a subclass of T2::type, returns empty
      * */
     template <typename T2>
-    node_ptr<typename T2::type, Base> dyn_as() const {
+    node_ptr<typename T2::type, Base> dyn_as() const noexcept {
         if (instanceof <T2>()) {
             return static_as<T2>();
         } else {
@@ -257,7 +261,7 @@ public:
      * Adds a const-qualifier to the type T
      * @return The casted node_ptr
      * */
-    node_ptr<const T, Base> to_const() const {
+    node_ptr<const T, Base> to_const() const noexcept {
         return node_ptr<const T, Base>(impl);
     }
 
@@ -265,29 +269,37 @@ public:
      * Removes the const-qualifier of T, like const_cast
      * @return The casted node_ptr
      * */
-    node_ptr<typename std::remove_const<T>::type, Base> remove_const() const {
+    node_ptr<typename std::remove_const<T>::type, Base> remove_const() const
+            noexcept {
         return node_ptr<typename std::remove_const<T>::type, Base>(impl);
     }
 
     // operator *
-    T &operator*() const { return *get(); }
+    T &operator*() const noexcept { return *get(); }
     // operator ->
-    T *operator->() const { return get(); }
+    T *operator->() const noexcept { return get(); }
     // gets the contained pointer
-    T *get() const { return static_cast<T *>(impl.get()); }
+    T *get() const noexcept { return static_cast<T *>(impl.get()); }
 
     /**
      * Checks if the node_ptr contains any pointer
      * @return false if the node_ptr is empty
      * */
-    bool defined() const { return impl.operator bool(); }
+    bool defined() const noexcept { return impl.operator bool(); }
 
     /**
      * Checks if the node_ptr contains the same pointer of another
      * @param v the other node_ptr to compare with
      * @return true if the node_ptrs are the same
      * */
-    bool ptr_same(const node_ptr_impl_t &v) const { return v.impl == impl; }
+    bool ptr_same(const node_ptr_impl_t &v) const noexcept {
+        return v.impl == impl;
+    }
+
+    /**
+     * Gets the weak_ptr of the pointer
+     * */
+    std::weak_ptr<Base> weak() const noexcept { return impl; }
 };
 
 template <typename T, typename Base>
@@ -563,6 +575,9 @@ public:
     // optional attributes, nullable. In most cases, use attr() to get the
     // attributes
     std::unique_ptr<any_map_t> attr_;
+    // the additional info after SSA transformation pass. Before SSA
+    // transformation, this field should be null
+    std::unique_ptr<ssa_data_t> ssa_data_;
 
     // returns attr_ if is defined or creates and sets a new any_map_t if not
     // defined
@@ -1321,6 +1336,26 @@ public:
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(intrin_call)
+
+/**
+ * The Phi node. It should be only used when the IR is in SSA form. It merges
+ * two SSA values defined in two incoming basic blocks of the current basic
+ * block and it selects one of them as the Phi node value based of the actual
+ * incoming branch taken
+ *
+ * @param values the possible incoming values
+ * */
+class ssa_phi_node : public expr_base,
+                     public visitable_t<ssa_phi_node, expr_base> {
+public:
+    static constexpr sc_expr_type type_code_ = sc_expr_type::ssa_phi;
+    std::vector<expr> values_;
+    ssa_phi_node(const std::vector<expr> &values);
+    void to_string(ostream &os) const override;
+    expr remake() const override;
+    bool equals(expr_c other, ir_comparer &ctx) const override;
+};
+SC_DEFINE_EXPR_NODE_PTR(ssa_phi)
 
 /**
  * The function address node.

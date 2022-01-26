@@ -202,6 +202,10 @@ expr make_func_addr(func_t v) {
     return make_expr<func_addr_node>(std::move(v));
 }
 
+expr make_phi(const std::vector<expr> &values) {
+    return make_expr<ssa_phi_node>(values);
+}
+
 intrin_call remake_intrin_call(
         const intrin_call_c &v, const std::vector<expr> &newargs) {
     return make_expr<intrin_call_node>(v->type_, newargs, *v->intrin_attrs_);

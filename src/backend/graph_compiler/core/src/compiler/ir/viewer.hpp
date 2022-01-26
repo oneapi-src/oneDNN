@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -76,6 +76,7 @@ public:
     virtual void view(tensorptr_c v);
     virtual void view(intrin_call_c v);
     virtual void view(func_addr_c v);
+    virtual void view(ssa_phi_c v);
 
     virtual void view(assign_c v);
     virtual void view(stmts_c v);
@@ -117,6 +118,7 @@ private:
     expr_c visit(tensorptr_c v) final;
     expr_c visit(intrin_call_c v) final;
     expr_c visit(func_addr_c v) final;
+    expr_c visit(ssa_phi_c v) final;
 
     stmt_c visit(assign_c v) final;
     stmt_c visit(stmts_c v) final;

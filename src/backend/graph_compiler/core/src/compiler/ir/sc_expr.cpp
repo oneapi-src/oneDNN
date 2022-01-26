@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "ir_comparer.hpp"
 #include "sc_expr.hpp"
 #include "sc_function.hpp"
+#include "ssa_data.hpp"
 #include "visitable.hpp"
 #include <common/dimensions.hpp>
 #include <util/any_map.hpp>
@@ -63,6 +64,7 @@ ostream &operator<<(ostream &os, sc_expr_type val) {
         HANDLE_CASE(tensorptr)
         HANDLE_CASE(intrin_call)
         HANDLE_CASE(func_addr)
+        HANDLE_CASE(ssa_phi)
 #undef HANDLE_CASE
         default: os << "(unrecognized sc_expr_type value)"; break;
     }
@@ -629,6 +631,37 @@ expr func_addr_node::remake() const {
 bool func_addr_node::equals(expr_c v, ir_comparer &ctx) const {
     ASCAST_OR_RETURN(v, other);
     RETURN(func_ == other->func_);
+}
+
+ssa_phi_node::ssa_phi_node(const std::vector<expr> &values)
+    : expr_base(type_code_), values_(values) {
+    COMPILE_ASSERT(!values_.empty(), "Phi node expects non-empty inputs");
+    dtype_ = values_.begin()->get()->dtype_;
+    for (auto &v : values_) {
+        COMPILE_ASSERT(dtype_ == v->dtype_,
+                "Phi node expects exprs with the sanme type, got "
+                        << dtype_ << " v.s. " << v->dtype_);
+    }
+}
+
+void ssa_phi_node::to_string(ostream &os) const {
+    os << "phi(";
+    if (!values_.empty()) {
+        for (unsigned i = 0; i < values_.size() - 1; i++) {
+            os << values_[i] << ", ";
+        }
+        os << values_.back();
+    }
+    os << ')';
+}
+
+expr ssa_phi_node::remake() const {
+    return copy_attr(*this, make_expr<ssa_phi_node>(values_));
+}
+
+bool ssa_phi_node::equals(expr_c v, ir_comparer &ctx) const {
+    ASCAST_OR_RETURN(v, other);
+    RETURN(ctx.expr_arr_equals(values_, other->values_));
 }
 
 const std::string &get_node_name(const expr &e) {

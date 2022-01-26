@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -279,6 +279,13 @@ expr ir_visitor_base_impl_t<is_inplace>::visit_impl(func_addr v) {
 }
 
 template <bool is_inplace>
+expr ir_visitor_base_impl_t<is_inplace>::visit_impl(ssa_phi v) {
+    throw std::runtime_error(
+            "ssa_phi should not occur in this visitor. You need to either "
+            "remove this phi node in IR or use SSA visitor/viewer instead");
+}
+
+template <bool is_inplace>
 expr ir_visitor_base_impl_t<is_inplace>::visit_impl(call v) {
     std::vector<expr> new_arr;
     changed_ = dispatch_expr_vector(v->args_, new_arr);
@@ -508,6 +515,7 @@ DEFINE_VISITOR_PROXY(tensor) // NOLINT
 DEFINE_VISITOR_PROXY(tensorptr) // NOLINT
 DEFINE_VISITOR_PROXY(intrin_call) // NOLINT
 DEFINE_VISITOR_PROXY(func_addr) // NOLINT
+DEFINE_VISITOR_PROXY(ssa_phi) // NOLINT
 
 #define DEFINE_VISITOR_PROXY_STMT(TYPE) \
     stmt_c ir_visitor_t::visit(TYPE##_c v) { \

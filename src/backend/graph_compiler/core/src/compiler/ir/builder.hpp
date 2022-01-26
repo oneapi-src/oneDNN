@@ -825,6 +825,11 @@ intrin_call remake_intrin_call(
 expr make_func_addr(func_t v);
 
 /**
+ * Makes a phi node
+ * */
+expr make_phi(const std::vector<expr> &values);
+
+/**
  * Gets the pointer of an element of the tensor as a view
  * @see tensorptr_node
  * @param tensor the tensor

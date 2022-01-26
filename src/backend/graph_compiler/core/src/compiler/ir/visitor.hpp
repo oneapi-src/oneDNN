@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,9 +25,42 @@ namespace sc {
 // this macro declares visit_impl() on all IR node classes
 // The POSTFIX can be "=0", "final", etc.
 // use NOLINT since POSTFIX should not be enclosed in parentheses
-// clang-format off
-#define SC_BASE_VISITOR_METHODS(POSTFIX) virtual expr visit_impl(constant v) POSTFIX; virtual expr visit_impl(var v) POSTFIX; virtual expr visit_impl(cast v) POSTFIX; virtual expr visit_impl(binary v) POSTFIX; virtual expr visit_impl(add v) POSTFIX; virtual expr visit_impl(sub v) POSTFIX; virtual expr visit_impl(mul v) POSTFIX; virtual expr visit_impl(div v) POSTFIX; virtual expr visit_impl(mod v) POSTFIX; virtual expr visit_impl(cmp v) POSTFIX; virtual expr visit_impl(cmp_eq v) POSTFIX; virtual expr visit_impl(cmp_lt v) POSTFIX; virtual expr visit_impl(cmp_le v) POSTFIX; virtual expr visit_impl(cmp_gt v) POSTFIX; virtual expr visit_impl(cmp_ge v) POSTFIX; virtual expr visit_impl(cmp_ne v) POSTFIX; virtual expr visit_impl(logic v) POSTFIX; virtual expr visit_impl(logic_and v) POSTFIX; virtual expr visit_impl(logic_or v) POSTFIX; virtual expr visit_impl(logic_not v) POSTFIX; virtual expr visit_impl(select v) POSTFIX; virtual expr visit_impl(indexing v) POSTFIX; virtual expr visit_impl(call v) POSTFIX; virtual expr visit_impl(tensor v) POSTFIX;  virtual expr visit_impl(tensorptr v) POSTFIX; virtual expr visit_impl(intrin_call v) POSTFIX; virtual expr visit_impl(func_addr v) POSTFIX; virtual stmt visit_impl(assign v) POSTFIX; virtual stmt visit_impl(stmts v) POSTFIX; virtual stmt visit_impl(if_else v) POSTFIX; virtual stmt visit_impl(evaluate v) POSTFIX; virtual stmt visit_impl(returns v) POSTFIX; virtual stmt visit_impl(define v) POSTFIX; virtual stmt visit_impl(for_loop v) POSTFIX; // NOLINT
-// clang-format on
+#define SC_BASE_VISITOR_METHODS(POSTFIX) \
+    virtual expr visit_impl(constant v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(var v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(cast v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(binary v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(add v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(sub v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(mul v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(div v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(mod v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(cmp v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(cmp_eq v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(cmp_lt v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(cmp_le v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(cmp_gt v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(cmp_ge v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(cmp_ne v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(logic v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(logic_and v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(logic_or v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(logic_not v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(select v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(indexing v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(call v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(tensor v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(tensorptr v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(intrin_call v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(func_addr v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(ssa_phi v) POSTFIX; /* NOLINT*/ \
+    virtual stmt visit_impl(assign v) POSTFIX; /* NOLINT*/ \
+    virtual stmt visit_impl(stmts v) POSTFIX; /* NOLINT*/ \
+    virtual stmt visit_impl(if_else v) POSTFIX; /* NOLINT*/ \
+    virtual stmt visit_impl(evaluate v) POSTFIX; /* NOLINT*/ \
+    virtual stmt visit_impl(returns v) POSTFIX; /* NOLINT*/ \
+    virtual stmt visit_impl(define v) POSTFIX; /* NOLINT*/ \
+    virtual stmt visit_impl(for_loop v) POSTFIX; /* NOLINT*/
 
 // The base interface class for all visitors
 class ir_visitor_base_t {
@@ -179,6 +212,7 @@ public:
     virtual expr_c visit(tensorptr_c v);
     virtual expr_c visit(intrin_call_c v);
     virtual expr_c visit(func_addr_c v);
+    virtual expr_c visit(ssa_phi_c v);
 
     virtual stmt_c visit(assign_c v);
     virtual stmt_c visit(stmts_c v);

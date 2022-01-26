@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,12 @@
 
 namespace sc {
 namespace utils {
+
+template <typename T>
+bool is_uninitialized_weakptr(const std::weak_ptr<T> &weak) {
+    return !weak.owner_before(std::weak_ptr<T> {})
+            && !std::weak_ptr<T> {}.owner_before(weak);
+}
 
 template <typename T>
 struct weakptr_hashset_t {
@@ -52,16 +58,20 @@ struct weakptr_hashset_t {
     }
     const_iterator end() const noexcept { return const_iterator {impl_.end()}; }
 
+    const_iterator find(std::weak_ptr<T> v) const {
+        return const_iterator {impl_.find(v.lock().get())};
+    }
+
     void merge(const weakptr_hashset_t<T> &other) {
         impl_.insert(other.impl_.begin(), other.impl_.end());
     }
 
-    void insert(std::weak_ptr<T> v) {
+    void insert(const std::weak_ptr<T> &v) {
         auto ptr = v.lock();
         impl_[ptr.get()] = v;
     }
 
-    void insert(std::shared_ptr<T> v) { impl_[v.get()] = v; }
+    void insert(const std::shared_ptr<T> &v) { impl_[v.get()] = v; }
 
     weakptr_hashset_t() = default;
     weakptr_hashset_t(std::initializer_list<std::weak_ptr<T>> initv) {

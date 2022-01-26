@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -141,6 +141,15 @@ void ir_copier_impl_t::view(intrin_call_c v) {
 
 void ir_copier_impl_t::view(func_addr_c v) {
     returned_expr_ = builder::make_func_addr(v->func_);
+}
+
+void ir_copier_impl_t::view(ssa_phi_c v) {
+    std::vector<expr> args;
+    args.reserve(v->values_.size());
+    for (auto &i : v->values_) {
+        args.emplace_back(copy(i));
+    }
+    returned_expr_ = make_expr<ssa_phi_node>(args);
 }
 
 void ir_copier_impl_t::view(tensor_c v) {

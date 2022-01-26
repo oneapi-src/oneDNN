@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -450,6 +450,20 @@ func_t _decl_func(const std::string &name, sc_data_type_t dtype,
             ::sc::builder::make_var(DTYPE, #NAME), false); \
     ::sc::builder::get_current_builder()->push_var_tensor_def( \
             NAME, __VA_ARGS__);
+
+/**
+ * Defines a variable within the current scope with init value
+ * arguments:
+ *  NAME: the name of the variable, should not be quoted
+ *  DTYPE: sc_data_type_t of the variable
+ *  INIT: the initial value
+ * */
+#define _var_init_(NAME, DTYPE, INIT) \
+    _var_ex_(NAME, DTYPE, ::sc::linkage::local, INIT)
+
+#define _var_init_copy_(NAME, DTYPE, INIT) \
+    _var_init_(NAME, DTYPE, INIT); \
+    NAME##_ = NAME;
 
 /**
  * Defines a private linkage global variable within the current scope
