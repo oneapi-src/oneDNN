@@ -72,6 +72,12 @@
 --bia_dt=bf16
 2x4:4x3:2x3
 
+--reset
+--cfg=u8s8f32 --bia_dt=f32  --stag=any --wtag=any --dtag=any
+--attr-post-ops=eltwise_gelu_tanh:0:0:21.5742
+--attr-oscale=per_oc  --attr-scratchpad=user
+24576x1024:1024x4096:24576x4096
+
 # runtime_zero_point_wrong_values
 --reset
 --cfg=u8s8f32 

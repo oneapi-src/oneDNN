@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // big rdiff errors slip away hoping that absolute error is good
             // enough.
             if (!ok && has_eltwise) {
-                const float experimental_tolerated_trh = 8e-6;
+                const float experimental_tolerated_trh = 2e-5;
                 ok = args.diff <= experimental_tolerated_trh;
             }
         }
