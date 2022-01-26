@@ -61,3 +61,7 @@
 ## Special case: reduced-lowering
 --dtag=aBdc16b 2x32x32x3
 --dtag=aBedc16b 2x32x32x3x3
+
+# regression zp_comp mask:2
+--allow-enum-tags-only=0
+--sdt=s8 --ddt=s8 --stag=ab --dtag=AB16a64b4a --oflag=zp_comp:2 4x2n"zp_mask2_regression"

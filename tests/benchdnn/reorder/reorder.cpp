@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -169,25 +169,56 @@ int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
     });
 
     if (need_comp) {
+        // mostly following benchdnn/ref_reduction.cpp/compute_ref
         const auto nelems_s8_comp = s8_comp.nelems();
         const auto nelems_zp_comp = zp_comp.nelems();
         const auto nelems_comp = MAX2(nelems_s8_comp, nelems_zp_comp);
+        const auto &ndims = src.md_.ndims;
+        const auto &src_dims = src.md_.dims;
         assert(IMPLICATION(need_s8_comp && need_zp_comp,
                 nelems_s8_comp == nelems_zp_comp));
 
+        int comp_mask = 0;
+        for (const auto &i_oflag : prb->oflag) {
+            if ((i_oflag.first == FLAG_S8S8_COMP
+                        || i_oflag.first == FLAG_ZP_COMP)
+                    && i_oflag.second != FLAG_NONE) {
+                comp_mask = i_oflag.second;
+                break;
+            }
+        }
+
+        dims_t comp_dims(ndims, 1); // src_dims with '1' at non-masked dims.
+        dims_t reduce_dims(ndims, 1); // complementary to above.
+        for (int i = 0; i < ndims; ++i) {
+            if (comp_mask & (1 << i)) {
+                comp_dims[i] = src_dims[i];
+                reduce_dims[i] = 1;
+            } else {
+                comp_dims[i] = 1;
+                reduce_dims[i] = src_dims[i];
+            }
+        }
+
         const auto nelems_reduce = nelems / nelems_comp;
-        dnnl::impl::parallel_nd(nelems_comp, [&](int64_t oc) {
+        dnnl::impl::parallel_nd(nelems_comp, [&](int64_t f) {
+            dims_t idle_pos = off2dims_idx(comp_dims, f);
+            const int64_t src_idle_off = md_off_v(src.md_, idle_pos.data());
             int comp_val = 0;
-            for (int64_t i = 0; i < nelems_reduce; ++i) {
-                const int64_t idx = oc * nelems_reduce + i;
-                const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
+            for (int64_t r = 0; r < nelems_reduce; ++r) {
+                dims_t reduce_pos = off2dims_idx(reduce_dims, r);
+                const int64_t src_reduce_off
+                        = md_off_v(src.md_, reduce_pos.data());
+                const int64_t src_off = src_idle_off + src_reduce_off;
+                const int64_t scale_idx = dst.get_scale_idx(f, scale_mask);
                 const float alpha = prb->scales[scale_idx];
-                const float value = src.get_elem(idx) * alpha * s8_scale_factor;
+                const float value
+                        = src.get_elem(src_off) * alpha * s8_scale_factor;
                 comp_val -= maybe_saturate(dst_dt, value);
             }
-            if (need_zp_comp) zp_comp.set_elem(oc, comp_val);
+            if (need_zp_comp) zp_comp.set_elem(f, comp_val);
             comp_val *= 128;
-            if (need_s8_comp) s8_comp.set_elem(oc, comp_val);
+            if (need_s8_comp) s8_comp.set_elem(f, comp_val);
         });
     }
     return OK;
