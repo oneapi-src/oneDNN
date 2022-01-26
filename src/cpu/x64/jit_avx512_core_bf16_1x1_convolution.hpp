@@ -455,7 +455,8 @@ private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     void execute_backward_data_thr(const int, const int,
             const diff_dst_data_t *, const wei_data_t *, diff_src_data_t *,
-            const memory_tracking::grantor_t &scratchpad, int MB) const;
+            const memory_tracking::grantor_t &scratchpad, int MB,
+            const void *post_ops_binary_rhs_arg_vec) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_avx512_core_bf16_1x1_conv_kernel> kernel_;

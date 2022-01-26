@@ -60,6 +60,8 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
 
+    DEFINE_OUTPUT_COMPENSATION_BUFFER(output_compensation, pd()->jcp_);
+
     auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
@@ -103,7 +105,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
                 dst, scales, dw_scales, src_zero_point, dst_zero_point, scratchpad,
                 post_ops_binary_rhs_arg_vec.data(),
-                post_ops_binary_rhs_arg_vec_dw.data(), MB);
+                post_ops_binary_rhs_arg_vec_dw.data(), MB, output_compensation);
     });
     return status::success;
 }
@@ -115,7 +117,8 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
         const int32_t *src_zero_point, const int32_t *dst_zero_point,
         const memory_tracking::grantor_t &scratchpad,
         const void *post_ops_binary_rhs_arg_vec,
-        const void *post_ops_binary_rhs_arg_vec_dw, int MB) const {
+        const void *post_ops_binary_rhs_arg_vec_dw, int MB,
+        const int32_t *output_compensation) const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -151,7 +154,7 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
     auto offset = weights_d.size() - weights_d.additional_buffer_size();
     char *w = const_cast<char *>(weights);
     const int32_t *compensation = (jcp.signed_input) ? reinterpret_cast<int32_t *>(w + offset) :
-                                  (jcp.with_input_zp) ? pd()->attr()->output_compensations_.shifts_ : nullptr;
+                                  (jcp.with_input_zp) ? output_compensation : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
             ? reinterpret_cast<int32_t *>(w + offset)
                     + (jcp.signed_input ? jcp.ngroups * jcp.oc : 0)

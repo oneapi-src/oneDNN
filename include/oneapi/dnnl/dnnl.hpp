@@ -29,6 +29,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <array>
 #include <unordered_map>
 
 #include "oneapi/dnnl/dnnl.h"
@@ -317,6 +318,10 @@ struct primitive : public handle<dnnl_primitive_t> {
         softmax_v2 = dnnl_softmax_v2,
         /// A layer normalization version 2 primitive.
         layer_normalization_v2 = dnnl_layer_normalization_v2,
+
+        depthwise = dnnl_depthwise,
+        quantization = dnnl_quantization,
+        binarization = dnnl_binarization,
     };
 
     using handle::handle;
@@ -337,7 +342,7 @@ struct primitive : public handle<dnnl_primitive_t> {
             const std::vector<uint8_t> &cache_blob);
 
     /// Constructs a primitive from a primitive descriptor.
-    ///
+    ///src/common/deconvolution_pd.hpp
     /// @param pd Primitive descriptor.
     primitive(const primitive_desc &pd);
 
@@ -3386,10 +3391,9 @@ struct post_ops : public handle<dnnl_post_ops_t> {
                 "could not append a binary post-op");
     }
 
-    void append_dw_conv(int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w, dnnl_data_type_t in_dt,
-                        const float* weights_data, const float* biases_data) {
+    void append_dw_conv(int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w, dnnl_data_type_t in_dt) {
         error::wrap_c_api(dnnl_post_ops_append_dw_conv(get(),
-                                                       in_h, in_w, ker_h, ker_w, str_h, str_w, in_dt, weights_data, biases_data),
+                                                       in_h, in_w, ker_h, ker_w, str_h, str_w, in_dt),
                           "could not append dw conv");
     }
 
@@ -3475,19 +3479,15 @@ struct post_ops : public handle<dnnl_post_ops_t> {
                 "could not get parameters of a binary post-op");
     }
 
-    void append_depthwise(algorithm alg, const float* weights_data,
-            const float* biases_data) {
-        error::wrap_c_api(dnnl_post_ops_append_depthwise(get(),
-                    convert_to_c(alg), weights_data, biases_data),
+    void append_depthwise(algorithm alg, const std::array<size_t, 2>& offset) {
+        error::wrap_c_api(dnnl_post_ops_append_depthwise(get(), convert_to_c(alg), offset.size(), offset.data()),
                 "could not append depthwise");
     }
 
-    void append_quantization(algorithm alg,
-            const void* crop_low, const void* crop_high,
-            const void* input_scale, const void* input_shift,
-            const void* output_scale, const void* output_shift) {
-        error::wrap_c_api(dnnl_post_ops_append_quantization(get(), convert_to_c(alg), crop_low, crop_high,
-                input_scale, input_shift, output_scale, output_shift),
+    void append_quantization(algorithm alg, const std::array<bool, 6>& per_channel, const std::array<bool, 6>& all_default,
+                             const std::array<size_t, 6>& offset) {
+        error::wrap_c_api(dnnl_post_ops_append_quantization(get(), convert_to_c(alg), per_channel.size(), per_channel.data(),
+                all_default.size(), all_default.data(), offset.size(), offset.data()),
                           "could not append quantization");
     }
 
@@ -3736,66 +3736,21 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set zero points primitive attribute");
     }
 
-    void get_output_compensations(int &mask, std::vector<int32_t> &compensations) const
+    void set_output_compensations(dnnl_dim_t count, int mask)
     {
-        int count, c_mask;
-        const int32_t *c_compensations;
-        error::wrap_c_api(dnnl_primitive_attr_get_output_compensations(get(),
-                    &count, &c_mask, &c_compensations),
-                "could not get int output compensations");
-        compensations.resize(count);
-
-        mask = c_mask;
-        for (int c = 0; c < count; ++c)
-            compensations[c] = c_compensations[c];
-    }
-
-    void set_output_compensations(int mask, const std::vector<int32_t> &compensations)
-    {
-        error::wrap_c_api(dnnl_primitive_attr_set_output_compensations(get(),
-                    (int)compensations.size(), mask, &compensations[0]),
+        error::wrap_c_api(dnnl_primitive_attr_set_output_compensations(get(), count, mask),
                 "could not set int output compensations");
     }
 
-    void get_input_zero_points(int &mask, std::vector<uint8_t> &zero_points) const
+    void set_input_zero_points(dnnl_dim_t count, int mask)
     {
-        int count, c_mask;
-        const uint8_t *c_zero_points;
-        error::wrap_c_api(dnnl_primitive_attr_get_input_zero_points(get(),
-                    &count, &c_mask, &c_zero_points),
-                "could not get int input zero_points");
-        zero_points.resize(count);
-
-        mask = c_mask;
-        for (int c = 0; c < count; ++c)
-            zero_points[c] = c_zero_points[c];
-    }
-
-    void set_input_zero_points(int mask, const std::vector<uint8_t> &zero_points)
-    {
-        error::wrap_c_api(dnnl_primitive_attr_set_input_zero_points(get(),
-                    (int)zero_points.size(), mask, &zero_points[0]),
+        error::wrap_c_api(dnnl_primitive_attr_set_input_zero_points(get(), count, mask),
                 "could not set int input zero_points");
     }
 
-    void get_weights_zero_points(int &mask, std::vector<int8_t> &zero_points) const
+    void set_weights_zero_points(dnnl_dim_t count, int mask)
     {
-        int count, c_mask;
-        const float *c_zero_points;
-        error::wrap_c_api(dnnl_primitive_attr_get_weights_zero_points(get(),
-                    &count, &c_mask, &c_zero_points),
-                "could not get int weights zero_points");
-        zero_points.resize(count);
-
-        mask = c_mask;
-        for (int c = 0; c < count; ++c)
-            zero_points[c] = c_zero_points[c];
-    }
-
-    void set_weights_zero_points(int mask, const std::vector<float> &zero_points)
-    {
-        error::wrap_c_api(dnnl_primitive_attr_set_weights_zero_points(get(),
-                    (int)zero_points.size(), mask, &zero_points[0]),
+        error::wrap_c_api(dnnl_primitive_attr_set_weights_zero_points(get(), count, mask),
                 "could not set int weights zero_points");
     }
 

@@ -381,6 +381,8 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     if (!post_ops_ok(attr))
         return status::unimplemented;
 
+    jcp.post_ops = attr.post_ops_;
+
     bool ok_to_pad_channels = !is_data_layout_nxc && jcp.oc == jcp.ngroups
             && jcp.ic == jcp.ngroups && one_of(isa, avx512_core, avx2);
     if (ok_to_pad_channels) {

@@ -434,13 +434,15 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
 
+    const auto &jcp = pd()->jcp_;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
+
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
-
-    const auto &jcp = pd()->jcp_;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
@@ -577,6 +579,8 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
                 par_conv.kh_padding = kh_len;
                 par_conv.kd_padding = kd_len;
                 par_conv.oc_off = ic_idx * (is_dsrc_layout_nxc ? 1 : jcp.ic_block) * sizeof(float);
+                par_conv.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
 
                 (*kernel_)(&par_conv);
             }
@@ -603,13 +607,15 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
 
+    const auto &jcp = pd()->jcp_;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
+
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
-
-    const auto &jcp = pd()->jcp_;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
@@ -717,6 +723,8 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
                 par_conv.kh_padding = k_len;
                 par_conv.iwb = iwb;
                 par_conv.oc_off =  ic_idx * (is_dsrc_layout_nxc ? 1 : jcp.ic_block) * sizeof(float);
+                par_conv.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
 
                 (*kernel_)(&par_conv);
             }

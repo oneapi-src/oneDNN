@@ -130,7 +130,8 @@ private:
             void *dst_base, const zero_point_call_params_t &zp,
             const memory_tracking::grantor_t &scratchpad,
             const void *post_ops_binary_rhs_arg_vec,
-            const exec_ctx_t &ctx, int MB) const;
+            const exec_ctx_t &ctx, int MB,
+            const uint8_t *input_zp_base, const int32_t *output_compensation_base) const;
 
     using pp_ker_t = gemm_x8s8s32x_convolution_utils::pp_ker_t;
     std::unique_ptr<pp_ker_t> pp_ker_;

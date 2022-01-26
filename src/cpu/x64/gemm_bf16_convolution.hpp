@@ -204,6 +204,7 @@ private:
         using Vmm = typename cpu_isa_traits<avx512_core>::Vmm;
         Xbyak::Reg64 reg_oc_offset = r10;
         Xbyak::Reg64 reg_dw = r9;
+        Xbyak::Reg64 reg_post_ops_data = reg_bias;
         Xbyak::Opmask kmask = k7;
 
         Xbyak::Reg64 reserved_eltwise_gpr = r10;
@@ -347,7 +348,8 @@ private:
     status_t execute_backward_data_thr_nspc(const int ithr, const int nthr,
             diff_src_data_t *diff_src_base, const wei_data_t *wei_base,
             const diff_dst_data_t *diff_dst_base,
-            const memory_tracking::grantor_t &scratchpad, int MB) const;
+            const memory_tracking::grantor_t &scratchpad, int MB,
+            const std::vector<const void *>& post_ops_binary_rhs_arg_vec) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 

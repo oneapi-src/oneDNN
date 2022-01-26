@@ -192,8 +192,8 @@ void jit_avx512_core_bf16_1x1_conv_kernel::apply_postops(
                 });
 
         depthwise_injector::dynamic_params_t ddp {zmm_d_weights.getIdx(), zmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
-                                                  reg_oc_off, vmm_idx_off};
-        quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off, jcp.dst_dt};
+                                                  reg_oc_off, vmm_idx_off, this->rsp, base_post_ops_data_offset};
+        quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off, jcp.dst_dt, this->rsp, base_post_ops_data_offset};
 
         injector_utils::vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {
@@ -997,7 +997,12 @@ void jit_avx512_core_bf16_1x1_conv_kernel::compute_diff_bias(
 void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
     preamble();
 
+    if (postops_injector_)
+        postops_injector_->push_post_ops_data_on_stack(this->param1, GET_OFF(post_ops_binary_rhs_arg_vec), reg_bcast_data, reg_load_data);
+
     sub(rsp, stack_space_needed);
+    base_post_ops_data_offset += stack_space_needed;
+
     if (jcp.with_binary) {
         const auto zeroed_reg = r15;
         xor_(zeroed_reg, zeroed_reg);
@@ -1176,6 +1181,10 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
     L(load_loop_blk[num_ur_cases]);
 
     add(rsp, stack_space_needed);
+    base_post_ops_data_offset -= stack_space_needed;
+
+    if (postops_injector_)
+        postops_injector_->reset_stack_pointer();
 
     postamble();
 

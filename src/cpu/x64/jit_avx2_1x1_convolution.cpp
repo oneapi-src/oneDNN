@@ -382,6 +382,9 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
+    const auto post_ops_binary_rhs_arg_vec
+        = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
@@ -489,6 +492,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
                             nb_oc_blocking * jcp.oc_block);
 
                     p.oc_off = ic_off_idx * (is_dsrc_layout_nxc ? 1 : jcp.ic_block) * sizeof(float);
+                    p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
 
                     (*kernel_)(&p);
                 }

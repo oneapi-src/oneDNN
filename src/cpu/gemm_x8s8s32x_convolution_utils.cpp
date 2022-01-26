@@ -77,7 +77,7 @@ template <typename dst_data_t>
 void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, acc_data_t *acc, const char *bias, const float *scales, float sum_scale,
         float signed_scale, int g, size_t start, size_t end,
         const zero_point_call_params_t &zp,
-        const void * /* post_ops_binary_rhs_arg_vec */,
+        const void * post_ops_binary_rhs_arg_vec,
         const void * /* dst_orig */, const exec_ctx_t &ctx,
         const memory_desc_t &dst_md,
         const single_gemm_conv_chunk_desc_t &chunk_desc) const {
@@ -139,6 +139,8 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, acc_data_t *acc, const
                 acc_fp[acc_off] = d;
         };
 
+        auto post_ops_data_ptrs = reinterpret_cast<const float* const*>(post_ops_binary_rhs_arg_vec);
+        std::size_t post_ops_data_idx = 0;
         int eltwise_inj_idx = 0;
         int depthwise_inj_idx = 0;
         for (int i = 0; i < post_ops_.len(); i++) {
@@ -167,8 +169,9 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, acc_data_t *acc, const
                         const size_t acc_off = os * jcp_.oc + oc;
                         const size_t dst_off = os * this->dst_os_stride_ + oc;
 
-                        auto depthwise_weights = post_op.depthwise.weights_data;
-                        auto depthwise_bias = post_op.depthwise.biases_data;
+                        auto depthwise_base = post_ops_data_ptrs[post_ops_data_idx];
+                        auto depthwise_weights = depthwise_base + post_op.depthwise.offset[post_op.depthwise.scales];
+                        auto depthwise_bias = depthwise_base + post_op.depthwise.offset[post_op.depthwise.shifts];
 
                         float d = load(i, oc, os, acc_off, dst_off);
 
@@ -176,8 +179,10 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, acc_data_t *acc, const
                                                                                         depthwise_bias + g * jcp_.oc + oc);
 
                         store(i, d, acc_off, dst_off);
+
                     }
                 }
+                post_ops_data_idx++;
                 depthwise_inj_idx++;
             } else if (post_op.is_quantization()) {
                 for (size_t os = first_os; os <= last_os; os++) {
@@ -188,12 +193,13 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, acc_data_t *acc, const
                         const size_t dst_off = os * this->dst_os_stride_ + oc;
 
                         auto quant = post_op.quantization;
-                        auto pcl = quant.data[quant.crop_low];
-                        auto pch = quant.data[quant.crop_high];
-                        auto pisc = quant.data[quant.inp_scale];
-                        auto pish = quant.data[quant.inp_shift];
-                        auto posc = quant.data[quant.output_scale];
-                        auto posh = quant.data[quant.output_shift];
+                        auto quantization_base = post_ops_data_ptrs[post_ops_data_idx];
+                        auto pcl = quantization_base + post_op.quantization.offset[quant.crop_low];
+                        auto pch = quantization_base + post_op.quantization.offset[quant.crop_high];
+                        auto pisc = quantization_base + post_op.quantization.offset[quant.inp_scale];
+                        auto pish = quantization_base + post_op.quantization.offset[quant.inp_shift];
+                        auto posc = quantization_base + post_op.quantization.offset[quant.output_scale];
+                        auto posh = quantization_base + post_op.quantization.offset[quant.output_shift];
 
                         float d = load(i, oc, os, acc_off, dst_off);
 
@@ -210,8 +216,10 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, acc_data_t *acc, const
                         d = d * posc[osc_idx] + posh[osh_idx];
 
                         store(i, d, acc_off, dst_off);
+
                     }
                 }
+                post_ops_data_idx++;
             } else if (post_op.is_sum()) {
                 for (size_t os = first_os; os <= last_os; os++) {
                     const size_t start_oc = (os == first_os) ? first_oc : 0;

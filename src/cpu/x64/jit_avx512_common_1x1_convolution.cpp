@@ -457,13 +457,16 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
+    const auto &jcp = pd()->jcp_;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
+
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
 
-    const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
             ? ctx.get_scratchpad_grantor().template get<diff_src_data_t>(
                     key_conv_rtus_space)
@@ -592,6 +595,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
                                 jcp.oc, nb_oc_blocking_step * jcp.oc_block);
 
                         p.oc_off = ic_off_idx * (is_dsrc_layout_nxc ? 1 : jcp.ic_block) * sizeof(float);
+                        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
 
                         (*kernel_)(&p);
                     }

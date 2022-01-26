@@ -85,6 +85,8 @@ private:
 
     Xbyak::Ymm ymm_d_weights = Xbyak::Ymm(14);
     Xbyak::Ymm ymm_d_bias = Xbyak::Ymm(15);
+    int base_post_ops_data_offset = 0;
+    constexpr static int reg64_size = 8;
 
     inline void oh_step_unroll_kw(
             int ur_w, int pad_l, int pad_r, int oc_blocks);
@@ -201,6 +203,8 @@ private:
 
     reg64_t reg_d_weights = r15;
     reg64_t reg_d_bias = rbp;
+    int base_post_ops_data_offset = 0;
+    constexpr static int reg64_size = 8;
 
     nstl::vector<jit_uni_depthwise_injector_f32<avx2>*> depthwise_injectors;
 

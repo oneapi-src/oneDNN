@@ -79,20 +79,23 @@ struct ref_pp_kernel_t : pp_kernel_t {
         ref_depthwise_injectors_.clear();
     }
 
-    virtual void operator()(float *dst, const float *bias, const int len, const int oc_start, const int oc_work, const int oc_stride) const override;
+    virtual void operator()(float *dst, const float *bias, const int len, const int oc_start, const int oc_work, const int oc_stride,
+                            const std::vector<const void *>& post_ops_binary_rhs_arg_vec) const override;
 
 private:
     nstl::vector<ref_eltwise_scalar_fwd_t*> ref_eltwise_injectors_;
     nstl::vector<ref_depthwise_scalar_fwd_t*> ref_depthwise_injectors_;
 };
 
-void ref_pp_kernel_t::operator()(float *dst, const float *bias, const int len,const int oc_start, const int oc_work, const int oc_stride) const {
+void ref_pp_kernel_t::operator()(float *dst, const float *bias, const int len,const int oc_start, const int oc_work, const int oc_stride,
+                                 const std::vector<const void *>& post_ops_binary_rhs_arg_vec) const {
     // TODO: for "outer threading" we have parallel section within
     // outermost "parallel". It is not good. Consider to use
     // "parallel" here with number of threads passed as parameter
     const auto &p = post_ops_;
     bool need_bias = do_bias_;
     if (p.len() > 0) {
+        std::size_t post_ops_data_idx = 0;
         int eltwise_inj_idx = 0;
         int depthwise_inj_idx = 0;
 
@@ -112,8 +115,9 @@ void ref_pp_kernel_t::operator()(float *dst, const float *bias, const int len,co
                 eltwise_inj_idx++;
                 need_bias = false;
             } else if (post_op.is_depthwise()) {
-                auto depthwise_weights = post_op.depthwise.weights_data;
-                auto depthwise_bias = post_op.depthwise.biases_data;
+                auto depthwise_base = reinterpret_cast<const float*>(post_ops_binary_rhs_arg_vec[post_ops_data_idx]);
+                auto depthwise_weights = depthwise_base + post_op.depthwise.offset[post_op.depthwise.scales];
+                auto depthwise_bias = depthwise_base + post_op.depthwise.offset[post_op.depthwise.shifts];
 
                 parallel_nd(oc_work, [&](const int oc) {
                     float b = need_bias ? bias[oc_start + oc] : 0;
@@ -126,16 +130,18 @@ void ref_pp_kernel_t::operator()(float *dst, const float *bias, const int len,co
                     }
                 });
 
+                post_ops_data_idx++;
                 depthwise_inj_idx++;
                 need_bias = false;
             } else if (post_op.is_quantization()) {
                 auto quant = post_op.quantization;
-                auto pcl = quant.data[quant.crop_low];
-                auto pch = quant.data[quant.crop_high];
-                auto pisc = quant.data[quant.inp_scale];
-                auto pish = quant.data[quant.inp_shift];
-                auto posc = quant.data[quant.output_scale];
-                auto posh = quant.data[quant.output_shift];
+                auto quantization_base = reinterpret_cast<const float*>(post_ops_binary_rhs_arg_vec[post_ops_data_idx]);
+                auto pcl =  quantization_base + post_op.quantization.offset[quant.crop_low];
+                auto pch =  quantization_base + post_op.quantization.offset[quant.crop_high];
+                auto pisc = quantization_base + post_op.quantization.offset[quant.inp_scale];
+                auto pish = quantization_base + post_op.quantization.offset[quant.inp_shift];
+                auto posc = quantization_base + post_op.quantization.offset[quant.output_scale];
+                auto posh = quantization_base + post_op.quantization.offset[quant.output_shift];
 
                 parallel_nd(oc_work, [&](const int oc) {
                     float b = need_bias ? bias[oc_start + oc] : 0;
@@ -159,6 +165,7 @@ void ref_pp_kernel_t::operator()(float *dst, const float *bias, const int len,co
                     }
                 });
 
+                post_ops_data_idx++;
                 need_bias = false;
             }
         }
@@ -1370,6 +1377,8 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     jcp.with_binary = binary_ind != -1;
     const int sum_ind = jcp.post_ops.find(primitive_kind::sum);
     jcp.with_sum = sum_ind != -1;
+    const int depthwise_ind = jcp.post_ops.find(primitive_kind::depthwise);
+    jcp.with_depthwise = depthwise_ind != -1;
 
     bool is_bf16_conv = false
             || (is_fwd

@@ -154,6 +154,10 @@ public:
     void set_lambda_injector(lambda_jit_injectors_t::key_type,
             const lambda_jit_injectors_t::mapped_type &jit_injector);
 
+    void push_post_ops_data_on_stack(const Xbyak::Reg64& post_ops_data_reg, std::size_t post_ops_data_offset,
+                                     const Xbyak::Reg64& aux_reg0, const Xbyak::Reg64& aux_reg1);
+    void reset_stack_pointer();
+
 private:
     post_ops_t post_ops_;
     jit_generator *host_;
@@ -164,6 +168,7 @@ private:
     lambda_jit_injectors_t lambda_jit_injectors_;
     nstl::vector<std::unique_ptr<jit_uni_depthwise_injector_f32<isa>>> depthwise_injectors;
     nstl::vector<std::unique_ptr<jit_uni_quantization_injector_f32<isa, Vmm>>> quantization_injectors;
+    std::size_t post_ops_pointers_count = 0;
 };
 
 enum post_op_type { sum = 0, eltwise, binary, depthwise, quantization };

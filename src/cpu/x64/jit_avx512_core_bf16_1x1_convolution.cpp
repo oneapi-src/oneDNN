@@ -471,6 +471,9 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
@@ -478,7 +481,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         assert(nthr == jcp.nthr);
         execute_backward_data_thr(
-                ithr, nthr, diff_dst, weights, diff_src, scratchpad, MB);
+                ithr, nthr, diff_dst, weights, diff_src, scratchpad, MB, post_ops_binary_rhs_arg_vec.data());
     });
 }
 
@@ -487,7 +490,8 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         diff_src_type>::execute_backward_data_thr(const int ithr,
         const int nthr, const diff_dst_data_t *diff_dst,
         const wei_data_t *weights, diff_src_data_t *diff_src,
-        const memory_tracking::grantor_t &scratchpad, int MB) const {
+        const memory_tracking::grantor_t &scratchpad, int MB,
+        const void *post_ops_binary_rhs_arg_vec) const {
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -602,6 +606,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
                 + data_blk_off(diff_src_d, 0, 0, id, ih, iw);
 
         p.oc_off = ic_off_idx * (is_dsrc_layout_nxc ? 1 : jcp.ic_block) * sizeof(float);
+        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
 
         (*kernel_)(&p);
         if (pd()->rtus_.reduce_src_) (*rtus_driver_)(&rp);

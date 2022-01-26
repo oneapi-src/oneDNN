@@ -166,8 +166,8 @@ void jit_sse41_conv_fwd_kernel_f32::apply_postops(
         vmm_idx_off.insert({get_xmm_idx(ur_w, i, j), i * jcp.oc_block * sizeof(float)});
     });
     depthwise_injector::dynamic_params_t ddp {xmm_d_weights.getIdx(), xmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
-                                              reg_oc_off, vmm_idx_off};
-    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off, jcp.dst_dt};
+                                              reg_oc_off, vmm_idx_off, this->rsp};
+    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off, jcp.dst_dt, this->rsp};
 
     injector_utils::vmm_index_set_t vmm_idxs;
     if (jcp.with_binary) {
@@ -362,6 +362,9 @@ inline void jit_sse41_conv_fwd_kernel_f32::solve_common(int oc_blocks) {
 void jit_sse41_conv_fwd_kernel_f32::generate() {
     this->preamble();
 
+    if (postops_injector_)
+        postops_injector_->push_post_ops_data_on_stack(this->param1, GET_OFF(post_ops_binary_rhs_arg_vec), reg_input, reg_output);
+
     mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
     mov(reg_output, ptr[this->param1 + GET_OFF(dst)]);
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
@@ -388,6 +391,9 @@ void jit_sse41_conv_fwd_kernel_f32::generate() {
     }
 
     L(exit);
+
+    if (postops_injector_)
+        postops_injector_->reset_stack_pointer();
 
     this->postamble();
 

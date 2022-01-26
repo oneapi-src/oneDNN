@@ -383,6 +383,26 @@ struct primitive_attr_item_t {
     virtual ~primitive_attr_item_t() = default;
 };
 
+struct legacy_zero_points_t : public c_compatible {
+    bool operator==(const legacy_zero_points_t &rhs) const {
+        return count_ == rhs.count_ && mask_ == rhs.mask_;
+    }
+
+    bool has_default_values() const {
+        return count_ == 0 && mask_ == 0;
+    }
+
+    status_t set(dim_t count, int mask) {
+        count_ = count;
+        mask_ = mask;
+
+        return status::success;
+    }
+
+    dim_t count_ = 0;
+    int mask_ = 0;
+};
+
 } // namespace impl
 } // namespace dnnl
 
@@ -439,9 +459,15 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         };
 
         struct depthwise_t {
+            enum depthwise_fields {
+                scales,
+                shifts,
+
+                fields_count
+            };
+
             dnnl::impl::alg_kind_t alg;
-            const float* weights_data;
-            const float* biases_data;
+            size_t offset[fields_count];
         };
 
         struct quantization_t {
@@ -459,7 +485,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::alg_kind_t alg;
             bool per_channel[fields_count];
             bool all_default[fields_count];
-            const float* data[fields_count];
+            size_t offset[fields_count];
         };
 
         struct binarization_t {
@@ -476,8 +502,6 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             int str_h;
             int str_w;
             dnnl::impl::data_type_t in_dt;
-            const float* weights_data;
-            const float* biases_data;
         };
 
         dnnl::impl::primitive_kind_t kind
@@ -610,14 +634,13 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                     break;
                 case primitive_kind::depthwise:
                     ret = depthwise.alg == rhs.depthwise.alg
-                          && depthwise.weights_data == rhs.depthwise.weights_data
-                          && depthwise.biases_data == rhs.depthwise.biases_data;
+                          && array_cmp(depthwise.offset, rhs.depthwise.offset, depthwise.fields_count);
                     break;
                 case primitive_kind::quantization:
                     ret = quantization.alg == rhs.quantization.alg
                           && array_cmp(quantization.per_channel, rhs.quantization.per_channel, quantization.fields_count)
                           && array_cmp(quantization.all_default, rhs.quantization.all_default, quantization.fields_count)
-                          && array_cmp(quantization.data, rhs.quantization.data, quantization.fields_count);
+                          && array_cmp(quantization.offset, rhs.quantization.offset, quantization.fields_count);
                     break;
                 case primitive_kind::binarization:
                     ret = depthwise.alg == rhs.depthwise.alg
@@ -678,16 +701,15 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
     dnnl::impl::status_t append_binary(dnnl::impl::alg_kind_t alg,
             const dnnl::impl::memory_desc_t *user_src1_desc);
     dnnl::impl::status_t append_prelu(int mask);
-    dnnl::impl::status_t append_depthwise(dnnl::impl::alg_kind_t alg,
-            const float* weights_data, const float* biases_data);
+    dnnl::impl::status_t append_depthwise(dnnl::impl::alg_kind_t alg, size_t offset_size, const size_t* offset);
     dnnl::impl::status_t append_quantization(dnnl::impl::alg_kind_t alg,
-            const void* crop_low, const void* crop_high,
-            const void* input_scale, const void* input_shift,
-            const void* output_scale, const void* output_shift);
+            size_t per_channel_size, const bool* per_channel,
+            size_t all_default_size, const bool* all_default,
+            size_t offset_size, const size_t* offset);
     dnnl::impl::status_t append_binarization(dnnl::impl::alg_kind_t alg, const float* weights_data,
             const float* output_mask_data);
     dnnl::impl::status_t append_dw_conv(int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w,
-            dnnl::impl::data_type_t in_dt, const float* weights_data, const float* biases_data);
+            dnnl::impl::data_type_t in_dt);
 
     int find(dnnl::impl::primitive_kind_t kind, int start = 0,
             int stop = -1) const {
@@ -798,9 +820,9 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
                 other.rnn_weights_projection_qparams_));
         CHECK(rnn_tparams_.copy_from(other.rnn_tparams_));
         if (other.gpu_attr_) gpu_attr_ = other.gpu_attr_->clone();
-        input_zero_points_.copy_from(other.input_zero_points_);
-        weights_zero_points_.copy_from(other.weights_zero_points_);
-        output_compensations_.copy_from(other.output_compensations_);
+        input_zero_points_ = (other.input_zero_points_);
+        weights_zero_points_ = (other.weights_zero_points_);
+        output_compensations_ = (other.output_compensations_);
 
         return status::success;
     }
@@ -898,11 +920,11 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::scales_t rnn_weights_qparams_;
     dnnl::impl::scales_t rnn_weights_projection_qparams_;
     dnnl::impl::rnn_tparams_t rnn_tparams_;
-
     std::unique_ptr<dnnl::impl::primitive_attr_item_t> gpu_attr_;
-    dnnl::impl::shifts_t<uint8_t> input_zero_points_;
-    dnnl::impl::shifts_t<float> weights_zero_points_;
-    dnnl::impl::shifts_t<int32_t> output_compensations_;
+
+    dnnl::impl::legacy_zero_points_t input_zero_points_;
+    dnnl::impl::legacy_zero_points_t weights_zero_points_;
+    dnnl::impl::legacy_zero_points_t output_compensations_;
 
     dnnl_primitive_attr &operator=(const dnnl_primitive_attr &other) = delete;
 };

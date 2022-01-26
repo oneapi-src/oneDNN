@@ -97,7 +97,7 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
                         this, post_op.eltwise, true, eltwise_reserved, mask_post_op_reserved));
             } else if (post_op.is_depthwise()) {
                 jit_depthwise_injectors_.push_back(new jit_uni_depthwise_injector_f32<isa>(
-                        this, post_op.depthwise.alg, mask_post_op_reserved));
+                        this, post_op, mask_post_op_reserved));
             }
         }
 
@@ -119,7 +119,7 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
     void operator()(void *void_dst, acc_data_t *acc, const char *bias, const float *scales, float sum_scale, float signed_scale,
                     int g, size_t start, size_t end,
                     const zero_point_call_params_t &zp,
-                    const void * /* post_ops_binary_rhs_arg_vec */,
+                    const void * post_ops_binary_rhs_arg_vec,
                     const void * /* dst_orig */, const exec_ctx_t &ctx,
                     const memory_desc_t &dst_md,
         const single_gemm_conv_chunk_desc_t &chunk_desc) const override {
@@ -142,6 +142,7 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
         args.len = end - start;
         args.oc_offset = oc_offset;
         args.g_offset = g * jcp_.oc;
+        args.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
         jit_generator::operator()(&args);
     }
 
@@ -158,6 +159,7 @@ private:
         size_t len;
         size_t oc_offset;
         size_t g_offset;
+        const void *post_ops_binary_rhs_arg_vec;
     };
 
     nstl::vector<jit_uni_eltwise_injector_f32<isa> *> jit_eltwise_injectors_;
@@ -241,7 +243,28 @@ void jit_pp_ker_t<isa>::generate() {
 
     preamble();
 
+    const auto &p = post_ops_;
+    std::size_t post_ops_pointers_count = 0;
+    for (int i = 0; i < p.len(); i++) {
+        if (p.entry_[i].is_depthwise() || p.entry_[i].is_quantization()) {
+            post_ops_pointers_count++;
+        }
+    }
+
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
+    if (post_ops_pointers_count != 0) {
+        sub(rsp, post_ops_pointers_count * sizeof(float *));
+
+        auto aux_reg0 = reg_dst;
+        auto aux_reg1 = reg_acc;
+
+        mov(aux_reg0, ptr[reg_param + PARAM_OFF(post_ops_binary_rhs_arg_vec)]);
+        for (size_t i = 0; i < post_ops_pointers_count; i++) {
+            mov(aux_reg1, ptr[aux_reg0 + i * sizeof(float *)]);
+            mov(ptr[rsp + i * sizeof(float *)], aux_reg1);
+        }
+    }
+
     mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
     mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
     mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
@@ -264,6 +287,7 @@ void jit_pp_ker_t<isa>::generate() {
         mov(reg_table, l_table);
 
     auto apply_post_ops = [&](size_t offset, int idx) {
+        std::size_t post_ops_data_offset = 0;
         int eltwise_inj_idx = 0;
         int depthwise_inj_idx = 0;
         for (int i = 0; i < post_ops_.len(); i++) {
@@ -295,53 +319,60 @@ void jit_pp_ker_t<isa>::generate() {
                 eltwise_inj_idx++;
             } else if (post_op.is_depthwise()) {
                 add(reg_oc_offset, reg_g_offset);
-                mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data + offset));
-                mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data + offset));
-                lea(reg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
-                lea(reg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
-                jit_depthwise_injectors_[depthwise_inj_idx]->compute_vector_range(vreg_dst(idx).getIdx(),
-                                                                                  vreg_dst(idx).getIdx() + 1,
-                                                                                  reg_d_weights, reg_d_bias);
-                depthwise_inj_idx++;
+
+                const Xbyak::RegExp depthwise_arg_base = rsp + post_ops_data_offset;
+                mov(reg_d_weights, ptr[depthwise_arg_base]);
+                lea(reg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float) + offset]);
+
+                jit_depthwise_injectors_[depthwise_inj_idx]->compute_vector_range(vreg_dst(idx).getIdx(), vreg_dst(idx).getIdx() + 1, reg_d_weights, reg_d_weights);
+
                 sub(reg_oc_offset, reg_g_offset);
+
+                post_ops_data_offset += jit_depthwise_injectors_[depthwise_inj_idx]->memoryStep();
+                depthwise_inj_idx++;
             } else if (post_op.is_quantization()) {
                 add(reg_oc_offset, reg_g_offset);
                 bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
                 bool do_rounding = do_dequantization || dst_data_type_ == dnnl_f32 || i != post_ops_.len() - 1;
 
+                const Xbyak::RegExp quantization_arg_base = rsp + post_ops_data_offset;
+                size_t crop_low_off = post_op.quantization.offset[post_op.quantization.crop_low] * sizeof(float);
                 if (post_op.quantization.per_channel[post_op.quantization.crop_low]) {
-                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.crop_low] + offset));
-                    uni_vmovups(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
+                    mov(reg_d_weights, ptr[quantization_arg_base]);
+                    uni_vmovups(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float) + offset * sizeof(float) + crop_low_off]);
                 } else {
-                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.crop_low]));
-                    uni_vbroadcastss(vreg_d_weights, ptr[reg_d_weights]);
+                    mov(reg_d_weights, ptr[quantization_arg_base]);
+                    uni_vbroadcastss(vreg_d_weights, ptr[reg_d_weights + crop_low_off]);
                 }
 
+                size_t crop_high_off = post_op.quantization.offset[post_op.quantization.crop_high] * sizeof(float);
                 if (post_op.quantization.per_channel[post_op.quantization.crop_high]) {
-                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.crop_high] + offset));
-                    uni_vmovups(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
+                    mov(reg_d_bias, ptr[quantization_arg_base]);
+                    uni_vmovups(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float) + offset * sizeof(float) + crop_high_off]);
                 } else {
-                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.crop_high]));
-                    uni_vbroadcastss(vreg_d_bias, ptr[reg_d_bias]);
+                    mov(reg_d_bias, ptr[quantization_arg_base]);
+                    uni_vbroadcastss(vreg_d_bias, ptr[reg_d_bias + crop_high_off]);
                 }
 
                 uni_vmaxps(vreg_dst(idx), vreg_dst(idx), vreg_d_weights);
                 uni_vminps(vreg_dst(idx), vreg_dst(idx), vreg_d_bias);
 
+                size_t inp_scale_off = post_op.quantization.offset[post_op.quantization.inp_scale] * sizeof(float);
                 if (post_op.quantization.per_channel[post_op.quantization.inp_scale]) {
-                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.inp_scale] + offset));
-                    uni_vmovups(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
+                    mov(reg_d_weights, ptr[quantization_arg_base]);
+                    uni_vmovups(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float) + offset * sizeof(float) + inp_scale_off]);
                 } else {
-                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.inp_scale]));
-                    uni_vbroadcastss(vreg_d_weights, ptr[reg_d_weights]);
+                    mov(reg_d_weights, ptr[quantization_arg_base ]);
+                    uni_vbroadcastss(vreg_d_weights, ptr[reg_d_weights + inp_scale_off]);
                 }
 
+                size_t inp_shift_off = post_op.quantization.offset[post_op.quantization.inp_shift] * sizeof(float);
                 if (post_op.quantization.per_channel[post_op.quantization.inp_shift]) {
-                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.inp_shift] + offset));
-                    uni_vmovups(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
+                    mov(reg_d_bias, ptr[quantization_arg_base]);
+                    uni_vmovups(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float) + offset * sizeof(float) + inp_shift_off]);
                 } else {
-                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.inp_shift]));
-                    uni_vbroadcastss(vreg_d_bias, ptr[reg_d_bias]);
+                    mov(reg_d_bias, ptr[quantization_arg_base]);
+                    uni_vbroadcastss(vreg_d_bias, ptr[reg_d_bias + inp_shift_off]);
                 }
 
                 uni_vfmadd213ps(vreg_dst(idx), vreg_d_weights, vreg_d_bias);
@@ -350,25 +381,29 @@ void jit_pp_ker_t<isa>::generate() {
                     uni_vroundps(vreg_dst(idx), vreg_dst(idx), 0);
 
                 if (do_dequantization) {
+                    size_t output_scale_off = post_op.quantization.offset[post_op.quantization.output_scale] * sizeof(float);
                     if (post_op.quantization.per_channel[post_op.quantization.output_scale]) {
-                        mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.output_scale] + offset));
-                        uni_vmovups(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
+                        mov(reg_d_weights, ptr[quantization_arg_base ]);
+                        uni_vmovups(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float) + offset * sizeof(float) + output_scale_off]);
                     } else {
-                        mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.output_scale]));
-                        uni_vbroadcastss(vreg_d_weights, ptr[reg_d_weights]);
+                        mov(reg_d_weights, ptr[quantization_arg_base]);
+                        uni_vbroadcastss(vreg_d_weights, ptr[reg_d_weights + output_scale_off]);
                     }
 
+                    size_t output_shift_off = post_op.quantization.offset[post_op.quantization.output_shift] * sizeof(float);
                     if (post_op.quantization.per_channel[post_op.quantization.output_shift]) {
-                        mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.output_shift] + offset));
-                        uni_vmovups(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
+                        mov(reg_d_bias, ptr[quantization_arg_base]);
+                        uni_vmovups(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float) + offset * sizeof(float) + output_shift_off]);
                     } else {
-                        mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.output_shift]));
-                        uni_vbroadcastss(vreg_d_bias, ptr[reg_d_bias]);
+                        mov(reg_d_bias, ptr[quantization_arg_base]);
+                        uni_vbroadcastss(vreg_d_bias, ptr[reg_d_bias + output_shift_off]);
                     }
 
                     uni_vfmadd213ps(vreg_dst(idx), vreg_d_weights, vreg_d_bias);
                 }
                 sub(reg_oc_offset, reg_g_offset);
+
+                post_ops_data_offset += sizeof(float*);
             }
         }
     };
@@ -751,6 +786,10 @@ void jit_pp_ker_t<isa>::generate() {
     }
 
     L(epilogue_end);
+
+    if (post_ops_pointers_count != 0) {
+        add(rsp, post_ops_pointers_count * sizeof(float *));
+    }
 
     postamble();
 

@@ -315,7 +315,7 @@ status_t post_ops_t::append_prelu(int mask) {
     return success;
 }
 
-status_t post_ops_t::append_depthwise(alg_kind_t alg, const float* weights_data, const float* biases_data) {
+status_t post_ops_t::append_depthwise(alg_kind_t alg, size_t offset_size, const size_t* offset) {
     using namespace dnnl::impl::alg_kind;
     if (len() == post_ops_limit) return out_of_memory;
     bool known_alg = one_of(alg, depthwise_scale_shift, depthwise_prelu);
@@ -326,16 +326,15 @@ status_t post_ops_t::append_depthwise(alg_kind_t alg, const float* weights_data,
     auto &e = entry_.back();
     e.kind = primitive_kind::depthwise;
     e.depthwise.alg = alg;
-    e.depthwise.weights_data = weights_data;
-    e.depthwise.biases_data = biases_data;
+    array_copy(e.depthwise.offset, offset, offset_size);
 
     return success;
 }
 
 status_t post_ops_t::append_quantization(alg_kind_t alg,
-                                         const void* crop_low, const void* crop_high,
-                                         const void* input_scale, const void* input_shift,
-                                         const void* output_scale, const void* output_shift) {
+        size_t per_channel_size, const bool* per_channel,
+        size_t all_default_size, const bool* all_default,
+        size_t offset_size, const size_t* offset) {
     using namespace dnnl::impl::alg_kind;
     if (len() == post_ops_limit) return out_of_memory;
     bool known_alg = one_of(alg, quantization_quantize_dequantize, quantization_quantize);
@@ -347,25 +346,9 @@ status_t post_ops_t::append_quantization(alg_kind_t alg,
     e.kind = primitive_kind::quantization;
     e.quantization.alg = alg;
 
-    auto crop_low_data = reinterpret_cast<const shifts_t<float>*>(crop_low);
-    auto crop_high_data = reinterpret_cast<const shifts_t<float>*>(crop_high);
-    auto input_scale_data = reinterpret_cast<const scales_t*>(input_scale);
-    auto input_shift_data = reinterpret_cast<const shifts_t<float>*>(input_shift);
-    auto output_scale_data = reinterpret_cast<const scales_t*>(output_scale);
-    auto output_shift_data = reinterpret_cast<const shifts_t<float>*>(output_shift);
-
-    bool per_channel[6] = {crop_low_data->count_ > 1, crop_high_data->count_ > 1, input_scale_data->count_ > 1,
-                           input_shift_data->count_ > 1, output_scale_data->count_ > 1, output_shift_data->count_ > 1};
-
-    bool all_default[6] = {crop_low_data->has_default_values(), crop_high_data->has_default_values(), input_scale_data->has_default_values(),
-                           input_shift_data->has_default_values(), output_scale_data->has_default_values(), output_shift_data->has_default_values()};
-
-    const float* data[6] = {crop_low_data->shifts_, crop_high_data->shifts_, input_scale_data->scales_,
-                            input_shift_data->shifts_, output_scale_data->scales_, output_shift_data->shifts_};
-
-    array_copy(e.quantization.per_channel, per_channel, e.quantization.fields_count);
-    array_copy(e.quantization.all_default, all_default, e.quantization.fields_count);
-    array_copy(e.quantization.data, data, e.quantization.fields_count);
+    array_copy(e.quantization.per_channel, per_channel, per_channel_size);
+    array_copy(e.quantization.all_default, all_default, all_default_size);
+    array_copy(e.quantization.offset, offset, offset_size);
 
     return success;
 }
@@ -388,9 +371,7 @@ status_t post_ops_t::append_binarization(alg_kind_t alg, const float* weights_da
 }
 
 status_t post_ops_t::append_dw_conv(int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w,
-                                    dnnl::impl::data_type_t in_dt,
-                                    const float* weights_data,
-                                    const float* biases_data) {
+                                    dnnl::impl::data_type_t in_dt) {
     if (len() == post_ops_limit) return out_of_memory;
 
     entry_.emplace_back();
@@ -403,8 +384,6 @@ status_t post_ops_t::append_dw_conv(int in_h, int in_w, int ker_h, int ker_w, in
     e.depthwise_conv_old.str_h = str_h;
     e.depthwise_conv_old.str_w = str_w;
     e.depthwise_conv_old.in_dt = in_dt;
-    e.depthwise_conv_old.weights_data = weights_data;
-    e.depthwise_conv_old.biases_data = biases_data;
 
     return success;
 }
@@ -420,8 +399,7 @@ bool post_ops_t::defined() const {
                     || is_runtime_value(e.beta))
                 return false;
         } else if (kind == primitive_kind::convolution) {
-            const auto &c = entry_[idx].depthwise_conv;
-            if (c.scales && is_runtime_value(*(c.scales))) return false;
+            // convolution is always defined
         } else if (utils::one_of(kind, primitive_kind::binary,
                            primitive_kind::prelu)) {
             // binary is always defined
@@ -616,67 +594,31 @@ status_t dnnl_primitive_attr_set_zero_points(primitive_attr_t *attr, int arg,
     return attr->zero_points_.set(arg, count, mask, zero_points);
 }
 
-status_t dnnl_primitive_attr_get_output_compensations(const primitive_attr_t *attr,
-        int *count, int *mask, const int32_t **compensations) {
-    if (any_null(attr, count, mask, compensations))
-        return invalid_arguments;
-
-    *count = attr->output_compensations_.count_;
-    *mask = attr->output_compensations_.mask_;
-    *compensations = attr->output_compensations_.shifts_;
-
-    return success;
-}
-
 status_t dnnl_primitive_attr_set_output_compensations(primitive_attr_t *attr,
-        int count, int mask, const int32_t *compensations) {
-    bool ok = !any_null(attr, compensations) && count > 0 && mask >= 0;
+        int count, int mask) {
+    bool ok = !any_null(attr) && count > 0 && mask >= 0;
     if (!ok)
         return invalid_arguments;
 
-    return attr->output_compensations_.set(count, mask, compensations);
-}
-
-status_t dnnl_primitive_attr_get_input_zero_points(const primitive_attr_t *attr,
-        int *count, int *mask, const uint8_t **zero_points) {
-    if (any_null(attr, count, mask, zero_points))
-        return invalid_arguments;
-
-    *count = attr->input_zero_points_.count_;
-    *mask = attr->input_zero_points_.mask_;
-    *zero_points = attr->input_zero_points_.shifts_;
-
-    return success;
+    return attr->output_compensations_.set(count, mask);
 }
 
 status_t dnnl_primitive_attr_set_input_zero_points(primitive_attr_t *attr,
-        int count, int mask, const uint8_t *zero_points) {
-    bool ok = !any_null(attr, zero_points) && count > 0 && mask >= 0;
+        int count, int mask) {
+    bool ok = !any_null(attr) && count > 0 && mask >= 0;
     if (!ok)
         return invalid_arguments;
 
-    return attr->input_zero_points_.set(count, mask, zero_points);
-}
-
-status_t dnnl_primitive_attr_get_weights_zero_points(const primitive_attr_t *attr,
-        int *count, int *mask, const float **zero_points) {
-    if (any_null(attr, count, mask, zero_points))
-        return invalid_arguments;
-
-    *count = attr->weights_zero_points_.count_;
-    *mask = attr->weights_zero_points_.mask_;
-    *zero_points = attr->weights_zero_points_.shifts_;
-
-    return success;
+    return attr->input_zero_points_.set(count, mask);
 }
 
 status_t dnnl_primitive_attr_set_weights_zero_points(primitive_attr_t *attr,
-        int count, int mask, const float *zero_points) {
-    bool ok = !any_null(attr, zero_points) && count > 0 && mask >= 0;
+        int count, int mask) {
+    bool ok = !any_null(attr) && count > 0 && mask >= 0;
     if (!ok)
         return invalid_arguments;
 
-    return attr->weights_zero_points_.set(count, mask, zero_points);
+    return attr->weights_zero_points_.set(count, mask);
 }
 
 status_t dnnl_primitive_attr_get_post_ops(
@@ -939,21 +881,26 @@ status_t dnnl_post_ops_get_params_prelu(
     return success;
 }
 
-status_t dnnl_post_ops_append_depthwise(dnnl_post_ops_t post_ops, dnnl_alg_kind_t alg,
-                                        const float* weights_data, const float* biases_data) {
-    if (post_ops == nullptr) return invalid_arguments;
+status_t dnnl_post_ops_append_depthwise(dnnl_post_ops_t post_ops, dnnl_alg_kind_t alg, size_t offset_size, const size_t* offset) {
+    if (post_ops == nullptr || offset == nullptr) return invalid_arguments;
 
-    return post_ops->append_depthwise(alg, weights_data, biases_data);
+    if (offset_size != 2)
+        return invalid_arguments;
+
+    return post_ops->append_depthwise(alg, offset_size, offset);
 }
 
 status_t dnnl_post_ops_append_quantization(post_ops_t *post_ops, alg_kind_t kind,
-                                           const void* crop_low, const void* crop_high,
-                                           const void* input_scale, const void* input_shift,
-                                           const void* output_scale, const void* output_shift) {
-    if (post_ops == nullptr)
+                                           size_t per_channel_size, const bool* per_channel,
+                                           size_t all_default_size, const bool* all_default,
+                                           size_t offset_size, const size_t* offset) {
+    if (post_ops == nullptr || per_channel == nullptr || all_default == nullptr || offset == nullptr)
         return invalid_arguments;
 
-    return post_ops->append_quantization(kind, crop_low, crop_high, input_scale, input_shift, output_scale, output_shift);
+    if (per_channel_size != all_default_size || all_default_size != offset_size ||  offset_size != 6)
+        return invalid_arguments;
+
+    return post_ops->append_quantization(kind, per_channel_size, per_channel, all_default_size, all_default, offset_size, offset);
 }
 
 status_t dnnl_post_ops_append_binarization(post_ops_t *post_ops, alg_kind_t kind, const float* weights_data,
@@ -966,13 +913,11 @@ status_t dnnl_post_ops_append_binarization(post_ops_t *post_ops, alg_kind_t kind
 
 status_t dnnl_post_ops_append_dw_conv(post_ops_t *post_ops,
                                       int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w,
-                                      dnnl::impl::data_type_t in_dt,
-                                      const float* weights_data,
-                                      const float* biases_data) {
+                                      dnnl::impl::data_type_t in_dt) {
     if (post_ops == nullptr)
         return invalid_arguments;
 
-    return post_ops->append_dw_conv(in_h, in_w, ker_h, ker_w, str_h, str_w, in_dt, weights_data, biases_data);
+    return post_ops->append_dw_conv(in_h, in_w, ker_h, ker_w, str_h, str_w, in_dt);
 }
 
 status_t dnnl_primitive_attr_set_rnn_data_qparams(

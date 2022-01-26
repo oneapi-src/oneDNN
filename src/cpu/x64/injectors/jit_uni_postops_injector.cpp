@@ -217,6 +217,7 @@ void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
     std::size_t rhs_arg_idx = 0;
     std::size_t quantization_inj_idx = 0;
     std::size_t depthwise_inj_idx = 0;
+    std::size_t post_ops_data_offset = 0;
     for (int i = 0; i < post_ops_.len(); i++) {
         const auto &post_op = post_ops_.entry_[i];
 
@@ -228,10 +229,11 @@ void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
                     vmm_idxs, rhs_arg_idx, post_op, rhs_arg_params);
             ++rhs_arg_idx;
         } else if (post_op.is_depthwise()) {
+            const Xbyak::RegExp depthwise_arg_base = ddp.reg_post_ops_data + ddp.base_post_ops_data_offset + post_ops_data_offset;
             if (ddp.useAddr)
-                depthwise_injectors[depthwise_inj_idx]->init_ptrs(ddp.reg_d_weights, ddp.reg_d_bias, ddp.reg_init_off_addr, false);
+                depthwise_injectors[depthwise_inj_idx]->init_ptrs(depthwise_arg_base, ddp.reg_d_weights, ddp.reg_d_bias, ddp.reg_init_off_addr, false);
             else
-                depthwise_injectors[depthwise_inj_idx]->init_ptrs(ddp.reg_d_weights, ddp.reg_d_bias, ddp.reg_init_off, false);
+                depthwise_injectors[depthwise_inj_idx]->init_ptrs(depthwise_arg_base, ddp.reg_d_weights, ddp.reg_d_bias, ddp.reg_init_off, false);
 
             bool need_to_preserve = false;
             if (post_op.depthwise.alg == dnnl_depthwise_prelu && isa == sse41)
@@ -244,6 +246,8 @@ void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
                                                                 is_broadcast, ddp.vmm_idx_off.at(vmm_idx), need_to_preserve);
             }
 
+            post_ops_data_offset += depthwise_injectors[depthwise_inj_idx]->memoryStep();
+            ++rhs_arg_idx;
             depthwise_inj_idx++;
         } else if (post_op.is_quantization()) {
             std::vector<std::pair<int, std::set<size_t>>> vecOfVmmIdxsSets;
@@ -271,19 +275,20 @@ void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
             bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
             bool do_rounding = do_dequantization || qdp.dst_dt == dnnl_f32 || i != post_ops_.len() - 1;
 
+            const Xbyak::RegExp quant_arg_base = qdp.reg_post_ops_data + qdp.base_post_ops_data_offset + post_ops_data_offset;
             if (qdp.useAddr)
-                quantization_injectors[quantization_inj_idx]->init_crop_ptrs(qdp.reg_oc_off_addr);
+                quantization_injectors[quantization_inj_idx]->init_crop_ptrs(quant_arg_base, qdp.reg_oc_off_addr);
             else
-                quantization_injectors[quantization_inj_idx]->init_crop_ptrs(qdp.reg_oc_off);
+                quantization_injectors[quantization_inj_idx]->init_crop_ptrs(quant_arg_base, qdp.reg_oc_off);
 
             for (auto &IdxSetPair : vecOfVmmIdxsSets) {
                 quantization_injectors[quantization_inj_idx]->compute_crop(IdxSetPair.second, IdxSetPair.first, false, is_broadcast);
             }
 
             if (qdp.useAddr)
-                quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(qdp.reg_oc_off_addr);
+                quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(quant_arg_base, qdp.reg_oc_off_addr);
             else
-                quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(qdp.reg_oc_off);
+                quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(quant_arg_base, qdp.reg_oc_off);
 
             for (auto &IdxSetPair : vecOfVmmIdxsSets) {
                 quantization_injectors[quantization_inj_idx]->compute_input_scale_shift(IdxSetPair.second, IdxSetPair.first, do_rounding,
@@ -291,14 +296,16 @@ void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
             }
 
             if (qdp.useAddr)
-                quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(qdp.reg_oc_off_addr);
+                quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(quant_arg_base, qdp.reg_oc_off_addr);
             else
-                quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(qdp.reg_oc_off);
+                quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(quant_arg_base, qdp.reg_oc_off);
 
             for (auto &IdxSetPair : vecOfVmmIdxsSets) {
                 quantization_injectors[quantization_inj_idx]->compute_output_scale_shift(IdxSetPair.second, IdxSetPair.first, false, is_broadcast);
             }
 
+            post_ops_data_offset += quantization_injectors[quantization_inj_idx]->memoryStep();
+            ++rhs_arg_idx;
             quantization_inj_idx++;
         } else {
             const auto lam = lambda_jit_injectors_.find(post_op.kind);
@@ -355,6 +362,33 @@ template <cpu_isa_t isa, typename Vmm>
 void jit_uni_postops_injector_t<isa, Vmm>::set_lambda_injector(
         dnnl_primitive_kind_t kind, const std::function<void()> &jit_injector) {
     lambda_jit_injectors_[kind] = jit_injector;
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_postops_injector_t<isa, Vmm>::push_post_ops_data_on_stack(const Xbyak::Reg64& post_ops_data_reg, std::size_t post_ops_data_offset,
+        const Xbyak::Reg64& aux_reg0, const Xbyak::Reg64& aux_reg1) {
+    for (int i = 0; i < post_ops_.len(); i++) {
+        if (post_ops_.entry_[i].is_depthwise() || post_ops_.entry_[i].is_quantization()) {
+            post_ops_pointers_count++;
+        }
+    }
+
+    if (post_ops_pointers_count != 0) {
+        host_->sub(host_->rsp, post_ops_pointers_count * sizeof(float *));
+
+        host_->mov(aux_reg0, host_->ptr[post_ops_data_reg + post_ops_data_offset]);
+        for (size_t i = 0; i < post_ops_pointers_count; i++) {
+            host_->mov(aux_reg1, host_->ptr[aux_reg0 + i * sizeof(float *)]);
+            host_->mov(host_->ptr[host_->rsp + i * sizeof(float *)], aux_reg1);
+        }
+    }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_postops_injector_t<isa, Vmm>::reset_stack_pointer() {
+    if (post_ops_pointers_count != 0) {
+        host_->add(host_->rsp, post_ops_pointers_count * sizeof(float *));
+    }
 }
 
 post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,

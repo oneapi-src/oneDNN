@@ -1061,8 +1061,10 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::store_output(
             }
         }
         depthwise_injector::dynamic_params_t ddp {vmm_d_weights.getIdx(), vmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
-                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
-        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt};
+                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off,
+                                                  this->rsp, base_post_ops_data_offset};
+        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt,
+                                                     this->rsp, base_post_ops_data_offset};
 
         const int nb_oc_block
                 = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
@@ -1288,8 +1290,13 @@ template <typename Vmm>
 void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::generate() {
     preamble();
 
-    if (zp::should_calculate_deconv_zp_src_pad_str_comp(jcp))
+    if (postops_injector_)
+        postops_injector_->push_post_ops_data_on_stack(param1, GET_OFF(post_ops_binary_rhs_arg_vec), reg_src, reg_filt);
+
+    if (zp::should_calculate_deconv_zp_src_pad_str_comp(jcp)) {
         sub(rsp, reserved_stack_size_);
+        base_post_ops_data_offset += reserved_stack_size_;
+    }
 
     xor_(reg_scratch, reg_scratch);
     Reg16 _t = reg_scratch.cvt16();
@@ -1388,8 +1395,13 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::generate() {
         icb_loop(jcp.ur_w_tail, l_overflow, r_overflow, true);
     }
 
-    if (zp::should_calculate_deconv_zp_src_pad_str_comp(jcp))
+    if (zp::should_calculate_deconv_zp_src_pad_str_comp(jcp)) {
         add(rsp, reserved_stack_size_);
+        base_post_ops_data_offset -= reserved_stack_size_;
+    }
+
+    if (postops_injector_)
+        postops_injector_->reset_stack_pointer();
 
     postamble();
 

@@ -203,7 +203,7 @@ struct deconvolution_fwd_pd_t : public deconvolution_pd_t {
     }
 
     int n_inputs() const override {
-        return 2 + with_bias() + n_prelu_po_inputs() + n_binary_po_inputs();
+        return 2 + with_bias() + n_prelu_po_inputs() + n_binary_po_inputs() + n_depthwise_po_inputs() + n_quantization_po_inputs();
     }
     int n_outputs() const override { return 1; }
 

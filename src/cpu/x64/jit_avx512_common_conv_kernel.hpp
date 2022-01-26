@@ -114,6 +114,8 @@ private:
 
     reg64_t reg_d_weights = imm_addr64;
     reg64_t reg_d_bias = reg_kj;
+    int base_post_ops_data_offset = 0;
+    constexpr static int reg64_size = 8;
 
     Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
     Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);
@@ -293,6 +295,8 @@ private:
 
     reg64_t reg_d_weights = aux_reg_ker;
     reg64_t reg_d_bias = reg_kj;
+    int base_post_ops_data_offset = 0;
+    constexpr static int reg64_size = 8;
 
     nstl::vector<jit_uni_depthwise_injector_f32<avx512_core>*> depthwise_injectors;
 

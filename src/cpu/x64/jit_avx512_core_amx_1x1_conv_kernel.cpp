@@ -232,8 +232,8 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_postops(const Zmm zmm_out,
         std::map<size_t, int> vmm_idx_off;
         vmm_idx_off.insert({zmm_out.getIdx(), ocb * jcp.oc_block * sizeof(float)});
         depthwise_injector::dynamic_params_t ddp {zmm_d_weights.getIdx(), zmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
-                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
-        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt};
+                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, this->rsp};
+        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt, this->rsp};
 
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
 
@@ -831,6 +831,9 @@ int jit_avx512_core_amx_1x1_fwd_kernel_t::get_ic_tail() const {
 void jit_avx512_core_amx_1x1_fwd_kernel_t::generate() {
     preamble();
 
+    if (postops_injector_)
+        postops_injector_->push_post_ops_data_on_stack(param1, GET_OFF(post_ops_binary_rhs_arg_vec), inp_ptr, wei_ptr);
+
     last_oc_block_flag_ = (jcp.oc_without_padding != jcp.oc);
     if (last_oc_block_flag_) {
         Xbyak::Label mask_is_set;
@@ -880,6 +883,10 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::generate() {
     osb_loop();
 
     L(label_done);
+
+    if (postops_injector_)
+        postops_injector_->reset_stack_pointer();
+
     postamble();
 
     if (jcp.with_eltwise) postops_injector_->prepare_table();

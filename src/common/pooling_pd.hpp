@@ -234,7 +234,7 @@ struct pooling_fwd_pd_t : public pooling_pd_t {
                                                          : &glob_zero_md;
     }
 
-    int n_inputs() const override { return 1 + n_binary_po_inputs(); }
+    int n_inputs() const override { return 1 + n_binary_po_inputs() + n_depthwise_po_inputs() + n_quantization_po_inputs(); }
     int n_outputs() const override {
         return 1 + (!types::is_zero_md(workspace_md()));
     }

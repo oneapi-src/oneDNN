@@ -353,7 +353,8 @@ private:
             const int32_t *dst_zero_point,
             const memory_tracking::grantor_t &scratchpad,
             const void *post_ops_binary_rhs_arg_vec,
-            const void *post_ops_binary_rhs_arg_vec_dw, int MB) const;
+            const void *post_ops_binary_rhs_arg_vec_dw, int MB,
+            const int32_t *output_compensation) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_uni_x8s8s32x_1x1_conv_kernel<isa>> kernel_;

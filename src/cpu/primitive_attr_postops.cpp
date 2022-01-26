@@ -315,9 +315,13 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args, const size_t oc
                 res = weights_value * res;
             } break;
             case primitive_kind::depthwise: {
-                auto depthwise_weights = e.depthwise.weights_data;
-                auto depthwise_bias = e.depthwise.biases_data;
+                const exec_ctx_t &ctx = *args.ctx;
+                auto depthwise_base = CTX_IN_MEM(const float *, (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+                auto depthwise_weights = depthwise_base + e.depthwise.offset[e.depthwise.scales];
+                auto depthwise_bias = depthwise_base + e.depthwise.offset[e.depthwise.shifts];
+
                 res = it_depthwise_po->compute_scalar(res, depthwise_weights + oc, depthwise_bias + oc);
+
                 ++it_depthwise_po;
             } break;
             case primitive_kind::quantization: {
@@ -325,12 +329,14 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args, const size_t oc
                 bool do_rounding = do_dequantization || args.dst_md->data_type == dnnl_f32 || idx != po_.len() - 1;
 
                 auto quant = e.quantization;
-                auto pcl = quant.data[quant.crop_low];
-                auto pch = quant.data[quant.crop_high];
-                auto pisc = quant.data[quant.inp_scale];
-                auto pish = quant.data[quant.inp_shift];
-                auto posc = quant.data[quant.output_scale];
-                auto posh = quant.data[quant.output_shift];
+                const exec_ctx_t &ctx = *args.ctx;
+                auto quantization_base = CTX_IN_MEM(const float *, (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+                const auto pcl =  quantization_base + quant.offset[quant.crop_low];
+                const auto pch =  quantization_base + quant.offset[quant.crop_high];
+                const auto pisc = quantization_base + quant.offset[quant.inp_scale];
+                const auto pish = quantization_base + quant.offset[quant.inp_shift];
+                const auto posc = quantization_base + quant.offset[quant.output_scale];
+                const auto posh = quantization_base + quant.offset[quant.output_shift];
 
                 int cl_idx = !quant.per_channel[quant.crop_low] ? 0 : oc;
                 int ch_idx = !quant.per_channel[quant.crop_high] ? 0 : oc;

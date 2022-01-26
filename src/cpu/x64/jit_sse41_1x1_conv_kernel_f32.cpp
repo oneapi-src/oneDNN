@@ -139,8 +139,8 @@ void jit_sse41_1x1_conv_kernel_f32::apply_postops(
                 vmm_idx_off.insert({reg_accum_idx(load_loop_blk, i, j, n), (2 * i + n) * jcp.load_block / 2 * sizeof(float)});
             });
     depthwise_injector::dynamic_params_t ddp {xmm_d_weights.getIdx(), xmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
-                                              reg_oc_off, vmm_idx_off};
-    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off, jcp.dst_dt};
+                                              reg_oc_off, vmm_idx_off, this->rsp, base_post_ops_data_offset};
+    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off, jcp.dst_dt, this->rsp, base_post_ops_data_offset};
 
     injector_utils::vmm_index_set_t vmm_idxs;
     if (jcp.with_binary) {
@@ -437,7 +437,12 @@ void jit_sse41_1x1_conv_kernel_f32::generate_diff_bias_loop(int load_loop_blk) {
 void jit_sse41_1x1_conv_kernel_f32::generate() {
     preamble();
 
+    if (postops_injector_)
+        postops_injector_->push_post_ops_data_on_stack(this->param1, GET_OFF(post_ops_binary_rhs_arg_vec), reg_bcast_data, reg_load_data);
+
     sub(rsp, stack_space_needed);
+    base_post_ops_data_offset += stack_space_needed;
+
     if (jcp.with_binary) {
         // backup abi_param1 for usage in post_ops processing
         mov(ptr[rsp + reg_abi_param1_backup], abi_param1);
@@ -546,6 +551,10 @@ void jit_sse41_1x1_conv_kernel_f32::generate() {
     L(load_loop_blk_end);
 
     add(rsp, stack_space_needed);
+    base_post_ops_data_offset -= stack_space_needed;
+
+    if (postops_injector_)
+        postops_injector_->reset_stack_pointer();
 
     postamble();
 

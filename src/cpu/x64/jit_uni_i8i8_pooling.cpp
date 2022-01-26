@@ -1031,8 +1031,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
                     std::map<size_t, int> vmm_idx_off;
                     vmm_idx_off.insert({reg_dst_f32.getIdx(), (ll * vlen_size_elem + jj * vlen_size_elem) * sizeof(float)});
                     depthwise_injector::dynamic_params_t ddp {vmm_d_weights.getIdx(), vmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
-                                                              reg_oc_off, vmm_idx_off};
-                    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off, jpp.dst_dt};
+                                                              reg_oc_off, vmm_idx_off, this->rsp};
+                    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off, jpp.dst_dt, this->rsp};
 
                     injector_utils::vmm_index_set_t vmm_idxs;
                     vmm_idxs.emplace(reg_dst_f32.getIdx());
@@ -1287,6 +1287,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
     mov(rcx, rdi);
 #endif
 
+    if (postops_injector_)
+        postops_injector_->push_post_ops_data_on_stack(reg_param, GET_OFF(post_ops_binary_rhs_arg_vec), reg_ptr_src_i8, reg_ptr_dst_i8);
+
 #define READ_PARAM(reg, field) \
     mov(reg, ptr[reg_param + offsetof(jit_uni_i8i8_pool_call_params_t, field)])
     READ_PARAM(reg_ptr_src_i8, src_i8);
@@ -1308,6 +1311,10 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
     compute_c_block();
 
     emms();
+
+    if (postops_injector_)
+        postops_injector_->reset_stack_pointer();
+
     postamble();
 
     if (jpp.with_eltwise && postops_injector_)

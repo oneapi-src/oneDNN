@@ -23,6 +23,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "cpu/gemm_convolution.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -51,13 +52,16 @@ status_t gemm_convolution_fwd_t::execute_forward_nspc(
     auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
+    const auto post_ops_binary_rhs_arg_vec
+            = x64::binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+
     auto scratchpad = ctx.get_scratchpad_grantor();
     const conv_gemm_conf_t &jcp = pd()->jcp_;
     std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_forward_thr_nspc(ctx, ithr, nthr, src_base,
-                wei_base, bia_base, dst_base, scratchpad);
+                wei_base, bia_base, dst_base, scratchpad, post_ops_binary_rhs_arg_vec);
         if (st_thr != status::success) st = st_thr;
     });
 
@@ -67,7 +71,7 @@ status_t gemm_convolution_fwd_t::execute_forward_nspc(
 status_t gemm_convolution_fwd_t::execute_forward_thr_nspc(const exec_ctx_t &ctx,
         const int ithr, const int nthr, const data_t *src_base,
         const data_t *wei_base, const data_t *bia_base, data_t *dst_base,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad, const std::vector<const void *>& post_ops_binary_rhs_arg_vec) const {
     const conv_gemm_conf_t &jcp = pd()->jcp_;
 
     // Src Format: mb-spatial-groups-input_channels
@@ -162,7 +166,7 @@ status_t gemm_convolution_fwd_t::execute_forward_thr_nspc(const exec_ctx_t &ctx,
 
                 for (size_t os = first_os; os < last_os; ++os) {
                     data_t* dst_local = dst + os * dst_os_stride;
-                    (*pp_kernel_)(dst_local, bias, 1, first_oc, last_oc, 1);
+                    (*pp_kernel_)(dst_local, bias, 1, first_oc, last_oc, 1, post_ops_binary_rhs_arg_vec);
                 }
             }
         }
@@ -179,6 +183,9 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
+    const auto post_ops_binary_rhs_arg_vec
+            = x64::binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
     auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
 
@@ -259,7 +266,7 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
             if (st != status::success) return st;
 
             if (pp_kernel_ && curr.ic == jcp.ic - step.ic) {
-                (*pp_kernel_)(_dst, bias, m, curr.g * jcp.oc + curr.oc, step.oc, M);
+                (*pp_kernel_)(_dst, bias, m, curr.g * jcp.oc + curr.oc, step.oc, M, post_ops_binary_rhs_arg_vec);
             }
 
             return status::success;
@@ -331,6 +338,9 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_nspc(
     auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto diff_src_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
+    const auto post_ops_binary_rhs_arg_vec
+            = x64::binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
@@ -339,7 +349,7 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_nspc(
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_backward_data_thr_nspc(ithr, nthr,
-                diff_dst_base, wei_base, bia_base, diff_src_base, scratchpad, MB);
+                diff_dst_base, wei_base, bia_base, diff_src_base, scratchpad, MB, post_ops_binary_rhs_arg_vec);
         if (st_thr != status::success) st = st_thr;
     });
 
@@ -349,7 +359,8 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_nspc(
 status_t gemm_convolution_bwd_data_t::execute_backward_data_thr_nspc(
         const int ithr, const int nthr, const data_t *diff_dst_base,
         const data_t *wei_base, const data_t *bia_base, data_t *diff_src_base,
-        const memory_tracking::grantor_t &scratchpad, int MB) const {
+        const memory_tracking::grantor_t &scratchpad, int MB,
+        const std::vector<const void *>& post_ops_binary_rhs_arg_vec) const {
     const conv_gemm_conf_t &jcp = pd()->jcp_;
 
     // Diff_dst Format: mb-spatial-groups-output_channels
@@ -420,12 +431,17 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_thr_nspc(
             });
         }
         if (p.len() > 0) {
+            std::size_t post_ops_data_idx = 0;
             int depthwise_inj_idx = 0;
             for (int i = 0; i < p.len(); i++) {
                 auto &post_op = p.entry_[i];
                 if (post_op.is_depthwise()) {
-                    auto depthwise_weights = post_op.depthwise.weights_data;
-                    auto depthwise_bias = post_op.depthwise.biases_data;
+                    auto depthwise_base = reinterpret_cast<const float*>(post_ops_binary_rhs_arg_vec[post_ops_data_idx]);
+                    auto depthwise_weights = depthwise_base + post_op.depthwise.offset[post_op.depthwise.scales];
+                    auto depthwise_bias = post_op.depthwise.alg == alg_kind::depthwise_scale_shift
+                            ? depthwise_base + post_op.depthwise.offset[post_op.depthwise.shifts]
+                            : nullptr;
+
                     parallel_nd(static_cast<size_t>(jcp.is) * jcp.id, [&](size_t is) {
                         data_t *__restrict diff_src_arr
                                 = diff_src + is * diff_src_os_stride;
@@ -434,6 +450,7 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_thr_nspc(
                                 depthwise_weights + g * jcp.ic + ic, depthwise_bias + g * jcp.ic + ic);
                         }
                     });
+                    post_ops_data_idx++;
                     depthwise_inj_idx++;
                 }
             }
@@ -448,6 +465,9 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+
+    const auto post_ops_binary_rhs_arg_vec
+            = x64::binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
@@ -522,12 +542,16 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
                 }
             }
             if (p.len() > 0) {
+                std::size_t post_ops_data_idx = 0;
                 int depthwise_inj_idx = 0;
                 for (int i = 0; i < p.len(); i++) {
                     auto &post_op = p.entry_[i];
                     if (post_op.is_depthwise()) {
-                        auto depthwise_weights = post_op.depthwise.weights_data;
-                        auto depthwise_bias = post_op.depthwise.biases_data;
+                        auto depthwise_base = reinterpret_cast<const float*>(post_ops_binary_rhs_arg_vec[post_ops_data_idx]);
+                        auto depthwise_weights = depthwise_base + post_op.depthwise.offset[post_op.depthwise.scales];
+                        auto depthwise_bias = post_op.depthwise.alg == alg_kind::depthwise_scale_shift
+                                              ? depthwise_base + post_op.depthwise.offset[post_op.depthwise.shifts]
+                                              : nullptr;
                         parallel_nd(jcp.ic, [&](const int ic) {
                             for (int id = 0; id < jcp.id; ++id) {
                                 data_t *d_ = _diff_src + ic * jcp.id * jcp.is + id * jcp.is;
@@ -537,6 +561,7 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
                                 }
                             }
                         });
+                        post_ops_data_idx++;
                         depthwise_inj_idx++;
                     }
                 }

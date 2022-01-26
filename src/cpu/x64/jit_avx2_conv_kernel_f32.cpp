@@ -213,8 +213,10 @@ void jit_avx2_conv_fwd_kernel_f32::apply_postops(
             vmm_idx_off.insert({get_ymm_idx(ur_w, i, j), i * jcp.oc_block * sizeof(float)});
         });
         depthwise_injector::dynamic_params_t ddp {ymm_d_weights.getIdx(), ymm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
-                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
-        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt};
+                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off,
+                                                  this->rsp, base_post_ops_data_offset};
+        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt,
+                                                     this->rsp, base_post_ops_data_offset};
 
         injector_utils::vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {
@@ -268,6 +270,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
 
     if (oc_tail) {
         push(reg_oc_blocks);
+        base_post_ops_data_offset += reg64_size;
         mov(reg_oc_flag, ptr[param1 + GET_OFF(oc_flag)]);
     }
 
@@ -488,7 +491,10 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
         L(store_done);
     }
 
-    if (oc_tail) pop(reg_oc_blocks);
+    if (oc_tail) {
+        pop(reg_oc_blocks);
+        base_post_ops_data_offset -= reg64_size;
+    }
 }
 
 inline void jit_avx2_conv_fwd_kernel_f32::solve_common(int oc_blocks) {
@@ -543,6 +549,9 @@ inline void jit_avx2_conv_fwd_kernel_f32::solve_common(int oc_blocks) {
 void jit_avx2_conv_fwd_kernel_f32::generate() {
     this->preamble();
 
+    if (postops_injector_)
+        postops_injector_->push_post_ops_data_on_stack(this->param1, GET_OFF(post_ops_binary_rhs_arg_vec), reg_input, reg_output);
+
     mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
     mov(reg_output, ptr[this->param1 + GET_OFF(dst)]);
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
@@ -578,6 +587,9 @@ void jit_avx2_conv_fwd_kernel_f32::generate() {
     } else {
         solve_common(nb_oc_tail);
     }
+
+    if (postops_injector_)
+        postops_injector_->reset_stack_pointer();
 
     this->postamble();
 
@@ -851,6 +863,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
         }
 
     if (oc_tail) {
+        base_post_ops_data_offset += reg64_size;
         push(reg_long_offt);
         mov(reg_reduce_work, ptr[param1 + GET_OFF(reduce_work)]);
     }
@@ -870,6 +883,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
 
     if (jcp.ndims == 5) {
         assert(jcp.nb_oc_blocking == 1);
+        base_post_ops_data_offset += reg64_size;
         push(oi_iter);
 
         mov(reg_ki, ptr[this->param1 + GET_OFF(kd_padding)]);
@@ -961,6 +975,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
         L(skip_kd_loop);
 
         pop(oi_iter);
+        base_post_ops_data_offset -= reg64_size;
     }
 
     if (one_of(jcp.ndims, 3, 4)) {
@@ -979,7 +994,10 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
         mov(reg_channel, ptr[param1 + GET_OFF(channel)]);
     }
 
-    if (oc_tail) pop(reg_long_offt);
+    if (oc_tail) {
+        pop(reg_long_offt);
+        base_post_ops_data_offset -= reg64_size;
+    }
 
     auto load_store_dsrc = [=](bool is_tail) {
         mov(reg_channel, ptr[param1 + GET_OFF(channel)]);
@@ -1004,27 +1022,29 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
         L(no_update_label);
 
         const auto &p = attr_.post_ops_;
+        std::size_t post_ops_data_offset = 0;
         int depthwise_inj_idx = 0;
         for (int i = 0; i < p.len(); i++) {
             auto& post_op = p.entry_[i];
             if (post_op.is_depthwise()) {
+                base_post_ops_data_offset += reg64_size;
                 push(reg_d_weights);
-                mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
-                mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
 
+                mov(reg_d_weights, ptr[this->rsp + base_post_ops_data_offset + post_ops_data_offset]);
                 add(reg_d_weights, ptr[this->param1 + GET_OFF(ic_off)]);
-                add(reg_d_bias, ptr[this->param1 + GET_OFF(ic_off)]);
 
                 for (int ii = 0; ii < nb_ic_block; ii++) {
                     depthwise_injectors[depthwise_inj_idx]->compute_vector_range(
-                            ur_w * ii, ur_w * ii + ur_w, reg_d_weights, reg_d_bias);
+                            ur_w * ii, ur_w * ii + ur_w, reg_d_weights, reg_d_weights);
 
                     add(reg_d_weights, jcp.ic_block * sizeof(float));
-                    add(reg_d_bias, jcp.ic_block * sizeof(float));
                 }
                 pop(reg_d_weights);
+                base_post_ops_data_offset -= reg64_size;
+
+                post_ops_data_offset += depthwise_injectors[depthwise_inj_idx]->memoryStep();
+                depthwise_inj_idx++;
             }
-            depthwise_inj_idx++;
         }
         L(skip_post_ops);
 
@@ -1065,12 +1085,32 @@ void jit_avx2_conv_bwd_data_kernel_f32::generate() {
         if (post_op.is_depthwise()) {
             depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<avx2>(
                     this,
-                    post_op.depthwise.alg
+                    post_op
             ));
         }
     }
 
     preamble();
+
+    std::size_t post_ops_pointers_count = 0;
+    for (int i = 0; i < p.len(); i++) {
+        if (p.entry_[i].is_depthwise() || p.entry_[i].is_quantization()) {
+            post_ops_pointers_count++;
+        }
+    }
+
+    if (post_ops_pointers_count != 0) {
+        sub(rsp, post_ops_pointers_count * sizeof(float *));
+
+        auto aux_reg0 = reg_dsrc;
+        auto aux_reg1 = reg_ddst;
+
+        mov(aux_reg0, ptr[this->param1 + GET_OFF(post_ops_binary_rhs_arg_vec)]);
+        for (size_t i = 0; i < post_ops_pointers_count; i++) {
+            mov(aux_reg1, ptr[aux_reg0 + i * sizeof(float *)]);
+            mov(ptr[rsp + i * sizeof(float *)], aux_reg1);
+        }
+    }
 
     mov(reg_dsrc, ptr[this->param1 + GET_OFF(src)]);
     mov(reg_ddst, ptr[this->param1 + GET_OFF(dst)]);
@@ -1129,6 +1169,10 @@ void jit_avx2_conv_bwd_data_kernel_f32::generate() {
         }
 
         if (jcp.ur_w_tail != 0) compute_loop(jcp.ur_w_tail, 0, r_overflow);
+    }
+
+    if (post_ops_pointers_count != 0) {
+        add(rsp, post_ops_pointers_count * sizeof(float *));
     }
 
     this->postamble();
@@ -1215,6 +1259,7 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
             }
         }
     }
+    jcp.post_ops = p;
 
     /* derivatives */
     jcp.idp = jcp.id + 2 * jcp.f_pad;

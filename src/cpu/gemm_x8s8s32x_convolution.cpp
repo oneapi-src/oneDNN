@@ -121,6 +121,8 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward(
                     this->pd()->attr()->post_ops_, ctx);
 
     auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+    DEFINE_INPUT_ZERO_POINTS_BUFFER(input_zp_base, jcp);
+    DEFINE_OUTPUT_COMPENSATION_BUFFER(output_compensation_base, jcp);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -135,7 +137,8 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward(
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_forward_thr(ithr, nthr, src_base, wei_base,
                 bia_base, dst_base, zp, scratchpad,
-                post_ops_binary_rhs_arg_vec.data(), ctx, MB);
+                post_ops_binary_rhs_arg_vec.data(), ctx, MB,
+                input_zp_base, output_compensation_base);
 
         if (st_thr != status::success) st = st_thr;
     });
@@ -155,7 +158,8 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
         const char *bia_base, void *dst_base,
         const zero_point_call_params_t &zp,
         const memory_tracking::grantor_t &scratchpad,
-        const void *post_ops_binary_rhs_arg_vec, const exec_ctx_t &ctx, int MB) const {
+        const void *post_ops_binary_rhs_arg_vec, const exec_ctx_t &ctx, int MB,
+        const uint8_t *input_zp_base, const int32_t *output_compensation_base) const {
 
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
@@ -182,16 +186,6 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
             + (ptrdiff_t)ithr * jcp.is * jcp.ic;
     int *__restrict acc = scratchpad.get<int>(key_conv_int_dat_in_acc_dt)
             + (ptrdiff_t)ithr * jcp.oh_block * jcp.ow_block * jcp.oc;
-
-    const uint8_t *input_zp_base = nullptr;
-    if (jcp.with_input_zp) {
-        input_zp_base = pd()->attr()->input_zero_points_.shifts_;
-    }
-
-    int32_t *output_compensation_base = nullptr;
-    if (jcp.with_input_zp) {
-        output_compensation_base = pd()->attr()->output_compensations_.shifts_;
-    }
 
     const int32_t *_wei_comp
             = jcp.signed_input ? get_wei_comp(wei_base, wei_md) :

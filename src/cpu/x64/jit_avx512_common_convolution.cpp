@@ -36,7 +36,8 @@ using jit_conv_ker_t = void (*)(jit_conv_call_s *);
 
 inline void jit_conv_ker_pipeline(const jit_conv_ker_t ker, jit_conv_call_s &p,
         const void *src, const void *dst, const void *filt, const void *bias,
-        int channel, int kh_padding, int reduce_work, int load_work, int oc_off) {
+        int channel, int kh_padding, int reduce_work, int load_work, int oc_off,
+        const void *post_ops_binary_rhs_arg_vec) {
     p.src = src;
     p.dst = dst;
     p.filt = filt;
@@ -48,6 +49,7 @@ inline void jit_conv_ker_pipeline(const jit_conv_ker_t ker, jit_conv_call_s &p,
     p.reduce_work = reduce_work;
     p.load_work = load_work;
     p.oc_off = oc_off;
+    p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
 
     ker(&p);
 }
@@ -55,17 +57,17 @@ inline void jit_conv_ker_pipeline(const jit_conv_ker_t ker, jit_conv_call_s &p,
 inline void jit_conv_ker_pipeline_iw_thr(const jit_conv_ker_t ker,
         jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
         const void *bias, int channel, int kh_padding, int iwb, int reduce_work,
-        int load_work, int oc_off) {
+        int load_work, int oc_off, const void *post_ops_binary_rhs_arg_vec) {
     p.iwb = iwb;
 
     jit_conv_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding,
-            reduce_work, load_work, oc_off);
+            reduce_work, load_work, oc_off, post_ops_binary_rhs_arg_vec);
 }
 
 inline void jit_conv_3d_ker_pipeline(const jit_conv_ker_t ker,
         jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
         const void *bias, int channel, int kh_padding, int kd_padding,
-        int reduce_work, int load_work, int oc_off) {
+        int reduce_work, int load_work, int oc_off, const void *post_ops_binary_rhs_arg_vec) {
     p.src = src;
     p.dst = dst;
     p.filt = filt;
@@ -78,6 +80,7 @@ inline void jit_conv_3d_ker_pipeline(const jit_conv_ker_t ker,
     p.reduce_work = reduce_work;
     p.load_work = load_work;
     p.oc_off = oc_off;
+    p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
 
     ker(&p);
 }
@@ -96,7 +99,7 @@ inline void jit_conv_ker_pipeline_ow_thr(jit_conv_ker_t ker, jit_conv_call_s &p,
     p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
 
     jit_conv_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding,
-            reduce_work, load_work, oc_off);
+            reduce_work, load_work, oc_off, post_ops_binary_rhs_arg_vec);
 }
 
 // The special case for the driver with ow-parallelization (FWD)
@@ -115,7 +118,7 @@ inline void jit_conv_3d_ker_pipeline_ow_thr(const jit_conv_ker_t ker,
     p.flags = flags;
 
     jit_conv_3d_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding,
-            kd_padding, reduce_work, load_work, oc_off);
+            kd_padding, reduce_work, load_work, oc_off, post_ops_binary_rhs_arg_vec);
 }
 
 inline void jit_conv_ker_pipeline_bwd_w(const jit_conv_ker_t ker,
@@ -123,7 +126,7 @@ inline void jit_conv_ker_pipeline_bwd_w(const jit_conv_ker_t ker,
         const void *bias, int channel, int kh_padding, size_t reduce_work,
         size_t load_work) {
     jit_conv_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding,
-            reduce_work, load_work, 0);
+            reduce_work, load_work, 0, nullptr);
 }
 
 void jit_conv_2d_ker_bwd_w_pipeline(const jit_conv_ker_t ker,
@@ -656,13 +659,16 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
+    const auto &jcp = pd()->jcp_;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
+
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = pd()->jcp_;
     const jit_conv_ker_t jit_ker = (decltype(jit_ker))kernel_->jit_ker();
 
     int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
@@ -737,7 +743,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
                     jit_conv_ker_pipeline_iw_thr(jit_ker, par_conv, diff_src_w,
                             diff_dst_w, wht_w, nullptr, ocb, 1, iwb,
-                            reduce_work, load_work, ic_off);
+                            reduce_work, load_work, ic_off, post_ops_binary_rhs_arg_vec.data());
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;
                 }
@@ -770,13 +776,16 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
+    const auto &jcp = pd()->jcp_;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
+
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = pd()->jcp_;
     const jit_conv_ker_t jit_ker = (decltype(jit_ker))kernel_->jit_ker();
 
     int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
@@ -904,7 +913,8 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                                 diff_src_w + ij * diff_src_h_stride,
                                 diff_dst_w + oj * diff_dst_h_stride,
                                 wht_w + k_lo * wht_h_stride, nullptr, ocb,
-                                k_len, iwb, reduce_work, load_work, ic_off);
+                                k_len, iwb, reduce_work, load_work, ic_off,
+                                post_ops_binary_rhs_arg_vec.data());
                     }
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;
@@ -935,13 +945,16 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
+    const auto &jcp = pd()->jcp_;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
+
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = pd()->jcp_;
     const jit_conv_ker_t jit_ker = (decltype(jit_ker))kernel_->jit_ker();
 
     int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
@@ -1115,7 +1128,8 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                                 diff_src_w + ij * diff_src_h_stride,
                                 diff_dst_w + oj * diff_dst_h_stride,
                                 wht_w + k_lo * wht_h_stride, nullptr, ocb,
-                                k_len, d_len, reduce_work, load_work, ic_off);
+                                k_len, d_len, reduce_work, load_work, ic_off,
+                                post_ops_binary_rhs_arg_vec.data());
                     }
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;

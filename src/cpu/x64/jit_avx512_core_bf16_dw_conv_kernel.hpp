@@ -74,6 +74,8 @@ private:
 
     reg64_t reg_d_weights = abi_not_param1;
     reg64_t reg_d_bias = iter_kh;
+    int base_post_ops_data_offset = 0;
+    constexpr static int reg64_size = 8;
 
     Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
     Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);
@@ -194,6 +196,8 @@ private:
 
     reg64_t reg_d_weights = r15;
     reg64_t reg_d_bias = iter_kh;
+    int base_post_ops_data_offset = 0;
+    constexpr static int reg64_size = 8;
 
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);
     Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(27);
