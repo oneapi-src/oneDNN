@@ -69,46 +69,46 @@ private:
     bool last_oc_block_flag_ = false;
 
     /* data regs */
-    const Xbyak::Reg64 &inp_ptr = r15;
-    const Xbyak::Reg64 &wei_ptr = r14;
-    const Xbyak::Reg64 &out_ptr = r13;
-    const Xbyak::Reg64 &wsp_ptr = r12;
+    const Xbyak::Reg64 inp_ptr = r15;
+    const Xbyak::Reg64 wei_ptr = r14;
+    const Xbyak::Reg64 out_ptr = r13;
+    const Xbyak::Reg64 wsp_ptr = r12;
 
-    const Xbyak::Reg64 &reg_bias = r11;
-    const Xbyak::Reg64 &reg_ptr_scales = r10;
-    const Xbyak::Reg64 &reg_ptr_sum_scale = r9;
-    const Xbyak::Reg64 &reg_ptr_sum_zp = rax;
-    const Xbyak::Reg64 &aux_reg_saturation = reg_ptr_sum_scale;
-    const Xbyak::Reg64 &reg_last_h = r8;
+    const Xbyak::Reg64 reg_bias = r11;
+    const Xbyak::Reg64 reg_ptr_scales = r10;
+    const Xbyak::Reg64 reg_ptr_sum_scale = r9;
+    const Xbyak::Reg64 reg_ptr_sum_zp = rax;
+    const Xbyak::Reg64 aux_reg_saturation = reg_ptr_sum_scale;
+    const Xbyak::Reg64 reg_last_h = r8;
 
-    const Xbyak::Reg64 &stride_seq = rbx;
-    const Xbyak::Reg64 &stride_nhwc = rsi;
-    const Xbyak::Reg64 &reg_tmp = abi_not_param1;
+    const Xbyak::Reg64 stride_seq = rbx;
+    const Xbyak::Reg64 stride_nhwc = rsi;
+    const Xbyak::Reg64 reg_tmp = abi_not_param1;
 
-    const Xbyak::Reg64 &reg_oc_blocks = rdx;
-    const Xbyak::Reg64 &reg_is_osb = rsi;
-    const Xbyak::Reg64 &reg_postop = abi_not_param1;
-    const Xbyak::Reg64 &reg_scratch = reg_bias;
-    const Xbyak::Reg64 &reg_tilebuff = reg_ptr_scales;
+    const Xbyak::Reg64 reg_oc_blocks = rdx;
+    const Xbyak::Reg64 reg_is_osb = rsi;
+    const Xbyak::Reg64 reg_postop = abi_not_param1;
+    const Xbyak::Reg64 reg_scratch = reg_bias;
+    const Xbyak::Reg64 reg_tilebuff = reg_ptr_scales;
     /* zero-point */
-    const Xbyak::Reg64 &reg_zp_compensation = reg_last_h;
-    const Xbyak::Reg64 &reg_src_zero_point = reg_oc_blocks;
-    const Xbyak::Reg64 &reg_dst_zero_point = rax;
+    const Xbyak::Reg64 reg_zp_compensation = reg_last_h;
+    const Xbyak::Reg64 reg_src_zero_point = reg_oc_blocks;
+    const Xbyak::Reg64 reg_dst_zero_point = rax;
 
-    const Xbyak::Zmm &zmm_bias = zmm31;
-    const Xbyak::Zmm &zmm_saturation = zmm_bias;
-    const Xbyak::Zmm &zmm_zero = zmm30;
-    const Xbyak::Zmm &zmm_prev_dst = zmm29;
-    const Xbyak::Zmm &zmm_sum_zp = zmm26;
+    const Xbyak::Zmm zmm_bias = zmm31;
+    const Xbyak::Zmm zmm_saturation = zmm_bias;
+    const Xbyak::Zmm zmm_zero = zmm30;
+    const Xbyak::Zmm zmm_prev_dst = zmm29;
+    const Xbyak::Zmm zmm_sum_zp = zmm26;
     /* zero-point */
-    const Xbyak::Zmm &zmm_zp = zmm29;
-    const Xbyak::Zmm &zmm_src_zp = zmm28;
-    const Xbyak::Zmm &zmm_dst_zp = zmm27;
+    const Xbyak::Zmm zmm_zp = zmm29;
+    const Xbyak::Zmm zmm_src_zp = zmm28;
+    const Xbyak::Zmm zmm_dst_zp = zmm27;
 
-    const Xbyak::Reg64 &bin_injector_helper_reg_1 = r14;
-    const Xbyak::Reg64 &bin_injector_helper_reg_2 = r15;
+    const Xbyak::Reg64 bin_injector_helper_reg_1 = r14;
+    const Xbyak::Reg64 bin_injector_helper_reg_2 = r15;
 
-    const Xbyak::Opmask &ktail_mask = k2;
+    const Xbyak::Opmask ktail_mask = k2;
 
     bool is_bf16() const;
 
@@ -126,7 +126,7 @@ private:
 
     void prepare_output();
 
-    void cvt2ps(data_type_t type_in, const Xbyak::Zmm &ymm_in,
+    void cvt2ps(data_type_t type_in, const Xbyak::Zmm ymm_in,
             const Xbyak::Operand &op, bool mask_flag);
     Xbyak::Zmm zmm_out(const int idx) {
         const int upper_limit
@@ -136,29 +136,29 @@ private:
         return Xbyak::Zmm(idx);
     }
     Xbyak::Zmm zmm_mask(
-            const Xbyak::Zmm &zmm_in, bool mask_flag, bool store = false);
+            const Xbyak::Zmm zmm_in, bool mask_flag, bool store = false);
     Xbyak::Ymm ymm_mask(
-            const Xbyak::Ymm &ymm_in, bool mask_flag, bool store = false);
+            const Xbyak::Ymm ymm_in, bool mask_flag, bool store = false);
 
     void update_buffer_pointers();
     void interleave_store();
-    void apply_sum(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
+    void apply_sum(const Xbyak::Zmm zmm_out, const float *p_sum_scale,
             const int32_t *p_sum_zp, const Xbyak::Address &addr,
             const bool mask_flag);
-    void apply_postops(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
+    void apply_postops(const Xbyak::Zmm zmm_out, const float *p_sum_scale,
             const int32_t *p_sum_zp, const Xbyak::Address &addr,
             const size_t off, const bool mask_flag);
     static bool is_fast_postops(const jit_conv_conf_t &jcp);
     void store_output_vectors_int8(int ocb, int osb);
     void store_output_vector_int8(
-            const Xbyak::Zmm &zmm_out, int ocb, int h, int w);
+            const Xbyak::Zmm zmm_out, int ocb, int h, int w);
     inline void store_output_ymm_bf16(
             const int idx, const Xbyak::Address &addr, const bool mask_flag);
     void store_output_vectors_bf16(int ocb, int osb);
     void store_output_vector_bf16(
-            const Xbyak::Zmm &zmm_out, int ocb, int h, int w);
+            const Xbyak::Zmm zmm_out, int ocb, int h, int w);
     void store_output_vectors(int ocb, int osb);
-    void store_output_vector(const Xbyak::Zmm &zmm_out, int ocb, int h, int w);
+    void store_output_vector(const Xbyak::Zmm zmm_out, int ocb, int h, int w);
     void store_output(bool do_store, bool is_tail);
     void icb_loop(bool do_store);
     void osb_loop(int nb_os = 1);

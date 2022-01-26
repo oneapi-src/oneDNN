@@ -207,16 +207,16 @@ private:
 
     void reduce();
 
-    const Xbyak::Reg64 &reg_param = abi_param1;
-    const Xbyak::Reg64 &reg_src = rdx;
-    const Xbyak::Reg64 &reg_dst = rax;
-    const Xbyak::Reg64 &reg_mean = rbx;
-    const Xbyak::Reg64 &reg_var = rbp;
-    const Xbyak::Reg64 &reg_scale = r8;
-    const Xbyak::Reg64 &reg_block_end = r9;
-    const Xbyak::Reg64 &reg_eps = r10;
-    const Xbyak::Reg64 &reg_tmp = r11;
-    const Xbyak::Reg64 &reg_shift = r12;
+    const Xbyak::Reg64 reg_param = abi_param1;
+    const Xbyak::Reg64 reg_src = rdx;
+    const Xbyak::Reg64 reg_dst = rax;
+    const Xbyak::Reg64 reg_mean = rbx;
+    const Xbyak::Reg64 reg_var = rbp;
+    const Xbyak::Reg64 reg_scale = r8;
+    const Xbyak::Reg64 reg_block_end = r9;
+    const Xbyak::Reg64 reg_eps = r10;
+    const Xbyak::Reg64 reg_tmp = r11;
+    const Xbyak::Reg64 reg_shift = r12;
 
     Vmm vmm_ones = Vmm(8);
     Vmm vmm_eps = Vmm(9);
@@ -467,14 +467,14 @@ private:
 
     void generate() override;
 
-    const Xbyak::Reg64 &reg_param = abi_param1;
-    const Xbyak::Reg64 &reg_src = rdx;
-    const Xbyak::Reg64 &reg_diff_dst = rax;
-    const Xbyak::Reg64 &reg_block_end = rbx;
-    const Xbyak::Reg64 &reg_mean = r11;
-    const Xbyak::Reg64 &reg_inv_sqrtvar = r10;
-    const Xbyak::Reg64 &reg_diff_gamma = r9;
-    const Xbyak::Reg64 &reg_diff_beta = r8;
+    const Xbyak::Reg64 reg_param = abi_param1;
+    const Xbyak::Reg64 reg_src = rdx;
+    const Xbyak::Reg64 reg_diff_dst = rax;
+    const Xbyak::Reg64 reg_block_end = rbx;
+    const Xbyak::Reg64 reg_mean = r11;
+    const Xbyak::Reg64 reg_inv_sqrtvar = r10;
+    const Xbyak::Reg64 reg_diff_gamma = r9;
+    const Xbyak::Reg64 reg_diff_beta = r8;
 
     Xbyak::Xmm xmm_tmp = Xbyak::Xmm(9);
 
@@ -627,17 +627,17 @@ private:
 
     void reduce(Vmm vmm_vec);
 
-    const Xbyak::Reg64 &reg_param = abi_param1;
-    const Xbyak::Reg64 &reg_src = rdx;
-    const Xbyak::Reg64 &reg_diff_src = rax;
-    const Xbyak::Reg64 &reg_diff_dst = rbx;
-    const Xbyak::Reg64 &reg_block_end = rbp;
-    const Xbyak::Reg64 &reg_mean = r13;
-    const Xbyak::Reg64 &reg_inv_sqrtvar = r12;
-    const Xbyak::Reg64 &reg_gamma = r11;
-    const Xbyak::Reg64 &reg_tmp = r10;
-    const Xbyak::Reg64 &reg_dd_gamma = r9;
-    const Xbyak::Reg64 &reg_dd_gamma_x = r8;
+    const Xbyak::Reg64 reg_param = abi_param1;
+    const Xbyak::Reg64 reg_src = rdx;
+    const Xbyak::Reg64 reg_diff_src = rax;
+    const Xbyak::Reg64 reg_diff_dst = rbx;
+    const Xbyak::Reg64 reg_block_end = rbp;
+    const Xbyak::Reg64 reg_mean = r13;
+    const Xbyak::Reg64 reg_inv_sqrtvar = r12;
+    const Xbyak::Reg64 reg_gamma = r11;
+    const Xbyak::Reg64 reg_tmp = r10;
+    const Xbyak::Reg64 reg_dd_gamma = r9;
+    const Xbyak::Reg64 reg_dd_gamma_x = r8;
 
     Xbyak::Xmm xmm_tmp = Xbyak::Xmm(7);
 

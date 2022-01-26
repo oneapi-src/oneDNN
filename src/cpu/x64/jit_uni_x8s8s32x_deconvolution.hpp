@@ -69,37 +69,37 @@ private:
     };
 
     /* data regs */
-    const reg64_t &reg_src_ = r8;
-    const reg64_t &reg_filt_ = r9;
-    const reg64_t &reg_dst_ = r10;
-    const reg64_t &param1_ = abi_param1;
-    const reg64_t &reg_kh_ = abi_not_param1;
-    const reg64_t &reg_ki_ = r14;
+    const reg64_t reg_src_ = r8;
+    const reg64_t reg_filt_ = r9;
+    const reg64_t reg_dst_ = r10;
+    const reg64_t param1_ = abi_param1;
+    const reg64_t reg_kh_ = abi_not_param1;
+    const reg64_t reg_ki_ = r14;
 
-    const reg64_t &reg_nur_w_ = rbx;
-    const reg64_t &reg_bias_ = rdx;
-    const reg64_t &reg_icb_ = reg_bias_;
-    const reg64_t &reg_ptr_scales_ = rax;
-    const reg64_t &reg_ptr_saturation_ubound_ = rax;
-    const reg64_t &reg_oc_blocks_ = rsi;
+    const reg64_t reg_nur_w_ = rbx;
+    const reg64_t reg_bias_ = rdx;
+    const reg64_t reg_icb_ = reg_bias_;
+    const reg64_t reg_ptr_scales_ = rax;
+    const reg64_t reg_ptr_saturation_ubound_ = rax;
+    const reg64_t reg_oc_blocks_ = rsi;
 
-    const reg64_t &aux_reg_src_ = r11;
-    const reg64_t &aux_reg_filt_ = r12;
+    const reg64_t aux_reg_src_ = r11;
+    const reg64_t aux_reg_filt_ = r12;
 
-    const reg64_t &aux_reg_src_d_ = r13;
-    const reg64_t &aux_reg_filt_d_ = r15;
+    const reg64_t aux_reg_src_d_ = r13;
+    const reg64_t aux_reg_filt_d_ = r15;
 
-    const reg64_t &reg_compensation_ = r14;
-    const reg64_t &reg_scratch_ = r14;
-    const reg64_t &reg_ptr_sum_scale_ = r11;
-    const reg64_t &reg_ptr_sum_zp_ = r15;
-    const reg64_t &reg_bias_alpha_ = abi_not_param1;
-    const reg64_t &reg_overflow_ = rax;
-    const reg64_t &reg_comp_strides_ = reg_overflow_;
-    const reg64_t &reg_ker_long_offt_ = r15;
-    const reg64_t &reg_zp_dst_ = r15;
-    const reg64_t &reg_zp_src_ = r15;
-    const reg64_t &reg_zp_compensation_ = r11;
+    const reg64_t reg_compensation_ = r14;
+    const reg64_t reg_scratch_ = r14;
+    const reg64_t reg_ptr_sum_scale_ = r11;
+    const reg64_t reg_ptr_sum_zp_ = r15;
+    const reg64_t reg_bias_alpha_ = abi_not_param1;
+    const reg64_t reg_overflow_ = rax;
+    const reg64_t reg_comp_strides_ = reg_overflow_;
+    const reg64_t reg_ker_long_offt_ = r15;
+    const reg64_t reg_zp_dst_ = r15;
+    const reg64_t reg_zp_src_ = r15;
+    const reg64_t reg_zp_compensation_ = r11;
     const Xbyak::Address zp_src_pad_comp_addr_ = ptr[rsp];
     const Xbyak::Address reg_scratch_preserved_ = ptr[rsp + 8];
     static constexpr int reserved_stack_size_ = 16;
@@ -108,15 +108,15 @@ private:
     const Vmm vmm_one_ = Vmm(2);
     /* used during write-out section of store_output */
     const Vmm vmm_zero_ = Vmm(0);
-    const Vmm &vmm_saturation_ = vmm_zero_;
-    const Vmm &vmm_wei_ = vmm_zero_;
-    const Vmm &vmm_scale_ = vmm_zero_;
+    const Vmm vmm_saturation_ = vmm_zero_;
+    const Vmm vmm_wei_ = vmm_zero_;
+    const Vmm vmm_scale_ = vmm_zero_;
     /* signed input */
     const Vmm vmm_shift_ = Vmm(1);
     const Vmm vmm_comp_ = Vmm(1);
-    const Vmm &vmm_bias_ = vmm_zero_;
-    const Vmm &vmm_prev_dst_ = vmm_zero_;
-    const Vmm &vmm_sum_zp_ = vmm_tmp_;
+    const Vmm vmm_bias_ = vmm_zero_;
+    const Vmm vmm_prev_dst_ = vmm_zero_;
+    const Vmm vmm_sum_zp_ = vmm_tmp_;
 
     Vmm vmm_out(int i_ur, int i_oc) const;
     Vmm vmm_inp(int i_ic, int nb_x_blocking) const;
@@ -134,7 +134,7 @@ private:
     void store_output(int ur_w, bool last_oc_block);
     void compute_ker(int ur_w, int l_overflow, int r_overflow,
             ker_block_t last_ic_block_flag, bool h_padded = false);
-    void compute(const Vmm &vreg_acc, const Vmm &vreg_wei, const Vmm &vreg_src);
+    void compute(const Vmm vreg_acc, const Vmm vreg_wei, const Vmm vreg_src);
     std::function<Vmm()> prepare_round_robin_vmm_inp_generator(int ur_w) const
             noexcept;
     void apply_zp_src_pad_str_comp(
@@ -144,7 +144,7 @@ private:
     void kh_loop(int ur_w, int pad_l, int pad_r, ker_block_t last_ker_block);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool last_block);
     void generate() override;
-    void cvt2ps(data_type_t type_in, const Vmm &vmm_in, const Reg64 &reg,
+    void cvt2ps(data_type_t type_in, const Vmm vmm_in, const Reg64 reg,
             int offset, int load_size);
 };
 

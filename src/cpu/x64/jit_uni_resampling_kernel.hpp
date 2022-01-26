@@ -122,21 +122,21 @@ private:
     const Zmm vmm_bf16_emu_3_ = Zmm(22);
     const Zmm vmm_bf16_emu_4_ = Zmm(23);
 
-    const Opmask &k_tail_mask_ = k3;
-    const Opmask &k_full_mask_ = k4;
+    const Opmask k_tail_mask_ = k3;
+    const Opmask k_full_mask_ = k4;
 
-    const Reg64 &reg_tmp_ = rax;
-    const Reg64 &reg_dst_ = rbx;
-    const Reg64 &reg_work_ = rdx;
-    const Reg64 &reg_indices_ = rsi;
-    const Reg64 &reg_c_offset = rbp;
-    const Reg64 &reg_param = abi_param1;
-    const Reg64 &reg_weights = abi_not_param1;
-    const Reg64 &reg_src_ = r8;
-    const Reg64 &reg_aux_src_0_ = r9;
-    const Reg64 &reg_aux_src_1_ = r10;
-    const Reg64 &reg_aux_src_2_ = r11;
-    const Reg64 &reg_tmp1_ = r15;
+    const Reg64 reg_tmp_ = rax;
+    const Reg64 reg_dst_ = rbx;
+    const Reg64 reg_work_ = rdx;
+    const Reg64 reg_indices_ = rsi;
+    const Reg64 reg_c_offset = rbp;
+    const Reg64 reg_param = abi_param1;
+    const Reg64 reg_weights = abi_not_param1;
+    const Reg64 reg_src_ = r8;
+    const Reg64 reg_aux_src_0_ = r9;
+    const Reg64 reg_aux_src_1_ = r10;
+    const Reg64 reg_aux_src_2_ = r11;
+    const Reg64 reg_tmp1_ = r15;
 
     // Registers which are used only for linear algorithm
     // and for channel oriented formats.
@@ -163,14 +163,14 @@ private:
     const Vmm src_bbl_ = Vmm(vmm_idx(6));
     const Vmm src_bbr_ = Vmm(vmm_idx(7));
 
-    const Reg64 &reg_src_ftl_ = reg_src_;
-    const Reg64 &reg_src_ftr_ = reg_aux_src_0_;
-    const Reg64 &reg_src_fbl_ = reg_aux_src_1_;
-    const Reg64 &reg_src_fbr_ = reg_aux_src_2_;
-    const Reg64 &reg_src_btl_ = r12;
-    const Reg64 &reg_src_btr_ = r13;
-    const Reg64 &reg_src_bbl_ = r14;
-    const Reg64 &reg_src_bbr_ = r15;
+    const Reg64 reg_src_ftl_ = reg_src_;
+    const Reg64 reg_src_ftr_ = reg_aux_src_0_;
+    const Reg64 reg_src_fbl_ = reg_aux_src_1_;
+    const Reg64 reg_src_fbr_ = reg_aux_src_2_;
+    const Reg64 reg_src_btl_ = r12;
+    const Reg64 reg_src_btr_ = r13;
+    const Reg64 reg_src_bbl_ = r14;
+    const Reg64 reg_src_bbr_ = r15;
 
     static constexpr bool is_zmm_ = std::is_same<Vmm, Xbyak::Zmm>::value;
     static constexpr bool is_ymm_ = std::is_same<Vmm, Xbyak::Ymm>::value;

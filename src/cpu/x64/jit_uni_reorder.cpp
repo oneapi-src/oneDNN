@@ -251,7 +251,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         using namespace data_type;
 
         const auto cvt2ps
-                = [=](const Ymm &dst, const Operand &src, data_type_t idt) {
+                = [=](const Ymm dst, const Operand &src, data_type_t idt) {
                       switch (idt) {
                           case f32:
                               if (src.isMEM() || src.getIdx() != dst.getIdx())
@@ -274,7 +274,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                       }
                   };
 
-        const auto cvt2odt = [=](const Ymm &ymm, data_type_t odt,
+        const auto cvt2odt = [=](const Ymm ymm, data_type_t odt,
                                      data_type_t idt) {
             const Xmm xmm = Xmm(ymm.getIdx());
             switch (odt) {
@@ -330,7 +330,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
         };
 
-        auto load = [=](const Ymm &ymm, const Address &addr, int size) {
+        auto load = [=](const Ymm ymm, const Address &addr, int size) {
             const Xmm xmm = Xmm(ymm.getIdx());
             switch (size) {
                 case 32: vmovups(ymm, addr); break;
@@ -340,7 +340,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
         };
 
-        auto store = [=](const Address &addr, const Ymm &ymm, int size) {
+        auto store = [=](const Address &addr, const Ymm ymm, int size) {
             const Xmm xmm = Xmm(ymm.getIdx());
             switch (size) {
                 case 32: vmovups(addr, ymm); break;
@@ -534,7 +534,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         using namespace data_type;
 
         const auto cvt2ps
-                = [=](const Xmm &dst, const Operand &src, data_type_t idt) {
+                = [=](const Xmm dst, const Operand &src, data_type_t idt) {
                       Xmm dst_pure = Xmm(dst.getIdx());
                       switch (idt) {
                           case f32:
@@ -561,7 +561,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                       }
                   };
 
-        const auto cvt2odt = [=](const Xmm &xmm, data_type_t odt,
+        const auto cvt2odt = [=](const Xmm xmm, data_type_t odt,
                                      data_type_t idt) {
             switch (odt) {
                 case bf16:
@@ -615,7 +615,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
         };
 
-        auto load = [=](const Xmm &xmm, const Address &addr, int size) {
+        auto load = [=](const Xmm xmm, const Address &addr, int size) {
             switch (size) {
                 case 16: uni_vmovups(xmm, addr); break;
                 case 8: uni_vmovsd(xmm, addr); break;
@@ -627,7 +627,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         };
 
         auto load_bytes
-                = [=](const Xmm &xmm, const Address &addr, int size, int imm) {
+                = [=](const Xmm xmm, const Address &addr, int size, int imm) {
                       switch (size) {
                           case 4: uni_vpinsrd(xmm, xmm, addr, imm); break;
                           case 2: uni_vpinsrw(xmm, xmm, addr, imm); break;
@@ -636,7 +636,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                       }
                   };
 
-        auto store = [=](const Address &addr, const Xmm &xmm, int size) {
+        auto store = [=](const Address &addr, const Xmm xmm, int size) {
             switch (size) {
                 case 16: uni_vmovups(addr, xmm); break;
                 case 8: uni_vmovsd(addr, xmm); break;
@@ -924,7 +924,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             };
             const bool mayiuse_avx2 = mayiuse(avx2);
             const auto uni_vpaddd_wrapper
-                    = [&](const Xmm &xmm, const Address &addr) {
+                    = [&](const Xmm xmm, const Address &addr) {
                           if (mayiuse_avx2)
                               vpaddd(xmm, xmm, addr);
                           else {
@@ -1115,7 +1115,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         L(l);
     }
 
-    void check_if_this_is_last_chunk(const Reg64 &reg_curr_chunk, int node_id) {
+    void check_if_this_is_last_chunk(const Reg64 reg_curr_chunk, int node_id) {
         // Chunks are backwards numered i.e:
         // [0] -> [node_size]
         // [1] -> [node_size - 1]
@@ -1194,7 +1194,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             add(reg_off_comp_, padded_area * c_step * sizeof(int32_t));
     }
 
-    void loop_end(Label &l, const Reg64 &reg_cnt, int len, int i_step,
+    void loop_end(Label &l, const Reg64 reg_cnt, int len, int i_step,
             int o_step, int s_step, int c_step, const int curr_node_id) {
         add(reg_off_in_, i_step * itype_sz_);
         add(reg_off_out_, o_step * otype_sz_);
@@ -1265,7 +1265,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             const int parent_node_id = prb_.nodes[curr_node_id].parent_node_id;
             const int tail_size = prb_.tail(curr_node_id) / unroll_factor;
             const int node_size = prb_.n(curr_node_id) / unroll_factor;
-            const Reg64 &reg_loop_cnt = reg_cnt[jit_loop - 1];
+            const Reg64 reg_loop_cnt = reg_cnt[jit_loop - 1];
             const bool curr_node_has_tail = prb_.tail(curr_node_id) != 0;
             Label loop, if_no_tail, if_end;
 
@@ -1447,35 +1447,35 @@ private:
     int otype_sz_;
     int stype_sz_;
 
-    const Reg64 &reg_ptr_in_ = rsi;
-    const Reg64 &reg_ptr_out_ = rdx;
-    const Reg64 &reg_ptr_scale_ = abi_not_param1;
-    const Reg64 &reg_ptr_comp_ = rbx;
+    const Reg64 reg_ptr_in_ = rsi;
+    const Reg64 reg_ptr_out_ = rdx;
+    const Reg64 reg_ptr_scale_ = abi_not_param1;
+    const Reg64 reg_ptr_comp_ = rbx;
     const Reg32 &reg_scale_adjust_ = ebp;
 
-    const Reg64 &reg_off_in_ = r8;
-    const Reg64 &reg_off_out_ = r9;
-    const Reg64 &reg_off_scale_ = r10;
-    const Reg64 &reg_off_comp_ = r11;
+    const Reg64 reg_off_in_ = r8;
+    const Reg64 reg_off_out_ = r9;
+    const Reg64 reg_off_scale_ = r10;
+    const Reg64 reg_off_comp_ = r11;
 
-    const Reg64 &reg_tmp_ = rax;
+    const Reg64 reg_tmp_ = rax;
 
-    const Xmm &xmm_scale_ = xmm15;
-    const Xmm &xmm_zero_ = xmm14;
-    const Xmm &xmm_4x127b_ = xmm13; // TODO: unite with ymm_zero_
-    const Ymm &ymm_zero_ = ymm14;
-    const Ymm &ymm_8x127b_ = ymm13;
-    const Xmm &xmm_tmp_ = xmm12;
-    const Xmm &xmm_src_zp_ = xmm9;
-    const Xmm &xmm_dst_zp_ = xmm11;
-    const Xmm &xmm_saturation_ubound_ = xmm12;
-    const Ymm &ymm_saturation_ubound_ = ymm12;
+    const Xmm xmm_scale_ = xmm15;
+    const Xmm xmm_zero_ = xmm14;
+    const Xmm xmm_4x127b_ = xmm13; // TODO: unite with ymm_zero_
+    const Ymm ymm_zero_ = ymm14;
+    const Ymm ymm_8x127b_ = ymm13;
+    const Xmm xmm_tmp_ = xmm12;
+    const Xmm xmm_src_zp_ = xmm9;
+    const Xmm xmm_dst_zp_ = xmm11;
+    const Xmm xmm_saturation_ubound_ = xmm12;
+    const Ymm ymm_saturation_ubound_ = ymm12;
 
     /* bf16 support on SKX */
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
     const Zmm bf16_emu_reserv_1_ = Zmm(16);
     const Zmm bf16_emu_reserv_2_ = Zmm(17);
-    const Reg64 &bf16_emu_scratch_ = reg_tmp_;
+    const Reg64 bf16_emu_scratch_ = reg_tmp_;
     const Zmm bf16_emu_reserv_3_ = Zmm(18);
     const Zmm bf16_emu_reserv_4_ = Zmm(19);
 };
@@ -1594,7 +1594,7 @@ struct jit_single_blk_kernel_t : public jit_generator {
         postamble();
     }
 
-    void gen_loadu(const Ymm &ymm, const Address &addr, int size) {
+    void gen_loadu(const Ymm ymm, const Address &addr, int size) {
         Xmm xmm(ymm.getIdx());
         switch (size) {
             case 32: vmovups(ymm, addr); break;
@@ -1603,7 +1603,7 @@ struct jit_single_blk_kernel_t : public jit_generator {
         }
     }
 
-    void gen_storeu(const Address &addr, const Ymm &ymm, int size) {
+    void gen_storeu(const Address &addr, const Ymm ymm, int size) {
         Xmm xmm(ymm.getIdx());
         switch (size) {
             case 32: vmovups(addr, ymm); break;
@@ -1613,7 +1613,7 @@ struct jit_single_blk_kernel_t : public jit_generator {
     }
 
     void gen_maskloadu(
-            const Ymm &ymm, const Address &addr, const Ymm mask, int size) {
+            const Ymm ymm, const Address &addr, const Ymm mask, int size) {
         Xmm xmm(ymm.getIdx());
         Xmm mask128(mask.getIdx());
         switch (size) {
@@ -1624,7 +1624,7 @@ struct jit_single_blk_kernel_t : public jit_generator {
     }
 
     void gen_maskstoreu(
-            const Address &addr, const Ymm &ymm, const Ymm mask, int size) {
+            const Address &addr, const Ymm ymm, const Ymm mask, int size) {
         Xmm xmm(ymm.getIdx());
         Xmm mask128(mask.getIdx());
         switch (size) {

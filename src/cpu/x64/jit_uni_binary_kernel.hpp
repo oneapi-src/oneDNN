@@ -81,26 +81,26 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const bool is_avx512_not_mic
             = is_avx512_core || (is_avx512_common && !conf_.is_i8);
 
-    const Reg64 &reg_param_ = abi_param1;
-    const Reg64 &reg_src0_ = r8;
-    const Reg64 &reg_src1_ = r9;
-    const Reg64 &reg_dst_ = r10;
-    const Reg64 &reg_offt_src0_ = r11;
-    const Reg64 &reg_outer_dims_range_ = r12;
-    const Reg64 &reg_offt_src1_ = rax;
-    const Reg64 &reg_src1_stride_range_ = r15;
-    const Reg64 &reg_reverse_src1_stride_range_ = rax;
-    const Reg64 &reg_reverse_spat_offt_ = r13;
-    const Reg64 &reg_tmp_ = r14;
-    const Reg64 &reg_tmp1_ = abi_not_param1;
-    const Reg64 &reg_elt_inj_table_ = r15;
-    const Reg64 &reg_off_rhs_postops_ = rdx;
-    const Reg64 &reg_scales_src0_ = rbx;
-    const Reg64 &reg_scales_src1_ = rbp;
-    const Reg64 &reg_offt_dst_ = rdx;
-    const Opmask &tail_opmask_ = k2;
-    const Opmask &cmp_mask = k3;
-    const Opmask &full_mask_ = k4;
+    const Reg64 reg_param_ = abi_param1;
+    const Reg64 reg_src0_ = r8;
+    const Reg64 reg_src1_ = r9;
+    const Reg64 reg_dst_ = r10;
+    const Reg64 reg_offt_src0_ = r11;
+    const Reg64 reg_outer_dims_range_ = r12;
+    const Reg64 reg_offt_src1_ = rax;
+    const Reg64 reg_src1_stride_range_ = r15;
+    const Reg64 reg_reverse_src1_stride_range_ = rax;
+    const Reg64 reg_reverse_spat_offt_ = r13;
+    const Reg64 reg_tmp_ = r14;
+    const Reg64 reg_tmp1_ = abi_not_param1;
+    const Reg64 reg_elt_inj_table_ = r15;
+    const Reg64 reg_off_rhs_postops_ = rdx;
+    const Reg64 reg_scales_src0_ = rbx;
+    const Reg64 reg_scales_src1_ = rbp;
+    const Reg64 reg_offt_dst_ = rdx;
+    const Opmask tail_opmask_ = k2;
+    const Opmask cmp_mask = k3;
+    const Opmask full_mask_ = k4;
     const Vmm vmm_tail_vmask_ = Vmm(0);
     const Vmm vreg_sum_scale_ = Vmm(is_avx512 ? 17 : 9);
     const Xmm xreg_sum_scale_ = Xmm(9);
@@ -135,7 +135,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     io::jit_io_multi_dt_helper_t<Vmm> io_;
     std::unique_ptr<injector::jit_uni_postops_injector_t<inject_isa>>
             postops_injector_;
-    const Opmask &elt_inj_opmask_ = k1;
+    const Opmask elt_inj_opmask_ = k1;
 
     void init();
     void init_post_ops_injector();
