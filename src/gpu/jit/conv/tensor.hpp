@@ -1397,12 +1397,13 @@ public:
         ir_assert(has_zero_vstart())
                 << "Can't be reliably determined if the view is a sub-view.";
         for (int i = 0; i < ntdims(); i++) {
-            if (!has_tmask(i)) continue;
             auto &tdim = tdims_[i];
-            for (int j = 0; j < tdim.nvargs(); j++) {
-                if (tdim.vidx(j) == vidx) return true;
-                if (tdim.expr().is_equal(vvars_[vidx])) {
-                    if (vdims_[vidx] != tlayout_.dim(i)) return true;
+            if (tdim.expr().is_equal(vvars_[vidx])) {
+                if (vdims_[vidx] != tlayout_.dim(i)) return true;
+            }
+            if (has_tmask(i)) {
+                for (int j = 0; j < tdim.nvargs(); j++) {
+                    if (tdim.vidx(j) == vidx) return true;
                 }
             }
         }
@@ -1414,29 +1415,26 @@ public:
     // 1) combined tensor masks for the given indices
     // 2) Bounds-based masks for those view dimensions that are used directly
     //    in the tensor
-    //    - This is enabled only when `check_bounds` is true.
     //    - Example: 32a layout when 'a' dimension is A < 32. In general it's
     //      fine to load/store elements with indices in the range [A, 31]
     //      assuming the zero padding invariant. However in some cases we need
     //      to generate the exact bound condition based on the logical indices.
-    expr_t vmask(const std::vector<expr_t> &vargs, bool check_bounds) const {
+    expr_t vmask(const std::vector<expr_t> &vargs) const {
         ir_assert(int(vargs.size()) == nvdims()) << "Incompatible dimensions.";
         ir_assert(has_zero_vstart())
                 << "Can't be reliably determined if the view is a sub-view.";
         auto targs = cvt_vargs_to_targs(vargs);
         auto mask = bool_imm_t::make(true);
         for (int i = 0; i < ntdims(); i++) {
-            if (has_tmask(i)) {
-                auto &tdim = tdims_[i];
-                mask &= tdim.mask(targs[i], vvars_, vargs);
-                continue;
-            }
-            if (!check_bounds) continue;
             for (int j = 0; j < nvdims(); j++) {
                 if (!tdims_[i].expr().is_equal(vvars_[j])) continue;
                 if (vdims_[j] != tlayout_.dim(i)) {
                     mask &= (vargs[j] < vdims_[j]);
                 }
+            }
+            if (has_tmask(i)) {
+                auto &tdim = tdims_[i];
+                mask &= tdim.mask(targs[i], vvars_, vargs);
             }
         }
         return mask;

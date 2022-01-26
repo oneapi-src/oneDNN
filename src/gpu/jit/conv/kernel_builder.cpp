@@ -4731,7 +4731,7 @@ private:
             std::vector<expr_t> vargs;
             for (int i = 0; i < layout.ndims(); i++)
                 vargs.push_back(view.vstart(i) + args[i]);
-            expr_t mask = full_mem_view_.vmask(vargs, /*check_bounds=*/true);
+            expr_t mask = full_mem_view_.vmask(vargs);
             auto off = layout.offset(args, /*ignore_offset=*/true);
             mask_tensor.set_mask(off, mask);
             return;
