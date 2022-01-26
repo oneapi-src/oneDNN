@@ -433,21 +433,21 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         size_t do_normalise;
     };
 
-    const Reg64 &reg_param_ = abi_param1;
-    const Reg64 &reg_tmp_ = abi_not_param1;
-    const Reg64 &reg_N_ = rsi;
-    const Reg64 &reg_S_ = rax;
-    const Reg64 &reg_C_ = rdx;
-    const Reg64 &reg_off_c_ = rbx;
-    const Reg64 &reg_blk_has_tail_ = rbp;
+    const Reg64 reg_param_ = abi_param1;
+    const Reg64 reg_tmp_ = abi_not_param1;
+    const Reg64 reg_N_ = rsi;
+    const Reg64 reg_S_ = rax;
+    const Reg64 reg_C_ = rdx;
+    const Reg64 reg_off_c_ = rbx;
+    const Reg64 reg_blk_has_tail_ = rbp;
 
-    const Reg64 &reg_off_dat_ = r8;
-    const Reg64 &reg_off_dat_save_ = r9;
-    const Reg64 &reg_ptr_mean_ = r10;
-    const Reg64 &reg_ptr_var_ = r11;
-    const Reg64 &reg_ptr_src_ = r12;
-    const Reg64 &reg_do_normalise_ = r13;
-    const Reg64 &reg_ptr_stat_ = r14;
+    const Reg64 reg_off_dat_ = r8;
+    const Reg64 reg_off_dat_save_ = r9;
+    const Reg64 reg_ptr_mean_ = r10;
+    const Reg64 reg_ptr_var_ = r11;
+    const Reg64 reg_ptr_src_ = r12;
+    const Reg64 reg_do_normalise_ = r13;
+    const Reg64 reg_ptr_stat_ = r14;
 
     const Vmm v_ = Vmm(0);
     const Vmm vtmp_ = Vmm(1);
@@ -466,7 +466,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
                     && number_of_vmms_to_unrolling_variables_ != 0,
             "Number of register to unrolling must to be divisible by 2.");
 
-    const Opmask &ktail_mask_ = k2;
+    const Opmask ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
     const jit_memory_tag_kind_t tag_kind_;
@@ -788,24 +788,24 @@ struct jit_bnorm_fwd_t : public jit_generator {
         size_t blk_has_tail;
     };
 
-    const Reg64 &reg_param_ = abi_param1;
-    const Reg64 &reg_tmp_ = abi_not_param1;
-    const Reg64 &reg_N_ = rsi;
-    const Reg64 &reg_S_ = rax;
-    const Reg64 &reg_C_ = rdx;
-    const Reg64 &reg_off_c_ = rbx;
-    const Reg64 &reg_blk_has_tail_ = rbp;
+    const Reg64 reg_param_ = abi_param1;
+    const Reg64 reg_tmp_ = abi_not_param1;
+    const Reg64 reg_N_ = rsi;
+    const Reg64 reg_S_ = rax;
+    const Reg64 reg_C_ = rdx;
+    const Reg64 reg_off_c_ = rbx;
+    const Reg64 reg_blk_has_tail_ = rbp;
 
-    const Reg64 &reg_off_dat_ = r8;
-    const Reg64 &reg_off_dat_save_ = r9;
-    const Reg64 &reg_ptr_ws_ = r10;
-    const Reg64 &reg_ptr_scale_ = r11;
-    const Reg64 &reg_ptr_shift_ = reg_N_;
-    const Reg64 &reg_ptr_var_ = r12;
-    const Reg64 &reg_ptr_mean_ = r13;
-    const Reg64 &reg_ptr_dst_ = r14;
-    const Reg64 &reg_ptr_src_ = r15;
-    const Reg64 &reg_alpha_ = reg_ptr_ws_;
+    const Reg64 reg_off_dat_ = r8;
+    const Reg64 reg_off_dat_save_ = r9;
+    const Reg64 reg_ptr_ws_ = r10;
+    const Reg64 reg_ptr_scale_ = r11;
+    const Reg64 reg_ptr_shift_ = reg_N_;
+    const Reg64 reg_ptr_var_ = r12;
+    const Reg64 reg_ptr_mean_ = r13;
+    const Reg64 reg_ptr_dst_ = r14;
+    const Reg64 reg_ptr_src_ = r15;
+    const Reg64 reg_alpha_ = reg_ptr_ws_;
 
     const Vmm vmask = Vmm(0); // required for avx2 and sse41 ReLU computation
     const Vmm vone_ = Vmm(1);
@@ -822,8 +822,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
     const Vmm valpha = Vmm(12);
     const Vmm vstore_mask_ = vtmp_;
 
-    const Opmask &kstore_mask_ = k1;
-    const Opmask &ktail_mask_ = k2;
+    const Opmask kstore_mask_ = k1;
+    const Opmask ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
     const jit_memory_tag_kind_t tag_kind_;
@@ -1079,21 +1079,21 @@ struct jit_bnorm_bwd_t : public jit_generator {
         size_t blk_has_tail;
     };
 
-    const Reg64 &reg_param_ = abi_param1;
-    const Reg64 &reg_tmp_ = abi_not_param1;
-    const Reg64 &reg_N_ = rsi;
-    const Reg64 &reg_S_ = rax;
-    const Reg64 &reg_C_ = rdx;
-    const Reg64 &reg_off_c_ = rbx;
-    const Reg64 &reg_blk_has_tail_ = rbp;
+    const Reg64 reg_param_ = abi_param1;
+    const Reg64 reg_tmp_ = abi_not_param1;
+    const Reg64 reg_N_ = rsi;
+    const Reg64 reg_S_ = rax;
+    const Reg64 reg_C_ = rdx;
+    const Reg64 reg_off_c_ = rbx;
+    const Reg64 reg_blk_has_tail_ = rbp;
 
-    const Reg64 &reg_off_dat_ = r8;
-    const Reg64 &reg_off_dat_save_ = r9;
-    const Reg64 &reg_ptr_c_ = r10;
-    const Reg64 &reg_ptr_ws_ = r11;
-    const Reg64 &reg_ptr_diff_dst_ = r12;
-    const Reg64 &reg_ptr_diff_src_ = r13;
-    const Reg64 &reg_ptr_src_ = r14;
+    const Reg64 reg_off_dat_ = r8;
+    const Reg64 reg_off_dat_save_ = r9;
+    const Reg64 reg_ptr_c_ = r10;
+    const Reg64 reg_ptr_ws_ = r11;
+    const Reg64 reg_ptr_diff_dst_ = r12;
+    const Reg64 reg_ptr_diff_src_ = r13;
+    const Reg64 reg_ptr_src_ = r14;
 
     const Vmm vzero_ = Vmm(0);
     const Vmm vone_ = Vmm(1);
@@ -1109,8 +1109,8 @@ struct jit_bnorm_bwd_t : public jit_generator {
     const Vmm vtail_mask_ = Vmm(11);
     const Vmm vstore_mask_ = vtmp_;
 
-    const Opmask &kstore_mask_ = k1;
-    const Opmask &ktail_mask_ = k2;
+    const Opmask kstore_mask_ = k1;
+    const Opmask ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
     const jit_memory_tag_kind_t tag_kind_;
@@ -1365,22 +1365,22 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         size_t blk_has_tail;
     };
 
-    const Reg64 &reg_param_ = abi_param1;
-    const Reg64 &reg_tmp_ = abi_not_param1;
-    const Reg64 &reg_N_ = rsi;
-    const Reg64 &reg_S_ = rax;
-    const Reg64 &reg_C_ = rdx;
-    const Reg64 &reg_off_c_ = rbx;
-    const Reg64 &reg_blk_has_tail_ = rbp;
+    const Reg64 reg_param_ = abi_param1;
+    const Reg64 reg_tmp_ = abi_not_param1;
+    const Reg64 reg_N_ = rsi;
+    const Reg64 reg_S_ = rax;
+    const Reg64 reg_C_ = rdx;
+    const Reg64 reg_off_c_ = rbx;
+    const Reg64 reg_blk_has_tail_ = rbp;
 
-    const Reg64 &reg_off_dat_ = r8;
-    const Reg64 &reg_off_dat_save_ = r9;
-    const Reg64 &reg_ptr_c_ = r10;
-    const Reg64 &reg_ptr_diff_gamma_ = r11;
-    const Reg64 &reg_ptr_diff_beta_ = r12;
-    const Reg64 &reg_ptr_ws_ = r13;
-    const Reg64 &reg_ptr_diff_dst_ = r14;
-    const Reg64 &reg_ptr_src_ = r15;
+    const Reg64 reg_off_dat_ = r8;
+    const Reg64 reg_off_dat_save_ = r9;
+    const Reg64 reg_ptr_c_ = r10;
+    const Reg64 reg_ptr_diff_gamma_ = r11;
+    const Reg64 reg_ptr_diff_beta_ = r12;
+    const Reg64 reg_ptr_ws_ = r13;
+    const Reg64 reg_ptr_diff_dst_ = r14;
+    const Reg64 reg_ptr_src_ = r15;
 
     const Vmm vtail_mask_ = Vmm(0);
     const Vmm v_ = Vmm(1);
@@ -1404,8 +1404,8 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
                     && number_of_vmms_to_unrolling_variables_ != 0,
             "Number of register to unrolling must to be divisible by 3.");
 
-    const Opmask &kstore_mask_ = k1;
-    const Opmask &ktail_mask_ = k2;
+    const Opmask kstore_mask_ = k1;
+    const Opmask ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
     const jit_memory_tag_kind_t tag_kind_;

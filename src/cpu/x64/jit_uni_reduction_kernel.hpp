@@ -96,14 +96,14 @@ private:
     const Xbyak::Zmm vmm_bf16_emu_3_ = Xbyak::Zmm(30);
     const Xbyak::Zmm vmm_bf16_emu_4_ = Xbyak::Zmm(31);
 
-    const Xbyak::Opmask &k_tail_load_mask_ = k3;
-    const Xbyak::Opmask &k_tail_store_mask_ = k4;
+    const Xbyak::Opmask k_tail_load_mask_ = k3;
+    const Xbyak::Opmask k_tail_store_mask_ = k4;
 
-    const Xbyak::Reg64 &reg_work_ = rax;
-    const Xbyak::Reg64 &reg_src_ = rbx;
-    const Xbyak::Reg64 &reg_dst_ = rdx;
-    const Xbyak::Reg64 &reg_param_ = abi_param1;
-    const Xbyak::Reg64 &reg_tmp_ = abi_not_param1;
+    const Xbyak::Reg64 reg_work_ = rax;
+    const Xbyak::Reg64 reg_src_ = rbx;
+    const Xbyak::Reg64 reg_dst_ = rdx;
+    const Xbyak::Reg64 reg_param_ = abi_param1;
+    const Xbyak::Reg64 reg_tmp_ = abi_not_param1;
 
     static constexpr bool is_zmm_ = std::is_same<Vmm, Xbyak::Zmm>::value;
     static constexpr bool is_ymm_ = std::is_same<Vmm, Xbyak::Ymm>::value;

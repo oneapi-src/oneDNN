@@ -65,23 +65,23 @@ private:
     void apply_postops(const bool apply_mask, const int vmm_idx,
             const size_t offset, bool runtime_tail_mask);
     void prepare_mask(const size_t tail);
-    void load_no_tail(const Vmm &v, Xbyak::Address op, const data_type_t dt);
-    void load_tail(const Vmm &v, const arg_t arg_num, const size_t off,
+    void load_no_tail(const Vmm v, Xbyak::Address op, const data_type_t dt);
+    void load_tail(const Vmm v, const arg_t arg_num, const size_t off,
             const data_type_t dt, const size_t tail);
-    void load_and_cvt(const Vmm &v, const arg_t arg_num, const size_t off,
+    void load_and_cvt(const Vmm v, const arg_t arg_num, const size_t off,
             const size_t tail, bool do_cvt = true);
     // convert and store instances for each case of Vmm
-    void cvt_and_store(const Xbyak::Zmm &v, const arg_t arg_num,
+    void cvt_and_store(const Xbyak::Zmm v, const arg_t arg_num,
             const size_t off, const size_t tail);
-    void cvt_and_store(const Xbyak::Ymm &v, const arg_t arg_num,
+    void cvt_and_store(const Xbyak::Ymm v, const arg_t arg_num,
             const size_t off, const size_t tail);
-    void cvt_and_store(const Xbyak::Xmm &v, const arg_t arg_num,
+    void cvt_and_store(const Xbyak::Xmm v, const arg_t arg_num,
             const size_t off, const size_t tail);
-    void runtime_tail_load_cvt(const Vmm &v, const arg_t arg_num,
+    void runtime_tail_load_cvt(const Vmm v, const arg_t arg_num,
             const size_t off, bool cvt = true);
     void runtime_tail_cvt_store(
-            const Vmm &v, const arg_t arg_num, const size_t off);
-    void data_copy(const Vmm &v, const arg_t arg_num, const size_t off,
+            const Vmm v, const arg_t arg_num, const size_t off);
+    void data_copy(const Vmm v, const arg_t arg_num, const size_t off,
             data_op_t data_op, const size_t tail,
             const bool is_needed_runtime_tail_process,
             const bool do_cvt = true);
@@ -128,40 +128,40 @@ private:
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
 #ifdef _WIN32
-    const Xbyak::Reg64 &reg_binary_inj_param_ = abi_not_param1;
+    const Xbyak::Reg64 reg_binary_inj_param_ = abi_not_param1;
 #else
-    const Xbyak::Reg64 &reg_binary_inj_param_ = abi_param1;
+    const Xbyak::Reg64 reg_binary_inj_param_ = abi_param1;
 #endif
 
-    const Xbyak::Reg64 &reg_param = abi_param1;
-    const Xbyak::Reg64 &reg_stack_frame_ = rbp;
-    const Xbyak::Reg64 &reg_dst = rdx;
-    const Xbyak::Reg64 &reg_acc = rax;
-    const Xbyak::Reg64 &reg_bias = rbx;
-    const Xbyak::Reg64 &reg_scales = rsi;
+    const Xbyak::Reg64 reg_param = abi_param1;
+    const Xbyak::Reg64 reg_stack_frame_ = rbp;
+    const Xbyak::Reg64 reg_dst = rdx;
+    const Xbyak::Reg64 reg_acc = rax;
+    const Xbyak::Reg64 reg_bias = rbx;
+    const Xbyak::Reg64 reg_scales = rsi;
 
-    const Xbyak::Reg64 &reg_oc = r13;
-    const Xbyak::Reg64 &reg_len = r8;
-    const Xbyak::Reg64 &reg_tmp = rcx; // intentional for shifting purposes
-    const Xbyak::Reg64 &reg_tail = reg_tmp;
-    const Xbyak::Reg64 &reg_oc_offset = r9;
-    const Xbyak::Reg64 &reg_rem_mask = r10;
-    const Xbyak::Opmask &kreg_rem_mask = k1;
-    const Xbyak::Opmask &opmask_binary = k3;
+    const Xbyak::Reg64 reg_oc = r13;
+    const Xbyak::Reg64 reg_len = r8;
+    const Xbyak::Reg64 reg_tmp = rcx; // intentional for shifting purposes
+    const Xbyak::Reg64 reg_tail = reg_tmp;
+    const Xbyak::Reg64 reg_oc_offset = r9;
+    const Xbyak::Reg64 reg_rem_mask = r10;
+    const Xbyak::Opmask kreg_rem_mask = k1;
+    const Xbyak::Opmask opmask_binary = k3;
     const Vmm vmm_rem_mask = Vmm(0);
     // register used for temp computation, needs not to be preserved
-    const Xbyak::Reg64 &reg_tmp_comp = r15;
+    const Xbyak::Reg64 reg_tmp_comp = r15;
 
     // *mb_stride used only in matmul_pp_kernel && compute_oc_channel_blk()
-    const Xbyak::Reg64 &reg_dst_mb_stride = r12;
-    const Xbyak::Reg64 &reg_acc_mb_stride = r14;
+    const Xbyak::Reg64 reg_dst_mb_stride = r12;
+    const Xbyak::Reg64 reg_acc_mb_stride = r14;
 
     // Will be assigned in constructor
     Vmm vreg_zero, vreg_saturation_ubound, vreg_scale, vreg_sum_scale,
             vreg_sum_zp, vreg_dst_zero_points;
 
-    const Xbyak::Reg64 &eltwise_reserved_gpr_ = r11;
-    const Xbyak::Opmask &eltwise_reserved_opmask_ = k2;
+    const Xbyak::Reg64 eltwise_reserved_gpr_ = r11;
+    const Xbyak::Opmask eltwise_reserved_opmask_ = k2;
 
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(28);
     Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(29);
@@ -479,7 +479,7 @@ void jit_pp_kernel_t<isa>::prepare_mask(const size_t tail) {
 
 template <cpu_isa_t isa>
 void jit_pp_kernel_t<isa>::load_no_tail(
-        const Vmm &v, Xbyak::Address op, const data_type_t dt) {
+        const Vmm v, Xbyak::Address op, const data_type_t dt) {
     using namespace data_type;
     switch (dt) {
         case s8: uni_vpmovsxbd(v, op); break;
@@ -495,7 +495,7 @@ void jit_pp_kernel_t<isa>::load_no_tail(
 }
 
 template <cpu_isa_t isa>
-void jit_pp_kernel_t<isa>::load_tail(const Vmm &v, const arg_t arg_num,
+void jit_pp_kernel_t<isa>::load_tail(const Vmm v, const arg_t arg_num,
         const size_t off, const data_type_t dt, const size_t tail) {
     using namespace data_type;
     if (is_avx512_) {
@@ -525,7 +525,7 @@ void jit_pp_kernel_t<isa>::load_tail(const Vmm &v, const arg_t arg_num,
 }
 
 template <cpu_isa_t isa>
-void jit_pp_kernel_t<isa>::load_and_cvt(const Vmm &v, const arg_t arg_num,
+void jit_pp_kernel_t<isa>::load_and_cvt(const Vmm v, const arg_t arg_num,
         const size_t off, const size_t tail, bool do_cvt) {
     using namespace data_type;
     const data_type_t dt = get_data_type(arg_num);
@@ -538,7 +538,7 @@ void jit_pp_kernel_t<isa>::load_and_cvt(const Vmm &v, const arg_t arg_num,
 }
 
 template <cpu_isa_t isa>
-void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Zmm &v,
+void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Zmm v,
         const arg_t arg_num, const size_t off, const size_t tail) {
     using namespace data_type;
     const data_type_t dt = get_data_type(arg_num);
@@ -569,7 +569,7 @@ void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Zmm &v,
 }
 
 template <cpu_isa_t isa>
-void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Ymm &v,
+void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Ymm v,
         const arg_t arg_num, const size_t off, const size_t tail) {
     using namespace data_type;
     const data_type_t dt = get_data_type(arg_num);
@@ -619,7 +619,7 @@ void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Ymm &v,
 }
 
 template <cpu_isa_t isa>
-void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Xmm &v,
+void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Xmm v,
         const arg_t arg_num, const size_t off, const size_t tail) {
     using namespace data_type;
     const data_type_t dt = get_data_type(arg_num);
@@ -667,13 +667,13 @@ void jit_pp_kernel_t<isa>::cvt_and_store(const Xbyak::Xmm &v,
 
 template <cpu_isa_t isa>
 void jit_pp_kernel_t<isa>::runtime_tail_load_cvt(
-        const Vmm &v, const arg_t arg_num, const size_t off, bool cvt) {
+        const Vmm v, const arg_t arg_num, const size_t off, bool cvt) {
     assert(!is_avx512_);
     const data_type_t dt = get_data_type(arg_num);
     const bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
     const Xbyak::Xmm x = Xbyak::Xmm(v.getIdx());
     const Xbyak::Ymm y = Xbyak::Ymm(v.getIdx());
-    const Xbyak::Reg64 &reg_addr = get_reg_address(arg_num);
+    const Xbyak::Reg64 reg_addr = get_reg_address(arg_num);
 
     auto runtime_tail_load = [&](int load_size) {
         if (is_ymm)
@@ -689,13 +689,13 @@ void jit_pp_kernel_t<isa>::runtime_tail_load_cvt(
 
 template <cpu_isa_t isa>
 void jit_pp_kernel_t<isa>::runtime_tail_cvt_store(
-        const Vmm &v, const arg_t arg_num, const size_t off) {
+        const Vmm v, const arg_t arg_num, const size_t off) {
     assert(!is_avx512_);
     const data_type_t dt = get_data_type(arg_num);
     const bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
     const Xbyak::Xmm x = Xbyak::Xmm(v.getIdx());
     const Xbyak::Ymm y = Xbyak::Ymm(v.getIdx());
-    const Xbyak::Reg64 &reg_addr = get_reg_address(arg_num);
+    const Xbyak::Reg64 reg_addr = get_reg_address(arg_num);
 
     if (utils::one_of(dt, u8, s8, s32)) {
         saturate_f32(v, vreg_zero, vreg_saturation_ubound, dt);
@@ -713,7 +713,7 @@ void jit_pp_kernel_t<isa>::runtime_tail_cvt_store(
 }
 
 template <cpu_isa_t isa>
-void jit_pp_kernel_t<isa>::data_copy(const Vmm &v, const arg_t arg_num,
+void jit_pp_kernel_t<isa>::data_copy(const Vmm v, const arg_t arg_num,
         const size_t off, data_op_t data_op, const size_t tail,
         const bool is_needed_runtime_tail_process, const bool do_cvt) {
     if (data_op == data_op_t::load) {
@@ -796,7 +796,7 @@ void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
     };
 
     // Advance all pointers by a value stored in a register
-    auto advance_ptrs_reg = [&](const Reg64 &offset) {
+    auto advance_ptrs_reg = [&](const Reg64 offset) {
         lea(reg_dst, ptr[reg_dst + offset * this->dst_data_type_size_]);
         lea(reg_acc, ptr[reg_acc + offset * this->acc_data_type_size_]);
         if (this->do_scale_ && this->scale_idx_mult_ == 1)

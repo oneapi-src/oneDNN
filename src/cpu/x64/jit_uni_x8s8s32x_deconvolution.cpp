@@ -488,7 +488,7 @@ int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_tail_size() const
 
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::compute(
-        const Vmm &vreg_acc, const Vmm &vreg_wei, const Vmm &vreg_src) {
+        const Vmm vreg_acc, const Vmm vreg_wei, const Vmm vreg_src) {
 
     if (jcp_.has_vnni) {
         vpdpbusd(vreg_acc, vreg_src, vreg_wei, Xbyak::VexEncoding);
@@ -573,7 +573,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::append_zp_src_pad_str_comp(
         }
     };
 
-    const auto load_zp_src_pad_comp = [&](const Vmm &zp_pad_comp_vmm,
+    const auto load_zp_src_pad_comp = [&](const Vmm zp_pad_comp_vmm,
                                               const Xbyak::Address &comp_addr,
                                               const int ocb) {
         const bool is_tail = last_oc_block && ocb == jcp_.nb_oc_blocking - 1;
@@ -980,7 +980,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::prepare_output(int ur_w) {
 
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::cvt2ps(data_type_t type_in,
-        const Vmm &vmm_in, const Reg64 &reg, int offset, int load_size) {
+        const Vmm vmm_in, const Reg64 reg, int offset, int load_size) {
 
     load_data(type_in, vmm_in, reg, offset, load_size);
     if (type_in != data_type::f32) uni_vcvtdq2ps(vmm_in, vmm_in);

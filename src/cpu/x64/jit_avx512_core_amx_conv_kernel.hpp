@@ -115,16 +115,16 @@ struct jit_avx512_core_amx_copy_to_wbuffer_t : public jit_generator {
 private:
     jit_conv_conf_t jcp;
 
-    const reg64_t &reg_src = rax;
-    const reg64_t &reg_dst = rbx;
-    const reg64_t &reg_tmp = rdx;
+    const reg64_t reg_src = rax;
+    const reg64_t reg_dst = rbx;
+    const reg64_t reg_tmp = rdx;
 
-    const Xbyak::Opmask &kmask_load = k2;
+    const Xbyak::Opmask kmask_load = k2;
 
-    const Xbyak::Zmm &zmm_src = zmm0;
-    const Xbyak::Zmm &zmm_dst = zmm1;
-    const Xbyak::Zmm &zmm_idx = zmm2;
-    const Xbyak::Zmm &zmm_zero = zmm3;
+    const Xbyak::Zmm zmm_src = zmm0;
+    const Xbyak::Zmm zmm_dst = zmm1;
+    const Xbyak::Zmm zmm_idx = zmm2;
+    const Xbyak::Zmm zmm_zero = zmm3;
 
     void generate() override;
 };
@@ -141,38 +141,38 @@ struct jit_avx512_core_amx_copy_to_pbuffer_t : public jit_generator {
 private:
     jit_conv_conf_t jcp;
 
-    const reg64_t &reg_inp_ptr = r15;
-    const reg64_t &reg_out_ptr = r14;
+    const reg64_t reg_inp_ptr = r15;
+    const reg64_t reg_out_ptr = r14;
 
-    const reg64_t &reg_aux_inp_ptr = r13;
-    const reg64_t &reg_aux_out_ptr = r12;
+    const reg64_t reg_aux_inp_ptr = r13;
+    const reg64_t reg_aux_out_ptr = r12;
 
-    const reg64_t &reg_khp = r10;
+    const reg64_t reg_khp = r10;
 
     /* relow stuff */
-    const reg64_t &reg_kht = r11;
-    const reg64_t &reg_tov = r9;
-    const reg64_t &reg_bov = r8;
-    const reg64_t &reg_kwp = rax;
-    const reg64_t &reg_lov = reg_aux_inp_ptr;
-    const reg64_t &reg_rov = rbx;
-    const reg64_t &reg_save_out_ptr = rdx;
-    const reg64_t &reg_cnt = rbp;
+    const reg64_t reg_kht = r11;
+    const reg64_t reg_tov = r9;
+    const reg64_t reg_bov = r8;
+    const reg64_t reg_kwp = rax;
+    const reg64_t reg_lov = reg_aux_inp_ptr;
+    const reg64_t reg_rov = rbx;
+    const reg64_t reg_save_out_ptr = rdx;
+    const reg64_t reg_cnt = rbp;
     /* relow stuff */
 
     /* non-relow stuff */
-    const reg64_t &reg_kdp = abi_not_param1;
-    const reg64_t &reg_kdc = rbp;
-    const reg64_t &reg_khc = r11;
+    const reg64_t reg_kdp = abi_not_param1;
+    const reg64_t reg_kdc = rbp;
+    const reg64_t reg_khc = r11;
 
-    const reg64_t &reg_kh_over = r8;
-    const reg64_t &reg_tover = rax;
-    const reg64_t &reg_bover = rbx;
+    const reg64_t reg_kh_over = r8;
+    const reg64_t reg_tover = rax;
+    const reg64_t reg_bover = rbx;
 
-    const reg64_t &reg_owb = rdx;
+    const reg64_t reg_owb = rdx;
     /* non-relow stuff */
 
-    const reg64_t &reg_tmp = rsi;
+    const reg64_t reg_tmp = rsi;
 
     const Xbyak::Opmask &ktail_mask = k2;
 
@@ -295,34 +295,34 @@ private:
     std::queue<w_pad_output> w_padding;
 
     /* data regs */
-    const Xbyak::Reg64 &reg_inp_ptr = r15;
-    const Xbyak::Reg64 &reg_wei_ptr = r14;
-    const Xbyak::Reg64 &reg_out_ptr = r13;
-    const Xbyak::Reg64 &reg_wsp_ptr = r12;
+    const Xbyak::Reg64 reg_inp_ptr = r15;
+    const Xbyak::Reg64 reg_wei_ptr = r14;
+    const Xbyak::Reg64 reg_out_ptr = r13;
+    const Xbyak::Reg64 reg_wsp_ptr = r12;
 
-    const Xbyak::Reg64 &reg_kd = r9;
+    const Xbyak::Reg64 reg_kd = r9;
 
-    const Xbyak::Reg64 &reg_bias = r11;
-    const Xbyak::Reg64 &reg_ptr_scales = r10;
-    const Xbyak::Reg64 &reg_ptr_sum_scale = r9;
-    const Xbyak::Reg64 &reg_ptr_sum_zp = abi_not_param1;
-    const Xbyak::Reg64 &reg_aux_saturation = reg_ptr_sum_scale;
+    const Xbyak::Reg64 reg_bias = r11;
+    const Xbyak::Reg64 reg_ptr_scales = r10;
+    const Xbyak::Reg64 reg_ptr_sum_scale = r9;
+    const Xbyak::Reg64 reg_ptr_sum_zp = abi_not_param1;
+    const Xbyak::Reg64 reg_aux_saturation = reg_ptr_sum_scale;
 
-    const Xbyak::Reg64 &reg_inp_stride = rbx;
-    const Xbyak::Reg64 &reg_wei_stride = rdx;
+    const Xbyak::Reg64 reg_inp_stride = rbx;
+    const Xbyak::Reg64 reg_wei_stride = rdx;
     // zero-point computation
-    const Xbyak::Reg64 &reg_zp_compensation = rax;
-    const Xbyak::Reg64 &reg_src_zero_point = r8;
-    const Xbyak::Reg64 &reg_zero_point_pbuff = rsi;
-    const Xbyak::Reg64 &reg_dst_zero_point = abi_not_param1;
+    const Xbyak::Reg64 reg_zp_compensation = rax;
+    const Xbyak::Reg64 reg_src_zero_point = r8;
+    const Xbyak::Reg64 reg_zero_point_pbuff = rsi;
+    const Xbyak::Reg64 reg_dst_zero_point = abi_not_param1;
 
     // rbp - reserved for EVEX compression
-    const Xbyak::Reg64 &reg_last_h = abi_not_param1;
-    const Xbyak::Reg64 &reg_jmp_blk = reg_last_h;
+    const Xbyak::Reg64 reg_last_h = abi_not_param1;
+    const Xbyak::Reg64 reg_jmp_blk = reg_last_h;
 
     // temporary, used in generate() function only
-    const Xbyak::Reg64 &reg_oc_blocks = rax;
-    const Xbyak::Reg64 &reg_tmp = r8;
+    const Xbyak::Reg64 reg_oc_blocks = rax;
+    const Xbyak::Reg64 reg_tmp = r8;
 
     const Xbyak::Opmask &ktail_mask = k2;
 
@@ -336,8 +336,8 @@ private:
     const Xbyak::Zmm &zmm_src_zp = zmm28;
     const Xbyak::Zmm &zmm_dst_zp = zmm27;
 
-    const Xbyak::Reg64 &bin_injector_helper_reg_1 = r14;
-    const Xbyak::Reg64 &bin_injector_helper_reg_2 = r15;
+    const Xbyak::Reg64 bin_injector_helper_reg_1 = r14;
+    const Xbyak::Reg64 bin_injector_helper_reg_2 = r15;
 
     // AUX: Steps, shifts and offsets
     size_t get_inp_icb_step() const;
@@ -430,34 +430,34 @@ private:
     jit_conv_conf_t jcp;
 
     // pointers
-    const reg64_t &reg_ptr_inp = r15;
-    const reg64_t &reg_ptr_out = r14;
+    const reg64_t reg_ptr_inp = r15;
+    const reg64_t reg_ptr_out = r14;
 
     // auxiliary pointers
-    const reg64_t &reg_ptr_aux_inp_h = r13;
-    const reg64_t &reg_ptr_aux_inp_w = r12;
-    const reg64_t &reg_ptr_aux_out = r11;
+    const reg64_t reg_ptr_aux_inp_h = r13;
+    const reg64_t reg_ptr_aux_inp_w = r12;
+    const reg64_t reg_ptr_aux_out = r11;
 
     // variables
-    const reg64_t &reg_khp = r10; // kh padding
-    const reg64_t &reg_tov = r9; // top overflow
-    const reg64_t &reg_bov = reg_tov; // bottom overflow
-    const reg64_t &reg_kwp = rax; // kw padding
-    const reg64_t &reg_lov = rbx; // left overflow
-    const reg64_t &reg_rov = abi_not_param1; // right overflow
-    const reg64_t &reg_kd = r8; // 3d filter
+    const reg64_t reg_khp = r10; // kh padding
+    const reg64_t reg_tov = r9; // top overflow
+    const reg64_t reg_bov = reg_tov; // bottom overflow
+    const reg64_t reg_kwp = rax; // kw padding
+    const reg64_t reg_lov = rbx; // left overflow
+    const reg64_t reg_rov = abi_not_param1; // right overflow
+    const reg64_t reg_kd = r8; // 3d filter
 
     // counters
-    const reg64_t &reg_cnt_khp = rdx;
-    const reg64_t &reg_cnt_tmp = rbp;
-    const reg64_t &reg_cnt_ocb = rsi;
+    const reg64_t reg_cnt_khp = rdx;
+    const reg64_t reg_cnt_tmp = rbp;
+    const reg64_t reg_cnt_ocb = rsi;
 
-    const reg64_t &reg_tmp = reg_cnt_tmp;
+    const reg64_t reg_tmp = reg_cnt_tmp;
 
-    const Xbyak::Opmask &ktail_mask = k2;
+    const Xbyak::Opmask ktail_mask = k2;
 
-    const Xbyak::Zmm &zmm_tmp = zmm1;
-    const Xbyak::Zmm &zmm_zero = zmm0;
+    const Xbyak::Zmm zmm_tmp = zmm1;
+    const Xbyak::Zmm zmm_zero = zmm0;
 
     void generate() override;
     void copy_row(bool is_masked);
@@ -521,36 +521,36 @@ private:
     int prv_width_save_ = 0;
 
     /* data regs */
-    const Xbyak::Reg64 &reg_inp_ptr = r15;
-    const Xbyak::Reg64 &reg_wei_ptr = r14;
-    const Xbyak::Reg64 &reg_out_ptr = r13;
-    const Xbyak::Reg64 &reg_wsp_ptr = r12;
+    const Xbyak::Reg64 reg_inp_ptr = r15;
+    const Xbyak::Reg64 reg_wei_ptr = r14;
+    const Xbyak::Reg64 reg_out_ptr = r13;
+    const Xbyak::Reg64 reg_wsp_ptr = r12;
 
-    const Xbyak::Reg64 &reg_bias = r11;
-    const Xbyak::Reg64 &reg_ptr_scales = r10;
-    const Xbyak::Reg64 &reg_ptr_sum_scale = r9;
-    const Xbyak::Reg64 &reg_ptr_sum_zp = abi_not_param1;
-    const Xbyak::Reg64 &reg_aux_saturation = reg_ptr_sum_scale;
+    const Xbyak::Reg64 reg_bias = r11;
+    const Xbyak::Reg64 reg_ptr_scales = r10;
+    const Xbyak::Reg64 reg_ptr_sum_scale = r9;
+    const Xbyak::Reg64 reg_ptr_sum_zp = abi_not_param1;
+    const Xbyak::Reg64 reg_aux_saturation = reg_ptr_sum_scale;
 
-    const Xbyak::Reg64 &reg_aux_inp_ptr = r8;
-    const Xbyak::Reg64 &reg_inp_stride = rbx;
-    const Xbyak::Reg64 &reg_wei_stride = rdx;
+    const Xbyak::Reg64 reg_aux_inp_ptr = r8;
+    const Xbyak::Reg64 reg_inp_stride = rbx;
+    const Xbyak::Reg64 reg_wei_stride = rdx;
 
     // rbp - reserved for EVEX compression
-    const Xbyak::Reg64 &reg_last_h = abi_not_param1;
-    const Xbyak::Reg64 &reg_kd = rsi;
+    const Xbyak::Reg64 reg_last_h = abi_not_param1;
+    const Xbyak::Reg64 reg_kd = rsi;
 
     // temporary, used in generate() function only
-    const Xbyak::Reg64 &reg_ic_blocks = rax;
-    const Xbyak::Reg64 &reg_tmp = reg_aux_inp_ptr;
+    const Xbyak::Reg64 reg_ic_blocks = rax;
+    const Xbyak::Reg64 reg_tmp = reg_aux_inp_ptr;
 
-    const Xbyak::Opmask &ktail_mask = k2;
+    const Xbyak::Opmask ktail_mask = k2;
 
-    const Xbyak::Zmm &zmm_bias = zmm31;
-    const Xbyak::Zmm &zmm_saturation = zmm_bias;
-    const Xbyak::Zmm &zmm_zero = zmm30;
-    const Xbyak::Zmm &zmm_prev_dst = zmm29;
-    const Xbyak::Zmm &zmm_sum_zp = zmm28;
+    const Xbyak::Zmm zmm_bias = zmm31;
+    const Xbyak::Zmm zmm_saturation = zmm_bias;
+    const Xbyak::Zmm zmm_zero = zmm30;
+    const Xbyak::Zmm zmm_prev_dst = zmm29;
+    const Xbyak::Zmm zmm_sum_zp = zmm28;
 
     // AUX: Steps, shifts and offsets
     size_t get_inp_ocb_step() const;
