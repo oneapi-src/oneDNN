@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,14 @@
 
 #include "utils/id.hpp"
 
-using namespace dnnl::graph::impl::utils;
+namespace dnnl {
+namespace graph {
+namespace impl {
+namespace utils {
 
 std::atomic<id_t::value_type> id_t::counter {100000};
+
+} // namespace utils
+} // namespace impl
+} // namespace graph
+} // namespace dnnl
