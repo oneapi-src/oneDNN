@@ -591,30 +591,16 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
             assertm(bind_arg.bind_node->get_consumers(0)->size() == 1,
                     "repetition is restricted to have only 1 output with "
                     "only 1 consumer");
-
-            // if optional pattern is the first node of the whole pattern
-            if (bind_arg.bind_kind == BIND_NONE) {
-                auto cons = bind_arg.bind_node->get_consumers(pmap.first);
-                binding_t con_bind = bind_arg;
-                con_bind.bind_node = (*cons)[0]->first;
-                if (!match_graph_helper(con_bind, parent_ctx, temp_op_map))
-                    return false;
-            } else { //get the input op of current op to match output
-                auto input_op
-                        = bind_arg.bind_op->get_input_op(bind_arg.bind_op_port);
-                if (!match_node_outputs(input_op, bind_arg.bind_node,
-                            parent_ctx, temp_op_map))
-                    return false;
-            }
-
+            auto cons = bind_arg.bind_node->get_consumers(pmap.first);
+            binding_t con_bind = bind_arg;
+            con_bind.bind_node = (*cons)[0]->first;
+            if (!match_graph_helper(con_bind, parent_ctx, temp_op_map))
+                return false;
         } else {
             if (bind_arg.bind_node->get_inputs().empty()) return true;
-            auto output_op = bind_arg.bind_op->get_output_value(pmap.first)
-                                     ->get_consumers()[0]
-                                     .get_op();
-            if (!match_node_inputs(&output_op, bind_arg.bind_node, parent_ctx,
-                        temp_op_map))
-                return false;
+            binding_t b = bind_arg;
+            b.bind_node = b.bind_node->get_producer(pmap.second)->first;
+            if (!match_graph_helper(b, parent_ctx, temp_op_map)) return false;
         }
     } else { // num_rep > 0
         fill_parent_io_map(&speculative_ctx, bind_arg);

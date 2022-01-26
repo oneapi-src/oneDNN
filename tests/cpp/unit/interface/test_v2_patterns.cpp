@@ -1050,3 +1050,59 @@ TEST(PatternMatcherV2, ParallelMatmul) {
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
     ASSERT_EQ(fusion_ops.size(), 3);
 }
+
+TEST(PatternMatcherV2, OptionalInput) {
+    /*Pattern                  Graph
+     Dq0     Dq1            Dq0     Dq1
+      |      |               |       |
+      |   [Reshape]*         |       |
+       \    /                 \     /
+       MatMul                 MatMul
+         |                       |
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto pdq0 = graphp->append_op(Dequantize, "pdq0");
+    auto pdq1 = graphp->append_op(Dequantize, "pdq1");
+    auto optbody = std::make_shared<pb_graph_t>("poptionalbody");
+    auto preshape = optbody->append_op(StaticReshape, "preshape");
+    optbody->create_input_port(IN0, preshape, IN0);
+    optbody->create_output_port(OUT0, preshape, OUT0);
+    auto popt = graphp->append_optional(
+            optbody, {in_edge(IN0, pdq1, OUT0)}, "poptional");
+    auto pmatmul = graphp->append_op(MatMul,
+            {in_edge(IN0, pdq0, OUT0), in_edge(IN1, popt, OUT0)}, "prelu");
+    UNUSED(pmatmul);
+
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dq0 {1, Dequantize, "dq0"};
+    dq0.set_attr("scales", scales);
+    dq0.set_attr("zps", zps);
+    op_t dq1 {2, Dequantize, "dq1"};
+    dq1.set_attr("scales", scales);
+    dq1.set_attr("zps", zps);
+
+    auto lt0 = logical_tensor_init(0, impl::data_type::s8);
+    auto lt1 = logical_tensor_init(1, impl::data_type::f32);
+    dq0.add_input(lt0);
+    dq0.add_output(lt1);
+    auto lt2 = logical_tensor_init(2, impl::data_type::s8);
+    auto lt3 = logical_tensor_init(3, impl::data_type::f32);
+    dq1.add_input(lt2);
+    dq1.add_output(lt3);
+    auto lt4 = logical_tensor_init(4, impl::data_type::f32);
+    matmul.add_input(lt1);
+    matmul.add_input(lt3);
+    matmul.add_output(lt4);
+
+    ASSERT_EQ(agraph.add_op(&dq0), status::success);
+    ASSERT_EQ(agraph.add_op(&dq1), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 3);
+}
