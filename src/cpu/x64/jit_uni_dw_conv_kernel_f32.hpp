@@ -74,6 +74,8 @@ private:
 
     reg64_t reg_d_weights = aux_reg_input_buffer_ptr;
     reg64_t reg_d_bias = iter_kh;
+    int base_post_ops_data_offset = 0;
+    constexpr static int reg64_size = 8;
 
     reg64_t aux_reg_blocks_offset = abi_not_param1;
 
@@ -183,6 +185,8 @@ private:
 
     reg64_t reg_d_weights = r15;
     reg64_t reg_d_bias = iter_kh;
+    int base_post_ops_data_offset = 0;
+    constexpr static int reg64_size = 8;
 
     nstl::vector<jit_uni_depthwise_injector_f32<isa>*> depthwise_injectors;
 

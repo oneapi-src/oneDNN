@@ -52,6 +52,18 @@ void jit_avx2_1x1_convolution_with_dw_conv_fwd_t::execute_forward(
     auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
+    auto weights_dw = CTX_IN_MEM(
+            const data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+    auto bias_dw = CTX_IN_MEM(
+            const data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+
+    const auto &jcp = kernel_old_->jcp;
+    const auto &jcp_dw = kernel_dw_->jcp;
+
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
+    const auto post_ops_binary_rhs_arg_vec_dw = binary_injector::prepare_binary_args(jcp_dw.post_ops, ctx, jcp.post_ops.entry_.size() + 1);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -62,11 +74,7 @@ void jit_avx2_1x1_convolution_with_dw_conv_fwd_t::execute_forward(
                       ? scratchpad.get<data_t>(key_conv_rtus_space)
                       : nullptr;
 
-    const auto &jcp = kernel_old_->jcp;
-    const auto &jcp_dw = kernel_dw_->jcp;
     const int MB = pd()->MB();
-
-    auto dw_bias = jcp_dw.conv_biases;
 
     int ocb_work = jcp.with_dw_conv ? utils::div_up(jcp.nb_load, jcp.nb_load_blocking) : 1;
     const int work_amount = MB * jcp.ngroups * ocb_work * jcp.nb_bcast;
@@ -137,6 +145,7 @@ void jit_avx2_1x1_convolution_with_dw_conv_fwd_t::execute_forward(
                         }
 
                         p.oc_off = _ocb * jcp.oc_block * sizeof(float);
+                        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
 
                         (*kernel_old_)(&p);
                     }
@@ -160,11 +169,12 @@ void jit_avx2_1x1_convolution_with_dw_conv_fwd_t::execute_forward(
                                        dst_idx/jcp_dw.stride_h*jcp_dw.ow*jcp_dw.ch_block];
 
                 par_conv_dw.kh_padding = jcp_dw.kh;
-                par_conv_dw.filt = &jcp_dw.conv_weights[chb * jcp_dw.kh * jcp_dw.kw * jcp_dw.ch_block];
-                par_conv_dw.bias = &dw_bias[chb * jcp_dw.ch_block];
+                par_conv_dw.filt = &weights_dw[chb * jcp_dw.kh * jcp_dw.kw * jcp_dw.ch_block];
+                par_conv_dw.bias = &bias_dw[chb * jcp_dw.ch_block];
                 par_conv_dw.ur_w = (size_t)(jcp_dw.ow);
                 par_conv_dw.oc_work = nstl::min((chb + 1) * jcp_dw.ch_block, (int)jcp_dw.oc) - chb*jcp_dw.ch_block;
                 par_conv_dw.oc_off = chb * jcp_dw.ch_block * sizeof(float);
+                par_conv_dw.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec_dw.data();
 
                 (*kernel_dw_)(&par_conv_dw);
             }
@@ -224,10 +234,10 @@ void jit_avx2_1x1_convolution_with_dw_conv_fwd_t::execute_forward(
         bias = padded_bias;
 
         auto dw_padded_bias = scratchpad.get<data_t>(key_dw_conv_padded_bias);
-        utils::array_copy(dw_padded_bias, dw_bias, jcp.oc_without_padding);
+        utils::array_copy(dw_padded_bias, bias_dw, jcp.oc_without_padding);
         utils::array_set(dw_padded_bias + jcp.oc_without_padding, 0.f,
                          jcp.oc - jcp.oc_without_padding);
-        dw_bias = dw_padded_bias;
+        bias_dw = dw_padded_bias;
     }
 
     parallel(0, ker);

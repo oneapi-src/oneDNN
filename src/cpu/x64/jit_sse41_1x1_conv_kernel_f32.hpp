@@ -86,6 +86,7 @@ private:
     reg64_t reg_oc_off = abi_param1;
     reg64_t reg_d_weights = aux_reg_bcast_data;
     reg64_t reg_d_bias = reduce_loop_iter;
+    int base_post_ops_data_offset = 0;
 
     Xbyak::Xmm xmm_d_weights = Xbyak::Xmm(14);
     Xbyak::Xmm xmm_d_bias = Xbyak::Xmm(15);

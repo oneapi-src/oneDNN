@@ -90,6 +90,7 @@ private:
     reg64_t reg_oc_off = abi_param1;
     reg64_t reg_d_weights = imm_addr64;
     reg64_t reg_d_bias = r13;
+    int base_post_ops_data_offset = 0;
 
     Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
     Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);

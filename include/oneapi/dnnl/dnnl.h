@@ -24,6 +24,7 @@
 #include "oneapi/dnnl/dnnl_config.h"
 #include "oneapi/dnnl/dnnl_types.h"
 #include "oneapi/dnnl/dnnl_version.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -354,23 +355,14 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_scales_mask(
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points_mask(
         dnnl_primitive_attr_t attr, int arg, int mask);
 
-dnnl_status_t DNNL_API dnnl_primitive_attr_get_output_compensations(
-        const_dnnl_primitive_attr_t attr, int *count, int *mask, const int32_t **compensations);
-
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_compensations(
-        dnnl_primitive_attr_t attr, int count, int mask, const int32_t *compensations);
-
-dnnl_status_t DNNL_API dnnl_primitive_attr_get_input_zero_points(
-        const_dnnl_primitive_attr_t attr, int *count, int *mask, const uint8_t **zero_points);
+        dnnl_primitive_attr_t attr, int count, int mask);
 
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_input_zero_points(
-        dnnl_primitive_attr_t attr, int count, int mask, const uint8_t *zero_points);
-
-dnnl_status_t DNNL_API dnnl_primitive_attr_get_weights_zero_points(
-        const_dnnl_primitive_attr_t attr, int *count, int *mask, const float **zero_points);
+        dnnl_primitive_attr_t attr, int count, int mask);
 
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_weights_zero_points(
-        dnnl_primitive_attr_t attr, int count, int mask, const float *zero_points);
+        dnnl_primitive_attr_t attr, int count, int mask);
 
 /// Returns primitive attributes post-ops.
 ///
@@ -578,8 +570,7 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_dw(
 ///
 /// The kind of this post operation is #dnnl_convolution.
 dnnl_status_t DNNL_API dnnl_post_ops_append_dw_conv(
-        dnnl_post_ops_t post_ops, int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w, dnnl_data_type_t in_dt,
-        const float* weights_data, const float* biases_data);
+        dnnl_post_ops_t post_ops, int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w, dnnl_data_type_t in_dt);
 
 /// Appends a binary post-op.
 ///
@@ -661,14 +652,13 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_prelu(
         const_dnnl_post_ops_t post_ops, int index, int *mask);
 
 dnnl_status_t DNNL_API dnnl_post_ops_append_depthwise(
-        dnnl_post_ops_t post_ops, dnnl_alg_kind_t alg,
-        const float* weights_data, const float* biases_data);
+        dnnl_post_ops_t post_ops, dnnl_alg_kind_t alg, size_t offset_size, const size_t* offset);
 
 dnnl_status_t DNNL_API dnnl_post_ops_append_quantization(
         dnnl_post_ops_t post_ops, dnnl_alg_kind_t alg,
-        const void* crop_low, const void* crop_high,
-        const void* input_scale, const void* input_shift,
-        const void* output_scale, const void* output_shift);
+        size_t per_channel_size, const bool* per_channel,
+        size_t all_default_size, const bool* all_default,
+        size_t offset_size, const size_t* offset);
 
 dnnl_status_t DNNL_API dnnl_post_ops_append_binarization(
         dnnl_post_ops_t post_ops, dnnl_alg_kind_t alg, const float* weights_data, const float* output_mask);

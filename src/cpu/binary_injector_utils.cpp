@@ -30,7 +30,7 @@ std::vector<const void *> prepare_binary_args(const post_ops_t &post_ops,
 
     unsigned idx = first_arg_idx_offset;
     for (const auto &post_op : post_ops.entry_) {
-        if (post_op.is_binary()) {
+        if (post_op.is_binary() || post_op.is_depthwise() || post_op.is_quantization()) {
             post_ops_binary_rhs_arg_vec.emplace_back(CTX_IN_MEM(const void *,
                     DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
         }

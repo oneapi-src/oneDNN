@@ -76,6 +76,7 @@ private:
     const Xbyak::Reg64 reg_d_weights = aux_reg_bcast_data;
     const Xbyak::Reg64 reg_d_bias = abi_param1;
     const Xbyak::Reg64 reg_oc_off = aux_reg_load_data;
+    int base_post_ops_data_offset = 0;
 
     Vmm vmm_d_weights = Vmm(0);
     Vmm vmm_d_bias = Vmm(1);

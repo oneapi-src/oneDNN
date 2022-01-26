@@ -128,6 +128,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_filter(
 
         push(reg_input);
         push(reg_kernel);
+        base_post_ops_data_offset += 3 * reg64_size;
 
         mov(aux_reg_inp_d, aux_reg_input);
         mov(aux_reg_ker_d, aux_reg_kernel);
@@ -144,6 +145,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_filter(
     mov(iter_kh, reg_kh);
     Label kh_label;
     push(aux1_reg_kernel);
+    base_post_ops_data_offset += reg64_size;
     L(kh_label); {
         mov(iter_kw, reg_kw);
         mov(aux1_reg_input, aux_reg_input);
@@ -200,6 +202,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_filter(
         cmp(iter_kh, 0);
         jg(kh_label, T_NEAR);
         pop(aux1_reg_kernel);
+        base_post_ops_data_offset -= reg64_size;
     }
 
     L(iter_exit_label);
@@ -220,6 +223,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_filter(
 
         L(iter_d_exit_label);
         pop(reg_kd);
+        base_post_ops_data_offset -= 3 * reg64_size;
     }
 }
 
@@ -250,6 +254,8 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
 
         push(reg_input);
         push(reg_kernel);
+
+        base_post_ops_data_offset += 3 * reg64_size;
 
         mov(aux_reg_inp_d, aux_reg_input);
         mov(aux_reg_ker_d, aux_reg_kernel);
@@ -330,6 +336,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
 
         L(iter_d_exit_label);
         pop(reg_kd);
+        base_post_ops_data_offset -= 3 * reg64_size;
     }
 }
 
@@ -340,6 +347,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_block
     int eltwise_inj_idx = 0;
     int depthwise_inj_idx = 0;
     int quantization_inj_idx = 0;
+    std::size_t post_ops_data_offset = 0;
     const auto &p = attr_.post_ops_;
 
     for (int i = 0; i < p.len(); i++) {
@@ -352,13 +360,11 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_block
             eltwise_inj_idx++;
         } else if (post_op.is_depthwise()) {
             push(aux_reg_blocks_offset);
+            base_post_ops_data_offset += reg64_size;
             add(aux_reg_blocks_offset, ptr[this->param1 + GET_OFF(oc_off)]); //add offset of processed blocks
 
-            mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
-            mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
-
+            mov(reg_d_weights, ptr[this->rsp + base_post_ops_data_offset + post_ops_data_offset]);
             add(reg_d_weights, aux_reg_blocks_offset);
-            add(reg_d_bias, aux_reg_blocks_offset);
 
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
                 for (int k = 0; k < repeats; k++) {
@@ -366,20 +372,23 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_block
                     int end_idx = get_acc_reg(k*ur_ch_blocks*ur_w + ur_w * ch + ur_w).getIdx();
 
                     depthwise_injectors[depthwise_inj_idx]->compute_vector_range(
-                            start_idx, end_idx, reg_d_weights, reg_d_bias);
+                            start_idx, end_idx, reg_d_weights, reg_d_weights);
 
                     add(reg_d_weights, jcp.ch_block / repeats * sizeof(float));
-                    add(reg_d_bias, jcp.ch_block / repeats * sizeof(float));
                 }
             }
             pop(aux_reg_blocks_offset);
+            base_post_ops_data_offset -= reg64_size;
 
+            post_ops_data_offset += depthwise_injectors[depthwise_inj_idx]->memoryStep();
             depthwise_inj_idx++;
         } else if (post_op.is_quantization()) {
             push(aux_reg_blocks_offset);
+            base_post_ops_data_offset += reg64_size;
             add(aux_reg_blocks_offset, ptr[this->param1 + GET_OFF(oc_off)]); //add offset of processed blocks
 
-            quantization_injectors[quantization_inj_idx]->init_crop_ptrs(aux_reg_blocks_offset);
+            const Xbyak::RegExp quant_arg_base = this->rsp + base_post_ops_data_offset + post_ops_data_offset;
+            quantization_injectors[quantization_inj_idx]->init_crop_ptrs(quant_arg_base, aux_reg_blocks_offset);
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
                 for (int k = 0; k < repeats; k++) {
                     int s_idx = get_acc_reg(k*ur_ch_blocks*ur_w + ch*ur_w).getIdx();
@@ -388,7 +397,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_block
                 }
             }
 
-            quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(aux_reg_blocks_offset);
+            quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(quant_arg_base, aux_reg_blocks_offset);
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
                 for (int k = 0; k < repeats; k++) {
                     int s_idx = get_acc_reg(k*ur_ch_blocks*ur_w + ch*ur_w).getIdx();
@@ -397,7 +406,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_block
                 }
             }
 
-            quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(aux_reg_blocks_offset);
+            quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(quant_arg_base, aux_reg_blocks_offset);
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
                 for (int k = 0; k < repeats; k++) {
                     int s_idx = get_acc_reg(k*ur_ch_blocks*ur_w + ch*ur_w).getIdx();
@@ -406,7 +415,9 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_block
                 }
             }
             pop(aux_reg_blocks_offset);
+            base_post_ops_data_offset -= reg64_size;
 
+            post_ops_data_offset += quantization_injectors[quantization_inj_idx]->memoryStep();
             quantization_inj_idx++;
         }
     }
@@ -542,7 +553,11 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::compute_loop(int ur_w, int ur_ch_
         push(reg_kernel);
         push(reg_input);
         push(reg_output);
-        if (jcp.with_bias) push(reg_bias);
+        base_post_ops_data_offset += 4 * reg64_size;
+        if (jcp.with_bias) {
+            push(reg_bias);
+            base_post_ops_data_offset += reg64_size;
+        }
 
         if ((jcp.oc / jcp.ch_block) >= jcp.nb_ch_blocking) {
             if (ch_block_tail) {
@@ -573,11 +588,15 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::compute_loop(int ur_w, int ur_ch_
             L(skip_ch_tail_label);
         }
 
-        if (jcp.with_bias) pop(reg_bias);
+        if (jcp.with_bias) {
+            pop(reg_bias);
+            base_post_ops_data_offset -= reg64_size;
+        }
         pop(reg_output);
         pop(reg_input);
         pop(reg_kernel);
         pop(aux_reg_ch_blocks);
+        base_post_ops_data_offset -= 4 * reg64_size;
 
     } else {
         compute(ur_ch_blocks, jcp.oc % jcp.ch_block);
@@ -645,7 +664,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::generate() {
         } else if (post_op.is_depthwise()) {
             depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<isa>(
                     this,
-                    post_op.depthwise.alg
+                    post_op
             ));
         } else if (post_op.is_quantization()) {
             quantization_injectors.push_back(new jit_uni_quantization_injector_f32<isa>(
@@ -657,6 +676,26 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::generate() {
     }
 
     this->preamble();
+
+    std::size_t post_ops_pointers_count = 0;
+    for (int i = 0; i < p.len(); i++) {
+        if (p.entry_[i].is_depthwise() || p.entry_[i].is_quantization()) {
+            post_ops_pointers_count++;
+        }
+    }
+
+    if (post_ops_pointers_count != 0) {
+        sub(rsp, post_ops_pointers_count * sizeof(float *));
+
+        auto aux_reg0 = reg_input;
+        auto aux_reg1 = reg_output;
+
+        mov(aux_reg0, ptr[this->param1 + GET_OFF(post_ops_binary_rhs_arg_vec)]);
+        for (size_t i = 0; i < post_ops_pointers_count; i++) {
+            mov(aux_reg1, ptr[aux_reg0 + i * sizeof(float *)]);
+            mov(ptr[rsp + i * sizeof(float *)], aux_reg1);
+        }
+    }
 
     mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
     mov(reg_output, ptr[this->param1 + GET_OFF(dst)]);
@@ -699,6 +738,10 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::generate() {
         }
 
         L(exit_label);
+    }
+
+    if (post_ops_pointers_count != 0) {
+        add(rsp, post_ops_pointers_count * sizeof(float *));
     }
 
     this->postamble();
@@ -801,29 +844,28 @@ void jit_uni_fork_dw_conv_bwd_data_kernel_f32<isa>::apply_postprocess(int ur_ch_
     int repeats = isa == sse41 ? 2 : 1;
 
     const auto &p = attr_.post_ops_;
+    std::size_t post_ops_data_offset = 0;
     int depthwise_inj_idx = 0;
     for (int i = 0; i < p.len(); i++) {
         auto& post_op = p.entry_[i];
         if (post_op.is_depthwise()) {
-            mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
-            mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
-
+            mov(reg_d_weights, ptr[this->rsp + post_ops_data_offset]);
             add(reg_d_weights, ptr[this->param1 + GET_OFF(ic_off)]);
-            add(reg_d_bias, ptr[this->param1 + GET_OFF(ic_off)]);
 
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
                 for (int k = 0; k < repeats; k++) {
                     int start_idx = get_acc_reg(k*ur_ch_blocks*ur_str_w + ur_str_w * ch).getIdx();
                     int end_idx = get_acc_reg(k*ur_ch_blocks*ur_str_w + ur_str_w * ch + ur_str_w).getIdx();
 
-                    depthwise_injectors[depthwise_inj_idx]->compute_vector_range(start_idx, end_idx, reg_d_weights, reg_d_bias);
+                    depthwise_injectors[depthwise_inj_idx]->compute_vector_range(start_idx, end_idx, reg_d_weights, reg_d_weights);
 
                     add(reg_d_weights, jcp.ch_block / repeats * sizeof(float));
                     add(reg_d_bias, jcp.ch_block / repeats * sizeof(float));
                 }
             }
+            post_ops_data_offset += depthwise_injectors[depthwise_inj_idx]->memoryStep();
+            depthwise_inj_idx++;
         }
-        depthwise_inj_idx++;
     }
 }
 
@@ -909,12 +951,32 @@ void jit_uni_fork_dw_conv_bwd_data_kernel_f32<isa>::generate() {
         if (post_op.is_depthwise()) {
             depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<isa>(
                     this,
-                    post_op.depthwise.alg
+                    post_op
             ));
         }
     }
 
     preamble();
+
+    std::size_t post_ops_pointers_count = 0;
+    for (int i = 0; i < p.len(); i++) {
+        if (p.entry_[i].is_depthwise() || p.entry_[i].is_quantization()) {
+            post_ops_pointers_count++;
+        }
+    }
+
+    if (post_ops_pointers_count != 0) {
+        sub(rsp, post_ops_pointers_count * sizeof(float *));
+
+        auto aux_reg0 = reg_dsrc;
+        auto aux_reg1 = reg_ddst;
+
+        mov(aux_reg0, ptr[this->param1 + GET_OFF(post_ops_binary_rhs_arg_vec)]);
+        for (size_t i = 0; i < post_ops_pointers_count; i++) {
+            mov(aux_reg1, ptr[aux_reg0 + i * sizeof(float *)]);
+            mov(ptr[rsp + i * sizeof(float *)], aux_reg1);
+        }
+    }
 
     mov(reg_dsrc, ptr[this->param1 + GET_OFF(src)]);
     mov(reg_ddst, ptr[this->param1 + GET_OFF(dst)]);
@@ -944,6 +1006,10 @@ void jit_uni_fork_dw_conv_bwd_data_kernel_f32<isa>::generate() {
     }
 
     L(exit_label);
+
+    if (post_ops_pointers_count != 0) {
+        add(rsp, post_ops_pointers_count * sizeof(float *));
+    }
 
     this->postamble();
 }

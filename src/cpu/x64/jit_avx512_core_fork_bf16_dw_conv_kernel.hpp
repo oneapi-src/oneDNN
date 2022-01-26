@@ -85,6 +85,8 @@ private:
     reg64_t imm_addr64 = aux1_reg_input;
     reg64_t reg_d_weights = imm_addr64;
     reg64_t reg_d_bias = iter_kh;
+    int base_post_ops_data_offset = 0;
+    constexpr static int reg64_size = 8;
     reg64_t aux_reg_ch_blocks = reg_ur_w;
     reg64_t aux_reg_blocks_offset = reg_tail;
 

@@ -48,7 +48,7 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
             } else if (post_op.is_depthwise()) {
                 only_eltwise = false;
                 jit_depthwise_injectors_.push_back(new jit_uni_depthwise_injector_f32<isa>(
-                        this, post_op.depthwise.alg, depthwise_reserved_2_));
+                        this, post_op, depthwise_reserved_2_));
             } else {
                 only_eltwise = false;
             }
@@ -71,13 +71,15 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
-    void operator()(float *dst, const float *bias, const int len, const int oc_start, const int oc_work, const int oc_stride) const override {
+    void operator()(float *dst, const float *bias, const int len, const int oc_start, const int oc_work, const int oc_stride,
+                    const std::vector<const void *>& post_ops_binary_rhs_arg_vec) const override {
         for (int oc = 0; oc < oc_work; oc++) {
             ker_args_t args;
             args.dst = dst + oc * oc_stride;
             args.bias = bias + oc_start + oc;
             args.len = len;
             args.oc_offset = oc_start + oc;
+            args.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
             jit_generator::operator()(&args);
         }
     }
@@ -90,6 +92,7 @@ private:
         const float *bias;
         size_t len;
         size_t oc_offset;
+        const void *post_ops_binary_rhs_arg_vec;
     };
 
     nstl::vector<jit_uni_eltwise_injector_f32<isa> *> jit_eltwise_injectors_;
@@ -122,6 +125,7 @@ private:
     Xbyak::Opmask depthwise_reserved_2_ = k2;
     Xbyak::Reg64 reg_d_weights = r14;
     Xbyak::Reg64 reg_d_bias = r15;
+    Xbyak::Reg64 reg_post_ops_data = rax;
     Vmm vreg_d_weights, vreg_d_bias;
 
     int idx_compute_vreg_start_;
@@ -154,6 +158,7 @@ void jit_pp_kernel_t<isa>::generate() {
     mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
     mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
     mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
+    mov(reg_post_ops_data, ptr[reg_param + PARAM_OFF(post_ops_binary_rhs_arg_vec)]);
 #undef PARAM_OFF
 
     if (utils::one_of(isa, avx2, sse41)) {
@@ -164,6 +169,7 @@ void jit_pp_kernel_t<isa>::generate() {
     auto apply_post_ops = [&]() {
         int eltwise_inj_idx = 0;
         int depthwise_inj_idx = 0;
+        std::size_t post_ops_data_offset = 0;
         auto vreg_dst_ = vreg_dst(0);
         for (int i = 0; i < post_ops_.len(); i++) {
             auto &post_op = post_ops_.entry_[i];
@@ -172,46 +178,46 @@ void jit_pp_kernel_t<isa>::generate() {
                 jit_eltwise_injectors_[eltwise_inj_idx]->compute_vector(vreg_dst_.getIdx());
                 eltwise_inj_idx++;
             } else if (post_op.is_depthwise()) {
-                mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
-                mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
+                mov(reg_d_weights, ptr[reg_post_ops_data + post_ops_data_offset]);
                 lea(reg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
-                lea(reg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
                 jit_depthwise_injectors_[depthwise_inj_idx]->compute_vector_range(vreg_dst_.getIdx(), vreg_dst_.getIdx() + 1,
-                                                                                  reg_d_weights, reg_d_bias, true);
+                                                                                  reg_d_weights, reg_d_weights, true);
+                post_ops_data_offset += jit_depthwise_injectors_[depthwise_inj_idx]->memoryStep();
                 depthwise_inj_idx++;
             } else if (post_op.is_quantization()) {
                 bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
                 bool do_rounding = true;
 
-                mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.crop_low]));
+                size_t crop_low_off = post_op.quantization.offset[post_op.quantization.crop_low] * sizeof(float);
+                size_t crop_high_off = post_op.quantization.offset[post_op.quantization.crop_high] * sizeof(float);
+                mov(reg_d_weights, ptr[reg_post_ops_data + post_ops_data_offset]);
                 if (post_op.quantization.per_channel[post_op.quantization.crop_low]) {
-                    uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
+                    uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float) + crop_low_off]);
                 } else {
-                    uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights]);
+                    uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights + crop_low_off]);
                 }
 
-                mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.crop_high]));
                 if (post_op.quantization.per_channel[post_op.quantization.crop_high]) {
-                    uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
+                    uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_weights + reg_oc_offset * sizeof(float) + crop_high_off]);
                 } else {
-                    uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_bias]);
+                    uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_weights + crop_high_off]);
                 }
 
                 uni_vmaxps(vreg_dst_, vreg_dst_, vreg_d_weights);
                 uni_vminps(vreg_dst_, vreg_dst_, vreg_d_bias);
 
-                mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.inp_scale]));
+                size_t inp_scale_off = post_op.quantization.offset[post_op.quantization.inp_scale] * sizeof(float);
+                size_t inp_shift_off = post_op.quantization.offset[post_op.quantization.inp_shift] * sizeof(float);
                 if (post_op.quantization.per_channel[post_op.quantization.inp_scale]) {
-                    uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
+                    uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float) + inp_scale_off]);
                 } else {
-                    uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights]);
+                    uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights + inp_scale_off]);
                 }
 
-                mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.inp_shift]));
                 if (post_op.quantization.per_channel[post_op.quantization.inp_shift]) {
-                    uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
+                    uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_weights + reg_oc_offset * sizeof(float) + inp_shift_off]);
                 } else {
-                    uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_bias]);
+                    uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_weights + inp_shift_off]);
                 }
 
                 uni_vfmadd213ps(vreg_dst_, vreg_d_weights, vreg_d_bias);
@@ -219,23 +225,25 @@ void jit_pp_kernel_t<isa>::generate() {
                 if (do_rounding)
                     uni_vroundps(vreg_dst_, vreg_dst_, 0);
 
+                size_t output_scale_off = post_op.quantization.offset[post_op.quantization.output_scale] * sizeof(float);
+                size_t output_shift_off = post_op.quantization.offset[post_op.quantization.output_shift] * sizeof(float);
                 if (do_dequantization) {
-                    mov(reg_d_weights, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.output_scale]));
                     if (post_op.quantization.per_channel[post_op.quantization.output_scale]) {
-                        uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
+                        uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float) + output_scale_off]);
                     } else {
-                        uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights]);
+                        uni_vpbroadcastd(vreg_d_weights, ptr[reg_d_weights + output_scale_off]);
                     }
 
-                    mov(reg_d_bias, reinterpret_cast<size_t>(post_op.quantization.data[post_op.quantization.output_shift]));
                     if (post_op.quantization.per_channel[post_op.quantization.output_shift]) {
-                        uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_bias + reg_oc_offset * sizeof(float)]);
+                        uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_weights + reg_oc_offset * sizeof(float) + output_shift_off]);
                     } else {
-                        uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_bias]);
+                        uni_vpbroadcastd(vreg_d_bias, ptr[reg_d_weights + output_shift_off]);
                     }
 
                     uni_vfmadd213ps(vreg_dst_, vreg_d_weights, vreg_d_bias);
                 }
+
+                post_ops_data_offset += sizeof(float*);
             }
         }
     };

@@ -140,6 +140,7 @@ private:
     /* depthwise and quantization post ops */
     const Xbyak::Reg64 reg_d_weights = r15;
     const Xbyak::Reg64 reg_d_bias = r13;
+    int base_post_ops_data_offset = 0;
     Vmm vmm_d_weights;
     Vmm vmm_d_bias;
 

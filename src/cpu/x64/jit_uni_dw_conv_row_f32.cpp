@@ -262,50 +262,50 @@ void jit_uni_dw_conv_row_f32<isa>::apply_postprocessing(int ur_w, int oc_step) {
     int depthwise_inj_idx = 0;
     int quantization_inj_idx = 0;
     int start_idx = p.find(primitive_kind::convolution) + 1;
+    std::size_t post_ops_data_offset = 0;
     for (int i = start_idx; i < p.len(); i++) {
         auto& post_op = p.entry_[i];
         if (post_op.is_eltwise()) {
             eltwise_injectors[eltwise_inj_idx]->compute_vector_range(4, 4 + repeats * ur_w);
             eltwise_inj_idx++;
         } else if (post_op.is_depthwise()) {
-            mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
-            mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
-
+            mov(reg_d_weights, ptr[this->rsp + post_ops_data_offset]);
             add(reg_d_weights, reg_oc_off);
-            add(reg_d_bias, reg_oc_off);
 
-            depthwise_injectors[depthwise_inj_idx]->compute_vector_range(4, 4 + ur_w, reg_d_weights, reg_d_bias);
+            depthwise_injectors[depthwise_inj_idx]->compute_vector_range(4, 4 + ur_w, reg_d_weights, reg_d_weights);
 
             if (repeats == 2) {
                 add(reg_d_weights, (jcp.ch_block / 2) * sizeof(float));
-                add(reg_d_bias, (jcp.ch_block / 2) * sizeof(float));
 
-                depthwise_injectors[depthwise_inj_idx]->compute_vector_range(4 + ur_w, 4 + 2 * ur_w, reg_d_weights, reg_d_bias);
+                depthwise_injectors[depthwise_inj_idx]->compute_vector_range(4 + ur_w, 4 + 2 * ur_w, reg_d_weights, reg_d_weights);
             }
 
+            post_ops_data_offset += depthwise_injectors[depthwise_inj_idx]->memoryStep();
             depthwise_inj_idx++;
         } else if (post_op.is_quantization()) {
             bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
             bool do_rounding = do_dequantization || jcp.dst_dt == dnnl_f32 || i != p.len() - 1;
 
-            quantization_injectors[quantization_inj_idx]->init_crop_ptrs(reg_oc_off);
+            const Xbyak::RegExp quant_arg_base = this->rsp + post_ops_data_offset;
+            quantization_injectors[quantization_inj_idx]->init_crop_ptrs(quant_arg_base, reg_oc_off);
             for (int r = 0; r < repeats; r++) {
                 int s_idx = get_acc_reg(r * ur_w).getIdx();
                 quantization_injectors[quantization_inj_idx]->compute_crop(s_idx, s_idx + ur_w, r * (jcp.ch_block / 2) * sizeof(float));
             }
 
-            quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(reg_oc_off);
+            quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(quant_arg_base, reg_oc_off);
             for (int r = 0; r < repeats; r++) {
                 int s_idx = get_acc_reg(r * ur_w).getIdx();
                 quantization_injectors[quantization_inj_idx]->compute_input_scale_shift(s_idx, s_idx + ur_w, r * (jcp.ch_block / 2) * sizeof(float), do_rounding);
             }
 
-            quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(reg_oc_off);
+            quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(quant_arg_base, reg_oc_off);
             for (int r = 0; r < repeats; r++) {
                 int s_idx = get_acc_reg(r * ur_w).getIdx();
                 quantization_injectors[quantization_inj_idx]->compute_output_scale_shift(s_idx, s_idx + ur_w, r * (jcp.ch_block / 2) * sizeof(float));
             }
 
+            post_ops_data_offset += quantization_injectors[quantization_inj_idx]->memoryStep();
             quantization_inj_idx++;
         }
     }
@@ -548,7 +548,7 @@ void jit_uni_dw_conv_row_f32<isa>::generate() {
         } else if (post_op.is_depthwise()) {
             depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<isa>(
                     this,
-                    post_op.depthwise.alg
+                    post_op
             ));
         } else if (post_op.is_quantization()) {
             quantization_injectors.push_back(new jit_uni_quantization_injector_f32<isa>(
@@ -560,6 +560,26 @@ void jit_uni_dw_conv_row_f32<isa>::generate() {
     }
 
     this->preamble();
+
+    std::size_t post_ops_pointers_count = 0;
+    for (int i = 0; i < p.len(); i++) {
+        if (p.entry_[i].is_depthwise() || p.entry_[i].is_quantization()) {
+            post_ops_pointers_count++;
+        }
+    }
+
+    if (post_ops_pointers_count != 0) {
+        sub(rsp, post_ops_pointers_count * sizeof(float *));
+
+        auto aux_reg0 = reg_input0;
+        auto aux_reg1 = reg_input1;
+
+        mov(aux_reg0, ptr[this->param1 + GET_OFF_DW(post_ops_binary_rhs_arg_vec)]);
+        for (size_t i = 0; i < post_ops_pointers_count; i++) {
+            mov(aux_reg1, ptr[aux_reg0 + i * sizeof(float *)]);
+            mov(ptr[rsp + i * sizeof(float *)], aux_reg1);
+        }
+    }
 
     mov(reg_input0, ptr[this->param1 + GET_OFF_DW(src_row0)]);
     mov(reg_input1, ptr[this->param1 + GET_OFF_DW(src_row1)]);
@@ -588,6 +608,10 @@ void jit_uni_dw_conv_row_f32<isa>::generate() {
         loop_body(jcp.oc % jcp.ch_block);
 
     L(exit_label);
+
+    if (post_ops_pointers_count != 0) {
+        add(rsp, post_ops_pointers_count * sizeof(float *));
+    }
 
     this->postamble();
 
@@ -633,6 +657,12 @@ status_t jit_uni_dw_conv_row_f32<isa>::init_conf(jit_1x1_conv_conf_t &jcp, jit_c
     int dw_conv_ind = p.find(primitive_kind::convolution);
     jcp_dw.with_sum = p.find(primitive_kind::sum, dw_conv_ind) != -1;
 
+    auto dw_po_len = p.len() - (dw_conv_ind + 1);
+    jcp_dw.post_ops.entry_.resize(dw_po_len);
+    for (int i = 0; i < dw_po_len; ++i) {
+        jcp_dw.post_ops.entry_[i].copy_from(p.entry_[i + dw_conv_ind + 1]);
+    }
+
     jcp_dw.ch_block = simd_w;
     jcp_dw.with_bias = true;
 
@@ -646,8 +676,6 @@ status_t jit_uni_dw_conv_row_f32<isa>::init_conf(jit_1x1_conv_conf_t &jcp, jit_c
     jcp_dw.ow = jcp.dw_conv_ow;
     jcp_dw.stride_h = p.entry_[dw_conv_ind].depthwise_conv_old.str_h;
     jcp_dw.stride_w = p.entry_[dw_conv_ind].depthwise_conv_old.str_w;
-    jcp_dw.conv_weights = p.entry_[dw_conv_ind].depthwise_conv_old.weights_data;
-    jcp_dw.conv_biases = p.entry_[dw_conv_ind].depthwise_conv_old.biases_data;
 
     if (jcp_dw.kh != 3 || jcp_dw.kw != 3)
         return status::unimplemented;

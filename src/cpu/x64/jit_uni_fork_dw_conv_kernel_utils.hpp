@@ -213,6 +213,8 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     if (jcp.with_eltwise)
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
+    jcp.post_ops = p;
+
     bool ok_to_pad_channels = true
         && !is_data_layout_nxc
         && jcp.oc == jcp.ngroups
@@ -371,6 +373,8 @@ status_t jit_uni_fork_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
 
     if (!post_ops_ok(attr))
         return status::unimplemented;
+
+    jcp.post_ops = attr.post_ops_;
 
     bool ok_to_pad_channels = true && jcp.oc == jcp.ngroups
             && jcp.ic == jcp.ngroups

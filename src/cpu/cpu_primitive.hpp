@@ -101,6 +101,25 @@
     if (pd()->attr()->scales_.get(mem_arg).has_default_values()) { \
         utils::array_set(CONCAT2(CONCAT2(scales, _buf16), mem_arg), 1.0f, 16); \
         scale = CONCAT2(CONCAT2(scales, _buf16), mem_arg); \
+    }
+
+#define DEFINE_INPUT_ZERO_POINTS_BUFFER(input_zero_points_ptr, jcp) \
+    const uint8_t *input_zero_points_ptr = nullptr; \
+    if (jcp.with_input_zp) { \
+        input_zero_points_ptr = CTX_IN_MEM(const uint8_t *, DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC); \
+        if (input_zero_points_ptr == nullptr) return status::invalid_arguments; \
+    }
+
+#define DEFINE_OUTPUT_COMPENSATION_BUFFER(output_compensation_ptr, jcp) \
+    const int32_t *output_compensation_ptr = nullptr; \
+    if (jcp.with_input_zp) { \
+        output_compensation_ptr = CTX_IN_MEM(const int32_t *, DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST); \
+        if (output_compensation_ptr == nullptr) return status::invalid_arguments; \
+    }
+
+#define ASSIGN_INPUT_SCALE_VALUE(scale, mem_arg) \
+    if (pd()->attr()->scales_.get(mem_arg).defined()) { \
+        scale = pd()->attr()->scales_.get(mem_arg).scales_; \
     } else { \
         const auto scale_d = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | mem_arg); \
         bool ok = scale_d.data_type() == data_type::f32 \

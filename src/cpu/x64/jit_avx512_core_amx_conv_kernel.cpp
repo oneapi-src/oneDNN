@@ -1394,8 +1394,10 @@ void jit_avx512_core_amx_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
         std::map<size_t, int> vmm_idx_off;
         vmm_idx_off.insert({zmm_out.getIdx(), ocb * jcp.oc_block * sizeof(float)});
         depthwise_injector::dynamic_params_t ddp {zmm_d_weights.getIdx(), zmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
-                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
-        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt};
+                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off,
+                                                  this->rsp, base_post_ops_data_offset};
+        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt,
+                                                     this->rsp, base_post_ops_data_offset};
 
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
 
@@ -1409,6 +1411,11 @@ void jit_avx512_core_amx_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
         }
 
         postops_injector_->compute_vector_range({(size_t)vmm_idx}, rhs_arg_params, ddp, qdp);
+
+        if ((jcp.with_depthwise || jcp.with_quantization) && jcp.src_zero_point) {
+            // restore reg_zp_compensation register which was overwritten by legacy postOps
+            mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
+        }
     }
 }
 
@@ -1778,6 +1785,7 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(int width,
 
         push(reg_inp_ptr);
         push(reg_wei_ptr);
+        base_post_ops_data_offset += 2 * reg64_size;
 
         for (int ireduce = 0; ireduce < nreduce; ireduce += stride) {
             for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
@@ -1803,6 +1811,7 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(int width,
         }
         pop(reg_wei_ptr);
         pop(reg_inp_ptr);
+        base_post_ops_data_offset -= 2 * reg64_size;
 
         store_output(width, tail, do_store, handle_h_blk, t_pad_output,
                 b_pad_output, l_pad_output, r_pad_output, is_last_oh_block);
@@ -1846,6 +1855,7 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(int width,
                 dec(reg_kd);
                 jl(kd_skip_compute, T_NEAR);
                 push(reg_kd);
+                base_post_ops_data_offset += reg64_size;
             }
             for (int kh = 0; kh < jcp.kh; kh++) {
                 for (int set_idx = 0; set_idx < jcp.n_stride_sets;
@@ -1873,7 +1883,10 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(int width,
                     }
                 }
             }
-            if (check_kd_padding) pop(reg_kd);
+            if (check_kd_padding) {
+                pop(reg_kd);
+                base_post_ops_data_offset -= reg64_size;
+            }
         }
         L(kd_skip_compute);
     }
@@ -2070,6 +2083,9 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_ow_loop() {
 void jit_avx512_core_amx_fwd_kernel_t::generate() {
     preamble();
 
+    if (postops_injector_)
+        postops_injector_->push_post_ops_data_on_stack(param1, GET_OFF(post_ops_binary_rhs_arg_vec), reg_inp_ptr, reg_wei_ptr);
+
     mov(reg_inp_ptr, ptr[param1 + GET_OFF(src)]);
     mov(reg_wei_ptr, ptr[param1 + GET_OFF(filt)]);
     mov(reg_out_ptr, ptr[param1 + GET_OFF(dst)]);
@@ -2111,6 +2127,9 @@ void jit_avx512_core_amx_fwd_kernel_t::generate() {
         L(mask_is_set);
     }
     compute_ow_loop();
+
+    if (postops_injector_)
+        postops_injector_->reset_stack_pointer();
 
     postamble();
 

@@ -276,6 +276,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
         const int ur_ch_blocks, const int ur_w, const bool is_ch_tail) {
     if (this->jcp.with_eltwise || this->jcp.with_binary || this->jcp.with_depthwise || this->jcp.with_quantization) {
         push(aux_reg_blocks_offset);
+        base_post_ops_data_offset += reg64_size;
         add(aux_reg_blocks_offset, ptr[this->param1 + GET_OFF(oc_off)]); //add offset of processed blocks
 
         const int repeats = max_repeats();
@@ -287,8 +288,10 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
                 });
 
         depthwise_injector::dynamic_params_t ddp {vmm_d_weights.getIdx(), vmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
-                                                  aux_reg_blocks_offset, vmm_idx_off};
-        quantization_injector::dynamic_params_t qdp {aux_reg_blocks_offset, vmm_idx_off, jcp.dst_dt};
+                                                  aux_reg_blocks_offset, vmm_idx_off,
+                                                  this->rsp, base_post_ops_data_offset};
+        quantization_injector::dynamic_params_t qdp {aux_reg_blocks_offset, vmm_idx_off, jcp.dst_dt,
+                                                     this->rsp, base_post_ops_data_offset};
 
         injector_utils::vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {
@@ -358,6 +361,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
             postops_injector_->compute_vector_range(vmm_idxs, binary_injector::rhs_arg_dynamic_params_t(), ddp, qdp);
         }
         pop(aux_reg_blocks_offset);
+        base_post_ops_data_offset -= reg64_size;
     }
 }
 
@@ -492,7 +496,11 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::compute_loop(
         push(reg_kernel);
         push(reg_input);
         push(reg_output);
-        if (jcp.with_bias) push(reg_bias);
+        base_post_ops_data_offset += 3 * reg64_size;
+        if (jcp.with_bias) {
+            push(reg_bias);
+            base_post_ops_data_offset += reg64_size;
+        }
 
         if ((jcp.oc / jcp.ch_block) >= jcp.nb_ch_blocking) {
             if (ch_block_tail) {
@@ -523,10 +531,14 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::compute_loop(
             L(skip_ch_tail_label);
         }
 
-        if (jcp.with_bias) pop(reg_bias);
+        if (jcp.with_bias) {
+            pop(reg_bias);
+            base_post_ops_data_offset -= reg64_size;
+        }
         pop(reg_output);
         pop(reg_input);
         pop(reg_kernel);
+        base_post_ops_data_offset -= 3 * reg64_size;
 
     } else {
         compute(ur_ch_blocks, jcp.oc % jcp.ch_block);
@@ -607,6 +619,9 @@ template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
     this->preamble();
 
+    if (postops_injector_)
+        postops_injector_->push_post_ops_data_on_stack(this->param1, GET_OFF(post_ops_binary_rhs_arg_vec), reg_input, reg_output);
+
     if (jcp.is_fused_conv) {
         mov(reg_input_buffer_ptr, ptr[this->param1 + GET_OFF(src)]);
         /* In case of fused depthwise convolution, `param.src` is not a pointer
@@ -666,6 +681,9 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
 
         L(exit_label);
     }
+
+    if (postops_injector_)
+        postops_injector_->reset_stack_pointer();
 
     this->postamble();
 
@@ -824,29 +842,27 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_postprocess(int ur_ch_block
     int repeats = isa == sse41 ? 2 : 1;
 
     const auto &p = attr_.post_ops_;
+    std::size_t post_ops_data_offset = 0;
     int depthwise_inj_idx = 0;
     for (int i = 0; i < p.len(); i++) {
         auto& post_op = p.entry_[i];
         if (post_op.is_depthwise()) {
-            mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
-            mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
-
+            mov(reg_d_weights, ptr[this->rsp + base_post_ops_data_offset + post_ops_data_offset]);
             add(reg_d_weights, ptr[this->param1 + GET_OFF(ic_off)]);
-            add(reg_d_bias, ptr[this->param1 + GET_OFF(ic_off)]);
 
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
                 for (int k = 0; k < repeats; k++) {
                     int start_idx = get_acc_reg(k*ur_ch_blocks*ur_str_w + ur_str_w * ch).getIdx();
                     int end_idx = get_acc_reg(k*ur_ch_blocks*ur_str_w + ur_str_w * ch + ur_str_w).getIdx();
 
-                    depthwise_injectors[depthwise_inj_idx]->compute_vector_range(start_idx, end_idx, reg_d_weights, reg_d_bias);
+                    depthwise_injectors[depthwise_inj_idx]->compute_vector_range(start_idx, end_idx, reg_d_weights, reg_d_weights);
 
                     add(reg_d_weights, jcp.ch_block / repeats * sizeof(float));
-                    add(reg_d_bias, jcp.ch_block / repeats * sizeof(float));
                 }
             }
+            post_ops_data_offset += depthwise_injectors[depthwise_inj_idx]->memoryStep();
+            depthwise_inj_idx++;
         }
-        depthwise_inj_idx++;
     }
 }
 
@@ -917,6 +933,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::ch_loop_body(
                 = (size_t)jcp.nb_ch_blocking * jcp.ch_block * sizeof(float);
 
         mov(aux_reg_ch_blocks, reg_ch_blocks);
+        base_post_ops_data_offset += 3 * reg64_size;
         push(reg_dsrc);
         push(reg_ddst);
         push(reg_kernel);
@@ -953,6 +970,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::ch_loop_body(
         pop(reg_kernel);
         pop(reg_ddst);
         pop(reg_dsrc);
+        base_post_ops_data_offset -= 3 * reg64_size;
 
     } else {
         call_compute_body(ur_ch_blocks, unroll_w, jcp.ch_tail > 0);
@@ -997,12 +1015,32 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
         if (post_op.is_depthwise()) {
             depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<isa>(
                     this,
-                    post_op.depthwise.alg
+                    post_op
             ));
         }
     }
 
     preamble();
+
+    std::size_t post_ops_pointers_count = 0;
+    for (int i = 0; i < p.len(); i++) {
+        if (p.entry_[i].is_depthwise() || p.entry_[i].is_quantization()) {
+            post_ops_pointers_count++;
+        }
+    }
+
+    if (post_ops_pointers_count != 0) {
+        sub(rsp, post_ops_pointers_count * sizeof(float *));
+
+        auto aux_reg0 = reg_dsrc;
+        auto aux_reg1 = reg_ddst;
+
+        mov(aux_reg0, ptr[this->param1 + GET_OFF(post_ops_binary_rhs_arg_vec)]);
+        for (size_t i = 0; i < post_ops_pointers_count; i++) {
+            mov(aux_reg1, ptr[aux_reg0 + i * sizeof(float *)]);
+            mov(ptr[rsp + i * sizeof(float *)], aux_reg1);
+        }
+    }
 
     mov(reg_dsrc, ptr[this->param1 + GET_OFF(src)]);
     mov(reg_ddst, ptr[this->param1 + GET_OFF(dst)]);
@@ -1042,6 +1080,10 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
 
         int ch_blocks_tail = jcp.nb_ch % jcp.nb_ch_blocking;
         if (ch_blocks_tail) { ch_blocks_loop(ch_blocks_tail); }
+    }
+
+    if (post_ops_pointers_count != 0) {
+        add(rsp, post_ops_pointers_count * sizeof(float *));
     }
 
     this->postamble();
