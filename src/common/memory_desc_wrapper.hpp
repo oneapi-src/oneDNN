@@ -322,8 +322,8 @@ struct memory_desc_wrapper : public c_compatible {
      * following statement might be true: lhs == rhs && !lhs.similar_to(rhs) */
     /* TODO: revise */
     bool similar_to(const memory_desc_wrapper &rhs, bool with_padding = true,
-            bool with_data_type = true, int dim_start = 0, int stride_start = -1,
-            bool use_weak_cmp = false, bool check_off0 = false) const;
+            bool with_data_type = true, int dim_start = 0, bool use_weak_cmp = false,
+            bool check_off0 = false, uint64_t stride_mask = 0xffffffffffffffff) const;
 
     /** returns true if one memory can be reordered to another */
     bool consistent_with(const memory_desc_wrapper &rhs) const;
@@ -489,7 +489,7 @@ private:
 };
 
 inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
-        bool with_padding, bool with_data_type, int dim_start, int stride_start, bool use_weak_cmp, bool check_off0) const {
+        bool with_padding, bool with_data_type, int dim_start, bool use_weak_cmp, bool check_off0, uint64_t stride_mask) const {
     using namespace utils;
 
     if (one_of(format_kind(), format_kind::undef, format_kind::any))
@@ -497,20 +497,31 @@ inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
     if (is_wino_desc() || is_rnn_packed_desc()) return false;
 
     const int ds = dim_start;
-    if (stride_start == -1) {
-        stride_start = ds;
-    } else if (stride_start > ndims()) {
-        stride_start = ndims();
-    }
     const auto &blk = blocking_desc();
     const auto &r_blk = rhs.blocking_desc();
 
     auto custom_cpm = use_weak_cmp ? array_cmp_weak : array_cmp<dnnl_dim_t>;
+    auto cmp_strides = [&]() {
+        if (0xffffffffffffffff == stride_mask) {
+            return custom_cpm(blk.strides + ds, r_blk.strides + ds, ndims() - ds);
+        } else {
+            for (int i = 0; i < ndims(); ++i) {
+                if (stride_mask & (1 << i)) {
+                    if (blk.strides[i] != r_blk.strides[i]
+                        && IMPLICATION(use_weak_cmp, (blk.strides[i] != DNNL_RUNTIME_DIM_VAL && r_blk.strides[i] != DNNL_RUNTIME_DIM_VAL))) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    };
+
     return ndims() == rhs.ndims() && dim_start <= ndims() /* guard */
             && format_kind() == rhs.format_kind()
             && IMPLICATION(with_data_type, data_type() == rhs.data_type())
             && custom_cpm(dims() + ds, rhs.dims() + ds, ndims() - ds)
-            && custom_cpm(blk.strides + stride_start, r_blk.strides + stride_start, ndims() - stride_start)
+            && cmp_strides()
             && blk.inner_nblks == r_blk.inner_nblks
             && array_cmp(blk.inner_blks, r_blk.inner_blks, blk.inner_nblks)
             && array_cmp(blk.inner_idxs, r_blk.inner_idxs, blk.inner_nblks)
