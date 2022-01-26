@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -220,48 +220,15 @@ std::shared_ptr<jit_function_t> cfake_jit_module_t::get_function(
     void *wrapper = get_address_of_symbol(fname + "_0wrapper");
     if (fun || wrapper) {
         if (runtime_config_t::get().execution_verbose_) {
-            return std::make_shared<cfake_jit_function_t>(
+            return std::make_shared<general_jit_function_t>(
                     shared_from_this(), fun, wrapper, fname);
         } else {
-            return std::make_shared<cfake_jit_function_t>(
+            return std::make_shared<general_jit_function_t>(
                     shared_from_this(), fun, wrapper);
         }
     } else {
         return nullptr;
     }
-}
-
-void cfake_jit_function_t::call_generic(
-        runtime::stream_t *stream, generic_val *args) const {
-    assert(wrapper_ && "Trying to call 'call_generic' \
-            on a jit funciton with no wrapper.");
-
-    using functype = void (*)(runtime::stream_t *, void *, generic_val *);
-    functype f = reinterpret_cast<functype>(wrapper_);
-    if (runtime_config_t::get().execution_verbose_) {
-        using namespace std::chrono;
-        auto start = steady_clock::now();
-        f(stream, module_->globals_.data_.data_, args);
-        auto stop = steady_clock::now();
-        double duration
-                = static_cast<double>(
-                          duration_cast<nanoseconds>(stop - start).count())
-                / 1e6;
-        std::cout << "Entry point: " << fname_ << ". Time elapsed: " << duration
-                  << " ms" << std::endl;
-    } else {
-        f(stream, module_->globals_.data_.data_, args);
-    }
-}
-
-void cfake_jit_function_t::call_generic(
-        runtime::stream_t *stream, void *module_data, generic_val *args) const {
-    assert(wrapper_ && "Trying to call 'call_generic' \
-            on a jit funciton with no wrapper.");
-
-    using functype = void (*)(runtime::stream_t *, void *, generic_val *);
-    functype f = reinterpret_cast<functype>(wrapper_);
-    f(stream, module_->globals_.data_.data_, args);
 }
 
 template <typename T, typename TF>

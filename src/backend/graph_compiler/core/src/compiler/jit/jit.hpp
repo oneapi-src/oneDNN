@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,6 +95,9 @@ public:
 // The result of compiling an ir_module_t
 class SC_INTERNAL_API jit_module {
 public:
+    statics_table_t globals_;
+    jit_module() = default;
+    jit_module(statics_table_t &&globals) : globals_(std::move(globals)) {}
     virtual void *get_address_of_symbol(const std::string &name) = 0;
     virtual std::shared_ptr<jit_function_t> get_function(
             const std::string &name)
@@ -104,6 +107,34 @@ public:
         return std::vector<std::string>();
     }
     virtual ~jit_module() = default;
+};
+
+class SC_INTERNAL_API general_jit_function_t : public jit_function_t {
+    std::shared_ptr<jit_module> module_;
+    void *funcptr_;
+    void *wrapper_;
+    std::string fname_;
+
+public:
+    void *get_module_data() const override {
+        return module_->globals_.data_.data_;
+    }
+    general_jit_function_t(
+            std::shared_ptr<jit_module> module, void *funcptr, void *wrapper)
+        : module_(std::move(module)), funcptr_(funcptr), wrapper_(wrapper) {}
+    general_jit_function_t(std::shared_ptr<jit_module> module, void *funcptr,
+            void *wrapper, const std::string &name)
+        : module_(std::move(module))
+        , funcptr_(funcptr)
+        , wrapper_(wrapper)
+        , fname_(name) {}
+    std::shared_ptr<jit_module> get_module() const override { return module_; }
+    void *get_function_pointer() const override { return funcptr_; }
+    void *get_wrapper_function_pointer() const { return wrapper_; }
+    void call_generic(
+            runtime::stream_t *stream, generic_val *args) const override;
+    void call_generic(runtime::stream_t *stream, void *module_data,
+            generic_val *args) const override;
 };
 
 // jit interface

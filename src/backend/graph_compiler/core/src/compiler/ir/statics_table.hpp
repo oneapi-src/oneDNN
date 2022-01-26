@@ -87,12 +87,13 @@ struct statics_table_t {
     statics_table_t(aligned_buffer_t &&data)
         : data_(std::move(data)), initialized_size_(0) {}
     statics_table_t(statics_table_t &&other) = default;
-
+    statics_table_t() : initialized_size_(0) {}
     // save the buffer size and the contents of initialized section
     SC_INTERNAL_API void save_to_file(const std::string &path) const;
     // load the saved statics_table from file
     SC_INTERNAL_API static statics_table_t load_from_file(
             const std::string &path);
+    statics_table_t copy() const;
 };
 
 } // namespace sc

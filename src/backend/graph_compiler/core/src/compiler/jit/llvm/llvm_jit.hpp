@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,36 +45,11 @@ public:
             statics_table_t &&globals);
     std::unique_ptr<llvm::LLVMContext> llvm_ctx_;
     std::unique_ptr<llvm::ExecutionEngine> engine_;
-    statics_table_t globals_;
     ~llvm_jit_module();
 
     void *get_address_of_symbol(const std::string &name) override;
     std::shared_ptr<jit_function_t> get_function(
             const std::string &name) override;
-};
-
-class SC_INTERNAL_API llvm_jit_function : public jit_function_t {
-    std::shared_ptr<llvm_jit_module> module_;
-    void *funcptr_;
-    void *wrapper_;
-    std::string fname_;
-
-public:
-    // todo: can be merged with cfake jit function
-    virtual void *get_module_data() const override {
-        return module_->globals_.data_.data_;
-    }
-    llvm_jit_function(std::shared_ptr<llvm_jit_module> module, void *funcptr,
-            void *wrapper, const std::string &name = std::string())
-        : module_(module), funcptr_(funcptr), wrapper_(wrapper), fname_(name) {}
-
-    std::shared_ptr<jit_module> get_module() const override { return module_; }
-    void *get_function_pointer() const override { return funcptr_; }
-    void *get_wrapper_function_pointer() const { return wrapper_; }
-    void call_generic(
-            runtime::stream_t *stream, generic_val *args) const override;
-    void call_generic(runtime::stream_t *stream, void *module_data,
-            generic_val *args) const override;
 };
 
 class SC_INTERNAL_API llvm_jit : public jit_engine_t {

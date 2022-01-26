@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,10 @@
 #if SC_CFAKE_JIT_ENABLED
 #include "cfake/cfake_jit.hpp"
 #endif
+#include <chrono>
 #include "llvm/llvm_jit.hpp"
 #include <compiler/ir/pass/ir_copy.hpp>
+#include <runtime/config.hpp>
 
 namespace sc {
 
@@ -59,6 +61,53 @@ void jit_engine_t::set_target_machine(jit_kind kind, target_machine_t &tm) {
 #endif
             return;
         default: assert(0 && "Bad JIT type"); break;
+    }
+}
+
+void general_jit_function_t::call_generic(
+        runtime::stream_t *stream, generic_val *args) const {
+    assert(wrapper_ && "Trying to call 'call_generic' \
+            on a jit funciton with no wrapper.");
+
+    using functype = void (*)(runtime::stream_t *, void *, generic_val *);
+    functype f = reinterpret_cast<functype>(wrapper_);
+    if (runtime_config_t::get().execution_verbose_) {
+        using namespace std::chrono;
+        auto start = steady_clock::now();
+        f(stream, module_->globals_.data_.data_, args);
+        auto stop = steady_clock::now();
+        double duration
+                = static_cast<double>(
+                          duration_cast<nanoseconds>(stop - start).count())
+                / 1e6;
+        std::cout << "Entry point: " << fname_ << ". Time elapsed: " << duration
+                  << " ms" << std::endl;
+    } else {
+        f(stream, module_->globals_.data_.data_, args);
+    }
+}
+
+void general_jit_function_t::call_generic(
+        runtime::stream_t *stream, void *module_data, generic_val *args) const {
+    assert(wrapper_ && "Trying to call 'call_generic' \
+            on a jit funciton with no wrapper.");
+
+    using functype = void (*)(runtime::stream_t *, void *, generic_val *);
+    functype f = reinterpret_cast<functype>(wrapper_);
+
+    if (runtime_config_t::get().execution_verbose_) {
+        using namespace std::chrono;
+        auto start = steady_clock::now();
+        f(stream, module_data, args);
+        auto stop = steady_clock::now();
+        double duration
+                = static_cast<double>(
+                          duration_cast<nanoseconds>(stop - start).count())
+                / 1e6;
+        std::cout << "Entry point: " << fname_ << ". Time elapsed: " << duration
+                  << " ms" << std::endl;
+    } else {
+        f(stream, module_data, args);
     }
 }
 

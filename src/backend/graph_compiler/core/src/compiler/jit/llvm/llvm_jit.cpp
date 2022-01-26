@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -123,9 +123,9 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
 
 llvm_jit_module::llvm_jit_module(std::unique_ptr<llvm::ExecutionEngine> engine,
         std::unique_ptr<llvm::LLVMContext> llvm_ctx, statics_table_t &&globals)
-    : llvm_ctx_(std::move(llvm_ctx))
-    , engine_(std::move(engine))
-    , globals_(std::move(globals)) {}
+    : jit_module(std::move(globals))
+    , llvm_ctx_(std::move(llvm_ctx))
+    , engine_(std::move(engine)) {}
 
 llvm_jit_module::~llvm_jit_module() = default;
 
@@ -150,46 +150,15 @@ std::shared_ptr<jit_function_t> llvm_jit_module::get_function(
     void *wrapper = resolve_llvm_symbol(engine_.get(), name + "_0wrapper");
     if (fun || wrapper) {
         if (runtime_config_t::get().execution_verbose_) {
-            return std::make_shared<llvm_jit_function>(
+            return std::make_shared<general_jit_function_t>(
                     shared_from_this(), fun, wrapper, name);
         } else {
-            return std::make_shared<llvm_jit_function>(
+            return std::make_shared<general_jit_function_t>(
                     shared_from_this(), fun, wrapper);
         }
     } else {
         return nullptr;
     }
-}
-
-// todo: merge with other JIT engines
-void llvm_jit_function::call_generic(
-        runtime::stream_t *stream, generic_val *args) const {
-    assert(wrapper_ && "Trying to call 'call_generic' on a jit funciton with no wrapper."); // NOLINT
-    using functype = void (*)(runtime::stream_t *, void *, generic_val *);
-    functype f = reinterpret_cast<functype>(wrapper_);
-    if (runtime_config_t::get().execution_verbose_) {
-        using namespace std::chrono;
-        auto start = steady_clock::now();
-        f(stream, module_->globals_.data_.data_, args);
-        auto stop = steady_clock::now();
-        double duration
-                = static_cast<double>(
-                          duration_cast<nanoseconds>(stop - start).count())
-                / 1e6;
-        std::cout << "Entry point: " << fname_ << ". Time elapsed: " << duration
-                  << " ms" << std::endl;
-    } else {
-        f(stream, module_->globals_.data_.data_, args);
-    }
-}
-
-void llvm_jit_function::call_generic(
-        runtime::stream_t *stream, void *module_data, generic_val *args) const {
-    assert(wrapper_ && "Trying to call 'call_generic' on a jit funciton with no wrapper."); // NOLINT
-
-    using functype = void (*)(runtime::stream_t *, void *, generic_val *);
-    functype f = reinterpret_cast<functype>(wrapper_);
-    f(stream, module_->globals_.data_.data_, args);
 }
 
 } // namespace sc

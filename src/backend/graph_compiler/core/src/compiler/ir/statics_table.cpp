@@ -141,4 +141,13 @@ void statics_table_t::add(const std::string &name, size_t d) {
             "Duplicated name in global tensors: " << name);
     impl_.insert(std::make_pair(name, d));
 }
+
+statics_table_t statics_table_t::copy() const {
+    if (!data_.data_) { return statics_table_t(); }
+    statics_table_t ret(aligned_buffer_t(data_.size_, data_.engine_));
+    memcpy(ret.data_.data_, data_.data_, data_.size_);
+    ret.impl_ = impl_;
+    ret.initialized_size_ = initialized_size_;
+    return ret;
+}
 } // namespace sc
