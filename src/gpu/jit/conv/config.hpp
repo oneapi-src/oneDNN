@@ -379,8 +379,7 @@ public:
                                       : 4);
                 kw_blk = 8;
                 ic_blk = is_s32_accumulator() ? 4 : 2;
-                osp_thr_blk = std::min(
-                        utils::rnd_up_pow2(ow), hw >= ngen::HW::XeHPC ? 8 : 4);
+                osp_thr_blk = std::min(utils::rnd_up_pow2(ow), 4);
                 osp_thr_dim = std::min(4, utils::div_up(ow, 4));
 
                 int max_osp_thr_dim
