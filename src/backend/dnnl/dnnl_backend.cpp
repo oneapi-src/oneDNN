@@ -203,11 +203,11 @@ bool dnnl_backend::register_kernels() {
 
     // softmax operators
     DNNL_REGISTER_KERNEL(impl::op_kind::SoftMax, softmax_fwd_t)
-    DNNL_REGISTER_KERNEL(impl::op_kind::SoftMaxBackprop, softmax_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::SoftMaxBackprop, softmax_bwd_t)
 
     // logsoftmax operators
     DNNL_REGISTER_KERNEL(impl::op_kind::LogSoftmax, logsoftmax_fwd_t)
-    DNNL_REGISTER_KERNEL(impl::op_kind::LogSoftmaxBackprop, logsoftmax_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::LogSoftmaxBackprop, logsoftmax_bwd_t)
 
     // layernorm kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::LayerNorm, layernorm_fwd_t)

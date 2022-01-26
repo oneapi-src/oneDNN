@@ -2951,27 +2951,29 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
 
         if (cur_op->get_kind() == impl::op_kind::Convolution) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_convolution);
-            new_op->merge_attributes(cur_op->get_attributes());
         } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_convtranspose);
-            new_op->merge_attributes(cur_op->get_attributes());
         } else if (cur_op->get_kind()
                 == impl::op_kind::ConvolutionBackpropData) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_conv_bwd_data);
-            new_op->merge_attributes(cur_op->get_attributes());
         } else if (cur_op->get_kind() == impl::op_kind::MaxPool
                 || cur_op->get_kind() == impl::op_kind::AvgPool) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_pool);
-            new_op->merge_attributes(cur_op->get_attributes());
             if (cur_op->get_kind() == impl::op_kind::MaxPool) {
                 new_op->set_attr<std::string>("kind", "maxpool");
             } else {
                 new_op->set_attr<std::string>("kind", "avgpool");
             }
+        } else if (cur_op->get_kind() == impl::op_kind::SoftMaxBackprop) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_softmax_bwd);
+        } else if (cur_op->get_kind() == impl::op_kind::LogSoftmaxBackprop) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_logsoftmax_bwd);
         } else {
             // TODO(xxx) Lower other ops to internal ops
             continue;
         }
+
+        new_op->merge_attributes(cur_op->get_attributes());
 
         replace_op(cur_op, new_op);
         auto scratchpad_val = insert_empty_scratchpad(new_op);

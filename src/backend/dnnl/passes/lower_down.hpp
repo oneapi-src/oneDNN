@@ -151,6 +151,8 @@ impl::status_t fuse_dynamic_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
+impl::status_t softmax_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
+
 impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl

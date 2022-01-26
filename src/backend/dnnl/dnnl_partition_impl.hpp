@@ -415,7 +415,8 @@ public:
                 op_kind::minimum_sigmoid, impl::op_kind::Divide,
                 impl::op_kind::Subtract,
                 // softmax
-                impl::op_kind::SoftMax, impl::op_kind::LogSoftmax,
+                impl::op_kind::SoftMax, impl::op_kind::SoftMaxBackprop,
+                impl::op_kind::LogSoftmax, impl::op_kind::LogSoftmaxBackprop,
                 // fp32 interpolate pattern
                 impl::op_kind::Interpolate, op_kind::interpolate_fusion,
                 // concat

@@ -3257,6 +3257,55 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_reduction, 1,
                 .set_shape_inference_function(infer_reduce_output_shape)
                 .SET_REDUCE_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_softmax_bwd, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(2)
+                .set_input(
+                        0, "output_delta", "gradients tensor w.r.t. the output")
+                .set_input(1, "forward_result", "result of forward")
+                .set_output(0, "input_delta",
+                        "the gradient tensor w.r.t. the input of SoftMax")
+                .set_output(1, "scratchpad",
+                        "scratchpad tensor, which is a temporary output and "
+                        "not connected to any other ops")
+                // Attributes inherited from SoftMaxBackprop
+                .set_attr("axis",
+                        "the axis of which the SoftMaxBackprop is calculated",
+                        false, attribute_kind::i, (int64_t)1)
+                // New added attributes
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
+                // Analysis rules
+                .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax_bwd, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(2)
+                .set_input(
+                        0, "output_delta", "gradients tensor w.r.t. the output")
+                .set_input(1, "forward_result", "result of forward")
+                .set_output(0, "input_delta",
+                        "the gradient tensor w.r.t. the input of LogSoftmax")
+                .set_output(1, "scratchpad",
+                        "scratchpad tensor, which is a temporary output and "
+                        "not connected to any other ops")
+                // Attributes inherited from LogSoftmaxBackprop
+                .set_attr("axis",
+                        "the axis of which the LogSoftmaxBackprop is "
+                        "calculated",
+                        false, attribute_kind::i, (int64_t)-1)
+                // New added attributes
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
+                // Analysis rules
+                .set_shape_inference_function(infer_identity_output_shape))
+
 // Represents all currently available reduction related fusions.
 // Base-OP possibilites:
 // [ReduceL1|ReduceL2|ReduceMax|ReduceMean|ReduceMin|ReduceProd|ReduceSum]

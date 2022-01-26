@@ -115,8 +115,14 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == impl::op_kind::SoftMax) {
             exec = std::make_shared<softmax_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind() == op_kind::dnnl_softmax_bwd) {
+            exec = std::make_shared<softmax_bwd_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == impl::op_kind::LogSoftmax) {
             exec = std::make_shared<logsoftmax_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
+            exec = std::make_shared<logsoftmax_bwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_reduction) {
             exec = std::make_shared<reduction_executable_t>(

@@ -911,6 +911,34 @@ static void layout_propagation_for_softmax(op_ptr &op,
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
+static void layout_propagation_for_softmax_bwd(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    value_ptr dst = op->get_input_value(1);
+    assertm(!ltw(dst->get_logical_tensor()).is_any(),
+            "softmax bwd's dst can't be any layout now");
+
+    const auto &pd_flag_pair
+            = create_softmax_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache);
+
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_before(op, 0, pd.diff_dst_desc(), reorder_ops);
+    value_ptr diff_dst = op->get_input_value(0);
+    fill_layout_info(diff_dst, pd.diff_dst_desc());
+
+    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    value_ptr diff_src = op->get_output_value(0);
+    fill_layout_info(diff_src, pd.diff_src_desc());
+
+    // according to op schema, scratchpad must be be second output
+    auto scratchpad_val = op->get_output_value(1);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+}
+
 static void layout_propagation_for_logsoftmax(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
@@ -931,6 +959,33 @@ static void layout_propagation_for_logsoftmax(op_ptr &op,
 
     // make scratchpad as logsoftmax's last output
     value_ptr scratchpad_val = insert_scratchpad(op);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+}
+
+static void layout_propagation_for_logsoftmax_bwd(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    value_ptr dst = op->get_input_value(1);
+    assertm(!ltw(dst->get_logical_tensor()).is_any(),
+            "logsoftmax bwd's dst can't be any layout now");
+
+    const auto &pd_flag_pair
+            = create_logsoftmax_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_before(op, 0, pd.diff_dst_desc(), reorder_ops);
+    value_ptr diff_dst = op->get_input_value(0);
+    fill_layout_info(diff_dst, pd.diff_dst_desc());
+
+    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    value_ptr diff_src = op->get_output_value(0);
+    fill_layout_info(diff_src, pd.diff_src_desc());
+
+    // according to op schema, scratchpad must be be second output
+    auto scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
@@ -1098,8 +1153,14 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == impl::op_kind::SoftMax) {
                 layout_propagation_for_softmax(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::dnnl_softmax_bwd) {
+                layout_propagation_for_softmax_bwd(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == impl::op_kind::LogSoftmax) {
                 layout_propagation_for_logsoftmax(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
+                layout_propagation_for_logsoftmax_bwd(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_shuffle) {
                 layout_propagation_for_shuffle(

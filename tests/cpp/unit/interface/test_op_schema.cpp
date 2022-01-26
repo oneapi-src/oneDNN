@@ -2649,7 +2649,7 @@ TEST(OpSchema, LogSoftmaxDefaultAttribute) {
 
 TEST(OpSchema, LogSoftmaxBackpropDefaultAttribute) {
     op_kind_t tmp_op_kind = kLogSoftmaxBackprop;
-    op_t tmp_op {0, tmp_op_kind, std::string("log_softmax_bp")};
+    op_t tmp_op {0, tmp_op_kind, std::string("logsoftmax_bp")};
 
     const op_schema_t *opm = op_schema_registry_t::get_op_schema(tmp_op_kind);
     EXPECT_TRUE(opm != nullptr);

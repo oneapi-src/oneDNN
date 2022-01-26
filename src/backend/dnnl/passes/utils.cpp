@@ -510,6 +510,8 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 op_kind::dnnl_sum,
                 op_kind::dnnl_bn_folding,
                 op_kind::dnnl_swish,
+                op_kind::dnnl_softmax_bwd,
+                op_kind::dnnl_logsoftmax_bwd,
                 // frontend ops that need to be lower to dnnl internal ops.
                 // but now, we reuse these frontend ops and set some new attrs
                 // for them, which makes them unwell defined

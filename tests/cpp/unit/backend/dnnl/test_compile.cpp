@@ -7757,45 +7757,146 @@ TEST(Execute, SoftmaxWithLastDim) {
     }
 }
 
-TEST(Execute, SoftmaxBackward) {
-    impl::op_t softmax_op(impl::op_kind::SoftMaxBackprop);
+void test_softmax_bwd_common(const impl::op_kind_t op_kind,
+        test::vector<float> &dst, test::vector<float> &diff_dst,
+        test::vector<float> &ref_diff_src, const impl::dims &dims,
+        const bool plain_grad) {
+    impl::op_t softmax_bwd_op(op_kind);
     impl::engine_t &eng = get_engine();
 
-    softmax_op.set_attr<int64_t>("axis", 1);
+    softmax_bwd_op.set_attr<int64_t>("axis", 1);
 
-    test::vector<float> dst {0.5, 0.5, 0.5, 0.5};
-    test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
-    test::vector<float> ref_diff_src {-1, 1, -0.5, 0.5};
     test::vector<float> diff_src(ref_diff_src.size(), 0.0);
 
+    impl::logical_tensor_t diff_dst_lt;
     // prepare logical tensor
     impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(1, {2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t diff_dst_lt
-            = utils::logical_tensor_init(2, {2, 2}, impl::data_type::f32);
+            = utils::logical_tensor_init(0, dims, impl::data_type::f32);
+    if (plain_grad) {
+        diff_dst_lt = utils::logical_tensor_init(1, dims, impl::data_type::f32);
+    } else {
+        diff_dst_lt = utils::logical_tensor_init(
+                1, dims, impl::data_type::f32, impl::layout_type::any);
+    }
     impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-            3, {2, 2}, impl::data_type::f32, impl::layout_type::any);
+            2, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {diff_dst_lt, dst_lt};
-    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+    softmax_bwd_op.add_input(diff_dst_lt);
+    softmax_bwd_op.add_input(dst_lt);
+    softmax_bwd_op.add_output(diff_src_lt);
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto softmax_kernel = op_factory.create_kernel(softmax_op);
+    impl::graph_t g(eng.kind());
+    g.add_op(&softmax_bwd_op);
+    g.build_graph();
 
-    softmax_kernel->compile(&softmax_op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    impl::pass::pass_base_ptr apass = op_kind == impl::op_kind::SoftMaxBackprop
+            ? get_pass("softmax_bwd_pass")
+            : get_pass("logsoftmax_bwd_pass");
+
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    impl::partition_t p;
+    p.init(part);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&diff_dst_lt, &dst_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t q_lt;
+    cp.query_logical_tensor(diff_src_lt.id, &q_lt);
+    ASSERT_EQ(q_lt.layout_type, impl::layout_type::opaque);
+
+    for (auto i = 0; i < dst_lt.ndims; i++)
+        ASSERT_EQ(q_lt.dims[i], dst_lt.dims[i]);
 
     impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+    impl::tensor_t diff_src_ts(q_lt, &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
-    softmax_kernel->execute(
-            &softmax_op, &strm, {diff_dst_ts, dst_ts}, {diff_src_ts});
+    ASSERT_EQ(cp.execute(&strm, {diff_dst_ts, dst_ts}, {diff_src_ts}),
+            impl::status::success);
     strm.wait();
     for (size_t i = 0; i < ref_diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
+}
+
+TEST(Execute, SoftMaxBackward) {
+    test::vector<float> dst {0.5, 0.5, 0.5, 0.5};
+    test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
+    test::vector<float> ref_diff_src {-1, 1, -0.5, 0.5};
+
+    const impl::dims dims {2, 2};
+
+    const bool plain_grad = false;
+
+    test_softmax_bwd_common(impl::op_kind::SoftMaxBackprop, dst, diff_dst,
+            ref_diff_src, dims, plain_grad);
+}
+
+TEST(Execute, SoftMaxBackwardPlainGrad) {
+    test::vector<float> dst {0.5, 0.5, 0.5, 0.5};
+    test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
+    test::vector<float> ref_diff_src {-1, 1, -0.5, 0.5};
+
+    const impl::dims dims {2, 2};
+
+    const bool plain_grad = true;
+
+    test_softmax_bwd_common(impl::op_kind::SoftMaxBackprop, dst, diff_dst,
+            ref_diff_src, dims, plain_grad);
+}
+
+void test_softmax_bwd_get_inplace_pair_common(impl::op_kind_t op_kind) {
+    impl::engine_t &eng = get_engine();
+    impl::op_t softmax_bwd_op(op_kind);
+
+    softmax_bwd_op.set_attr<int64_t>("axis", 1);
+
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(0, {2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t diff_dst_lt
+            = utils::logical_tensor_init(1, {2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt
+            = utils::logical_tensor_init(2, {2, 2}, impl::data_type::f32);
+
+    softmax_bwd_op.add_input(diff_dst_lt);
+    softmax_bwd_op.add_input(dst_lt);
+    softmax_bwd_op.add_output(diff_src_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&softmax_bwd_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = op_kind == impl::op_kind::SoftMaxBackprop
+            ? get_pass("softmax_bwd_pass")
+            : get_pass("logsoftmax_bwd_pass");
+    apass->run(g);
+
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    // compile reorder_add partition
+    std::vector<const impl::logical_tensor_t *> inputs {&diff_dst_lt, &dst_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
+    ASSERT_EQ(inplace_pairs.size(), 1);
+    ASSERT_EQ(inplace_pairs[0].input, diff_dst_lt.id);
+    ASSERT_EQ(inplace_pairs[0].output, diff_src_lt.id);
+}
+
+TEST(Compile, SoftMaxBackwardGetInplacePair) {
+    test_softmax_bwd_get_inplace_pair_common(impl::op_kind::SoftMaxBackprop);
 }
 
 TEST(Execute, LogSoftmax) {
@@ -7822,7 +7923,7 @@ TEST(Execute, LogSoftmax) {
     g.add_op(&logsoftmax_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("log_softmax_pass");
+    impl::pass::pass_base_ptr apass = get_pass("logsoftmax_pass");
     ASSERT_TRUE(apass);
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
@@ -7852,46 +7953,36 @@ TEST(Execute, LogSoftmax) {
     }
 }
 
-TEST(Execute, LogsoftmaxBackward) {
-    impl::op_t logsoftmax_op(impl::op_kind::LogSoftmaxBackprop);
-    impl::engine_t &eng = get_engine();
-
-    logsoftmax_op.set_attr<int64_t>("axis", 1);
-
+TEST(Execute, LogSoftmaxBackward) {
     test::vector<float> dst {
             -0.6931472f, -0.6931472f, -0.6931472f, -0.6931472f};
     test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
     test::vector<float> ref_diff_src {-2, 2, -1, 1};
-    test::vector<float> diff_src(ref_diff_src.size(), 0.0);
 
-    // prepare logical tensor
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(1, {2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t diff_dst_lt
-            = utils::logical_tensor_init(2, {2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-            3, {2, 2}, impl::data_type::f32, impl::layout_type::any);
+    const impl::dims dims {2, 2};
 
-    std::vector<impl::logical_tensor_t> inputs {diff_dst_lt, dst_lt};
-    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+    const bool plain_grad = false;
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto softmax_kernel = op_factory.create_kernel(logsoftmax_op);
+    test_softmax_bwd_common(impl::op_kind::LogSoftmaxBackprop, dst, diff_dst,
+            ref_diff_src, dims, plain_grad);
+}
 
-    softmax_kernel->compile(&logsoftmax_op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+TEST(Execute, LogSoftmaxBackwardPlainGrad) {
+    test::vector<float> dst {
+            -0.6931472f, -0.6931472f, -0.6931472f, -0.6931472f};
+    test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
+    test::vector<float> ref_diff_src {-2, 2, -1, 1};
 
-    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+    const impl::dims dims {2, 2};
 
-    impl::stream_t &strm = get_stream();
-    softmax_kernel->execute(
-            &logsoftmax_op, &strm, {diff_dst_ts, dst_ts}, {diff_src_ts});
-    strm.wait();
-    for (size_t i = 0; i < ref_diff_src.size(); ++i) {
-        ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
-    }
+    const bool plain_grad = true;
+
+    test_softmax_bwd_common(impl::op_kind::LogSoftmaxBackprop, dst, diff_dst,
+            ref_diff_src, dims, plain_grad);
+}
+
+TEST(Compile, LogSoftmaxBackwardGetInplacePair) {
+    test_softmax_bwd_get_inplace_pair_common(impl::op_kind::LogSoftmaxBackprop);
 }
 
 TEST(Execute, AvgPoolBackwardExcludePad) {

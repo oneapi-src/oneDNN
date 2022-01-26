@@ -698,7 +698,7 @@ DNNL_GRAPH_OP_SCHEMA(LogSoftmaxBackprop, 1,
                 .set_num_outputs(1)
                 .set_input(0, "output_delta",
                         "gradients tensor w.r.t. the output", "T")
-                .set_input(1, "forward_result", "input of forward", "T")
+                .set_input(1, "forward_result", "result of forward", "T")
                 .set_output(0, "input_delta",
                         "the gradient tensor w.r.t. the input of LogSoftmax",
                         "T")
@@ -1109,7 +1109,7 @@ DNNL_GRAPH_OP_SCHEMA(SoftMaxBackprop, 1,
                 .set_num_outputs(1)
                 .set_input(0, "output_delta",
                         "gradients tensor w.r.t. the output", "T")
-                .set_input(1, "forward_result", "input of forward", "T")
+                .set_input(1, "forward_result", "result of forward", "T")
                 .set_output(0, "input_delta",
                         "the gradient tensor w.r.t. the input of SoftMax", "T")
                 .set_attr("axis", "the axis of which the SoftMax is calculated",
