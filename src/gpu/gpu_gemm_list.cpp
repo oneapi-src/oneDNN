@@ -33,7 +33,7 @@ namespace gpu {
 namespace {
 
 // clang-format off
-const impl_list_item_t impl_list[] = {
+constexpr impl_list_item_t impl_list[] = {
         INSTANCE(jit::xe_hp_systolic_gemm_t)
         INSTANCE(ocl::gemm_with_post_ops_t)
         INSTANCE(jit::gen_gemm_t)

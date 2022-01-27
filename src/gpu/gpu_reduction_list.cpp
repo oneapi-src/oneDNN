@@ -26,7 +26,7 @@ namespace gpu {
 namespace {
 
 // clang-format off
-const impl_list_item_t impl_list[] = REG_REDUCTION_P({
+constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
         INSTANCE(ocl::gen9_reduction_t)
         INSTANCE(ocl::ref_reduction_t)
         nullptr,

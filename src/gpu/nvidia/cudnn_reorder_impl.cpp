@@ -32,7 +32,7 @@ namespace {
             impl_list_item_t::reorder_type_deduction_helper_t<__VA_ARGS__>()),
 
 // clang-format off
-const impl_list_item_t cuda_reorder_impl_list[] = {
+constexpr impl_list_item_t cuda_reorder_impl_list[] = {
         REORDER_INSTANCE(gpu::ocl::cross_engine_reorder_t::pd_t)
         REORDER_INSTANCE(cudnn_reorder_t::pd_t)
         nullptr,

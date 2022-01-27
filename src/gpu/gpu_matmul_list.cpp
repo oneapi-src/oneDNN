@@ -26,7 +26,7 @@ namespace gpu {
 namespace {
 
 // clang-format off
-const impl_list_item_t impl_list[] = REG_MATMUL_P({
+constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
         INSTANCE(ocl::gemm_matmul_t)
         INSTANCE(ocl::ref_matmul_t)
         nullptr,

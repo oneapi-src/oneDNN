@@ -32,7 +32,7 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-const impl_list_item_t impl_list[] = REG_SHUFFLE_P({
+constexpr impl_list_item_t impl_list[] = REG_SHUFFLE_P({
         CPU_INSTANCE_X64(jit_uni_shuffle_t<avx512_common>)
         CPU_INSTANCE_X64(jit_uni_shuffle_t<avx>)
         CPU_INSTANCE_X64(jit_uni_shuffle_t<sse41>)

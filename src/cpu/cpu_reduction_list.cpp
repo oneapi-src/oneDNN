@@ -31,7 +31,7 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-const impl_list_item_t impl_list[] = REG_REDUCTION_P({
+constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
     CPU_INSTANCE_X64(jit_uni_reduction_t)
 
     CPU_INSTANCE(ref_reduction_t<f32, f32, f32>)

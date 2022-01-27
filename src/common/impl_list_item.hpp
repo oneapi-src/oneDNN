@@ -56,18 +56,18 @@ private:
 };
 
 struct impl_list_item_t {
-    impl_list_item_t() = default;
-    impl_list_item_t(const impl_list_item_t &other) = default;
-    impl_list_item_t(impl_list_item_t &&other) = default;
+    constexpr impl_list_item_t() = default;
+    constexpr impl_list_item_t(const impl_list_item_t &other) = default;
+    constexpr impl_list_item_t(impl_list_item_t &&other) = default;
     impl_list_item_t &operator=(const impl_list_item_t &other) = default;
     impl_list_item_t &operator=(impl_list_item_t &&other) = default;
 
-    impl_list_item_t(std::nullptr_t) {}
+    constexpr impl_list_item_t(std::nullptr_t) {}
 
     template <typename pd_t>
     struct type_deduction_helper_t {
         using type = pd_t;
-        type_deduction_helper_t() {
+        constexpr type_deduction_helper_t() {
             static_assert(std::is_base_of<primitive_desc_t, pd_t>::value,
                     "type_deduction_helper_t is expected to be used for "
                     "primitive descriptor classes only.");
@@ -76,7 +76,9 @@ struct impl_list_item_t {
 
     template <typename pd_t>
     struct concat_type_deduction_helper_t
-        : public type_deduction_helper_t<pd_t> {};
+        : public type_deduction_helper_t<pd_t> {
+        constexpr concat_type_deduction_helper_t() = default;
+    };
 
     template <typename pd_t>
     struct sum_type_deduction_helper_t : public type_deduction_helper_t<pd_t> {
@@ -87,30 +89,24 @@ struct impl_list_item_t {
         : public type_deduction_helper_t<pd_t> {};
 
     template <typename pd_t>
-    impl_list_item_t(type_deduction_helper_t<pd_t>) {
-        using deduced_pd_t = typename type_deduction_helper_t<pd_t>::type;
-        create_pd_func_ = &primitive_desc_t::create<deduced_pd_t>;
+    constexpr impl_list_item_t(type_deduction_helper_t<pd_t>)
+        : create_pd_func_(&primitive_desc_t::create<
+                          typename type_deduction_helper_t<pd_t>::type>) {}
+
+    template <typename pd_t>
+    constexpr impl_list_item_t(concat_type_deduction_helper_t<pd_t>)
+        : create_concat_pd_func_(
+                concat_type_deduction_helper_t<pd_t>::type::create) {}
+
+    template <typename pd_t>
+    constexpr impl_list_item_t(sum_type_deduction_helper_t<pd_t>)
+        : create_sum_pd_func_(sum_type_deduction_helper_t<pd_t>::type::create) {
     }
 
     template <typename pd_t>
-    impl_list_item_t(concat_type_deduction_helper_t<pd_t>) {
-        using deduced_pd_t =
-                typename concat_type_deduction_helper_t<pd_t>::type;
-        create_concat_pd_func_ = deduced_pd_t::create;
-    }
-
-    template <typename pd_t>
-    impl_list_item_t(sum_type_deduction_helper_t<pd_t>) {
-        using deduced_pd_t = typename sum_type_deduction_helper_t<pd_t>::type;
-        create_sum_pd_func_ = deduced_pd_t::create;
-    }
-
-    template <typename pd_t>
-    impl_list_item_t(reorder_type_deduction_helper_t<pd_t>) {
-        using deduced_pd_t =
-                typename reorder_type_deduction_helper_t<pd_t>::type;
-        create_reorder_pd_func_ = deduced_pd_t::create;
-    }
+    constexpr impl_list_item_t(reorder_type_deduction_helper_t<pd_t>)
+        : create_reorder_pd_func_(
+                reorder_type_deduction_helper_t<pd_t>::type::create) {}
 
     explicit operator bool() const {
         return !utils::everyone_is(nullptr, create_pd_func_,

@@ -624,8 +624,8 @@ private:
     bool initialized_;
 
 public:
-    setting_t() : initialized_ {false} {}
-    setting_t(const T init) : value_ {init}, initialized_ {false} {}
+    constexpr setting_t() : value_ {}, initialized_ {false} {}
+    constexpr setting_t(const T init) : value_ {init}, initialized_ {false} {}
     bool initialized() { return initialized_; }
     T get() { return value_; }
     void set(T new_value) {

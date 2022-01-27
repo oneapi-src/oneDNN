@@ -37,7 +37,7 @@ namespace {
             __VA_ARGS__::pd_t>()),
 
 // clang-format off
-const impl_list_item_t sum_impl_list[] = REG_SUM_P({
+constexpr impl_list_item_t sum_impl_list[] = REG_SUM_P({
         SUM_INSTANCE(ocl::gen9_sum_t)
         SUM_INSTANCE(ocl::simple_sum_t<data_type::f32>)
         SUM_INSTANCE(ocl::ref_sum_t)

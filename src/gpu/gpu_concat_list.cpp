@@ -32,7 +32,7 @@ namespace {
             __VA_ARGS__::pd_t>()),
 
 // clang-format off
-const impl_list_item_t concat_impl_list[] = REG_CONCAT_P({
+constexpr impl_list_item_t concat_impl_list[] = REG_CONCAT_P({
         CONCAT_INSTANCE(ocl::simple_concat_t)
         CONCAT_INSTANCE(ocl::gen9_concat_t)
         CONCAT_INSTANCE(ocl::ref_concat_t)

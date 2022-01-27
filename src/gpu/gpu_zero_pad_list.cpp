@@ -25,7 +25,7 @@ namespace gpu {
 namespace {
 
 // clang-format off
-const impl_list_item_t impl_list[] = {
+constexpr impl_list_item_t impl_list[] = {
         INSTANCE(ocl::ref_zero_pad_t)
         nullptr,
 };
