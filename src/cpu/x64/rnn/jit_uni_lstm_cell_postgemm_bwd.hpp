@@ -17,7 +17,6 @@
 #ifndef CPU_X64_RNN_JIT_UNI_LSTM_CELL_POSTGEMM_BWD_HPP
 #define CPU_X64_RNN_JIT_UNI_LSTM_CELL_POSTGEMM_BWD_HPP
 
-#include <iostream>
 #include <memory>
 #include "common/utils.hpp"
 #include "cpu/x64/rnn/jit_uni_lstm_cell_postgemm.hpp"

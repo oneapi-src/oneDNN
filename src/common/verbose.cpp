@@ -15,7 +15,6 @@
 *******************************************************************************/
 
 #include <atomic>
-#include <iostream>
 #include <sstream>
 #include <type_traits>
 
