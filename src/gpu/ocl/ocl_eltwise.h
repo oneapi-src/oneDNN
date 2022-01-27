@@ -110,7 +110,7 @@ float abs_bwd(float dd, float s) {
 }
 
 float tanh_fwd(float s) {
-    return s < 0 ? 2 / (1 + exp(-2 * s)) - 1 : 1 - (2 / (1 + exp(2 * s)));
+    return tanh(s);
 }
 float tanh_bwd(float dd, float s) {
     float e = tanh_fwd(s);
