@@ -486,7 +486,8 @@ void custom_reorder_t::pd_t::alt_defines(
     auto sstr = src_mdw.blocking_desc().strides;
     auto dstr = dst_mdw.blocking_desc().strides;
     kernel_ctx.define_int("ALT_OFFSETS", 1);
-    if (conf.dispatch.nd_range().global_range()[0] != (size_t)sdim[0]) {
+    // LIMIT_MAX_D0 is necessary to avoid buffer overwritte.
+    if (conf.dispatch.nd_range().global_range()[0] != (size_t)sdim[last]) {
         kernel_ctx.define_int("LIMIT_MAX_D0", sdim[last]);
     }
     kernel_ctx.define_int("S0", sstr[last]);
