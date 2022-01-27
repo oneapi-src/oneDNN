@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,6 +77,12 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                     && attr()->has_default_values(attr_skip_mask, dst_data_t)
                     && post_ops_with_binary_ok(attr(), dst_data_t);
             if (!ok) return status::unimplemented;
+
+            // XeHPC doesn't support subgroup size 8 so disable it completely
+            // due to testing limitations. The reason is that subgroup sizes
+            // selection is implementation details and there is no good way to
+            // distinguish expected vs unexpected 'unimplemented' statuses.
+            if (compute_engine->is_xe_hpc()) return status::unimplemented;
 
             CHECK(init_conf(compute_engine));
 
