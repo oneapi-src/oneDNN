@@ -42,6 +42,11 @@
 #include "eltwise/eltwise.hpp"
 #include "prelu/prelu.hpp"
 
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
+extern "C" bool dnnl_impl_gpu_conv_wino_should_silence_unimplemented(
+        dnnl_engine_t engine);
+#endif
+
 namespace conv {
 
 double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
@@ -790,6 +795,14 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 #endif
 #endif
         } else if (is_gpu()) {
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
+            if (dnnl_impl_gpu_conv_wino_should_silence_unimplemented(
+                        get_test_engine())) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
+            }
+#endif
+
             bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
                     && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
                     && prb->dh == 0 && prb->dw == 0 && prb->pw < prb->kw
