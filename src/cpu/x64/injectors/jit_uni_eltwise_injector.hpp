@@ -162,7 +162,7 @@ private:
     };
 
     static constexpr bool has_avx512() {
-        return (isa & cpu_isa_bit_t::avx512_common_bit)
+        return (unsigned(isa) & unsigned(cpu_isa_bit_t::avx512_common_bit))
                 == cpu_isa_bit_t::avx512_common_bit;
     }
 
