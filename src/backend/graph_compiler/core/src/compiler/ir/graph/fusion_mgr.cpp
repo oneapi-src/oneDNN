@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 #include "fusion_mgr.hpp"
+#include <algorithm>
 #include <assert.h>
 #include <atomic>
 #include <iostream>
@@ -929,7 +930,33 @@ void fusion_manager::do_compute_block(
                                 << out.size() << " and " << in_slice_size);
             }
         }
-
+        // if cur op is successfully registered by brgemm post fusion, don't do
+        // compute block.
+        if (brg_fusion_reg_.can_register_next_) {
+            // break brgemm fusion
+            brg_fusion_reg_.can_register_next_ = false;
+            if (auto brg_cur
+                    = cur->dyn_cast<op_traits::brgemm_fusion_acceptable_t>()) {
+                if (in_slice_size == 1) {
+                    std::vector<const tensor_slice *> brg_inputs(inputs.size());
+                    std::vector<tensor_slice *> brg_outputs(dst.size());
+                    std::transform(inputs.begin(), inputs.end(),
+                            brg_inputs.begin(),
+                            [](const std::vector<const tensor_slice *> &ins) {
+                                return ins[0];
+                            });
+                    std::transform(dst.begin(), dst.end(), brg_outputs.begin(),
+                            [](const std::vector<tensor_slice *> &ins) {
+                                return ins[0];
+                            });
+                    if (brg_cur->register_brgemm_fusion(ctx, brg_outputs,
+                                brg_inputs, result, brg_fusion_reg_)) {
+                        brg_fusion_reg_.can_register_next_ = true;
+                        return;
+                    }
+                }
+            }
+        }
         // unwrapper tensor slice, for compute_block, it just accpet single
         // tensor_slice
         for (size_t i = 0; i < in_slice_size; i++) {

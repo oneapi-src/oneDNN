@@ -23,6 +23,7 @@
 #include "../../builder.hpp"
 #include "../../content_hash.hpp"
 #include "../../visitor.hpp"
+#include "../index_flatten.hpp"
 #include "kernel_lower.hpp"
 #include <compiler/ir/easy_build.hpp>
 #include <microkernel/builtin.hpp>
@@ -145,12 +146,22 @@ static expr get_brgemm_postops_data_arg(
     auto &in_bufs = ops_data;
     auto postop_data = builder::make_tensor(
             "__brgemm_postops_data", {postops_data_size}, datatypes::u8);
+
+    expr bin_ptr = in_bufs[2];
+    if (!in_bufs[2]->equals(get_ir_null())) {
+        bin_ptr = builder::make_tensor(
+                "__binary_rhs_ptr", {1}, datatypes::pointer);
+        ret.emplace_back(builder::make_var_tensor_def_unattached(bin_ptr));
+        ret.emplace_back(builder::make_assign_unattached(
+                bin_ptr[UINT64_C(0)], in_bufs[2]));
+    }
     ret.emplace_back(builder::make_var_tensor_def_unattached(postop_data));
     ret.emplace_back(builder::make_evaluate_unattached(
             builder::make_call(builtin::get_brgemm_postops_data_init_func(),
-                    {postop_data, in_bufs[0], in_bufs[1], in_bufs[2],
-                            in_bufs[3], in_bufs[4], in_bufs[5], in_bufs[6],
-                            in_bufs[7], in_bufs[8], in_bufs[9], in_bufs[10]})));
+                    {postop_data, in_bufs[0], in_bufs[1], bin_ptr, in_bufs[3],
+                            in_bufs[4], in_bufs[5], in_bufs[6], in_bufs[7],
+                            in_bufs[8], in_bufs[9], in_bufs[10]})));
+
     return postop_data;
 }
 

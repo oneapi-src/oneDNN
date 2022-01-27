@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ namespace sc {
 
 class fusion_manager;
 struct fusion_anchor_data;
-
+struct brgemm_fusion_register;
 namespace op_traits {
 struct may_broadcast_t : public virtual op_base_trait_t {
     // returns the input index of the logical tensor that will be broadcast
@@ -82,6 +82,16 @@ struct post_fusion_acceptable_t : public virtual op_base_trait_t {
     virtual ir_module_ptr get_func(context_ptr ctx,
             const std::shared_ptr<fusion_manager> &fuse_mgr,
             const std::string &func_name)
+            = 0;
+};
+
+// the OP can be fused into brgemm calculation.
+struct brgemm_fusion_acceptable_t : public virtual op_base_trait_t {
+    static constexpr const char *brgemm_fusion = "brgemm_fusion";
+    virtual bool register_brgemm_fusion(const context_ptr &ctx,
+            const std::vector<tensor_slice *> &outputs,
+            const std::vector<const tensor_slice *> &inputs,
+            fusion_anchor_data &fdata, brgemm_fusion_register &brg_reg)
             = 0;
 };
 

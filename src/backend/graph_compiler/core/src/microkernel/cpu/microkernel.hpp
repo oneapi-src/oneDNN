@@ -66,10 +66,10 @@ SC_API void dnnl_brgemm_call_postops(brgemm_kernel_info *brg_desc,
         const void *postops_data, void *c_buf, sc::runtime::stream_t *stream);
 SC_API void dnnl_brgemm_postops_data_init(void *dnnl_data = nullptr,
         void *bias = nullptr, void *scales = nullptr,
-        void *const &binary_post_ops_rhs = nullptr, size_t oc_logical_off = 0UL,
-        size_t dst_row_logical_off = 0, void *data_C_ptr_ = nullptr,
-        size_t first_mb_matrix_addr_off = 0, void *a_zp_compensations = nullptr,
-        void *b_zp_compensations = nullptr, void *c_zp_values = nullptr,
-        bool skip_accumulation = false);
+        void *binary_post_ops_rhs = nullptr, uint64_t oc_logical_off = 0UL,
+        uint64_t dst_row_logical_off = 0, void *data_C_ptr_ = nullptr,
+        uint64_t first_mb_matrix_addr_off = 0,
+        void *a_zp_compensations = nullptr, void *b_zp_compensations = nullptr,
+        void *c_zp_values = nullptr, bool skip_accumulation = false);
 }
 #endif

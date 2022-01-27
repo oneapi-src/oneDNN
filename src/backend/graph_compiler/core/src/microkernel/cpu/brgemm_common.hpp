@@ -50,8 +50,6 @@ enum attr_key {
     use_uker, // bool
     // use_interleave_stores is a value that determines whether to use the
     // interleave stores or not
-    // Currently we don't allow this value to be true as it needs more amx
-    // buffer
     use_interleave_stores, // bool
     nkeys = use_interleave_stores + 1,
 };
@@ -223,47 +221,62 @@ struct bias_op_t {
 // even for `per_tensor`.
 struct scale_op_t {
     scale_op_t() = default;
-    scale_op_t(float scale) : alg_(alg_kind_t::out_scales), scale_(scale) {}
     alg_kind_t alg_ = alg_kind_t::out_scales;
-    float scale_ = 1.f;
+    // the scale is fake, only need to tell brgemm creator that scales exist.
+    float scale_ = 1.1f;
 };
 
 // currently not support zp because of brgemm interface.
 // But it is effective.
 struct zp_op_t {
-    zp_op_t(alg_kind_t alg, int zp) : alg_(alg), zp_(zp) {}
+    zp_op_t(alg_kind_t alg) : alg_(alg) {}
     alg_kind_t alg_ = alg_kind_t::b_zp;
-    int zp_ = 0;
+    // the zp is fake, only need to tell brgemm creator that zp exist.
+    int zp_ = 2;
 };
 
 struct out_op_t {
     out_op_t(sc_data_etype dtype) : dtype_(dtype) {}
     alg_kind_t alg_ = alg_kind_t::out_dtype;
-    sc_data_etype dtype_ = sc_data_etype::F32;
+    sc_data_etype dtype_;
 };
 
 struct empty_op_t {
     alg_kind_t alg_ = alg_kind_t::alg_kind_undef;
 };
 
+#define DECLARE_POSTOP_CONSTRUCTOR(kind) \
+    postop_setting_t(const kind##_op_t &op) { \
+        reset(); \
+        kind##_op_ = op; \
+    }
 union postop_setting_t {
+    void reset() {
+        pack_info_[0] = 0;
+        pack_info_[1] = 0;
+    }
     postop_setting_t() {
         static_assert(sizeof(postop_setting_t) == sizeof(int64_t) * 2,
                 "postop setting size is bigger than 16 bytes.");
-        pack_info_[0] = 0;
-        pack_info_[1] = 0;
+        reset();
         empty_op_ = empty_op_t();
     }
-    postop_setting_t(const elt_op_t &op) { elt_op_ = op; }
-    postop_setting_t(const bin_op_t &op) { bin_op_ = op; }
-    postop_setting_t(const bias_op_t &op) { bias_op_ = op; }
-    postop_setting_t(const scale_op_t &op) { scale_op_ = op; }
-    postop_setting_t(const zp_op_t &op) { zp_op_ = op; }
-    postop_setting_t(const out_op_t &op) { out_op_ = op; }
+    DECLARE_POSTOP_CONSTRUCTOR(elt);
+    DECLARE_POSTOP_CONSTRUCTOR(bin);
+    DECLARE_POSTOP_CONSTRUCTOR(bias);
+    DECLARE_POSTOP_CONSTRUCTOR(scale);
+    DECLARE_POSTOP_CONSTRUCTOR(zp);
+    DECLARE_POSTOP_CONSTRUCTOR(out);
+
     bool operator==(const postop_setting_t &other) const {
         return pack_info_[0] == other.pack_info_[0]
                 && pack_info_[1] == other.pack_info_[1];
     }
+
+    bool operator!=(const postop_setting_t &other) const {
+        return !(*this == other);
+    }
+
     empty_op_t empty_op_;
     elt_op_t elt_op_;
     bin_op_t bin_op_;

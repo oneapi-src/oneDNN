@@ -1312,7 +1312,9 @@ extern ostream &operator<<(ostream &os, intrin_type t);
 
 namespace intrin_attr {
 constexpr const char *out_dtype = "out_dtype";
-constexpr const char *brgemm_extras = "intrin.brgemm";
+constexpr const char *brgemm_extras = "intrin.brgemm_extras";
+// default true, may turn off when reduce axis has block tile.
+constexpr const char *allow_brgemm_fusion = "intrin.allow_brgemm_fusion";
 } // namespace intrin_attr
 
 /**

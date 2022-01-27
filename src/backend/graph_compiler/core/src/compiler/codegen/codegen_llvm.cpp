@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -953,9 +953,13 @@ public:
         auto val = generate_expr(v->value_);
         is_lvalue_mode_ = true;
         auto ptr = generate_expr(v->var_);
-        if (v->var_->dtype_ > 1) {
+        if (v->var_->dtype_.lanes_ > 1) {
             ptr = builder_.CreatePointerCast(
                     ptr, get_type(v->var_->dtype_)->getPointerTo());
+        }
+        if (v->var_->dtype_.type_code_ == sc_data_etype::POINTER
+                && v->value_->dtype_.type_code_ != sc_data_etype::POINTER) {
+            val = builder_.CreatePointerCast(val, get_type(v->var_->dtype_));
         }
         if (v->value_->dtype_.lanes_ > 1 && v->var_.isa<indexing>()) {
             // assigning to tensor

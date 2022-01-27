@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -139,7 +139,8 @@ public:
 
     expr_c visit(intrin_call_c v) override {
         auto intrin = ir_visitor_t::visit(v).checked_as<intrin_call_c>();
-        if (v->type_ == intrin_type::brgemm) {
+        if (v->type_ == intrin_type::brgemm
+                || v->type_ == intrin_type::list_brgemm) {
             // new args
             auto args_cpy = intrin->args_;
             std::vector<std::pair<int, int>> check_LDX_list = {

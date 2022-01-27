@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,10 +30,14 @@ public:
     DECLARE_COMPUTE_ELEMENT();
     relu_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : unary_elementwise_op_t("relu", ins, outs, attrs) {}
+        : unary_elementwise_op_t("relu", ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::eltwise_relu);
+    }
     relu_op_t(const std::vector<graph_tensor_ptr> &ins, const any_map_t &attrs);
     relu_op_t(graph_tensor_ptr v)
-        : unary_elementwise_op_t(std::move(v), "relu") {};
+        : unary_elementwise_op_t(std::move(v), "relu") {
+        set_brgemm_alg_kind(brgemm::eltwise_relu);
+    };
 };
 
 class round_op_t : public unary_elementwise_op_t {
@@ -42,11 +46,15 @@ public:
 
     round_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : unary_elementwise_op_t("round", ins, outs, attrs) {}
+        : unary_elementwise_op_t("round", ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::eltwise_round);
+    }
     round_op_t(
             const std::vector<graph_tensor_ptr> &ins, const any_map_t &attrs);
     round_op_t(graph_tensor_ptr v)
-        : unary_elementwise_op_t(std::move(v), "round") {};
+        : unary_elementwise_op_t(std::move(v), "round") {
+        set_brgemm_alg_kind(brgemm::eltwise_round);
+    };
 };
 
 class sigmoid_op_t : public unary_elementwise_op_t {
@@ -55,9 +63,13 @@ public:
 
     sigmoid_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : unary_elementwise_op_t("sigmoid", ins, outs, attrs) {}
+        : unary_elementwise_op_t("sigmoid", ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::eltwise_logsigmoid);
+    }
     sigmoid_op_t(graph_tensor_ptr v)
-        : unary_elementwise_op_t(std::move(v), "sigmoid") {};
+        : unary_elementwise_op_t(std::move(v), "sigmoid") {
+        set_brgemm_alg_kind(brgemm::eltwise_logsigmoid);
+    };
 };
 
 class exp_op_t : public unary_elementwise_op_t {
@@ -65,9 +77,12 @@ public:
     DECLARE_COMPUTE_ELEMENT();
     exp_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : unary_elementwise_op_t("exp", ins, outs, attrs) {}
-    exp_op_t(graph_tensor_ptr v)
-        : unary_elementwise_op_t(std::move(v), "exp") {};
+        : unary_elementwise_op_t("exp", ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::eltwise_exp);
+    }
+    exp_op_t(graph_tensor_ptr v) : unary_elementwise_op_t(std::move(v), "exp") {
+        set_brgemm_alg_kind(brgemm::eltwise_exp);
+    };
 };
 
 class tanh_op_t : public unary_elementwise_op_t {
@@ -75,9 +90,13 @@ public:
     DECLARE_COMPUTE_ELEMENT();
     tanh_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : unary_elementwise_op_t("tanh", ins, outs, attrs) {}
+        : unary_elementwise_op_t("tanh", ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::eltwise_tanh);
+    }
     tanh_op_t(graph_tensor_ptr v)
-        : unary_elementwise_op_t(std::move(v), "tanh") {};
+        : unary_elementwise_op_t(std::move(v), "tanh") {
+        set_brgemm_alg_kind(brgemm::eltwise_tanh);
+    };
 };
 
 class erf_op_t : public unary_elementwise_op_t {
@@ -85,9 +104,12 @@ public:
     DECLARE_COMPUTE_ELEMENT();
     erf_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : unary_elementwise_op_t("erf", ins, outs, attrs) {}
-    erf_op_t(graph_tensor_ptr v)
-        : unary_elementwise_op_t(std::move(v), "erf") {};
+        : unary_elementwise_op_t("erf", ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::eltwise_gelu_erf);
+    }
+    erf_op_t(graph_tensor_ptr v) : unary_elementwise_op_t(std::move(v), "erf") {
+        set_brgemm_alg_kind(brgemm::eltwise_gelu_erf);
+    };
 };
 
 // squared_root: sqrt(x)
@@ -98,11 +120,14 @@ public:
     squared_root_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : unary_elementwise_op_t("squared_root", ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::eltwise_sqrt);
         reciprocal_ = attrs.get_or_else("reciprocal", false);
     };
     squared_root_op_t(graph_tensor_ptr v, bool reciprocal = false)
         : unary_elementwise_op_t(std::move(v), "squared_root")
-        , reciprocal_(reciprocal) {}
+        , reciprocal_(reciprocal) {
+        set_brgemm_alg_kind(brgemm::eltwise_sqrt);
+    }
 
 private:
     // This flag decides return sqrt or rsqrt.
@@ -129,9 +154,12 @@ public:
 
     clamp_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : unary_elementwise_op_t("clamp", ins, outs, attrs) {}
+        : unary_elementwise_op_t("clamp", ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::eltwise_clip);
+    }
     clamp_op_t(graph_tensor_ptr v, float clamp_min = 0.0, float clamp_max = 1.0)
         : unary_elementwise_op_t(std::move(v), "clamp") {
+        set_brgemm_alg_kind(brgemm::eltwise_clip);
         attrs_.set("clamp_min", clamp_min);
         attrs_.set("clamp_max", clamp_max);
     };

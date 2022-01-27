@@ -617,6 +617,14 @@ expr intrin_call_node::remake() const {
 bool intrin_call_node::equals(expr_c v, ir_comparer &ctx) const {
     ASCAST_OR_RETURN(v, other);
     if (type_ != other->type_) { RETURN(false); }
+    if (type_ == intrin_type::brgemm || type_ == intrin_type::list_brgemm) {
+        auto &extra_args = intrin_attrs_->get<brgemm_args::extra_args_t>(
+                intrin_attr::brgemm_extras);
+        auto &other_extra_args
+                = other->intrin_attrs_->get<brgemm_args::extra_args_t>(
+                        intrin_attr::brgemm_extras);
+        if (extra_args != other_extra_args) { RETURN(false); }
+    }
     RETURN(ctx.expr_arr_equals(args_, other->args_));
 }
 

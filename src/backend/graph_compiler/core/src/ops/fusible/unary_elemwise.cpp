@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -204,6 +204,7 @@ cast_op_t::cast_op_t(const std::vector<graph_tensor_ptr> &ins,
     saturated_ = attrs.get_or_else("saturated", false);
     info_.outputs_[0]->details_.dtype_ = dtype_;
     info_.tensor_share_info_.clear();
+    set_brgemm_alg_kind(brgemm::out_dtype);
 }
 
 cast_op_t::cast_op_t(

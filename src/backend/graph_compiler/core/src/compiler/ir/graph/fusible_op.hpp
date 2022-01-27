@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <vector>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/traits.hpp>
+#include <microkernel/cpu/brgemm_common.hpp>
 #include <unordered_map>
 
 namespace sc {
@@ -99,7 +100,9 @@ struct tensor_slice {
  * A fuser will do actual code injection on the fusion point. It will be managed
  * by the fusion manager.
  * */
-class fusible_op_t : public sc_op, public op_traits::workload_computable_t {
+class fusible_op_t : public sc_op,
+                     public op_traits::auto_copyable_t,
+                     public op_traits::workload_computable_t {
 public:
     // when fusible_op_t is as a started op in the graph/subgraph, query_format
     // return certain format.
@@ -158,10 +161,21 @@ public:
             const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs,
             fusion_anchor_data &result);
+
+    sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
+            const std::vector<graph_tensor_ptr> &outs,
+            sc_graph_t &mgr) override;
+    /**
+     * @brief set brgemm alg kind
+     * @param kind brgemm::alg_kind_t
+     */
+    void set_brgemm_alg_kind(brgemm::alg_kind_t kind) { alg_kind_ = kind; }
     ~fusible_op_t() override = default;
 
     // todo: shall we move this field to fdata?
     int anchor_id = 0;
+    bool fuse_in_brgemm_ = false;
+    brgemm::alg_kind_t alg_kind_ = brgemm::alg_kind_t::alg_kind_undef;
 };
 
 using fusion_op_ptr = std::shared_ptr<fusible_op_t>;
@@ -259,7 +273,7 @@ public:
  *  - plain_dims: dims (todo: remove this attr)
  *  - format: sc_data_format_t (todo: remove this attr)
  * */
-class constant_op_t : public fusible_op_t, public op_traits::auto_copyable_t {
+class constant_op_t : public fusible_op_t {
 public:
     DECLARE_QUERY_AND_DEFAULT_COMPUTE();
 
@@ -327,7 +341,7 @@ enum class elt_operator {
 
 class binary_elementwise_op_t : public fusible_op_t,
                                 public op_traits::may_broadcast_t,
-                                public op_traits::auto_copyable_t {
+                                public op_traits::brgemm_fusion_acceptable_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -346,6 +360,11 @@ public:
     void query_format(context_ptr ctx,
             std::vector<std::vector<sc_data_format_t>> &in_formats,
             std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+    bool register_brgemm_fusion(const context_ptr &ctx,
+            const std::vector<tensor_slice *> &outputs,
+            const std::vector<const tensor_slice *> &inputs,
+            fusion_anchor_data &fdata,
+            brgemm_fusion_register &brg_reg) override;
     // get real broadcast axis, generaly, you should set bc_axis on plain format
     // semantics if necessary.
     std::vector<int> get_bc_axis() const;
@@ -362,10 +381,13 @@ public:
     add_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
             bool vectorized = false, int inplace = 1)
         : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::ADD, inplace) {}
+                std::move(lhs), std::move(rhs), elt_operator::ADD, inplace) {
+        set_brgemm_alg_kind(brgemm::binary_add);
+    }
     add_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : binary_elementwise_op_t(ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::binary_add);
         set_elt_operator(elt_operator::ADD);
         op_name_ = "add";
     }
@@ -377,10 +399,13 @@ public:
     sub_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
             bool vectorized = false, int inplace = 1)
         : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::SUB, inplace) {}
+                std::move(lhs), std::move(rhs), elt_operator::SUB, inplace) {
+        set_brgemm_alg_kind(brgemm::binary_sub);
+    }
     sub_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : binary_elementwise_op_t(ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::binary_sub);
         set_elt_operator(elt_operator::SUB);
         op_name_ = "sub";
     }
@@ -391,10 +416,13 @@ public:
     mul_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
             bool vectorized = false, int inplace = 1)
         : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::MUL, inplace) {}
+                std::move(lhs), std::move(rhs), elt_operator::MUL, inplace) {
+        set_brgemm_alg_kind(brgemm::binary_mul);
+    }
     mul_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : binary_elementwise_op_t(ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::binary_mul);
         set_elt_operator(elt_operator::MUL);
         op_name_ = "mul";
     }
@@ -405,10 +433,13 @@ public:
     div_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
             bool vectorized = false, int inplace = 1)
         : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::DIV, inplace) {}
+                std::move(lhs), std::move(rhs), elt_operator::DIV, inplace) {
+        set_brgemm_alg_kind(brgemm::binary_div);
+    }
     div_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : binary_elementwise_op_t(ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::binary_div);
         set_elt_operator(elt_operator::DIV);
         op_name_ = "div";
     }
@@ -419,10 +450,13 @@ public:
     min_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
             bool vectorized = false, int inplace = 1)
         : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::MIN, inplace) {}
+                std::move(lhs), std::move(rhs), elt_operator::MIN, inplace) {
+        set_brgemm_alg_kind(brgemm::binary_min);
+    }
     min_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : binary_elementwise_op_t(ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::binary_min);
         set_elt_operator(elt_operator::MIN);
         op_name_ = "min";
     }
@@ -433,17 +467,20 @@ public:
     max_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
             bool vectorized = false, int inplace = 1)
         : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::MAX, inplace) {}
+                std::move(lhs), std::move(rhs), elt_operator::MAX, inplace) {
+        set_brgemm_alg_kind(brgemm::binary_max);
+    }
     max_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : binary_elementwise_op_t(ins, outs, attrs) {
+        set_brgemm_alg_kind(brgemm::binary_max);
         set_elt_operator(elt_operator::MAX);
         op_name_ = "max";
     }
 };
 
 class unary_elementwise_op_t : public fusible_op_t,
-                               public op_traits::auto_copyable_t {
+                               public op_traits::brgemm_fusion_acceptable_t {
 public:
     void infer_slice_ranges(fusion_anchor_data &result) override;
     void pre_slice_ranges(fusion_anchor_data &result) override;
@@ -455,7 +492,11 @@ public:
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs,
             fusion_anchor_data &result) override;
-
+    bool register_brgemm_fusion(const context_ptr &ctx,
+            const std::vector<tensor_slice *> &outputs,
+            const std::vector<const tensor_slice *> &inputs,
+            fusion_anchor_data &fdata,
+            brgemm_fusion_register &brg_reg) override;
     unary_elementwise_op_t(graph_tensor_ptr v, const std::string &op_name);
     unary_elementwise_op_t(const std::string &op_name,
             const std::vector<graph_tensor_ptr> &ins,
@@ -471,7 +512,7 @@ private:
 // used for classification
 class movement_op_t : public fusible_op_t, public op_traits::may_quantize_t {};
 
-class transpose_op_t : public movement_op_t, public op_traits::auto_copyable_t {
+class transpose_op_t : public movement_op_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -498,8 +539,7 @@ private:
  * Attrs:
  *  - shape: vector<int> - the output blocking shape
  * */
-class tensor_view_op_t : public movement_op_t,
-                         public op_traits::auto_copyable_t {
+class tensor_view_op_t : public movement_op_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -527,7 +567,7 @@ private:
  * Attrs:
  *  - shape: vector<int> - the output blocking shape
  * */
-class reshape_op_t : public movement_op_t, public op_traits::auto_copyable_t {
+class reshape_op_t : public movement_op_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
     reshape_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -556,7 +596,7 @@ private:
     sc_dims shapes_;
 };
 
-class reorder_op_t : public movement_op_t, public op_traits::auto_copyable_t {
+class reorder_op_t : public movement_op_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -593,7 +633,7 @@ enum class reduce_operator : int {
 };
 
 // reduce op
-class reduce_op_t : public fusible_op_t, public op_traits::auto_copyable_t {
+class reduce_op_t : public fusible_op_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 

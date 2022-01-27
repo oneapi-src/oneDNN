@@ -20,10 +20,11 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include "brgemm_fusion.hpp"
+#include "fusible_op.hpp"
+#include <microkernel/cpu/brgemm_common.hpp>
 #include <unordered_map>
 #include <util/utils.hpp>
-
-#include "fusible_op.hpp"
 namespace sc {
 // fusion mgr data is the set of internal data of fusion manager
 struct fusion_anchor_data;
@@ -58,7 +59,8 @@ protected:
             output_anchor_slice_;
     // fusion manager will manager the sorted ops by rules
     std::vector<sc_op_ptr> sorted_ops_;
-
+    // register for fusion inside brgemm.
+    brgemm_fusion_register brg_fusion_reg_;
     // Get basic dfs topology sequence of graph op to initialize sorted_ops
     void init_sorted_ops();
     // calls prepare_fusion_data() on every op
@@ -99,6 +101,11 @@ public:
     int get_output_op_count() const { return output_op_count_; }
     const sc_graph_t &get_graph() const { return graph_; }
     sc_graph_t &get_graph() { return graph_; }
+    const brgemm_fusion_register &get_brgemm_fusion_register() const {
+        return brg_fusion_reg_;
+    }
+    void break_brgemm_fusion();
+    bool can_register_brgemm_fusion(const stmt &body);
 
     template <typename T, typename... Args>
     std::shared_ptr<T> make(Args &&... args) {

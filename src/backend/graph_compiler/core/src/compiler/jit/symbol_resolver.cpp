@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,9 +35,14 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"dnnl_brgemm_init_update", (void *)dnnl_brgemm_init_update},
             {"dnnl_brgemm_list_update", (void *)dnnl_brgemm_list_update},
             {"dnnl_brgemm_list_call", (void *)dnnl_brgemm_list_call},
+            {"dnnl_brgemm_list_call_postops",
+                    (void *)dnnl_brgemm_list_call_postops},
             {"dnnl_brgemm_list_func", (void *)dnnl_brgemm_list_func},
             {"dnnl_brgemm_func", (void *)dnnl_brgemm_func},
             {"dnnl_brgemm_call", (void *)dnnl_brgemm_call},
+            {"dnnl_brgemm_call_postops", (void *)dnnl_brgemm_call_postops},
+            {"dnnl_brgemm_postops_data_init",
+                    (void *)dnnl_brgemm_postops_data_init},
             {"print_float", (void *)print_float},
             {"print_index", (void *)print_index},
             {"print_int", (void *)print_int},

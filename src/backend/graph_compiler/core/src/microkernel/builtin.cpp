@@ -218,9 +218,11 @@ std::pair<func_t, func_t> get_brgemm_creator_and_call_func(
 #define DEF_FUNC(back, list_stride) \
     if (mode == brgemm_mode::list_stride \
             && backend == scflags_t::brgemm_t::back) { \
-        static std::pair<func_t, func_t> f \
-                = declare_brgemm_kernel_creator(backend, mode, has_postop); \
-        return f; \
+        static std::pair<func_t, func_t> f0 \
+                = declare_brgemm_kernel_creator(backend, mode, false); \
+        static std::pair<func_t, func_t> f1 \
+                = declare_brgemm_kernel_creator(backend, mode, true); \
+        return has_postop ? f1 : f0; \
     }
     // we need a static variable each branch to ensure there will be no
     // duplicated decl for the same func_t.
@@ -370,7 +372,7 @@ void mem_zero(expr C, const expr &size, sc_data_type_t dtype) {
 
 func_t get_brgemm_postops_data_init_func() {
     static func_t data_init_func
-            = _decl_func("brgemm_postops_data_init", datatypes::pointer,
+            = _decl_func("dnnl_brgemm_postops_data_init", datatypes::void_t,
                     {_arg_("dnnl_data", datatypes::pointer),
                             _arg_("bias", datatypes::pointer),
                             _arg_("scales", datatypes::pointer),

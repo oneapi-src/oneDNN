@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,15 +109,18 @@ static void validate_binary_op(
 }
 
 static bool validate_brgemm_dtype(sc_data_type_t dtype_A,
-        sc_data_type_t dtype_B, sc_data_type_t dtype_C) {
+        sc_data_type_t dtype_B, sc_data_type_t dtype_C, bool has_postop) {
     if ((dtype_A == datatypes::f32 && dtype_B == datatypes::f32
                 && dtype_C == datatypes::f32)
-            || (dtype_A == datatypes::u8 && dtype_B == datatypes::s8
-                    && dtype_C == datatypes::s32)
-            || (dtype_A == datatypes::s8 && dtype_B == datatypes::s8
-                    && dtype_C == datatypes::s32)
+            || (utils::is_one_of(dtype_A, datatypes::u8, datatypes::s8)
+                    && dtype_B == datatypes::s8
+                    && (has_postop ? utils::is_one_of(dtype_C, datatypes::s32,
+                                datatypes::f32, datatypes::u8, datatypes::s8)
+                                   : dtype_C == datatypes::s32))
             || (dtype_A == datatypes::bf16 && dtype_B == datatypes::bf16
-                    && dtype_C == datatypes::f32)) {
+                    && (has_postop ? utils::is_one_of(
+                                dtype_C, datatypes::f32, datatypes::bf16)
+                                   : dtype_C == datatypes::f32))) {
         return true;
     }
     return false;
@@ -380,7 +383,8 @@ void validate_impl_t::view(intrin_call_c v) {
                     intrin_attr::brgemm_extras);
             if (extras.is_cpu_) {
                 COMPILE_ASSERT(validate_brgemm_dtype(extras.dtype_A_,
-                                       extras.dtype_B_, extras.dtype_C_),
+                                       extras.dtype_B_, extras.dtype_C_,
+                                       !extras.postops_setting_.empty()),
                         "BRGEMM currently only support f32, got: " << v);
             } else {
                 COMPILE_ASSERT(extras.dtype_A_ == datatypes::bf16
@@ -426,7 +430,8 @@ void validate_impl_t::view(intrin_call_c v) {
                     intrin_attr::brgemm_extras);
             if (extras.is_cpu_) {
                 COMPILE_ASSERT(validate_brgemm_dtype(extras.dtype_A_,
-                                       extras.dtype_B_, extras.dtype_C_),
+                                       extras.dtype_B_, extras.dtype_C_,
+                                       !extras.postops_setting_.empty()),
                         "list_brgemm currently only support "
                         "u8s8s32/s8s8s32/bf16bf16f32/f32f32f32, got: "
                                 << v);

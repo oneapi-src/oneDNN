@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <unordered_map>
 namespace sc {
-
 namespace graph {
 void mark_read_or_write_buffers(std::vector<expr> &args, bool is_read) {
     const char *name = is_read ? "read_buffer" : "write_buffer";
@@ -207,7 +206,6 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     auto inplacemap = mgr_->query_inplace();
     // outs are the output tensors for the original outputs of the main op
     std::vector<expr> outs;
-
     if (keep_outputs_[0]) {
         outs = {real_outs[0]};
     } else if (!inplacemap.at(0).empty() && inplacemap[0][0] == 0) {
@@ -220,6 +218,7 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
         outs = graph::tensor_detail_to_ir_tensor(
                 "__origouts_" + std::to_string(out_idx++),
                 mainop->get_outputs());
+        assert(outs.size() == 1);
     }
     auto main_op_input_size = mainop->get_inputs().size();
     COMPILE_ASSERT(get_inputs().size() >= main_op_input_size,
@@ -281,8 +280,14 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
         mgr_->clear_anchor();
         return nullptr;
     }
+    bool can_in_brg = mgr_->can_register_brgemm_fusion(body);
+    if (!can_in_brg) { mgr_->break_brgemm_fusion(); }
     mgr_->commit(modu, fuse_state);
-
+    // register fusion in brgemm.
+    if (can_in_brg) {
+        body = mgr_->get_brgemm_fusion_register()
+                       .remake_brgemm_intrinsic_by_fusion(body);
+    }
     func->body_ = std::move(body);
     gen_ptr->schedule_loops(
             ctx, mainop->get_config().get(), func->body_, loops);

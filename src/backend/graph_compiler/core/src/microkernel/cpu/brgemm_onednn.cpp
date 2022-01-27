@@ -238,9 +238,9 @@ struct alignas(64) brg_arg_t {
             assert(postops_setting->num_ <= postops_setting_t::max_postops_num);
             memset(brg_postops, 0,
                     postops_setting_t::max_postops_num
-                            * sizeof(postops_setting_t));
+                            * sizeof(postop_setting_t));
             memcpy(brg_postops, postops_setting->ops_,
-                    postops_setting->num_ * sizeof(postops_setting_t));
+                    postops_setting->num_ * sizeof(postop_setting_t));
         }
         if (bd_mask_ptr != nullptr) {
             has_bd_mask = 1;
@@ -802,15 +802,15 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
     return 0;
 }
 SC_API void dnnl_brgemm_postops_data_init(void *dnnl_data, void *bias,
-        void *scales, void *const &binary_post_ops_rhs, size_t oc_logical_off,
-        size_t dst_row_logical_off, void *data_C_ptr_,
-        size_t first_mb_matrix_addr_off, void *a_zp_compensations,
+        void *scales, void *binary_post_ops_rhs, uint64_t oc_logical_off,
+        uint64_t dst_row_logical_off, void *data_C_ptr_,
+        uint64_t first_mb_matrix_addr_off, void *a_zp_compensations,
         void *b_zp_compensations, void *c_zp_values, bool skip_accumulation) {
     brgemm_post_ops_data_t *postop_data
             = reinterpret_cast<brgemm_post_ops_data_t *>(dnnl_data);
     new (postop_data)
             brgemm_post_ops_data_t {bias, reinterpret_cast<float *>(scales),
-                    &binary_post_ops_rhs, oc_logical_off, dst_row_logical_off,
+                    binary_post_ops_rhs, oc_logical_off, dst_row_logical_off,
                     reinterpret_cast<char *>(data_C_ptr_),
                     first_mb_matrix_addr_off, a_zp_compensations,
                     b_zp_compensations, c_zp_values, skip_accumulation};

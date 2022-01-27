@@ -55,6 +55,8 @@ constexpr int NUM_ARGS_LIST = LEN + brgemm::postops_data_init_func_nargs + 2;
 struct cpu_t {
     // use init_update or update
     bool init_;
+    bool operator==(const cpu_t &other) const { return init_ == other.init_; }
+    bool operator!=(const cpu_t &other) const { return init_ != other.init_; }
 };
 
 namespace extra_args_offset {
@@ -96,6 +98,16 @@ struct extra_args_t {
         , bd_mask_(bd_mask)
         , postops_setting_(brg_postops)
         , cpu_(g) {}
+    bool operator==(const extra_args_t &other) const {
+        return is_cpu_ == other.is_cpu_ && dtype_A_ == other.dtype_A_
+                && dtype_B_ == other.dtype_B_ && dtype_C_ == other.dtype_C_
+                && brg_attrs_ == other.brg_attrs_ && bd_mask_ == other.bd_mask_
+                && postops_setting_ == other.postops_setting_
+                && cpu_ == other.cpu_;
+    }
+    bool operator!=(const extra_args_t &other) const {
+        return !(*this == other);
+    }
 };
 
 extern sc_data_type_t arg_types[NUM_ARGS_CPU];

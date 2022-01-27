@@ -190,6 +190,14 @@ size_t fusible_op_t::compute_fusible_workload(const context_ptr &ctx,
     return compute_workload(wkld_ins, wkld_outs);
 }
 
+sc_op_ptr fusible_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
+    auto new_op = op_traits::auto_copyable_t::copy(ins, outs, mgr);
+    new_op->stc_cast<fusible_op_t>()->fuse_in_brgemm_ = fuse_in_brgemm_;
+    new_op->stc_cast<fusible_op_t>()->alg_kind_ = alg_kind_;
+    return new_op;
+}
+
 // check input size
 static const std::vector<graph_tensor_ptr> &check_size(
         const std::vector<graph_tensor_ptr> &ins) {
@@ -1499,6 +1507,19 @@ std::vector<int> binary_elementwise_op_t::get_bc_axis() const {
     return transform_axis_plain2blocking(fmt, plain_bc_axis_, bs_ndim);
 }
 
+bool binary_elementwise_op_t::register_brgemm_fusion(const context_ptr &ctx,
+        const std::vector<tensor_slice *> &outputs,
+        const std::vector<const tensor_slice *> &inputs,
+        fusion_anchor_data &fdata, brgemm_fusion_register &brg_reg) {
+    if (!fuse_in_brgemm_) { return false; }
+    int bc_input_idx = get_broadcast_input();
+    // input 0 broadcast, can not be processed in brgemm
+    if (bc_input_idx == 0) { return false; }
+    return brg_reg.register_op_infos(shared_from_this(),
+            outputs[0]->get_tensor_ptr(), inputs[1]->get_tensor_ptr(),
+            inputs[1]->get_shape());
+}
+
 void binary_elementwise_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs,
@@ -1770,6 +1791,15 @@ void unary_elementwise_op_t::infer_slice_ranges(fusion_anchor_data &fdata) {
 
 void unary_elementwise_op_t::pre_slice_ranges(fusion_anchor_data &fdata) {
     pre_unary_slice_ranges(this, fdata);
+}
+
+bool unary_elementwise_op_t::register_brgemm_fusion(const context_ptr &ctx,
+        const std::vector<tensor_slice *> &outputs,
+        const std::vector<const tensor_slice *> &inputs,
+        fusion_anchor_data &fdata, brgemm_fusion_register &brg_reg) {
+    if (!fuse_in_brgemm_) { return false; }
+    return brg_reg.register_op_infos(
+            shared_from_this(), outputs[0]->get_tensor_ptr());
 }
 
 transpose_op_t::transpose_op_t(const std::vector<graph_tensor_ptr> &ins,
