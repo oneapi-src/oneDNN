@@ -233,7 +233,7 @@ struct jit_uni_x8s8s32x_fwd_kernel {
     void (*jit_ker)(jit_conv_call_s *);
 
 private:
-    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_x8s8s32x_fwd_kernel<isa>);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_x8s8s32x_fwd_kernel);
     jit_generator *kernel_;
 };
 
