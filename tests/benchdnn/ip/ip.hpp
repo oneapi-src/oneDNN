@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -176,13 +176,14 @@ inline size_t dst_off_f(const prb_t *prb, int64_t mb, int64_t oc) {
     return mb * prb->oc + oc;
 }
 
-void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *prb,
-        dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m);
-void compute_ref_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m);
-void compute_ref_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
+void compute_ref_fwd(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+
+void compute_ref_bwd_d(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+
+void compute_ref_bwd_w(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
 
 int doit(const prb_t *prb, res_t *res);
 

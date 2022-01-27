@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,20 +20,22 @@
 
 namespace ip {
 
-void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *prb,
-        dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m) {
+void compute_ref_fwd_ip(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &bia_m = args.find(DNNL_ARG_BIAS);
+    const dnn_mem_t &dst_m = args.find(DNNL_ARG_DST);
 
     int64_t M = prb->mb;
     int64_t N = prb->oc;
     int64_t K = prb->ic * prb->id * prb->ih * prb->iw;
 
-    dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, tag::abx, engine_tgt);
+    dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, tag::abx, dst_m.engine());
 
     gemm("C", "N", "T", M, N, K, 1.f, (float *)src_m, K, (float *)wei_m, K, 0.f,
             (float *)dst_tmp, N);
 
-    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
+    auto v_po_masks = prb->attr.post_ops.get_po_masks();
     dnnl::impl::parallel_nd(prb->mb, prb->oc, [&](int64_t mb, int64_t oc) {
         size_t dst_off = dst_off_f(prb, mb, oc);
         float &dst = ((float *)dst_m)[dst_off];
@@ -45,21 +47,19 @@ void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *prb,
         }
         maybe_oscale(prb->attr, d, prb->scales, oc);
 
-        std::vector<float> v_binary_vals(v_bin_po_mask.size());
-        for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-            const auto bin_po_offset
-                    = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
-            const float binary_val = binary_po[d].get_elem(bin_po_offset);
-            v_binary_vals[d] = binary_val;
-        }
-        maybe_post_ops(prb->attr, d, dst, v_binary_vals);
+        const auto v_po_vals
+                = prepare_po_vals(dst_m, args, v_po_masks, dst_off);
+
+        maybe_post_ops(prb->attr, d, dst, v_po_vals);
 
         dst = d;
     });
 }
 
-void compute_ref_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m) {
+void compute_ref_bwd_d_ip(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &diff_src_m = args.find(DNNL_ARG_DIFF_SRC);
+    const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &diff_dst_m = args.find(DNNL_ARG_DIFF_DST);
 
     int64_t M = prb->mb;
     int64_t N = prb->ic * prb->id * prb->ih * prb->iw;
@@ -69,8 +69,11 @@ void compute_ref_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
             0.f, (float *)diff_src_m, N);
 }
 
-void compute_ref_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
-        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m) {
+void compute_ref_bwd_w_ip(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &diff_wei_m = args.find(DNNL_ARG_DIFF_WEIGHTS);
+    const dnn_mem_t &diff_dst_m = args.find(DNNL_ARG_DIFF_DST);
+    const dnn_mem_t &diff_bia_m = args.find(DNNL_ARG_DIFF_BIAS);
 
     int64_t M = prb->oc;
     int64_t N = prb->ic * prb->id * prb->ih * prb->iw;
@@ -90,6 +93,36 @@ void compute_ref_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
             db += ((float *)diff_dst_m)[dst_off];
         }
     });
+}
+
+void compute_ref_fwd(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+    if (prim_ref) {
+        SAFE_V(execute_and_wait(prim_ref, args));
+        return;
+    }
+
+    compute_ref_fwd_ip(prb, args);
+}
+
+void compute_ref_bwd_d(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+    if (prim_ref) {
+        SAFE_V(execute_and_wait(prim_ref, args));
+        return;
+    }
+
+    compute_ref_bwd_d_ip(prb, args);
+}
+
+void compute_ref_bwd_w(
+        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+    if (prim_ref) {
+        SAFE_V(execute_and_wait(prim_ref, args));
+        return;
+    }
+
+    compute_ref_bwd_w_ip(prb, args);
 }
 
 } // namespace ip

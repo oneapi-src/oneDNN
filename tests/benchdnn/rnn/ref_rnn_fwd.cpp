@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -223,18 +223,22 @@ void rnn_cell_fwd(const prb_t &prb, float *dst_layer, float *dst_iter,
         const float *weights_iter, const float *weights_peephole,
         const float *weights_projection,
         const float *weights_projection_compensation, const float *bias,
-        const float *src_layer, const float *src_iter, const float *src_iter_c,
+        const float *src_layer, const float *src_layer_attention,
+        const float *src_iter, const float *src_iter_c,
         float *cell_scratchpad_) {
     if (prb.alg != VANILLA_LSTM) assert(dst_layer == dst_iter);
 
     switch (prb.alg) {
         case VANILLA_GRU:
+        case VANILLA_AUGRU:
             gru_fwd(prb, dst_layer, gates, weights_layer, weights_iter, bias,
-                    src_layer, src_iter);
+                    src_layer, src_layer_attention, src_iter);
             break;
         case LBR_GRU:
+        case LBR_AUGRU:
             lbr_gru_fwd(prb, dst_layer, gates, weights_layer, weights_iter,
-                    bias, src_layer, src_iter, cell_scratchpad_);
+                    bias, src_layer, src_layer_attention, src_iter,
+                    cell_scratchpad_);
             break;
         case VANILLA_LSTM:
             lstm_fwd(prb, dst_layer, dst_iter, dst_iter_c, gates, ht,
@@ -251,14 +255,14 @@ void rnn_cell_fwd(const prb_t &prb, float *dst_layer, float *dst_iter,
 }
 
 void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
-        const float *src_iter_, const float *src_iter_c_,
-        const float *weights_layer_, const float *weights_iter_,
-        const float *weights_peephole_, const float *weights_projection_,
-        const float *bias_, float *dst_layer_, float *dst_iter_,
-        float *dst_iter_c_, const AOC<float> &ws_src_layer,
+        const float *src_layer_attention_, const float *src_iter_,
+        const float *src_iter_c_, const float *weights_layer_,
+        const float *weights_iter_, const float *weights_peephole_,
+        const float *weights_projection_, const float *bias_, float *dst_layer_,
+        float *dst_iter_, float *dst_iter_c_, const AOC<float> &ws_src_layer,
         const AOC<float> &ws_src_iter, const AOC<float> &ws_src_iter_c,
         const AOC<float> &ws_gates, const AOC<float> &ws_ht) {
-    bool is_lbr = prb.alg == LBR_GRU;
+    bool is_lbr = prb.alg == LBR_GRU || prb.alg == LBR_AUGRU;
 
     float *bias_with_compensation = nullptr;
     float *weights_projection_compensation_ = nullptr;
@@ -290,8 +294,13 @@ void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
     AOC<const float> weights_iter(weights_iter_, prb.n_layer, prb.n_dir(),
             prb.n_gates() * prb.dhc, prb.sic);
 
+    AOC<const float> src_layer_attention(
+            src_layer_attention_, prb.n_iter, prb.mb, 1);
+
     int64_t cell_scratchpad_size = is_lbr * prb.mb * prb.n_gates() * prb.dhc;
-    float *cell_scratchpad_ = new float[cell_scratchpad_size];
+    float *cell_scratchpad_
+            = (float *)zmalloc(cell_scratchpad_size * sizeof(float), 4096);
+    SAFE_V(cell_scratchpad_ != nullptr ? OK : FAIL);
     for (int i = 0; i < cell_scratchpad_size; i++) {
         cell_scratchpad_[i] = NAN;
     }
@@ -316,21 +325,25 @@ void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
                 int64_t prev_iter
                         = (iter_dir == left2right) ? iter - 1 : iter + 1;
                 int64_t lay = il + 1;
+#define SAFE_PTR(FN, ...) CONCAT2(FN, _) ? &(FN(__VA_ARGS__)) : nullptr
                 rnn_cell_fwd(prb, &ws_src_layer(lay, dir_val, iter, 0, 0),
                         &ws_src_iter(lay, dir_val, iter, 0, 0),
                         &ws_src_iter_c(lay, dir_val, iter, 0, 0),
                         &ws_gates(lay - 1, dir_val, iter - 1, 0, 0, 0),
                         &ws_ht(lay - 1, dir_val, iter - 1, 0, 0),
-                        &weights_layer(lay - 1, dir_val, 0, 0),
-                        &weights_iter(lay - 1, dir_val, 0, 0),
-                        &weights_peephole(lay - 1, dir_val, 0),
-                        &weights_projection(lay - 1, dir_val, 0),
-                        &weights_projection_compensation(lay - 1, dir_val, 0),
-                        &bias(lay - 1, dir_val, 0),
+                        SAFE_PTR(weights_layer, lay - 1, dir_val, 0, 0),
+                        SAFE_PTR(weights_iter, lay - 1, dir_val, 0, 0),
+                        SAFE_PTR(weights_peephole, lay - 1, dir_val, 0),
+                        SAFE_PTR(weights_projection, lay - 1, dir_val, 0),
+                        SAFE_PTR(weights_projection_compensation, lay - 1,
+                                dir_val, 0),
+                        SAFE_PTR(bias, lay - 1, dir_val, 0),
                         &ws_src_layer(lay - 1, dir_val, iter, 0, 0),
+                        SAFE_PTR(src_layer_attention, iter - 1, 0, 0),
                         &ws_src_iter(lay, dir_val, prev_iter, 0, 0),
                         &ws_src_iter_c(lay, dir_val, prev_iter, 0, 0),
                         cell_scratchpad_);
+#undef SAFE_PTR
             }
         }
 
@@ -357,28 +370,30 @@ void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
         default: assert(!"unknown direction"); break;
     }
 
-    delete[] cell_scratchpad_;
+    zfree(cell_scratchpad_);
     delete[] bias_with_compensation;
     delete[] weights_projection_compensation_;
 }
 
 void compute_ref_fwd(const prb_t &prb, dnn_mem_t &src_layer_m,
-        dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
-        dnn_mem_t &weights_src_layer_m, dnn_mem_t &weights_src_iter_m,
-        dnn_mem_t &weights_peephole_m, dnn_mem_t &weights_projection_m,
-        dnn_mem_t &bias_m, dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
+        dnn_mem_t &src_layer_attention_m, dnn_mem_t &src_iter_m,
+        dnn_mem_t &src_iter_c_m, dnn_mem_t &weights_src_layer_m,
+        dnn_mem_t &weights_src_iter_m, dnn_mem_t &weights_peephole_m,
+        dnn_mem_t &weights_projection_m, dnn_mem_t &bias_m,
+        dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
         dnn_mem_t &dst_iter_c_m) {
     std::vector<float> ws_fwd_buffer;
     AOC<float> ws_src_layer, ws_src_iter, ws_src_iter_c, ws_gates, ws_ht;
     prepare_ws_fwd(prb, ws_fwd_buffer, ws_src_layer, ws_src_iter, ws_src_iter_c,
             ws_gates, ws_ht);
 
-    rnn_linear_fwd(prb, (float *)src_layer_m, (float *)src_iter_m,
-            (float *)src_iter_c_m, (float *)weights_src_layer_m,
-            (float *)weights_src_iter_m, (float *)weights_peephole_m,
-            (float *)weights_projection_m, (float *)bias_m,
-            (float *)dst_layer_m, (float *)dst_iter_m, (float *)dst_iter_c_m,
-            ws_src_layer, ws_src_iter, ws_src_iter_c, ws_gates, ws_ht);
+    rnn_linear_fwd(prb, (float *)src_layer_m, (float *)src_layer_attention_m,
+            (float *)src_iter_m, (float *)src_iter_c_m,
+            (float *)weights_src_layer_m, (float *)weights_src_iter_m,
+            (float *)weights_peephole_m, (float *)weights_projection_m,
+            (float *)bias_m, (float *)dst_layer_m, (float *)dst_iter_m,
+            (float *)dst_iter_c_m, ws_src_layer, ws_src_iter, ws_src_iter_c,
+            ws_gates, ws_ht);
 }
 
 } // namespace rnn

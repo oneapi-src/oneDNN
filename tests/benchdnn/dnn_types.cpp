@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -189,7 +189,15 @@ int attr_t::get_default_mask(policy_t policy) {
 int parse_value_and_runtime(float &value, bool &runtime, const std::string &s) {
     // process value
     size_t scale_pos = 0;
-    value = std::stof(s, &scale_pos);
+    try {
+        value = std::stof(s, &scale_pos);
+    } catch (const std::invalid_argument &) {
+        BENCHDNN_PRINT(0, "%s\n%s \'%s\'; %s\n",
+                "Error: output scale or zero point input value is invalid.",
+                "Given input:", s.c_str(),
+                "Expected input: \'VAL[*]\'. See help for proper syntax.");
+        exit(1);
+    }
     runtime = false;
     if (scale_pos + 1 < s.size()) return FAIL;
     if (scale_pos == s.size()) return OK;

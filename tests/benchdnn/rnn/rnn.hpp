@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,14 @@
 
 namespace rnn {
 
-enum alg_t { VANILLA_RNN, VANILLA_LSTM, VANILLA_GRU, LBR_GRU };
+enum alg_t {
+    VANILLA_RNN,
+    VANILLA_LSTM,
+    VANILLA_GRU,
+    LBR_GRU,
+    VANILLA_AUGRU,
+    LBR_AUGRU
+};
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2kind(alg_t alg);
@@ -80,6 +87,9 @@ enum data_kind_t {
     DIFF_WEIGHTS_PEEPHOLE,
     WEIGHTS_PROJECTION,
     DIFF_WEIGHTS_PROJECTION,
+    // AUGRU requires an addtional argument for attention.
+    AUGRU_ATTENTION,
+    DIFF_AUGRU_ATTENTION,
 };
 const char *data_kind2str(data_kind_t kind);
 
@@ -118,6 +128,7 @@ struct array_offset_calculator {
 
     template <typename... Targs>
     Telem &operator()(Targs... Fargs) const {
+        assert(static_cast<bool>(base_ptr_));
         return *(base_ptr_ + offset(1, Fargs...));
     }
 
@@ -351,10 +362,13 @@ struct prb_t : public desc_t {
     int64_t n_gates() const {
         return alg == VANILLA_LSTM
                 ? 4
-                : (alg == VANILLA_GRU || alg == LBR_GRU ? 3 : 1);
+                : (alg == VANILLA_GRU || alg == LBR_GRU || alg == VANILLA_AUGRU
+                                        || alg == LBR_AUGRU
+                                ? 3
+                                : 1);
     }
     int64_t n_bias() const {
-        return alg == LBR_GRU ? n_gates() + 1 : n_gates();
+        return alg == LBR_GRU || alg == LBR_AUGRU ? n_gates() + 1 : n_gates();
     }
 
     int64_t dlc(dlc_type_t type) const {
@@ -372,6 +386,7 @@ struct prb_t : public desc_t {
     bool is_s8() const { return cfg[SRC_LAYER].dt == dnnl_s8; }
     bool is_lstm_peephole() const { return with_peephole; }
     bool is_lstm_projection() const { return with_projection; }
+    bool is_augru() const { return alg == VANILLA_AUGRU || alg == LBR_AUGRU; }
 
     const dt_conf_t &cfg;
     dnnl_prop_kind_t prop;
@@ -451,29 +466,30 @@ void prepare_ws_fwd(const prb_t &prb, std::vector<float> &ws_fwd_buffer,
         AOC<float> &ws_src_iter_c, AOC<float> &ws_gates, AOC<float> &ws_ht);
 
 void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
-        const float *src_iter_, const float *src_iter_c_,
-        const float *weights_layer_, const float *weights_iter_,
-        const float *weights_peephole_, const float *weights_projection_,
-        const float *bias_, float *dst_layer_, float *dst_iter_,
-        float *dst_iter_c_, const AOC<float> &ws_src_layer,
+        const float *src_layer_attention_, const float *src_iter_,
+        const float *src_iter_c_, const float *weights_layer_,
+        const float *weights_iter_, const float *weights_peephole_,
+        const float *weights_projection_, const float *bias_, float *dst_layer_,
+        float *dst_iter_, float *dst_iter_c_, const AOC<float> &ws_src_layer,
         const AOC<float> &ws_src_iter, const AOC<float> &ws_src_iter_c,
         const AOC<float> &ws_gates, const AOC<float> &ws_ht);
 
 void compute_ref_fwd(const prb_t &prb, dnn_mem_t &src_layer_m,
-        dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
+        dnn_mem_t &src_layer_attention_m, dnn_mem_t &src_iter_m,
+        dnn_mem_t &src_iter_c_m, dnn_mem_t &weights_layer_m,
+        dnn_mem_t &weights_iter_m, dnn_mem_t &weights_peephole_m,
+        dnn_mem_t &weights_projection_m, dnn_mem_t &bias_m,
+        dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m, dnn_mem_t &dst_iter_c_m);
+
+void compute_ref_bwd(const prb_t &prb, dnn_mem_t &src_layer_m,
+        dnn_mem_t &src_layer_attention_m, dnn_mem_t &src_iter_m,
+        dnn_mem_t &src_iter_c_m, dnn_mem_t &diff_dst_layer_m,
+        dnn_mem_t &diff_dst_iter_m, dnn_mem_t &diff_dst_iter_c_m,
         dnn_mem_t &weights_layer_m, dnn_mem_t &weights_iter_m,
         dnn_mem_t &weights_peephole_m, dnn_mem_t &weights_projection_m,
         dnn_mem_t &bias_m, dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
-        dnn_mem_t &dst_iter_c_m);
-
-void compute_ref_bwd(const prb_t &prb, dnn_mem_t &src_layer_m,
-        dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
-        dnn_mem_t &diff_dst_layer_m, dnn_mem_t &diff_dst_iter_m,
-        dnn_mem_t &diff_dst_iter_c_m, dnn_mem_t &weights_layer_m,
-        dnn_mem_t &weights_iter_m, dnn_mem_t &weights_peephole_m,
-        dnn_mem_t &weights_projection_m, dnn_mem_t &bias_m,
-        dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m, dnn_mem_t &dst_iter_c_m,
-        dnn_mem_t &diff_src_layer_m, dnn_mem_t &diff_src_iter_m,
+        dnn_mem_t &dst_iter_c_m, dnn_mem_t &diff_src_layer_m,
+        dnn_mem_t &diff_src_layer_attention_m, dnn_mem_t &diff_src_iter_m,
         dnn_mem_t &diff_src_iter_c_m, dnn_mem_t &diff_weights_layer_m,
         dnn_mem_t &diff_weights_iter_m, dnn_mem_t &diff_weights_peephole_m,
         dnn_mem_t &diff_weights_projection_m, dnn_mem_t &diff_bias_m);

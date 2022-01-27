@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 * Copyright 2021 Arm Ltd. and affiliates
 *
@@ -714,8 +714,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             static auto isa = dnnl_get_effective_cpu_isa();
             static bool has_avx512_bw
                     = dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core);
-            static bool has_avx512_common = has_avx512_bw
-                    || dnnl::is_superset(isa, dnnl_cpu_isa_avx512_mic);
 
             bool is_int8 = prb->cfg[WEI].dt == dnnl_s8;
 
@@ -754,9 +752,8 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             const bool sum_post_op_ok
                     = sum_idx == -1 || po.entry[sum_idx].sum.scale == 1.f;
 
-            if (!has_avx512_common || !shape_ok || (!has_avx512_bw && is_int8)
-                    || !bwd_is_syncable || (is_plain && !plain_ok)
-                    || !sum_post_op_ok) {
+            if (!has_avx512_bw || !shape_ok || !bwd_is_syncable
+                    || (is_plain && !plain_ok) || !sum_post_op_ok) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
                 return;
             }

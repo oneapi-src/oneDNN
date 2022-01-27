@@ -39,7 +39,7 @@ The following common options are supported:
   non-negative integer value of `INDEX` may be specified followed by colon `:`.
   E.g. `--engine=gpu:1`, which means to use second GPU device. Enumeration
   follows the library enumeration identification. It may be checked up with
-  DNNL_VERBOSE output. By default `INDEX` is `0`. If index is greater or equal
+  ONEDNN_VERBOSE output. By default `INDEX` is `0`. If index is greater or equal
   to the number of devices of requested kind discovered on a system, runtime
   error will occur.
 

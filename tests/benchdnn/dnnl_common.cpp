@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -297,6 +297,7 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
     if (is_bench_mode(CORR)) {
         for (int i = 0; i < args.size(); ++i) {
             SAFE(check_zero_padding(args.dnn_mem(i), args.arg(i)), WARN);
+            SAFE(check_buffer_overwrite(args.dnn_mem(i), args.arg(i)), WARN);
         }
     }
 
