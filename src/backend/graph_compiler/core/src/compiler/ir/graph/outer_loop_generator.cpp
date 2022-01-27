@@ -93,6 +93,27 @@ static bool axis_can_be_sort(sc_graph_t &graph, bool forced = false) {
 }
 
 /**
+ * Currently, outloop generator can only generate output anchor based on input
+ * shape, However some ops like reorder may have different shape between input
+ * and output which may cause conflict. We need to enhance this in the future.
+ * */
+static bool detect_loop_conflict(fusion_manager *fmgr) {
+    auto &graph = fmgr->get_graph();
+    return std::any_of(
+            graph.ops_.begin(), graph.ops_.end(), [&fmgr](const sc_op_ptr &op) {
+                if (op->isa<reorder_op_t>()) {
+                    if (op->get_inputs()[0]
+                                    ->producer_owner_->dyn_cast<input_op>()
+                            == fmgr->get_first_input()) {
+                        op->attrs_.set(op_attr_key::no_fuse, true);
+                        return true;
+                    }
+                }
+                return false;
+            });
+}
+
+/**
  * Move loop axis of reduce axis to inner.
  *
  * E.g. loop axis is {0, 1, 2, 3}, rd_axis is {1, 2}, after func, we get loop
@@ -180,6 +201,8 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
     COMPILE_ASSERT(inputs.size() > base_inp_idx_,
             "Expecting at least " << base_inp_idx_ + 1
                                   << " input(s) for outer_loop_generator_t");
+    // If loop conflict found, return.
+    if (detect_loop_conflict(fusion)) return false;
     tensor in_tsr = inputs[base_inp_idx_].as<tensor>();
     COMPILE_ASSERT(in_tsr.defined(), "Expecting a tensor");
     auto bld = builder::get_current_builder();

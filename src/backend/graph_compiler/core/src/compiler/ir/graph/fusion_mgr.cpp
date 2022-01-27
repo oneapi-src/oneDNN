@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -150,6 +150,13 @@ void fusion_manager::put_input_first(input_op *inp) {
             input_idx_map_[cur_inp.get()] = 0;
         }
     }
+}
+
+const sc_op *fusion_manager::get_first_input() const {
+    for (auto &m : input_idx_map_) {
+        if (m.second == 0) return m.first;
+    }
+    return nullptr;
 }
 
 fusion_manager::fusion_manager(fusion_manager &&other)
@@ -877,7 +884,6 @@ void fusion_manager::do_declare_tensor(
 void fusion_manager::do_compute_block(
         const context_ptr &ctx, std::vector<fusion_anchor_data> &fdata_list) {
     if (graph_.empty()) { return; }
-
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
 

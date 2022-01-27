@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -163,6 +163,9 @@ public:
     // this function will put given inp at first input_op in fusion manager,
     // usunally used when we need to reset base input op in some cases.
     void put_input_first(input_op *inp);
+    // this function will return input op which own first input idx. (also known
+    // as base op in most cases)
+    const sc_op *get_first_input() const;
 
     fusion_manager() = default;
     fusion_manager(const fusion_manager &other) = delete;
