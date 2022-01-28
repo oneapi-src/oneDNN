@@ -43,8 +43,12 @@ enum class broadcasting_strategy_t {
 
 using bcast_set_t = std::set<broadcasting_strategy_t>;
 
-static const bcast_set_t default_strategies {broadcasting_strategy_t::scalar,
-        broadcasting_strategy_t::per_oc, broadcasting_strategy_t::no_broadcast};
+inline const bcast_set_t &default_strategies() {
+    static const bcast_set_t s
+            = {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+                    broadcasting_strategy_t::no_broadcast};
+    return s;
+}
 
 output_dims_t make_output_dims(const memory_desc_wrapper &dst_d);
 

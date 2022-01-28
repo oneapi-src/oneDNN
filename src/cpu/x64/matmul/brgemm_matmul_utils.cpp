@@ -307,7 +307,7 @@ struct matmul_amx_blocking_params_t : public brgemm_matmul_conf_t {
     void update_configuration(brgemm_matmul_conf_t &bgmmc) const;
     float get_blocking_scores() const { return efficiency_score_; }
 
-    static size_t L2_threshold;
+    static size_t L2_threshold();
 
 private:
     // num threads for parallelism wrt k dimension
@@ -483,8 +483,9 @@ struct matmul_avx512_blocking_params_t {
     }
 };
 
-size_t matmul_amx_blocking_params_t::L2_threshold
-        = 3 * platform::get_per_core_cache_size(2) / 4;
+size_t matmul_amx_blocking_params_t::L2_threshold() {
+    return 3 * platform::get_per_core_cache_size(2) / 4;
+}
 
 void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
         const brgemm_matmul_conf_utils_t &bm_conf_utils,
@@ -1064,7 +1065,7 @@ void matmul_amx_blocking_params_t::set_blocking_parameters(
 
         update_k_blocking_dependent_params();
         auto chunk_sz = calculate_chunk_memory_size();
-        float k_div = (float)chunk_sz / L2_threshold;
+        float k_div = (float)chunk_sz / L2_threshold();
         if (k_div > 1.0f)
             k_chunk_size_ = static_cast<int>(
                     static_cast<float>(k_chunk_size_) / k_div + 0.6f);
@@ -1128,8 +1129,8 @@ float matmul_amx_blocking_params_t::get_copied_data_reusage_scores() {
 // for L2 utilization
 float matmul_amx_blocking_params_t::get_L2_utilization_scores() const {
     const float relative_difference_with_L2
-            = fabsf((float)L2_threshold - blocking_chunk_mem_size_)
-            / nstl::max(L2_threshold, blocking_chunk_mem_size_);
+            = fabsf((float)L2_threshold() - blocking_chunk_mem_size_)
+            / nstl::max(L2_threshold(), blocking_chunk_mem_size_);
     return 1.0f - relative_difference_with_L2;
 }
 
