@@ -33,18 +33,21 @@ using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::prop_kind;
 
 // clang-format off
-const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_PRELU_P({
-    {{forward}, {
-        CPU_INSTANCE_X64(jit_prelu_fwd_t)
-        CPU_INSTANCE(ref_prelu_fwd_t)
-        nullptr,
-    }},
-    {{backward}, REG_BWD_PK({
-        CPU_INSTANCE_X64(jit_prelu_bwd_t)
-        CPU_INSTANCE(ref_prelu_bwd_t)
-        nullptr,
-    })},
-});
+const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
+    static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_PRELU_P({
+        {{forward}, {
+            CPU_INSTANCE_X64(jit_prelu_fwd_t)
+            CPU_INSTANCE(ref_prelu_fwd_t)
+            nullptr,
+        }},
+        {{backward}, REG_BWD_PK({
+            CPU_INSTANCE_X64(jit_prelu_bwd_t)
+            CPU_INSTANCE(ref_prelu_bwd_t)
+            nullptr,
+        })},
+    });
+    return the_map;
+}
 // clang-format on
 } // namespace
 
@@ -57,9 +60,9 @@ const impl_list_item_t *get_prelu_impl_list(const prelu_desc_t *desc) {
 
     pk_impl_key_t key {prop_kind};
 
-    const auto impl_list_it = impl_list_map.find(key);
-    return impl_list_it != impl_list_map.cend() ? impl_list_it->second.data()
-                                                : empty_list;
+    const auto impl_list_it = impl_list_map().find(key);
+    return impl_list_it != impl_list_map().cend() ? impl_list_it->second.data()
+                                                  : empty_list;
 }
 
 } // namespace cpu

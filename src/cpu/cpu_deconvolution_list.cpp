@@ -36,27 +36,30 @@ using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::prop_kind;
 
 // clang-format off
-const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> impl_list_map REG_DECONV_P({
-    {{forward}, {
-        CPU_INSTANCE_AMX(jit_avx512_core_amx_deconvolution_fwd_t)
-        CPU_INSTANCE_AVX512(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t)
-        CPU_INSTANCE_AVX512(jit_avx512_core_x8s8s32x_deconvolution_fwd_t)
-        CPU_INSTANCE_AVX2(jit_uni_x8s8s32x_1x1_deconvolution_fwd_t<avx2>)
-        CPU_INSTANCE_AVX2(jit_uni_x8s8s32x_deconvolution_fwd_t<avx2>)
-        CPU_INSTANCE_SSE41(jit_uni_x8s8s32x_1x1_deconvolution_fwd_t<sse41>)
-        CPU_INSTANCE_SSE41(jit_uni_x8s8s32x_deconvolution_fwd_t<sse41>)
-        CPU_INSTANCE(ref_deconvolution_fwd_t)
-        nullptr,
-    }},
-    {{backward_data}, REG_BWD_PK({
-        CPU_INSTANCE(ref_deconvolution_bwd_data_t)
-        nullptr,
-    })},
-    {{backward_weights}, REG_BWD_PK({
-        CPU_INSTANCE(ref_deconvolution_bwd_weights_t)
-        nullptr,
-    })},
-});
+const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
+    static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_DECONV_P({
+        {{forward}, {
+            CPU_INSTANCE_AMX(jit_avx512_core_amx_deconvolution_fwd_t)
+            CPU_INSTANCE_AVX512(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t)
+            CPU_INSTANCE_AVX512(jit_avx512_core_x8s8s32x_deconvolution_fwd_t)
+            CPU_INSTANCE_AVX2(jit_uni_x8s8s32x_1x1_deconvolution_fwd_t<avx2>)
+            CPU_INSTANCE_AVX2(jit_uni_x8s8s32x_deconvolution_fwd_t<avx2>)
+            CPU_INSTANCE_SSE41(jit_uni_x8s8s32x_1x1_deconvolution_fwd_t<sse41>)
+            CPU_INSTANCE_SSE41(jit_uni_x8s8s32x_deconvolution_fwd_t<sse41>)
+            CPU_INSTANCE(ref_deconvolution_fwd_t)
+            nullptr,
+        }},
+        {{backward_data}, REG_BWD_PK({
+            CPU_INSTANCE(ref_deconvolution_bwd_data_t)
+            nullptr,
+        })},
+        {{backward_weights}, REG_BWD_PK({
+            CPU_INSTANCE(ref_deconvolution_bwd_weights_t)
+            nullptr,
+        })},
+    });
+    return the_map;
+}
 // clang-format on
 } // namespace
 
@@ -70,9 +73,9 @@ const impl_list_item_t *get_deconvolution_impl_list(
 
     pk_impl_key_t key {prop_kind};
 
-    const auto impl_list_it = impl_list_map.find(key);
-    return impl_list_it != impl_list_map.cend() ? impl_list_it->second.data()
-                                                : empty_list;
+    const auto impl_list_it = impl_list_map().find(key);
+    return impl_list_it != impl_list_map().cend() ? impl_list_it->second.data()
+                                                  : empty_list;
 }
 
 } // namespace cpu
