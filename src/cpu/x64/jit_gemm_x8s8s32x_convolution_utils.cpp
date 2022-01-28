@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -714,14 +714,14 @@ void jit_pp_ker_t::generate() {
     if (jcp_.with_eltwise) postops_injector_->prepare_table();
 }
 
-bool mayiuse_jit_pp_kernel() noexcept {
-    return mayiuse(avx512_core);
+bool mayiuse_jit_pp_kernel(data_type_t dst_dt) noexcept {
+    const auto is_bf16_dst_dt = dst_dt == data_type::bf16;
+    return mayiuse(avx512_core) && !is_bf16_dst_dt;
 }
 
 pp_ker_t *jit_pp_ker_create(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp) {
-    const auto is_bf16_dst_dt = pd->dst_md()->data_type == data_type::bf16;
-    return mayiuse_jit_pp_kernel() && !is_bf16_dst_dt
+    return mayiuse_jit_pp_kernel(pd->dst_md()->data_type)
             ? new jit_pp_ker_t(pd, jcp)
             : nullptr;
 }
@@ -730,7 +730,7 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
     using namespace x64::injector;
     static constexpr bool sum_at_pos_0_only = true;
     static constexpr bool sum_requires_scale_one = false;
-    return mayiuse_jit_pp_kernel()
+    return mayiuse_jit_pp_kernel(dst_d->data_type())
             && dnnl::impl::cpu::x64::injector::post_ops_ok(
                     {avx512_core, {binary, eltwise, sum}, post_ops, dst_d,
                             sum_at_pos_0_only, sum_requires_scale_one});

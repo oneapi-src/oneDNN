@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -188,10 +188,12 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
             && jit_gemm_convolution_utils::padding_exists(jcp);
     const bool should_apply_zp_src_comp_pad_jit_pp
             = should_apply_zp_src_comp_pad
-            && gemm_x8s8s32x_convolution_utils::mayiuse_jit_pp_kernel();
+            && gemm_x8s8s32x_convolution_utils::mayiuse_jit_pp_kernel(
+                    dst_md.data_type());
     const bool should_apply_zp_src_comp_outside_pp
             = should_apply_zp_src_comp_pad
-            && !gemm_x8s8s32x_convolution_utils::mayiuse_jit_pp_kernel();
+            && !gemm_x8s8s32x_convolution_utils::mayiuse_jit_pp_kernel(
+                    dst_md.data_type());
 
     dim_t g {0}, n {0}, ohb {0}, owb {0};
     dim_t start = 0, end = 0;

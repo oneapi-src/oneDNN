@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ protected:
 
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d);
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d);
-bool mayiuse_jit_pp_kernel() noexcept;
+bool mayiuse_jit_pp_kernel(data_type_t dst_dt) noexcept;
 
 } // namespace gemm_x8s8s32x_convolution_utils
 } // namespace cpu
