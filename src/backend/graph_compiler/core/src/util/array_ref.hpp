@@ -22,7 +22,24 @@
 #include <vector>
 #include <initializer_list>
 
+#if defined(__GNUC__)
+#define SC_GNUC_VERSION_GE(x) (__GNUC__ >= (x))
+#else
+#define SC_GNUC_VERSION_GE(x) 0
+#endif
+
 namespace sc {
+
+// ArrayRef implementation taken from LLVM
+//===- ArrayRef.h - Array Reference Wrapper -----------------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===------------------------------------------------------------------===//
+
 template <typename T>
 class array_ref {
 private:
@@ -48,8 +65,18 @@ public:
 
     array_ref(const T *begin, const T *end) : ptr_(begin), sz_(end - begin) {}
 
+#if SC_GNUC_VERSION_GE(9)
+// Disable gcc's warning in this constructor as it generates an enormous amount
+// of messages. Anyone using ArrayRef should already be aware of the fact that
+// it does not do lifetime extension.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winit-list-lifetime"
+#endif
     constexpr array_ref(const std::initializer_list<T> &v)
         : ptr_(v.begin() == v.end() ? nullptr : v.begin()), sz_(v.size()) {}
+#if SC_GNUC_VERSION_GE(9)
+#pragma GCC diagnostic pop
+#endif
 
     template <typename A>
     array_ref(const std::vector<T, A> &v) : ptr_(v.data()), sz_(v.size()) {}
@@ -75,15 +102,6 @@ public:
         return ptr_[i];
     }
 
-    // The following 2 functions are taken from LLVM-project
-    //===- ArrayRef.h - Array Reference Wrapper -----------------*- C++ -*-===//
-    //
-    // Part of the LLVM Project, under the Apache License v2.0 with LLVM
-    // Exceptions.
-    // See https://llvm.org/LICENSE.txt for license information.
-    // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-    //
-    //===------------------------------------------------------------------===//
     /// Disallow accidental assignment from a temporary.
     ///
     /// The declaration here is extra complicated so that "arrayRef = {}"
