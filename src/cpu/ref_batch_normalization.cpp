@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -193,6 +193,7 @@ status_t ref_batch_normalization_fwd_t<d_type>::execute_forward(
 template struct ref_batch_normalization_fwd_t<s8>;
 template struct ref_batch_normalization_fwd_t<f32>;
 template struct ref_batch_normalization_fwd_t<bf16>;
+template struct ref_batch_normalization_fwd_t<f16>;
 
 template <impl::data_type_t d_type>
 status_t ref_batch_normalization_bwd_t<d_type>::execute_backward(

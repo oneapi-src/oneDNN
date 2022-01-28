@@ -374,6 +374,7 @@ struct helper_vmovups_data_t {
             Zmm zmm_reserved_3, Zmm zmm_reserved_4, Reg64 reg_tmp)
         : h_(host), bf16_emu_(nullptr) {
         is_bf16_ = bdesc->desc()->data_desc.data_type == data_type::bf16;
+        is_f16_ = bdesc->desc()->data_desc.data_type == data_type::f16;
         if (is_bf16_ && !mayiuse(avx512_core_bf16)) {
             bf16_emu_ = utils::make_unique<bf16_emulation_t>(h_, zmm_reserved_1,
                     zmm_reserved_2, zmm_reserved_3, reg_tmp, zmm_reserved_4,
@@ -384,6 +385,7 @@ struct helper_vmovups_data_t {
     jit_generator *const h_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
     bool is_bf16_;
+    bool is_f16_;
 
     void operator()(const Operand &dst, const Operand &src) const {
         if (dst.isMEM()) {
@@ -401,6 +403,9 @@ struct helper_vmovups_data_t {
                     bf16_emu_->vcvtneps2bf16(dst_reg, src_reg);
 
                 h_->vmovdqu16(dst.getAddress(), dst_reg);
+            } else if (is_f16_) {
+                auto src_reg = Vmm(src.getIdx());
+                h_->vcvtps2ph(dst.getAddress(), src_reg, h_->_op_mxcsr);
             } else {
                 h_->uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
             }
@@ -409,6 +414,8 @@ struct helper_vmovups_data_t {
                 // convert bf16 input to f32
                 h_->vpmovzxwd(Vmm(dst.getIdx()), src.getAddress());
                 h_->vpslld(Vmm(dst.getIdx()), Vmm(dst.getIdx()), 0x10);
+            } else if (is_f16_) {
+                h_->vcvtph2psx(Vmm(dst.getIdx()), src.getAddress());
             } else {
                 h_->uni_vmovups(Vmm(dst.getIdx()), src.getAddress());
             }
@@ -1008,11 +1015,12 @@ struct jit_bnorm_fwd_t : public jit_generator {
     }
 
     void generate() override {
-        bool is_bf16 = bdesc_->desc()->data_desc.data_type == data_type::bf16;
+        bool is_xf16 = utils::one_of(bdesc_->desc()->data_desc.data_type,
+                data_type::bf16, data_type::f16);
         const bool is_tail_in_nspc_format
                 = tag_kind_ == jit_memory_tag_kind_t::nspc
                 && jit_tail_.tail_ != 0;
-        const bool stream_store_allowed = !is_bf16 && !is_tail_in_nspc_format;
+        const bool stream_store_allowed = !is_xf16 && !is_tail_in_nspc_format;
 
         preamble();
         if (helper_vmovups_.bf16_emu_)
@@ -2257,9 +2265,14 @@ template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
         engine_t *engine) {
     const bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-            && one_of(src_md()->data_type, f32, bf16)
+            && one_of(src_md()->data_type, f32, bf16, f16)
             && IMPLICATION(src_md()->data_type == bf16,
                     is_superset(isa, avx512_core) && mayiuse(avx512_core))
+            // Note: re-using avx512_core implementation for f16. This is okay
+            // as currently, we do not support binary post-ops for this
+            // primitive.
+            && IMPLICATION(src_md()->data_type == f16,
+                    is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
             && check_scale_shift_data_type()
             && (attr()->has_default_values()
                     || this->with_relu_post_op(is_training()));

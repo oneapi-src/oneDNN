@@ -84,9 +84,7 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
 
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(uint8_t *, DNNL_ARG_WORKSPACE);
-    acc_data_t *tmp_data_ = d_type == bf16
-            ? scratchpad.template get<acc_data_t>(key_bnorm_cvt)
-            : nullptr;
+    acc_data_t *tmp_data_ = scratchpad.template get<acc_data_t>(key_bnorm_cvt);
 
     const dim_t N = pd()->MB();
     const dim_t C = pd()->C();
@@ -113,11 +111,10 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                 for (dim_t sp = 0; sp < SP; sp++) {
                     const acc_data_t *_src;
                     const size_t s_off = (size_t)n * SP * C + sp * C;
-                    if (d_type == bf16) {
-                        // convert src from b16 to f32
+                    if (utils::one_of(d_type, bf16, f16)) {
+                        // convert src from xf16 to f32
                         acc_data_t *tmp_src = tmp_data_ + ithr * C_align;
-                        cvt_bfloat16_to_float(
-                                tmp_src, (bfloat16_t *)src + s_off, C);
+                        types::cvt_to_float(tmp_src, src + s_off, C);
                         _src = tmp_src;
                     } else {
                         _src = reinterpret_cast<const acc_data_t *>(
@@ -154,11 +151,10 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                 for (dim_t sp = 0; sp < SP; sp++) {
                     const acc_data_t *_src;
                     const size_t s_off = (size_t)n * SP * C + sp * C;
-                    if (d_type == bf16) {
-                        // convert src from b16 to f32
+                    if (utils::one_of(d_type, bf16, f16)) {
+                        // convert src from xf16 to f32
                         acc_data_t *tmp_src = tmp_data_ + ithr * C_align;
-                        cvt_bfloat16_to_float(
-                                tmp_src, (bfloat16_t *)src + s_off, C);
+                        types::cvt_to_float(tmp_src, src + s_off, C);
                         _src = tmp_src;
                     } else {
                         _src = reinterpret_cast<const acc_data_t *>(
@@ -205,13 +201,12 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                 acc_data_t *_dst;
                 const acc_data_t *_src;
                 const size_t s_off = (size_t)n * SP * C + sp * C;
-                if (d_type == bf16) {
+                if (utils::one_of(d_type, bf16, f16)) {
                     // store dst to f32 buffer
                     _dst = tmp_data_ + ithr * C_align;
-                    // convert src from b16 to f32
+                    // convert src from xf16 to f32
                     acc_data_t *tmp_src = tmp_data_ + (nthr + ithr) * C_align;
-                    cvt_bfloat16_to_float(
-                            tmp_src, (bfloat16_t *)src + s_off, C);
+                    types::cvt_to_float(tmp_src, src + s_off, C);
                     _src = tmp_src;
                 } else {
                     _dst = reinterpret_cast<acc_data_t *>(dst + s_off);
@@ -240,9 +235,9 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                     }
                     _dst[c] = maybe_post_op(bn_res);
                 }
-                if (d_type == bf16) {
-                    // convert dst from f32 to b16
-                    cvt_float_to_bfloat16((bfloat16_t *)dst + s_off, _dst, C);
+                if (utils::one_of(d_type, bf16, f16)) {
+                    // convert dst from f32 to xf16
+                    types::cvt_from_float(dst + s_off, _dst, C);
                 }
             }
         }
@@ -252,6 +247,7 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
 
 template struct nspc_batch_normalization_fwd_t<f32>;
 template struct nspc_batch_normalization_fwd_t<bf16>;
+template struct nspc_batch_normalization_fwd_t<f16>;
 
 template <data_type_t d_type>
 status_t nspc_batch_normalization_bwd_t<d_type>::execute_backward(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,10 @@ struct jit_uni_tbb_batch_normalization_fwd_t : public primitive_t {
                                 ? (mayiuse(avx512_core_bf16)
                                                 ? avx512_core_bf16
                                                 : bf16_emulation_t::get_isa())
-                                : isa,
+                                : (this->desc()->data_desc.data_type
+                                          == data_type::f16)
+                                        ? avx512_core_fp16
+                                        : isa,
                         ""),
                 jit_uni_tbb_batch_normalization_fwd_t);
 

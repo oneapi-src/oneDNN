@@ -86,15 +86,14 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
                 }
             }
 
-            if (d_type == data_type::bf16) {
+            if (utils::one_of(d_type, data_type::bf16, data_type::f16)) {
                 const int simd_w = 16;
                 const bool has_spatial = utils::one_of(ndims(), 4, 5);
                 const int SP = has_spatial ? D() * H() * W() : 1;
                 const int nbufs = 2;
-                const size_t bf16cvt_buf_sz
+                const size_t cvt_buf_sz
                         = nbufs * nthr_ * utils::rnd_up(SP, simd_w);
-                scratchpad.template book<acc_data_t>(
-                        key_bnorm_cvt, bf16cvt_buf_sz);
+                scratchpad.template book<acc_data_t>(key_bnorm_cvt, cvt_buf_sz);
             }
         }
     };

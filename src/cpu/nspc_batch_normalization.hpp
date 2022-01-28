@@ -84,13 +84,12 @@ struct nspc_batch_normalization_fwd_t : public primitive_t {
                 scratchpad.template book<acc_data_t>(
                         key_bnorm_tmp_var, stats_buf_sz);
             }
-            if (d_type == bf16) {
+            if (utils::one_of(d_type, bf16, f16)) {
                 const int simd_w = 16;
                 const int nbufs = 2;
-                const size_t bf16cvt_buf_sz
+                const size_t cvt_buf_sz
                         = nbufs * nthr_ * utils::rnd_up(C(), simd_w);
-                scratchpad.template book<acc_data_t>(
-                        key_bnorm_cvt, bf16cvt_buf_sz);
+                scratchpad.template book<acc_data_t>(key_bnorm_cvt, cvt_buf_sz);
             }
         }
     };

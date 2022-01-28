@@ -244,11 +244,12 @@ struct jit_bnorm_t : public jit_generator {
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
     const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
-    int vlen_spat_data_; // set by ctor depending on data type (BF16 or FP32);
+    int vlen_spat_data_; // set by ctor depending on data type (xF16 or FP32);
 
     const batch_normalization_pd_t *bdesc_;
     const jit_bnorm_conf_t *jbp_;
     bool is_bf16_;
+    bool is_f16_;
 
     Reg64 reg_param = abi_param1;
 
@@ -349,11 +350,12 @@ struct jit_bnorm_t : public jit_generator {
         stack_size_required = 144,
     };
 
+    bool is_xf16() { return is_bf16_ || is_f16_; }
     int bit_shift() { return 5 - is_bf16_; }
 
     bool stream_store_supported() {
         // keep original behavior for f32
-        if (!is_bf16_) return true;
+        if (!is_xf16()) return true;
         // TODO: check performance of heuristic for other cases, such as:
         // blocked layout, pre-avx512_core_amx machines, and f32 datatype.
         const bool is_applicable = jbp_->is_nspc_ && mayiuse(avx512_core_amx);
@@ -378,10 +380,10 @@ struct jit_bnorm_t : public jit_generator {
     void compute_static_strides() {
         spat_size = bdesc_->D() * bdesc_->W() * bdesc_->H();
         chan_data_offt = bdesc_->C() * sizeof(acc_data_t);
-        spat_step = jbp_->is_nspc_ ? chan_data_offt / (1 + is_bf16_)
+        spat_step = jbp_->is_nspc_ ? chan_data_offt / (1 + is_xf16())
                                    : vlen_spat_data_;
         mb_offt = spat_step * spat_size;
-        ws_mb_offt = (spat_step / (is_bf16_ ? 16 : 32)) * spat_size;
+        ws_mb_offt = (spat_step / (is_xf16() ? 16 : 32)) * spat_size;
     }
 
     void load_common_params() {
@@ -595,6 +597,16 @@ struct jit_bnorm_t : public jit_generator {
                     uni_vmovntps(dst.getAddress(), dst_reg);
                 else
                     vmovdqu16(dst.getAddress(), dst_reg);
+            } else if (is_f16_) {
+                auto src_reg = Vmm(src.getIdx());
+                auto dst_reg =
+                        typename vreg_traits<Vmm>::Vmm_lower_t(src.getIdx());
+                if (is_nt_store) {
+                    vcvtps2phx(dst_reg, src_reg);
+                    uni_vmovntps(dst.getAddress(), dst_reg);
+                } else {
+                    vcvtps2ph(dst.getAddress(), src_reg, _op_mxcsr);
+                }
             } else {
                 if (is_nt_store)
                     uni_vmovntps(dst.getAddress(), Vmm(src.getIdx()));
@@ -606,6 +618,8 @@ struct jit_bnorm_t : public jit_generator {
                 // convert bf16 input to f32
                 vpmovzxwd(Vmm(dst.getIdx()), src.getAddress());
                 vpslld(Vmm(dst.getIdx()), Vmm(dst.getIdx()), 0x10);
+            } else if (is_f16_) {
+                vcvtph2psx(Vmm(dst.getIdx()), src.getAddress());
             } else {
                 uni_vmovups(Vmm(dst.getIdx()), src.getAddress());
             }
@@ -957,9 +971,9 @@ struct jit_bnorm_t : public jit_generator {
         // comeback
         mov(reg_coff_max, reg_coff_max_fwd_copy);
 
-        if (is_bf16_) shr(reg_coff_max, 1);
+        if (is_xf16()) shr(reg_coff_max, 1);
         sub(reg_src, reg_coff_max);
-        if (is_bf16_) shl(reg_coff_max, 1);
+        if (is_xf16()) shl(reg_coff_max, 1);
     }
 
     void var_channels() {
@@ -1295,10 +1309,10 @@ struct jit_bnorm_t : public jit_generator {
         // comeback
         mov(reg_coff_max, reg_coff_max_fwd_copy);
 
-        if (is_bf16_) shr(reg_coff_max, 1);
+        if (is_xf16()) shr(reg_coff_max, 1);
         sub(reg_src, reg_coff_max);
         sub(reg_dst, reg_coff_max);
-        if (is_bf16_) shl(reg_coff_max, 1);
+        if (is_xf16()) shl(reg_coff_max, 1);
 
         shr(reg_coff_max, 5);
         sub(reg_ws, reg_coff_max);
@@ -1928,7 +1942,8 @@ struct jit_bnorm_t : public jit_generator {
                 "unsupported isa");
 
         is_bf16_ = bdesc_->desc()->data_desc.data_type == data_type::bf16;
-        vlen_spat_data_ = vlen / (1 + is_bf16_); // 32B of BF16 -> 64B of FP32
+        is_f16_ = bdesc_->desc()->data_desc.data_type == data_type::f16;
+        vlen_spat_data_ = vlen / (1 + is_xf16()); // 32B of xF16 -> 64B of FP32
 
         unroll_blocks = isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1;
         unroll_regs = isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1;
@@ -2203,8 +2218,15 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
             /* the algorithm requires barriers for best performance so for TBB we use
              * jit_uni_tbb_batch_normalization instead */
             && dnnl_thr_syncable() && mayiuse(isa) && is_fwd()
-            && !has_zero_dim_memory() && one_of(src_md()->data_type, f32, bf16)
-            && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
+            && !has_zero_dim_memory()
+            && one_of(src_md()->data_type, f32, bf16, f16)
+            && IMPLICATION(
+                    src_md()->data_type == bf16, is_superset(isa, avx512_core))
+            // Note: re-using avx512_core implementation for f16. This is okay
+            // as currently, we do not support binary post-ops for this
+            // primitive.
+            && IMPLICATION(src_md()->data_type == f16,
+                    is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
             && check_scale_shift_data_type()
             && (attr()->has_default_values()
                     || this->with_relu_post_op(is_training()));

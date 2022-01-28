@@ -1,0 +1,26 @@
+--reset
+
+--skip-impl=ref
+--dt=f16
+
+# inference
+--inplace=true
+--dir=FWD_I
+
+--flags=,G,S
+--mb=1,17
+--tag=abx
+--attr-post-ops=,relu,relu:0.05
+--batch=set_nd
+
+--mb=1,64
+--tag=axb
+--attr-post-ops=
+--flags=  --batch=shapes_googlenet_v2
+--flags=G --batch=shapes_densenet_121
+--flags=S --batch=shapes_resnet_50
+
+--flags=
+--mb=1
+--attr-post-ops=relu,relu:0.05
+--batch=set_nd

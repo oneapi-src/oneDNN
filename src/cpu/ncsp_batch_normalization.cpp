@@ -76,7 +76,7 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
 
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(uint8_t *, DNNL_ARG_WORKSPACE);
-    acc_data_t *bf16_src_cvt_wsp
+    acc_data_t *src_cvt_wsp
             = scratchpad.template get<acc_data_t>(key_bnorm_cvt);
 
     const float eps = pd()->desc()->batch_norm_epsilon;
@@ -157,16 +157,15 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                     for (dim_t n = N_s; n < N_e; ++n) {
                         const acc_data_t *scr_fp32;
                         size_t soff = off + n * C * SP;
-                        if (d_type == bf16) {
-                            // convert src from bf16 to f32
+                        if (utils::one_of(d_type, bf16, f16)) {
                             acc_data_t *tmp_src
-                                    = bf16_src_cvt_wsp + ithr * SP_cl_align;
+                                    = src_cvt_wsp + ithr * SP_cl_align;
                             /*TODO: remove this conversion if performance
-                            doesn't degrade, since bfloat16_t supports +=
-                            operator with implicit conversions from bf16 to
+                            doesn't degrade, since xfloat16_t supports +=
+                            operator with implicit conversions from xf16 to
                             float */
-                            cvt_bfloat16_to_float(tmp_src + S_s,
-                                    (bfloat16_t *)src + soff + S_s, S_chunk);
+                            types::cvt_to_float(
+                                    tmp_src + S_s, src + soff + S_s, S_chunk);
                             scr_fp32 = tmp_src;
                         } else {
                             scr_fp32 = reinterpret_cast<const acc_data_t *>(
@@ -199,16 +198,15 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                     for (dim_t n = N_s; n < N_e; ++n) {
                         const acc_data_t *_src;
                         size_t soff = off * SP + n * C * SP;
-                        if (d_type == bf16) {
-                            // convert src from bf16 to f32
+                        if (utils::one_of(d_type, bf16, f16)) {
                             acc_data_t *tmp_src
-                                    = bf16_src_cvt_wsp + ithr * SP_cl_align;
+                                    = src_cvt_wsp + ithr * SP_cl_align;
                             /*TODO: remove this conversion if performance
-                            doesn't degrade, since bfloat16_t supports +=
-                            operator with implicit conversions from bf16 to
+                            doesn't degrade, since xfloat16_t supports +=
+                            operator with implicit conversions from xf16 to
                             float */
-                            cvt_bfloat16_to_float(tmp_src + S_s,
-                                    (bfloat16_t *)src + soff + S_s, S_chunk);
+                            types::cvt_to_float(
+                                    tmp_src + S_s, src + soff + S_s, S_chunk);
                             _src = tmp_src;
                         } else {
                             _src = reinterpret_cast<const acc_data_t *>(
@@ -250,18 +248,18 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                     acc_data_t *_dst;
                     const acc_data_t *_src;
                     size_t s_off = off * SP + n * C * SP;
-                    if (d_type == bf16) {
+                    if (utils::one_of(d_type, bf16, f16)) {
                         // store dst to f32 buffer
-                        _dst = bf16_src_cvt_wsp + ithr * SP_cl_align;
+                        _dst = src_cvt_wsp + ithr * SP_cl_align;
                         // convert src from bf16 to f32
-                        acc_data_t *tmp_src = bf16_src_cvt_wsp
-                                + (nthr + ithr) * SP_cl_align;
+                        acc_data_t *tmp_src
+                                = src_cvt_wsp + (nthr + ithr) * SP_cl_align;
                         /*TODO: remove this conversion if performance
-                        doesn't degrade, since bfloat16_t supports +=
-                        operator with implicit conversions from bf16 to
+                        doesn't degrade, since xfloat16_t supports +=
+                        operator with implicit conversions from xf16 to
                         float */
-                        cvt_bfloat16_to_float(tmp_src + S_s,
-                                (bfloat16_t *)src + s_off + S_s, S_chunk);
+                        types::cvt_to_float(
+                                tmp_src + S_s, src + s_off + S_s, S_chunk);
                         _src = tmp_src;
                     } else {
                         _dst = reinterpret_cast<acc_data_t *>(dst + s_off);
@@ -284,10 +282,10 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                         }
                         _dst[sp] = maybe_post_op(bn_res);
                     }
-                    if (d_type == bf16) {
-                        // convert dst from f32 to bf16
-                        cvt_float_to_bfloat16((bfloat16_t *)dst + s_off + S_s,
-                                _dst + S_s, S_chunk);
+                    if (utils::one_of(d_type, bf16, f16)) {
+                        // convert dst from f32 to xf16
+                        types::cvt_from_float(
+                                dst + s_off + S_s, _dst + S_s, S_chunk);
                     }
                 }
             }
@@ -299,6 +297,7 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
 
 template struct ncsp_batch_normalization_fwd_t<f32>;
 template struct ncsp_batch_normalization_fwd_t<bf16>;
+template struct ncsp_batch_normalization_fwd_t<f16>;
 
 template <data_type_t d_type>
 status_t ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
