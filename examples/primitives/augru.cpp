@@ -96,7 +96,7 @@ void augru_example(dnnl::engine::kind engine_kind) {
     });
     std::generate(bias_data.begin(), bias_data.end(), []() {
         static int i = 0;
-        return std::tanh(i++);
+        return std::tanh(float(i++));
     });
 
     // Create memory descriptors and memory objects for src, bias, and dst.

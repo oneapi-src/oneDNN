@@ -98,7 +98,8 @@ void bnorm_u8_via_binary_postops(dnnl::engine::kind engine_kind) {
         static int i = 0;
         return std::sin(i++ * 8.f);
     });
-    std::generate(oscale_data.begin(), oscale_data.end(), []() { return 0.5; });
+    std::generate(
+            oscale_data.begin(), oscale_data.end(), []() { return 0.5f; });
 
     // Create descriptors.
     auto src_md = memory::desc(src_dims, dt::u8, tag::nhwc);

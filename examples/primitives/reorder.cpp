@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ void reorder_example(dnnl::engine::kind engine_kind) {
     std::vector<float> scales(IC);
     std::generate(scales.begin(), scales.end(), []() {
         static int i = 0;
-        return 64 + 5 * i++;
+        return 64.f + 5.f * i++;
     });
 
     // Dimension of the dst tensor where the output scales will be applied

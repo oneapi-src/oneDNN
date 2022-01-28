@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ void lstm_example(dnnl::engine::kind engine_kind) {
     });
     std::generate(bias_data.begin(), bias_data.end(), []() {
         static int i = 0;
-        return std::tanh(i++);
+        return std::tanh(float(i++));
     });
 
     // Create memory descriptors and memory objects for src, bias, and dst.

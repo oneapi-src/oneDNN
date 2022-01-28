@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,8 +76,8 @@ void sum_example(dnnl::engine::kind engine_kind) {
 
     // Scaling factors.
     std::vector<float> scales(num_src);
-    std::generate(
-            scales.begin(), scales.end(), [](int n = 0) { return sin(n); });
+    std::generate(scales.begin(), scales.end(),
+            [](int n = 0) { return sin(float(n)); });
 
     // Create an array of memory descriptors and memory objects for src tensors.
     std::vector<memory::desc> src_md;
