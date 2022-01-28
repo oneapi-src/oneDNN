@@ -3382,6 +3382,16 @@ void compute_reorder_block2stride(const context_ptr &ctx,
                     == input_format.get_blocks_size() - 1
             && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0
             && plain_dims[plain_dims.size() - 1] % step == 0;
+    if (can_vectorize && attrs.get_or_else(op_attr_key::no_fuse, false)) {
+        int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
+        while (step < max_step
+                && input_blocking_dims[input_blocking_dims.size() - 1]
+                                % (2 * step)
+                        == 0
+                && plain_dims[plain_dims.size() - 1] % (2 * step) == 0) {
+            step = 2 * step;
+        }
+    }
     bool no_padding = sc_data_format_t::get_padded_plain_shapes(
                               input_blocking_dims, input_format)
             == sc_data_format_t::get_padded_plain_shapes(
@@ -3475,6 +3485,17 @@ void compute_reorder_stride2block(const context_ptr &ctx,
     if (no_padding) {
         can_vectorize = can_vectorize && src.get_shape().back().isa<constant>()
                 && get_expr_as_int(src.get_shape().back()) % step == 0;
+    }
+
+    if (can_vectorize && attrs.get_or_else(op_attr_key::no_fuse, false)) {
+        int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
+        while (step < max_step
+                && output_blocking_dims[output_blocking_dims.size() - 1]
+                                % (2 * step)
+                        == 0
+                && plain_dims[plain_dims.size() - 1] % (2 * step) == 0) {
+            step = 2 * step;
+        }
     }
 
     step = can_vectorize ? step : 1;

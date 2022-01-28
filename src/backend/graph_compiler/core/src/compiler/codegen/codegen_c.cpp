@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -97,6 +97,7 @@ void codegen_c_vis::print_type(sc_data_type_t dtype) {
             case sc_data_type_t::bf16(4): *os << "vec_u16x4"; break;
             case sc_data_type_t::bf16(8): *os << "vec_u16x8"; break;
             case sc_data_type_t::bf16(16): *os << "vec_u16x16"; break;
+            case sc_data_type_t::bf16(32): *os << "vec_u16x32"; break;
 
             case sc_data_type_t::f32(4): *os << "vec_f32x4"; break;
             case sc_data_type_t::f32(8): *os << "vec_f32x8"; break;
