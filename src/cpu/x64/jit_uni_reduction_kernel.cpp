@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,20 +26,28 @@ namespace x64 {
 using namespace Xbyak;
 #define GET_OFF(field) offsetof(jit_reduction_call_s, field)
 
-template <typename Vmm>
-jit_uni_reduction_kernel_t<Vmm>::jit_uni_reduction_kernel_t(
+static const bcast_set_t &get_supported_postops_bcast_strategies() {
+    static const bcast_set_t supported_strategies
+            = {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+                    broadcasting_strategy_t::per_oc_spatial,
+                    broadcasting_strategy_t::no_broadcast};
+    return supported_strategies;
+}
+
+template <cpu_isa_t isa, typename Vmm>
+jit_uni_reduction_kernel_t<isa, Vmm>::jit_uni_reduction_kernel_t(
         const jit_reduction_conf_t &conf, const memory_desc_t *dst_md)
     : jit_uni_reduction_kernel_base_t(conf)
-    , tail_size_(conf.reduce_size % simd_w_)
-    , io_load_(this, conf_.isa, conf_.src_type, {false},
-              io::io_tail_conf_t {simd_w_, tail_size_, k_tail_load_mask_,
+    , load_tail_size_(conf.reduce_size % simd_w_)
+    , io_load_(this, isa, conf_.src_type, {false},
+              io::io_tail_conf_t {simd_w_, load_tail_size_, k_tail_load_mask_,
                       vmm_tail_load_mask_.getIdx(), reg_tmp_},
               io::io_emu_bf16_conf_t {vmm_bf16_emu_1_, vmm_bf16_emu_2_,
                       vmm_bf16_emu_3_, reg_tmp_, vmm_bf16_emu_4_},
               io::io_saturation_conf_t {vmm_zero_saturation_.getIdx(),
                       vmm_saturation_ubound_.getIdx(), reg_tmp_})
-    , io_store_(this, conf_.isa, conf_.dst_type, {false},
-              io::io_tail_conf_t {simd_w_, 1, k_tail_store_mask_,
+    , io_store_(this, isa, conf_.dst_type, {false},
+              io::io_tail_conf_t {simd_w_, store_tail_size_, k_tail_store_mask_,
                       vmm_tail_store_mask_.getIdx(), reg_tmp_},
               io::io_emu_bf16_conf_t {vmm_bf16_emu_1_, vmm_bf16_emu_2_,
                       vmm_bf16_emu_3_, reg_tmp_, vmm_bf16_emu_4_},
@@ -47,10 +55,11 @@ jit_uni_reduction_kernel_t<Vmm>::jit_uni_reduction_kernel_t(
                       vmm_saturation_ubound_.getIdx(), reg_tmp_}) {
     init_compute_op();
     init_compute_scalar_op();
+    if (conf_.with_postops) init_post_ops_injector(dst_md);
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::init_acc() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::init_acc() {
     using namespace alg_kind;
     using namespace nstl;
 
@@ -73,8 +82,8 @@ void jit_uni_reduction_kernel_t<Vmm>::init_acc() {
     uni_vbroadcastss(vmm_acc_, xmm_tmp_);
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::init_compute_op() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::init_compute_op() {
     using namespace alg_kind;
     switch (conf_.alg) {
         case reduction_max:
@@ -102,8 +111,8 @@ void jit_uni_reduction_kernel_t<Vmm>::init_compute_op() {
     }
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::init_compute_scalar_op() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::init_compute_scalar_op() {
     using namespace alg_kind;
 
     switch (conf_.alg) {
@@ -136,8 +145,31 @@ void jit_uni_reduction_kernel_t<Vmm>::init_compute_scalar_op() {
     }
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::reduce_zmm_to_ymm(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::init_post_ops_injector(
+        const memory_desc_t *dst_md) {
+    const memory_desc_wrapper dst_d(*dst_md);
+
+    const eltwise_injector::static_params_t esp(true /*save_state*/,
+            reg_po_injector_helper_1_, elt_inj_opmask_, true /*is_fwd*/,
+            false /*use_dst*/);
+    const binary_injector::rhs_arg_static_params_t rhs_arg_bsp {
+            static_cast<size_t>(rhs_dt_helper_vmm_.getIdx()),
+            reg_po_injector_helper_1_, reg_po_injector_helper_2_,
+            true /*preserve gpr*/, true /*preserve vmm*/,
+            GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig), dst_d,
+            store_tail_size_, k_tail_store_mask_,
+            false /*use_exact_tail_scalar_bcast*/};
+    const binary_injector::static_params_t bsp(
+            reg_param_, get_supported_postops_bcast_strategies(), rhs_arg_bsp);
+
+    postops_injector_ = utils::make_unique<
+            injector::jit_uni_postops_injector_t<inject_isa_, Vmm>>(
+            this, conf_.post_ops, bsp, esp);
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::reduce_zmm_to_ymm(
         const Xmm &acc, const Xmm &tmp) {
     const Zmm zmm_acc(acc.getIdx());
     const Ymm ymm_acc(acc.getIdx());
@@ -146,8 +178,8 @@ void jit_uni_reduction_kernel_t<Vmm>::reduce_zmm_to_ymm(
     compute_op_(ymm_acc, ymm_to_acc);
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::reduce_ymm_to_xmm(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::reduce_ymm_to_xmm(
         const Xmm &acc, const Xmm &tmp) {
     const Ymm ymm_acc(acc.getIdx());
     const Xmm xmm_acc(acc.getIdx());
@@ -156,8 +188,8 @@ void jit_uni_reduction_kernel_t<Vmm>::reduce_ymm_to_xmm(
     compute_op_(xmm_acc, xmm_to_acc);
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::reduce_xmm_to_scalar(const Xmm &acc,
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::reduce_xmm_to_scalar(const Xmm &acc,
         const Xmm &tmp, const std::size_t number_of_values_to_reduce) {
     assert(number_of_values_to_reduce <= number_of_f32_in_xmm_);
 
@@ -174,8 +206,8 @@ void jit_uni_reduction_kernel_t<Vmm>::reduce_xmm_to_scalar(const Xmm &acc,
     }
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::reduce_ymm_to_scalar(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::reduce_ymm_to_scalar(
         const Xbyak::Xmm &acc, const Xbyak::Xmm &tmp1, const Xbyak::Xmm &tmp2,
         const std::size_t number_of_values_to_reduce) {
     assert(number_of_values_to_reduce <= number_of_f32_in_ymm_);
@@ -199,8 +231,8 @@ void jit_uni_reduction_kernel_t<Vmm>::reduce_ymm_to_scalar(
     }
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::reduce_vmm_to_scalar(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::reduce_vmm_to_scalar(
         const Xbyak::Xmm &acc, const Xbyak::Xmm &tmp1, const Xbyak::Xmm &tmp2,
         const Xbyak::Xmm &tmp3, const std::size_t number_of_values_to_reduce) {
     assert(number_of_values_to_reduce <= number_of_f32_in_zmm_);
@@ -230,8 +262,8 @@ void jit_uni_reduction_kernel_t<Vmm>::reduce_vmm_to_scalar(
     }
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::reduce() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::reduce() {
     Label label_work_begin, label_work_end;
 
     L(label_work_begin);
@@ -248,24 +280,66 @@ void jit_uni_reduction_kernel_t<Vmm>::reduce() {
     }
     L(label_work_end);
 
-    if (tail_size_) {
+    if (load_tail_size_) {
         io_load_.load(ptr[reg_src_], vmm_tmp1_, true);
         reduce_vmm_to_scalar(
-                vmm_tmp1_, vmm_tmp2_, vmm_tmp3_, vmm_tmp4_, tail_size_);
+                vmm_tmp1_, vmm_tmp2_, vmm_tmp3_, vmm_tmp4_, load_tail_size_);
         compute_scalar_op_(Xmm(vmm_acc_.getIdx()), Xmm(vmm_tmp1_.getIdx()));
     }
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::load_params() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::load_params() {
     mov(reg_src_, ptr[reg_param_ + GET_OFF(src)]);
     mov(reg_dst_, ptr[reg_param_ + GET_OFF(dst)]);
     mov(reg_work_, conf_.reduce_size / simd_w_);
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::finalize() {
-    if (static_cast<std::size_t>(conf_.reduce_size) > tail_size_) {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::apply_sum(const int data_idx) {
+    if (conf_.with_sum) {
+        assert(!conf_.sum_scales.empty()
+                && "No scales for sum post operation.");
+        const auto sum_injector = [this, data_idx]() {
+            const Vmm vmm_prev_dst(vmm_tmp1_.getIdx());
+            const Vmm vmm_dst(data_idx);
+
+            io_store_.load(ptr[reg_dst_], vmm_prev_dst, true);
+            const float sum_scale = sum_scales_.front();
+            if (sum_scale == 1.f)
+                uni_vaddps(vmm_dst, vmm_dst, vmm_prev_dst);
+            else {
+                const Xmm xmm_sum_scale = Xmm(vmm_sum_scale_.getIdx());
+                mov(reg_tmp1_.cvt32(), float2int(sum_scale));
+                uni_vmovd(xmm_sum_scale, reg_tmp1_.cvt32());
+                uni_vbroadcastss(vmm_sum_scale_, xmm_sum_scale);
+                uni_vfmadd231ps(vmm_dst, vmm_prev_dst, vmm_sum_scale_);
+            }
+            sum_scales_.push(sum_scale);
+            sum_scales_.pop();
+        };
+        postops_injector_->set_lambda_injector(
+                primitive_kind::sum, sum_injector);
+    }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::apply_postops(const int data_idx) {
+    binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+
+    if (conf_.with_sum) apply_sum(data_idx);
+
+    if (conf_.with_binary) {
+        rhs_arg_params.vmm_idx_to_out_reg.emplace(data_idx, reg_dst_);
+        rhs_arg_params.vmm_tail_idx_.emplace(data_idx);
+    }
+
+    postops_injector_->compute_vector(data_idx, rhs_arg_params);
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::finalize() {
+    if (static_cast<std::size_t>(conf_.reduce_size) > load_tail_size_) {
         reduce_vmm_to_scalar(
                 vmm_acc_, vmm_tmp1_, vmm_tmp2_, vmm_tmp3_, simd_w_);
     }
@@ -278,17 +352,19 @@ void jit_uni_reduction_kernel_t<Vmm>::finalize() {
         uni_vdivss(xmm_acc, xmm_acc, xmm_reduce_size);
     }
 
+    if (conf_.with_postops) apply_postops(vmm_acc_.getIdx());
+
     io_store_.store(vmm_acc_, ptr[reg_dst_], true);
 }
 
-template <typename Vmm>
-void jit_uni_reduction_kernel_t<Vmm>::generate() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::generate() {
     preamble();
 
     io_store_.init_bf16();
     if (conf_.is_saturation_needed) io_store_.init_saturate_f32();
 
-    if (tail_size_ > 0) io_load_.prepare_tail_mask();
+    if (load_tail_size_ > 0) io_load_.prepare_tail_mask();
     io_store_.prepare_tail_mask();
 
     load_params();
@@ -297,11 +373,18 @@ void jit_uni_reduction_kernel_t<Vmm>::generate() {
     finalize();
 
     postamble();
+
+    if (conf_.with_eltwise && postops_injector_)
+        postops_injector_->prepare_table();
 }
 
-template struct jit_uni_reduction_kernel_t<Zmm>;
-template struct jit_uni_reduction_kernel_t<Ymm>;
-template struct jit_uni_reduction_kernel_t<Xmm>;
+template struct jit_uni_reduction_kernel_t<avx512_core_bf16>;
+template struct jit_uni_reduction_kernel_t<avx512_core>;
+template struct jit_uni_reduction_kernel_t<avx2>;
+template struct jit_uni_reduction_kernel_t<avx2, Xbyak::Xmm>;
+template struct jit_uni_reduction_kernel_t<avx>;
+template struct jit_uni_reduction_kernel_t<avx, Xbyak::Xmm>;
+template struct jit_uni_reduction_kernel_t<sse41>;
 
 } // namespace x64
 } // namespace cpu

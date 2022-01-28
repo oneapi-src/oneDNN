@@ -992,11 +992,20 @@ struct jit_reduction_conf_t {
     dim_t reduce_size = 0;
 
     bool is_saturation_needed = false;
+
+    post_ops_t post_ops = post_ops_t();
+    bool with_postops = false;
+    bool with_eltwise = false;
+    bool with_binary = false;
+    bool with_sum = false;
+    std::queue<float> sum_scales;
 };
 
 struct jit_reduction_call_s {
     const void *src = nullptr;
     void *dst = nullptr;
+    const void *post_ops_binary_rhs_arg_vec = nullptr;
+    const void *dst_orig = nullptr;
 };
 
 } // namespace x64
