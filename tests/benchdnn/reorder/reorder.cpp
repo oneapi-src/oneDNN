@@ -210,7 +210,8 @@ int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
                 const int64_t src_reduce_off
                         = md_off_v(src.md_, reduce_pos.data());
                 const int64_t src_off = src_idle_off + src_reduce_off;
-                const int64_t scale_idx = dst.get_scale_idx(f, scale_mask);
+                const int64_t scale_idx
+                        = dst.get_scale_idx(src_off, scale_mask);
                 const float alpha = prb->scales[scale_idx];
                 const float value
                         = src.get_elem(src_off) * alpha * s8_scale_factor;
