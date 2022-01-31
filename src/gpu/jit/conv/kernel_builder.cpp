@@ -6319,8 +6319,8 @@ private:
                 if (mn_sub_tile_dim % b.block == 0) {
                     next_block = b.block;
                 } else {
-                    next_block
-                            = ir_utils::safe_divide(b.block, mn_sub_tile_dim);
+                    ir_assert(b.block % mn_sub_tile_dim == 0);
+                    next_block = mn_sub_tile_dim;
                 }
                 sub_tile_dims[b.dim_idx] *= next_block;
                 mn_sub_tile_dim /= next_block;
