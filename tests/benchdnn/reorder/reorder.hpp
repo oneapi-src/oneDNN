@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -123,8 +123,13 @@ struct prb_t : public prb_dims_t {
 
     bool is_reorder_with_compensation(flag_bit_t flag) const;
     dims_t get_compensation_dims(flag_bit_t flag) const;
+    int get_compensation_mask(flag_bit_t flag) const;
     float *generate_oscales();
     int32_t *generate_zero_points(int arg) const;
+
+private:
+    void get_compensation_parameters(
+            dims_t &comp_dims, int &mask, flag_bit_t flag) const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 std::ostream &operator<<(std::ostream &s, const std::vector<flag_t> &oflag);

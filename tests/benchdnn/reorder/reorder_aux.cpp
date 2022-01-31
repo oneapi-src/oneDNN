@@ -96,18 +96,31 @@ bool prb_t::is_reorder_with_compensation(flag_bit_t flag) const {
             [&](const flag_t &oflag) { return (oflag.first & flag); });
 }
 
-dims_t prb_t::get_compensation_dims(flag_bit_t flag) const {
-    dims_t comp_dims;
+void prb_t::get_compensation_parameters(
+        dims_t &comp_dims, int &mask, flag_bit_t flag) const {
     if (is_reorder_with_compensation(flag)) {
         for (const auto &i_oflag : oflag) {
             if (i_oflag.first != flag) continue;
 
-            const int mask = i_oflag.second;
+            mask = i_oflag.second;
             for (int d = 0; d < ndims; ++d)
                 if (mask & (1 << d)) comp_dims.push_back(dims[d]);
         }
     }
+}
+
+dims_t prb_t::get_compensation_dims(flag_bit_t flag) const {
+    dims_t comp_dims;
+    int mask = 0;
+    get_compensation_parameters(comp_dims, mask, flag);
     return comp_dims;
+}
+
+int prb_t::get_compensation_mask(flag_bit_t flag) const {
+    dims_t comp_dims;
+    int mask = 0;
+    get_compensation_parameters(comp_dims, mask, flag);
+    return mask;
 }
 
 float *prb_t::generate_oscales() {

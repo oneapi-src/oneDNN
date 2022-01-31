@@ -238,35 +238,37 @@ int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
     int *comp_handle
             = reinterpret_cast<int *>((char *)mem_got + first_comp_offset);
 
-    const auto compare_compensation = [&](const dnn_mem_t &mem_ref) {
+    const auto cmp_compensation = [&](const dnn_mem_t &mem_ref, int comp_mask) {
         // Idea behind this check:
         // Using knowledge from the library where `comp_handle` starts, and that
         // memory utilizes blocking over OC and G, if present, we wrap that
         // piece of memory which is described by shortened tag coming from prb
         // into a separate memory and reorder it to plain so that it is a
         // straight comparison of values in native plain layout.
-        const int comp_ndims = mem_ref.ndims();
-        int status = OK;
-        if (comp_ndims > 0) {
-            dnnl_memory_desc_t comp_md {};
-            SAFE(init_md(&comp_md, comp_ndims, mem_ref.md_.dims, mem_ref.dt(),
-                         trim_tag(prb->dtag, comp_ndims)),
-                    CRIT);
-            const auto &engine = mem_ref.engine();
-            dnn_mem_t comp_m(comp_md, engine, {false, comp_handle});
+        dnnl_memory_desc_t comp_md {};
+        SAFE(init_md(&comp_md, mem_ref.ndims(), mem_ref.md_.dims, mem_ref.dt(),
+                     trim_tag_by_mask(prb->dtag, comp_mask)),
+                CRIT);
+        const auto &engine = mem_ref.engine();
+        dnn_mem_t comp_m(comp_md, engine, {false, comp_handle});
 
-            compare::compare_t cmp;
-            cmp.set_zero_trust_percent(100.f); // No sense in zero trust test.
-            status = cmp.compare(mem_ref, comp_m, attr_t(), res, engine);
+        compare::compare_t cmp;
+        cmp.set_zero_trust_percent(100.f); // No sense in zero trust test.
+        int status = cmp.compare(mem_ref, comp_m, attr_t(), res, engine);
 
-            // Shift original compensation pointer for next compensation
-            comp_handle += comp_m.nelems(true);
-        }
+        // Shift original compensation pointer for next compensation
+        comp_handle += comp_m.nelems(true);
         return status;
     };
 
-    SAFE(compare_compensation(mem_s8_comp_ref), WARN);
-    SAFE(compare_compensation(mem_zp_comp_ref), WARN);
+    if (mem_s8_comp_ref.ndims())
+        SAFE(cmp_compensation(mem_s8_comp_ref,
+                     prb->get_compensation_mask(FLAG_S8S8_COMP)),
+                WARN);
+    if (mem_zp_comp_ref.ndims())
+        SAFE(cmp_compensation(
+                     mem_zp_comp_ref, prb->get_compensation_mask(FLAG_ZP_COMP)),
+                WARN);
 
     return res->state == FAILED ? FAIL : OK;
 }
