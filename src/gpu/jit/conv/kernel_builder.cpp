@@ -3881,8 +3881,8 @@ private:
     static expr_t fix_overflow(const expr_t &e) {
         auto *binary = e.as_ptr<binary_op_t>();
         if (binary) {
-            return binary_op_t::make(
-                    binary->op_kind, cast(binary->a, type_t::u64()), binary->b);
+            return binary_op_t::make(binary->op_kind,
+                    cast(binary->a, type_t::u64(e.type().elems())), binary->b);
         }
 
         ir_error_not_expected() << "Can't fix overflow: " << e;
