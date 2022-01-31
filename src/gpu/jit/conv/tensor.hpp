@@ -418,7 +418,9 @@ struct block_t {
 
     IR_DEFINE_DUMP()
 
-    int dim_idx; // Dimension index.
+    bool is_empty() const { return dim_idx == -1; }
+
+    int dim_idx = -1; // Dimension index.
     dim_t block; // Block size.
     stride_t stride; // Stride between elements of the block.
 };
@@ -547,6 +549,18 @@ public:
     }
 
     const std::vector<block_t> &blocks() const { return blocks_; }
+
+    dim_t inner_block(int dim_idx) const {
+        dim_t block0 = -1;
+        int nblocks = 0;
+        for (auto &b : blocks_) {
+            if (b.dim_idx == dim_idx) {
+                nblocks++;
+                if (block0 == -1) block0 = b.block;
+            }
+        }
+        return nblocks > 1 ? block0 : 1;
+    }
 
     void set_offset(const expr_t &offset) { offset_ = offset; }
 
@@ -735,6 +749,25 @@ public:
         return ninner_blocks >= n;
     }
 
+    layout_t innermost_block_layout() const {
+        int block_count[layout_t::max_ndims] = {0};
+        for (auto &b : blocks_)
+            block_count[b.dim_idx]++;
+
+        std::vector<block_t> inner_blocks;
+
+        stride_t stride = 1;
+        for (auto &b : blocks_) {
+            if (b.stride != stride) break; // Not dense anymore.
+            if (block_count[b.dim_idx] == 1) break; // Outer block.
+            stride *= b.block;
+            ir_assert(block_count[b.dim_idx] > 0);
+            block_count[b.dim_idx]--;
+            inner_blocks.push_back(b);
+        }
+        return layout_t(type(), ndims(), 0, inner_blocks);
+    }
+
     // Returns a packed layout where all blocks are contiguous, without gaps.
     layout_t make_dense() const {
         dim_t stride = 1;
@@ -746,12 +779,15 @@ public:
         return layout_t(type(), ndims(), 0, new_blocks);
     }
 
-    layout_t make_strided(int _stride) const {
-        stride_t stride = _stride;
+    layout_t make_strided(int _stride, int block_idx = 0) const {
+        dim_t cur_stride = 1;
         auto new_blocks = blocks_;
-        for (auto &b : new_blocks) {
-            b.stride = stride;
-            stride *= b.block;
+        for (int i = 0; i < (int)new_blocks.size(); i++) {
+            auto &b = new_blocks[i];
+            if (i >= block_idx) {
+                b.stride = (i == block_idx ? _stride : cur_stride);
+            }
+            cur_stride = b.stride * b.block;
         }
         return layout_t(type(), ndims(), 0, new_blocks);
     }
@@ -1177,6 +1213,8 @@ public:
 
     const expr_t &mask() const { return mask_; }
 
+    void set_mask(const expr_t &value) { mask_ = value; }
+
     expr_t mask(const expr_t &tvalue, const std::vector<expr_t> &vvars,
             const std::vector<expr_t> &vvalues) const {
         auto ret = substitute(mask_, placeholder_var(), tvalue);
@@ -1270,7 +1308,7 @@ public:
 
     expr_t vstart(int vidx) const { return vstart_[vidx]; }
 
-    const layout_t tlayout() const { return tlayout_; }
+    const layout_t &tlayout() const { return tlayout_; }
 
     int nvdims() const { return int(vdims_.size()); }
 
@@ -1319,6 +1357,28 @@ public:
     }
 
     void set_tlayout(const layout_t &tlayout) { tlayout_ = tlayout; }
+
+    void set_tmasks(const std::unordered_map<std::string, int> &padded_dims,
+            const std::unordered_map<std::string, int> &dim_blocks) {
+        auto &x = placeholder_var();
+        for (int i = 0; i < ntdims(); i++) {
+            auto &tdim = tdims_[i];
+            if (!tdim.is_identity() || !tdim.mask().is_empty()) continue;
+            int vidx = tdim.vidx(0);
+            int dim = tlayout_.dim(i);
+            auto &dim_name = vvars_[vidx].as<var_t>().name;
+            int padded_dim = padded_dims.at(dim_name);
+            if (dim >= padded_dim) continue;
+            int inner_blk = ir_utils::max_pow2_divisor(dim);
+            int dim_blk = dim_blocks.at(dim_name);
+            if (math::is_pow2(dim_blk)) {
+                inner_blk = std::min(inner_blk, dim_blk);
+            }
+            auto tmask = (inner_blk == 1) ? (x < dim)
+                                          : (x / inner_blk < dim / inner_blk);
+            tdim.set_mask(tmask);
+        }
+    }
 
     std::string str() const {
         using ir_utils::operator<<;
