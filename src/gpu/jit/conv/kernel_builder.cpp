@@ -4054,7 +4054,7 @@ private:
 // After (for SIMD8):
 //     if (bcast8(cond)) { ... }
 stmt_t fixup_if_conditions(const stmt_t &s, const conv_config_t &cfg) {
-    auto ret = if_condition_fixer_t(cfg.simd_size).mutate(s);
+    auto ret = if_condition_fixer_t(cfg.simd_size()).mutate(s);
     trace_pass("fixup_if_conditions", ret);
     return ret;
 }
@@ -5083,7 +5083,8 @@ public:
 
         int tensor_idx = 0;
         for (auto &po_tensor_info : post_op_ctx_.post_op_tensor_infos()) {
-            post_op_tensor_t po_tensor(cfg_.hw, ir_ctx_, cset_, po_tensor_info);
+            post_op_tensor_t po_tensor(
+                    cfg_.hw(), ir_ctx_, cset_, po_tensor_info);
             po_tensor = po_tensor.create_sub_tensor(thr_tile);
             if (po_tensor_info.buf().is_empty()) {
                 // C tensor.
@@ -5097,7 +5098,7 @@ public:
         restore_zero_padding_ = post_op_ctx_.need_to_restore_zero_padding();
 
         for (auto &po : post_op_ctx_.post_ops()) {
-            post_op_builders_.emplace_back(cfg.hw, po);
+            post_op_builders_.emplace_back(cfg.hw(), po);
         }
 
         // Estimate buffer sizes required to load the full tensor, do not do
@@ -5192,7 +5193,7 @@ private:
         }
 
         // Generate prefetch statements.
-        if (cfg_.hw >= ngen::HW::XeHPC) {
+        if (cfg_.hw() >= ngen::HW::XeHPC) {
             for (auto &t : post_op_tensors_) {
                 if (!t.needs_load()) continue;
                 if (t.do_preload()) continue;
@@ -5287,8 +5288,8 @@ private:
         }
 
         // S_y -> GMEM.
-        auto r2g = make_access_builder(cfg_.hw, ir_ctx_, cset_, c_mem_tile_view,
-                c_mem_buf_, tmp_reg_buf,
+        auto r2g = make_access_builder(cfg_.hw(), ir_ctx_, cset_,
+                c_mem_tile_view, c_mem_buf_, tmp_reg_buf,
                 cfg_.do_atomic_update ? send_op_t::atomic_fadd
                                       : send_op_t::store,
                 send_address_t::a64);
@@ -5322,7 +5323,7 @@ private:
             auto *next_stage = (i + 1 < nstages ? &c_stages[i + 1] : nullptr);
             // Always perform reorder when dpasw is used. This is to ensure
             // that C is properly restored and permuted after dpasw.
-            c_stages[i].set_next(cfg_.hw, ir_ctx_, next_stage,
+            c_stages[i].set_next(cfg_.hw(), ir_ctx_, next_stage,
                     /*force_reorder=*/i == 0 && is_dpasw);
         }
 
@@ -5508,8 +5509,8 @@ public:
             const bmnk_mapper_t &bmnk_mapper, const view_t &a_view,
             const view_t &b_view, const expr_t &a_buf, const expr_t &b_buf,
             const expr_t &c_buf)
-        : hw_(cfg.hw)
-        , simd_size_(cfg.simd_size)
+        : hw_(cfg.hw())
+        , simd_size_(cfg.simd_size())
         , bmnk_mapper_(bmnk_mapper)
         , a_view_(a_view)
         , b_view_(b_view)
@@ -5941,7 +5942,7 @@ layout_t convert_to_fma_friendly_layout(const conv_config_t &cfg,
     auto bmnk_layout = bmnk_mapper.map_to_bmnk(abc_kind, bmnk_kinds, layout);
 
     auto dpas_layout = get_fma_friendly_layout(
-            abc_kind, cfg.simd_size, bmnk_layout, a_type, b_type);
+            abc_kind, cfg.simd_size(), bmnk_layout, a_type, b_type);
     if (dpas_layout == bmnk_layout) return layout;
 
     if (changed) *changed = true;
@@ -6009,7 +6010,7 @@ public:
 
     stmt_t create_store_stmt(
             ir_context_t &ir_ctx, const constraint_set_t &cset) const {
-        auto r2g = make_access_builder(cfg_.hw, ir_ctx, cset,
+        auto r2g = make_access_builder(cfg_.hw(), ir_ctx, cset,
                 b_reduced_thr_view_, b_reduced_mem_buf_, b_reduced_reg_buf_,
                 send_op_t::atomic_fadd, send_address_t::a64);
         // TODO: Check that layouts match.
@@ -6308,8 +6309,8 @@ private:
 
         if (!load_buffered) mem_view = _mem_view;
 
-        auto read = make_access_builder(cfg_.hw, ir_ctx_, cset_, mem_view, buf,
-                reg_buf, send_op_t::load,
+        auto read = make_access_builder(cfg_.hw(), ir_ctx_, cset_, mem_view,
+                buf, reg_buf, send_op_t::load,
                 is_slm ? send_address_t::slm : send_address_t::a64);
         ir_trace() << (is_a ? "A" : "B") << " GMEM/SLM to GRF load #"
                    << sub_tile_idx << ":\n"
@@ -6509,7 +6510,7 @@ public:
         auto thr_tile = gemm_schedule_.c_thr_tile(/*is_relative=*/false);
 
         if (gemm_schedule_.with_thread_group_k_slicing()) {
-            slm_reduce_builder_t slm_reduce_builder(cfg_.hw, ir_ctx_, cset_,
+            slm_reduce_builder_t slm_reduce_builder(cfg_.hw(), ir_ctx_, cset_,
                     gemm_schedule_.tg_grid(), c_buf, c_thr_reg_layout,
                     thr_tile);
             c_store_stmt_ = c_store_stmt_.append(slm_reduce_builder.stmt());
@@ -6524,13 +6525,13 @@ public:
         ir_trace() << "C GRF to GMEM store:\n" << c_m2g.stmt() << std::endl;
 
         c_zero_out_stmt_ = stmt_group_t::make(stmt_label_t::c_zero_out(),
-                create_zero_out_stmt(cfg_.hw, c_buf, c_size));
+                create_zero_out_stmt(cfg_.hw(), c_buf, c_size));
         c_store_stmt_ = c_store_stmt_.append(c_m2g.stmt());
 
         if (cfg_.do_b_reduction) {
             auto &ctx = b_reduce_ctx_;
             b_reduced_zero_out_stmt_ = create_zero_out_stmt(
-                    cfg_.hw, ctx.b_reduced_reg_buf(), ctx.b_reduced_size());
+                    cfg_.hw(), ctx.b_reduced_reg_buf(), ctx.b_reduced_size());
             b_reduced_store_stmt_ = ctx.create_store_stmt(ir_ctx_, cset_);
             register_out_buffer(ctx.b_reduced_reg_buf(), ctx.b_reduced_size(),
                     alloc_kind_t::grf);
@@ -6539,7 +6540,7 @@ public:
         // Replace DPAS by DPASW when applicable.
         if (cfg_.fma_kind == fma_kind_t::dpasw) {
             alloc_updater_t alloc_updater;
-            inject_dpasw(cfg_.hw, load_mul_stmt_, c_buf, c_store_stmt_,
+            inject_dpasw(cfg_.hw(), load_mul_stmt_, c_buf, c_store_stmt_,
                     alloc_updater, gemm_schedule_.tg_grid().idx(0));
             for (auto &a : compute_allocs_) {
                 a = alloc_updater.update(a);
@@ -6705,7 +6706,7 @@ private:
         expr_t x_g2s_reg_buf = g2s_ctx.create_buf("g2s");
 
         // GMEM -> GRF load.
-        auto x_read = make_access_builder(cfg_.hw, ir_ctx_, cset_, x_g2s_view,
+        auto x_read = make_access_builder(cfg_.hw(), ir_ctx_, cset_, x_g2s_view,
                 xp_buf, x_g2s_reg_buf, send_op_t::load, send_address_t::a64);
         ir_trace() << tag << " GMEM to GRF load:\n"
                    << x_read.str() << std::endl;
@@ -6717,7 +6718,7 @@ private:
         g2s_load_stmt_ = g2s_load_stmt_.append(load_stmt);
 
         // GRF -> SLM store.
-        auto x_write = make_access_builder(cfg_.hw, ir_ctx_, cset_,
+        auto x_write = make_access_builder(cfg_.hw(), ir_ctx_, cset_,
                 view_t(slm_thr_layout), x_slm_buf, x_g2s_reg_buf,
                 send_op_t::store, send_address_t::slm);
         ir_trace() << tag << " GRF to SLM store:\n"
@@ -6768,8 +6769,9 @@ private:
         auto thr_view = x_gmem_view.split(gemm_schedule_.tg_grid());
 
         // GMEM prefetch.
-        auto x_prefetch = make_access_builder(cfg_.hw, ir_ctx_, cset_, thr_view,
-                xp_buf, expr_t(), send_op_t::prefetch, send_address_t::a64);
+        auto x_prefetch = make_access_builder(cfg_.hw(), ir_ctx_, cset_,
+                thr_view, xp_buf, expr_t(), send_op_t::prefetch,
+                send_address_t::a64);
         ir_trace() << tag << " GMEM prefetch:\n"
                    << x_prefetch.str() << std::endl;
 
@@ -6952,7 +6954,7 @@ void kernel_builder_t::build() {
                 = var_t::make(type_t::s32(), "tg_idx" + std::to_string(i));
 
         int local_id_bound = cfg_.tg_grid_dim[i];
-        if (i == 0) local_id_bound *= cfg_.simd_size;
+        if (i == 0) local_id_bound *= cfg_.simd_size();
         init_cset.add_constraint(local_id_[i] >= 0);
         init_cset.add_constraint(local_id_[i] < local_id_bound);
 
@@ -6967,7 +6969,7 @@ void kernel_builder_t::build() {
     std::vector<stmt_t> init_stmts;
     for (int i = 0; i < grid_ndims; i++) {
         auto value = local_id_[i];
-        if (i == 0) value /= cfg_.simd_size;
+        if (i == 0) value /= cfg_.simd_size();
         init_stmts.push_back(let_t::make(tg_grid_.idx(i), value));
     }
 
@@ -7045,7 +7047,7 @@ void kernel_builder_t::build() {
     stmt_ = merge_slm_buffers(stmt_);
     if (!cfg_.do_pipeline_unroll && (cfg_.use_a_slm || cfg_.use_b_slm)) {
         stmt_ = inject_simple_slm_buffering(
-                cfg_.hw, stmt_, cfg_, ir_ctx, cb.ab_slm_size());
+                cfg_.hw(), stmt_, cfg_, ir_ctx, cb.ab_slm_size());
     } else if (!cfg_.do_pipeline_unroll && cfg_.use_prefetch) {
         // Simplify to remove loops with only 1 iteration
         stmt_ = simplify_pass(stmt_, init_cset);
@@ -7054,7 +7056,7 @@ void kernel_builder_t::build() {
     stmt_ = lift_buffer_offsets_in_send(stmt_);
     stmt_ = simplify_pass(stmt_, init_cset);
     stmt_ = inject_send(stmt_, ir_ctx, init_cset);
-    stmt_ = split_wide_stores(cfg_.hw, stmt_);
+    stmt_ = split_wide_stores(cfg_.hw(), stmt_);
     stmt_ = lift_alloc(stmt_, cfg_);
     stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::c_store(), false);
     stmt_ = eliminate_common_subexprs(stmt_, ir_ctx);

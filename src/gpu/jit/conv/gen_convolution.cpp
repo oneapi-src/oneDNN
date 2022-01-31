@@ -147,17 +147,18 @@ public:
                     case kernel_id_t::convolution:
                         try {
                             kernels_.push_back(make_kernel<conv_kernel_t>(
-                                    primitive, engine, cfg.hw, cfg,
+                                    primitive, engine, cfg.hw_cfg.hw(), cfg,
                                     primitive->pd(), info));
                         } catch (const ngen::out_of_registers_exception &e) {
-                            if (cfg.regs < 256 && cfg.large_grf_support) {
+                            if (cfg.hw_cfg.regs() < 256
+                                    && cfg.hw_cfg.large_grf_support()) {
                                 ir_warning()
                                         << "Failed to generate kernel with "
                                            "default register mode, attempting "
                                            "again with large_grf_mode "
                                            "enabled\n";
                                 kernels_.push_back(make_kernel<conv_kernel_t>(
-                                        primitive, engine, cfg.hw, cfg,
+                                        primitive, engine, cfg.hw_cfg.hw(), cfg,
                                         primitive->pd(), info, true));
                             } else {
                                 throw e;
@@ -170,8 +171,8 @@ public:
                         auto dst_layout = cfg.tensor_config.compute_layout(
                                 info.arg_name(1));
                         kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, cfg.hw, cfg, primitive->pd(),
-                                info, src_layout, dst_layout));
+                                primitive, engine, cfg.hw_cfg.hw(), cfg,
+                                primitive->pd(), info, src_layout, dst_layout));
                         break;
                     }
                     case kernel_id_t::post_reorder: {
@@ -180,24 +181,24 @@ public:
                         auto dst_layout = cfg.tensor_config.user_layout(
                                 info.arg_name(0));
                         kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, cfg.hw, cfg, primitive->pd(),
-                                info, src_layout, dst_layout));
+                                primitive, engine, cfg.hw_cfg.hw(), cfg,
+                                primitive->pd(), info, src_layout, dst_layout));
                         break;
                     }
                     case kernel_id_t::zero_out:
                         kernels_.push_back(make_kernel<zero_out_kernel_t>(
-                                primitive, engine, cfg.hw, cfg, primitive->pd(),
-                                info));
+                                primitive, engine, cfg.hw_cfg.hw(), cfg,
+                                primitive->pd(), info));
                         break;
                     case kernel_id_t::compensation_common:
                         kernels_.push_back(make_kernel<compensation_kernel_t>(
-                                primitive, engine, cfg.hw, cfg, primitive->pd(),
-                                info, false));
+                                primitive, engine, cfg.hw_cfg.hw(), cfg,
+                                primitive->pd(), info, false));
                         break;
                     case kernel_id_t::compensation_edge:
                         kernels_.push_back(make_kernel<compensation_kernel_t>(
-                                primitive, engine, cfg.hw, cfg, primitive->pd(),
-                                info, true));
+                                primitive, engine, cfg.hw_cfg.hw(), cfg,
+                                primitive->pd(), info, true));
                         break;
                     default: ir_error_not_expected();
                 }
@@ -369,8 +370,9 @@ private:
                     auto elems_var = var_t::make(type_t::u32(), "elems");
                     reorder_info.register_internal_arg(
                             elems_var, uint32_t(elems));
-                    reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
-                            cfg.simd_size, t.user_layout, t.compute_layout));
+                    reorder_info.set_nd_range(
+                            reorder_kernel_t<>::nd_range(cfg.hw_cfg.simd_size(),
+                                    t.user_layout, t.compute_layout));
                 }
                 if (t.is_output) {
                     auto &reorder_info
@@ -383,8 +385,9 @@ private:
                     auto elems_var = var_t::make(type_t::u32(), "elems");
                     reorder_info.register_internal_arg(
                             elems_var, uint32_t(elems));
-                    reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
-                            cfg.simd_size, t.compute_layout, t.user_layout));
+                    reorder_info.set_nd_range(
+                            reorder_kernel_t<>::nd_range(cfg.hw_cfg.simd_size(),
+                                    t.compute_layout, t.user_layout));
                 }
             }
             if (t.needs_zero_out) {
@@ -405,7 +408,7 @@ private:
                 int bytes_per_thr = zero_out_kernel_t<>::bytes_per_thr;
                 compute::nd_range_t nd_range(
                         {utils::div_up(compute_size, bytes_per_thr)
-                                * cfg.simd_size});
+                                * cfg.hw_cfg.simd_size()});
                 zero_out_info.set_nd_range(nd_range);
             }
             if (!t.needs_reorder)

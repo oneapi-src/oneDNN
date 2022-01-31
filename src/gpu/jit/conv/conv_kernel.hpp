@@ -606,7 +606,7 @@ public:
         requireLocalID(3);
         requireLocalSize();
         requireGRF(regs_);
-        requireSIMD(cfg_.simd_size);
+        requireSIMD(cfg_.simd_size());
         requireBarrier();
         if (utils::one_of(cfg_.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw))
             requireDPAS();
@@ -1019,8 +1019,8 @@ public:
         externalName("zero_out");
         requireLocalID(1);
         requireLocalSize();
-        requireGRF(cfg.regs);
-        requireSIMD(cfg.simd_size);
+        requireGRF(cfg.regs());
+        requireSIMD(cfg.simd_size());
         if (cfg.is_dpas_or_dpasw_fma()) requireDPAS();
 
         for (int i = 0; i < kernel_info.nargs(); i++) {
@@ -1068,7 +1068,7 @@ public:
 
         mul(1, global_id, r0.ud(1), getLocalSize(0).uw());
         add(1, global_id, global_id, getLocalID(0));
-        shl(1, off0, global_id, math::ilog2q(bytes_per_thr / cfg.simd_size));
+        shl(1, off0, global_id, math::ilog2q(bytes_per_thr / cfg.simd_size()));
 
         int grf_size = ngen::GRF::bytes(hw);
         int bytes_per_store = 16;
@@ -1169,8 +1169,8 @@ public:
         externalName("compensation");
         requireLocalID(1);
         requireLocalSize();
-        requireGRF(cfg.regs);
-        requireSIMD(cfg.simd_size);
+        requireGRF(cfg.regs());
+        requireSIMD(cfg.simd_size());
         if (cfg.is_dpas_or_dpasw_fma()) requireDPAS();
 
         for (int i = 0; i < kernel_info.nargs(); i++) {
@@ -1185,7 +1185,7 @@ public:
 
         finalizeInterface();
 
-        simd = cfg.simd_size;
+        simd = cfg.simd_size();
         grf_size = ngen::GRF::bytes(hw);
         grf_simd = grf_size / sizeof(int);
         kdhw = cfg.kw * cfg.kh * cfg.kd;
@@ -3158,11 +3158,11 @@ public:
     reorder_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
             const kernel_info_t &kernel_info, const layout_t &src_layout,
             const layout_t &dst_layout)
-        : simd_size_(cfg.simd_size), ra_(hw, "reorder_kernel_t") {
+        : simd_size_(cfg.simd_size()), ra_(hw, "reorder_kernel_t") {
         externalName("reorder");
         requireLocalID(1);
         requireLocalSize();
-        requireGRF(cfg.regs);
+        requireGRF(cfg.regs());
         requireSIMD(simd_size_);
         if (cfg.is_dpas_or_dpasw_fma()) requireDPAS();
 
@@ -4001,7 +4001,7 @@ public:
     ir_to_ngen_t(conv_kernel_t<hw> *host, const expr_binding_t &expr_binding)
         : host_(host)
         , expr_binding_(expr_binding)
-        , simd_size_(host->cfg_.simd_size) {}
+        , simd_size_(host->cfg_.simd_size()) {}
 
     ~ir_to_ngen_t() {
 #ifdef GEN_CONV_DEBUG
@@ -4619,7 +4619,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
         const convolution_pd_t *pd, const kernel_info_t &kernel_info,
         bool force_large_grf)
     : cfg_(cfg)
-    , regs_(!force_large_grf ? cfg.regs : 256)
+    , regs_(!force_large_grf ? cfg.regs() : 256)
     , ra_(hw, "conv_kernel_t", reg_allocator_t::warn_all) {
 
     ra_.setRegisterCount(regs_);
