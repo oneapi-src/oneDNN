@@ -1192,7 +1192,15 @@ public:
 
     object_t _mutate(const let_t &obj) override {
         bool fully_hoisted = false;
-        auto new_value = hoist_expr(obj.value, obj.var, &fully_hoisted);
+        expr_t new_value;
+        bool is_const_let = is_const(obj.value) || is_shuffle_const(obj.value);
+        if (is_const_let && loops_.size() > 0) {
+            fully_hoisted = true;
+            register_let(obj.var, obj.value);
+            loops_[0].lets.push_back(let_t::make(obj.var, obj.value));
+        } else {
+            new_value = hoist_expr(obj.value, obj.var, &fully_hoisted);
+        }
         if (fully_hoisted) return mutate(obj.body);
         register_let(obj.var, new_value);
         auto new_obj = let_t::make(
