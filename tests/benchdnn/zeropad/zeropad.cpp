@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,10 +31,9 @@ dnnl_status_t dnnl_impl_zero_pad(
 namespace zeropad {
 
 static int compare(const dnn_mem_t &test_mem, res_t *res) {
-    const int ndims = test_mem.md_.ndims;
     const auto *dims = test_mem.md_.dims;
 
-    if (ndims == 0) return OK;
+    if (test_mem.ndims() == 0) return OK;
     if (test_mem.md_.format_kind != dnnl_blocked) return OK;
 
     std::atomic<int> ok(true);
@@ -44,7 +43,7 @@ static int compare(const dnn_mem_t &test_mem, res_t *res) {
 
     const auto increment
             = [&](dnnl_dims_t &pos, dnnl_dim_t &idx, bool &done, int stop_dim) {
-                  for (int i = ndims - 1; i >= stop_dim; i--) {
+                  for (int i = test_mem.ndims() - 1; i >= stop_dim; i--) {
                       pos[i]++;
                       if (pos[i] < dims[i]) {
                           break;

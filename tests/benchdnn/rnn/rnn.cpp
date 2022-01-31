@@ -468,9 +468,8 @@ int fill_weights(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
     if (nelems == 0) return OK;
     const dt_conf_t::entry_t &c = prb.cfg[kind];
 
-    const auto ndims = mem_fp.md_.ndims;
-    assert(kind == WEIGHTS_PROJECTION ? ndims == 4 : ndims == 5);
-    (void)(ndims);
+    assert(kind == WEIGHTS_PROJECTION ? mem_fp.ndims() == 4
+                                      : mem_fp.ndims() == 5);
 
     const auto &dims = mem_fp.md_.dims;
     const int64_t L = dims[0];

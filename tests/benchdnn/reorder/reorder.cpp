@@ -173,7 +173,7 @@ int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
         const auto nelems_s8_comp = s8_comp.nelems();
         const auto nelems_zp_comp = zp_comp.nelems();
         const auto nelems_comp = MAX2(nelems_s8_comp, nelems_zp_comp);
-        const auto &ndims = src.md_.ndims;
+        const auto &ndims = src.ndims();
         const auto &src_dims = src.md_.dims;
         assert(IMPLICATION(need_s8_comp && need_zp_comp,
                 nelems_s8_comp == nelems_zp_comp));
@@ -245,7 +245,7 @@ int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
         // piece of memory which is described by shortened tag coming from prb
         // into a separate memory and reorder it to plain so that it is a
         // straight comparison of values in native plain layout.
-        const int comp_ndims = mem_ref.md_.ndims;
+        const int comp_ndims = mem_ref.ndims();
         int status = OK;
         if (comp_ndims > 0) {
             dnnl_memory_desc_t comp_md {};
