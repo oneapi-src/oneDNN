@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,17 +27,19 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-enum class message_type_t {
-    invalid,
-    block,
-    scattered,
-    atomic,
+// Send operation kind.
+enum class send_op_t {
+    atomic_fadd,
+    load,
+    prefetch,
+    store,
 };
 
-enum class mask_granularity_t {
-    undef,
-    per_slot,
-    per_dword,
+// Send address model.
+enum class send_address_t {
+    a64,
+    bts,
+    slm,
 };
 
 // Function representing send messages.
@@ -45,46 +47,36 @@ class send_t : public func_impl_t {
 public:
     IR_DECL_DERIVED_TYPE_ID(send_t, func_impl_t)
 
-    static func_t make(ngen::HW hw, ngen_proxy::Access access_type,
-            message_type_t type, const type_t &data_type, int data_elems,
-            int slots, const type_t &alignment,
-            ngen_proxy::AddressModel address_model,
-            ngen_proxy::AtomicOp atomic_op, bool is_prefetch = false,
-            int eff_mask_count = -1) {
-        return func_t(new send_t(hw, access_type, type, data_type, data_elems,
-                slots, alignment, address_model, atomic_op, is_prefetch,
-                eff_mask_count));
+    static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
+            const type_t &type, int slots) {
+        return func_t(new send_t(hw, op, address, type, slots));
     }
 
     bool is_equal(const object_impl_t &obj) const override {
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
-        return (hw == other.hw) && (access_type == other.access_type)
-                && (type == other.type) && (data_type == other.data_type)
-                && (data_elems == other.data_elems) && (slots == other.slots)
-                && (alignment == other.alignment)
-                && (address_model == other.address_model)
-                && (atomic_op == other.atomic_op)
-                && (is_prefetch == other.is_prefetch)
-                && (eff_mask_count == other.eff_mask_count);
+        return (hw == other.hw) && (op == other.op)
+                && (address == other.address) && (type == other.type)
+                && (slots == other.slots);
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(hw, access_type, type, data_type, data_elems,
-                slots, alignment, address_model, atomic_op, is_prefetch,
-                eff_mask_count);
+        return ir_utils::get_hash(hw, op, address, type, slots);
     }
 
     std::string str() const override {
         std::ostringstream oss;
-        if (is_prefetch)
-            oss << "prefetch";
-        else if (is_read())
-            oss << "load";
-        else
-            oss << "store";
-        oss << "." << slots << "x" << data_elems << "x" << data_type.str();
+        switch (op) {
+            case send_op_t::atomic_fadd: oss << "atomic_fadd"; break;
+            case send_op_t::load: oss << "load"; break;
+            case send_op_t::prefetch: oss << "prefetch"; break;
+            case send_op_t::store: oss << "store"; break;
+            default: ir_error_not_expected();
+        }
+        oss << ".";
+        if (is_scattered()) oss << slots << "x";
+        oss << type.str();
         return oss.str();
     }
 
@@ -98,175 +90,67 @@ public:
         return call({mem_buf, mem_off, reg_buf, mask});
     }
 
-    type_t mask_type() const {
-        return (mask_granularity() == mask_granularity_t::per_dword
-                        ? type_t::dword()
-                        : data_type.with_elems(data_elems));
+    bool is_atomic() const { return op == send_op_t::atomic_fadd; }
+    bool is_load() const { return op == send_op_t::load; }
+    bool is_prefetch() const { return op == send_op_t::prefetch; }
+    bool is_store() const { return op == send_op_t::store; }
+    bool is_a64() const { return address == send_address_t::a64; }
+    bool is_bts() const { return address == send_address_t::bts; }
+    bool is_slm() const { return address == send_address_t::slm; }
+
+    bool is_block() const {
+        return utils::one_of(
+                type.kind(), type_kind_t::oword, type_kind_t::hword);
     }
 
-    type_t mask_test_type() const {
-        return (type == message_type_t::block && is_read()
-                                && hw < ngen::HW::XeLP
-                        ? type_t::oword()
-                        : mask_type());
+    bool is_scattered() const { return !is_block(); }
+
+    // Size of memory (global memory or SLM) to access.
+    int access_size() const { return type.size() * slots; }
+
+    int payload_type_stride() const {
+        if (type.kind() == type_kind_t::byte) return 4;
+        return type.size();
     }
 
-    bool is_supported() const {
-        int size = slots * data_elems * data_type.size();
-        if (size > 256) return false;
-        switch (type) {
-            case message_type_t::invalid: return false;
-            case message_type_t::block: {
-                if (slots != 1) return false;
-                if (!utils::one_of(data_type, type_t::oword(), type_t::hword()))
-                    return false;
-                if (!utils::one_of(data_elems, 1, 2, 4, 8, 16)) return false;
-                if (data_elems == 16 && !is_slm()) return false;
-                if (data_type == type_t::hword()) {
-                    if (is_slm()) return false;
-                    if (is_write()) {
-                        if (hw == ngen::HW::XeHPC) return true;
-                        return false;
-                    }
-                }
-                return true;
-            }
-            case message_type_t::scattered:
-            case message_type_t::atomic: {
-                if (!utils::one_of(slots, 8, 16)) return false;
-                if (!utils::one_of(data_elems, 1, 2, 4)) return false;
-                if (!utils::one_of(data_type, type_t::byte(), type_t::dword()))
-                    return false;
-                // Only byte was tested with load/store.
-                if (!is_atomic() && (data_type != type_t::byte())) return false;
-                if (is_atomic() && data_elems > 1) return false;
-                if (hw < ngen::HW::XeHPC)
-                    if (is_atomic() && is_a64() && (slots != 8)) return false;
-                return true;
-            }
-            default: ir_error_not_expected();
-        }
-        return false;
+    // Full size of payload GRF buffer for this message. Buffer may be strided
+    // and/or require GRF boundary round-up.
+    int payload_size() const {
+        int sz = payload_type_stride() * slots;
+        return utils::rnd_up(sz, grf_size());
     }
 
-    bool is_read() const { return access_type == ngen_proxy::Access::Read; }
-    bool is_write() const { return access_type == ngen_proxy::Access::Write; }
-    bool is_atomic() const { return atomic_op != ngen_proxy::AtomicOp::undef; }
-    bool is_a64() const {
-        return address_model == ngen_proxy::AddressModel::ModelA64;
-    }
-    bool is_slm() const {
-        return address_model == ngen_proxy::AddressModel::ModelSLM;
-    }
-
-    int grf_size() const { return ngen::GRF::bytes(hw); }
-
-    // Size of elements to read/write in bytes.
-    int size() const { return block_size() * slots; }
-
-    int eff_size() const { return eff_block_size() * eff_slots(); }
-
-    mask_granularity_t mask_granularity() const {
-        switch (type) {
-            case message_type_t::block:
-                if (hw >= ngen::HW::XeHPC)
-                    return mask_granularity_t::per_slot;
-                else
-                    return mask_granularity_t::per_dword;
-            case message_type_t::scattered:
-            case message_type_t::atomic: return mask_granularity_t::per_slot;
-            default: ir_error_not_expected();
-        }
-        return mask_granularity_t::undef;
-    }
-
-    bool is_per_dword_mask() const {
-        return mask_granularity() == mask_granularity_t::per_dword;
-    }
-    bool is_per_slot_mask() const {
-        return mask_granularity() == mask_granularity_t::per_slot;
-    }
-
-    int mask_count() const {
-        switch (type) {
-            case message_type_t::block:
-                if (hw >= ngen::HW::XeHPC)
-                    return slots;
-                else
-                    return std::min(16, block_size() / int(sizeof(uint32_t)));
-            case message_type_t::scattered:
-            case message_type_t::atomic: return slots;
-            default: ir_error_not_expected();
-        }
-        return -1;
-    }
-
-    int eff_slots() const {
-        if (eff_mask_count == mask_count()) return slots;
-        if (mask_granularity() == mask_granularity_t::per_slot)
-            return eff_mask_count;
-        return slots;
-    }
-
-    // Stride between slots in elements of data_type (in memory).
-    int slots_stride() const {
-        if (type == message_type_t::block) return data_elems;
-        if (data_type == type_t::byte()) return 4;
+    int alignment() const {
+        if (is_block()) return type.scalar().size();
         return 1;
     }
 
-    // Stride between data elements in elements of data_type (in memory).
-    int data_elems_stride() const {
-        if (type == message_type_t::block) return 1;
-        if (data_type == type_t::byte()) return 1;
-        return slots;
-    }
-
-    // Size of the innermost dense block in bytes (in memory).
-    int block_size() const { return data_type.size() * data_elems; }
-
-    // Effective size of the innermost dense block in bytes (in memory).
-    int eff_block_size() const {
-        if (eff_mask_count == mask_count()) return block_size();
-        if (mask_granularity() == mask_granularity_t::per_dword) {
-            int max_mask_count = 16;
-            // Do not allow strided blocks.
-            ir_assert(block_size() <= max_mask_count * int(sizeof(uint32_t)));
-            MAYBE_UNUSED(max_mask_count);
-            return eff_mask_count * int(sizeof(uint32_t));
+    int mask_size() const {
+        if (is_block()) {
+            // Block messages use SIMT1 execution mask (one mask per message)
+            // on XeHPC+.
+            if (is_xe_hpc_plus()) return type.size();
+            return 4;
         }
-        return data_type.size() * data_elems;
+
+        if (is_scattered()) return type.size();
+
+        ir_error_not_expected();
+        return 0;
     }
 
-    // Size of the register buffer in bytes.
-    int register_size() const {
-        int dw_size = sizeof(uint32_t);
-        int size = 0;
-        for (int i = 0; i < slots; i++) {
-            if (is_per_slot_mask() && i >= eff_mask_count) continue;
-            for (int j = 0; j < data_elems; j++) {
-                for (int k = 0; k < data_type.size(); k += dw_size) {
-                    if (is_per_dword_mask()) {
-                        int off = j * data_type.size() + k;
-                        int mask_idx = (off / dw_size) % 16;
-                        if (mask_idx >= eff_mask_count) continue;
-                    }
-                    int off = 0;
-                    off += i * slots_stride() * data_type.size();
-                    off += j * data_elems_stride() * data_type.size();
-                    off += k;
-                    size = std::max(size, off + 1);
-                }
-            }
+    int nmasks() const {
+        int masks = ir_utils::safe_divide(type.size() * slots, mask_size());
+        if (masks > 16) {
+            ir_assert(is_block())
+                    << "Round-robin masking applies to block messages only.";
+            ir_assert(masks % 16 == 0);
+            masks = 16;
         }
-        // Round up to the full register length.
-        return utils::rnd_up(size, grf_size());
+        return masks;
     }
 
-    // Size of address elements.
-    int address_size() const {
-        return (address_model == ngen_proxy::AddressModel::ModelA64) ? 8 : 4;
-    }
+    int address_size() const { return is_a64() ? 8 : 4; }
 
     type_t address_type(bool is_signed = false, int elems = 1) const {
         int bits = address_size() * 8;
@@ -275,282 +159,97 @@ public:
 
     // Size of header in bytes.
     int header_size() const {
-        if (type == message_type_t::block) return grf_size();
         return utils::rnd_up(address_size() * slots, grf_size());
-    }
-
-    bool is_transposing() const { return data_elems_stride() > slots_stride(); }
-
-    func_t with_data_elems(int new_data_elems) const {
-        auto *new_send = new send_t(*this);
-        new_send->data_elems = new_data_elems;
-        return func_t(new_send);
-    }
-
-    func_t adjust(int new_block_size, int new_slots) const {
-        ir_assert(new_block_size > 0 && new_slots > 0);
-        if (new_block_size == block_size() && new_slots == slots) return this;
-        int max_mask_count = 16;
-        int new_mask_count = -1;
-        switch (mask_granularity()) {
-            case mask_granularity_t::per_dword: {
-                if (block_size() > max_mask_count * int(sizeof(uint32_t)))
-                    return func_t();
-                if (new_block_size > max_mask_count * int(sizeof(uint32_t)))
-                    return func_t();
-                if (new_block_size % int(sizeof(uint32_t)) != 0)
-                    return func_t();
-                new_mask_count = new_block_size / int(sizeof(uint32_t));
-                break;
-            }
-            case mask_granularity_t::per_slot:
-                if (new_block_size != block_size()) return func_t();
-                if (new_slots > max_mask_count) return func_t();
-                new_mask_count = new_slots;
-                break;
-            default: ir_error_not_expected(); return func_t();
-        }
-        if (!math::is_pow2(new_mask_count)) return func_t();
-        return send_t::make(hw, access_type, type, data_type, data_elems, slots,
-                alignment, address_model, atomic_op, is_prefetch,
-                new_mask_count);
     }
 
     // Generates a statement to store (and maybe convert) the offset to the
     // message header according to the message description.
     stmt_t create_offset_store(const expr_t &header_buf, const expr_t &mem_buf,
-            const expr_t &mem_off, bool is_signed_offset = false) const {
-        bool is_block = (type == message_type_t::block);
-        bool is_a64 = (address_model == ngen_proxy::AddressModel::ModelA64);
-        bool is_bts = (address_model == ngen_proxy::AddressModel::ModelBTS);
-        bool is_slm = (address_model == ngen_proxy::AddressModel::ModelSLM);
+            const expr_t &mem_off, bool is_signed_offset = false) const;
 
-        expr_t header_sub_buf;
-        expr_t off;
-        if (is_block && (is_slm || is_bts)) {
-            // Convert byte offset to dwords/owords/hwords offset.
-            off = mem_off / data_type.size();
-            header_sub_buf = header_buf[2 * sizeof(uint32_t)];
-        } else if (is_a64) {
-            // Convert buffer to 64-bit integer.
-            off = cast(mem_buf, type_t::u64());
-            if (mem_off.type().is_vector())
-                off = shuffle_t::make_broadcast(off, mem_off.type().elems());
-            off += mem_off;
-            header_sub_buf = header_buf[0];
-        } else if (is_bts) {
-            off = cast(mem_off, type_t::u32(mem_off.type().elems()));
-            header_sub_buf = header_buf[0];
-        } else {
-            ir_error_not_expected();
-        }
-        off = cast(off, address_type(is_signed_offset, off.type().elems()));
-        return store_t::make(header_sub_buf, 0, off);
-    }
+    bool is_supported() const;
 
-    static func_t scattered_byte_read(ngen::HW hw, int elems, int slots) {
-        return send_t::make(hw, ngen_proxy::Access::Read,
-                message_type_t::scattered, type_t::byte(), elems, slots,
-                type_t::undef(), ngen_proxy::AddressModel::ModelA64,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static func_t scattered_byte_write(ngen::HW hw, int elems, int slots) {
-        return send_t::make(hw, ngen_proxy::Access::Write,
-                message_type_t::scattered, type_t::byte(), elems, slots,
-                type_t::undef(), ngen_proxy::AddressModel::ModelA64,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static func_t scattered_dword_read(ngen::HW hw, int elems, int slots) {
-        return send_t::make(hw, ngen_proxy::Access::Read,
-                message_type_t::scattered, type_t::dword(), elems, slots,
-                type_t::undef(), ngen_proxy::AddressModel::ModelA64,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static func_t scattered_dword_write(ngen::HW hw, int elems, int slots) {
-        return send_t::make(hw, ngen_proxy::Access::Write,
-                message_type_t::scattered, type_t::dword(), elems, slots,
-                type_t::undef(), ngen_proxy::AddressModel::ModelA64,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static func_t scattered_qword_read(ngen::HW hw, int elems, int slots) {
-        return send_t::make(hw, ngen_proxy::Access::Read,
-                message_type_t::scattered, type_t::qword(), elems, slots,
-                type_t::undef(), ngen_proxy::AddressModel::ModelA64,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static func_t scattered_qword_write(ngen::HW hw, int elems, int slots) {
-        return send_t::make(hw, ngen_proxy::Access::Write,
-                message_type_t::scattered, type_t::qword(), elems, slots,
-                type_t::undef(), ngen_proxy::AddressModel::ModelA64,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static func_t block_oword_read(ngen::HW hw, int elems) {
-        return send_t::make(hw, ngen_proxy::Access::Read, message_type_t::block,
-                type_t::oword(), elems, 1, type_t::undef(),
-                ngen_proxy::AddressModel::ModelA64,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static func_t block_oword_write(ngen::HW hw, int elems) {
-        return send_t::make(hw, ngen_proxy::Access::Write,
-                message_type_t::block, type_t::oword(), elems, 1,
-                type_t::undef(), ngen_proxy::AddressModel::ModelA64,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static func_t block_oword_read_slm(ngen::HW hw, int elems) {
-        return send_t::make(hw, ngen_proxy::Access::Read, message_type_t::block,
-                type_t::oword(), elems, 1, type_t::undef(),
-                ngen_proxy::AddressModel::ModelSLM,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static func_t block_oword_write_slm(ngen::HW hw, int elems) {
-        return send_t::make(hw, ngen_proxy::Access::Write,
-                message_type_t::block, type_t::oword(), elems, 1,
-                type_t::undef(), ngen_proxy::AddressModel::ModelSLM,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static func_t block_hword_read(ngen::HW hw, int elems) {
-        return send_t::make(hw, ngen_proxy::Access::Read, message_type_t::block,
-                type_t::hword(), elems, 1, type_t::undef(),
-                ngen_proxy::AddressModel::ModelA64,
-                ngen_proxy::AtomicOp::undef);
-    }
-
-    static std::vector<func_t> get_all(ngen::HW hw, const type_t &mem_data_type,
-            ngen_proxy::Access access_type,
-            ngen_proxy::AddressModel address_model,
-            ngen_proxy::AtomicOp atomic_op, bool is_prefetch) {
-        return get_all(hw, mem_data_type, access_type, address_model, atomic_op,
-                is_prefetch, [](const func_t &) { return true; });
-    }
-
-    template <typename FilterFunc>
-    static std::vector<func_t> get_all(ngen::HW hw, const type_t &mem_data_type,
-            ngen_proxy::Access access_type,
-            ngen_proxy::AddressModel address_model,
-            ngen_proxy::AtomicOp atomic_op, bool is_prefetch,
-            const FilterFunc &filter) {
-        std::vector<message_type_t> message_types;
-        bool is_atomic = (atomic_op != ngen_proxy::AtomicOp::undef);
-        if (is_atomic) {
-            message_types.push_back(message_type_t::atomic);
-        } else if (is_prefetch) {
-            message_types.push_back(message_type_t::block);
-        } else {
-            message_types.push_back(message_type_t::block);
-            message_types.push_back(message_type_t::scattered);
-        }
-        std::vector<func_t> ret;
-        for (int slots : {1, 8, 16}) {
-            for (int elems : {1, 2, 4, 8, 16}) {
-                for (auto &data_type : {type_t::byte(), type_t::dword(),
-                             type_t::oword(), type_t::hword()}) {
-                    if (is_prefetch) {
-                        // Allow only hword x {1,2,4,8} prefetch for now.
-                        if (data_type != type_t::hword()) continue;
-                        if (slots != 1 || elems > 8) continue;
-                    }
-                    // Require data type size exact match for atomic messages.
-                    if (is_atomic && data_type.size() != mem_data_type.size())
-                        continue;
-                    for (auto &message_type : message_types) {
-                        auto f = send_t::make(hw, access_type, message_type,
-                                data_type, elems, slots,
-                                utils::one_of(data_type, type_t::oword(),
-                                        type_t::hword())
-                                        ? data_type
-                                        : type_t::undef(),
-                                address_model, atomic_op, is_prefetch, -1);
-                        if (!f.template as<send_t>().is_supported()) continue;
-                        if (!filter(f)) continue;
-                        ret.push_back(f);
-                    }
-                }
-            }
-        }
-        // Sort by total size in descending order.
-        std::sort(
-                ret.begin(), ret.end(), [](const func_t &_a, const func_t &_b) {
-                    auto &a = _a.as<send_t>();
-                    auto &b = _b.as<send_t>();
-                    size_t a_sz = a.size();
-                    size_t b_sz = b.size();
-                    // Put block messages first.
-                    if (a.type != b.type)
-                        return a.type == message_type_t::block;
-                    return a_sz > b_sz;
-                });
-        return ret;
-    }
+    static std::vector<func_t> get_all(ngen::HW hw, send_op_t op,
+            send_address_t address, const type_t &mem_type);
 
     ngen::HW hw;
-    ngen_proxy::Access access_type;
-    message_type_t type;
-    type_t data_type;
-    int data_elems;
+    send_op_t op;
+    send_address_t address;
+    type_t type;
     int slots;
-    type_t alignment;
-    ngen_proxy::AddressModel address_model;
-    ngen_proxy::AtomicOp atomic_op;
-    bool is_prefetch;
-    int eff_mask_count;
 
 private:
-    send_t(ngen::HW hw, ngen_proxy::Access access_type, message_type_t type,
-            const type_t &data_type, int data_elems, int slots,
-            const type_t &alignment, ngen_proxy::AddressModel address_model,
-            ngen_proxy::AtomicOp atomic_op, bool is_prefetch,
-            int eff_mask_count)
-        : hw(hw)
-        , access_type(access_type)
-        , type(type)
-        , data_type(data_type)
-        , data_elems(data_elems)
-        , slots(slots)
-        , alignment(alignment)
-        , address_model(address_model)
-        , atomic_op(atomic_op)
-        , is_prefetch(is_prefetch)
-        , eff_mask_count(eff_mask_count) {
-        if (eff_mask_count == -1) this->eff_mask_count = mask_count();
-        ir_assert(eff_mask_count <= mask_count());
-    }
+    int grf_size() const { return ngen::GRF::bytes(hw); }
 
-    send_t(const send_t &other)
-        : hw(other.hw)
-        , access_type(other.access_type)
-        , type(other.type)
-        , data_type(other.data_type)
-        , data_elems(other.data_elems)
-        , slots(other.slots)
-        , alignment(other.alignment)
-        , address_model(other.address_model)
-        , atomic_op(other.atomic_op)
-        , is_prefetch(other.is_prefetch)
-        , eff_mask_count(other.eff_mask_count) {}
+    bool is_xe_hpc_plus() const { return hw >= ngen::HW::XeHPC; }
+
+    send_t(ngen::HW hw, send_op_t op, send_address_t address,
+            const type_t &type, int slots)
+        : hw(hw), op(op), address(address), type(type), slots(slots) {}
 };
 
-// Creates send statement for a memory view.
-stmt_t create_send_stmt(ir_context_t &ir_ctx, const send_t &send,
-        const expr_t &mem_buf, const expr_t &reg_buf, const view_t &view,
-        const mask_tensor_t &mask_tensor);
+class memory_walker_t;
+class layout_walker_t;
 
-// Translates a memory view to a register layout after send.
-layout_t create_register_layout_for_message(
-        const send_t &send, const view_t &mem_view, int &reg_buf_size);
+// Generates loads or stores to move data between memory (global or SLM) and
+// GRF. Memory view is a parameter. GRF payload layout is deduced
+// automatically, according to the decomposition into messages.
+class access_builder_t {
+public:
+    access_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
+            const constraint_set_t &cset, const view_t &mem_view,
+            const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
+            send_address_t send_address);
+    access_builder_t(access_builder_t &&);
+    ~access_builder_t();
 
-// Checks if send supports the mask defined by a view.
-bool has_compatible_mask(const send_t &send, const view_t &view,
-        const tensor_t &send_tensor, const mask_tensor_t &mask_tensor);
+    const layout_t &reg_layout() const { return reg_layout_; }
+    int reg_buf_size() const {
+        return utils::rnd_up(reg_layout_.size(), grf_size());
+    }
+    const stmt_t &stmt() const { return stmt_; }
+
+    std::string str() const {
+        std::ostringstream oss;
+        oss << "Memory view:          " << mem_view_ << std::endl;
+        oss << "Register layout:      " << reg_layout_ << std::endl;
+        oss << "Register buffer:      " << reg_buf_ << std::endl;
+        oss << "Register buffer size: " << reg_buf_size() << " ("
+            << reg_buf_size() / grf_size() << " regs)" << std::endl;
+        oss << "Statement:            " << std::endl << stmt_;
+        return oss.str();
+    }
+
+private:
+    void build();
+    bool try_build(const layout_t &try_layout);
+    std::vector<layout_t> candidate_payload_layouts() const;
+    stmt_t create_send_stmt(const send_t &send);
+    int grf_size() const { return ngen::GRF::bytes(hw_); }
+
+    ngen::HW hw_;
+    view_t mem_view_;
+    expr_t mem_buf_;
+    expr_t reg_buf_;
+    send_op_t send_op_;
+    send_address_t send_address_;
+
+    type_t mem_type_;
+
+    std::unique_ptr<memory_walker_t> mem_walker_;
+    std::unique_ptr<layout_walker_t> reg_layout_walker_;
+
+    layout_t reg_layout_;
+    stmt_t stmt_;
+};
+
+inline access_builder_t make_access_builder(ngen::HW hw, ir_context_t &ir_ctx,
+        const constraint_set_t &cset, const view_t &mem_view,
+        const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
+        send_address_t send_address) {
+    return access_builder_t(hw, ir_ctx, cset, mem_view, mem_buf, reg_buf,
+            send_op, send_address);
+}
 
 } // namespace jit
 } // namespace gpu

@@ -2431,73 +2431,62 @@ public:
             const ngen::InstructionModifier &mod,
             const ngen::RegData &surf_base_addr, int surf_bti,
             const ngen::RegData &header, const T &data) {
-
-        auto access_type = send_.access_type;
-        auto data_type = send_.data_type;
-        auto data_elems = send_.data_elems;
-        auto address_model = send_.address_model;
-        auto atomic_op = send_.atomic_op;
-
-        bool is_read = (access_type == ngen_proxy::Access::Read);
         ngen::AddressBase address_base;
-        if (address_model == ngen_proxy::AddressModel::ModelBTS) {
-            address_base = ngen::AddressBase::createBTS(surf_bti);
-        } else if (address_model == ngen_proxy::AddressModel::ModelA64) {
-            address_base = ngen::AddressBase::createA64(true);
-        } else if (address_model == ngen_proxy::AddressModel::ModelSLM) {
-            address_base = ngen::AddressBase::createSLM();
-        } else {
-            ir_error_not_expected();
+        switch (send_.address) {
+            case send_address_t::a64:
+                address_base = ngen::AddressBase::createA64(true);
+                break;
+            case send_address_t::bts:
+                address_base = ngen::AddressBase::createBTS(surf_bti);
+                break;
+            case send_address_t::slm:
+                address_base = ngen::AddressBase::createSLM();
+                break;
+            default: ir_error_not_expected();
         }
 
-        if (data_type == type_t::byte()) {
-            emit_load_or_store(is_read, atomic_op, host, mod,
-                    ngen::scattered_byte(data_elems), address_base, header,
-                    data);
-        } else if (data_type == type_t::dword()) {
-            emit_load_or_store(is_read, atomic_op, host, mod,
-                    ngen::scattered_dword(data_elems), address_base, header,
-                    data);
-        } else if (data_type == type_t::qword()) {
-            emit_load_or_store(is_read, atomic_op, host, mod,
-                    ngen::scattered_qword(data_elems), address_base, header,
-                    data);
-        } else if (data_type == type_t::oword()) {
-            emit_load_or_store(is_read, atomic_op, host, mod,
-                    ngen::block_oword(data_elems), address_base, header, data);
-        } else if (data_type == type_t::hword()) {
-            emit_load_or_store(is_read, atomic_op, host, mod,
-                    ngen::block_hword(data_elems), address_base, header, data);
-        } else {
-            ir_error_not_expected();
+        int elems = send_.type.elems();
+        switch (send_.type.kind()) {
+            case type_kind_t::byte:
+                emit_load_or_store(host, mod, ngen::scattered_byte(elems),
+                        address_base, header, data);
+                break;
+            case type_kind_t::dword:
+                emit_load_or_store(host, mod, ngen::scattered_dword(elems),
+                        address_base, header, data);
+                break;
+            case type_kind_t::oword:
+                emit_load_or_store(host, mod, ngen::block_oword(elems),
+                        address_base, header, data);
+                break;
+            case type_kind_t::hword:
+                emit_load_or_store(host, mod, ngen::block_hword(elems),
+                        address_base, header, data);
+                break;
+            default: ir_error_not_expected();
         }
     }
 
 private:
     template <typename GeneratorT, typename DataSpecT>
-    void emit_load_or_store(bool is_read, ngen_proxy::AtomicOp atomic_op,
-            GeneratorT *host, const ngen::InstructionModifier &mod,
-            const DataSpecT &spec, ngen::AddressBase base,
-            const ngen::RegData &addr, const ngen::RegData &data) {
-        bool is_atomic = (atomic_op != ngen_proxy::AtomicOp::undef);
-
+    void emit_load_or_store(GeneratorT *host,
+            const ngen::InstructionModifier &mod, const DataSpecT &spec,
+            ngen::AddressBase base, const ngen::RegData &addr,
+            const ngen::RegData &data) {
         if (hw_ == ngen::HW::XeHPC) {
             if (maybe_promote_to_lsc(host, mod, data, spec, base, addr)) {
                 return;
             }
         }
-        ir_assert(!send_.is_prefetch) << "Prefetches are not supported.";
-
-        if (is_read) {
-            ir_assert(!is_atomic) << "Unexpected atomic loads.";
+        if (send_.is_load()) {
             host->load(mod, data, spec, base, addr);
+        } else if (send_.is_atomic()) {
+            atomic_helper_t<DataSpecT>::call(
+                    host, ngen::AtomicOp::fadd, mod, spec, base, addr, data);
+        } else if (send_.is_store()) {
+            host->store(mod, spec, base, addr, data);
         } else {
-            if (is_atomic) {
-                atomic_helper_t<DataSpecT>::call(
-                        host, to_ngen(atomic_op), mod, spec, base, addr, data);
-            } else {
-                host->store(mod, spec, base, addr, data);
-            }
+            ir_error_not_expected() << "Can't emit send: " << send_;
         }
     }
 
@@ -2508,25 +2497,26 @@ private:
             const ngen::RegData &addr) {
         if (send_.is_atomic()) return false;
         if (!send_.is_a64()) return false;
-        if (send_.type != message_type_t::block) return false;
-        if (send_.slots != 1) return false;
+        if (!send_.is_block()) return false;
 
-        int size = send_.size();
+        int size = send_.payload_size();
 
         int lsc_data_size = 4; // Use D32.
         int lsc_vector_size = size / lsc_data_size;
         if (lsc_data_size * lsc_vector_size != size) return false;
 
-        if (send_.is_read()) {
+        if (send_.is_load() || send_.is_prefetch()) {
             host->load.ugm(1 | mod, data,
                     ngen::block(ngen::DataSizeLSC::D32, lsc_vector_size)
                             | ngen::CacheSettingsLSC::L1C_L3C,
                     host->A64, addr);
-        } else {
+        } else if (send_.is_store()) {
             host->store.ugm(1 | mod,
                     ngen::block(ngen::DataSizeLSC::D32, lsc_vector_size)
                             | ngen::CacheSettingsLSC::L1WB_L3WB,
                     host->A64, addr, data);
+        } else {
+            ir_error_not_expected();
         }
 
         return true;
@@ -4097,9 +4087,9 @@ public:
             auto &mask = send_t::arg_mask(args);
             // If all channels are disabled for writing, quick return.
             if (all_of(mask, expr_t(false))) {
-                if (send_func.is_read()) {
+                if (send_func.is_load()) {
                     auto reg_buf_op = eval(send_t::arg_reg_buf(args), scope);
-                    zero_out_data_payload(send_func, send_func.eff_mask_count,
+                    zero_out_data_payload(send_func, send_func.nmasks(),
                             reg_buf_op.reg_buf_data());
                 }
                 return;
@@ -4451,7 +4441,7 @@ private:
 
     void zero_out_data_payload(const send_t &send_func,
             const ngen::InstructionModifier &_mod, const reg_buf_data_t &rd) {
-        bool is_per_slot = (send_func.mask_count() > 1);
+        bool is_per_slot = (send_func.nmasks() > 1);
 
         auto get_modifier = [&](int exec_size) {
             if (is_per_slot) {
@@ -4465,14 +4455,13 @@ private:
         };
 
         int ud_size = sizeof(uint32_t);
-        int send_size = send_func.register_size();
+        int send_size = send_func.payload_size();
         int grf_size = ngen::GRF::bytes(hw);
-        int step = (is_per_slot ? send_func.mask_count() * ud_size
-                                : 2 * grf_size);
+        int step = (is_per_slot ? send_func.nmasks() * ud_size : 2 * grf_size);
         for (int i = 0; i < send_size; i += step) {
             int exec_size;
             if (is_per_slot) {
-                exec_size = send_func.eff_mask_count;
+                exec_size = send_func.nmasks();
             } else {
                 exec_size = std::min(step, send_size - i) / ud_size;
             }
@@ -4493,28 +4482,28 @@ private:
 
         ngen::RegData mem_buf_rd;
         int surf_bti = -1;
-        switch (send_func.address_model) {
-            case ngen_proxy::AddressModel::ModelSLM: break;
-            case ngen_proxy::AddressModel::ModelBTS: {
+        switch (send_func.address) {
+            case send_address_t::slm: break;
+            case send_address_t::bts: {
                 auto &buf_name = mem_buf.as<var_t>().name;
                 surf_bti = host_->getArgumentSurface(buf_name);
                 break;
             }
-            case ngen_proxy::AddressModel::ModelA64: {
+            case send_address_t::a64: {
                 auto &mem_buf_op = send_t::arg_mem_buf(args);
                 mem_buf_rd = mem_buf_op.reg_data();
                 break;
             }
             default: ir_error_not_expected();
         }
-        ngen::InstructionModifier mod = send_func.eff_mask_count;
+        ngen::InstructionModifier mod = send_func.nmasks();
         ir_assert(math::is_pow2(mod.getExecSize()));
         if (!attr.is_empty())
             mod |= to_ngen(attr.as<instruction_modifier_attr_t>().mod);
         if (!mask_op.is_invalid()) mod |= mask_op.flag_register_mod();
 
         // Zero-out inactive channels.
-        if (send_func.is_read() && !send_func.is_prefetch
+        if (send_func.is_load() && !send_func.is_prefetch()
                 && mod.getPredCtrl() != ngen::PredCtrl::None) {
             zero_out_data_payload(send_func, mod, reg_buf_op.reg_buf_data());
         }
@@ -4527,20 +4516,20 @@ private:
 
     ngen::RegData send_maybe_make_dense_payload(ngen_register_scope_t &scope,
             const send_t &send_func, const ngen_operand_t &op_buf) const {
-        if (send_func.is_prefetch) return ngen::RegData(host_->null);
+        if (send_func.is_prefetch()) return ngen::RegData(host_->null);
 
         auto &buf = op_buf.reg_buf_data();
-        int size = send_func.register_size();
+        int size = send_func.payload_size();
         bool is_dense = buf.is_dense(size);
         if (is_dense) return buf.reg_data();
 
-        if (send_func.is_read()) {
+        if (send_func.is_load()) {
             ir_error_not_expected()
                     << "Expected dense GRF region for load message.";
             return ngen::RegData();
         }
 
-        ir_assert(send_func.is_write());
+        ir_assert(send_func.is_store());
 
         // Reorder buffer to a dense buffer for store.
         int grf_size = ngen::GRF::bytes(hw);

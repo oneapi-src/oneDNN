@@ -808,9 +808,6 @@ public:
     layout_t split_into_multi_blocks(
             const std::vector<dim_t> &multi_blocks) const;
 
-    layout_t split_into_multi_blocks_with_hint(
-            std::vector<dim_t> &multi_blocks) const;
-
     layout_t add_outer_block(
             int dim_idx, dim_t block, dim_t stride = -1) const {
         if (stride == -1) stride = elems();
@@ -820,8 +817,6 @@ public:
         new_blocks.emplace_back(dim_idx, block, stride);
         return layout_t(type(), ndims(), offset(), new_blocks);
     }
-
-    tensor_t split_into_dense_tile(dim_t tile_elems, dim_t outer_block) const;
 
     // Returns a tensor corresponding to the biggest innermost sub-layout so that
     // 1) It consists of consecutive blocks only.
@@ -1025,10 +1020,6 @@ private:
             const std::string &format);
 
     void sanity_check() const;
-
-    layout_t split_into_multi_blocks_impl(
-            const std::vector<dim_t> &multi_blocks,
-            std::vector<dim_t> *out_multi_blocks) const;
 
     // Data type of the layout.
     type_t type_;
@@ -1543,18 +1534,6 @@ public:
     view_t split(const grid_info_t &grid) const {
         tensor_t vtile;
         return split(grid, vtile);
-    }
-
-    // Tile is assumed to be dense.
-    tensor_t split_into_dense_tile(
-            dim_t &tile_elems, dim_t &outer_block) const {
-        auto vlayout = create_pseudo_vlayout();
-        std::vector<dim_t> blocks = {tile_elems, outer_block};
-        vlayout = vlayout.split_into_multi_blocks_with_hint(blocks);
-        if (vlayout.is_empty()) return tensor_t();
-        tile_elems = blocks[0];
-        outer_block = blocks[1];
-        return vlayout.split_into_dense_tile(tile_elems, outer_block);
     }
 
     // Returns a tensor corresponding to the biggest innermost sub-layout so that

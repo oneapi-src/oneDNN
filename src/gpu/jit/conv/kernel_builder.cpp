@@ -162,11 +162,11 @@ private:
             return reg_buf().as<ptr_t>().base;
         }
 
-        int reg_buf_size() const { return send().register_size(); }
+        int reg_buf_size() const { return send().payload_size(); }
 
         int new_reg_buf_size() const {
             if (new_call.is_same(call)) return 0;
-            return new_send().register_size();
+            return new_send().payload_size();
         }
 
         void set_new_call(const stmt_t &s, const stmt_t &base = stmt_t()) {
@@ -182,7 +182,7 @@ private:
 
         void set_prev_send(const stmt_t &s) {
             int prev_size
-                    = s.as<func_call_t>().func.as<send_t>().register_size();
+                    = s.as<func_call_t>().func.as<send_t>().payload_size();
             if (reg_buf_size() != prev_size) return;
             prev_send = s;
         }
@@ -420,8 +420,9 @@ private:
     }
 
     static func_t create_half_send(const send_t &send) {
-        ir_assert(send.data_elems % 2 == 0) << "Can't create half-send.";
-        auto _s = send.with_data_elems(send.data_elems / 2);
+        ir_assert(send.type.elems() % 2 == 0) << "Can't create half-send.";
+        auto _s = send_t::make(send.hw, send.op, send.address,
+                send.type.with_elems(send.type.elems() / 2), send.slots);
         auto &s = _s.as<send_t>();
         ir_assert(s.is_supported())
                 << "Can't find send reading half of the original send.";
@@ -2827,7 +2828,7 @@ public:
             auto s = _s;
             if (is_func_call<send_t>(s)) {
                 auto &send = s.as<func_call_t>().func.as<send_t>();
-                int idx = (send.is_prefetch ? prefetch_idx++ : 0);
+                int idx = (send.is_prefetch() ? prefetch_idx++ : 0);
                 auto sbid = get_sbid(send_t::arg_reg_buf(s), idx);
                 s = update_call_with_sbid(s, sbid);
             } else if (is_func_call<dpas_t>(s)) {
@@ -3191,8 +3192,7 @@ public:
             auto &send = s.as<func_call_t>().func.as<send_t>();
 
             // This is not send to SLM, skip.
-            if (send.address_model != ngen_proxy::AddressModel::ModelSLM)
-                continue;
+            if (!send.is_slm()) continue;
 
             auto new_args = s.as<func_call_t>().args;
             send_t::arg_mem_off(new_args) += ab_slm_size_ * slm_idx;
@@ -3514,8 +3514,7 @@ private:
             auto &header_buf = send_t::arg_mem_off(args);
 
             // This is not send to SLM, skip.
-            if (send.address_model != ngen_proxy::AddressModel::ModelSLM)
-                continue;
+            if (!send.is_slm()) continue;
 
             // May have signed offset.
             auto store_obj = send.create_offset_store(
@@ -4357,188 +4356,6 @@ stmt_t create_zero_out_stmt(ngen::HW hw, const expr_t &buf, int size) {
     return create_mul_add_stmt(hw, buf, size, type_t::f32(), 0, 0);
 }
 
-// Generates loads or stores to move data between memory (global or SLM) and
-// GRF. Memory layout is a parameter. GRF layout is deduced automatically,
-// according to the decomposition into messages.
-class access_builder_t {
-public:
-    access_builder_t() = default;
-
-    access_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const view_t &mem_view,
-            const expr_t &mem_buf, const expr_t &reg_buf, bool is_slm,
-            bool is_prefetch, bool is_load, ngen_proxy::AtomicOp atomic_op,
-            bool empty_msg_ok)
-        : hw_(hw)
-        , ir_ctx_(&ir_ctx)
-        , cset_(&cset)
-        , mem_view_(mem_view)
-        , mem_buf_(mem_buf)
-        , reg_buf_(reg_buf)
-        , is_slm_(is_slm)
-        , is_prefetch_(is_prefetch)
-        , is_load_(is_load)
-        , empty_msg_ok_(empty_msg_ok)
-        , atomic_op_(atomic_op) {
-        build();
-    }
-
-    bool is_slm() const { return is_slm_; }
-
-    bool is_prefetch() const { return is_prefetch_; }
-
-    const layout_t &reg_layout() const { return reg_layout_; }
-
-    int reg_buf_size() const { return reg_buf_size_; }
-
-    const stmt_t &stmt() const { return stmt_; }
-
-    std::string str() const {
-        const auto grf_size = ngen::GRF::bytes(hw_);
-        std::ostringstream oss;
-        oss << "Memory view:          " << mem_view_ << std::endl;
-        oss << "Register layout:      " << reg_layout_ << std::endl;
-        oss << "Register buffer:      " << reg_buf_ << std::endl;
-        oss << "Register buffer size: " << reg_buf_size_ << " ("
-            << reg_buf_size_ / grf_size << " regs)" << std::endl;
-        oss << "Statement:            " << std::endl << stmt_;
-        return oss.str();
-    }
-
-private:
-    void build() {
-        auto send_list = get_send_list(mem_view_.type());
-
-        auto mask_tensor = mem_view_.create_mask_tensor(*cset_);
-
-        // Find the first send candidate matching the layout.
-        func_t _send;
-        tensor_t send_tensor;
-        for (auto &_s_base : send_list) {
-            auto &s_base = _s_base.as<send_t>();
-            int type_size = mem_view_.type().size();
-            int block_bytes_base = s_base.block_size();
-            if (block_bytes_base % type_size != 0) continue;
-            int elems_per_block_base = block_bytes_base / type_size;
-
-            dim_t elems_per_block = elems_per_block_base;
-            dim_t slots = s_base.slots;
-
-            // Check if the view can be decomposed for this send.
-            auto tensor
-                    = mem_view_.split_into_dense_tile(elems_per_block, slots);
-            if (tensor.is_empty()) continue;
-
-            auto _s = s_base.adjust(
-                    int(elems_per_block * type_size), int(slots));
-            if (_s.is_empty()) continue;
-            auto &s = _s.as<send_t>();
-
-            // Check if this send supports the required mask.
-            if (!has_compatible_mask(s, mem_view_, tensor, mask_tensor))
-                continue;
-
-            if (s.alignment != type_t::undef()) {
-                bool is_aligned = true;
-                mem_view_.for_each_tile(tensor, [&](std::vector<dim_t> &start) {
-                    auto tile = tensor_t(tensor.dims(), start);
-                    auto sub_view = mem_view_.create_sub_view(tile);
-                    is_aligned &= (sub_view.get_alignment(*cset_)
-                            >= s.alignment.size());
-                });
-                if (!is_aligned) continue;
-            }
-
-            if (is_slm() && (tensor.elems() * type_size) % 16 != 0) continue;
-
-            // Success, send is found, stop iterating.
-            _send = _s;
-            send_tensor = tensor;
-            break;
-        }
-        // Support for prefetch messages is limited. If message is not found,
-        // skip prefetch generation.
-        if (_send.is_empty() && (is_prefetch() || empty_msg_ok_)) return;
-        ir_assert(!_send.is_empty()) << "Can't decompose view into messages.";
-
-        auto &send = _send.as<send_t>();
-        reg_layout_ = create_register_layout_for_message(
-                send, mem_view_, reg_buf_size_);
-
-        mem_view_.for_each_tile(
-                send_tensor, [&](const std::vector<dim_t> &start) {
-                    auto tile = tensor_t(send_tensor.dims(), start);
-                    auto sub_view = mem_view_.create_sub_view(tile);
-                    auto sub_mask_tensor = mask_tensor.map(tile);
-                    auto reg_sub_buf = (is_prefetch()
-                                    ? expr_t()
-                                    : reg_buf_[reg_layout_(start)
-                                            * reg_layout_.type().size()]);
-                    stmt_ = stmt_seq_t::make(stmt_,
-                            create_send_stmt(*ir_ctx_, send, mem_buf_,
-                                    reg_sub_buf, sub_view, sub_mask_tensor));
-                });
-    }
-
-    // Returns a list of send functions that can be used for the access.
-    std::vector<func_t> get_send_list(const type_t &data_type) const {
-        using namespace ngen_proxy;
-        bool is_atomic = (atomic_op_ != AtomicOp::undef);
-        Access access_type = (is_load_ ? Access::Read : Access::Write);
-        // TODO: use stateless access on XeHPC until driver fix
-        bool use_stateful_msgs = is_atomic && hw_ < ngen::HW::XeHPC;
-        AddressModel address_model
-                = (is_slm() ? AddressModel::ModelSLM
-                            : use_stateful_msgs ? AddressModel::ModelBTS
-                                                : AddressModel::ModelA64);
-        auto send_list = send_t::get_all(hw_, data_type, access_type,
-                address_model, atomic_op_, is_prefetch_);
-        return send_list;
-    }
-
-    ngen::HW hw_;
-    ir_context_t *ir_ctx_;
-    const constraint_set_t *cset_;
-
-    view_t mem_view_;
-    expr_t mem_buf_;
-    layout_t reg_layout_;
-    expr_t reg_buf_;
-    int reg_buf_size_;
-    bool is_slm_;
-    bool is_prefetch_;
-    bool is_load_;
-    bool empty_msg_ok_;
-    stmt_t stmt_;
-    ngen_proxy::AtomicOp atomic_op_;
-};
-
-class read_builder_t : public access_builder_t {
-public:
-    read_builder_t() = default;
-
-    read_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const view_t &view,
-            const expr_t &mem_buf, const expr_t &reg_buf, bool is_slm,
-            bool is_prefetch = false, bool empty_msg_ok = false)
-        : access_builder_t(hw, ir_ctx, cset, view, mem_buf, reg_buf, is_slm,
-                is_prefetch, /*is_load=*/true, ngen_proxy::AtomicOp::undef,
-                empty_msg_ok) {}
-};
-
-class write_builder_t : public access_builder_t {
-public:
-    write_builder_t() = default;
-
-    write_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const view_t &view,
-            const expr_t &mem_buf, const expr_t &reg_buf, bool is_slm,
-            ngen_proxy::AtomicOp atomic_op = ngen_proxy::AtomicOp::undef)
-        : access_builder_t(hw, ir_ctx, cset, view, mem_buf, reg_buf, is_slm,
-                /*is_prefetch=*/false, /*is_load=*/false, atomic_op,
-                /*empty_msg_ok=*/false) {}
-};
-
 class slm_reduce_builder_t {
 public:
     slm_reduce_builder_t() = default;
@@ -4607,9 +4424,9 @@ private:
             write_start[ndims + i] = tg_grid_.idx(i);
         }
         auto write_tile = tensor_t(write_dims, write_start);
-        write_builder_t write(hw_, ir_ctx, cset,
+        auto write = make_access_builder(hw_, ir_ctx, cset,
                 view_t(slm_layout.map(write_tile)), slm_buf_, reg_buf_,
-                /*is_slm=*/true);
+                send_op_t::store, send_address_t::slm);
         store_stmt_ = write.stmt();
 
         auto &write_layout = write.reg_layout();
@@ -4631,9 +4448,9 @@ private:
             read_start[ndims + i] = (i == dim_) ? 0 : tg_grid_.idx(i);
         }
         tensor_t read_tile(read_dims, read_start);
-        read_builder_t read(hw_, ir_ctx, cset,
+        auto read = make_access_builder(hw_, ir_ctx, cset,
                 view_t(slm_layout.map(read_tile)), slm_buf_, tmp_reg_buf_,
-                /*is_slm=*/true);
+                send_op_t::load, send_address_t::slm);
 
         load_stmt_ = load_stmt_.append(
                 create_zero_out_stmt(hw_, reg_buf_, reg_layout_.size()));
@@ -4913,8 +4730,8 @@ public:
         ir_assert(reg_buf_.is_empty());
 
         reg_buf_ = make_tmp_reg_buffer();
-        read_builder_t read(hw_, *ir_ctx_, *cset_, mem_view(), mem_buf(),
-                reg_buf_, /*is_slm=*/false);
+        auto read = make_access_builder(hw_, *ir_ctx_, *cset_, mem_view(),
+                mem_buf(), reg_buf_, send_op_t::load, send_address_t::a64);
         reg_layout_ = read.reg_layout();
         register_buffer(reg_buf_, read.reg_buf_size());
         return read.stmt();
@@ -4923,8 +4740,8 @@ public:
     stmt_t build_prefetch_stmt() const {
         ir_assert(needs_load());
 
-        read_builder_t prefetch(hw_, *ir_ctx_, *cset_, mem_view(), mem_buf(),
-                expr_t(), /*is_slm=*/false, /*is_prefetch=*/true);
+        auto prefetch = make_access_builder(hw_, *ir_ctx_, *cset_, mem_view(),
+                mem_buf(), expr_t(), send_op_t::prefetch, send_address_t::a64);
         return prefetch.stmt();
     }
 
@@ -5000,8 +4817,9 @@ public:
     stmt_t build_store_stmt() const {
         ir_assert(needs_store());
 
-        write_builder_t write(hw_, *ir_ctx_, *cset_, mem_view(), mem_buf(),
-                reg_buf(), /*is_slm=*/false, ngen_proxy::AtomicOp::fadd);
+        auto write = make_access_builder(hw_, *ir_ctx_, *cset_, mem_view(),
+                mem_buf(), reg_buf(), send_op_t::atomic_fadd,
+                send_address_t::a64);
         ir_assert(write.reg_layout() == reg_layout());
 
         return write.stmt();
@@ -5469,12 +5287,11 @@ private:
         }
 
         // S_y -> GMEM.
-        ngen_proxy::AtomicOp atomic_op
-                = (cfg_.do_atomic_update ? ngen_proxy::AtomicOp::fadd
-                                         : ngen_proxy::AtomicOp::undef);
-        write_builder_t r2g(cfg_.hw, ir_ctx_, cset_, c_mem_tile_view,
+        auto r2g = make_access_builder(cfg_.hw, ir_ctx_, cset_, c_mem_tile_view,
                 c_mem_buf_, tmp_reg_buf,
-                /*is_slm=*/false, /*atomic_op=*/atomic_op);
+                cfg_.do_atomic_update ? send_op_t::atomic_fadd
+                                      : send_op_t::store,
+                send_address_t::a64);
 
         // Initialize C stages.
         std::vector<c_stage_t> c_stages;
@@ -6192,9 +6009,9 @@ public:
 
     stmt_t create_store_stmt(
             ir_context_t &ir_ctx, const constraint_set_t &cset) const {
-        write_builder_t r2g(cfg_.hw, ir_ctx, cset, b_reduced_thr_view_,
-                b_reduced_mem_buf_, b_reduced_reg_buf_, /*is_slm=*/false,
-                ngen_proxy::AtomicOp::fadd);
+        auto r2g = make_access_builder(cfg_.hw, ir_ctx, cset,
+                b_reduced_thr_view_, b_reduced_mem_buf_, b_reduced_reg_buf_,
+                send_op_t::atomic_fadd, send_address_t::a64);
         // TODO: Check that layouts match.
         auto ret = r2g.stmt();
         if (!reduce_condition_.is_empty()) {
@@ -6467,7 +6284,7 @@ private:
         }
         info.is_loaded = true;
         info.reg_view = reg_view;
-        info.reg_buf_size = reg_layout.size();
+        info.reg_buf_size = utils::rnd_up(reg_layout.size(), cfg_.grf_size());
     }
 
     void load_sub_tile_impl(abc_kind_t abc_kind, int sub_tile_idx,
@@ -6491,8 +6308,9 @@ private:
 
         if (!load_buffered) mem_view = _mem_view;
 
-        read_builder_t read(
-                cfg_.hw, ir_ctx_, cset_, mem_view, buf, reg_buf, is_slm);
+        auto read = make_access_builder(cfg_.hw, ir_ctx_, cset_, mem_view, buf,
+                reg_buf, send_op_t::load,
+                is_slm ? send_address_t::slm : send_address_t::a64);
         ir_trace() << (is_a ? "A" : "B") << " GMEM/SLM to GRF load #"
                    << sub_tile_idx << ":\n"
                    << read.str() << std::endl;
@@ -6797,15 +6615,6 @@ private:
             }
         }
 
-        void remove_empty_buffer() {
-            for (int i = 0; i < (int)bufs.size(); i++) {
-                if (bufs[i].size == 0) {
-                    bufs.erase(bufs.begin() + i);
-                    break;
-                }
-            }
-        }
-
         ir_context_t &ir_ctx;
         grid_info_t prev_load_grid;
         bool reuse_buffers = false;
@@ -6896,13 +6705,8 @@ private:
         expr_t x_g2s_reg_buf = g2s_ctx.create_buf("g2s");
 
         // GMEM -> GRF load.
-        read_builder_t x_read(cfg_.hw, ir_ctx_, cset_, x_g2s_view, xp_buf,
-                x_g2s_reg_buf, /*is_slm=*/false, /*is_prefetch=*/false,
-                /*empty_msg_ok=*/true);
-        if (x_read.stmt().is_empty()) {
-            g2s_ctx.remove_empty_buffer();
-            return false;
-        }
+        auto x_read = make_access_builder(cfg_.hw, ir_ctx_, cset_, x_g2s_view,
+                xp_buf, x_g2s_reg_buf, send_op_t::load, send_address_t::a64);
         ir_trace() << tag << " GMEM to GRF load:\n"
                    << x_read.str() << std::endl;
 
@@ -6913,8 +6717,9 @@ private:
         g2s_load_stmt_ = g2s_load_stmt_.append(load_stmt);
 
         // GRF -> SLM store.
-        write_builder_t x_write(cfg_.hw, ir_ctx_, cset_, view_t(slm_thr_layout),
-                x_slm_buf, x_g2s_reg_buf, /*is_slm=*/true);
+        auto x_write = make_access_builder(cfg_.hw, ir_ctx_, cset_,
+                view_t(slm_thr_layout), x_slm_buf, x_g2s_reg_buf,
+                send_op_t::store, send_address_t::slm);
         ir_trace() << tag << " GRF to SLM store:\n"
                    << x_write.str() << std::endl;
         auto store_stmt = x_write.stmt();
@@ -6963,8 +6768,8 @@ private:
         auto thr_view = x_gmem_view.split(gemm_schedule_.tg_grid());
 
         // GMEM prefetch.
-        read_builder_t x_prefetch(cfg_.hw, ir_ctx_, cset_, thr_view, xp_buf,
-                expr_t(), /*is_slm=*/false, /*is_prefetch=*/true);
+        auto x_prefetch = make_access_builder(cfg_.hw, ir_ctx_, cset_, thr_view,
+                xp_buf, expr_t(), send_op_t::prefetch, send_address_t::a64);
         ir_trace() << tag << " GMEM prefetch:\n"
                    << x_prefetch.str() << std::endl;
 
