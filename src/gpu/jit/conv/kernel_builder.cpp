@@ -6068,17 +6068,31 @@ layout_t convert_to_fma_friendly_type(const conv_config_t &cfg,
     if (changed) *changed = false;
     if (cfg.fma_kind != fma_kind_t::mad) return layout;
 
+    // mad with s8/u8 is not supported, promote to strided s16.
     if (a_type.is_x8() && b_type.is_x8()) {
         if (changed) *changed = true;
         return layout.retype(type_t::s16()).make_strided(2);
     }
-    // f16/bf16 mixed mode mad requires src2 to be f32
-    if (a_type.is_bf16() || b_type.is_bf16()
-            || (a_type.is_f32() && b_type.is_f16())
-            || (a_type.is_f16() && b_type.is_f32())) {
+
+    // bf16 mixed mode mad requires src2 to be f32.
+    if (abc_kind == abc_kind_t::b && a_type.is_bf16()) {
         if (changed) *changed = true;
-        return layout.retype(type_t::f32());
+        return layout.retype(type_t::f32()).make_dense();
     }
+
+    // bf16 mixed mode mad requires src1 to be packed, src1 is broadcasted for
+    // non-depthwise cases so it needs to be converted to f32.
+    if (abc_kind == abc_kind_t::a && a_type.is_bf16() && !cfg.is_dw) {
+        if (changed) *changed = true;
+        return layout.retype(type_t::f32()).make_dense();
+    }
+
+    // Ensure the layout is dense to align regioning.
+    if (!layout.is_dense()) {
+        if (changed) *changed = true;
+        return layout.make_dense();
+    }
+
     return layout;
 }
 
