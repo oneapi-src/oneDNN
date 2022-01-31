@@ -406,6 +406,11 @@ public:
         return utils::one_of(kind(), type_kind_t::s64, type_kind_t::u64);
     }
 
+    bool is_byte() const { return kind() == type_kind_t::byte; }
+    bool is_dword() const { return kind() == type_kind_t::dword; }
+    bool is_oword() const { return kind() == type_kind_t::oword; }
+    bool is_hword() const { return kind() == type_kind_t::hword; }
+
     bool is_signed(int elems = -1) const {
         if (elems != -1 && elems_ != elems) return false;
         return utils::one_of(kind(), type_kind_t::s8, type_kind_t::s16,
