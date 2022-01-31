@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -325,6 +325,56 @@ static int check_tags() {
     return OK;
 }
 
+static int check_trim_tags() {
+    {
+        std::string tag = "BA16a16b4a";
+        std::string ndims_trimmed_tag = trim_tag(tag, 1);
+        CHECK_EQ(true, ndims_trimmed_tag == "A16a4a");
+    }
+    {
+        std::string tag = "BA16a16b4a";
+        std::string masked_trimmed_tag = trim_tag_by_mask(tag, 2);
+        CHECK_EQ(true, masked_trimmed_tag == "A16a");
+    }
+    {
+        std::string tag = "abcd";
+        std::string ndims_trimmed_tag = trim_tag(tag, 2);
+        CHECK_EQ(true, ndims_trimmed_tag == "ab");
+    }
+    {
+        std::string tag = "abcd";
+        std::string masked_trimmed_tag = trim_tag_by_mask(tag, 10);
+        CHECK_EQ(true, masked_trimmed_tag == "ab");
+    }
+    {
+        std::string tag = "abcd";
+        std::string masked_trimmed_tag = trim_tag_by_mask(tag, 12);
+        CHECK_EQ(true, masked_trimmed_tag == "ab");
+    }
+    {
+        std::string tag = "aBcd16b";
+        std::string ndims_trimmed_tag = trim_tag(tag, 2);
+        CHECK_EQ(true, ndims_trimmed_tag == "aB16b");
+    }
+    {
+        std::string tag = "aBcd16b";
+        std::string masked_trimmed_tag = trim_tag_by_mask(tag, 2);
+        CHECK_EQ(true, masked_trimmed_tag == "A16a");
+    }
+    {
+        std::string tag = "BA16a16b4a";
+        std::string masked_trimmed_tag = trim_tag_by_mask(tag, 1);
+        CHECK_EQ(true, masked_trimmed_tag == "A16a4a");
+    }
+    {
+        std::string tag = "BADC2c16a8d16b4a";
+        std::string masked_trimmed_tag = trim_tag_by_mask(tag, 14);
+        CHECK_EQ(true, masked_trimmed_tag == "ACB2b8c16a");
+    }
+
+    return OK;
+}
+
 static int check_skip_impl() {
     skip_impl = "gemm";
     CHECK_EQ(true, maybe_skip("x64:gemm:jit"));
@@ -345,6 +395,7 @@ void common() {
     RUN(check_post_ops2str());
     RUN(check_str2post_ops());
     RUN(check_tags());
+    RUN(check_trim_tags());
     RUN(check_skip_impl());
 }
 

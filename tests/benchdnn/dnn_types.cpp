@@ -1193,11 +1193,48 @@ static std::string map_tag_letters(const std::string &tag) {
 }
 
 std::string trim_tag(const std::string &tag, int ndims) {
-    std::string trimmed_tag = tag;
-    for (char c = 'a' + ndims; c <= 'a' + (char)(DNNL_MAX_NDIMS - 1); c++) {
-        trimmed_tag = trim_letter(trimmed_tag, c);
-        trimmed_tag = trim_letter(trimmed_tag, std::toupper(c));
+    int mask = 0;
+    for (int d = 0; d < ndims; d++) {
+        mask += (1 << d);
     }
+    return trim_tag_by_mask(tag, mask);
+}
+
+std::string trim_tag_by_mask(const std::string &tag, int mask) {
+    std::string trimmed_tag = tag;
+    int ndims_saved = 0;
+    for (char c = 'a', d = 0; c < 'a' + (char)(DNNL_MAX_NDIMS); c++, d++) {
+        if (!(mask & (1 << d))) {
+            trimmed_tag = trim_letter(trimmed_tag, c);
+            trimmed_tag = trim_letter(trimmed_tag, std::toupper(c));
+        } else {
+            ndims_saved++;
+        }
+    }
+
+    // Mask may operate over non-consecutive dimensions. The piece below will
+    // make trimmed_tag consist of consecutive dimensions starting from "a" or
+    // "A". E.g., mask = 2 + 8 = 10, trimmed_tag will contain "b" and "d"
+    // letters, and will be converted into one with "a" and "b".
+    int mask_copy = mask;
+    for (int i = 0; i < ndims_saved; i++) {
+        int dist_to_a = 0;
+        while (mask_copy % 2 == 0) {
+            mask_copy /= 2;
+            dist_to_a++;
+        }
+        mask_copy /= 2;
+        if (dist_to_a == 0) continue;
+
+        for (size_t j = 0; j < trimmed_tag.size(); j++) {
+            char str_j = trimmed_tag[j];
+            if (std::isalpha(str_j) && std::tolower(str_j) > 'a' + i) {
+                std::string rep_str(1, str_j - dist_to_a);
+                trimmed_tag.replace(j, 1, rep_str);
+            }
+        }
+    }
+
     return trimmed_tag;
 }
 
