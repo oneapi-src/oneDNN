@@ -4704,6 +4704,17 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     auto slm_buf = alloc_mgr.find_buffer("slm", /*allow_empty=*/true);
     if (!slm_buf.is_empty()) { expr_binding.bind(slm_buf, to_ngen(expr_t(0))); }
 
+#ifdef GEN_CONV_DEBUG
+    int grf_size = ngen::GRF::bytes(hw);
+    ir_trace() << "Register usage estimate:         "
+               << cfg_.estimated_peak_grf_usage << std::endl;
+    ir_trace() << "IR register usage:               "
+               << get_peak_grf_usage(body, grf_size) << std::endl;
+    ir_trace() << "IR register usage (without let): "
+               << get_peak_grf_usage(body, grf_size, /*skip_let=*/true)
+               << std::endl;
+#endif
+
     // Generate assembly from IR.
     ir_to_ngen_t<hw> visitor(this, expr_binding);
     visitor.visit(body);
@@ -4712,6 +4723,8 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     pad_kernel();
 
 #ifdef GEN_CONV_DEBUG
+    ir_trace() << "Actual register usage:           "
+               << ra_.get_peak_grf_usage() << std::endl;
     if (ra_.get_peak_grf_usage() > cfg_.estimated_peak_grf_usage) {
         ir_warning()
                 << "conv_kernel_t register usage underestimated: estimate = "
