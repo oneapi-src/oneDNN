@@ -590,7 +590,8 @@ public:
 
     std::string desc_str(bool dnnl_style = false) const {
         if (is_empty()) return "(nil)";
-        if (!dnnl_style && blocks_.empty()) return "(scalar)";
+        if (!dnnl_style && blocks_.empty())
+            return "(scalar:" + type().str() + ")";
         std::string ret;
         stride_t dense_stride(1);
         std::vector<bool> seen(ndims());
@@ -614,6 +615,7 @@ public:
             dense_stride = b.stride * b.block;
             seen[b.dim_idx] = true;
         }
+        ret += ":" + type().str();
         return ret;
     }
 
