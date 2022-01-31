@@ -25,6 +25,7 @@
 #include <string>
 
 #include "common/c_types_map.hpp"
+#include "common/math_utils.hpp"
 #include "gpu/jit/conv/ngen_proxy.hpp"
 #include "gpu/jit/conv/utils.hpp"
 
@@ -1302,6 +1303,7 @@ public:
 
     static expr_t make_broadcast(const expr_t &expr, int elems) {
         ir_assert(expr.type().is_scalar()) << expr;
+        ir_assert(math::is_pow2(elems));
         return make({expr}, std::vector<int>(elems, 0));
     }
 
