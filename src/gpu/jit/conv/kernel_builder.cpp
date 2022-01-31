@@ -3363,12 +3363,6 @@ private:
         auto &outer_loop_info = loop_nest_.outer_loop_info();
 
         loop_nest_.for_each_loop_var([&](const expr_t &v) {
-            g2s_load = const_fold(substitute(
-                    g2s_load, v, expr_t(it.preload_loop_it.var_value(v))));
-            g2s_store = const_fold(substitute(
-                    g2s_store, v, expr_t(it.preload_loop_it.var_value(v))));
-            prefetch = const_fold(substitute(
-                    prefetch, v, expr_t(it.preload_loop_it.var_value(v))));
             expr_t mul_var_value;
             expr_t preload_var_value;
             if (v.is_same(outer_loop_info.var) && in_loop_body
@@ -3379,10 +3373,14 @@ private:
                 mul_var_value = it.mul_loop_it.var_value(v);
                 preload_var_value = it.preload_loop_it.var_value(v);
             }
+            g2s_load = const_fold(substitute(g2s_load, v, preload_var_value));
+            g2s_store = const_fold(substitute(g2s_store, v, preload_var_value));
+            prefetch = const_fold(substitute(prefetch, v, preload_var_value));
             for (auto &s : g2r_load) {
                 s = const_fold(substitute(s, v, mul_var_value));
             }
             for (auto &s : s2r_load) {
+                if (count_object(s, v) > 0) ir_error_not_expected();
                 s = const_fold(substitute(s, v, preload_var_value));
             }
             for (int i = 0; i < int(lets.size()); i++) {
