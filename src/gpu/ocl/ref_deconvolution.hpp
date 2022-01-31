@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,10 +124,15 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                                 desc()->src_desc.data_type,
                                 desc()->weights_desc.data_type,
                                 desc()->dst_desc.data_type)
-                            || utils::everyone_is(data_type::f16,
-                                    desc()->src_desc.data_type,
-                                    desc()->weights_desc.data_type,
-                                    desc()->dst_desc.data_type)
+                            || ((utils::everyone_is(data_type::f16,
+                                         desc()->src_desc.data_type,
+                                         desc()->weights_desc.data_type)
+                                        || utils::everyone_is(data_type::f32,
+                                                desc()->src_desc.data_type,
+                                                desc()->weights_desc.data_type))
+                                    && utils::one_of(desc()->dst_desc.data_type,
+                                            data_type::f16, data_type::u8,
+                                            data_type::s8))
                             || (utils::everyone_is(data_type::bf16,
                                         desc()->src_desc.data_type,
                                         desc()->weights_desc.data_type)
