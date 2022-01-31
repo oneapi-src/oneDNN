@@ -64,6 +64,10 @@
 #include "sycl/verbose.hpp"
 #endif
 
+#ifdef DNNL_EXPERIMENTAL
+#include "common/experimental.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 
@@ -96,6 +100,13 @@ int get_verbose() {
 #endif
 #ifdef DNNL_WITH_SYCL
         sycl::print_verbose_header();
+#endif
+#ifdef DNNL_EXPERIMENTAL
+        printf("onednn_verbose,info,experimental features are enabled\n");
+        printf("onednn_verbose,info,use batch_normalization stats one pass is "
+               "%s\n",
+                experimental::use_bnorm_stats_one_pass() ? "enabled"
+                                                         : "disabled");
 #endif
         printf("onednn_verbose,info,prim_template:");
         printf("%soperation,engine,primitive,implementation,prop_"

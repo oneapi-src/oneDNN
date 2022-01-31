@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #ifndef GPU_OCL_GEN9_BATCH_NORMALIZATION_HPP
 #define GPU_OCL_GEN9_BATCH_NORMALIZATION_HPP
 
+#include "common/experimental.hpp"
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_batch_normalization_pd.hpp"
@@ -37,8 +38,12 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
             : gpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("ocl:gen9:blocked", gen9_batch_normalization_fwd_t);
+        DECLARE_COMMON_PD_T(impl_name(), gen9_batch_normalization_fwd_t);
 
+        const char *impl_name() const {
+            return conf.use_stats_one_pass ? "ocl:gen9:blocked:onepass"
+                                           : "ocl:gen9:blocked";
+        }
         status_t init(engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
@@ -88,10 +93,15 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         std::vector<const char *> kernel_names
                 = {"gen9_bnorm_fwd", nullptr, nullptr, nullptr, nullptr};
         if (pd()->conf.calculate_stats) {
-            kernel_names[1] = "gen9_calc_mean";
-            kernel_names[2] = "gen9_calc_variance";
-            kernel_names[3] = "gen9_reduce_mean";
-            kernel_names[4] = "gen9_reduce_variance";
+            if (pd()->conf.use_stats_one_pass) {
+                kernel_names[1] = "gen9_calc_mean_var";
+                kernel_names[2] = "gen9_reduce_mean_var";
+            } else {
+                kernel_names[1] = "gen9_calc_mean";
+                kernel_names[2] = "gen9_calc_variance";
+                kernel_names[3] = "gen9_reduce_mean";
+                kernel_names[4] = "gen9_reduce_variance";
+            }
         }
 
         std::vector<compute::kernel_t> kernels;
@@ -99,10 +109,15 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         CHECK(status);
 
         kernel_ = kernels[0];
-        calculate_mean_kernel_ = kernels[1];
-        calculate_variance_kernel_ = kernels[2];
-        reduce_mean_kernel_ = kernels[3];
-        reduce_variance_kernel_ = kernels[4];
+        if (pd()->conf.use_stats_one_pass) {
+            calculate_mean_var_kernel_ = kernels[1];
+            reduce_mean_var_kernel_ = kernels[2];
+        } else {
+            calculate_mean_kernel_ = kernels[1];
+            calculate_variance_kernel_ = kernels[2];
+            reduce_mean_kernel_ = kernels[3];
+            reduce_variance_kernel_ = kernels[4];
+        }
 
         return status::success;
     }
@@ -119,6 +134,8 @@ private:
     compute::kernel_t reduce_mean_kernel_;
     compute::kernel_t calculate_variance_kernel_;
     compute::kernel_t reduce_variance_kernel_;
+    compute::kernel_t calculate_mean_var_kernel_;
+    compute::kernel_t reduce_mean_var_kernel_;
 };
 
 struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {

@@ -161,6 +161,12 @@ set(DNNL_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
     Linux distributive maintainer) one may want to specify DNNL_ARCH_OPT_FLAGS=\"\"
     to not use any host specific instructions")
 
+option(DNNL_EXPERIMENTAL
+    "Enables experimental features in oneDNN.
+    When enabled, each experimental feature has to be individually selected
+    using environment variables."
+    OFF) # disabled by default
+
 # ======================
 # Profiling capabilities
 # ======================

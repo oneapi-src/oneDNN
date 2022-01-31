@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -108,6 +108,9 @@
 
 // When defined, stack checker is enabled.
 #cmakedefine DNNL_ENABLE_STACK_CHECKER
+
+// When defined, experimental features are enabled.
+#cmakedefine DNNL_EXPERIMENTAL
 
 // List of configurating build controls
 // Workload controls
