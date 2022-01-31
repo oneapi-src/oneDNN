@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -462,6 +462,10 @@ public:
         return to_cpp<int>(find_loop(var).bound());
     }
 
+    void set_var_bound(const expr_t &var, int bound) {
+        return find_loop(var).set_bound(bound);
+    }
+
     // Splits loop defined by `var` into two new loops based on `factor`.
     // Before:
     //     for (int var = 0; var < I; var++) { ... }
@@ -613,6 +617,13 @@ public:
         init_problem_tiles();
         init_constraint_set();
         is_finalized_ = true;
+    }
+
+    template <typename F>
+    void for_each_var(const F &f) const {
+        for (auto &kv : loops_) {
+            f(kv.first);
+        }
     }
 
     expr_t expand(const expr_t &e, bool expand_trivial_vars = true) const {

@@ -727,27 +727,6 @@ public:
         return true;
     }
 
-    // Returns true if the layout has at least n inner blocks. For example:
-    // NChw32n16c - 2 inner blocks.
-    bool is_n_blocked(int n) const {
-        int block_count[layout_t::max_ndims] = {0};
-        for (auto &b : blocks_)
-            block_count[b.dim_idx]++;
-
-        int ninner_blocks = 0;
-        stride_t stride = 1;
-        for (auto &b : blocks_) {
-            if (b.stride != stride) break; // Not dense anymore.
-            if (block_count[b.dim_idx] == 1) break; // Outer block.
-            stride *= b.block;
-            ir_assert(block_count[b.dim_idx] > 1);
-            block_count[b.dim_idx]--;
-            ninner_blocks++;
-        }
-
-        return ninner_blocks >= n;
-    }
-
     layout_t innermost_block_layout() const {
         int block_count[layout_t::max_ndims] = {0};
         for (auto &b : blocks_)
