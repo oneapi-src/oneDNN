@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "common/memory_tracking.hpp"
 
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -44,6 +45,9 @@ struct _jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
 private:
     constexpr static int isa_simd_width_
             = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
+    using Vmm_down_t =
+            typename utils::conditional<std::is_same<Vmm, Xbyak::Zmm>::value,
+                    Xbyak::Ymm, Xbyak::Xmm>::type;
     const int ic_sub_step = 4;
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core, Vmm>>
             postops_injector_;
@@ -101,6 +105,7 @@ private:
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask kblend_mask = Xbyak::Opmask(3);
     const Xbyak::Opmask postops_mask = Xbyak::Opmask(4);
+    const Xbyak::Opmask ktail_mask_extended = Xbyak::Opmask(5);
 
     const Vmm vmm_wei = Vmm(31);
     /* used during bias section of store_output */
@@ -123,6 +128,15 @@ private:
     const Vmm vmm_zp = Vmm(25);
     const Vmm vmm_zp_one = Vmm(26);
     const Vmm vmm_zp_tmp = vmm_zp;
+
+    /* bf16 emulation */
+    Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);
+    Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(27);
+    Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(28);
+    Xbyak::Zmm bf16_emu_reserv_4 = Xbyak::Zmm(30);
+    // bf16_emu_reserv_5 not required when only computing vcvtneps2bf16()
+    const Xbyak::Reg64 bf16_emu_scratch = aux_reg_ker;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     /* registers use only for depthwise
        groups are always blocked by 16(padded if needed),
@@ -185,6 +199,30 @@ private:
                         utils::div_up(
                                 pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1),
                                 jcp.stride_w));
+    }
+
+    // bf16 utils
+    int get_src_down_idx(int nb_x_blocking) {
+        int idx = nb_x_blocking * jcp.ur_w;
+        assert(idx < 31);
+        return idx;
+    }
+    inline Vmm maybe_mask_vmm(Vmm vmm, bool mask_flag) {
+        return mask_flag ? vmm | ktail_mask_extended : vmm;
+    }
+    inline Vmm_down_t maybe_mask_vmm_down(Vmm_down_t vmm, bool mask_flag) {
+        return (mask_flag) ? vmm | ktail_mask : vmm;
+    }
+    inline void store_bf16(Xbyak::Address addr, int vmm_dst_idx,
+            int vmm_down_idx, bool mask_flag) {
+        auto vmm_down = Vmm_down_t(vmm_down_idx);
+        bf16_emu_->vcvtneps2bf16(
+                Xbyak::Ymm(vmm_down_idx), Xbyak::Zmm(vmm_dst_idx));
+
+        // for xmm, upper half is zero after conversion to
+        // bf16, so mask always & mask for tails
+        vmovdqu16(addr,
+                maybe_mask_vmm_down(vmm_down, mask_flag || jcp.simd_w == 4));
     }
 
     void prepare_output(int ur_w);

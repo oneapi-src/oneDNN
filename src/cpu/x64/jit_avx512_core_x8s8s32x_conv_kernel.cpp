@@ -80,6 +80,10 @@ _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::_jit_avx512_core_x8s8s32x_fwd_kernel(
                 injector::jit_uni_postops_injector_t<avx512_core, Vmm>>(
                 this, jcp.post_ops, static_params);
     }
+    if (!isa_has_bf16(jcp.isa) && jcp.dst_dt == data_type::bf16)
+        bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
+                bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
+                bf16_emu_scratch, bf16_emu_reserv_4, bf16_emu_reserv_4);
 }
 
 template <typename Vmm>
@@ -116,16 +120,20 @@ Zmm _jit_avx512_core_x8s8s32x_fwd_kernel<Zmm>::vmm_mask(
 template <typename Vmm>
 void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::cvt2ps(data_type_t type_in,
         const Vmm vmm_in, const Operand &op, bool mask_flag) {
-    //const Vmm vmm = mask_flag ? vmm_in | ktail_mask | T_z : vmm_in;
+    using namespace data_type;
     const Vmm vmm = vmm_mask(vmm_in, mask_flag);
     switch (type_in) {
-        case data_type::f32:
-        case data_type::s32: vmovups(vmm, op); break;
-        case data_type::s8: vpmovsxbd(vmm, op); break;
-        case data_type::u8: vpmovzxbd(vmm, op); break;
+        case f32:
+        case s32: vmovups(vmm, op); break;
+        case bf16:
+            vpmovzxwd(vmm, op);
+            vpslld(vmm_in, vmm_in, 16);
+            break;
+        case s8: vpmovsxbd(vmm, op); break;
+        case u8: vpmovzxbd(vmm, op); break;
         default: assert(!"unsupported data type");
     }
-    if (type_in != data_type::f32) vcvtdq2ps(vmm_in, vmm_in);
+    if (one_of(type_in, s32, s8, u8)) vcvtdq2ps(vmm_in, vmm_in);
 }
 
 template <typename F>
@@ -334,23 +342,68 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
         }
     }
 
+    if (!isa_has_bf16(jcp.isa) && jcp.dst_dt == data_type::bf16)
+        bf16_emu_->init_vcvtneps2bf16();
+
     /* write out register to output_addr */
-    for (int k = 0; k < nb_oc_block; k++) {
-        const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
+    if (jcp.dst_dt == data_type::bf16 && isa_has_bf16(jcp.isa)) {
+        // Optimization: use single store instruction for pair of the
+        // nearest vectors along OC dimension
         for (int j = 0; j < ur_w; j++) {
-            int aux_output_offset = jcp.typesize_out
-                    * (k * oc_block + j * jcp.oc_without_padding * jcp.ngroups);
-            auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
+            int k = 0;
+            for (; k < rnd_dn(nb_oc_block, 2); k += 2) {
+                Vmm vmm = vmm_out(j, k);
+                Vmm vmm_next = vmm_out(j, k + 1);
 
-            Vmm vmm = vmm_out(j, k);
-            const Vmm r_vmm = vmm_mask(vmm, mask_flag, true);
+                int aux_output_offset = jcp.typesize_out
+                        * (k * oc_block
+                                + j * jcp.oc_without_padding * jcp.ngroups);
+                auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
 
-            switch (jcp.dst_dt) {
-                case data_type::f32:
-                case data_type::s32: vmovups(addr, r_vmm); break;
-                case data_type::s8: vpmovsdb(addr, r_vmm); break;
-                case data_type::u8: vpmovusdb(addr, r_vmm); break;
-                default: assert(!"unknown dst_dt");
+                vcvtne2ps2bf16(vmm, vmm_next, vmm);
+                // mask only needed for last oc_block
+                const bool mask_flag
+                        = last_oc_block_flag && k + 2 == nb_oc_block;
+
+                vmovdqu16(addr, maybe_mask_vmm(vmm, mask_flag));
+            }
+            if (nb_oc_block % 2 != 0) {
+                Vmm vmm = vmm_out(j, k);
+                auto vmm_down = Vmm_down_t(vmm.getIdx());
+                int aux_output_offset = jcp.typesize_out
+                        * (k * oc_block
+                                + j * jcp.oc_without_padding * jcp.ngroups);
+                auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
+                vcvtneps2bf16(vmm_down, vmm);
+                // for xmm, upper half is zero after conversion to
+                // bf16, so mask always & mask for tails
+                bool mask_flag = jcp.simd_w == 4 || last_oc_block_flag;
+                vmovdqu16(addr, maybe_mask_vmm_down(vmm_down, mask_flag));
+            }
+        }
+    } else {
+        for (int k = 0; k < nb_oc_block; k++) {
+            const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
+            for (int j = 0; j < ur_w; j++) {
+                int aux_output_offset = jcp.typesize_out
+                        * (k * oc_block
+                                + j * jcp.oc_without_padding * jcp.ngroups);
+                auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
+
+                Vmm vmm = vmm_out(j, k);
+                const Vmm r_vmm = vmm_mask(vmm, mask_flag, true);
+
+                switch (jcp.dst_dt) {
+                    case data_type::f32:
+                    case data_type::s32: vmovups(addr, r_vmm); break;
+                    case data_type::s8: vpmovsdb(addr, r_vmm); break;
+                    case data_type::u8: vpmovusdb(addr, r_vmm); break;
+                    case data_type::bf16:
+                        store_bf16(addr, vmm.getIdx(),
+                                get_src_down_idx(nb_oc_block), mask_flag);
+                        break;
+                    default: assert(!"unknown dst_dt");
+                }
             }
         }
     }
@@ -918,7 +971,8 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
         // and/or saturation, we increment by one more
         if (jcp.signed_input || jcp.need_saturation) ++idx;
 
-        assert(IMPLICATION(!is_zero_point, idx == ker_dw_reg_base_idx));
+        assert(IMPLICATION(!is_zero_point && jcp.dst_dt != data_type::bf16,
+                idx == ker_dw_reg_base_idx));
     }
     if (!jcp.is_depthwise && (!jcp.has_vnni)) {
         xor_(reg_scratch, reg_scratch);
@@ -949,6 +1003,11 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
     mov(reg_out, ptr[param1 + GET_OFF(dst)]);
     mov(reg_ker, ptr[param1 + GET_OFF(filt)]);
 
+    if (jcp.simd_w == 4 && jcp.dst_dt == data_type::bf16) {
+        auto reg_tail_32 = reg_oi.cvt32();
+        mov(reg_tail_32, (1 << jcp.simd_w) - 1);
+        kmovb(ktail_mask, reg_tail_32);
+    }
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.oc_without_padding != jcp.oc) {
         int tail_size = jcp.is_depthwise
                 ? jcp.ngroups % jcp.ch_block
@@ -959,6 +1018,17 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
         mov(regw_tmp, mask);
         kmovw(ktail_mask, regw_tmp);
         kmovw(postops_mask, regw_tmp);
+
+        // To account for special store optimization, where two oc_blocks are
+        // combined with one single write, extend the mask for 32bits (32 bf16s)
+        const int nb_block
+                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
+        const bool need_extended_mask = jcp.dst_dt == data_type::bf16
+                && isa_has_bf16(jcp.isa) && nb_block > 1;
+        if (need_extended_mask) {
+            mov(regw_tmp, (1 << (tail_size + jcp.simd_w)) - 1);
+            kmovd(ktail_mask_extended, regw_tmp);
+        }
     } else if (jcp.with_binary)
         if (jcp.oc_block != isa_simd_width_) {
             const int mask = (1 << jcp.oc_block) - 1;
@@ -1289,7 +1359,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                 && one_of(src_d.data_type(), data_type::u8, data_type::s8)
                 && weights_d.data_type() == data_type::s8
                 && one_of(dst_d.data_type(), data_type::f32, data_type::s32,
-                        data_type::s8, data_type::u8)))
+                        data_type::s8, data_type::u8, data_type::bf16)))
         return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
@@ -1338,6 +1408,10 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.need_saturation = utils::one_of(dst_d.data_type(), u8, s8, s32);
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
 
+    // Used for bfloat16 output
+    jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                        : bf16_emulation_t::get_isa();
+
     if (jcp.is_depthwise && is_3d)
         // NOTE: 3D depthwise is not currently supported here.
         return status::unimplemented;
@@ -1370,6 +1444,8 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             return status::unimplemented;
     }
 
+    jcp.simd_w = jcp.is_depthwise ? jcp.ch_block : jcp.ic_block;
+
     const auto zp = attr.zero_points_;
     jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);
     jcp.src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);
@@ -1381,18 +1457,23 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
 
     jcp.has_vnni = mayiuse(avx512_core_vnni);
+    const bool bf16_req_extra_regs = cd.dst_desc.data_type == data_type::bf16
+            && !isa_has_bf16(jcp.isa);
     jcp.is_fast_depthwise = true && jcp.is_depthwise && jcp.has_vnni
-            && jcp.ngroups % jcp.ch_block == 0; /* groups not multiple of
+            && jcp.ngroups % jcp.ch_block == 0
+            && !bf16_req_extra_regs; /* groups not multiple of
     ch_block (= 16) would require byte masking for load from src */
 
     jcp.is_resrc_depthwise = jcp.is_depthwise && jcp.stride_w < jcp.kw
             && jcp.kw < 4 && jcp.dilate_w == 0;
+
     if (jcp.is_depthwise) {
         jcp.max_regs_ur = 31 - jcp.is_fast_depthwise - !jcp.is_resrc_depthwise
                 - jcp.signed_input - (!jcp.has_vnni)
-                - (jcp.signed_input || jcp.need_saturation); // both alias
+                - (jcp.signed_input || jcp.need_saturation) // both alias
+                - (bf16_req_extra_regs ? 4 : 0);
     } else {
-        jcp.max_regs_ur = jcp.has_vnni ? 31 : 28;
+        jcp.max_regs_ur = bf16_req_extra_regs ? 26 : jcp.has_vnni ? 31 : 28;
     }
 
     // TODO: re-implement so that the JIT Kernel uses the least amount of
