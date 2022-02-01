@@ -63,10 +63,16 @@ public:
         }
     }
 
+    sycl_memory_arg_t(::sycl::buffer<uint8_t> buf, ::sycl::handler &cgh,
+            size_t offset = 0)
+        : offset_ {offset} {
+        acc_.emplace(buf, cgh);
+    }
+
     template <::sycl::backend be = ::sycl::backend::ext_oneapi_cuda,
             typename T = void>
     T *get_native_pointer(const compat::interop_handle &ih) const {
-        void *raw_ptr;
+        void *raw_ptr = nullptr;
         if (acc_.has_value()) {
             raw_ptr = reinterpret_cast<T *>(
                     reinterpret_cast<uint8_t *>(
