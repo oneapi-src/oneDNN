@@ -72,6 +72,10 @@ _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::
                 injector::jit_uni_postops_injector_t<avx512_core, Vmm>>(
                 this, jcp.post_ops, static_params);
     }
+    if (jcp.dst_dt == data_type::bf16 && !isa_has_bf16(jcp.isa))
+        bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
+                bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
+                bf16_emu_reserv_4, bf16_emu_reserv_5, bf16_emu_reserv_5);
 }
 
 template <typename Vmm>
@@ -128,15 +132,20 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::bcast_loop(
 template <typename Vmm>
 void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::cvt2ps(data_type_t type_in,
         const Vmm vmm_in, const Xbyak::Operand &op, bool mask_flag) {
+    using namespace data_type;
     const Vmm vmm = mask_flag ? vmm_in | k_load_dim_mask | T_z : vmm_in;
     switch (type_in) {
-        case data_type::f32:
-        case data_type::s32: vmovups(vmm, op); break;
-        case data_type::s8: vpmovsxbd(vmm, op); break;
-        case data_type::u8: vpmovzxbd(vmm, op); break;
+        case f32:
+        case s32: vmovups(vmm, op); break;
+        case bf16: vpmovzxwd(vmm, op); break;
+        case s8: vpmovsxbd(vmm, op); break;
+        case u8: vpmovzxbd(vmm, op); break;
         default: assert(!"unsupported data type");
     }
-    if (type_in != data_type::f32) vcvtdq2ps(vmm_in, vmm_in);
+    if (one_of(type_in, s32, s8, u8))
+        vcvtdq2ps(vmm_in, vmm_in);
+    else if (type_in == bf16)
+        vpslld(vmm_in, vmm_in, 16);
 }
 
 template <typename F>
@@ -440,25 +449,62 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
             }
         }
 
-        // store to the destination
-        for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-            const bool mask_flag = mask_flag_in && i_load == load_loop_blk - 1;
-            for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                auto r = vreg_accum(load_loop_blk, i_load, i_ur);
-                const Vmm r_vmm = mask_flag ? r | k_load_dim_mask : r;
+        if (jcp.dst_dt == data_type::bf16 && !isa_has_bf16(jcp.isa))
+            bf16_emu_->init_vcvtneps2bf16();
 
-                switch (jcp.dst_dt) {
-                    case data_type::f32:
-                    case data_type::s32:
-                        vmovups(output_ptr(i_load, i_ur), r_vmm);
-                        break;
-                    case data_type::s8:
-                        vpmovsdb(output_ptr(i_load, i_ur), r_vmm);
-                        break;
-                    case data_type::u8:
-                        vpmovusdb(output_ptr(i_load, i_ur), r_vmm);
-                        break;
-                    default: assert(!"unknown dst_dt");
+        // store to the destination
+        if (jcp.dst_dt == data_type::bf16 && isa_has_bf16(jcp.isa)) {
+            // Optimization: use single store instruction for pair
+            // of the nearest vectors along LOAD dimension
+            for (int i_ur = 0; i_ur < ur; i_ur++) {
+                int i_load = 0;
+                for (; i_load < rnd_dn(load_loop_blk, 2); i_load += 2) {
+                    auto vmm_dst = vreg_accum(load_loop_blk, i_load, i_ur);
+                    auto vmm_dst_next
+                            = vreg_accum(load_loop_blk, i_load + 1, i_ur);
+                    vcvtne2ps2bf16(vmm_dst, vmm_dst_next, vmm_dst);
+                    bool mask_flag
+                            = mask_flag_in && i_load + 2 == load_loop_blk;
+                    vmovdqu16(output_ptr(i_load, i_ur),
+                            maybe_mask_vmm(vmm_dst, mask_flag));
+                }
+                if (load_loop_blk % 2 != 0) {
+                    auto vmm_accum = vreg_accum(load_loop_blk, i_load, i_ur);
+                    auto vmm_down = Vmm_down_t(vmm_accum.getIdx());
+                    vcvtneps2bf16(vmm_down, vmm_accum);
+                    vmovdqu16(output_ptr(i_load, i_ur),
+                            maybe_mask_vmm_down(vmm_down,
+                                    jcp.ic_block == 4 || mask_flag_in));
+                }
+            }
+        } else {
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                const bool mask_flag
+                        = mask_flag_in && i_load == load_loop_blk - 1;
+                for (int i_ur = 0; i_ur < ur; ++i_ur) {
+                    auto r = vreg_accum(load_loop_blk, i_load, i_ur);
+                    const Vmm r_vmm = mask_flag ? r | k_load_dim_mask : r;
+
+                    switch (jcp.dst_dt) {
+                        case data_type::f32:
+                        case data_type::s32:
+                            vmovups(output_ptr(i_load, i_ur), r_vmm);
+                            break;
+                        case data_type::s8:
+                            vpmovsdb(output_ptr(i_load, i_ur), r_vmm);
+                            break;
+                        case data_type::u8:
+                            vpmovusdb(output_ptr(i_load, i_ur), r_vmm);
+                            break;
+                        case data_type::bf16: {
+                            bf16_emu_->vcvtneps2bf16(
+                                    ymm_store, Zmm(r.getIdx()));
+                            vmovdqu16(output_ptr(i_load, i_ur),
+                                    maybe_mask_vmm_down(vmm_store(),
+                                            jcp.ic_block == 4 || mask_flag));
+                        } break;
+                        default: assert(!"unknown dst_dt");
+                    }
                 }
             }
         }
@@ -612,16 +658,30 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
     mov(reg_reduce_loop_work, ptr[param1 + GET_OFF(reduce_dim)]);
     mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(first_last_flag)]);
 
+    if (jcp.ic_block == 4 && jcp.dst_dt == data_type::bf16) {
+        Reg32 reg_tail_32 = reg_load_dim_tail_mask.cvt32();
+        mov(reg_tail_32, (1 << jcp.ic_block) - 1);
+        kmovb(k_load_dim_tail_mask, reg_tail_32);
+    }
+
     const int load_dim_tail
             = (one_of(jcp.prop_kind, forward_training, forward_inference)
                               ? jcp.oc_without_padding
                               : jcp.load_dim)
             % jcp.load_block;
+    const bool use_extended_mask
+            = jcp.dst_dt == data_type::bf16 && isa_has_bf16(jcp.isa);
     if (load_dim_tail) {
         Reg32 reg_tail_32 = reg_load_dim_tail_mask.cvt32();
         mov(reg_tail_32, (1 << load_dim_tail) - 1);
         kmovw(k_load_dim_tail_mask, reg_tail_32);
         kmovw(postops_mask, reg_tail_32);
+
+        if (use_extended_mask) {
+            mov(reg_tail_32.cvt32(),
+                    (1 << (load_dim_tail + jcp.load_block)) - 1);
+            kmovd(k_load_dim_tail_mask_extended, reg_tail_32.cvt32());
+        }
     } else if (jcp.with_binary)
         if (jcp.oc_block != isa_simd_width_) {
             const int mask = (1 << jcp.oc_block) - 1;
@@ -633,14 +693,22 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
     auto load_loop_body = [=](int load_loop_blk) {
         if (load_dim_tail) {
             kxnorw(k_load_dim_mask, k_load_dim_mask, k_load_dim_mask);
+            if (use_extended_mask)
+                kxnord(k_load_dim_mask_extended, k_load_dim_mask_extended,
+                        k_load_dim_mask_extended);
             Label no_update_mask;
             test(reg_reduce_pos_flag, FLAG_OC_LAST);
             jz(no_update_mask, T_NEAR);
             cmp(reg_load_loop_work, load_loop_blk * jcp.load_loop_iter_step);
             jg(no_update_mask, T_NEAR);
             kmovw(k_load_dim_mask, k_load_dim_tail_mask);
+            if (use_extended_mask)
+                kmovd(k_load_dim_mask_extended, k_load_dim_tail_mask_extended);
             L(no_update_mask);
+        } else if (jcp.ic_block == 4 && jcp.dst_dt == data_type::bf16) {
+            kmovw(k_load_dim_mask, k_load_dim_tail_mask);
         }
+
         bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
         if (jcp.with_bias) {
@@ -749,6 +817,10 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
 
     if (!mayiuse(avx512_core)) return status::unimplemented;
 
+    // used for bf16 output
+    jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                        : bf16_emulation_t::get_isa();
+
     const memory_desc_wrapper src_d(src_md);
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
@@ -758,7 +830,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     if (!one_of(src_d.data_type(), data_type::u8, data_type::s8)
             || weights_d.data_type() != data_type::s8
             || !one_of(dst_d.data_type(), data_type::f32, data_type::s32,
-                    data_type::s8, data_type::u8))
+                    data_type::s8, data_type::u8, data_type::bf16))
         return status::unimplemented;
 
     jcp.nthr = nthreads;
@@ -946,10 +1018,12 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
             = platform::get_per_core_cache_size(2) / sizeof(jcp.typesize_in);
     const int L2_capacity = (L2_size * 3) / 4;
 
-    int size_treshold = 28;
+    const bool req_extra_bf16_regs
+            = jcp.dst_dt == data_type::bf16 && !isa_has_bf16(jcp.isa);
+    int size_treshold = req_extra_bf16_regs ? 25 : 28;
     int max_regs = 0;
     int min_regs = 6;
-    if (jcp.has_vnni)
+    if (jcp.has_vnni && !req_extra_bf16_regs)
         max_regs = ((jcp.oh > size_treshold && jcp.ow > size_treshold)
                            && (jcp.oc < 128 || jcp.ic < 128))
                 ? min_regs

@@ -66,7 +66,8 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(
                                     weights_md(1)->data_type, f32, s32, s8, u8))
-                    && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
+                    && utils::one_of(
+                            dst_md(0)->data_type, f32, s32, s8, u8, bf16)
                     && desc()->accum_data_type == s32
                     && attr()->has_default_values(smask_t::oscale
                                     | smask_t::zero_points_runtime

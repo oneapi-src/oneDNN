@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "common/memory_tracking.hpp"
 
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -41,6 +42,9 @@ struct _jit_avx512_core_x8s8s32x_1x1_conv_kernel : public jit_generator {
 private:
     constexpr static int isa_simd_width_
             = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
+    using Vmm_down_t =
+            typename utils::conditional<std::is_same<Vmm, Xbyak::Zmm>::value,
+                    Xbyak::Ymm, Xbyak::Xmm>::type;
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core, Vmm>>
             postops_injector_;
 
@@ -73,8 +77,10 @@ private:
     const Xbyak::Reg64 reg_load_dim_tail_mask = reg_scratch;
 
     const Xbyak::Opmask k_load_dim_mask = Xbyak::Opmask(2);
-    const Xbyak::Opmask k_load_dim_tail_mask = Xbyak::Opmask(3);
-    const Xbyak::Opmask postops_mask = Xbyak::Opmask(4);
+    const Xbyak::Opmask k_load_dim_mask_extended = Xbyak::Opmask(3);
+    const Xbyak::Opmask k_load_dim_tail_mask = Xbyak::Opmask(4);
+    const Xbyak::Opmask k_load_dim_tail_mask_extended = Xbyak::Opmask(5);
+    const Xbyak::Opmask postops_mask = Xbyak::Opmask(6);
     const Xbyak::Opmask vmask = k7;
 
     const Vmm vmm_tmp = Vmm(28);
@@ -87,6 +93,16 @@ private:
     /* zero-point */
     const Vmm vmm_zp = Vmm(30);
     const Vmm vmm_zp_tmp = vmm_zp;
+
+    /* bfloat16 */
+    const Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(25);
+    const Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(26);
+    const Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(27);
+    const Xbyak::Reg64 bf16_emu_reserv_4 = imm_addr64;
+    const Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(28);
+    const Xbyak::Ymm ymm_store = Xbyak::Ymm(31);
+
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     constexpr static int reg64_size_ = sizeof(int64_t);
     constexpr static int bcast_loop_work_off = 0;
@@ -102,6 +118,14 @@ private:
     constexpr static int reg_binary_post_op_acc_off = 10 * reg64_size_;
     constexpr static int reg_abi_param1_backup = 11 * reg64_size_;
     constexpr static int stack_space_needed = 12 * reg64_size_;
+
+    inline Vmm maybe_mask_vmm(Vmm vmm, bool mask_flag) {
+        return mask_flag ? vmm | k_load_dim_mask_extended : vmm;
+    }
+    inline Vmm_down_t maybe_mask_vmm_down(Vmm_down_t vmm_down, bool mask_flag) {
+        return mask_flag ? vmm_down | k_load_dim_mask : vmm_down;
+    }
+    inline Vmm_down_t vmm_store() { return Vmm_down_t(ymm_store.getIdx()); };
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
