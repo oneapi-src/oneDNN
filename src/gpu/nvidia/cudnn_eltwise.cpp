@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "sycl/sycl_buffer_memory_storage.hpp"
+#include "sycl_cuda_memory_storage_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,8 +34,8 @@ status_t cudnn_eltwise_fwd_t::execute(const exec_ctx_t &ctx) const {
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-        auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
+        auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+        auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             std::vector<void *> args;
@@ -43,8 +44,8 @@ status_t cudnn_eltwise_fwd_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            args.push_back(sc.memory<void *>(ih, src_acc));
-            args.push_back(sc.memory<void *>(ih, dst_acc));
+            args.push_back(arg_src.get_native_pointer(ih));
+            args.push_back(arg_dst.get_native_pointer(ih));
 
             pd()->eltwise_fwd_impl_->execute(handle, args.data(), args.size());
         });
@@ -59,9 +60,9 @@ status_t cudnn_eltwise_bwd_t::execute(const exec_ctx_t &ctx) const {
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-        auto diff_dst_acc = CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST);
-        auto diff_src_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_SRC);
+        auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+        auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
+        auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             std::vector<void *> args;
@@ -70,9 +71,9 @@ status_t cudnn_eltwise_bwd_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            args.push_back(sc.memory<void *>(ih, src_acc));
-            args.push_back(sc.memory<void *>(ih, diff_dst_acc));
-            args.push_back(sc.memory<void *>(ih, diff_src_acc));
+            args.push_back(arg_src.get_native_pointer(ih));
+            args.push_back(arg_diff_dst.get_native_pointer(ih));
+            args.push_back(arg_diff_src.get_native_pointer(ih));
 
             pd()->eltwise_bwd_impl_->execute(handle, args.data(), args.size());
         });
