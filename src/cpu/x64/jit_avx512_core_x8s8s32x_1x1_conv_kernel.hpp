@@ -84,8 +84,6 @@ private:
     const Vmm vmm_prev_dst = Vmm(30);
     const Vmm vmm_shift = Vmm(30);
     const Vmm vmm_bcast = Vmm(31);
-    const Vmm vmm_bias_alpha = Vmm(31);
-    const Xbyak::Xmm xmm_bias_alpha = Xbyak::Xmm(31);
     /* zero-point */
     const Vmm vmm_zp = Vmm(30);
     const Vmm vmm_zp_tmp = vmm_zp;
