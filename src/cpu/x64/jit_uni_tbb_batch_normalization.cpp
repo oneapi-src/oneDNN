@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,6 +43,10 @@ using namespace Xbyak;
 using acc_data_t = float;
 
 constexpr int bits_per_byte = 8;
+
+bool normalize_only(const batch_normalization_pd_t *bdesc) {
+    return bdesc->stats_is_src() && bdesc->is_fwd();
+}
 
 dim_t get_c_padded(const batch_normalization_pd_t *bdesc) {
     return bdesc->src_md()->padded_dims[1];
@@ -723,7 +727,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
 
     struct call_params_t {
         size_t N, C, S;
-        const void *src, *dst;
+        const void *src;
+        void *dst;
         const uint8_t *ws;
         const acc_data_t *mean, *var;
         const acc_data_t *scale, *shift;
@@ -885,35 +890,6 @@ struct jit_bnorm_fwd_t : public jit_generator {
         }
     }
 
-    void compute_nspc(bool stream_store_allowed) {
-        Label label_C, label_S;
-        mov(reg_S_, dword[PARAM_ADDR(S)]);
-        L(label_S);
-        {
-            mov(reg_off_dat_, reg_off_dat_save_);
-            xor_(reg_off_c_, reg_off_c_);
-
-            mov(reg_C_, dword[PARAM_ADDR(C)]);
-            L(label_C);
-            {
-                load_c_specifics();
-
-                compute_bnorm(stream_store_allowed);
-
-                add(reg_off_c_, simd_w * acc_type_size_);
-                add(reg_off_dat_, stride_C_ * data_type_size_);
-
-                dec(reg_C_);
-                jnz(label_C);
-            }
-
-            add(reg_off_dat_save_, stride_S_ * data_type_size_);
-
-            dec(reg_S_);
-            jnz(label_S);
-        }
-    }
-
     void compute(bool stream_store_allowed) {
         Label label_N;
         mov(reg_N_, ptr[rsp + stack_off_N]);
@@ -926,9 +902,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
             xor_(reg_off_dat_save_, reg_off_dat_save_);
             xor_(reg_off_c_, reg_off_c_);
 
-            tag_kind_ == jit_memory_tag_kind_t::nspc
-                    ? compute_nspc(stream_store_allowed)
-                    : compute_blocked(stream_store_allowed);
+            compute_blocked(stream_store_allowed);
 
             if (isa == sse41 && tag_kind_ == jit_memory_tag_kind_t::blocked) {
                 xor_(reg_off_dat_save_, reg_off_dat_save_);
@@ -1701,11 +1675,20 @@ public:
                 : working_set_size * C_blks_ >= l3_size / 2 && l3_size > 0;
 
         if (tag_kind_ == jit_memory_tag_kind_t::nspc) {
-            C_blk_step_ = C_blks_;
+            if (normalize_only(bdesc_)) {
+                // blocks have to fit in a 4rth of L1 so that they don't get evicted
+                // There are at most 6 tensors: src, dst, mean, var, scale, shift
+                dim_t n_tensors = 2 + bdesc_->use_scale() + bdesc_->use_shift()
+                        + 2 * bdesc_->use_scaleshift();
+                C_blk_step_ = utils::saturate<dim_t>(1, C_blks_,
+                        platform::get_per_core_cache_size(1)
+                                / get_vlen<isa>(jit_memory_tag_kind_t::nspc)
+                                / n_tensors);
+            } else
+                C_blk_step_ = C_blks_;
         } else {
-            C_blk_step_ = l3_size / working_set_size;
-            C_blk_step_ = nstl::max<dim_t>(C_blk_step_, 1);
-            C_blk_step_ = nstl::min<dim_t>(C_blk_step_, C_blks_);
+            C_blk_step_ = utils::saturate<dim_t>(
+                    1, C_blks_, l3_size / working_set_size);
         }
     }
 
@@ -1852,7 +1835,6 @@ public:
             c.N = stop.N - start.N;
             c.C = stop.C - start.C;
             c.S = stop.S - start.S;
-
             const size_t d_off = start.N * stride_N + start.C * stride_C
                     + start.S * stride_S;
             c.src = (void *)((char *)src + d_off * dt_size_);
@@ -1899,7 +1881,6 @@ public:
                         mean + C_blk_st * simd_w, var + C_blk_st * simd_w, rbuf,
                         (C_blk_st + C_blk_step) * simd_w > C_);
             }
-
             exec_fwd_step_normalization(C_blk_step, nthr,
                     (void *)((char *)src + (C_blk_st * stride_C) * dt_size_),
                     (void *)((char *)dst + (C_blk_st * stride_C) * dt_size_),
@@ -2100,27 +2081,60 @@ private:
                 || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
+    void thread_distribution_nspc(dim_t C_blks, bnorm_dims_t &nthr) {
+        if (normalize_only(bdesc_)) {
+            // We want to keep some granularity on S so that we can
+            // stay on 1 socket if possible, this is why we divide
+            // work in chunks fitting in L2
+
+            dim_t n_stats_ss_tensors = bdesc_->use_scale() + bdesc_->use_shift()
+                    + 2 * bdesc_->use_scaleshift();
+            dim_t size_stats_ss_tensors = n_stats_ss_tensors
+                    * get_c_padded(bdesc_) * sizeof(acc_data_t);
+
+            dim_t size_src_dst = 2 * N_ * S_ * get_c_padded(bdesc_)
+                    * types::data_type_size(
+                            bdesc_->desc()->data_desc.data_type);
+
+            dim_t total_size = size_src_dst + size_stats_ss_tensors;
+
+            dim_t n_chunks = total_size / platform::get_per_core_cache_size(2);
+
+            // we prioritize parallelization on N, then S, and finally C
+            nthr.N = utils::saturate<dim_t>(1, N_, n_chunks);
+            nthr.S = utils::saturate<dim_t>(1, S_, n_chunks / nthr.N);
+            nthr.C = utils::saturate<dim_t>(
+                    1, C_blks, n_chunks / (nthr.N * nthr.S));
+        } else {
+            if ((nthr_ <= C_blks && nthr_ == 1) || C_blks <= 8)
+                nthr.C = 1;
+            else if (nthr_ >= 8 && C_blks <= 32)
+                nthr.C = 8;
+            else {
+                nthr.C = math::gcd((dim_t)nthr_, C_blks);
+                // Unroll by channels in JIT kernel
+                if ((nthr.C == C_blks) || (nthr.C == nthr_)) nthr.C = 1;
+            }
+            nthr.N = utils::saturate((dim_t)1, N_, nthr_ / nthr.C);
+            nthr.S = utils::saturate((dim_t)1, S_, nthr_ / (nthr.C * nthr.N));
+        }
+    }
+
     void thread_distribution(dim_t C_blks, bnorm_dims_t &nthr) {
         if (do_blocking_) {
             nthr.N = nstl::min<dim_t>(N_, nthr_);
             nthr.C = nstl::min<dim_t>(C_blks, nthr_ / nthr.N);
+            nthr.S = utils::saturate((dim_t)1, S_, nthr_ / (nthr.C * nthr.N));
         } else {
             if (tag_kind_ == jit_memory_tag_kind_t::nspc) {
-                if ((nthr_ <= C_blks && nthr_ == 1) || C_blks <= 8)
-                    nthr.C = 1;
-                else if (nthr_ >= 8 && C_blks <= 32)
-                    nthr.C = 8;
-                else {
-                    nthr.C = math::gcd((dim_t)nthr_, C_blks);
-                    // Unroll by channels in JIT kernel
-                    if ((nthr.C == C_blks) || (nthr.C == nthr_)) nthr.C = 1;
-                }
+                thread_distribution_nspc(C_blks, nthr);
             } else {
                 nthr.C = math::gcd((dim_t)nthr_, C_blks);
+                nthr.N = utils::saturate((dim_t)1, N_, nthr_ / nthr.C);
+                nthr.S = utils::saturate(
+                        (dim_t)1, S_, nthr_ / (nthr.C * nthr.N));
             }
-            nthr.N = utils::saturate((dim_t)1, N_, nthr_ / nthr.C);
         }
-        nthr.S = utils::saturate((dim_t)1, S_, nthr_ / (nthr.C * nthr.N));
         nthr.glob = nthr.N * nthr.C * nthr.S;
     }
 
