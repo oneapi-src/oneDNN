@@ -106,15 +106,13 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         assert(KD % KD_BLOCK == 0);
         assert(KH % KH_BLOCK == 0);
 
-        for_(int iod = 0; iod < jcp_.od; iod++)
-        {
+        for (int iod = 0; iod < jcp_.od; iod++) {
             const int iid = iod * SD - FP;
             const int kd_s = div_up(max(0, -iid), DD);
             const int kd_f
                     = KD - div_up(max(0, iid - ID + (KD - 1) * DD + 1), DD);
             const auto kd_l = nstl::min(KD_BLOCK, kd_f - kd_s);
-            for_(int ioh = 0; ioh < jcp_.oh; ioh += jcp_.oh_block)
-            {
+            for (int ioh = 0; ioh < jcp_.oh; ioh += jcp_.oh_block) {
 
                 const auto iih = ioh * SH - TP;
                 const auto kh_s
