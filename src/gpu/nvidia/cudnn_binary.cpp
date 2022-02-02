@@ -19,6 +19,9 @@
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "sycl/sycl_buffer_memory_storage.hpp"
+#include "sycl_cuda_helper.hpp"
+
+#include <optional>
 
 namespace dnnl {
 namespace impl {
@@ -33,9 +36,21 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto src_0_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC_0);
-        auto src_1_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC_1);
-        auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
+        auto *mem_src_0 = static_cast<sycl::sycl_memory_storage_base_t *>(
+                &CTX_IN_STORAGE(DNNL_ARG_SRC_0));
+        auto *mem_src_1 = static_cast<sycl::sycl_memory_storage_base_t *>(
+                &CTX_IN_STORAGE(DNNL_ARG_SRC_1));
+        auto *mem_dst = static_cast<sycl::sycl_memory_storage_base_t *>(
+                &CTX_OUT_STORAGE(DNNL_ARG_DST));
+        auto src_0_acc
+                = get_cudnn_accessor<decltype(CTX_IN_ACCESSOR(DNNL_ARG_SRC_0))>(
+                        mem_src_0, cgh);
+        auto src_1_acc
+                = get_cudnn_accessor<decltype(CTX_IN_ACCESSOR(DNNL_ARG_SRC_1))>(
+                        mem_src_1, cgh);
+        auto dst_acc
+                = get_cudnn_accessor<decltype(CTX_OUT_ACCESSOR(DNNL_ARG_DST))>(
+                        mem_dst, cgh);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -43,9 +58,9 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            auto a = sc.memory<void *>(ih, src_0_acc);
-            auto b = sc.memory<void *>(ih, src_1_acc);
-            auto c = sc.memory<void *>(ih, dst_acc);
+            void *a = get_cudnn_ptr(sc, ih, src_0_acc, mem_src_0);
+            void *b = get_cudnn_ptr(sc, ih, src_1_acc, mem_src_1);
+            void *c = get_cudnn_ptr(sc, ih, dst_acc, mem_dst);
 
             pd()->binary_impl_->execute(handle, a, b, c);
         });
