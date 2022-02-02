@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2016-2022 Intel Corporation
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ public:
     const Xbyak_aarch64::PReg P_ALL_ZERO = p10;
     const Xbyak_aarch64::PReg P_NOT_256 = p13;
     const Xbyak_aarch64::PReg P_NOT_128 = p14;
-    const Xbyak_aarch64::PReg P_ALL_ONE = p15;
+    const Xbyak_aarch64::PReg P_ALL_ONE = p7;
 
     const std::vector<Xbyak_aarch64::XReg> x_tmp_vec
             = {X_TMP_0, X_TMP_1, X_TMP_2, X_TMP_3, X_TMP_4};
