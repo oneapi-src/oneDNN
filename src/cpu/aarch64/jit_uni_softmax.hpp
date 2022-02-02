@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2019-2022 Intel Corporation
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
@@ -47,40 +48,63 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_softmax_fwd_t);
 
         status_t init(engine_t *engine) {
-            const memory_desc_wrapper src_d(src_md());
-            const memory_desc_wrapper dst_d(dst_md());
-            auto data_type = src_d.data_type();
             auto is_dense = [&]() {
+                const memory_desc_wrapper src_d(src_md());
                 const auto &bd = src_d.blocking_desc();
 
                 if (!src_d.is_dense(true) || !src_d.only_padded_dim(axis()))
                     return false;
 
+                if (src_d.is_plain()) return bd.strides[axis()] == 1;
+
                 // It is fine to use float here as the kernel uses halfs of
                 // vector registers.
                 const auto blk_size = cpu_isa_traits<isa>::vlen / sizeof(float);
-                if (src_d.is_plain())
-                    return bd.strides[axis()] == 1;
-                else {
-                    // 31 is a general limit, 2 is for unroll_regs_ = 4;
-                    const size_t max_stride = (1LL << (31 - 2)) - 1;
-                    const int last_blk = bd.inner_nblks - 1;
-                    return true && bd.inner_blks[last_blk] == blk_size
-                            && bd.inner_idxs[last_blk] == axis()
-                            && sizeof(float) * bd.strides[axis()] < max_stride;
-                }
+                // 31 is a general limit, 2 is for unroll_regs_ = 4;
+                const size_t max_stride = (1LL << (31 - 2)) - 1;
+                const int last_blk = bd.inner_nblks - 1;
+                return bd.inner_blks[last_blk] == blk_size
+                        && bd.inner_idxs[last_blk] == axis()
+                        && sizeof(float) * bd.strides[axis()] < max_stride;
             };
 
             using namespace data_type;
-            bool ok = src_d == dst_d && mayiuse(isa) && is_fwd()
-                    && !has_zero_dim_memory() && data_type == f32
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
+
+            const auto src_dt = src_md()->data_type;
+            const auto dst_dt = dst_md()->data_type;
+            bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
+                    && utils::one_of(src_dt, f32, bf16, s8, u8)
+                    && utils::one_of(dst_dt, f32, bf16, s8, u8)
                     && mayiuse(sve_512)
-                    && is_dense() // not dense impl can be easily done
-                    && attr()->has_default_values();
+                    && attr()->has_default_values(skip_mask_t::oscale)
+                    && attr_oscale_ok()
+                    && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
+
+            ok = memory_desc_wrapper(src_md()).similar_to(
+                         memory_desc_wrapper(dst_md()), true, false, 0)
+                    && is_dense(); // not dense impl can be easily done
+            if (!ok) return status::unimplemented;
+
+            nthr_ = dnnl_get_max_threads();
+            init_scratchpad();
 
             return status::success;
         };
+
+        int nthr_; // To not exceed the limit in execute used for set up.
+
+    private:
+        void init_scratchpad() {
+            if (utils::one_of(
+                        dst_md()->data_type, data_type::u8, data_type::s8)) {
+                auto scratchpad = scratchpad_registry().registrar();
+                scratchpad.template book<char>(
+                        memory_tracking::names::key_softmax_interim_store,
+                        axis_size(true) * sizeof(float) * nthr_);
+            }
+        }
     };
 
     jit_uni_softmax_fwd_t(const pd_t *apd);
@@ -104,11 +128,8 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_softmax_bwd_t);
 
         status_t init(engine_t *engine) {
-            const memory_desc_wrapper dst_d(dst_md());
-            const memory_desc_wrapper diff_dst_d(diff_dst_md());
-            const memory_desc_wrapper diff_src_d(diff_src_md());
-            auto data_type = dst_d.data_type();
             auto is_dense = [&]() {
+                const memory_desc_wrapper dst_d(dst_md());
                 const auto &bd = dst_d.blocking_desc();
 
                 if (!dst_d.is_dense(true) || !dst_d.only_padded_dim(axis()))
@@ -123,18 +144,27 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                     // 31 is a general limit, 2 is for unroll_regs_ = 4;
                     const size_t max_stride = (1LL << (31 - 2)) - 1;
                     const int last_blk = bd.inner_nblks - 1;
-                    return true && bd.inner_blks[last_blk] == blk_size
+                    return bd.inner_blks[last_blk] == blk_size
                             && bd.inner_idxs[last_blk] == axis()
                             && sizeof(float) * bd.strides[axis()] < max_stride;
                 }
             };
 
             using namespace data_type;
-            bool ok = dst_d == diff_dst_d && dst_d == diff_src_d && mayiuse(isa)
-                    && !is_fwd() && !has_zero_dim_memory() && data_type == f32
-                    && mayiuse(sve_512) && set_default_formats_common()
-                    && is_dense() // not dense impl can be easily done
-                    && attr()->has_default_values();
+            bool ok = mayiuse(isa) && !is_fwd() && !has_zero_dim_memory()
+                    && utils::one_of(dst_md()->data_type, f32, bf16)
+                    && utils::one_of(diff_dst_md()->data_type, f32, bf16)
+                    && utils::one_of(diff_src_md()->data_type, f32, bf16)
+                    && mayiuse(sve_512) && attr()->has_default_values()
+                    && set_default_formats() == status::success;
+            if (!ok) return status::unimplemented;
+
+            ok = memory_desc_wrapper(diff_src_md())
+                            .similar_to(memory_desc_wrapper(diff_dst_md()),
+                                    true, false, 0)
+                    && memory_desc_wrapper(diff_dst_md())
+                            == memory_desc_wrapper(dst_md())
+                    && is_dense(); // not dense impl can be easily done
             if (!ok) return status::unimplemented;
 
             return status::success;
