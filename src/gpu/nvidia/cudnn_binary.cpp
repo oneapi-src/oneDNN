@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2022 Intel Corporation
+* Copyright 2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,9 +19,7 @@
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "sycl/sycl_buffer_memory_storage.hpp"
-#include "sycl_cuda_helper.hpp"
-
-#include <optional>
+#include "sycl_cuda_memory_storage_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,21 +34,12 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto *mem_src_0 = static_cast<sycl::sycl_memory_storage_base_t *>(
-                &CTX_IN_STORAGE(DNNL_ARG_SRC_0));
-        auto *mem_src_1 = static_cast<sycl::sycl_memory_storage_base_t *>(
-                &CTX_IN_STORAGE(DNNL_ARG_SRC_1));
-        auto *mem_dst = static_cast<sycl::sycl_memory_storage_base_t *>(
-                &CTX_OUT_STORAGE(DNNL_ARG_DST));
-        auto src_0_acc
-                = get_cudnn_accessor<decltype(CTX_IN_ACCESSOR(DNNL_ARG_SRC_0))>(
-                        mem_src_0, cgh);
-        auto src_1_acc
-                = get_cudnn_accessor<decltype(CTX_IN_ACCESSOR(DNNL_ARG_SRC_1))>(
-                        mem_src_1, cgh);
-        auto dst_acc
-                = get_cudnn_accessor<decltype(CTX_OUT_ACCESSOR(DNNL_ARG_DST))>(
-                        mem_dst, cgh);
+        auto *mem_src_0 = CTX_IN_MEMORY(DNNL_ARG_SRC_0);
+        auto *mem_src_1 = CTX_IN_MEMORY(DNNL_ARG_SRC_1);
+        auto *mem_dst = CTX_OUT_MEMORY(DNNL_ARG_DST);
+        auto src_0_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_SRC_0, mem_src_0);
+        auto src_1_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_SRC_1, mem_src_1);
+        auto dst_acc = CTX_OUT_OPTIONAL_ACCESSOR(DNNL_ARG_DST, mem_dst);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
