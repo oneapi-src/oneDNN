@@ -26,7 +26,7 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace nvidia {
-    
+
 #define CTX_IN_MEMORY(arg) \
     static_cast<sycl::sycl_memory_storage_base_t *>(&CTX_IN_STORAGE(arg))
 
@@ -37,7 +37,7 @@ namespace nvidia {
     get_cudnn_accessor<decltype(CTX_IN_ACCESSOR(arg))>(memory, cgh)
 
 #define CTX_OUT_OPTIONAL_ACCESSOR(arg, memory) \
-    get_cudnn_accessor<decltype(CTX_IN_ACCESSOR(arg))>(memory, cgh)
+    get_cudnn_accessor<decltype(CTX_OUT_ACCESSOR(arg))>(memory, cgh)
 
 template <typename T_acc>
 inline std::optional<T_acc> get_cudnn_accessor(
