@@ -79,7 +79,7 @@ runtime, but sizes specified at creation time:
     ./benchdnn --matmul \
                --cfg=u8s8u8 \
                --wtag=any \
-               --attr-zero-points=src:1*_dst:-2* \
+               --attr-zero-points=src:common:1*+dst:common:-2* \
                10x30:30x20
 ```
 
