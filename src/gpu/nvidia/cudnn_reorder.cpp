@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 
-#include "sycl_cuda_helper.hpp"
+#include "sycl_cuda_memory_storage_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,17 +33,10 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto *mem_src = static_cast<sycl::sycl_memory_storage_base_t *>(
-                &CTX_IN_STORAGE(DNNL_ARG_SRC));
-        auto src_acc
-                = get_cudnn_accessor<decltype(CTX_IN_ACCESSOR(DNNL_ARG_SRC))>(
-                        mem_src, cgh);
-
-        auto *mem_dst = static_cast<sycl::sycl_memory_storage_base_t *>(
-                &CTX_OUT_STORAGE(DNNL_ARG_DST));
-        auto dst_acc
-                = get_cudnn_accessor<decltype(CTX_OUT_ACCESSOR(DNNL_ARG_DST))>(
-                        mem_dst, cgh);
+        auto *mem_src = CTX_IN_MEMORY(DNNL_ARG_SRC);
+        auto *mem_dst = CTX_OUT_MEMORY(DNNL_ARG_DST);
+        auto src_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_SRC, mem_src);
+        auto dst_acc = CTX_OUT_OPTIONAL_ACCESSOR(DNNL_ARG_DST, mem_dst);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
