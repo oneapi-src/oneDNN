@@ -74,7 +74,7 @@ typedef enum {
 
 struct DNNL_API brgemm_attr_t {
     brgemm_attr_t();
-    // if unrollaed kernel is used (use_uker == true)
+    // if unrolled kernel is used (use_uker == true)
     // then "max_bs" is the the only batch size that can be used on kernel call
     // else "max_bs" is the maximum batch size that can be used
     int max_bs;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -105,8 +105,6 @@ status_t DNNL_API brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 /// Adds post-operations to BRGEMM descriptor
 ///
 /// @param brg Output BRGEMM descriptor
-/// @param dst_md Specifies memory descriptor output tensor, needed for binary
-/// postops to determine
 /// @param attr Primitive attributes (can be nullptr). Specifies post-ops
 ///     operations
 /// @param dst_md Specifies the memory descriptor of the destination tensor,
