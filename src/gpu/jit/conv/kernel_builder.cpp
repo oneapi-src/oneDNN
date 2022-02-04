@@ -5177,8 +5177,7 @@ private:
 
         int inner_block = b0.block;
         int max_step = (hw_ >= ngen::HW::XeHPC ? 32 : 16);
-        inner_block = math::gcd(inner_block, max_step);
-        ir_assert(inner_block >= 8) << "At least SIMD8 is expected.";
+        inner_block = std::max(8, math::gcd(inner_block, max_step));
 
         for (auto &kv : args) {
             auto &t = *kv.second;

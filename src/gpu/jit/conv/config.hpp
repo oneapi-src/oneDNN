@@ -1032,6 +1032,10 @@ public:
         return utils::one_of(dst_data_type, data_type::s8, data_type::u8);
     }
     bool is_small_ic() const { return ic < 8; }
+    bool is_mixed_int8() const {
+        return utils::one_of(a_data_type, dnnl_f16, dnnl_f32)
+                && utils::one_of(c_data_type, dnnl_u8, dnnl_s8);
+    }
     bool is_dp_fma() const {
         return utils::one_of(fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw,
                 fma_kind_t::dp4a);
@@ -1420,7 +1424,6 @@ private:
     status_t init_acc_data_type() {
         auto a = a_data_type;
         auto b = b_data_type;
-        auto c = c_data_type;
         acc_data_type = data_type::undef;
         if (utils::one_of(a, data_type::s8, data_type::u8)
                 && utils::one_of(b, data_type::s8, data_type::u8)) {
@@ -1428,7 +1431,7 @@ private:
         } else if (utils::everyone_is(data_type::f16, a, b)
                 || utils::everyone_is(data_type::bf16, a, b)) {
             acc_data_type = data_type::f32;
-        } else if (utils::everyone_is(data_type::f32, a, b, c)) {
+        } else if (utils::everyone_is(data_type::f32, a, b)) {
             acc_data_type = data_type::f32;
         }
         if (acc_data_type == data_type::undef) return status::unimplemented;
@@ -1468,8 +1471,9 @@ private:
         if (fma_kind == fma_kind_t::mad) {
             if (hw < ngen::HW::XeHP) return status::unimplemented;
             if (is_bwd_d) {
-                if (!is_f32_conv()) return status::unimplemented;
                 if (is_small_ic()) return status::unimplemented;
+                if (!is_f32_conv() && !is_mixed_int8())
+                    return status::unimplemented;
                 return status::success;
             }
         }
