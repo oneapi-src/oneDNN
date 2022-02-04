@@ -137,6 +137,9 @@ struct ref_sum_t : public gpu_primitive_t {
             r_ctx.set_scratchpad_grantor(ns.grantor());
             CHECK(reorders_[n]->execute(r_ctx));
         }
+#ifdef DNNL_SYCL_CUDA
+        ctx.stream()->wait();
+#endif
 
         return status::success;
     }
