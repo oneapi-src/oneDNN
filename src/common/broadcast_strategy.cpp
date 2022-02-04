@@ -169,14 +169,14 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
     else if (is_per_mb_w_bcast(mask, dst_d)
             && is_enabled(broadcasting_strategy_t::per_mb_w))
         bcast = broadcasting_strategy_t::per_mb_w;
-    else if (is_per_w_bcast(mask, dst_d)
-            && is_enabled(broadcasting_strategy_t::per_w))
-        bcast = broadcasting_strategy_t::per_w;
     else if (is_per_oc_bcast(mask, rhs_arg_md)
             && (is_enabled(broadcasting_strategy_t::per_oc)
                     || is_enabled(broadcasting_strategy_t::per_oc_spatial))) {
         bcast = get_per_oc_bcast(supported_strategy_set, dst_d);
-    } else if (is_enabled(broadcasting_strategy_t::shared_axes))
+    } else if (is_per_w_bcast(mask, dst_d)
+            && is_enabled(broadcasting_strategy_t::per_w))
+        bcast = broadcasting_strategy_t::per_w;
+    else if (is_enabled(broadcasting_strategy_t::shared_axes))
         bcast = broadcasting_strategy_t::shared_axes;
 
     return bcast;
