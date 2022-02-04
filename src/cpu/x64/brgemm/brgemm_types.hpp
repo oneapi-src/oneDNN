@@ -161,7 +161,7 @@ struct brgemm_t {
     int typesize_bias = 0;
 
     bool is_int8 = false, is_int8_amx = false;
-    bool is_bf16 = false, is_bf16_amx = false;
+    bool is_bf16 = false, is_bf16_amx = false, is_bf16_emu = false;
     bool is_f32 = false;
     bool is_amx = false;
 

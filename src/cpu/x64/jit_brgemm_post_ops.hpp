@@ -25,6 +25,7 @@
 #include "cpu/cpu_engine.hpp"
 
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_brgemm_primitive_conf.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
@@ -308,6 +309,10 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                     injector::jit_uni_postops_injector_t<avx512_core>>(
                     this, attr.post_ops_, bsp, esp);
         }
+        if (brg.is_bf16_emu)
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
+                    bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
+                    bf16_emu_scratch, bf16_emu_reserv_4, bf16_emu_reserv_4);
 
         const auto &oscales = attr.output_scales_;
         is_oc_scale_ = oscales.mask_ == 1 << 1;
@@ -338,6 +343,8 @@ private:
 
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
             postops_injector_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
+
     const bool with_binary_per_oc_bcast_;
 
     int inp_typesize_;
@@ -386,6 +393,13 @@ private:
     constexpr static int reg_zp_a_val_offs_ = 56;
     constexpr static int reg_apply_comp_offs_ = 64;
     constexpr static int stack_space_needed_ = 72;
+
+    /* bf16 emulation */
+    Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(27);
+    Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(24);
+    Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(25);
+    Xbyak::Zmm bf16_emu_reserv_4 = Xbyak::Zmm(26);
+    reg64_t bf16_emu_scratch = rax;
 
     Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
@@ -690,6 +704,8 @@ private:
                     data_type::f32, brg.dt_d);
         }
 
+        if (brg.is_bf16_emu) bf16_emu_->init_vcvtneps2bf16();
+
         for_(int m = 0; m < m_block; m++)
         for (int n = 0; n < n_block; n++) {
             auto zmm = vector(m, n);
@@ -698,8 +714,12 @@ private:
 
             if (out_dt_ == data_type::bf16) {
                 Xbyak::Ymm ymm = Xbyak::Ymm(zmm.getIdx());
-                if (brg.alpha != 0 || (sum_idx != -1 && brg.beta != 0))
-                    vcvtneps2bf16(ymm, zmm);
+                if (brg.alpha != 0 || (sum_idx != -1 && brg.beta != 0)) {
+                    if (brg.is_bf16_emu)
+                        bf16_emu_->vcvtneps2bf16(ymm, zmm);
+                    else
+                        vcvtneps2bf16(ymm, zmm);
+                }
                 const Xbyak::Ymm r_ymm = ymm_mask(ymm, true, true, k_mask);
                 vmovdqu16(addr, r_ymm);
             } else {
@@ -867,7 +887,7 @@ private:
         int nb2_tail = nb % n_block2_;
         int n_block = (nb2 == 0) ? nstl::max(1, nb2_tail) : n_block2_;
 
-        int m_max_regs = 28 / n_block;
+        int m_max_regs = (brg.is_bf16_emu ? 24 : 28) / n_block;
         int m_block = nstl::min(brg.bcast_dim, m_max_regs);
 
         int mb = brg.bcast_dim / m_block;

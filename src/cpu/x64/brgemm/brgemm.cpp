@@ -166,6 +166,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
                                                   ? max_regs
                                                   : max_regs - 1));
         max_block -= req_compensation;
+        if (brg->is_bf16_emu) max_block = nstl::min(max_block, 28);
         max_block /= adj_ld_block;
         int min_block = 1;
         float best_bd_block_eff = 0.f;
@@ -591,7 +592,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
 
     if ((brg->dt_a == data_type::u8 && brg->dt_b == data_type::s8)
             && (!one_of(dt_d, data_type::u8, data_type::s8, data_type::s32,
-                    data_type::f32))
+                    data_type::f32, data_type::bf16))
             && (!one_of(dt_bias, data_type::undef, data_type::u8, data_type::s8,
                     data_type::s32, data_type::f32, data_type::bf16)))
         return status::unimplemented;
@@ -609,8 +610,11 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
     if (!IMPLICATION(
-                brg->is_int8 && brg->dt_d == bf16, mayiuse(avx512_core_bf16)))
+                brg->is_int8 && brg->dt_d == bf16, mayiuse(avx512_core_vnni)))
         return status::unimplemented;
+
+    if (brg->is_int8 && brg->dt_d == bf16)
+        brg->is_bf16_emu = !mayiuse(avx512_core_bf16);
 
     if (!brg->attr) return status::success;
 
@@ -684,7 +688,9 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     init_zp_type(brg->zp_type_c, DNNL_ARG_DST);
 
     // src zero points require additional register in brgemm kernel
-    if (brg->zp_type_a != brgemm_broadcast_t::none) CHECK(brgemm_blocking(brg));
+    if (brg->zp_type_a != brgemm_broadcast_t::none
+            || (brg->is_bf16_emu && !brg->is_dgmm))
+        CHECK(brgemm_blocking(brg));
 
     return status::success;
 }

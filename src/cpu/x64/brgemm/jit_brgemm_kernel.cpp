@@ -24,6 +24,7 @@
 #include "cpu/x64/brgemm/brgemm_types.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 #define GET_OFF(field) offsetof(brgemm_kernel_params_t, field)
@@ -91,6 +92,11 @@ struct jit_brgemm_kernel_t : public jit_generator {
                     || with_binary_channel_bcast_ || with_binary_per_mb_w_bcast_
                     || with_binary_per_w_bcast_ || with_binary_no_bcast_;
         }
+        if (brg.is_bf16_emu)
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
+                    bf16_emu_reserv_1(), bf16_emu_reserv_2(),
+                    bf16_emu_reserv_3(), bf16_emu_scratch, bf16_emu_reserv_4(),
+                    bf16_emu_reserv_4());
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_t)
@@ -100,6 +106,7 @@ struct jit_brgemm_kernel_t : public jit_generator {
 private:
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
             postops_injector_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     using reg64_t = const Xbyak::Reg64;
 
@@ -167,6 +174,9 @@ private:
 
     const reg64_t reg_D = reg_aux_A;
     const reg64_t reg_aux_D = reg_BS_loop;
+
+    /* bf16 emulation */
+    const reg64_t bf16_emu_scratch = reg_rdb_loop;
 
     constexpr static int origin_offs_batch_offs_ = 0;
     constexpr static int origin_strd_batch_offs_ = 0;
@@ -237,6 +247,13 @@ private:
     const Xbyak::Zmm &zmm_tmp_2() const noexcept { return this->zmm1; }
     const Xbyak::Zmm &zmm_tmp_3() const noexcept { return this->zmm2; }
     const Xbyak::Zmm &zmm_inp_shift() const noexcept { return this->zmm1; }
+
+    /* bf16 emulation */
+    const Xbyak::Zmm &bf16_emu_reserv_1() const noexcept { return this->zmm0; }
+    const Xbyak::Zmm &bf16_emu_reserv_2() const noexcept { return this->zmm1; }
+    const Xbyak::Zmm &bf16_emu_reserv_3() const noexcept { return this->zmm2; }
+    const Xbyak::Zmm &bf16_emu_reserv_4() const noexcept { return this->zmm3; }
+    // note: zmm reserv_5 is not necessary since it's only used for 'vdpbf16ps'
 
     Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) const;
@@ -1019,6 +1036,8 @@ void jit_brgemm_kernel_t::store_accumulators_apply_post_ops(
                 zmm_lbound, zmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
     }
 
+    if (brg.is_bf16_emu) bf16_emu_->init_vcvtneps2bf16();
+
     for (int bd = 0; bd < bd_block; bd++) {
         if (dt_requires_saturation) {
             for (int ld = 0; ld < ld_block2; ld++) {
@@ -1036,9 +1055,14 @@ void jit_brgemm_kernel_t::store_accumulators_apply_post_ops(
             switch (brg.dt_d) {
                 case data_type::f32:
                 case data_type::s32: vmovups(addr, r_zmm); break;
-                case data_type::bf16:
-                    vcvtneps2bf16(ymm, zmm);
-                    vmovdqu16(addr, r_ymm);
+                case data_type::bf16: // TODO - clean
+                    if (brg.is_bf16_emu) {
+                        bf16_emu_->vcvtneps2bf16(ymm, zmm);
+                        vmovdqu16(addr, r_ymm);
+                    } else {
+                        vcvtneps2bf16(ymm, zmm);
+                        vmovdqu16(addr, r_ymm);
+                    }
                     break;
                 case data_type::s8: vpmovsdb(addr, r_zmm); break;
                 case data_type::u8: vpmovusdb(addr, r_zmm); break;
