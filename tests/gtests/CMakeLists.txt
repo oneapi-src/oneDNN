@@ -96,7 +96,6 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_matmul.cpp
                               test_resampling.cpp
                               test_reduction.cpp
-                              test_softmax_v2.cpp
                               )
 
 if(DNNL_CPU_RUNTIME STREQUAL "NONE")
@@ -237,7 +236,7 @@ endif()
 
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component(exe ${TEST_FILE} NAME_WE)
-    if(NOT ${exe} MATCHES "${skip_usm_pattern}" AND NOT DNNL_SYCL_CUDA)
+    if(NOT ${exe} MATCHES "${skip_usm_pattern}")
         register_gtest(${exe} ${TEST_FILE})
     endif()
 

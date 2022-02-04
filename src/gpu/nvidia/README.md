@@ -27,7 +27,7 @@ cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP \
 
 ## Memory
 
-Currently, only the buffer-based oneDNN API is supported for Nvidia backend.
+Both buffer-based  and USM-based oneDNN APIs are supported for Nvidia backend.
 
 ## Suported Data Types
 
