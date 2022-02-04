@@ -113,15 +113,6 @@ int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
 
 int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
 #ifdef DNNL_WITH_SYCL
-    if (is_nvidia_gpu(engine_)) {
-        // USM is not supported with Nvidia so ignore memory_kind and
-        // force SYCL buffers.
-        DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine_,
-                         dnnl_sycl_interop_buffer, handle_info.ptr),
-                CRIT);
-        return OK;
-    }
-
     if (handle_info.is_host_ptr) {
         // Ignore memory_kind with host pointers and force USM.
         DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine_,
