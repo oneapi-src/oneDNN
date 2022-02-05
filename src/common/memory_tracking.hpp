@@ -349,6 +349,7 @@ struct registry_t {
         assert(alignment > 0 && (alignment & (alignment - 1)) == 0);
         size_t capacity
                 = size + get_alignment(alignment) + buffer_protect_size();
+        assert(capacity < (SIZE_MAX + INT_MIN));
         offset_map_[key] = entry_t {size_, size, capacity, alignment};
 
         size_ += capacity;
@@ -428,6 +429,7 @@ struct registrar_t {
 
     void book(const key_t &key, size_t nelems, size_t data_size,
             size_t data_align = 0, size_t perf_align = default_alignment) {
+        assert(nelems < (SIZE_MAX + INT_MIN));
         if (data_align == 0) data_align = data_size;
         registry_.book(make_key(prefix_, key), nelems * data_size, data_align,
                 perf_align);
