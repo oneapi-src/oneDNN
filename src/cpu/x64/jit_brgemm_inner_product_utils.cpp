@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -946,7 +946,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_primitive_conf_t &jbgp) {
 
     size_t sc_size = sizeof(brgemm_batch_element_t);
-    size_t n_elems = jbgp.nthr * jbgp.adjusted_batch_size;
+    size_t n_elems = (size_t)jbgp.nthr * jbgp.adjusted_batch_size;
     if (jbgp.brg_type == brgemm_addr) {
         scratchpad.book(key_brgemm_primitive_batch, n_elems, sc_size, 64);
     }
@@ -993,11 +993,12 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 types::data_type_size(jbgp.src_dt));
     } else if (jbgp.use_buffer_a && jbgp.prop_kind == dnnl_backward_data) {
         scratchpad.book(key_brgemm_primitive_buffer_a,
-                jbgp.nthr * jbgp.os_block * jbgp.LDA,
+                (size_t)jbgp.nthr * jbgp.os_block * jbgp.LDA,
                 types::data_type_size(jbgp.dst_dt));
     } else if (jbgp.use_buffer_a) { // FWD
         scratchpad.book(key_brgemm_primitive_buffer_a,
-                jbgp.nthr * jbgp.LDA * jbgp.os_block * jbgp.nb_os_blocking,
+                (size_t)jbgp.nthr * jbgp.LDA * jbgp.os_block
+                        * jbgp.nb_os_blocking,
                 types::data_type_size(jbgp.src_dt));
     }
 
@@ -1005,13 +1006,13 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         int os_chunks
                 = div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
         scratchpad.book(key_brgemm_primitive_buffer_b,
-                jbgp.nthr * os_chunks * jbgp.gemm_batch_size * jbgp.os_block
-                        * jbgp.LDB,
+                (size_t)jbgp.nthr * os_chunks * jbgp.gemm_batch_size
+                        * jbgp.os_block * jbgp.LDB,
                 types::data_type_size(jbgp.dst_dt));
     }
 
     if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_data) {
-        int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
+        auto size_B = (size_t)jbgp.LDB * rnd_up(jbgp.K, 2);
 
         if (!jbgp.ip_bwd_d_global_b_transpose)
             scratchpad.book(key_brgemm_primitive_buffer_b,
@@ -1026,8 +1027,8 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     if (jbgp.prop_kind == dnnl_backward_weights && jbgp.with_bias
             && (jbgp.bia_dt == bf16 || jbgp.nthr_mb > 1)) {
         int nbuffers = jbgp.nthr_mb - (jbgp.bia_dt == f32);
-        scratchpad.book(key_iprod_bias_bf16_convert_wsp, nbuffers * jbgp.oc,
-                types::data_type_size(jbgp.acc_dt));
+        scratchpad.book(key_iprod_bias_bf16_convert_wsp,
+                (size_t)nbuffers * jbgp.oc, types::data_type_size(jbgp.acc_dt));
     }
 
     if (dnnl_thr_syncable() && jbgp.prop_kind == dnnl_backward_weights)
