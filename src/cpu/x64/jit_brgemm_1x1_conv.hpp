@@ -131,7 +131,6 @@ private:
     }
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[16];
-    std::unique_ptr<jit_brgemm_kernel_post_ops> kernels_po_[4];
     struct amx_palette_t {
         char p[AMX_PALETTE_SIZE];
     };
